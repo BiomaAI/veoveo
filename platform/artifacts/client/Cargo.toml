@@ -15,4 +15,4 @@ reqwest = { workspace = true, features = ["rustls-no-provider", "json", "query",
 serde_json.workspace = true
 tokio = { workspace = true, features = ["fs"] }
 tokio-util = { workspace = true, features = ["io"] }
-veoveo-mcp-contract = { workspace = true, default-features = false }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, default-features = false }

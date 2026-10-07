@@ -183,8 +183,8 @@ export function RecordingsView({
   const refreshPlaybackManifest = useCallback(async () => {
     if (!resolvedSelectedId || !manifest || refreshingManifest.current) return;
     const currentManifestState = manifest.state;
-    const currentArchiveRevision = manifest.archive?.catalog_revision;
-    const currentRecordingGrant = manifest.access.grant_id;
+    const currentArchiveRevision = manifest.archive?.catalogRevision;
+    const currentRecordingGrant = manifest.access.grantId;
     refreshingManifest.current = true;
     try {
       const value = await loadRecordingPlayback(resolvedSelectedId, {
@@ -193,10 +193,10 @@ export function RecordingsView({
       if (selectedRecordingRef.current !== resolvedSelectedId) return;
       if (
         value.state === currentManifestState &&
-        value.archive?.catalog_revision === currentArchiveRevision &&
-        value.access.grant_id === currentRecordingGrant &&
-        value.access.redap_token === manifest.access.redap_token &&
-        value.access.expires_at === manifest.access.expires_at
+        value.archive?.catalogRevision === currentArchiveRevision &&
+        value.access.grantId === currentRecordingGrant &&
+        value.access.redapToken === manifest.access.redapToken &&
+        value.access.expiresAt === manifest.access.expiresAt
       ) {
         return;
       }
@@ -236,32 +236,32 @@ export function RecordingsView({
   const playback = useMemo(() => {
     if (!manifest) return undefined;
     const liveRoute = manifest.live
-      ? recordingLiveRrdStreamRoute(manifest.recording_segment_id)
+      ? recordingLiveRrdStreamRoute(manifest.recordingSegmentId)
       : undefined;
     const receiver = selectExclusiveRerunPlaybackReceiver(
       requestedPlaybackMode,
       manifest.archive
         ? {
             uri: manifest.archive.uri,
-            revision: manifest.archive.catalog_revision,
+            revision: manifest.archive.catalogRevision,
           }
         : undefined,
       liveRoute
     );
     const source = receiver.receiver
       ? {
-          redapToken: manifest.access.redap_token,
+          redapToken: manifest.access.redapToken,
           receiver: receiver.receiver,
           blueprintUrl: manifest.blueprint
-            ? recordingBlueprintUrl(manifest.recording_segment_id, manifest.blueprint.revision)
+            ? recordingBlueprintUrl(manifest.recordingSegmentId, manifest.blueprint.revision)
             : undefined,
-          blueprintMapProvider: manifest.blueprint?.map_provider,
+          blueprintMapProvider: manifest.blueprint?.mapProvider,
         }
       : undefined;
     return {
       source,
       mode: receiver.mode,
-      viewerKey: `${manifest.recording_segment_id}:${receiver.mode}`,
+      viewerKey: `${manifest.recordingSegmentId}:${receiver.mode}`,
     };
   }, [manifest, requestedPlaybackMode]);
   const playbackSource = playback?.source;
@@ -275,7 +275,7 @@ export function RecordingsView({
 
   useEffect(() => {
     if (!manifest || !requiresPlaybackCredentialRenewal(playbackSource?.receiver)) return;
-    const remaining = Date.parse(manifest.access.expires_at) - Date.now();
+    const remaining = Date.parse(manifest.access.expiresAt) - Date.now();
     const delay = Math.max(1_000, remaining * RECORDING_GRANT_RENEWAL_FRACTION);
     const timeout = window.setTimeout(() => {
       void refreshPlaybackManifest();
@@ -466,8 +466,8 @@ export function RecordingsView({
                     )}
                     {playbackMode === "live" ? (
                       <span>
-                        Live · {manifest.live.history_seconds}s recent history plus{" "}
-                        {manifest.live.video_preroll_seconds}s video preroll
+                        Live · {manifest.live.historySeconds}s recent history plus{" "}
+                        {manifest.live.videoPrerollSeconds}s video preroll
                         {manifest.archive
                           ? " · switch to History for immutable archive"
                           : " · archive is not available yet"}
@@ -486,13 +486,13 @@ export function RecordingsView({
                     {manifest.archive ? (
                       <>
                         <span>
-                          {manifest.archive.layer_count} immutable layer
-                          {manifest.archive.layer_count === 1 ? "" : "s"} ·{" "}
-                          {formatBytes(manifest.archive.byte_len)} · RRD{" "}
-                          {manifest.archive.rrd_version} ·{" "}
-                          {manifest.archive.optimization_profile}
+                          {manifest.archive.layerCount} immutable layer
+                          {manifest.archive.layerCount === 1 ? "" : "s"} ·{" "}
+                          {formatBytes(manifest.archive.byteLen)} · RRD{" "}
+                          {manifest.archive.rrdVersion} ·{" "}
+                          {manifest.archive.optimizationProfile}
                         </span>
-                        <code>{manifest.archive.dataset_id}</code>
+                        <code>{manifest.archive.datasetId}</code>
                       </>
                     ) : (
                       <span>Waiting for the first immutable layer.</span>

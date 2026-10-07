@@ -21,5 +21,8 @@ veoveo-types.workspace = true
 veoveo-artifact-contract.workspace = true
 veoveo-frames-contract.workspace = true
 veoveo-gateway-contract.workspace = true
-veoveo-mcp-contract = { workspace = true, default-features = false, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, default-features = false, optional = true }
 veoveo-policy = { path = "../../policy", optional = true }
+
+[dev-dependencies]
+jsonschema.workspace = true

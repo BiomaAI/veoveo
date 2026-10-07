@@ -2,57 +2,57 @@
   "profiles": [
     {
       "id": "kubernetes-connected",
-      "installation_scope": "one_enterprise",
+      "installationScope": "one_enterprise",
       "connectivity": "connected",
-      "tenant_model": {
+      "tenantModel": {
         "kind": "internal_tenants",
-        "tenant_keys_are_installation_local": true,
-        "cross_tenant_access_denied_by_default": true
+        "tenantKeysAreInstallationLocal": true,
+        "crossTenantAccessDeniedByDefault": true
       },
-      "platform_store": {
+      "platformStore": {
         "engine": "surreal_db",
         "version": "3.3.0",
-        "storage_engine": "rocks_db",
+        "storageEngine": "rocks_db",
         "topology": "single_node",
-        "database_ha": "out_of_scope",
-        "durable_volume_required": true,
-        "changefeed_source_of_truth": "native_changefeed",
-        "live_queries": "changefeed_wake",
+        "databaseHa": "out_of_scope",
+        "durableVolumeRequired": true,
+        "changefeedSourceOfTruth": "native_changefeed",
+        "liveQueries": "changefeed_wake",
         "endpoint": "ws://veoveo-surrealdb:8000"
       },
-      "object_store": {
+      "objectStore": {
         "kind": "external_s3_compatible",
         "endpoint": "https://s3.enterprise.example",
         "bucket": "veoveo-artifacts",
-        "server_side_encryption_required": true,
-        "customer_managed_keys_supported": true
+        "serverSideEncryptionRequired": true,
+        "customerManagedKeysSupported": true
       },
-      "analytical_runtime": {
+      "analyticalRuntime": {
         "engine": "duck_db",
         "purpose": "isolated_analytical_workspace",
-        "arbitrary_sql": true,
-        "owner_scoped_workspaces": true,
-        "durable_platform_state": false,
-        "external_data_access": "governed_ingest_artifact_or_attach",
-        "container_sandbox_required": true
+        "arbitrarySql": true,
+        "ownerScopedWorkspaces": true,
+        "durablePlatformState": false,
+        "externalDataAccess": "governed_ingest_artifact_or_attach",
+        "containerSandboxRequired": true
       },
       "ingress": {
         "kind": "kubernetes_ingress",
-        "public_base_url": "https://veoveo.enterprise.example",
-        "tls_terminated": true
+        "publicBaseUrl": "https://veoveo.enterprise.example",
+        "tlsTerminated": true
       },
-      "identity_provider": {
+      "identityProvider": {
         "kind": "external_oidc",
         "issuer": "https://idp.enterprise.example",
-        "discovery_available_offline": false
+        "discoveryAvailableOffline": false
       },
-      "secret_manager": {
+      "secretManager": {
         "kind": "kubernetes_existing_secret",
-        "existing_secret_name": "veoveo-installation-secrets",
-        "rotation_owned_by_operator": true
+        "existingSecretName": "veoveo-installation-secrets",
+        "rotationOwnedByOperator": true
       },
-      "service_to_service": {
-        "gateway_identity": "gateway_signed_ed25519_jwt",
+      "serviceToService": {
+        "gatewayIdentity": "gateway_signed_ed25519_jwt",
         "transport": "service_mesh_mtls"
       },
       "telemetry": {
@@ -64,7 +64,7 @@
           "metrics",
           "audit_events"
         ],
-        "siem_export_supported": true
+        "siemExportSupported": true
       },
       "services": [
         "gateway",
@@ -80,66 +80,66 @@
         "telemetry_collector"
       ],
       "retention": {
-        "task_metadata_days": 90,
-        "artifact_metadata_days": 90,
-        "artifact_bytes_days": 90,
-        "usage_analytics_days": 365,
-        "audit_days": 365
+        "taskMetadataDays": 90,
+        "artifactMetadataDays": 90,
+        "artifactBytesDays": 90,
+        "usageAnalyticsDays": 365,
+        "auditDays": 365
       }
     },
     {
       "id": "kubernetes-offline",
-      "installation_scope": "one_enterprise",
+      "installationScope": "one_enterprise",
       "connectivity": "offline",
-      "tenant_model": {
+      "tenantModel": {
         "kind": "internal_tenants",
-        "tenant_keys_are_installation_local": true,
-        "cross_tenant_access_denied_by_default": true
+        "tenantKeysAreInstallationLocal": true,
+        "crossTenantAccessDeniedByDefault": true
       },
-      "platform_store": {
+      "platformStore": {
         "engine": "surreal_db",
         "version": "3.3.0",
-        "storage_engine": "rocks_db",
+        "storageEngine": "rocks_db",
         "topology": "single_node",
-        "database_ha": "out_of_scope",
-        "durable_volume_required": true,
-        "changefeed_source_of_truth": "native_changefeed",
-        "live_queries": "changefeed_wake",
+        "databaseHa": "out_of_scope",
+        "durableVolumeRequired": true,
+        "changefeedSourceOfTruth": "native_changefeed",
+        "liveQueries": "changefeed_wake",
         "endpoint": "ws://veoveo-surrealdb:8000"
       },
-      "object_store": {
+      "objectStore": {
         "kind": "rust_fs",
         "endpoint": "http://veoveo-rustfs:9000",
         "bucket": "artifact-plane",
-        "server_side_encryption_required": false,
-        "customer_managed_keys_supported": false
+        "serverSideEncryptionRequired": false,
+        "customerManagedKeysSupported": false
       },
-      "analytical_runtime": {
+      "analyticalRuntime": {
         "engine": "duck_db",
         "purpose": "isolated_analytical_workspace",
-        "arbitrary_sql": true,
-        "owner_scoped_workspaces": true,
-        "durable_platform_state": false,
-        "external_data_access": "governed_ingest_artifact_or_attach",
-        "container_sandbox_required": true
+        "arbitrarySql": true,
+        "ownerScopedWorkspaces": true,
+        "durablePlatformState": false,
+        "externalDataAccess": "governed_ingest_artifact_or_attach",
+        "containerSandboxRequired": true
       },
       "ingress": {
         "kind": "kubernetes_ingress",
-        "public_base_url": "https://veoveo.airgap.example",
-        "tls_terminated": true
+        "publicBaseUrl": "https://veoveo.airgap.example",
+        "tlsTerminated": true
       },
-      "identity_provider": {
+      "identityProvider": {
         "kind": "external_oidc",
         "issuer": "https://idp.airgap.example",
-        "discovery_available_offline": true
+        "discoveryAvailableOffline": true
       },
-      "secret_manager": {
+      "secretManager": {
         "kind": "kubernetes_existing_secret",
-        "existing_secret_name": "veoveo-installation-secrets",
-        "rotation_owned_by_operator": true
+        "existingSecretName": "veoveo-installation-secrets",
+        "rotationOwnedByOperator": true
       },
-      "service_to_service": {
-        "gateway_identity": "gateway_signed_ed25519_jwt",
+      "serviceToService": {
+        "gatewayIdentity": "gateway_signed_ed25519_jwt",
         "transport": "service_mesh_mtls"
       },
       "telemetry": {
@@ -151,7 +151,7 @@
           "metrics",
           "audit_events"
         ],
-        "siem_export_supported": true
+        "siemExportSupported": true
       },
       "services": [
         "gateway",
@@ -167,11 +167,11 @@
         "telemetry_collector"
       ],
       "retention": {
-        "task_metadata_days": 90,
-        "artifact_metadata_days": 90,
-        "artifact_bytes_days": 90,
-        "usage_analytics_days": 365,
-        "audit_days": 365
+        "taskMetadataDays": 90,
+        "artifactMetadataDays": 90,
+        "artifactBytesDays": 90,
+        "usageAnalyticsDays": 365,
+        "auditDays": 365
       }
     }
   ]

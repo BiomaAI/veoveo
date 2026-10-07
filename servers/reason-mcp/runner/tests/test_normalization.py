@@ -61,10 +61,23 @@ def test_normalize_events_drops_what_the_server_would_reject() -> None:
     raw = json.dumps(document)
     answer = normalize_events(raw, span, max_events=10, grounded_tracks={7})
     assert [event.label for event in answer.events] == ["first", "second"]
-    assert answer.events[1].track_ids == [7]
+    assert answer.events[1].trackIds == [7]
 
 
 def test_truncate_text_respects_utf8_boundaries() -> None:
     assert truncate_text("  plain  ", 100) == "plain"
     truncated = truncate_text("héllo wörld", 6)
     assert len(truncated.encode("utf-8")) <= 6
+
+
+def test_model_adapter_translates_external_track_names_to_owned_event_names():
+    answer = normalize_events(json.dumps({"events": [{"range": {"start": 1, "end": 2},
+        "label": "entry", "description": "car enters", "track_ids": [7]}]}),
+        IndexRange(start=0, end=3), max_events=1, grounded_tracks={7})
+    wire = answer.model_dump(mode="json")
+    assert wire["events"][0]["trackIds"] == [7]
+    assert "track_ids" not in wire["events"][0]
+    # This external model profile is explicitly track_ids, not an owner wire decoder.
+    assert normalize_events(json.dumps({"events": [{"range": {"start": 1, "end": 2},
+        "label": "entry", "description": "car enters", "trackIds": [7]}]}),
+        IndexRange(start=0, end=3), max_events=1, grounded_tracks={7}).events == []

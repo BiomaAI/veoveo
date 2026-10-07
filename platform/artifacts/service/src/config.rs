@@ -113,6 +113,7 @@ pub struct Config {
     pub bind: SocketAddr,
     pub public_base_url: String,
     pub platform_store: StoreConfig,
+    pub startup: crate::startup::ArtifactStartup,
     pub internal_token_issuer: TokenIssuer,
     pub allowed_audiences: Vec<ServerSlug>,
     pub internal_trust_bundle: GatewayInternalTrustBundle,
@@ -220,7 +221,9 @@ impl Config {
             }
         };
 
+        let startup = crate::startup::ArtifactStartup::from_env(&platform_store)?;
         Ok(Self {
+            startup,
             bind,
             public_base_url,
             platform_store,

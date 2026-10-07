@@ -1,5 +1,11 @@
 //! Real Helm rendering qualifies the core/configured boundary, without a cluster.
 mod support;
+mod gpu_fixture {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../fixtures/platform-selection/gpu_scheduling.rs"
+    ));
+}
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use serde_json::Value;
@@ -225,5 +231,79 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
     ensure!(
         String::from_utf8_lossy(&no_store.stderr).contains("requires component platform-store")
     );
+    Ok(())
+}
+
+#[test]
+fn typed_component_sets_render_through_native_chart_identity_adapter() -> Result<()> {
+    use std::collections::BTreeSet;
+    use veoveo_deploy_contract::{ComputerCapacity, InstallationPreset, PlatformComponent};
+    let mut selections = Vec::new();
+    for preset in [InstallationPreset::Full, InstallationPreset::Foundation] {
+        let selected = gpu_fixture::selection(preset).resolve()?;
+        selections.push(selected.components);
+    }
+    selections.push(BTreeSet::from([
+        PlatformComponent::Gateway,
+        PlatformComponent::PlatformStore,
+    ]));
+    selections.push(BTreeSet::from([
+        PlatformComponent::PlatformStore,
+        PlatformComponent::ObjectStore,
+        PlatformComponent::ArtifactService,
+        PlatformComponent::RecordingDataPlane,
+    ]));
+    selections.push(BTreeSet::from([
+        PlatformComponent::Gateway,
+        PlatformComponent::PlatformStore,
+        PlatformComponent::EmbeddingRuntime,
+        PlatformComponent::AgentRuntimeSupport,
+        PlatformComponent::Telemetry,
+    ]));
+    for selected in selections {
+        let option = format!(
+            "components={}",
+            serde_json::to_string(
+                &selected
+                    .iter()
+                    .map(|component| component.helm_value())
+                    .collect::<Vec<_>>()
+            )?
+        );
+        let capacity = format!(
+            "computerCapacity={}",
+            ComputerCapacity::Unconfigured.helm_value()
+        );
+        let rendered = objects(render(&[
+            "--set",
+            "installationPreset=custom",
+            "--set-string",
+            &capacity,
+            "--set-json",
+            &option,
+            "--set-json",
+            "mcpServers=[]",
+        ]))?;
+        ensure!(
+            !rendered.is_empty(),
+            "selected component render must emit objects"
+        );
+        let wrong = format!("components={}", serde_json::to_string(&selected)?);
+        if wrong != option {
+            let refused = render(&[
+                "--set",
+                "installationPreset=custom",
+                "--set-json",
+                &wrong,
+                "--set-json",
+                "mcpServers=[]",
+            ]);
+            ensure!(
+                !refused.status.success(),
+                "chart must refuse public wire vocabulary used as native identity"
+            );
+            ensure!(String::from_utf8_lossy(&refused.stderr).contains("components"));
+        }
+    }
     Ok(())
 }

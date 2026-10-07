@@ -12,14 +12,14 @@ pub struct RecordingCatalogCursor {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct Position {
     started_at: DateTime<Utc>,
     recording_id: RecordingId,
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct Envelope {
     version: u8,
     collection: String,
@@ -37,7 +37,7 @@ impl veoveo_types::CursorCodec for RecordingCatalogCursorCodec {
     }
     fn encode(&self, position: &Position) -> Result<String, RecordingContractError> {
         let bytes = serde_json::to_vec(&Envelope {
-            version: 1,
+            version: 2,
             collection: crate::uris::CATALOG_URI.to_owned(),
             position: position.clone(),
         })
@@ -51,7 +51,7 @@ impl veoveo_types::CursorCodec for RecordingCatalogCursorCodec {
         let bytes = hex::decode(wire).map_err(|_| RecordingContractError::Cursor)?;
         let value: Envelope =
             serde_json::from_slice(&bytes).map_err(|_| RecordingContractError::Cursor)?;
-        if value.version != 1 || value.collection != crate::uris::CATALOG_URI {
+        if value.version != 2 || value.collection != crate::uris::CATALOG_URI {
             return Err(RecordingContractError::Cursor);
         }
         if self.encode(&value.position)? != wire {

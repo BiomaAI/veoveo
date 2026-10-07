@@ -6,6 +6,7 @@ use clap::{Parser, Subcommand};
 mod component_scope;
 mod flux_cancellation;
 mod gitops;
+mod gpu_allocation;
 mod helm_config;
 mod module_installation;
 
@@ -21,6 +22,23 @@ struct Args {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    GpuAllocationVerify {
+        /// Kubernetes context containing the exclusive multi-GPU node.
+        #[arg(long)]
+        context: String,
+        /// Exact node name with at least two allocatable physical NVIDIA GPUs.
+        #[arg(long)]
+        node: String,
+        /// Digest-pinned CUDA-capable image containing bash, printenv, and nvidia-smi.
+        #[arg(long)]
+        image: String,
+        /// NVIDIA RuntimeClass used by GPU workloads.
+        #[arg(long, default_value = "nvidia")]
+        runtime_class_name: String,
+        /// Maximum time for both probe pods to receive ready allocations.
+        #[arg(long, default_value_t = 300)]
+        timeout_seconds: u64,
+    },
     /// Render and validate Helm, image packaging, and GitOps configuration.
     HelmConfig,
     /// Verify the pinned gateway image and installed module Job lifecycle in isolation.
@@ -107,6 +125,19 @@ enum Command {
 
 fn run() -> Result<()> {
     match Args::parse().command {
+        Command::GpuAllocationVerify {
+            context,
+            node,
+            image,
+            runtime_class_name,
+            timeout_seconds,
+        } => gpu_allocation::gpu_allocation_verify(
+            &context,
+            &node,
+            &image,
+            &runtime_class_name,
+            std::time::Duration::from_secs(timeout_seconds),
+        ),
         Command::HelmConfig => helm_config::helm_config(),
         Command::ModuleInstallationVerify(args) => module_installation::verify(args),
         Command::GitopsCancelVerify(args) => flux_cancellation::verify(args),

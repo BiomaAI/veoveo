@@ -11,7 +11,7 @@ fn analysis() -> AnalysisId {
 #[test]
 fn finding_addresses_preserve_collection_and_reject_ambiguous_routes() {
     let time = "2026-10-01T00:00:00Z".parse().unwrap();
-    for collection in FindingCollection::ALL {
+    for collection in FindingCollection::ALL.iter().copied() {
         let cursor = FindingCursor::new(collection, time, analysis());
         let page = FindingResource::Page {
             cursor: cursor.clone(),
@@ -89,10 +89,10 @@ fn summaries_bound_unicode_and_preserve_full_result_provenance() {
     assert!(excerpt.text().len() <= 4096);
     assert!("交通🚘".repeat(2000).starts_with(excerpt.text()));
     let wire = serde_json::to_value(&summary).unwrap();
-    assert_eq!(wire["result_artifact"], artifact.plane_uri().to_string());
-    assert_eq!(wire["confidence_basis"], "model_reported");
-    assert_eq!(wire["model_digest"], results.model_digest.unwrap());
-    assert_eq!(wire["prompt_revision"], "traffic-v1");
+    assert_eq!(wire["resultArtifact"], artifact.plane_uri().to_string());
+    assert_eq!(wire["confidenceBasis"], "model_reported");
+    assert_eq!(wire["modelDigest"], results.model_digest.unwrap());
+    assert_eq!(wire["promptRevision"], "traffic-v1");
     assert!(serde_json::to_vec(&summary).unwrap().len() <= FINDING_SUMMARY_BYTES);
 }
 
@@ -161,7 +161,7 @@ fn decoded_summaries_reject_conflicting_identity_collection_and_bounds() {
     assert!(serde_json::from_value::<FindingSummary>(original.clone()).is_ok());
     for (pointer, replacement) in [
         (
-            "/analysis_id",
+            "/analysisId",
             serde_json::json!("01983da0-0000-7000-8000-000000000099"),
         ),
         (
@@ -175,9 +175,9 @@ fn decoded_summaries_reject_conflicting_identity_collection_and_bounds() {
                 analysis: analysis()
             }),
         ),
-        ("/modified_at", serde_json::json!("2020-01-01T00:00:00Z")),
+        ("/modifiedAt", serde_json::json!("2020-01-01T00:00:00Z")),
         ("/content/excerpt/text", serde_json::json!("x".repeat(4097))),
-        ("/requested_range/end", serde_json::json!(-1)),
+        ("/requestedRange/end", serde_json::json!(-1)),
     ] {
         let mut wire = original.clone();
         *wire.pointer_mut(pointer).unwrap() = replacement;
@@ -201,9 +201,9 @@ fn retained_findings_reject_invalid_content_and_unbounded_provenance() {
     for (pointer, replacement) in [
         ("/answer/kind", serde_json::json!("description")),
         ("/answer/excerpt/text", serde_json::json!("x".repeat(4097))),
-        ("/requested_range/end", serde_json::json!(-1)),
+        ("/requestedRange/end", serde_json::json!(-1)),
         (
-            "/prompt_revision",
+            "/promptRevision",
             serde_json::json!("x".repeat(FINDING_DATA_BYTES)),
         ),
     ] {
@@ -226,15 +226,15 @@ fn full_reason_results_admit_each_answer_and_reject_detached_source_and_task() {
     for (pointer, value) in [
         ("/schema", serde_json::json!("unsupported")),
         (
-            "/recording_uri",
+            "/recordingUri",
             serde_json::json!("recording://recordings/01983da0-0000-7000-8000-000000000001"),
         ),
-        ("/entity_path", serde_json::json!("relative")),
+        ("/entityPath", serde_json::json!("relative")),
         ("/task/kind", serde_json::json!("detect_events")),
         ("/answer/text", serde_json::json!(" ")),
         (
             "/decode",
-            serde_json::json!({"mode":"sampled","temperature":0.0,"top_p":0.5,"seed":1}),
+            serde_json::json!({"mode":"sampled","temperature":0.0,"topP":0.5,"seed":1}),
         ),
     ] {
         let mut bad = original.clone();
@@ -289,7 +289,7 @@ fn full_result_construction_and_json_bytes_reject_zero_observation_success() {
     draft.observed_frames = 0;
     assert!(draft.build().is_err());
     let mut wire = serde_json::to_value(&valid).unwrap();
-    wire["observed_frames"] = serde_json::json!(0);
+    wire["observedFrames"] = serde_json::json!(0);
     assert!(
         serde_json::from_slice::<ReasoningResults>(&serde_json::to_vec(&wire).unwrap()).is_err()
     );

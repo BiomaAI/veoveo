@@ -123,8 +123,19 @@ impl RecordingRepository {
             ))
             .bind(("blueprint", blueprint_id.record_id()))
             .bind(("content", content))
+            .bind((
+                "publication",
+                crate::persistence::manifest_publication::publication_record_id(
+                    commit.draft.recording_id,
+                ),
+            ))
             .await
-            .and_then(|response| response.check());
+            .and_then(|mut response| {
+                match veoveo_platform_store::primary_transaction_error(response.take_errors()) {
+                    Some(error) => Err(error),
+                    None => Ok(response),
+                }
+            });
         if let Err(error) = created {
             if let Some(existing) = self
                 .recording_blueprint_revision(
@@ -214,12 +225,6 @@ impl RecordingRepository {
             .recording(identity.tenant_id, recording_id)
             .await?
             .ok_or_else(|| RecordingStoreError::RecordingNotFound(recording_id.to_string()))?;
-        if recording.state != RecordingState::Sealing {
-            return Err(RecordingStoreError::InvalidRecordingIngestField {
-                field: "blueprint_artifact",
-                reason: "recording must be sealing",
-            });
-        }
         let blueprint = self
             .recording_blueprint_revision(identity.tenant_id, recording_id, revision)
             .await?
@@ -232,14 +237,31 @@ impl RecordingRepository {
         if blueprint.artifact.is_some() {
             return Err(RecordingStoreError::RecordingBlueprintRevisionConflict { revision });
         }
+        if recording.state != RecordingState::Sealing {
+            return Err(RecordingStoreError::InvalidRecordingIngestField {
+                field: "blueprint_artifact",
+                reason: "recording must be sealing",
+            });
+        }
         self.client()
             .query(include_str!(
                 "queries/recording_blueprints/stage_recording_blueprint_artifact.surql"
             ))
             .bind(("blueprint", blueprint.id.clone()))
+            .bind(("recording", recording_id.record_id()))
+            .bind(("tenant", identity.tenant_id.record_id()))
+            .bind((
+                "publication",
+                crate::persistence::manifest_publication::publication_record_id(recording_id),
+            ))
             .bind(("artifact", artifact_id.record_id()))
-            .await?
-            .check()?;
+            .await
+            .and_then(|mut response| {
+                match veoveo_platform_store::primary_transaction_error(response.take_errors()) {
+                    Some(error) => Err(error),
+                    None => Ok(response),
+                }
+            })?;
         let staged = self
             .recording_blueprint_revision(identity.tenant_id, recording_id, revision)
             .await?

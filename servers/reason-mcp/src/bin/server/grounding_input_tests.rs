@@ -8,19 +8,19 @@ const CAPABILITY: &str = "01983da0-0000-7000-8000-000000000002";
 fn artifact() -> ArtifactObject {
     ArtifactObject {
         metadata: serde_json::from_value(json!({
-            "artifact_id": ID, "artifact_uri": format!("artifact://{ID}"),
-            "byte_len": 1, "created_at": "2026-09-28T00:00:00Z",
-            "compliance": {"classification":"restricted", "data_labels":["grounding-label"]}
+            "artifactId": ID, "artifactUri": format!("artifact://{ID}"),
+            "byteLen": 1, "createdAt": "2026-09-28T00:00:00Z",
+            "compliance": {"classification":"restricted", "dataLabels":["grounding-label"]}
         }))
         .unwrap(),
-        bytes: include_bytes!("../../../../stream-mcp/testdata/replay-results-v1.json").to_vec(),
+        bytes: include_bytes!("../../../../stream-mcp/testdata/replay-results-v2.json").to_vec(),
     }
 }
 
 fn selection() -> RecordingVideoSelection {
     serde_json::from_value(json!({
-        "recording_uri":"recording://recordings/01983da0-0000-7000-8000-000000000000",
-        "entity_path":"/camera/front", "timeline":"sensor_time", "range":{"start":10,"end":20}
+        "recordingUri":"recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entityPath":"/camera/front", "timeline":"sensor_time", "range":{"start":10,"end":20}
     }))
     .unwrap()
 }

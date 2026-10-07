@@ -9,7 +9,7 @@ use veoveo_gateway_contract::{SecretPurpose, SecretReferenceId};
 use veoveo_types::{ScopeName, Sha256Digest, TenantId, WorkContextId};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModelConnection {
     pub id: wire::AgentModelId,
     pub name: String,
@@ -142,8 +142,8 @@ mod tests {
     fn agent_model_identity_survives_shared_configuration_extraction() {
         let model: ModelConnection = serde_json::from_value(serde_json::json!({
             "id":"approved", "name":"Approved model", "provider":"Fixture", "tenant":"test",
-            "work_contexts":["shared"], "base_url":"https://provider.test/v1", "model":"model",
-            "api_key":"fixture-secret", "limits":{"maxOutputTokens":128,"maxCompletionCalls":4,"maxToolCalls":8,"deadlineSeconds":120}
+            "workContexts":["shared"], "baseUrl":"https://provider.test/v1", "model":"model",
+            "apiKey":"fixture-secret", "limits":{"maxOutputTokens":128,"maxCompletionCalls":4,"maxToolCalls":8,"deadlineSeconds":120}
         })).unwrap();
         assert_eq!(
             model.revision().hex(),
@@ -155,8 +155,8 @@ mod tests {
     fn model_validation_and_public_projection_keep_installation_restrictions() {
         let model: ModelConnection = serde_json::from_value(serde_json::json!({
             "id":"approved", "name":"Approved model", "provider":"Fixture", "tenant":"test",
-            "work_contexts":["shared"], "required_scopes":["operator:use"], "base_url":"https://provider.test/v1", "model":"model",
-            "api_key":"fixture-secret", "limits":{"maxOutputTokens":128,"maxCompletionCalls":4,"maxToolCalls":8,"deadlineSeconds":120}
+            "workContexts":["shared"], "requiredScopes":["operator:use"], "baseUrl":"https://provider.test/v1", "model":"model",
+            "apiKey":"fixture-secret", "limits":{"maxOutputTokens":128,"maxCompletionCalls":4,"maxToolCalls":8,"deadlineSeconds":120}
         })).unwrap();
         let facts = InstallationFacts::new(
             [("shared".parse().unwrap(), "test".parse().unwrap())],
@@ -198,11 +198,11 @@ mod tests {
         assert!(validate_model_connections(&[unlimited], &facts).is_err());
         let public = serde_json::to_value(model.public()).unwrap();
         for private in [
-            "api_key",
             "apiKey",
-            "base_url",
+            "apiKey",
             "baseUrl",
-            "work_contexts",
+            "baseUrl",
+            "workContexts",
             "tenant",
         ] {
             assert!(public.get(private).is_none());
@@ -254,5 +254,37 @@ mod tests {
         );
         data.insert("z".into(), "changed".into());
         assert_ne!(runtime_config_revision(&data), original);
+    }
+    #[test]
+    fn model_connection_wire_refuses_retired_and_mixed_keys() {
+        let current = serde_json::json!({"id":"approved","name":"Approved","provider":"fixture","tenant":"tenant-a","workContexts":["shared"],"requiredScopes":[],"baseUrl":"https://provider.test/v1","model":"model","apiKey":"provider_key","limits":{"maxOutputTokens":128,"maxCompletionCalls":2,"maxToolCalls":3,"deadlineSeconds":60}});
+        serde_json::from_value::<ModelConnection>(current.clone()).unwrap();
+        for (parent, key, old) in [
+            ("", "workContexts", "work_contexts"),
+            ("", "requiredScopes", "required_scopes"),
+            ("", "baseUrl", "base_url"),
+            ("", "apiKey", "api_key"),
+            ("/limits", "maxOutputTokens", "max_output_tokens"),
+            ("/limits", "maxCompletionCalls", "max_completion_calls"),
+            ("/limits", "maxToolCalls", "max_tool_calls"),
+            ("/limits", "deadlineSeconds", "deadline_seconds"),
+        ] {
+            for keep in [false, true] {
+                let mut bad = current.clone();
+                let object = bad.pointer_mut(parent).unwrap().as_object_mut().unwrap();
+                object.insert(old.into(), object[key].clone());
+                if !keep {
+                    object.remove(key);
+                }
+                assert!(
+                    serde_json::from_value::<ModelConnection>(bad.clone()).is_err(),
+                    "{parent}/{old} mixed={keep}"
+                );
+                assert!(
+                    serde_json::from_slice::<ModelConnection>(&serde_json::to_vec(&bad).unwrap())
+                        .is_err()
+                );
+            }
+        }
     }
 }

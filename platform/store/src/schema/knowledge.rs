@@ -14,11 +14,18 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             OwnershipClaim::Analyzer(AnalyzerName::new("knowledge_text")?),
             OwnershipClaim::TablePrefix(TablePrefix::new("knowledge_")?),
         ])
-        .lane(MigrationLane::new(vec![veoveo_modules::Migration::new(
-            veoveo_modules::MigrationVersion::new(0),
-            veoveo_modules::MigrationName::new("current")?,
-            CURRENT_SCHEMA,
-        )?])?)
+        .lane(MigrationLane::new(vec![
+            veoveo_modules::Migration::new(
+                veoveo_modules::MigrationVersion::new(0),
+                veoveo_modules::MigrationName::new("current")?,
+                CURRENT_SCHEMA,
+            )?,
+            veoveo_modules::Migration::new(
+                veoveo_modules::MigrationVersion::new(1),
+                veoveo_modules::MigrationName::new("observation_policy")?,
+                include_str!("knowledge/migrations/0001_observation_policy.surql"),
+            )?,
+        ])?)
         .execution(execution)
         .requires(vec![LaneRequirement::Satisfied(ModuleName::new("audit")?)])
         .build()

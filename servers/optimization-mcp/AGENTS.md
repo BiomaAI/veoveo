@@ -30,7 +30,7 @@ run, solution, and evidence resources.
   or optional GPU mode.
 - The Rust container owns the MCP contract, compilation, identity, tasks,
   artifacts, and verification. The Python sidecar owns only private cuOpt and
-  CUDA execution through `veoveo.ai/cuopt-executor/v1`.
+  CUDA execution through `veoveo.ai/cuopt-executor/v2`.
 - Map owns travel feasibility and `map://travel-model` resources. Optimization
   consumes only an attested immutable travel-model artifact or explicit inline
   matrices.
@@ -41,7 +41,7 @@ run, solution, and evidence resources.
   arbitrary quadratic input is convex or independently reproduce an
   optimality proof.
 - Solver output is advisory. No code path actuates routes or decisions.
-- A solve publishes one top-level canonical `result_uri`, one result resource
+- A solve publishes one top-level canonical `resultUri`, one result resource
   link, and identity-free status text. Verification does not invent a product.
 - Dynamic indexes, completion search, and usage discovery stay bounded at the
   authoritative store. Exact reads never scan the full task collection.
@@ -84,7 +84,9 @@ It must exercise health, routing, convex LP, and MILP through the Rust client.
 
 ## Contract Compliance
 
-Contract revision: 3
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met
@@ -118,3 +120,5 @@ Contract revision: 3
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C31: pending — checked MCP setup is implemented; installed readiness qualification remains
 - C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

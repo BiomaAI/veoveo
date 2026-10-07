@@ -1799,6 +1799,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror",
  "url",
  "uuid",
@@ -1870,6 +1871,7 @@ dependencies = [
  "veoveo-recording-mcp",
  "veoveo-recording-video",
  "veoveo-stream-mcp",
+ "veoveo-task-contract",
  "veoveo-types",
 ]
 
@@ -1975,6 +1977,16 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-recording-mcp",
  "veoveo-recording-video",
+ "veoveo-task-contract",
+ "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-task-contract"
+version = "0.1.0"
+dependencies = [
+ "schemars",
+ "serde",
  "veoveo-types",
 ]
 

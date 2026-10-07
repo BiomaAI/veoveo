@@ -623,7 +623,7 @@ copies with Cargo hash names and a single hard link, and older incremental varia
 while retaining the newest variant for each crate. It preserves running executables,
 current executable hard links, dependency libraries, and recent output. The JSON report
 lists candidates and estimates reclaimable blocks after accounting for hard links.
-Its `veoveo.ai/cargo-cache-maintenance/v2` report records the retention window in hours.
+Its `veoveo.ai/cargo-cache-maintenance/v3` report records the retention window in hours.
 
 This is host Cargo maintenance. It does not prune BuildKit state, Docker images,
 registry artifacts, Kubernetes storage, or another worktree’s target directory.

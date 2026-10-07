@@ -6,7 +6,7 @@ use super::{PipelineId, RunId, RunRecordingOutput, RunResultsUri, RunUri, Stream
 
 #[derive(Clone, Debug)]
 pub struct RunDetails {
-    pub status: String,
+    pub status: veoveo_task_contract::TaskStatus,
     pub progress: f64,
     pub recording_uri: veoveo_recording_mcp::contract::RecordingUri,
     pub entity_path: String,
@@ -16,6 +16,7 @@ pub struct RunDetails {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(try_from = "RunViewWire", into = "RunViewWire")]
 pub struct RunView {
     id: RunId,
@@ -54,9 +55,99 @@ impl RunView {
                     "run output pipeline",
                 ));
             }
+            let metadata: super::StreamArtifactMetadata =
+                serde_json::from_value(output.results_artifact.metadata.clone())
+                    .map_err(|_| StreamContractError::InvalidRelationship("run output source"))?;
+            match metadata.provenance {
+                super::StreamArtifactProvenance::Results { recording_id, .. }
+                    if recording_id == self.details.recording_uri.id() => {}
+                _ => {
+                    return Err(StreamContractError::InvalidRelationship(
+                        "run output recording",
+                    ));
+                }
+            }
+            if let Some(clip) = &output.source_clip_artifact {
+                let metadata: super::StreamArtifactMetadata =
+                    serde_json::from_value(clip.metadata.clone())
+                        .map_err(|_| StreamContractError::InvalidRelationship("run clip source"))?;
+                match metadata.provenance {
+                    super::StreamArtifactProvenance::SourceClip {
+                        entity_path,
+                        timeline,
+                        ..
+                    } if entity_path == self.details.entity_path
+                        && timeline == self.details.timeline => {}
+                    _ => {
+                        return Err(StreamContractError::InvalidRelationship(
+                            "run clip entity and timeline",
+                        ));
+                    }
+                }
+            }
         }
         self.output = output;
         Ok(self)
+    }
+
+    /// Bind an admitted replay to this Task's selected source and actual Artifact occurrence.
+    pub fn check_replay(
+        &self,
+        selected: &super::RecordingVideoSelection,
+        artifact: &veoveo_artifact_contract::ArtifactMetadata,
+        results: &super::AnalysisResults,
+    ) -> Result<(), StreamContractError> {
+        use super::{StreamArtifactMetadata, StreamArtifactProvenance};
+        let invalid = || StreamContractError::InvalidRelationship("replay source and Artifact");
+        let output = self.output().ok_or_else(invalid)?;
+        let owned: StreamArtifactMetadata =
+            serde_json::from_value(artifact.metadata.clone()).map_err(|_| invalid())?;
+        let StreamArtifactProvenance::Results {
+            run_id,
+            recording_id,
+            pipeline_id,
+            model_id,
+            source_snapshot_sha256,
+        } = owned.provenance
+        else {
+            return Err(invalid());
+        };
+        let detection_count = results
+            .frames
+            .iter()
+            .try_fold(0_u64, |count, frame| {
+                count.checked_add(frame.detections.len() as u64)
+            })
+            .ok_or_else(invalid)?;
+        if selected.recording_uri != self.details.recording_uri
+            || selected.entity_path != self.details.entity_path
+            || selected.timeline != self.details.timeline
+            || artifact.artifact_uri != output.results_artifact.artifact_uri
+            || artifact.metadata != output.results_artifact.metadata
+            || run_id != self.task_id()
+            || pipeline_id != *self.pipeline_id()
+            || pipeline_id != results.pipeline_id
+            || model_id != results.model_id
+            || model_id != *output.model_uri.id()
+            || recording_id != selected.recording_uri.id()
+            || results.recording_uri != selected.recording_uri
+            || results.entity_path != selected.entity_path
+            || results.timeline != selected.timeline
+            || results.requested_range != selected.range
+            || results
+                .source_snapshot
+                .digest_sha256()
+                .map_err(|_| invalid())?
+                != source_snapshot_sha256
+            || results.processed_frames != output.summary.processed_frames
+            || detection_count != output.summary.detection_count
+            || results.elapsed_ms != output.summary.elapsed_ms
+            || results.requested_range.start != output.summary.requested_start_index
+            || results.requested_range.end != output.summary.requested_end_index
+        {
+            return Err(invalid());
+        }
+        Ok(())
     }
 
     pub fn with_error(mut self, error: Option<String>) -> Self {
@@ -91,11 +182,12 @@ impl RunView {
 
 // Keep the admitted flat JSON profile while storing each identity only once.
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RunViewWire {
     run_uri: RunUri,
     results_uri: RunResultsUri,
     task_id: RunId,
-    status: String,
+    status: veoveo_task_contract::TaskStatus,
     progress: f64,
     pipeline_id: PipelineId,
     recording_uri: veoveo_recording_mcp::contract::RecordingUri,

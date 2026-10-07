@@ -18,15 +18,15 @@ export function toolValue(name,value,args={}) {
   const admitted=admit(root,value);
   if(root==="view") {
     const view=admit("view",value);
-    if(args.view_id && view.view_id!==args.view_id) throw new Error("View result belongs to another view");
-    if(args.composition_id && view.composition_id!==args.composition_id) throw new Error("View result belongs to another composition");
-    if(view.view_uri!==new URL(encodeURIComponent(view.view_id),"view://view/").href) throw new Error("View address disagrees with identity");
+    if(args.viewId && view.viewId!==args.viewId) throw new Error("View result belongs to another view");
+    if(args.compositionId && view.compositionId!==args.compositionId) throw new Error("View result belongs to another composition");
+    if(view.viewUri!==new URL(encodeURIComponent(view.viewId),"view://view/").href) throw new Error("View address disagrees with identity");
   }
   if(root==="frame") {
     const frame=admit("frame",value);
-    if(args.view_id && frame.view_id!==args.view_id) throw new Error("Frame belongs to another view");
-    if(args.expected_revision!==undefined && frame.view_revision!==args.expected_revision) throw new Error("Frame revision differs from requested view");
-    if(args.composition_id && frame.composition_id!==args.composition_id) throw new Error("Frame belongs to another composition");
+    if(args.viewId && frame.viewId!==args.viewId) throw new Error("Frame belongs to another view");
+    if(args.expectedRevision!==undefined && frame.viewRevision!==args.expectedRevision) throw new Error("Frame revision differs from requested view");
+    if(args.compositionId && frame.compositionId!==args.compositionId) throw new Error("Frame belongs to another composition");
   }
   return /** @type {import("./generated/view").AppContracts[(typeof tools)[N]]} */ (admitted);
 }
@@ -43,6 +43,6 @@ export function resourceValue(uri,value,expectedRoot) {
   if(!root) throw new Error("Unknown App resource contract");
   if(expectedRoot && root!==expectedRoot) throw new Error("Resource route differs from declared root");
   const admitted=admit(root,value);
-  if(parts[0] && (root==="view"?admit("view",value).view_id:admit("scene",value).view_id)!==parts[0]) throw new Error("Resource belongs to another view");
+  if(parts[0] && (root==="view"?admit("view",value).viewId:admit("scene",value).viewId)!==parts[0]) throw new Error("Resource belongs to another view");
   return /** @type {import("./generated/view").AppContracts[K]} */ (admitted);
 }

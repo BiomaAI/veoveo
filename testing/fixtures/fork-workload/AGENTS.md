@@ -33,7 +33,9 @@ NVIDIA GPU plus a headed hardware-backed browser.
 
 ## Contract Compliance
 
-Contract revision: 3.
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met
@@ -65,4 +67,7 @@ Contract revision: 3.
 - C28: met
 - C29: met
 - C30: met
+- C31: pending — The isolated Python fixture has not completed installed Discover/list readiness qualification.
 - C32: pending — shared Python docs observations and build digests are wired; installed qualification remains
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

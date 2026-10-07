@@ -18,6 +18,7 @@ impl std::error::Error for GeometryError {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct Wgs84Position {
     pub longitude_deg: f64,
     pub latitude_deg: f64,
@@ -65,6 +66,7 @@ impl Wgs84Position {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ProjectedPosition {
     pub crs: CrsId,
     pub x: f64,
@@ -83,7 +85,11 @@ impl ProjectedPosition {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 pub enum MapPosition {
     Wgs84(Wgs84Position),
     Projected(ProjectedPosition),
@@ -100,6 +106,7 @@ impl MapPosition {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct Wgs84LineString {
     pub coordinates: Vec<Wgs84Position>,
 }
@@ -129,6 +136,7 @@ impl Wgs84LineString {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct Wgs84Polygon {
     pub exterior: Vec<Wgs84Position>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -176,6 +184,7 @@ fn ring_to_geo(ring: &[Wgs84Position]) -> LineString<f64> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct Wgs84BoundingBox {
     pub west: f64,
     pub south: f64,

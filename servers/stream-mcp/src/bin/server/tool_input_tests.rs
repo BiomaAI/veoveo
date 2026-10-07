@@ -17,10 +17,10 @@ async fn unknown_tool_arguments_complete_before_recording_or_runner_access() {
             id:"preview".parse().unwrap(),title:"Preview".into(),description:String::new(),
             profile:veoveo_stream_mcp::catalog::PipelineProfileConfig::PassThrough,recording_replay:None,
             live:Some(serde_json::from_value(json!({
-                "input_width":640,"input_height":480,"codec":"avc1.42e01f","frame_rate":30,"expected_bitrate_bps":4000000,
-                "ingress":{"advertised_host":"stream-mcp","port":9001,"payload_type":97,"clock_rate":90000},
+                "inputWidth":640,"inputHeight":480,"codec":"avc1.42e01f","frameRate":30,"expectedBitrateBps":4000000,
+                "ingress":{"advertisedHost":"stream-mcp","port":9001,"payloadType":97,"clockRate":90000},
                 "graph":{"launch":"udpsrc name=source ! h264parse ! identity name=encoded-output ! fakesink",
-                    "source_element":"source","encoded_output_element":"encoded-output"}
+                    "sourceElement":"source","encodedOutputElement":"encoded-output"}
             })).unwrap()),
         }]).unwrap());
         let live = Arc::new(LiveSessionManager::new(catalog.clone(),root.path().join("unavailable-runner"),
@@ -42,9 +42,9 @@ async fn unknown_tool_arguments_complete_before_recording_or_runner_access() {
         let discover = gateway.rpc("server/discover",json!({})).await;
         assert!(discover.get("error").is_none(), "{discover}");
         let mut arguments = json!({"video":{
-            "recording_uri":"recording://recordings/01983da0-0000-7000-8000-000000000000",
-            "entity_path":"/camera/front","timeline":"sensor_time","range":{"start":10,"end":20}
-        },"pipeline_id":"preview"});
+            "recordingUri":"recording://recordings/01983da0-0000-7000-8000-000000000000",
+            "entityPath":"/camera/front","timeline":"sensor_time","range":{"start":10,"end":20}
+        },"pipelineId":"preview"});
         let _:RunRecordingRequest = serde_json::from_value(arguments.clone()).unwrap();
         arguments["undeclared"] = true.into();
         let body = gateway.rpc("tools/call",json!({"name":"run_recording","arguments":arguments})).await;
@@ -53,6 +53,25 @@ async fn unknown_tool_arguments_complete_before_recording_or_runner_access() {
         let result:rmcp::model::CallToolResult = serde_json::from_value(body["result"].clone()).unwrap();
         assert_eq!(result.is_error,Some(true));
         assert!(serde_json::to_string(&result.content).unwrap().contains("undeclared"));
+        let current = json!({"video":{
+            "recordingUri":"recording://recordings/01983da0-0000-7000-8000-000000000000",
+            "entityPath":"/camera/front","timeline":"sensor_time","range":{"start":10,"end":20}
+        },"pipelineId":"preview","includeSourceClip":false});
+        for (pointer, field, retired) in [("", "pipelineId", "pipeline_id"), ("", "includeSourceClip", "include_source_clip"),
+            ("/video", "recordingUri", "recording_uri"), ("/video", "entityPath", "entity_path")] {
+            for mode in 0..3 {
+                let mut invalid = current.clone();
+                let object = invalid.pointer_mut(pointer).unwrap().as_object_mut().unwrap();
+                let value = if mode == 2 { json!("retired-conflict") } else { object[field].clone() };
+                if mode == 0 { object.remove(field); }
+                object.insert(retired.into(), value);
+                let body = gateway.rpc("tools/call",json!({"name":"run_recording","arguments":invalid})).await;
+                let result: rmcp::model::CallToolResult = serde_json::from_value(body["result"].clone()).unwrap();
+                assert_eq!(result.is_error, Some(true), "{pointer}/{retired} mode {mode}: {body}");
+                assert!(state.tasks.list().await.unwrap().is_empty());
+                assert_eq!(state.work_slots.available_permits(),1);
+            }
+        }
         let cases = input_fixture::ToolInputCase::load(include_bytes!("../../../testdata/controlled-inputs.json"));
         assert_eq!(cases.len(), 3);
         for case in cases {

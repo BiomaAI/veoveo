@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { createServer as createHttpServer } from "node:http";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,8 +7,8 @@ import { createMcpHandler } from "@modelcontextprotocol/server";
 import { toNodeHandler } from "@modelcontextprotocol/node";
 
 import { createServer } from "./flint-v2.mjs";
-import { loadDocuments } from "./documents.mjs";
-import { privateText, registerKnowledgeDocuments } from "./knowledge.mjs";
+import { loadDocumentBundle } from "./documents.mjs";
+import { registerWellKnownResources } from "./well-known.mjs";
 import {
   loadInternalTokenVerifier,
   requireInternalIdentity,
@@ -16,14 +17,14 @@ import {
 
 // Well-known surface of `mcp/contract/DESIGN.md` (C18-C21). The launcher
 // serves the crate documents baked into the image beside this file, the
-// contract declaration parsed from the agent manual, and the administrative
+// contract declaration admitted from its package-owned complete profile, and the administrative
 // llms.txt projection. Shapes mirror `veoveo_mcp_contract::docs`.
-const CONTRACT_REVISION = 3;
+const CONTRACT_REVISION = 4;
 const SERVER_SLUG = "charts";
 const SERVER_MOUNT = `/${SERVER_SLUG}`;
 const MCP_PATH = `${SERVER_MOUNT}/mcp`;
-const CONTRACT_URI = "charts://contract";
-const SERVER_DOCS = loadDocuments(dirname(fileURLToPath(import.meta.url)));
+const DOCUMENT_BUNDLE = loadDocumentBundle(dirname(fileURLToPath(import.meta.url)));
+const SERVER_DOCS = DOCUMENT_BUNDLE.documents;
 
 function llmsTxt() {
   const entries = SERVER_DOCS.map((doc) => `- [${doc.title}](${doc.id})`);
@@ -34,75 +35,9 @@ function llmsTxt() {
   );
 }
 
-// Mirrors `veoveo_mcp_contract::docs::parse_compliance`: `- Cnn: met` and
-// `- Cnn: pending — note` lines inside the `## Contract Compliance` section.
-function parseCompliance(manual) {
-  let inSection = false;
-  const items = [];
-  for (const line of manual.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith("## ")) {
-      inSection = trimmed === "## Contract Compliance";
-      continue;
-    }
-    if (!inSection || !trimmed.startsWith("- C")) {
-      continue;
-    }
-    const separator = trimmed.indexOf(":");
-    if (separator === -1) {
-      continue;
-    }
-    const id = `C${trimmed.slice(3, separator).trim()}`;
-    const rest = trimmed.slice(separator + 1).trim();
-    let status;
-    let remainder;
-    if (rest.startsWith("met")) {
-      status = "met";
-      remainder = rest.slice("met".length);
-    } else if (rest.startsWith("pending")) {
-      status = "pending";
-      remainder = rest.slice("pending".length);
-    } else {
-      continue;
-    }
-    const note = remainder.replace(/^[\s—-]+/u, "").trim();
-    items.push(note.length > 0 ? { id, status, note } : { id, status });
-  }
-  if (items.length === 0) {
-    throw new Error("AGENTS.md declares no Contract Compliance items");
-  }
-  return items;
-}
-
-function registerWellKnownResources(server) {
-  registerKnowledgeDocuments(server, SERVER_DOCS);
-  let declaration;
-  server.registerResource(
-    "contract",
-    CONTRACT_URI,
-    {
-      title: "Contract declaration",
-      description:
-        "Machine-readable contract revision and compliance evidence.",
-      mimeType: "application/json",
-    },
-    async (uri) =>
-      privateText(uri, "application/json", JSON.stringify(declaration)),
-  );
-  declaration = contractDeclaration();
-}
-
-function contractDeclaration() {
-  return {
-    server: SERVER_SLUG,
-    contract_revision: CONTRACT_REVISION,
-    compliance: parseCompliance(SERVER_DOCS[0].body),
-  };
-}
-
 function createHostedServer(options) {
   const server = createServer(options);
-  registerWellKnownResources(server);
+  registerWellKnownResources(server, DOCUMENT_BUNDLE);
   return server;
 }
 

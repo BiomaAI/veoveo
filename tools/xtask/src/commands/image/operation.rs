@@ -34,8 +34,7 @@ impl CommandClock {
     }
 }
 
-#[derive(Clone, Copy, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub(crate) enum Phase {
     SourcePreparation,
     RegistryPreflight,
@@ -79,8 +78,7 @@ struct CpuDelta {
     throttled_micros: u64,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 enum Outcome {
     Running,
     Succeeded,
@@ -134,7 +132,7 @@ pub(crate) fn record<T>(
     fs::create_dir_all(&directory).context("creating command timing directory")?;
     let path = directory.join("command.json");
     let initial = Record {
-        schema_version: "veoveo.ai/image-command/v1",
+        schema_version: "veoveo.ai/image-command/v2",
         operation: operation.to_owned(),
         started_at_unix_millis: millis(wall),
         elapsed_millis: millis(clock.started.elapsed()),
@@ -309,7 +307,7 @@ mod tests {
         assert_eq!(record["outcome"], "failed");
         assert_eq!(record["error"], "missing source revision");
         assert_eq!(record["queueWaits"]["sourceLockMillis"], 23);
-        assert_eq!(record["phases"][0]["phase"], "source-preparation");
+        assert_eq!(record["phases"][0]["phase"], "source_preparation");
         assert!(record["solveEvidence"].as_array().unwrap().is_empty());
         assert!(ACTIVE.with(|active| active.borrow().is_none()));
     }

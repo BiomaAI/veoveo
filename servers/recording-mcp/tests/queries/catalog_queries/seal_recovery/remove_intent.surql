@@ -1,0 +1,1 @@
+DELETE ONLY $publication RETURN NONE;

@@ -11,14 +11,16 @@ import mcp.types as mcp
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, RootModel, StringConstraints, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
+from .wire import CurrentWireModel
+
 from .identity import AccessSubject, DataLabelId, GatewayProfileId, PrincipalId, ScopeName, TenantId, WorkContextId
 
 EXTENSION_ID = "ai.veoveo/knowledge-source"
 OBSERVATION_KEY = "ai.veoveo/knowledge-observation"
 
 
-class WireModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True, alias_generator=to_camel)
+class WireModel(CurrentWireModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, validate_by_name=False, serialize_by_alias=True, alias_generator=to_camel)
 
     def wire(self) -> dict[str, Any]:
         return self.model_dump(mode="json", by_alias=True, exclude_none=True)
@@ -101,7 +103,7 @@ class ChangeSignal(str, Enum):
 
 
 class AccessModel(str, Enum):
-    WORK_CONTEXT = "work-context"
+    WORK_CONTEXT = "work_context"
     PROFILE = "profile"
 
 
@@ -137,11 +139,11 @@ class CollectionDescriptor(WireModel):
 
 
 class AudienceReadPolicy(WireModel):
-    kind: Literal["tenant", "subjects", "work-context", "selected-work-context", "selected-work-context-members"]
+    kind: Literal["tenant", "subjects", "work_context", "selected_work_context", "selected_work_context_members"]
 
 
 class SubjectsInContextReadPolicy(WireModel):
-    kind: Literal["subjects-in-context"]
+    kind: Literal["subjects_in_context"]
     profile: GatewayProfileId | None = None
 
 
@@ -223,7 +225,7 @@ def member_result(*, uri: str, text: str, mime_type: str, observation: Observati
     negotiated = requested(capabilities)
     condition = ReadCondition.model_validate(metadata[EXTENSION_ID]) if negotiated and metadata and EXTENSION_ID in metadata else None
     unchanged = condition is not None and condition.if_none_match == observation.revision
-    observation = observation.model_copy(update={"not_modified": unchanged})
+    observation = Observation.model_validate({**observation.wire(), "notModified": unchanged})
     return mcp.ReadResourceResult(
         contents=[] if unchanged else [mcp.TextResourceContents(uri=uri, text=text, mime_type=mime_type)],
         meta={OBSERVATION_KEY: observation.wire()} if negotiated else None,
@@ -233,4 +235,4 @@ def member_result(*, uri: str, text: str, mime_type: str, observation: Observati
 
 def docs_observation(collection: CollectionDescriptor, digest: ContentDigest) -> Observation:
     return Observation(collection=collection.collection, revision=Revision(str(digest)),
-                       content_sha256=digest, observed_at=datetime.now(timezone.utc))
+                       contentSha256=digest, observedAt=datetime.now(timezone.utc))

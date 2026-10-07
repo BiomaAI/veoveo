@@ -21,6 +21,24 @@
       "type": "object"
     },
     "AccessGrantId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_computers_contract::ids"
+              },
+              "profile": "AccessGrantId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "format": "uuid",
       "maxLength": 36,
       "minLength": 36,
@@ -127,6 +145,24 @@
       "type": "object"
     },
     "ArtifactId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_artifact_contract::identity"
+              },
+              "profile": "ArtifactId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
       "type": "string"
     },
@@ -239,6 +275,24 @@
       "type": "object"
     },
     "AutomationGrantId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_computers_contract::ids"
+              },
+              "profile": "AutomationGrantId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "format": "uuid",
       "maxLength": 36,
       "minLength": 36,
@@ -284,17 +338,35 @@
         "grant": {
           "$ref": "#/$defs/AutomationGrantView"
         },
-        "result_uri": {
+        "resultUri": {
           "$ref": "#/$defs/AutomationGrantUri"
         }
       },
       "required": [
-        "result_uri",
+        "resultUri",
         "grant"
       ],
       "type": "object"
     },
     "AutomationGrantUri": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar resource schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_computers_contract::resources"
+              },
+              "profile": "AutomationGrantUri",
+              "version": "unversioned"
+            },
+            "kind": "owner_resource"
+          }
+        }
+      },
       "pattern": "^computer://computers/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/automation/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
       "type": "string"
     },
@@ -418,6 +490,24 @@
       "type": "object"
     },
     "CliPairingId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_computers_contract::ids"
+              },
+              "profile": "CliPairingId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "format": "uuid",
       "maxLength": 36,
       "minLength": 36,
@@ -610,6 +700,24 @@
       "type": "object"
     },
     "ComputerId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_computers_contract::ids"
+              },
+              "profile": "ComputerId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "format": "uuid",
       "maxLength": 36,
       "minLength": 36,
@@ -656,6 +764,24 @@
       "type": "string"
     },
     "ComputerResultUri": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar resource schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_computers_contract::resources"
+              },
+              "profile": "ComputerResultUri",
+              "version": "unversioned"
+            },
+            "kind": "owner_resource"
+          }
+        }
+      },
       "pattern": "^computer://computers/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
       "type": "string"
     },
@@ -902,6 +1028,24 @@
       "type": "object"
     },
     "ExecutionId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_computers_contract::ids"
+              },
+              "profile": "ExecutionId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "format": "uuid",
       "maxLength": 36,
       "minLength": 36,
@@ -952,7 +1096,7 @@
             }
           ]
         },
-        "result_uri": {
+        "resultUri": {
           "pattern": "^computer://executions/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
           "type": "string"
         },
@@ -964,7 +1108,7 @@
         }
       },
       "required": [
-        "result_uri",
+        "resultUri",
         "computerId",
         "executionId",
         "exitCode",
@@ -1036,6 +1180,24 @@
       "type": "string"
     },
     "FileTransferId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_computers_contract::ids"
+              },
+              "profile": "FileTransferId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "format": "uuid",
       "maxLength": 36,
       "minLength": 36,
@@ -1088,7 +1250,7 @@
         "direction": {
           "$ref": "#/$defs/FileTransferDirection"
         },
-        "result_uri": {
+        "resultUri": {
           "pattern": "^computer://transfers/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
           "type": "string"
         },
@@ -1101,7 +1263,7 @@
         }
       },
       "required": [
-        "result_uri",
+        "resultUri",
         "computerId",
         "transferId",
         "direction",
@@ -1220,6 +1382,24 @@
           "type": "string"
         },
         "oauthClientId": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::platform_names"
+                  },
+                  "profile": "OAuthClientId",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "description": "Registered OAuth client id allowed to request gateway-profile tokens.",
           "maxLength": 256,
           "minLength": 1,
@@ -1293,7 +1473,7 @@
         "operationId": {
           "$ref": "#/$defs/TaskId"
         },
-        "result_uri": {
+        "resultUri": {
           "anyOf": [
             {
               "$ref": "#/$defs/ComputerResultUri"
@@ -1344,7 +1524,7 @@
         "maintenanceId": {
           "$ref": "#/$defs/TaskId"
         },
-        "result_uri": {
+        "resultUri": {
           "$ref": "#/$defs/ComputerResultUri"
         },
         "templateId": {
@@ -1352,7 +1532,7 @@
         }
       },
       "required": [
-        "result_uri",
+        "resultUri",
         "computerId",
         "maintenanceId",
         "templateId"
@@ -1452,6 +1632,24 @@
       "type": "object"
     },
     "OAuthClientId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::platform_names"
+              },
+              "profile": "OAuthClientId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Registered OAuth client id allowed to request gateway-profile tokens.",
       "minLength": 1,
       "not": {
@@ -1558,10 +1756,46 @@
       "type": "object"
     },
     "PrincipalId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "PrincipalId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Stable authenticated user or service-principal identity.",
       "type": "string"
     },
     "RequestId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_computers_contract::ids"
+              },
+              "profile": "RequestId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "format": "uuid",
       "maxLength": 36,
       "minLength": 36,
@@ -1693,11 +1927,47 @@
       "type": "object"
     },
     "TaskId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::task"
+              },
+              "profile": "TaskId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "maxLength": 45,
       "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
       "type": "string"
     },
     "TemplateId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_computers_contract::template_id"
+              },
+              "profile": "TemplateId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "maxLength": 64,
       "minLength": 1,
       "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",

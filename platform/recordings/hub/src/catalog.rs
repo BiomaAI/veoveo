@@ -4,7 +4,7 @@
 //! module gives each recording and segment a typed installation identity and
 //! makes crash recovery explicit by reconciling footer-less files on startup.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
@@ -225,13 +225,13 @@ impl PlatformCatalog {
                     &self.policy.classification,
                 ),
                 labels: governed_labels(&self.authority, &self.policy.labels),
-                metadata: BTreeMap::from([
-                    ("source".to_owned(), serde_json::json!("recording-hub")),
-                    (
-                        "dataset".to_owned(),
-                        serde_json::json!(segment.key.dataset.as_str()),
-                    ),
-                ]),
+                metadata: serde_json::from_value(serde_json::to_value(
+                    veoveo_recording_contract::RecordingOriginMetadata::Hub {
+                        dataset: veoveo_recording_contract::RecordingDatasetName::parse(
+                            segment.key.dataset.as_str(),
+                        )?,
+                    },
+                )?)?,
                 started_at: segment.started_at,
             })
             .await?;
@@ -330,12 +330,18 @@ impl PlatformCatalog {
                     classification: artifact_classification(&recording.classification)?,
                     data_labels: artifact_labels(&recording.labels)?,
                     retention_expires_at: None,
-                    metadata: serde_json::json!({
-                        "recording_id": recording_id.to_string(),
-                        "dataset_id": dataset_id.to_string(),
-                        "layer_kind": "capture",
-                        "schema_digest": inspection.schema_digest.hex(),
-                    }),
+                    metadata: serde_json::to_value(
+                        veoveo_recording_contract::RecordingCaptureMetadata {
+                            recording_id: veoveo_recording_contract::RecordingId::try_from(
+                                recording_id.as_uuid(),
+                            )?,
+                            dataset_id: veoveo_recording_contract::RecordingDatasetId::try_from(
+                                dataset_id.as_uuid(),
+                            )?,
+                            layer_kind: veoveo_recording_contract::RecordingLayerKind::Capture,
+                            schema_digest: inspection.schema_digest.clone(),
+                        },
+                    )?,
                 },
                 path.as_path(),
                 inspection.byte_len,

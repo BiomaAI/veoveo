@@ -5,8 +5,8 @@ use veoveo_time_mcp::{
 };
 
 fn policy() -> serde_json::Value {
-    json!({"maximum_error_nanoseconds":1, "maximum_stratum":1,
-        "minimum_source_diversity":1, "maximum_holdover_seconds":1})
+    json!({"maximumErrorNanoseconds":1, "maximumStratum":1,
+        "minimumSourceDiversity":1, "maximumHoldoverSeconds":1})
 }
 
 #[test]
@@ -144,9 +144,9 @@ fn version_guards_keep_zero_for_absence_and_stop_at_the_storage_limit() {
 #[test]
 fn source_creation_keeps_its_zero_sentinel_while_updates_require_a_version() {
     let request: CreateSourceRequest = serde_json::from_value(json!({
-        "source":{"source_id":"time-source-example", "name":"IANA", "dataset_kind":"tzdb",
-            "url":"https://example.test/tzdb", "expected_content_type":"application/gzip",
-            "enabled":true, "record_version":0}, "idempotency_key":"create"
+        "source":{"sourceId":"time-source-example", "name":"IANA", "datasetKind":"tzdb",
+            "url":"https://example.test/tzdb", "expectedContentType":"application/gzip",
+            "enabled":true, "recordVersion":0}, "idempotencyKey":"create"
     }))
     .unwrap();
     assert_eq!(
@@ -160,7 +160,7 @@ fn source_creation_keeps_its_zero_sentinel_while_updates_require_a_version() {
         (u64::MAX, false),
     ] {
         let request = serde_json::from_value::<CancelTemporalEventRequest>(json!({
-            "event_id":"event-example", "expected_record_version":value
+            "eventId":"event-example", "expectedRecordVersion":value
         }));
         assert_eq!(request.is_ok(), valid);
     }

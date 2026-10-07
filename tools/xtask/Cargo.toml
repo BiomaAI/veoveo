@@ -5,6 +5,9 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+tokio.workspace = true
+veoveo-types.workspace = true
+veoveo-testing-support = { path = "../../testing/support" }
 veoveo-artifact-contract.workspace = true
 veoveo-gateway-catalog.workspace = true
 veoveo-agent-runtime = { workspace = true, features = ["contract"] }
@@ -23,6 +26,7 @@ schemars.workspace = true
 veoveo-recording-contract.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+toml.workspace = true
 serde_yaml_ng.workspace = true
 sha2.workspace = true
 tempfile = "=3.27.0"
@@ -33,7 +37,7 @@ veoveo-computers-contract = { path = "../../platform/computers/contract" }
 veoveo-audit-contract = { path = "../../platform/audit/contract" }
 veoveo-deploy-runtime.workspace = true
 veoveo-image-build-control.workspace = true
-veoveo-mcp-contract = { workspace = true, default-features = false }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, default-features = false }
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 
 # Reuse the workspace-qualified parser; source-file policy is qualified by native tests.

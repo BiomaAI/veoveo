@@ -30,7 +30,7 @@ from .video import ObservedFrame, sample_frames
 
 
 def observation_frame_limit(request: RunnerRequest) -> int:
-    return min(request.sampling.max_frames, request.pipeline.observation.maximum_frames)
+    return min(request.sampling.maxFrames, request.pipeline.observation.maximumFrames)
 
 
 def run(request: RunnerRequest) -> RunnerResponse:
@@ -41,26 +41,26 @@ def run(request: RunnerRequest) -> RunnerResponse:
 
     model = create_model(request, observation_frame_limit(request))
     frames = sample_frames(
-        Path(request.input_mp4),
+        Path(request.inputMp4),
         observation_frame_limit(request),
         request.pipeline.observation.width,
         request.pipeline.observation.height,
-        request.decode_start_index,
-        request.input_width,
-        request.input_height,
+        request.decodeStartIndex,
+        request.inputWidth,
+        request.inputHeight,
     )
     prompt = build_prompt(request, [frame.index for frame in frames])
     raw_text = _generate(model, request, prompt, frames)
     answer_kind = answer_kind_for(request.task)
     if answer_kind == "events":
         grounded = request.grounding.track_ids() if request.grounding else set()
-        answer = normalize_events(raw_text, request.requested_range, request.max_events, grounded)
+        answer = normalize_events(raw_text, request.requestedRange, request.maxEvents, grounded)
     elif answer_kind == "description":
-        answer = DescriptionAnswer(text=truncate_text(raw_text, request.max_answer_bytes))
+        answer = DescriptionAnswer(text=truncate_text(raw_text, request.maxAnswerBytes))
     else:
-        answer = TextAnswer(text=truncate_text(raw_text, request.max_answer_bytes))
+        answer = TextAnswer(text=truncate_text(raw_text, request.maxAnswerBytes))
     elapsed_ms = int((time.monotonic() - started) * 1_000)
-    return RunnerResponse(answer=answer, observed_frames=len(frames), elapsed_ms=elapsed_ms)
+    return RunnerResponse(answer=answer, observedFrames=len(frames), elapsedMs=elapsed_ms)
 
 
 def _generate(model: LLM, request: RunnerRequest, prompt: str, frames: list[ObservedFrame]) -> str:
@@ -69,16 +69,16 @@ def _generate(model: LLM, request: RunnerRequest, prompt: str, frames: list[Obse
 
     decode = request.decode
     parameters = {
-        "max_tokens": min(4_096, max(256, request.max_answer_bytes // 4)),
+        "max_tokens": min(4_096, max(256, request.maxAnswerBytes // 4)),
     }
     if decode.mode == "greedy":
         parameters["temperature"] = 0.0
     else:
         parameters["temperature"] = decode.temperature
-        parameters["top_p"] = decode.top_p
+        parameters["top_p"] = decode.topP
         parameters["seed"] = decode.seed
     if answer_kind_for(request.task) == "events":
         parameters["structured_outputs"] = StructuredOutputsParams(
-            json=events_json_schema(request.requested_range, request.max_events)
+            json=events_json_schema(request.requestedRange, request.maxEvents)
         )
     return generate(model, request, prompt, frames, SamplingParams(**parameters))

@@ -33,10 +33,10 @@ pub(crate) struct Args {
     evidence_output: PathBuf,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Evidence {
-    schema_version: &'static str,
+    schema_version: String,
     namespace: String,
     fixture_directory: PathBuf,
     cases: Vec<Case>,
@@ -45,10 +45,43 @@ struct Evidence {
     failure: Option<String>,
     cleanup_failure: Option<String>,
 }
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
+impl Evidence {
+    fn validate(&self) -> Result<()> {
+        ensure!(
+            self.schema_version == "veoveo.ai/component-scope-evidence/v2",
+            "unsupported component-scope evidence format"
+        );
+        for case in &self.cases {
+            ensure!(
+                case.receipt.schema_version == "veoveo.ai/component-installation/v3"
+                    && case.receipt.plan.schema_version
+                        == veoveo_deploy_contract::components::COMPONENT_MUTATION_PLAN_SCHEMA,
+                "unsupported nested installation format"
+            );
+            ensure!(
+                case.receipt.plan.requested
+                    == std::collections::BTreeSet::from([case.selected.clone()]),
+                "report changed selected component"
+            );
+            ensure!(
+                case.unselected_before == case.unselected_after,
+                "report changed unselected runtime state"
+            );
+        }
+        Ok(())
+    }
+    #[cfg(test)]
+    fn decode(bytes: &[u8]) -> Result<Self> {
+        let value: Self = serde_json::from_slice(bytes)?;
+        value.validate()?;
+        Ok(value)
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Case {
-    selected: String,
+    selected: veoveo_deploy_contract::components::ComponentId,
     installation_elapsed_ms: u64,
     receipt: InstallationReceipt,
     requests: Vec<Request>,
@@ -59,13 +92,13 @@ struct Case {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RuntimeSnapshot {
     pods: Vec<PodState>,
     helm_storage: Vec<StorageState>,
 }
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PodState {
     name: String,
     uid: String,
@@ -73,7 +106,7 @@ struct PodState {
     restarts: Vec<u64>,
 }
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct StorageState {
     name: String,
     uid: String,
@@ -86,8 +119,15 @@ fn snapshot(proxy: &Proxy, namespace: &str, owner: &str) -> Result<RuntimeSnapsh
         items: Vec<Pod>,
     }
     #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct NativeMetadata {
+        name: String,
+        uid: String,
+        resource_version: String,
+    }
+    #[derive(Deserialize)]
     struct Pod {
-        metadata: StorageState,
+        metadata: NativeMetadata,
         status: PodStatus,
     }
     #[derive(Deserialize)]
@@ -144,7 +184,7 @@ fn snapshot(proxy: &Proxy, namespace: &str, owner: &str) -> Result<RuntimeSnapsh
     }
     #[derive(Deserialize)]
     struct Storage {
-        metadata: StorageState,
+        metadata: NativeMetadata,
     }
     let storage: StorageList = serde_json::from_slice(&output(proxy.kubectl().args([
         "--namespace",
@@ -158,7 +198,11 @@ fn snapshot(proxy: &Proxy, namespace: &str, owner: &str) -> Result<RuntimeSnapsh
     let mut helm_storage = storage
         .items
         .into_iter()
-        .map(|item| item.metadata)
+        .map(|item| StorageState {
+            name: item.metadata.name,
+            uid: item.metadata.uid,
+            resource_version: item.metadata.resource_version,
+        })
         .collect::<Vec<_>>();
     helm_storage.sort();
     ensure!(!helm_storage.is_empty(), "fixture Helm storage is missing");
@@ -183,8 +227,150 @@ fn install(
         command.arg("--all-components");
     }
     output(&mut command)?;
-    Ok(serde_json::from_slice(&fs::read(path)?)?)
+    let receipt: InstallationReceipt = serde_json::from_slice(&fs::read(path)?)?;
+    let lock: veoveo_deploy_contract::DeploymentLock = serde_json::from_slice(&fs::read(lock)?)?;
+    let requested = if let Some(id) = selected {
+        std::collections::BTreeSet::from([id.to_owned().try_into()?])
+    } else {
+        lock.components
+            .iter()
+            .map(|c| c.declaration.id.clone())
+            .collect()
+    };
+    admit_receipt(&receipt, &lock.components, &requested)?;
+    Ok(receipt)
 }
+fn admit_receipt(
+    receipt: &InstallationReceipt,
+    catalog: &[veoveo_deploy_contract::components::LockedComponent],
+    requested: &std::collections::BTreeSet<veoveo_deploy_contract::components::ComponentId>,
+) -> Result<()> {
+    use veoveo_deploy_contract::components::{ComponentMutationVerb, select_components};
+    ensure!(
+        receipt.schema_version == "veoveo.ai/component-installation/v3"
+            && receipt.plan.schema_version
+                == veoveo_deploy_contract::components::COMPONENT_MUTATION_PLAN_SCHEMA,
+        "unsupported component receipt or plan format"
+    );
+    ensure!(
+        &receipt.plan.requested == requested
+            && receipt.plan.expanded == select_components(catalog, requested)?,
+        "component receipt changed the selected owner closure"
+    );
+    ensure!(
+        receipt.coordination.released && !receipt.coordination.uid.is_empty(),
+        "component receipt omitted released coordination"
+    );
+    let unselected = catalog
+        .iter()
+        .filter(|component| !receipt.plan.expanded.contains(&component.declaration.id))
+        .collect::<Vec<_>>();
+    let expected_objects = unselected
+        .iter()
+        .flat_map(|component| component.declaration.permitted_objects.iter())
+        .collect::<std::collections::BTreeSet<_>>();
+    let expected_releases = unselected
+        .iter()
+        .flat_map(|component| component.declaration.targets.iter())
+        .filter(|target| {
+            matches!(
+                target,
+                veoveo_deploy_contract::components::AtomicTarget::HelmRelease { .. }
+            )
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    ensure!(
+        receipt
+            .plan
+            .unselected_objects
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            == expected_objects,
+        "component plan does not cover the unselected locked object inventory"
+    );
+    for snapshot in [&receipt.unselected_before, &receipt.unselected_after] {
+        let mut objects = std::collections::BTreeSet::new();
+        for object in &snapshot.objects {
+            ensure!(
+                objects.insert(&object.identity),
+                "component receipt repeats an unselected object"
+            );
+        }
+        let mut releases = std::collections::BTreeSet::new();
+        for release in &snapshot.releases {
+            ensure!(
+                releases.insert(&release.target),
+                "component receipt repeats an unselected release"
+            );
+        }
+        ensure!(
+            objects == expected_objects,
+            "component receipt does not cover the unselected locked object inventory"
+        );
+        ensure!(
+            releases == expected_releases,
+            "component receipt does not cover the unselected locked release inventory"
+        );
+    }
+    ensure!(
+        receipt.unselected_before == receipt.unselected_after,
+        "component receipt changed unselected state"
+    );
+    let expected = catalog
+        .iter()
+        .filter(|c| receipt.plan.expanded.contains(&c.declaration.id))
+        .flat_map(|c| {
+            c.units
+                .iter()
+                .map(move |u| ((&c.declaration.id, &u.target), (c, u)))
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut seen = std::collections::BTreeSet::new();
+    for mutation in &receipt.plan.mutations {
+        let key = (&mutation.component, &mutation.target);
+        ensure!(seen.insert(key), "component receipt repeats a mutation");
+        let (component, unit) = expected
+            .get(&key)
+            .ok_or_else(|| anyhow::anyhow!("component receipt includes an unselected target"))?;
+        ensure!(
+            mutation.source == component.declaration.source
+                && mutation.configuration == component.declaration.configuration
+                && mutation.digest == unit.digest
+                && mutation.content_digest == unit.content_digest
+                && mutation.objects == unit.objects,
+            "component receipt does not match selected locked content"
+        );
+    }
+    ensure!(
+        seen.len() == expected.len(),
+        "component receipt omits selected targets"
+    );
+    let mut operations = std::collections::BTreeSet::new();
+    for operation in &receipt.operations {
+        let key = (&operation.component, &operation.target);
+        ensure!(
+            operations.insert(key),
+            "component receipt repeats an operation"
+        );
+        let mutation = receipt
+            .plan
+            .mutations
+            .iter()
+            .find(|m| (&m.component, &m.target) == key)
+            .ok_or_else(|| anyhow::anyhow!("component operation is outside the admitted plan"))?;
+        ensure!(
+            (operation.outcome == UnitExecutionOutcome::Reused)
+                == (mutation.verb == ComponentMutationVerb::Unchanged),
+            "component outcome disagrees with admitted mutation"
+        );
+    }
+    ensure!(
+        operations == seen,
+        "component receipt operations do not settle its complete plan"
+    );
+    Ok(())
+}
+
 fn installer(proxy: &Proxy, fixture: &Fixture, lock: &Path, receipt: &Path) -> Command {
     let mut command = Command::new(std::env::current_exe().expect("current smoke binary"));
     command
@@ -217,7 +403,7 @@ pub(crate) fn verify(args: Args) -> Result<()> {
     let directory = fs::canonicalize(parent)?.join(&namespace);
     fs::create_dir(&directory)?;
     let mut evidence = Evidence {
-        schema_version: "veoveo.ai/component-scope-evidence/v1",
+        schema_version: "veoveo.ai/component-scope-evidence/v2".to_owned(),
         namespace: namespace.clone(),
         fixture_directory: directory.clone(),
         cases: Vec::new(),
@@ -323,7 +509,7 @@ pub(crate) fn verify(args: Args) -> Result<()> {
                 "update did not apply exactly one selected component"
             );
             ensure!(
-                receipt.schema_version == "veoveo.ai/component-installation/v2"
+                receipt.schema_version == "veoveo.ai/component-installation/v3"
                     && receipt.coordination.released
                     && !receipt.coordination.uid.is_empty()
                     && receipt.coordination.object.group == "coordination.k8s.io"
@@ -381,7 +567,7 @@ pub(crate) fn verify(args: Args) -> Result<()> {
                 requests.len()
             );
             evidence.cases.push(Case {
-                selected: selected.into(),
+                selected: selected.to_owned().try_into()?,
                 installation_elapsed_ms,
                 receipt,
                 requests,
@@ -459,6 +645,7 @@ pub(crate) fn verify(args: Args) -> Result<()> {
     if let Err(error) = cleanup.remove() {
         evidence.cleanup_failure = Some(format!("{error:#}"));
     }
+    evidence.validate()?;
     let mut file = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -521,5 +708,280 @@ impl Cleanup {
 impl Drop for Cleanup {
     fn drop(&mut self) {
         let _ = self.remove();
+    }
+}
+
+#[cfg(test)]
+mod contract_tests {
+    use super::*;
+    use std::collections::BTreeSet;
+    use veoveo_deploy_contract::{DeploymentLock, components::*};
+
+    #[test]
+    fn complete_current_receipt_checks_selected_content_and_nested_wire() {
+        let lock: DeploymentLock = serde_json::from_str(include_str!(
+            "../../../../deploy/contract/tests/fixtures/deployment-lock.json"
+        ))
+        .unwrap();
+        let requested = BTreeSet::from([lock.components[0].declaration.id.clone()]);
+        let expanded = select_components(&lock.components, &requested).unwrap();
+        let mut prepared = Vec::new();
+        let mut observed = Vec::new();
+        for component in lock
+            .components
+            .iter()
+            .filter(|c| expanded.contains(&c.declaration.id))
+        {
+            for unit in &component.units {
+                prepared.push(PreparedAtomicUnit {
+                    component: component.declaration.id.clone(),
+                    source: component.declaration.source.clone(),
+                    configuration: component.declaration.configuration.clone(),
+                    target: unit.target.clone(),
+                    inputs: unit.inputs.clone(),
+                    objects: unit.objects.clone(),
+                    tool_scope: AtomicToolScope::Exact,
+                });
+                observed.push(ObservedAtomicUnit {
+                    component: component.declaration.id.clone(),
+                    target: unit.target.clone(),
+                    state: ObservedUnitState::Absent,
+                });
+            }
+        }
+        let plan =
+            component_mutation_plan(&lock.components, &requested, &prepared, &observed).unwrap();
+        let unselected = lock
+            .components
+            .iter()
+            .filter(|component| !expanded.contains(&component.declaration.id))
+            .collect::<Vec<_>>();
+        let absent = UnselectedState {
+            objects: unselected
+                .iter()
+                .flat_map(|component| component.declaration.permitted_objects.iter())
+                .map(|identity| ObjectSnapshot {
+                    identity: identity.clone(),
+                    state: None,
+                })
+                .collect(),
+            releases: unselected
+                .iter()
+                .flat_map(|component| component.declaration.targets.iter())
+                .filter(|target| matches!(target, AtomicTarget::HelmRelease { .. }))
+                .map(|target| ReleaseSnapshot {
+                    target: target.clone(),
+                    state: None,
+                })
+                .collect(),
+        };
+        assert!(!absent.objects.is_empty());
+        assert!(!absent.releases.is_empty());
+        let receipt = InstallationReceipt {
+            schema_version: "veoveo.ai/component-installation/v3".into(),
+            coordination: InstallationCoordination {
+                object: ObjectIdentity {
+                    group: "coordination.k8s.io".into(),
+                    kind: "Lease".into(),
+                    namespace: Some("fixture".into()),
+                    name: "installation".into(),
+                },
+                uid: "fixture-lease".into(),
+                holder_identity: "selected-invocation".into(),
+                released: true,
+            },
+            operations: plan
+                .mutations
+                .iter()
+                .map(|m| UnitExecution {
+                    component: m.component.clone(),
+                    target: m.target.clone(),
+                    outcome: UnitExecutionOutcome::Applied,
+                })
+                .collect(),
+            plan,
+            unselected_before: absent.clone(),
+            unselected_after: absent,
+        };
+        admit_receipt(&receipt, &lock.components, &requested).unwrap();
+        // Matching incomplete snapshots cannot establish unchanged unselected owners.
+        for inventory in ["objects", "releases"] {
+            let original = serde_json::to_value(&receipt.unselected_before).unwrap();
+            for corruption in ["empty", "missing", "duplicate", "extra", "foreign"] {
+                let mut changed = original.clone();
+                let entries = changed.get_mut(inventory).unwrap().as_array_mut().unwrap();
+                match corruption {
+                    "empty" => entries.clear(),
+                    "missing" => {
+                        entries.pop().unwrap();
+                    }
+                    "duplicate" => entries.push(entries[0].clone()),
+                    "extra" | "foreign" => {
+                        let mut foreign = entries[0].clone();
+                        let parent = if inventory == "objects" {
+                            "identity"
+                        } else {
+                            "target"
+                        };
+                        *foreign.get_mut(parent).unwrap().get_mut("name").unwrap() =
+                            "unlocked-owner".into();
+                        if corruption == "extra" {
+                            entries.push(foreign);
+                        } else {
+                            entries[0] = foreign;
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+                for which in ["before", "after", "both"] {
+                    let mut bad = receipt.clone();
+                    if which != "after" {
+                        bad.unselected_before = serde_json::from_value(changed.clone()).unwrap();
+                    }
+                    if which != "before" {
+                        bad.unselected_after = serde_json::from_value(changed.clone()).unwrap();
+                    }
+                    let error = admit_receipt(&bad, &lock.components, &requested).unwrap_err();
+                    assert!(
+                        error.to_string().contains("unselected"),
+                        "{inventory}/{corruption}/{which}: {error}"
+                    );
+                }
+            }
+        }
+        let mut bad = receipt.clone();
+        bad.plan.unselected_objects.clear();
+        assert!(
+            admit_receipt(&bad, &lock.components, &requested)
+                .unwrap_err()
+                .to_string()
+                .contains("unselected locked object inventory")
+        );
+        let mut bad = receipt.clone();
+        let mut extra = bad.plan.unselected_objects.first().unwrap().clone();
+        extra.name = "unlocked-owner".into();
+        bad.plan.unselected_objects.insert(extra);
+        assert!(
+            admit_receipt(&bad, &lock.components, &requested)
+                .unwrap_err()
+                .to_string()
+                .contains("unselected locked object inventory")
+        );
+        let mut bad = receipt.clone();
+        bad.unselected_after.objects[0].state = Some(ObservedObjectVersion {
+            uid: "changed-object".into(),
+            resource_version: "2".into(),
+            digest: lock.components[0].units[0].digest.clone(),
+        });
+        assert!(
+            admit_receipt(&bad, &lock.components, &requested)
+                .unwrap_err()
+                .to_string()
+                .contains("changed unselected state")
+        );
+        let mut bad = receipt.clone();
+        bad.unselected_after.releases[0].state = Some(ObservedReleaseVersion {
+            revision: 2,
+            status: "deployed".into(),
+            chart: "fixture".into(),
+            app_version: "current".into(),
+        });
+        assert!(
+            admit_receipt(&bad, &lock.components, &requested)
+                .unwrap_err()
+                .to_string()
+                .contains("changed unselected state")
+        );
+        let current = serde_json::to_value(&receipt).unwrap();
+        let decoded: InstallationReceipt = serde_json::from_value(current.clone()).unwrap();
+        admit_receipt(&decoded, &lock.components, &requested).unwrap();
+        for (parent, key, old) in [
+            ("", "schemaVersion", "schema_version"),
+            ("/coordination", "holderIdentity", "holder_identity"),
+            ("/plan", "contentDigest", "content_digest"),
+        ] {
+            // The plan's content digest belongs to each mutation, not its enclosing plan.
+            let parent = if key == "contentDigest" {
+                "/plan/mutations/0"
+            } else {
+                parent
+            };
+            for mixed in [false, true] {
+                let mut bad = current.clone();
+                let object = bad.pointer_mut(parent).unwrap().as_object_mut().unwrap();
+                let value = if mixed {
+                    object[key].clone()
+                } else {
+                    object.remove(key).unwrap()
+                };
+                object.insert(old.into(), value);
+                assert!(
+                    serde_json::from_value::<InstallationReceipt>(bad).is_err(),
+                    "{parent}/{old}"
+                );
+            }
+        }
+        let report = Evidence {
+            schema_version: "veoveo.ai/component-scope-evidence/v2".into(),
+            namespace: "fixture".into(),
+            fixture_directory: PathBuf::from("fixture"),
+            canary: vec![],
+            overlap: vec![],
+            failure: None,
+            cleanup_failure: None,
+            cases: vec![Case {
+                selected: requested.first().unwrap().clone(),
+                installation_elapsed_ms: 1,
+                receipt: receipt.clone(),
+                requests: vec![],
+                selected_before: RuntimeSnapshot {
+                    pods: vec![],
+                    helm_storage: vec![],
+                },
+                selected_after: RuntimeSnapshot {
+                    pods: vec![],
+                    helm_storage: vec![],
+                },
+                unselected_before: RuntimeSnapshot {
+                    pods: vec![],
+                    helm_storage: vec![],
+                },
+                unselected_after: RuntimeSnapshot {
+                    pods: vec![],
+                    helm_storage: vec![],
+                },
+            }],
+        };
+        let report_wire = serde_json::to_value(&report).unwrap();
+        Evidence::decode(&serde_json::to_vec(&report_wire).unwrap()).unwrap();
+        for pointer in ["/schemaVersion", "/cases/0/receipt/schemaVersion"] {
+            let mut bad = report_wire.clone();
+            *bad.pointer_mut(pointer).unwrap() = serde_json::json!("retired/v1");
+            assert!(Evidence::decode(&serde_json::to_vec(&bad).unwrap()).is_err());
+        }
+        for mixed in [false, true] {
+            let mut bad = report_wire.clone();
+            let object = bad.as_object_mut().unwrap();
+            let value = if mixed {
+                object["schemaVersion"].clone()
+            } else {
+                object.remove("schemaVersion").unwrap()
+            };
+            object.insert("schema_version".into(), value);
+            assert!(Evidence::decode(&serde_json::to_vec(&bad).unwrap()).is_err());
+        }
+        let mut bad = receipt.clone();
+        bad.coordination.released = false;
+        assert!(admit_receipt(&bad, &lock.components, &requested).is_err());
+        let mut bad = receipt.clone();
+        bad.operations.push(bad.operations[0].clone());
+        assert!(admit_receipt(&bad, &lock.components, &requested).is_err());
+        let mut bad = receipt.clone();
+        bad.plan.mutations[0].digest =
+            veoveo_deploy_contract::ArtifactDigest::parse(format!("sha256:{}", "0".repeat(64)))
+                .unwrap();
+        assert!(admit_receipt(&bad, &lock.components, &requested).is_err());
+        let other = BTreeSet::from([lock.components.last().unwrap().declaration.id.clone()]);
+        assert!(admit_receipt(&receipt, &lock.components, &other).is_err());
     }
 }

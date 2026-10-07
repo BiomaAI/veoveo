@@ -1,12 +1,12 @@
 /** @type {[string,string,string,boolean?,boolean?][]} */
 const resources = [
-  ["map://feature-layers", "layers", "feature_read", true, true],
-  ["map://publications", "publications", "feature_read", true, true],
-  ["map://compositions", "compositions", "feature_read", true, true],
-  ["map://sources", "sources", "dataset_read", false, true],
-  ["map://datasets", "datasets", "dataset_read", true, true],
-  ["map://active-releases", "activeReleases", "dataset_read"],
-  ["map://mobility-profiles", "profiles", "dataset_read", true, true],
+  ["map://feature-layers", "layers", "featureRead", true, true],
+  ["map://publications", "publications", "featureRead", true, true],
+  ["map://compositions", "compositions", "featureRead", true, true],
+  ["map://sources", "sources", "datasetRead", false, true],
+  ["map://datasets", "datasets", "datasetRead", true, true],
+  ["map://active-releases", "activeReleases", "datasetRead"],
+  ["map://mobility-profiles", "profiles", "datasetRead", true, true],
   ["map://acquisitions", "acquisitions", "administration", false, true],
 ];
 
@@ -34,16 +34,16 @@ export async function readCollection(uri, read, { maxPages = 100, timeoutMs = 60
       ]);
     } finally { clearTimeout(timer); }
     if (!page || !Array.isArray(page.items) || page.limit !== 100 || page.items.length > page.limit
-        || !(page.next_cursor === null || (typeof page.next_cursor === "string"
-          && /^[0-9a-f]{2,2048}$/.test(page.next_cursor) && page.next_cursor.length % 2 === 0))) {
+        || !(page.nextCursor === null || (typeof page.nextCursor === "string"
+          && /^[0-9a-f]{2,2048}$/.test(page.nextCursor) && page.nextCursor.length % 2 === 0))) {
       throw new Error("Invalid collection page; reload Map Explorer after the server upgrade");
     }
     items.push(...page.items);
-    if (page.next_cursor === null) return items;
-    if (!page.items.length || seen.has(page.next_cursor)) throw new Error("Collection cursor did not advance");
-    seen.add(page.next_cursor);
+    if (page.nextCursor === null) return items;
+    if (!page.items.length || seen.has(page.nextCursor)) throw new Error("Collection cursor did not advance");
+    seen.add(page.nextCursor);
     const next = new URL(uri);
-    next.searchParams.set("cursor", page.next_cursor);
+    next.searchParams.set("cursor", page.nextCursor);
     nextUri = next.toString();
   }
   throw new Error(`Collection refresh exceeded ${maxPages} pages`);

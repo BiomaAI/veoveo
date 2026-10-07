@@ -144,7 +144,7 @@ pub(super) fn run_view(snapshot: &TaskSnapshot) -> Result<RunView, McpError> {
         RunId::try_from(snapshot.task_id).map_err(|_| retained_output_error())?,
         input.pipeline_id,
         RunDetails {
-            status: task_status(snapshot.status).to_owned(),
+            status: snapshot.status,
             progress: snapshot.progress,
             recording_uri: input.video.recording_uri.clone(),
             entity_path: input.video.entity_path.clone(),
@@ -177,18 +177,6 @@ fn retained_output_error() -> McpError {
         "stored Stream output does not satisfy the current contract",
         None,
     )
-}
-
-fn task_status(status: TaskStatus) -> &'static str {
-    match status {
-        TaskStatus::Queued => "queued",
-        TaskStatus::Running => "running",
-        TaskStatus::Waiting => "waiting",
-        TaskStatus::Succeeded => "succeeded",
-        TaskStatus::Failed => "failed",
-        TaskStatus::CancelRequested => "cancel_requested",
-        TaskStatus::Cancelled => "cancelled",
-    }
 }
 
 pub(super) async fn completed_payload(

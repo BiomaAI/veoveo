@@ -11,14 +11,17 @@ use veoveo_types::{AccessLevel, AccessSubject, DataLabelId};
 pub const MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES: usize = 4 * 1024;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SetArtifactReleaseStateRequest {
     pub release_state: ArtifactReleaseState,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateArtifactShareLinkRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<veoveo_types::ChronoUtcTimestampSchema>")]
     pub expires_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_downloads: Option<NonZeroU64>,
@@ -30,6 +33,7 @@ pub struct CreateArtifactShareLinkRequest {
 /// service from the verified identity and can never be asserted by the client.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct PutArtifactRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
@@ -41,6 +45,7 @@ pub struct PutArtifactRequest {
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub data_labels: BTreeSet<DataLabelId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<veoveo_types::ChronoUtcTimestampSchema>")]
     pub retention_expires_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub metadata: Value,
@@ -64,6 +69,7 @@ impl PutArtifactRequest {
 /// a corrupt or truncated body before committing an object or occurrence.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct StreamArtifactRequest {
     /// Pre-reserved occurrence identity. Recording publication uses the
     /// distinct `RecordingLayerId` wrapper around this same UUIDv7.
@@ -76,6 +82,7 @@ pub struct StreamArtifactRequest {
 /// A grant mutation request. The occurrence id travels in the request path.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct PutGrantRequest {
     pub subject: AccessSubject,
     pub level: AccessLevel,
@@ -83,6 +90,7 @@ pub struct PutGrantRequest {
 
 /// The grants recorded for one artifact.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GrantList {
     pub grants: Vec<Grant>,
 }
@@ -93,6 +101,7 @@ pub struct GrantList {
 /// key. Implementations must still apply the complete artifact policy to every
 /// returned item.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ListArtifactsRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<ArtifactId>,
@@ -101,6 +110,7 @@ pub struct ListArtifactsRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactPage {
     pub artifacts: Vec<ArtifactMetadata>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -119,12 +129,12 @@ mod tests {
 
     #[test]
     fn output_capability_has_one_closed_optional_label_floor() {
-        let base = json!({"task_id":uuid::Uuid::now_v7(),"expires_at":chrono::DateTime::parse_from_rfc3339("2026-10-01T00:00:00Z").unwrap().with_timezone(&Utc)+TimeDelta::minutes(5),"max_artifact_count":2,"max_total_bytes":1024});
+        let base = json!({"taskId":uuid::Uuid::now_v7(),"expiresAt":chrono::DateTime::parse_from_rfc3339("2026-10-01T00:00:00Z").unwrap().with_timezone(&Utc)+TimeDelta::minutes(5),"maxArtifactCount":2,"maxTotalBytes":1024});
         let request: IssueArtifactWriteCapabilityRequest =
             serde_json::from_value(base.clone()).unwrap();
         assert!(request.required_data_labels.is_empty());
         let mut constrained = base.clone();
-        constrained["required_data_labels"] = json!(["retained-home"]);
+        constrained["requiredDataLabels"] = json!(["retained-home"]);
         let request: IssueArtifactWriteCapabilityRequest =
             serde_json::from_value(constrained).unwrap();
         assert_eq!(
@@ -170,7 +180,7 @@ mod tests {
         let schema = serde_json::to_value(schemars::schema_for!(StreamArtifactRequest)).unwrap();
         let validator = jsonschema::validator_for(&schema).unwrap();
         let wire = serde_json::to_value(&descriptor).unwrap();
-        assert_eq!(wire["expected_sha256"], "ab".repeat(32));
+        assert_eq!(wire["expectedSha256"], "ab".repeat(32));
         assert!(validator.is_valid(&wire));
         assert_eq!(
             serde_json::from_value::<StreamArtifactRequest>(wire.clone()).unwrap(),
@@ -182,7 +192,7 @@ mod tests {
             "00".repeat(31),
         ] {
             let mut changed = wire.clone();
-            changed["expected_sha256"] = serde_json::json!(malformed);
+            changed["expectedSha256"] = serde_json::json!(malformed);
             assert!(!validator.is_valid(&changed));
             assert!(serde_json::from_value::<StreamArtifactRequest>(changed).is_err());
         }
@@ -259,5 +269,31 @@ mod tests {
         let diagnostic = format!("{link:?}");
         assert!(!diagnostic.contains(token));
         assert!(diagnostic.contains("<redacted>"));
+    }
+    #[test]
+    fn controlled_paging_roots_refuse_retired_and_unknown_fields() {
+        let cursor = ArtifactId::new();
+        let current = json!({"artifacts":[], "nextCursor":cursor});
+        let schema = schemars::schema_for!(ArtifactPage);
+        let validator = jsonschema::validator_for(&serde_json::to_value(schema).unwrap()).unwrap();
+        assert!(serde_json::from_value::<ArtifactPage>(current.clone()).is_ok());
+        assert!(validator.is_valid(&current));
+        for mixed in [false, true] {
+            let mut retired = current.clone();
+            retired["next_cursor"] = retired["nextCursor"].clone();
+            if !mixed {
+                retired.as_object_mut().unwrap().remove("nextCursor");
+            }
+            assert!(serde_json::from_value::<ArtifactPage>(retired.clone()).is_err());
+            assert!(!validator.is_valid(&retired));
+        }
+        assert!(serde_json::from_value::<GrantList>(json!({"grants":[],"unknown":true})).is_err());
+        assert!(serde_json::from_value::<ListArtifactsRequest>(json!({"unknown":true})).is_err());
+        for schema in [
+            schemars::schema_for!(GrantList),
+            schemars::schema_for!(ListArtifactsRequest),
+        ] {
+            assert_eq!(schema.get("additionalProperties"), Some(&json!(false)));
+        }
     }
 }

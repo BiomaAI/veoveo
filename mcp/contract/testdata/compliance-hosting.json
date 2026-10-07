@@ -1,0 +1,167 @@
+{
+  "server": "fixture",
+  "contractRevision": 4,
+  "catalogRevision": 2,
+  "compliance": [
+    {
+      "id": "C01",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C02",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C03",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C04",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C05",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C06",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C07",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C08",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C09",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C10",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C11",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C12",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C13",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C14",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C15",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C16",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C17",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C18",
+      "status": "met"
+    },
+    {
+      "id": "C19",
+      "status": "met"
+    },
+    {
+      "id": "C20",
+      "status": "met"
+    },
+    {
+      "id": "C21",
+      "status": "met"
+    },
+    {
+      "id": "C22",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C23",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C24",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C25",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C26",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C27",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C28",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C29",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C30",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C31",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C32",
+      "status": "pending",
+      "note": "Independent fixture qualification remains pending."
+    },
+    {
+      "id": "C33",
+      "status": "met"
+    }
+  ]
+}

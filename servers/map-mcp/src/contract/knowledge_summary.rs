@@ -16,7 +16,12 @@ pub struct MapKnowledgeSummary {
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 pub enum MapKnowledgeDetails {
     Layer {
         description: Option<String>,

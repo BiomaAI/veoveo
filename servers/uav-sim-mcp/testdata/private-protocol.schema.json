@@ -1,12 +1,12 @@
 {
-  "POST /v1/world request": {
+  "POST /v2/world request": {
     "direction": "rust_to_python",
     "schema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "title": "AdapterWorldRequest",
       "type": "object",
       "properties": {
-        "session_id": {
+        "sessionId": {
           "$ref": "#/$defs/SessionId"
         },
         "world": {
@@ -15,40 +15,76 @@
       },
       "additionalProperties": false,
       "required": [
-        "session_id",
+        "sessionId",
         "world"
       ],
       "$defs": {
         "SessionId": {
           "description": "Distinct vehicle and session identities cannot be mixed in commands.\n```compile_fail\nuse veoveo_uav_sim_mcp::contract::{SessionRequest, VehicleId};\nSessionRequest { session_id: VehicleId::parse(\"vehicle\").unwrap() };\n```\nStable identity of one isolated simulation world.",
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract"
+                  },
+                  "profile": "SessionId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "SimulationWorldBinding": {
           "type": "object",
           "properties": {
-            "revision_uri": {
+            "revisionUri": {
               "$ref": "#/$defs/FrameWorldRevisionUri"
             },
-            "spec_sha256": {
+            "specSha256": {
               "$ref": "#/$defs/UploadSha256"
             },
-            "simulation_frame_uri": {
+            "simulationFrameUri": {
               "$ref": "#/$defs/WorldFrameUri"
             },
-            "georeference_origin": {
+            "georeferenceOrigin": {
               "$ref": "#/$defs/Wgs84Position"
             }
           },
           "additionalProperties": false,
           "required": [
-            "revision_uri",
-            "spec_sha256",
-            "simulation_frame_uri",
-            "georeference_origin"
+            "revisionUri",
+            "specSha256",
+            "simulationFrameUri",
+            "georeferenceOrigin"
           ]
         },
         "FrameWorldRevisionUri": {
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_resource",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_frames_contract::uris"
+                  },
+                  "profile": "FrameWorldRevisionUri",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar resource schema"
+                }
+              }
+            }
+          }
         },
         "UploadSha256": {
           "type": "string",
@@ -60,34 +96,34 @@
         "Wgs84Position": {
           "type": "object",
           "properties": {
-            "latitude_degrees": {
+            "latitudeDegrees": {
               "type": "number",
               "format": "double",
               "minimum": -90.0,
               "maximum": 90.0
             },
-            "longitude_degrees": {
+            "longitudeDegrees": {
               "type": "number",
               "format": "double",
               "minimum": -180.0,
               "maximum": 180.0
             },
-            "ellipsoid_height_m": {
+            "ellipsoidHeightM": {
               "type": "number",
               "format": "double"
             }
           },
           "additionalProperties": false,
           "required": [
-            "latitude_degrees",
-            "longitude_degrees",
-            "ellipsoid_height_m"
+            "latitudeDegrees",
+            "longitudeDegrees",
+            "ellipsoidHeightM"
           ]
         }
       }
     }
   },
-  "POST /v1/commands request": {
+  "POST /v2/commands request": {
     "direction": "rust_to_python",
     "schema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -96,7 +132,7 @@
         {
           "type": "object",
           "properties": {
-            "session_id": {
+            "sessionId": {
               "$ref": "#/$defs/SessionId"
             },
             "command": {
@@ -107,13 +143,13 @@
           "additionalProperties": false,
           "required": [
             "command",
-            "session_id"
+            "sessionId"
           ]
         },
         {
           "type": "object",
           "properties": {
-            "session_id": {
+            "sessionId": {
               "$ref": "#/$defs/SessionId"
             },
             "command": {
@@ -124,13 +160,13 @@
           "additionalProperties": false,
           "required": [
             "command",
-            "session_id"
+            "sessionId"
           ]
         },
         {
           "type": "object",
           "properties": {
-            "session_id": {
+            "sessionId": {
               "$ref": "#/$defs/SessionId"
             },
             "command": {
@@ -141,13 +177,13 @@
           "additionalProperties": false,
           "required": [
             "command",
-            "session_id"
+            "sessionId"
           ]
         },
         {
           "type": "object",
           "properties": {
-            "session_id": {
+            "sessionId": {
               "$ref": "#/$defs/SessionId"
             },
             "steps": {
@@ -164,17 +200,17 @@
           "additionalProperties": false,
           "required": [
             "command",
-            "session_id",
+            "sessionId",
             "steps"
           ]
         },
         {
           "type": "object",
           "properties": {
-            "session_id": {
+            "sessionId": {
               "$ref": "#/$defs/SessionId"
             },
-            "vehicle_id": {
+            "vehicleId": {
               "$ref": "#/$defs/VehicleId"
             },
             "command": {
@@ -185,20 +221,20 @@
           "additionalProperties": false,
           "required": [
             "command",
-            "session_id",
-            "vehicle_id"
+            "sessionId",
+            "vehicleId"
           ]
         },
         {
           "type": "object",
           "properties": {
-            "session_id": {
+            "sessionId": {
               "$ref": "#/$defs/SessionId"
             },
-            "vehicle_id": {
+            "vehicleId": {
               "$ref": "#/$defs/VehicleId"
             },
-            "relative_altitude_m": {
+            "relativeAltitudeM": {
               "type": "number",
               "format": "double",
               "minimum": 0.5,
@@ -212,18 +248,18 @@
           "additionalProperties": false,
           "required": [
             "command",
-            "session_id",
-            "vehicle_id",
-            "relative_altitude_m"
+            "sessionId",
+            "vehicleId",
+            "relativeAltitudeM"
           ]
         },
         {
           "type": "object",
           "properties": {
-            "session_id": {
+            "sessionId": {
               "$ref": "#/$defs/SessionId"
             },
-            "vehicle_id": {
+            "vehicleId": {
               "$ref": "#/$defs/VehicleId"
             },
             "command": {
@@ -234,24 +270,60 @@
           "additionalProperties": false,
           "required": [
             "command",
-            "session_id",
-            "vehicle_id"
+            "sessionId",
+            "vehicleId"
           ]
         }
       ],
       "$defs": {
         "SessionId": {
           "description": "Distinct vehicle and session identities cannot be mixed in commands.\n```compile_fail\nuse veoveo_uav_sim_mcp::contract::{SessionRequest, VehicleId};\nSessionRequest { session_id: VehicleId::parse(\"vehicle\").unwrap() };\n```\nStable identity of one isolated simulation world.",
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract"
+                  },
+                  "profile": "SessionId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "VehicleId": {
           "description": "Stable identity of one vehicle inside a session.",
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract"
+                  },
+                  "profile": "VehicleId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         }
       }
     }
   },
-  "POST /v1/operations request": {
+  "POST /v2/operations request": {
     "direction": "rust_to_python",
     "schema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -313,10 +385,10 @@
         "RunScenarioRequest": {
           "type": "object",
           "properties": {
-            "session_id": {
+            "sessionId": {
               "$ref": "#/$defs/SessionId"
             },
-            "duration_seconds": {
+            "durationSeconds": {
               "type": "number",
               "format": "double",
               "minimum": 0.1,
@@ -332,25 +404,43 @@
           },
           "additionalProperties": false,
           "required": [
-            "session_id",
-            "duration_seconds",
+            "sessionId",
+            "durationSeconds",
             "parameters"
           ]
         },
         "SessionId": {
           "description": "Distinct vehicle and session identities cannot be mixed in commands.\n```compile_fail\nuse veoveo_uav_sim_mcp::contract::{SessionRequest, VehicleId};\nSessionRequest { session_id: VehicleId::parse(\"vehicle\").unwrap() };\n```\nStable identity of one isolated simulation world.",
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract"
+                  },
+                  "profile": "SessionId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "ExecuteMissionRequest": {
           "type": "object",
           "properties": {
-            "session_id": {
+            "sessionId": {
               "$ref": "#/$defs/SessionId"
             },
-            "mission_id": {
+            "missionId": {
               "$ref": "#/$defs/MissionId"
             },
-            "expected_world_revision_uri": {
+            "expectedWorldRevisionUri": {
               "$ref": "#/$defs/FrameWorldRevisionUri"
             },
             "vehicles": {
@@ -364,23 +454,59 @@
           },
           "additionalProperties": false,
           "required": [
-            "session_id",
-            "mission_id",
-            "expected_world_revision_uri",
+            "sessionId",
+            "missionId",
+            "expectedWorldRevisionUri",
             "vehicles"
           ]
         },
         "MissionId": {
           "description": "Stable identity of one submitted mission.",
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract"
+                  },
+                  "profile": "MissionId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "FrameWorldRevisionUri": {
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_resource",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_frames_contract::uris"
+                  },
+                  "profile": "FrameWorldRevisionUri",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar resource schema"
+                }
+              }
+            }
+          }
         },
         "VehicleMission": {
           "type": "object",
           "properties": {
-            "vehicle_id": {
+            "vehicleId": {
               "$ref": "#/$defs/VehicleId"
             },
             "waypoints": {
@@ -394,13 +520,31 @@
           },
           "additionalProperties": false,
           "required": [
-            "vehicle_id",
+            "vehicleId",
             "waypoints"
           ]
         },
         "VehicleId": {
           "description": "Stable identity of one vehicle inside a session.",
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract"
+                  },
+                  "profile": "VehicleId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "MissionWaypoint": {
           "type": "object",
@@ -408,13 +552,13 @@
             "position": {
               "$ref": "#/$defs/Wgs84Position"
             },
-            "speed_mps": {
+            "speedMps": {
               "type": "number",
               "format": "double",
               "minimum": 0.1,
               "maximum": 100.0
             },
-            "hold_seconds": {
+            "holdSeconds": {
               "type": "number",
               "format": "double",
               "minimum": 0.0,
@@ -424,44 +568,44 @@
           "additionalProperties": false,
           "required": [
             "position",
-            "speed_mps",
-            "hold_seconds"
+            "speedMps",
+            "holdSeconds"
           ]
         },
         "Wgs84Position": {
           "type": "object",
           "properties": {
-            "latitude_degrees": {
+            "latitudeDegrees": {
               "type": "number",
               "format": "double",
               "minimum": -90.0,
               "maximum": 90.0
             },
-            "longitude_degrees": {
+            "longitudeDegrees": {
               "type": "number",
               "format": "double",
               "minimum": -180.0,
               "maximum": 180.0
             },
-            "ellipsoid_height_m": {
+            "ellipsoidHeightM": {
               "type": "number",
               "format": "double"
             }
           },
           "additionalProperties": false,
           "required": [
-            "latitude_degrees",
-            "longitude_degrees",
-            "ellipsoid_height_m"
+            "latitudeDegrees",
+            "longitudeDegrees",
+            "ellipsoidHeightM"
           ]
         },
         "CaptureDatasetRequest": {
           "type": "object",
           "properties": {
-            "session_id": {
+            "sessionId": {
               "$ref": "#/$defs/SessionId"
             },
-            "duration_seconds": {
+            "durationSeconds": {
               "type": "number",
               "format": "double",
               "minimum": 0.1,
@@ -478,32 +622,32 @@
           },
           "additionalProperties": false,
           "required": [
-            "session_id",
-            "duration_seconds",
+            "sessionId",
+            "durationSeconds",
             "sensors"
           ]
         }
       }
     }
   },
-  "GET /v1/state response": {
+  "GET /v2/state response": {
     "direction": "python_to_rust",
     "schema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "title": "AdapterSimulationState",
       "type": "object",
       "properties": {
-        "session_id": {
+        "sessionId": {
           "$ref": "#/$defs/SessionId"
         },
         "lifecycle": {
           "$ref": "#/$defs/SimulationLifecycle"
         },
-        "simulation_time_s": {
+        "simulationTimeS": {
           "type": "number",
           "format": "double"
         },
-        "physics_step": {
+        "physicsStep": {
           "type": "integer",
           "format": "uint64",
           "minimum": 0
@@ -530,13 +674,13 @@
             "$ref": "#/$defs/CameraState"
           }
         },
-        "live_cameras": {
+        "liveCameras": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/LiveCameraDescriptor"
           }
         },
-        "stream_products": {
+        "streamProducts": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/LiveStreamProductState"
@@ -554,30 +698,48 @@
             "$ref": "#/$defs/AdapterRecordingState"
           }
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "date-time"
         }
       },
       "additionalProperties": false,
       "required": [
-        "session_id",
+        "sessionId",
         "lifecycle",
-        "simulation_time_s",
-        "physics_step",
+        "simulationTimeS",
+        "physicsStep",
         "timing",
         "tiles",
         "cameras",
-        "live_cameras",
-        "stream_products",
+        "liveCameras",
+        "streamProducts",
         "vehicles",
         "recordings",
-        "updated_at"
+        "updatedAt"
       ],
       "$defs": {
         "SessionId": {
           "description": "Distinct vehicle and session identities cannot be mixed in commands.\n```compile_fail\nuse veoveo_uav_sim_mcp::contract::{SessionRequest, VehicleId};\nSessionRequest { session_id: VehicleId::parse(\"vehicle\").unwrap() };\n```\nStable identity of one isolated simulation world.",
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract"
+                  },
+                  "profile": "SessionId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "SimulationLifecycle": {
           "type": "string",
@@ -595,128 +757,146 @@
         "RuntimeTimingState": {
           "type": "object",
           "properties": {
-            "physics_hz": {
+            "physicsHz": {
               "type": "integer",
               "format": "uint32",
               "minimum": 30,
               "maximum": 1000
             },
-            "native_rendering_hz": {
+            "nativeRenderingHz": {
               "type": "integer",
               "format": "uint32",
               "minimum": 1,
               "maximum": 120
             },
-            "render_cycles": {
+            "renderCycles": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "physics_steps": {
+            "physicsSteps": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "refresh_states_wall_seconds": {
+            "refreshStatesWallSeconds": {
               "type": "number",
               "format": "double"
             },
-            "vehicle_update_wall_seconds": {
+            "vehicleUpdateWallSeconds": {
               "type": "number",
               "format": "double"
             },
-            "state_update_wall_seconds": {
+            "stateUpdateWallSeconds": {
               "type": "number",
               "format": "double"
             },
-            "dynamics_update_wall_seconds": {
+            "dynamicsUpdateWallSeconds": {
               "type": "number",
               "format": "double"
             },
-            "sensor_update_wall_seconds": {
+            "sensorUpdateWallSeconds": {
               "type": "number",
               "format": "double"
             },
-            "backend_state_wall_seconds": {
+            "backendStateWallSeconds": {
               "type": "number",
               "format": "double"
             },
-            "flush_forces_wall_seconds": {
+            "flushForcesWallSeconds": {
               "type": "number",
               "format": "double"
             },
-            "after_step_wall_seconds": {
+            "afterStepWallSeconds": {
               "type": "number",
               "format": "double"
             },
-            "native_update_wall_seconds": {
+            "nativeUpdateWallSeconds": {
               "type": "number",
               "format": "double"
             },
-            "render_cycle_wall_seconds": {
+            "renderCycleWallSeconds": {
               "type": "number",
               "format": "double"
             },
-            "maximum_physics_step_ms": {
+            "maximumPhysicsStepMs": {
               "type": "number",
               "format": "double"
             },
-            "maximum_native_update_ms": {
+            "maximumNativeUpdateMs": {
               "type": "number",
               "format": "double"
             },
-            "maximum_render_cycle_ms": {
+            "maximumRenderCycleMs": {
               "type": "number",
               "format": "double"
             }
           },
           "additionalProperties": false,
           "required": [
-            "physics_hz",
-            "native_rendering_hz",
-            "render_cycles",
-            "physics_steps",
-            "refresh_states_wall_seconds",
-            "vehicle_update_wall_seconds",
-            "state_update_wall_seconds",
-            "dynamics_update_wall_seconds",
-            "sensor_update_wall_seconds",
-            "backend_state_wall_seconds",
-            "flush_forces_wall_seconds",
-            "after_step_wall_seconds",
-            "native_update_wall_seconds",
-            "render_cycle_wall_seconds",
-            "maximum_physics_step_ms",
-            "maximum_native_update_ms",
-            "maximum_render_cycle_ms"
+            "physicsHz",
+            "nativeRenderingHz",
+            "renderCycles",
+            "physicsSteps",
+            "refreshStatesWallSeconds",
+            "vehicleUpdateWallSeconds",
+            "stateUpdateWallSeconds",
+            "dynamicsUpdateWallSeconds",
+            "sensorUpdateWallSeconds",
+            "backendStateWallSeconds",
+            "flushForcesWallSeconds",
+            "afterStepWallSeconds",
+            "nativeUpdateWallSeconds",
+            "renderCycleWallSeconds",
+            "maximumPhysicsStepMs",
+            "maximumNativeUpdateMs",
+            "maximumRenderCycleMs"
           ]
         },
         "SimulationWorldBinding": {
           "type": "object",
           "properties": {
-            "revision_uri": {
+            "revisionUri": {
               "$ref": "#/$defs/FrameWorldRevisionUri"
             },
-            "spec_sha256": {
+            "specSha256": {
               "$ref": "#/$defs/UploadSha256"
             },
-            "simulation_frame_uri": {
+            "simulationFrameUri": {
               "$ref": "#/$defs/WorldFrameUri"
             },
-            "georeference_origin": {
+            "georeferenceOrigin": {
               "$ref": "#/$defs/Wgs84Position"
             }
           },
           "additionalProperties": false,
           "required": [
-            "revision_uri",
-            "spec_sha256",
-            "simulation_frame_uri",
-            "georeference_origin"
+            "revisionUri",
+            "specSha256",
+            "simulationFrameUri",
+            "georeferenceOrigin"
           ]
         },
         "FrameWorldRevisionUri": {
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_resource",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_frames_contract::uris"
+                  },
+                  "profile": "FrameWorldRevisionUri",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar resource schema"
+                }
+              }
+            }
+          }
         },
         "UploadSha256": {
           "type": "string",
@@ -728,28 +908,28 @@
         "Wgs84Position": {
           "type": "object",
           "properties": {
-            "latitude_degrees": {
+            "latitudeDegrees": {
               "type": "number",
               "format": "double",
               "minimum": -90.0,
               "maximum": 90.0
             },
-            "longitude_degrees": {
+            "longitudeDegrees": {
               "type": "number",
               "format": "double",
               "minimum": -180.0,
               "maximum": 180.0
             },
-            "ellipsoid_height_m": {
+            "ellipsoidHeightM": {
               "type": "number",
               "format": "double"
             }
           },
           "additionalProperties": false,
           "required": [
-            "latitude_degrees",
-            "longitude_degrees",
-            "ellipsoid_height_m"
+            "latitudeDegrees",
+            "longitudeDegrees",
+            "ellipsoidHeightM"
           ]
         },
         "TileState": {
@@ -761,57 +941,57 @@
             "source": {
               "type": "string"
             },
-            "ion_asset_id": {
+            "ionAssetId": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "resident_tiles": {
+            "residentTiles": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "visible_tiles": {
+            "visibleTiles": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "loading_tiles": {
+            "loadingTiles": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "geometries_loaded": {
+            "geometriesLoaded": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "geometries_rendered": {
+            "geometriesRendered": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "materials_loaded": {
+            "materialsLoaded": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "provider_generation": {
+            "providerGeneration": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "event_sequence": {
+            "eventSequence": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "refresh_count": {
+            "refreshCount": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "last_failure": {
+            "lastFailure": {
               "anyOf": [
                 {
                   "$ref": "#/$defs/TileFailureState"
@@ -832,16 +1012,16 @@
           "required": [
             "lifecycle",
             "source",
-            "ion_asset_id",
-            "resident_tiles",
-            "visible_tiles",
-            "loading_tiles",
-            "geometries_loaded",
-            "geometries_rendered",
-            "materials_loaded",
-            "provider_generation",
-            "event_sequence",
-            "refresh_count"
+            "ionAssetId",
+            "residentTiles",
+            "visibleTiles",
+            "loadingTiles",
+            "geometriesLoaded",
+            "geometriesRendered",
+            "materialsLoaded",
+            "providerGeneration",
+            "eventSequence",
+            "refreshCount"
           ]
         },
         "TileLifecycle": {
@@ -860,10 +1040,10 @@
             "code": {
               "$ref": "#/$defs/TileFailureCode"
             },
-            "load_type": {
+            "loadType": {
               "$ref": "#/$defs/TileLoadType"
             },
-            "http_status": {
+            "httpStatus": {
               "type": "integer",
               "format": "uint16",
               "minimum": 0,
@@ -878,8 +1058,8 @@
           "additionalProperties": false,
           "required": [
             "code",
-            "load_type",
-            "http_status",
+            "loadType",
+            "httpStatus",
             "generation"
           ]
         },
@@ -907,10 +1087,10 @@
         "CameraState": {
           "type": "object",
           "properties": {
-            "vehicle_id": {
+            "vehicleId": {
               "$ref": "#/$defs/VehicleId"
             },
-            "entity_path": {
+            "entityPath": {
               "type": "string"
             },
             "lifecycle": {
@@ -926,7 +1106,7 @@
               "format": "uint32",
               "minimum": 0
             },
-            "frame_rate_hz": {
+            "frameRateHz": {
               "type": "integer",
               "format": "uint32",
               "minimum": 0
@@ -940,20 +1120,20 @@
             "transport": {
               "$ref": "#/$defs/CameraTransport"
             },
-            "frames_observed": {
+            "framesObserved": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "last_access_unit_bytes": {
+            "lastAccessUnitBytes": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "last_frame_keyframe": {
+            "lastFrameKeyframe": {
               "type": "boolean"
             },
-            "render_pose": {
+            "renderPose": {
               "anyOf": [
                 {
                   "$ref": "#/$defs/CameraRenderPoseState"
@@ -972,23 +1152,41 @@
           },
           "additionalProperties": false,
           "required": [
-            "vehicle_id",
-            "entity_path",
+            "vehicleId",
+            "entityPath",
             "lifecycle",
             "width",
             "height",
-            "frame_rate_hz",
+            "frameRateHz",
             "codec",
             "encoder",
             "transport",
-            "frames_observed",
-            "last_access_unit_bytes",
-            "last_frame_keyframe"
+            "framesObserved",
+            "lastAccessUnitBytes",
+            "lastFrameKeyframe"
           ]
         },
         "VehicleId": {
           "description": "Stable identity of one vehicle inside a session.",
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract"
+                  },
+                  "profile": "VehicleId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "CameraLifecycle": {
           "type": "string",
@@ -1020,53 +1218,53 @@
         "CameraRenderPoseState": {
           "type": "object",
           "properties": {
-            "position_error_m": {
+            "positionErrorM": {
               "type": "number",
               "format": "double",
               "minimum": 0.0
             },
-            "forward_error_degrees": {
+            "forwardErrorDegrees": {
               "type": "number",
               "format": "double",
               "minimum": 0.0,
               "maximum": 180.0
             },
-            "rendered_position_enu_m": {
+            "renderedPositionEnuM": {
               "$ref": "#/$defs/EnuVector"
             },
-            "rendered_forward_enu": {
+            "renderedForwardEnu": {
               "$ref": "#/$defs/EnuDirection"
             }
           },
           "additionalProperties": false,
           "required": [
-            "position_error_m",
-            "forward_error_degrees",
-            "rendered_position_enu_m",
-            "rendered_forward_enu"
+            "positionErrorM",
+            "forwardErrorDegrees",
+            "renderedPositionEnuM",
+            "renderedForwardEnu"
           ]
         },
         "EnuVector": {
           "type": "object",
           "properties": {
-            "east_m": {
+            "eastM": {
               "type": "number",
               "format": "double"
             },
-            "north_m": {
+            "northM": {
               "type": "number",
               "format": "double"
             },
-            "up_m": {
+            "upM": {
               "type": "number",
               "format": "double"
             }
           },
           "additionalProperties": false,
           "required": [
-            "east_m",
-            "north_m",
-            "up_m"
+            "eastM",
+            "northM",
+            "upM"
           ]
         },
         "EnuDirection": {
@@ -1173,10 +1371,46 @@
           ]
         },
         "LiveCameraId": {
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract::live_view"
+                  },
+                  "profile": "LiveCameraId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "LiveSessionId": {
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract::live_view"
+                  },
+                  "profile": "LiveSessionId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "LiveCameraRig": {
           "oneOf": [
@@ -1191,6 +1425,7 @@
                   "const": "fixed"
                 }
               },
+              "additionalProperties": false,
               "required": [
                 "kind",
                 "pose"
@@ -1213,6 +1448,7 @@
                   "const": "look_at"
                 }
               },
+              "additionalProperties": false,
               "required": [
                 "kind",
                 "eyeM",
@@ -1246,6 +1482,7 @@
                   "const": "orbit"
                 }
               },
+              "additionalProperties": false,
               "required": [
                 "kind",
                 "targetEntityId",
@@ -1275,6 +1512,7 @@
                   "const": "follow_entity"
                 }
               },
+              "additionalProperties": false,
               "required": [
                 "kind",
                 "targetEntityId",
@@ -1305,6 +1543,7 @@
                   "const": "chase_entity"
                 }
               },
+              "additionalProperties": false,
               "required": [
                 "kind",
                 "targetEntityId",
@@ -1330,6 +1569,7 @@
                   "const": "stabilized_mounted_entity"
                 }
               },
+              "additionalProperties": false,
               "required": [
                 "kind",
                 "targetEntityId",
@@ -1358,6 +1598,7 @@
                   "const": "formation_overview"
                 }
               },
+              "additionalProperties": false,
               "required": [
                 "kind",
                 "targetEntityIds",
@@ -1467,7 +1708,25 @@
           ]
         },
         "LiveEntityId": {
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract::live_view"
+                  },
+                  "profile": "LiveEntityId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "LiveCameraStreamPolicy": {
           "type": "string",
@@ -1578,7 +1837,25 @@
           ]
         },
         "LiveStreamProductId": {
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract::live_view"
+                  },
+                  "profile": "LiveStreamProductId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "LiveCameraRegion": {
           "type": "object",
@@ -1628,10 +1905,10 @@
         "VehicleState": {
           "type": "object",
           "properties": {
-            "vehicle_id": {
+            "vehicleId": {
               "$ref": "#/$defs/VehicleId"
             },
-            "flight_state": {
+            "flightState": {
               "$ref": "#/$defs/VehicleFlightState"
             },
             "wgs84": {
@@ -1643,39 +1920,39 @@
             "ned": {
               "$ref": "#/$defs/NedVector"
             },
-            "attitude_xyzw": {
+            "attitudeXyzw": {
               "$ref": "#/$defs/QuaternionXyzw"
             },
-            "linear_velocity_enu_mps": {
+            "linearVelocityEnuMps": {
               "$ref": "#/$defs/EnuVector"
             },
-            "battery_percent": {
+            "batteryPercent": {
               "type": "number",
               "format": "float",
               "minimum": 0.0,
               "maximum": 100.0
             },
-            "collision_count": {
+            "collisionCount": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "px4_connected": {
+            "px4Connected": {
               "type": "boolean"
             }
           },
           "additionalProperties": false,
           "required": [
-            "vehicle_id",
-            "flight_state",
+            "vehicleId",
+            "flightState",
             "wgs84",
             "enu",
             "ned",
-            "attitude_xyzw",
-            "linear_velocity_enu_mps",
-            "battery_percent",
-            "collision_count",
-            "px4_connected"
+            "attitudeXyzw",
+            "linearVelocityEnuMps",
+            "batteryPercent",
+            "collisionCount",
+            "px4Connected"
           ]
         },
         "VehicleFlightState": {
@@ -1694,24 +1971,24 @@
         "NedVector": {
           "type": "object",
           "properties": {
-            "north_m": {
+            "northM": {
               "type": "number",
               "format": "double"
             },
-            "east_m": {
+            "eastM": {
               "type": "number",
               "format": "double"
             },
-            "down_m": {
+            "downM": {
               "type": "number",
               "format": "double"
             }
           },
           "additionalProperties": false,
           "required": [
-            "north_m",
-            "east_m",
-            "down_m"
+            "northM",
+            "eastM",
+            "downM"
           ]
         },
         "QuaternionXyzw": {
@@ -1745,29 +2022,29 @@
         "AdapterRecordingState": {
           "type": "object",
           "properties": {
-            "application_id": {
+            "applicationId": {
               "type": "string"
             },
-            "recording_key": {
+            "recordingKey": {
               "$ref": "#/$defs/RecordingKey"
             },
             "active": {
               "type": "boolean"
             },
-            "publisher_lifecycle": {
+            "publisherLifecycle": {
               "$ref": "#/$defs/RecordingPublisherLifecycle"
             },
-            "queue_capacity": {
+            "queueCapacity": {
               "type": "integer",
               "format": "uint32",
               "minimum": 0
             },
-            "queued_events": {
+            "queuedEvents": {
               "type": "integer",
               "format": "uint32",
               "minimum": 0
             },
-            "dropped_events": {
+            "droppedEvents": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
@@ -1779,33 +2056,51 @@
               ],
               "default": null
             },
-            "camera_streams": {
+            "cameraStreams": {
               "type": "array",
               "items": {
                 "type": "string"
               }
             },
-            "started_at": {
+            "startedAt": {
               "type": "string",
               "format": "date-time"
             }
           },
           "additionalProperties": false,
           "required": [
-            "application_id",
-            "recording_key",
+            "applicationId",
+            "recordingKey",
             "active",
-            "publisher_lifecycle",
-            "queue_capacity",
-            "queued_events",
-            "dropped_events",
-            "camera_streams",
-            "started_at"
+            "publisherLifecycle",
+            "queueCapacity",
+            "queuedEvents",
+            "droppedEvents",
+            "cameraStreams",
+            "startedAt"
           ]
         },
         "RecordingKey": {
           "description": "Producer identity of one recording stream.",
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract"
+                  },
+                  "profile": "RecordingKey",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "RecordingPublisherLifecycle": {
           "type": "string",
@@ -1819,7 +2114,7 @@
       }
     }
   },
-  "POST /v1/world response": {
+  "POST /v2/world response": {
     "direction": "python_to_rust",
     "schema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1832,7 +2127,7 @@
         "world": {
           "$ref": "#/$defs/SimulationWorldBinding"
         },
-        "resource_uri": {
+        "resourceUri": {
           "$ref": "#/$defs/UavResource"
         }
       },
@@ -1840,35 +2135,53 @@
       "required": [
         "accepted",
         "world",
-        "resource_uri"
+        "resourceUri"
       ],
       "$defs": {
         "SimulationWorldBinding": {
           "type": "object",
           "properties": {
-            "revision_uri": {
+            "revisionUri": {
               "$ref": "#/$defs/FrameWorldRevisionUri"
             },
-            "spec_sha256": {
+            "specSha256": {
               "$ref": "#/$defs/UploadSha256"
             },
-            "simulation_frame_uri": {
+            "simulationFrameUri": {
               "$ref": "#/$defs/WorldFrameUri"
             },
-            "georeference_origin": {
+            "georeferenceOrigin": {
               "$ref": "#/$defs/Wgs84Position"
             }
           },
           "additionalProperties": false,
           "required": [
-            "revision_uri",
-            "spec_sha256",
-            "simulation_frame_uri",
-            "georeference_origin"
+            "revisionUri",
+            "specSha256",
+            "simulationFrameUri",
+            "georeferenceOrigin"
           ]
         },
         "FrameWorldRevisionUri": {
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_resource",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_frames_contract::uris"
+                  },
+                  "profile": "FrameWorldRevisionUri",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar resource schema"
+                }
+              }
+            }
+          }
         },
         "UploadSha256": {
           "type": "string",
@@ -1880,28 +2193,28 @@
         "Wgs84Position": {
           "type": "object",
           "properties": {
-            "latitude_degrees": {
+            "latitudeDegrees": {
               "type": "number",
               "format": "double",
               "minimum": -90.0,
               "maximum": 90.0
             },
-            "longitude_degrees": {
+            "longitudeDegrees": {
               "type": "number",
               "format": "double",
               "minimum": -180.0,
               "maximum": 180.0
             },
-            "ellipsoid_height_m": {
+            "ellipsoidHeightM": {
               "type": "number",
               "format": "double"
             }
           },
           "additionalProperties": false,
           "required": [
-            "latitude_degrees",
-            "longitude_degrees",
-            "ellipsoid_height_m"
+            "latitudeDegrees",
+            "longitudeDegrees",
+            "ellipsoidHeightM"
           ]
         },
         "UavResource": {
@@ -1911,7 +2224,7 @@
       }
     }
   },
-  "POST /v1/commands response": {
+  "POST /v2/commands response": {
     "direction": "python_to_rust",
     "schema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1924,7 +2237,7 @@
         "detail": {
           "type": "string"
         },
-        "resource_uri": {
+        "resourceUri": {
           "$ref": "#/$defs/UavResource"
         }
       },
@@ -1932,7 +2245,7 @@
       "required": [
         "accepted",
         "detail",
-        "resource_uri"
+        "resourceUri"
       ],
       "$defs": {
         "UavResource": {
@@ -1942,7 +2255,7 @@
       }
     }
   },
-  "POST /v1/operations response": {
+  "POST /v2/operations response": {
     "direction": "python_to_rust",
     "schema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2004,23 +2317,23 @@
         "AdapterScenarioResult": {
           "type": "object",
           "properties": {
-            "session_id": {
+            "sessionId": {
               "$ref": "#/$defs/SessionId"
             },
-            "elapsed_seconds": {
+            "elapsedSeconds": {
               "type": "number",
               "format": "double"
             },
-            "final_simulation_time_s": {
+            "finalSimulationTimeS": {
               "type": "number",
               "format": "double"
             },
-            "collision_count": {
+            "collisionCount": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "recording_keys": {
+            "recordingKeys": {
               "type": "array",
               "items": {
                 "type": "string"
@@ -2029,40 +2342,58 @@
           },
           "additionalProperties": false,
           "required": [
-            "session_id",
-            "elapsed_seconds",
-            "final_simulation_time_s",
-            "collision_count",
-            "recording_keys"
+            "sessionId",
+            "elapsedSeconds",
+            "finalSimulationTimeS",
+            "collisionCount",
+            "recordingKeys"
           ]
         },
         "SessionId": {
           "description": "Distinct vehicle and session identities cannot be mixed in commands.\n```compile_fail\nuse veoveo_uav_sim_mcp::contract::{SessionRequest, VehicleId};\nSessionRequest { session_id: VehicleId::parse(\"vehicle\").unwrap() };\n```\nStable identity of one isolated simulation world.",
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract"
+                  },
+                  "profile": "SessionId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "AdapterMissionResult": {
           "type": "object",
           "properties": {
-            "mission_id": {
+            "missionId": {
               "$ref": "#/$defs/MissionId"
             },
             "lifecycle": {
               "$ref": "#/$defs/MissionLifecycle"
             },
-            "started_at": {
+            "startedAt": {
               "type": "string",
               "format": "date-time"
             },
-            "finished_at": {
+            "finishedAt": {
               "type": "string",
               "format": "date-time"
             },
-            "completed_waypoints": {
+            "completedWaypoints": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0
             },
-            "recording_keys": {
+            "recordingKeys": {
               "type": "array",
               "items": {
                 "type": "string"
@@ -2071,17 +2402,35 @@
           },
           "additionalProperties": false,
           "required": [
-            "mission_id",
+            "missionId",
             "lifecycle",
-            "started_at",
-            "finished_at",
-            "completed_waypoints",
-            "recording_keys"
+            "startedAt",
+            "finishedAt",
+            "completedWaypoints",
+            "recordingKeys"
           ]
         },
         "MissionId": {
           "description": "Stable identity of one submitted mission.",
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract"
+                  },
+                  "profile": "MissionId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         },
         "MissionLifecycle": {
           "type": "string",
@@ -2096,14 +2445,14 @@
         "AdapterCaptureDatasetResult": {
           "type": "object",
           "properties": {
-            "session_id": {
+            "sessionId": {
               "$ref": "#/$defs/SessionId"
             },
-            "elapsed_seconds": {
+            "elapsedSeconds": {
               "type": "number",
               "format": "double"
             },
-            "recording_keys": {
+            "recordingKeys": {
               "type": "array",
               "items": {
                 "type": "string"
@@ -2112,9 +2461,9 @@
           },
           "additionalProperties": false,
           "required": [
-            "session_id",
-            "elapsed_seconds",
-            "recording_keys"
+            "sessionId",
+            "elapsedSeconds",
+            "recordingKeys"
           ]
         }
       }
@@ -2158,7 +2507,25 @@
           ]
         },
         "LiveSessionId": {
-          "type": "string"
+          "type": "string",
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "owner_identity",
+                "declaration": {
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_uav_sim_mcp::contract::live_view"
+                  },
+                  "profile": "LiveSessionId",
+                  "version": "unversioned",
+                  "applicability": "the declared scalar identity schema"
+                }
+              }
+            }
+          }
         }
       }
     }

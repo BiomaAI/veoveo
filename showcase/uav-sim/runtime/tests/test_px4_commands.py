@@ -165,8 +165,8 @@ class Px4CommandDeadlineTests(unittest.TestCase):
         application._fleet_loop.take_control.side_effect = take_control
         with patch.object(self.commander, "takeoff") as takeoff:
             application._execute_command(parse_command({
-                "session_id": "uav-showcase", "vehicle_id": "uav-1",
-                "command": "takeoff", "relative_altitude_m": 197.0,
+                'sessionId': "uav-showcase", 'vehicleId': "uav-1",
+                "command": "takeoff", 'relativeAltitudeM': 197.0,
             }))
         self.assertEqual(takeoff.call_args.kwargs["deadline"].remaining(), 50.0)
 

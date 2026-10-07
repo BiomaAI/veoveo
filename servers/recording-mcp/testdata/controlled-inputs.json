@@ -3,12 +3,12 @@
     "branch": "RecordingProjectionSampling.range",
     "tool": "create_recording_projection",
     "arguments": {
-      "dataset_id": "01983da0-0000-7000-8000-000000000000",
-      "recording_id": "01983da0-0000-7000-8000-000000000000",
-      "entity_paths": [
+      "datasetId": "01983da0-0000-7000-8000-000000000000",
+      "recordingId": "01983da0-0000-7000-8000-000000000000",
+      "entityPaths": [
         "/camera/front"
       ],
-      "component_ids": [
+      "componentIds": [
         "rerun.components.ImageFormat"
       ],
       "timeline": "sensor_time",
@@ -17,22 +17,22 @@
         "start": 1,
         "end": 3
       },
-      "sparse_fill": "none",
-      "maximum_entities": 1,
-      "maximum_columns": 1,
-      "maximum_samples": 4,
-      "maximum_rows": 4,
-      "maximum_bytes": 1024,
-      "deadline_ms": 1000,
-      "idempotency_key": "input-fixture",
+      "sparseFill": "none",
+      "maximumEntities": 1,
+      "maximumColumns": 1,
+      "maximumSamples": 4,
+      "maximumRows": 4,
+      "maximumBytes": 1024,
+      "deadlineMs": 1000,
+      "idempotencyKey": "input-fixture",
       "units": {},
-      "coordinate_frame_refs": []
+      "coordinateFrameRefs": []
     },
     "tag": "/sampling/kind",
     "required": [
       "/timeline",
-      "/dataset_id",
-      "/entity_paths",
+      "/datasetId",
+      "/entityPaths",
       "/sampling/start",
       "/sampling/end"
     ],
@@ -46,12 +46,12 @@
     "branch": "RecordingProjectionSampling.latest_at",
     "tool": "create_recording_projection",
     "arguments": {
-      "dataset_id": "01983da0-0000-7000-8000-000000000000",
-      "recording_id": "01983da0-0000-7000-8000-000000000000",
-      "entity_paths": [
+      "datasetId": "01983da0-0000-7000-8000-000000000000",
+      "recordingId": "01983da0-0000-7000-8000-000000000000",
+      "entityPaths": [
         "/camera/front"
       ],
-      "component_ids": [
+      "componentIds": [
         "rerun.components.ImageFormat"
       ],
       "timeline": "sensor_time",
@@ -59,22 +59,22 @@
         "kind": "latest_at",
         "at": 1
       },
-      "sparse_fill": "none",
-      "maximum_entities": 1,
-      "maximum_columns": 1,
-      "maximum_samples": 4,
-      "maximum_rows": 4,
-      "maximum_bytes": 1024,
-      "deadline_ms": 1000,
-      "idempotency_key": "input-fixture",
+      "sparseFill": "none",
+      "maximumEntities": 1,
+      "maximumColumns": 1,
+      "maximumSamples": 4,
+      "maximumRows": 4,
+      "maximumBytes": 1024,
+      "deadlineMs": 1000,
+      "idempotencyKey": "input-fixture",
       "units": {},
-      "coordinate_frame_refs": []
+      "coordinateFrameRefs": []
     },
     "tag": "/sampling/kind",
     "required": [
       "/timeline",
-      "/dataset_id",
-      "/entity_paths",
+      "/datasetId",
+      "/entityPaths",
       "/sampling/at"
     ],
     "defaults": {},
@@ -87,12 +87,12 @@
     "branch": "RecordingProjectionSampling.sample_grid",
     "tool": "create_recording_projection",
     "arguments": {
-      "dataset_id": "01983da0-0000-7000-8000-000000000000",
-      "recording_id": "01983da0-0000-7000-8000-000000000000",
-      "entity_paths": [
+      "datasetId": "01983da0-0000-7000-8000-000000000000",
+      "recordingId": "01983da0-0000-7000-8000-000000000000",
+      "entityPaths": [
         "/camera/front"
       ],
-      "component_ids": [
+      "componentIds": [
         "rerun.components.ImageFormat"
       ],
       "timeline": "sensor_time",
@@ -103,22 +103,22 @@
           2
         ]
       },
-      "sparse_fill": "none",
-      "maximum_entities": 1,
-      "maximum_columns": 1,
-      "maximum_samples": 4,
-      "maximum_rows": 4,
-      "maximum_bytes": 1024,
-      "deadline_ms": 1000,
-      "idempotency_key": "input-fixture",
+      "sparseFill": "none",
+      "maximumEntities": 1,
+      "maximumColumns": 1,
+      "maximumSamples": 4,
+      "maximumRows": 4,
+      "maximumBytes": 1024,
+      "deadlineMs": 1000,
+      "idempotencyKey": "input-fixture",
       "units": {},
-      "coordinate_frame_refs": []
+      "coordinateFrameRefs": []
     },
     "tag": "/sampling/kind",
     "required": [
       "/timeline",
-      "/dataset_id",
-      "/entity_paths",
+      "/datasetId",
+      "/entityPaths",
       "/sampling/values"
     ],
     "defaults": {},
@@ -131,12 +131,12 @@
     "branch": "RecordingProjectionSparseFill.none",
     "tool": "create_recording_projection",
     "arguments": {
-      "dataset_id": "01983da0-0000-7000-8000-000000000000",
-      "recording_id": "01983da0-0000-7000-8000-000000000000",
-      "entity_paths": [
+      "datasetId": "01983da0-0000-7000-8000-000000000000",
+      "recordingId": "01983da0-0000-7000-8000-000000000000",
+      "entityPaths": [
         "/camera/front"
       ],
-      "component_ids": [
+      "componentIds": [
         "rerun.components.ImageFormat"
       ],
       "timeline": "sensor_time",
@@ -145,20 +145,20 @@
         "start": 1,
         "end": 3
       },
-      "sparse_fill": "none",
-      "maximum_entities": 1,
-      "maximum_columns": 1,
-      "maximum_samples": 4,
-      "maximum_rows": 4,
-      "maximum_bytes": 1024,
-      "deadline_ms": 1000,
-      "idempotency_key": "input-fixture",
+      "sparseFill": "none",
+      "maximumEntities": 1,
+      "maximumColumns": 1,
+      "maximumSamples": 4,
+      "maximumRows": 4,
+      "maximumBytes": 1024,
+      "deadlineMs": 1000,
+      "idempotencyKey": "input-fixture",
       "units": {},
-      "coordinate_frame_refs": []
+      "coordinateFrameRefs": []
     },
-    "tag": "/sparse_fill",
+    "tag": "/sparseFill",
     "required": [
-      "/recording_id"
+      "/recordingId"
     ],
     "defaults": {},
     "open_objects": [],
@@ -170,12 +170,12 @@
     "branch": "RecordingProjectionSparseFill.latest_at_global",
     "tool": "create_recording_projection",
     "arguments": {
-      "dataset_id": "01983da0-0000-7000-8000-000000000000",
-      "recording_id": "01983da0-0000-7000-8000-000000000000",
-      "entity_paths": [
+      "datasetId": "01983da0-0000-7000-8000-000000000000",
+      "recordingId": "01983da0-0000-7000-8000-000000000000",
+      "entityPaths": [
         "/camera/front"
       ],
-      "component_ids": [
+      "componentIds": [
         "rerun.components.ImageFormat"
       ],
       "timeline": "sensor_time",
@@ -184,20 +184,20 @@
         "start": 1,
         "end": 3
       },
-      "sparse_fill": "latest_at_global",
-      "maximum_entities": 1,
-      "maximum_columns": 1,
-      "maximum_samples": 4,
-      "maximum_rows": 4,
-      "maximum_bytes": 1024,
-      "deadline_ms": 1000,
-      "idempotency_key": "input-fixture",
+      "sparseFill": "latest_at_global",
+      "maximumEntities": 1,
+      "maximumColumns": 1,
+      "maximumSamples": 4,
+      "maximumRows": 4,
+      "maximumBytes": 1024,
+      "deadlineMs": 1000,
+      "idempotencyKey": "input-fixture",
       "units": {},
-      "coordinate_frame_refs": []
+      "coordinateFrameRefs": []
     },
-    "tag": "/sparse_fill",
+    "tag": "/sparseFill",
     "required": [
-      "/recording_id"
+      "/recordingId"
     ],
     "defaults": {},
     "open_objects": [],

@@ -25,6 +25,10 @@ Gateway tools use names such as `map__route`; resources keep `map://`.
 
 ## Standards And Protocols
 
+Map owns the v2 travel-model artifact wire type. Optimization decodes that owner document, checks its selected Map resource attestation and matrix relations, then converts it into its existing internal travel model. Inline and prepared Optimization documents keep their declared representation.
+
+Map-controlled JSON fields use camelCase; controlled vocabulary values use snake_case. GeoJSON geometry names, CQL2 operators, provider documents and open property maps use their upstream profiles. Native database columns keep their declared field names. The coordinated installation cut requires drained Tasks and fresh Map state; receivers reject obsolete wire keys, cursor envelopes and schema revisions. Source-feature query continuations bind the v3 request domain to the admitted camelCase request. Source-feature, raster and spatial product documents and the three private Python helper protocols use schema revision 2.
+
 | Standard or protocol | Implemented profile |
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with tools, resources and templates, prompts, completions, subscriptions, notifications, and typed structured content. |
@@ -35,8 +39,8 @@ Gateway tools use names such as `map__route`; resources keep `map://`.
 | [Veoveo resource components](../../platform/types/DESIGN.md#concrete-resource-components) and URI Template RFC 6570 | The host composes Map-owned address parsers for direct resources, products, pages, filtered features and knowledge. Builders encode typed IDs and version-1 catalog cursors. Discovery declares form-style parent and cursor query parameters. |
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
 | SurrealDB 3.3.0 | Internal catalog queries, transactions, LIVE/change-feed delivery, and [JSON decoding](https://surrealdb.com/docs/reference/query-language/functions/database-functions/encoding#encodingjsondecode) for selection against complete route documents. |
-| Map travel-model resource profile | Map-owned component builders, RFC-variant UUIDv5/v7 IDs in lowercase hyphenated spelling, 100-item SQL pages and version 1 hex-encoded JSON cursors over native UUIDv7 Task positions. Exact and collection templates follow RFC 6570. |
-| Map mobility-profile resource profile | Map-owned component builders and canonical RFC-variant UUIDv5/v7 IDs. Profile versions are integers in 1..=9223372036854775807. Collections use 100-item pages and version 1 hex-encoded JSON cursors bound to `map://mobility-profiles` and an ID/version position. Exact and collection templates follow RFC 6570. |
+| Map travel-model resource profile | Map-owned component builders, RFC-variant UUIDv5/v7 IDs in lowercase hyphenated spelling, 100-item SQL pages and version 2 hex-encoded JSON cursors over native UUIDv7 Task positions. Exact and collection templates follow RFC 6570. |
+| Map mobility-profile resource profile | Map-owned component builders and canonical RFC-variant UUIDv5/v7 IDs. Profile versions are integers in 1..=9223372036854775807. Collections use 100-item pages and version 2 hex-encoded JSON cursors bound to `map://mobility-profiles` and an ID/version position. Exact and collection templates follow RFC 6570. |
 | Map source resource profile | Map-owned component builders, canonical RFC-variant UUIDv5/v7 source IDs, checked public summaries, 100-item pages and version 1 hex-encoded JSON cursors bound to `map://sources`. Exact and collection templates follow RFC 6570. |
 | Map restriction resource profile | Map-owned component builders, canonical RFC-variant UUIDv5/v7 IDs, 100-item pages and version 1 hex-encoded JSON cursors bound to `map://restrictions`. Exact and collection templates follow RFC 6570. |
 | Map product resource profile | Typed dataset release, source feature, raster, raster derivation, spatial derivation and route addresses. IDs require RFC-variant UUIDv5/v7 in lowercase hyphenated spelling; parents are typed components and discovery uses the same RFC 6570 templates. |
@@ -51,12 +55,25 @@ Gateway tools use names such as `map__route`; resources keep `map://`.
 | OSM PBF, GTFS Schedule, S-57/S-100, AIXM, and FAA NASR exchange sets | Registered acquisition adapters accept only their documented snapshot profiles. Product-specific operational validation remains explicit. |
 | HTTPS and mounted exchange sets | Registered sources control hosts, redirects, media types, credentials, byte limits, elapsed time, and filesystem roots before an adapter runs. |
 | Valhalla HTTP/JSON | A supervised loopback-only routing-engine protocol. The travel-model adapter uses one concise many-to-many request per requested vehicle type. It is an internal projection, never a public Map API. |
-| `veoveo.ai/travel-model-artifact/v1` | Repository-owned immutable exchange from Map to Optimization. It carries shared location order, per-vehicle-type cost and transit-time matrices, unavailable cells, and exact Map resource attestation. |
+| `veoveo.ai/travel-model-artifact/v2` | Repository-owned immutable exchange from Map to Optimization. It carries shared location order, per-vehicle-type cost and transit-time matrices, unavailable cells, and exact Map resource attestation. |
 
 The workspace pins `geo` 0.32.0 because SurrealDB 3.3 uses the same release
 line and requires `i_overlay <4.1`. `geo` 0.33.1 requires `i_overlay >=4.5`,
 which Cargo cannot resolve in this workspace. The selected release contains
 the signed buffer operation used by the spatial profile.
+
+The Map bootstrap payload admits `sources` and `mobilityProfiles` through the
+same current public source/profile decoders used by tools. Bootstrap validation
+completes before identity creation or catalog writes. Installation values render
+these members unchanged into the shared server-bootstrap document.
+
+Selected active-release SQL rows have a private native projection with snake_case
+column names. The catalog constructs the public camelCase pointer from those
+admitted native fields and checks it against the selected release document.
+Raster helper admission closes every known operation, position, corridor and
+bounds object before creating output directories or opening GDAL. Quality reports
+and their checks share one strict helper model at writing and reading; successful
+normalization requires its admitted acquisition identity and passing checks.
 
 ## Domain Scope
 
@@ -343,7 +360,7 @@ from its pinned local path. Map selects the shared runtime's closed
 `GeoJsonLongitudeLatitude` axis policy before configuration is locked. Startup and
 health read `current_setting('geometry_always_xy')` and require `true`.
 
-Map admits only analytical schema 11 and eagerly binds and verifies DuckDB Spatial
+Map admits only analytical schema 12 and eagerly binds and verifies DuckDB Spatial
 R-tree indexes on boundaries, immutable source features, authored revisions and
 authored heads before serving. DuckDB 1.5.6 with matching Spatial replays committed current-format WAL after
 unclean shutdown. Process-exit tests cover mixed geometries, index contents, spatial
@@ -526,7 +543,7 @@ as every other raster derivation.
 | `build_travel_model` | task only | `map:route_matrix` | immutable heterogeneous cuOpt cost and transit-time matrices |
 | `reachable_area` | task only | `map:route` | land isochrone |
 | `validate_route` | direct | `map:route` | typed validation findings |
-| `prepare_route_handoff` | direct | `map:route` | current validated `veoveo.ai/map-route-handoff/v1` projection for a consuming domain |
+| `prepare_route_handoff` | direct | `map:route` | current validated `veoveo.ai/map-route-handoff/v2` projection for a consuming domain |
 | `inspect_corridor` | direct | `map:dataset:read` | restrictions, facilities, boundaries, and gaps |
 | `publish_restriction` | direct | `map:restriction:publish` | effective restriction |
 | `withdraw_restriction` | direct | `map:restriction:withdraw` | ended restriction and invalidation count |
@@ -632,7 +649,7 @@ do not change the single-writer deployment profile for release products and Valh
 
 Map consumes the platform's generic server-bootstrap contract
 (`veoveo_mcp_contract::ServerBootstrapDocument`): a `server: map` envelope with
-a `tenant_key` and a Map-owned payload of `sources` and `mobility_profiles`.
+a `tenantKey` and a Map-owned payload of `sources` and `mobilityProfiles`.
 The deployment mounts the document at `/etc/veoveo/bootstrap/catalog.json` and
 passes `--bootstrap-catalog`; the Helm chart renders it generically from
 `serverBootstrap.map-mcp` without naming Map in core templates. Application is
@@ -693,7 +710,7 @@ context, allowing an unchanged Rust artifact to be reused.
 
 Every SurrealDB catalog read includes the tenant id. Owner-scoped routes,
 matrices, acquisition jobs, and artifacts also check the principal. DuckDB
-tables include `tenant_key` in their primary keys, and every active-release
+tables include `tenantKey` in their primary keys, and every active-release
 lookup is tenant constrained.
 
 The public server validates the Host authority and a gateway-signed internal
@@ -801,8 +818,9 @@ native map utilities from pinned images or packages. The runtime user is uid
 ## Dependencies
 
 The acquisition helper uses Pydantic `2.13.5` for its private request and result
-objects. Controlled fields reject additions; existing path and acquisition-ID
-checks run before filesystem effects. `data/uv.lock` fixes the Python dependency
+objects. Both decode entrypoints require the current schema revision and admit
+only model-declared wire keys, including mixed-key refusal. Existing path and
+acquisition-ID checks run before filesystem effects. `data/uv.lock` fixes the Python dependency
 graph. The image installs its hash-verified packages in `/opt/veoveo/map-python`,
 which the configured system Python reads through `PYTHONPATH`.
 
@@ -877,7 +895,7 @@ The principal local commands are:
 ```text
 cargo test -p veoveo-map-mcp --lib
 cargo test -p veoveo-platform-store --lib
-uv run --project servers/map-mcp/data --frozen python -m unittest discover -s servers/map-mcp/data/tests -v
+uv run --project servers/map-mcp/data --locked --extra test python -m pytest servers/map-mcp/data/tests
 npm --prefix servers/map-mcp/app ci
 npm --prefix servers/map-mcp/app run build
 npm --prefix apps/console/web run build
@@ -1022,3 +1040,9 @@ Behavioral contract tests qualify rejection before rendering or decoding; they
 make no hardware or visual acceptance claim.
 
 The App build uses parse5 8.0.1 to inspect browser-decoded HTML attributes and CSS load sites. This development dependency handles unquoted attributes and character references without rewriting packaged bytes; schema identifiers and validator URL metadata do not trigger remote asset rejection.
+
+The source-feature query contract owns its cursor-independent selection digest.
+`QuerySourceFeaturesRequest::query_digest_sha256` hashes current serialized request
+bytes with the `veoveo.ai/map/source-feature-query/v3` domain and NUL separator,
+after removing the continuation. The public result and private cursor keep this
+identity as `Sha256Digest`; their declared wire adapter emits bare lowercase hex.

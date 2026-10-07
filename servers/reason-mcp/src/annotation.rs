@@ -16,6 +16,7 @@ pub const RESULTS_MIME_TYPE: &str = "application/vnd.veoveo.reason-results+json"
 pub const MP4_MIME_TYPE: &str = "video/mp4";
 
 #[derive(Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct AnnotationProvenance<'a> {
     schema: &'static str,
     analysis_uri: AnalysisUri,
@@ -50,7 +51,7 @@ pub fn write_annotation_rrd(task_id: AnalysisId, results: &ReasoningResults) -> 
     recording.log_static(
         "/reason/provenance",
         &TextDocument::new(serde_json::to_string_pretty(&AnnotationProvenance {
-            schema: "veoveo.reason-annotations/v1",
+            schema: "veoveo.ai/reason-annotations/v2",
             analysis_uri: crate::uris::analysis_uri(task_id),
             results_schema: &results.schema,
             pipeline_id: &results.pipeline_id,

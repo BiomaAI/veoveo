@@ -1,0 +1,172 @@
+{
+  "server": "knowledge",
+  "compliance": [
+    {
+      "id": "C01",
+      "status": "met",
+      "note": "the shared hosted checker qualifies the native HTTP surface; domain HTTP checks cover tools, resources, completion and subscriptions. C31 tracks installed qualification."
+    },
+    {
+      "id": "C02",
+      "status": "met",
+      "note": "direct tools declare generated input and output schemas."
+    },
+    {
+      "id": "C03",
+      "status": "met",
+      "note": "the domain has no task-augmented operations."
+    },
+    {
+      "id": "C04",
+      "status": "met",
+      "note": "typed exact addresses and SQL-admitted catalog pages."
+    },
+    {
+      "id": "C05",
+      "status": "met",
+      "note": "resources and templates accompany tools."
+    },
+    {
+      "id": "C06",
+      "status": "met",
+      "note": "no compatibility helpers."
+    },
+    {
+      "id": "C07",
+      "status": "met",
+      "note": "the shared checker validates generated schemas, including the object root of the tagged embedding request."
+    },
+    {
+      "id": "C08",
+      "status": "met",
+      "note": "rmcp and Schemars generate schemas."
+    },
+    {
+      "id": "C09",
+      "status": "met",
+      "note": "server-owned scopes, resource builders and checked domain models."
+    },
+    {
+      "id": "C10",
+      "status": "met",
+      "note": "shared HTTP construction and serialized response enforcement."
+    },
+    {
+      "id": "C11",
+      "status": "met",
+      "note": "no Artifact or Recording operations."
+    },
+    {
+      "id": "C12",
+      "status": "met",
+      "note": "authenticated documents use the mounted admin routes."
+    },
+    {
+      "id": "C13",
+      "status": "met",
+      "note": "persistence uses the platform Store."
+    },
+    {
+      "id": "C14",
+      "status": "met",
+      "note": "no byte routes."
+    },
+    {
+      "id": "C15",
+      "status": "met",
+      "note": "OCI and Helm publications exist."
+    },
+    {
+      "id": "C16",
+      "status": "met",
+      "note": "registration and caller policy expose search, embedding, resources, catalog completion and subscriptions; installed acceptance is tracked by C31."
+    },
+    {
+      "id": "C17",
+      "status": "met",
+      "note": "the typed registration and crate documents declare revision 3."
+    },
+    {
+      "id": "C18",
+      "status": "met",
+      "note": "shared document resources."
+    },
+    {
+      "id": "C19",
+      "status": "met",
+      "note": "the shared declaration includes every checklist status."
+    },
+    {
+      "id": "C20",
+      "status": "met",
+      "note": "authenticated document index and bodies."
+    },
+    {
+      "id": "C21",
+      "status": "met",
+      "note": "documents and digests are embedded at build time."
+    },
+    {
+      "id": "C22",
+      "status": "met",
+      "note": "the owning design declares its standards and supported profile."
+    },
+    {
+      "id": "C23",
+      "status": "met",
+      "note": "this manual supplies the required sections."
+    },
+    {
+      "id": "C24",
+      "status": "met",
+      "note": "the crate uses the MCP server naming convention."
+    },
+    {
+      "id": "C25",
+      "status": "met",
+      "note": "Streamable HTTP is the hosted transport."
+    },
+    {
+      "id": "C26",
+      "status": "met",
+      "note": "shared stateless final-profile transport."
+    },
+    {
+      "id": "C27",
+      "status": "pending",
+      "note": "native catalog observation qualifies admission, two replicas, expiry, revocation and cancellation; installed recovery qualification remains open."
+    },
+    {
+      "id": "C28",
+      "status": "met",
+      "note": "resource-list changes are independent of content notifications; tool and prompt list changes are absent."
+    },
+    {
+      "id": "C29",
+      "status": "met",
+      "note": "read replicas share Store; the single indexing worker uses a Store lease and Recreate updates."
+    },
+    {
+      "id": "C30",
+      "status": "met",
+      "note": "source consumers reuse the gateway's shared upstream transport."
+    },
+    {
+      "id": "C31",
+      "status": "pending",
+      "note": "installed discovery and readiness qualification for the completed catalog surface."
+    },
+    {
+      "id": "C32",
+      "status": "pending",
+      "note": "installed K01–K10 qualification for `knowledge.docs`."
+    },
+    {
+      "id": "C33",
+      "status": "pending",
+      "note": "Owner naming producers, consumers and installed qualification are pending."
+    }
+  ],
+  "contractRevision": 4,
+  "catalogRevision": 2
+}

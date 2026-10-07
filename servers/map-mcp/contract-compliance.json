@@ -1,0 +1,146 @@
+{
+  "server": "map",
+  "compliance": [
+    {
+      "id": "C01",
+      "status": "met"
+    },
+    {
+      "id": "C02",
+      "status": "met"
+    },
+    {
+      "id": "C03",
+      "status": "met"
+    },
+    {
+      "id": "C04",
+      "status": "pending",
+      "note": "discovery is static; derivation, dataset-release, route, matrix, acquisition, travel-model, restriction, source, mobility-profile, and authoring metadata indexes use SQL-scoped cursor pages; persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging"
+    },
+    {
+      "id": "C05",
+      "status": "met"
+    },
+    {
+      "id": "C06",
+      "status": "met"
+    },
+    {
+      "id": "C07",
+      "status": "met"
+    },
+    {
+      "id": "C08",
+      "status": "met"
+    },
+    {
+      "id": "C09",
+      "status": "pending",
+      "note": "metadata, travel-model, restriction, source and mobility-profile references use typed addresses; other URI families and DTO relationship admission remain"
+    },
+    {
+      "id": "C10",
+      "status": "met"
+    },
+    {
+      "id": "C11",
+      "status": "met"
+    },
+    {
+      "id": "C12",
+      "status": "met"
+    },
+    {
+      "id": "C13",
+      "status": "met"
+    },
+    {
+      "id": "C14",
+      "status": "met"
+    },
+    {
+      "id": "C15",
+      "status": "met"
+    },
+    {
+      "id": "C16",
+      "status": "met"
+    },
+    {
+      "id": "C17",
+      "status": "met"
+    },
+    {
+      "id": "C18",
+      "status": "met"
+    },
+    {
+      "id": "C19",
+      "status": "met"
+    },
+    {
+      "id": "C20",
+      "status": "met"
+    },
+    {
+      "id": "C21",
+      "status": "met"
+    },
+    {
+      "id": "C22",
+      "status": "met"
+    },
+    {
+      "id": "C23",
+      "status": "met"
+    },
+    {
+      "id": "C24",
+      "status": "met"
+    },
+    {
+      "id": "C25",
+      "status": "met"
+    },
+    {
+      "id": "C26",
+      "status": "met"
+    },
+    {
+      "id": "C27",
+      "status": "met",
+      "note": "scoped derivation indexes and mutable resources use the shared Store LIVE/change-feed observer; native tests qualify cross-client writes, observer restart, and authoring projection recovery"
+    },
+    {
+      "id": "C28",
+      "status": "met"
+    },
+    {
+      "id": "C29",
+      "status": "met"
+    },
+    {
+      "id": "C30",
+      "status": "met",
+      "note": "the endpoint is stateless; durable and domain state never derives authority from a protocol connection"
+    },
+    {
+      "id": "C31",
+      "status": "pending",
+      "note": "installed Discover and list readiness qualification is pending"
+    },
+    {
+      "id": "C32",
+      "status": "pending",
+      "note": "shared typed docs support is wired; K01–K08 qualification is in progress"
+    },
+    {
+      "id": "C33",
+      "status": "pending",
+      "note": "Owner naming producers, consumers and installed qualification are pending."
+    }
+  ],
+  "contractRevision": 4,
+  "catalogRevision": 2
+}

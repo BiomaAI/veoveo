@@ -7,6 +7,7 @@
 | JSON Schema Draft 2020-12 | The acyclic structural subset emitted by the participating Rust and Python owners |
 | Workspace-pinned Schemars | Rust serialization schemas for requests and deserialization schemas for responses |
 | Owner-pinned Pydantic | Python validation schemas for requests and serialization schemas for responses |
+| `ai.veoveo/naming-profile` revision 1 | Source-role annotation emitted by the shared naming schema helpers; instance compatibility ignores this annotation |
 | Private owner protocols | Map normalization, cuOpt execution, Reason inference, Speech worker messages and UAV adapter HTTP/NDJSON roots |
 
 ## Ownership
@@ -42,6 +43,12 @@ explicitly. Matching patterns can establish the supported string profile; the he
 does not attempt general regular-expression inclusion. Schema annotations do not
 establish runtime validation. Owners must enforce constraints through their types or
 checked construction and qualify behavior that their schema cannot describe.
+
+The comparator recognizes only the named source annotation. Its presence does not
+relax enum, bounds, required fields, sibling constraints or mapped values. Naming
+profile admission belongs to the owning Rust schema producer; this comparison does
+not establish runtime naming or authorization. Other extension keywords fail as
+unsupported assertions.
 
 This comparison is a restricted compatibility check. It does not establish general
 JSON Schema equivalence, semantic correctness, authorization, provider execution or

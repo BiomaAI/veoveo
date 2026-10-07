@@ -72,13 +72,13 @@ fn query_admits_all_sampling_profiles_and_exact_ceilings() {
 fn query_rejects_invalid_bounds_selectors_and_sampling_on_decode() {
     let wire = serde_json::to_value(query_builder()).unwrap();
     let mut cases = vec![
-        ("entity_paths", json!([])),
-        ("entity_paths", json!(["/sensor", "/other"])),
-        ("component_ids", json!([])),
-        ("component_ids", json!(["Scalars:scalars", "other"])),
-        ("entity_paths", json!([""])),
-        ("entity_paths", json!(["/private\nname"])),
-        ("component_ids", json!([" "])),
+        ("entityPaths", json!([])),
+        ("entityPaths", json!(["/sensor", "/other"])),
+        ("componentIds", json!([])),
+        ("componentIds", json!(["Scalars:scalars", "other"])),
+        ("entityPaths", json!([""])),
+        ("entityPaths", json!(["/private\nname"])),
+        ("componentIds", json!([" "])),
         ("timeline", json!("")),
         (
             "timeline",
@@ -104,11 +104,11 @@ fn query_rejects_invalid_bounds_selectors_and_sampling_on_decode() {
         ("unexpected", json!(true)),
     ];
     for (field, cap) in [
-        ("maximum_entities", MAX_PROJECTION_ENTITIES as u64),
-        ("maximum_columns", MAX_PROJECTION_COMPONENTS as u64),
-        ("maximum_samples", MAX_PROJECTION_SAMPLES as u64),
-        ("maximum_rows", MAX_PROJECTION_ROWS),
-        ("maximum_bytes", MAX_PROJECTION_BYTES),
+        ("maximumEntities", MAX_PROJECTION_ENTITIES as u64),
+        ("maximumColumns", MAX_PROJECTION_COMPONENTS as u64),
+        ("maximumSamples", MAX_PROJECTION_SAMPLES as u64),
+        ("maximumRows", MAX_PROJECTION_ROWS),
+        ("maximumBytes", MAX_PROJECTION_BYTES),
     ] {
         cases.extend([(field, json!(0)), (field, json!(cap + 1))]);
     }
@@ -142,18 +142,18 @@ fn request_builder_and_flat_decoder_share_query_and_metadata_admission() {
     assert_eq!(decoded.query, request.query);
     assert_eq!(serde_json::to_value(decoded).unwrap(), wire);
     for (field, value) in [
-        ("maximum_bytes", json!(0)),
-        ("deadline_ms", json!(0)),
-        ("deadline_ms", json!(MAX_PROJECTION_DEADLINE_MS + 1)),
-        ("idempotency_key", json!(" ")),
-        ("idempotency_key", json!("secret\nkey")),
-        ("idempotency_key", json!("x".repeat(129))),
+        ("maximumBytes", json!(0)),
+        ("deadlineMs", json!(0)),
+        ("deadlineMs", json!(MAX_PROJECTION_DEADLINE_MS + 1)),
+        ("idempotencyKey", json!(" ")),
+        ("idempotencyKey", json!("secret\nkey")),
+        ("idempotencyKey", json!("x".repeat(129))),
         ("units", json!({"unselected-component": "metres"})),
         ("units", json!({"Scalars:scalars": ""})),
         ("units", json!({"Scalars:scalars": "x".repeat(257)})),
-        ("coordinate_frame_refs", json!([""])),
-        ("coordinate_frame_refs", json!(["private\nframe"])),
-        ("coordinate_frame_refs", json!(vec!["frame"; 65])),
+        ("coordinateFrameRefs", json!([""])),
+        ("coordinateFrameRefs", json!(["private\nframe"])),
+        ("coordinateFrameRefs", json!(vec!["frame"; 65])),
         ("query", serde_json::to_value(&request.query).unwrap()),
         ("unbounded", json!(true)),
     ] {
@@ -185,12 +185,12 @@ fn public_schema_advertises_numeric_bounds_and_closed_flat_shape() {
     assert_eq!(schema["additionalProperties"], false);
     assert!(schema["properties"].get("query").is_none());
     for (field, maximum) in [
-        ("maximum_entities", MAX_PROJECTION_ENTITIES as u64),
-        ("maximum_columns", MAX_PROJECTION_COMPONENTS as u64),
-        ("maximum_samples", MAX_PROJECTION_SAMPLES as u64),
-        ("maximum_rows", MAX_PROJECTION_ROWS),
-        ("maximum_bytes", MAX_PROJECTION_BYTES),
-        ("deadline_ms", MAX_PROJECTION_DEADLINE_MS),
+        ("maximumEntities", MAX_PROJECTION_ENTITIES as u64),
+        ("maximumColumns", MAX_PROJECTION_COMPONENTS as u64),
+        ("maximumSamples", MAX_PROJECTION_SAMPLES as u64),
+        ("maximumRows", MAX_PROJECTION_ROWS),
+        ("maximumBytes", MAX_PROJECTION_BYTES),
+        ("deadlineMs", MAX_PROJECTION_DEADLINE_MS),
     ] {
         assert_eq!(schema["properties"][field]["minimum"], json!(1));
         assert_eq!(schema["properties"][field]["maximum"], json!(maximum));
@@ -205,7 +205,7 @@ fn query_identity_includes_every_query_input_and_excludes_the_idempotency_key() 
     let original = serde_json::to_value(&request).unwrap();
     let identity = serde_json::to_vec(&request.query_identity()).unwrap();
     let mut another_key = original.clone();
-    another_key["idempotency_key"] = json!("another-key");
+    another_key["idempotencyKey"] = json!("another-key");
     let another_key =
         serde_json::from_value::<CreateRecordingProjectionRequest>(another_key).unwrap();
     assert_eq!(
@@ -213,21 +213,21 @@ fn query_identity_includes_every_query_input_and_excludes_the_idempotency_key() 
         identity
     );
     for (field, value) in [
-        ("dataset_id", json!(RecordingDatasetId::new())),
-        ("recording_id", json!(RecordingId::new())),
-        ("entity_paths", json!(["/other"])),
-        ("component_ids", json!(["other"])),
+        ("datasetId", json!(RecordingDatasetId::new())),
+        ("recordingId", json!(RecordingId::new())),
+        ("entityPaths", json!(["/other"])),
+        ("componentIds", json!(["other"])),
         ("timeline", json!("other")),
         ("sampling", json!({"kind": "latest_at", "at": 3})),
-        ("sparse_fill", json!("none")),
-        ("maximum_entities", json!(2)),
-        ("maximum_columns", json!(2)),
-        ("maximum_samples", json!(3)),
-        ("maximum_rows", json!(3)),
-        ("maximum_bytes", json!(2048)),
-        ("deadline_ms", json!(2000)),
+        ("sparseFill", json!("none")),
+        ("maximumEntities", json!(2)),
+        ("maximumColumns", json!(2)),
+        ("maximumSamples", json!(3)),
+        ("maximumRows", json!(3)),
+        ("maximumBytes", json!(2048)),
+        ("deadlineMs", json!(2000)),
         ("units", json!({"Scalars:scalars": "metres"})),
-        ("coordinate_frame_refs", json!([super::frames::frame(0)])),
+        ("coordinateFrameRefs", json!([super::frames::frame(0)])),
     ] {
         let mut changed = original.clone();
         changed[field] = value;

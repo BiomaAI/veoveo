@@ -139,7 +139,7 @@ pub struct MediaUsageEntry {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct EntryWire {
     task_id: TaskId,
     usage_uri: MediaTaskUsageUri,
@@ -194,12 +194,15 @@ pub struct MediaUsagePage {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(transform = super::model_tools::require_cursor_presence)]
 struct PageWire {
     #[schemars(length(max = 100))]
     items: Vec<MediaUsageEntry>,
     #[schemars(range(min = 100, max = 100))]
     limit: usize,
+    #[serde(deserialize_with = "required_cursor")]
+    #[schemars(required, schema_with = "nullable_cursor")]
     next_cursor: Option<MediaUsageCursor>,
 }
 
@@ -278,3 +281,12 @@ impl veoveo_types::ResourceProfile for MediaUsageErrorAddresses {
 /// MediaTaskUsageUri::new(MediaDatabaseId::parse("metrics").unwrap());
 /// ```
 const _: () = ();
+
+fn required_cursor<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<MediaUsageCursor>, D::Error> {
+    Option::deserialize(deserializer)
+}
+fn nullable_cursor(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    <Option<MediaUsageCursor>>::json_schema(generator)
+}

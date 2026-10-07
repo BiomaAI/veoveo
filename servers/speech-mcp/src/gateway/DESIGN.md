@@ -2,7 +2,7 @@
 
 ## Standards And Protocols
 
-The public native projection uses HTTP JSON controls and binary little-endian float32
+The public native projection uses camelCase HTTP JSON controls and binary little-endian float32
 mono PCM. Shared shapes live in `veoveo-speech-contract`. It maps to Speech MCP
 2026-07-28 tools and resources. Internal forwarding uses the existing signed gateway
 assertion and catalog-scoped upstream TLS pool.

@@ -1,7 +1,7 @@
 # Media MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 4.
 
 ## Purpose
 
@@ -31,7 +31,8 @@ state, task usage records, and generated artifacts under the `media://` scheme.
 - Generation results use `MediaGenerationResult` and `MediaGenerationUri`. Read them
   from the linked successful Task through `MediaReads`. Require the current result
   shape and matching native Task identity; `task_results` owns the MCP handoff.
-  Change contracts by hard cut and update consumers together.
+  Current generation products use `veoveo.ai/media-generation/v2` and camelCase
+  fields. Change contracts by hard cut and update consumers together.
 - Durable task and prediction state lives in the installation SurrealDB
   through `veoveo_platform_store` (`src/state.rs`). The server keeps no
   private database.
@@ -60,7 +61,9 @@ state, task usage records, and generated artifacts under the `media://` scheme.
 
 ## Contract Compliance
 
-Contract revision: 3
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met — terminal publication and authorized Task delivery return the checked current result, one canonical result_uri/link and identity-free status
@@ -85,12 +88,14 @@ Contract revision: 3
 - C21: met
 - C22: met
 - C23: met
+- C24: met
 - C25: met
 - C26: met
 - C27: met — SQL-scoped prediction and Task usage admission, authenticated catalog pages, and contents-only invalidations use Store LIVE and change-feed recovery; installed replica acceptance is pending
 - C28: met
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
-- C24: met
 - C31: pending — installed Discover and list readiness qualification is pending
 - C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

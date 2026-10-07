@@ -11,7 +11,7 @@ where
         "artifact://unexpected",
     ] {
         let mut wire = wire.clone();
-        wire["recording_uris"] = serde_json::json!([invalid]);
+        wire["recordingUris"] = serde_json::json!([invalid]);
         assert!(serde_json::from_value::<T>(wire).is_err());
     }
 }
@@ -51,10 +51,10 @@ fn catalog_construction_derives_identity_and_preserves_wire_fields() {
     assert_eq!(
         wire,
         json!({
-            "recording_key": "producer-stream", "catalog_lifecycle": "ready",
-            "recording_id": ID, "recording_uri": uri(), "active": true,
-            "publisher_lifecycle": "ready", "queue_capacity": 100, "queued_events": 4,
-            "dropped_events": 0, "camera_streams": ["/camera"], "started_at": "2026-09-28T12:00:00Z"
+            "recordingKey": "producer-stream", "catalogLifecycle": "ready",
+            "recordingId": ID, "recordingUri": uri(), "active": true,
+            "publisherLifecycle": "ready", "queueCapacity": 100, "queuedEvents": 4,
+            "droppedEvents": 0, "cameraStreams": ["/camera"], "startedAt": "2026-09-28T12:00:00Z"
         })
     );
     assert_eq!(
@@ -72,8 +72,8 @@ fn catalog_construction_derives_identity_and_preserves_wire_fields() {
     ] {
         let value = state(catalog);
         let wire = serde_json::to_value(&value).unwrap();
-        assert!(wire.get("recording_id").is_none());
-        assert!(wire.get("recording_uri").is_none());
+        assert!(wire.get("recordingId").is_none());
+        assert!(wire.get("recordingUri").is_none());
         assert_eq!(
             serde_json::from_value::<RecordingState>(wire).unwrap(),
             value
@@ -86,22 +86,22 @@ fn catalog_admission_rejects_conflicting_partial_and_malformed_identities() {
     let ready = serde_json::to_value(state(RecordingCatalog::Ready(uri()))).unwrap();
     let mut invalid = Vec::new();
     for (field, value) in [
-        ("recording_id", json!(OTHER_ID)),
-        ("recording_id", Value::Null),
-        ("recording_id", json!("producer-stream")),
-        ("recording_uri", Value::Null),
-        ("recording_uri", json!(format!("{}/layers", uri()))),
-        ("recording_uri", json!(format!("{}?private=value", uri()))),
-        ("catalog_diagnostic", json!("private-diagnostic")),
-        ("catalog_lifecycle", json!("pending")),
-        ("catalog_lifecycle", json!("unavailable")),
-        ("catalog_lifecycle", json!("invalid")),
+        ("recordingId", json!(OTHER_ID)),
+        ("recordingId", Value::Null),
+        ("recordingId", json!("producer-stream")),
+        ("recordingUri", Value::Null),
+        ("recordingUri", json!(format!("{}/layers", uri()))),
+        ("recordingUri", json!(format!("{}?private=value", uri()))),
+        ("catalogDiagnostic", json!("private-diagnostic")),
+        ("catalogLifecycle", json!("pending")),
+        ("catalogLifecycle", json!("unavailable")),
+        ("catalogLifecycle", json!("invalid")),
     ] {
         let mut wire = ready.clone();
         wire[field] = value;
         invalid.push(wire);
     }
-    for field in ["recording_id", "recording_uri"] {
+    for field in ["recordingId", "recordingUri"] {
         let mut wire = ready.clone();
         wire.as_object_mut().unwrap().remove(field);
         invalid.push(wire);
@@ -116,14 +116,39 @@ fn catalog_admission_rejects_conflicting_partial_and_malformed_identities() {
 
 #[test]
 fn durable_results_admit_only_recording_owner_addresses() {
-    let scenario = json!({"session_id":"s", "elapsed_seconds":1.0,
-        "final_simulation_time_s":2.0, "collision_count":0, "recording_uris":[uri()]});
-    let mission = json!({"mission_id":"m", "lifecycle":"completed",
-        "started_at":"2026-09-28T12:00:00Z", "finished_at":"2026-09-28T12:01:00Z",
-        "completed_waypoints":2, "recording_uris":[uri()]});
-    let capture = json!({"session_id":"s", "elapsed_seconds":1.0, "recording_uris":[uri()]});
+    let scenario = json!({"sessionId":"s", "elapsedSeconds":1.0,
+        "finalSimulationTimeS":2.0, "collisionCount":0, "recordingUris":[uri()]});
+    let mission = json!({"missionId":"m", "lifecycle":"completed",
+        "startedAt":"2026-09-28T12:00:00Z", "finishedAt":"2026-09-28T12:01:00Z",
+        "completedWaypoints":2, "recordingUris":[uri()]});
+    let capture = json!({"sessionId":"s", "elapsedSeconds":1.0, "recordingUris":[uri()]});
 
     check_recordings::<ScenarioResult>(scenario, |result| &result.recording_uris);
+    for (current, retired) in [
+        ("missionId", "mission_id"),
+        ("startedAt", "started_at"),
+        ("finishedAt", "finished_at"),
+        ("completedWaypoints", "completed_waypoints"),
+        ("recordingUris", "recording_uris"),
+    ] {
+        for mixed in [false, true] {
+            let mut invalid = mission.clone();
+            let fields = invalid.as_object_mut().unwrap();
+            let value = if mixed {
+                fields.get(current).unwrap().clone()
+            } else {
+                fields.remove(current).unwrap()
+            };
+            fields.insert(retired.into(), value);
+            assert!(serde_json::from_value::<MissionResult>(invalid).is_err());
+        }
+    }
+    let mut unknown = mission.clone();
+    unknown
+        .as_object_mut()
+        .unwrap()
+        .insert("unsupported".into(), true.into());
+    assert!(serde_json::from_value::<MissionResult>(unknown).is_err());
     check_recordings::<MissionResult>(mission, |result| &result.recording_uris);
     check_recordings::<CaptureDatasetResult>(capture, |result| &result.recording_uris);
 }

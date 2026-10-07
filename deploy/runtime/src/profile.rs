@@ -314,7 +314,7 @@ pub fn profile_up(
         let operations = operations.finish()?;
         let coordination = coordination.release()?;
         Ok(InstallationReceipt {
-            schema_version: "veoveo.ai/component-installation/v2".into(),
+            schema_version: "veoveo.ai/component-installation/v3".into(),
             coordination,
             unselected_before,
             unselected_after,

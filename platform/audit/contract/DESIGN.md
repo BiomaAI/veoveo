@@ -8,6 +8,7 @@
 | W3C Trace Context | Nonzero lowercase 32-hex trace IDs and 16-hex span IDs |
 | RFC 9162, RFC 8785 and RFC 8032 | Typed block heads, decimal-string versionstamps, Merkle roots and Ed25519 signatures |
 | JSON Schema draft 2020-12 | Composed closed target union, local definitions, scalar constraints and arrays; owner registration rejects open schemas, unresolved or nonlocal references and undeclared schema mechanics |
+| `ai.veoveo/naming-profile` v1 | Source annotation admitted through the foundational parser against the complete owner schema; Audit still enforces closed target payloads and lookup references |
 | RFC 3339 and JSON | Typed timestamps, tagged closed enums and checked deserialization |
 | `veoveo.ai/audit-record/v1` | One reviewed record shape across platform producers and readers |
 | `ai.veoveo/knowledge-source` | Reviewed observation fields from the protocol-independent extension contract |
@@ -35,6 +36,9 @@ Denied or failed reads cannot claim a returned revision. `KnowledgeReadObservati
 copies source identity, revision, digest, times, attribution and access fields. Its
 external identity excludes navigation URLs because they can carry signed query
 credentials. The closed audit schema rejects those URLs on input as well.
+An absent or null observation access field decodes to None. The Audit producer
+omits None and preserves the frozen access policy spellings for Some; receiving
+null does not change the serialized record profile.
 The access descriptor includes the source's closed read policy and its optional
 `GatewayProfileId` restriction. That identifier is an installation profile route token
 validated by the foundational type; it carries no credential or free-form description.
@@ -123,3 +127,11 @@ registry. Every returned row, including pagination's extra row, validates its re
 identity, partition and lookup reference. Queries validate target registry identity
 before executing SQL and match the entire `draft.target` object. Transaction writes
 receive the same registry and append alongside the caller's domain write.
+
+## Frozen Knowledge Access Encoding
+
+`knowledge/frozen_access.rs` maps the public Knowledge extension's admitted access
+descriptor into Audit's original read-policy spellings. Audit serialization and
+decoding keep the kebab-case policy values in existing records and hash inputs.
+The projection changes no grant, expiry, owner or Work Context relationship and
+performs no authorization. Public Knowledge observations use their owner spelling.

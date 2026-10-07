@@ -41,8 +41,8 @@ serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["full"], optional = true }
 tracing = { workspace = true, optional = true }
-veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
 
 [dev-dependencies]
-veoveo-mcp-contract = { workspace = true, features = ["testing"] }
+veoveo-mcp-contract = { workspace = true, features = ["runtime", "testing"] }

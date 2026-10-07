@@ -14,6 +14,8 @@ use veoveo_types::Sha256Digest;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct AuthoritySourceDigest {
     wire_hex: String,
     canonical: Sha256Digest,

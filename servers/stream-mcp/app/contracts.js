@@ -13,11 +13,11 @@ export function admit(root,value){
  const admitted=validate(root,value);
  if(root==="results"){
   const results=/** @type {import("./generated/stream").AppContracts["results"]} */ (admitted);
-  sessionIdentity(results.session_id);
-  if(results.processed_frames<results.frames.length)throw new Error("Stream result count differs from frames");
+  sessionIdentity(results.sessionId);
+  if(results.processedFrames<results.frames.length)throw new Error("Stream result count differs from frames");
   for(const frame of results.frames)for(const detection of frame.detections){
-   if(detection.class_id>65535||!(/[^\p{White_Space}]/u.test(detection.label))||new TextEncoder().encode(detection.label).length>256)throw new Error("Invalid Stream detection class or label");
-   for(const confidence of [detection.confidence,detection.tracker_confidence])if(confidence!=null&&(!Number.isFinite(confidence)||confidence<0||confidence>1))throw new Error("Invalid Stream detection confidence");
+   if(detection.classId>65535||!(/[^\p{White_Space}]/u.test(detection.label))||new TextEncoder().encode(detection.label).length>256)throw new Error("Invalid Stream detection class or label");
+   for(const confidence of [detection.confidence,detection.trackerConfidence])if(confidence!=null&&(!Number.isFinite(confidence)||confidence<0||confidence>1))throw new Error("Invalid Stream detection confidence");
    const bounds=detection.bounds;
    if(![bounds.x,bounds.y,bounds.width,bounds.height].every(Number.isFinite)||bounds.x<0||bounds.y<0||bounds.width<=0||bounds.height<=0)throw new Error("Invalid Stream detection bounds");
   }
@@ -33,12 +33,12 @@ export function toolValue(name,value,args={}) {
   const admitted=admit(root,value);
   if(root==="started") {
     const started=admit("started",value);
-    sessionIdentity(started.session_id);
-    if(started.result_uri!==new URL(encodeURIComponent(started.session_id),"stream://session/").href) throw new Error("Session address disagrees with identity");
-    if(args.pipeline_id && started.pipeline_uri!==new URL(encodeURIComponent(String(args.pipeline_id)),"stream://pipeline/").href) throw new Error("Stream pipeline differs from request");
+    sessionIdentity(started.sessionId);
+    if(started.resultUri!==new URL(encodeURIComponent(started.sessionId),"stream://session/").href) throw new Error("Session address disagrees with identity");
+    if(args.pipelineId && started.pipelineUri!==new URL(encodeURIComponent(String(args.pipelineId)),"stream://pipeline/").href) throw new Error("Stream pipeline differs from request");
   } else {
     const stopped=admit("stopped",value);
-    if(stopped.result_uri!==new URL(encodeURIComponent(String(args.session_id)),"stream://session/").href) throw new Error("Stopped result belongs to another session");
+    if(stopped.resultUri!==new URL(encodeURIComponent(String(args.sessionId)),"stream://session/").href) throw new Error("Stopped result belongs to another session");
   }
   return /** @type {import("./generated/stream").AppContracts[(typeof tools)[N]]} */ (admitted);
 }
@@ -63,11 +63,11 @@ export function resourceValue(uri,value,expectedRoot) {
   if(!root) throw new Error("Unknown App resource contract");
   if(expectedRoot && root!==expectedRoot) throw new Error("Resource route differs from declared root");
   const admitted=admit(root,value);
-  if(address.hostname==="session" && (root==="session"?admit("session",value).session_id:root==="results"?admit("results",value).session_id:admit("preview",value).session_id)!==parts[0]) throw new Error("Resource belongs to another session");
+  if(address.hostname==="session" && (root==="session"?admit("session",value).sessionId:root==="results"?admit("results",value).sessionId:admit("preview",value).sessionId)!==parts[0]) throw new Error("Resource belongs to another session");
   if(root==="session"){
     const session=admit("session",value);
-    for(const [field,tail] of [["session_uri",""],["results_uri","/results"],["preview_uri","/preview"]]){
-      if(session[field]!==new URL(encodeURIComponent(session.session_id)+tail,"stream://session/").href) throw new Error("Session addresses disagree");
+    for(const [field,tail] of [["sessionUri",""],["resultsUri","/results"],["previewUri","/preview"]]){
+      if(session[field]!==new URL(encodeURIComponent(session.sessionId)+tail,"stream://session/").href) throw new Error("Session addresses disagree");
     }
   }
   return /** @type {import("./generated/stream").AppContracts[K]} */ (admitted);

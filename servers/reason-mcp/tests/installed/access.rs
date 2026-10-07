@@ -124,7 +124,7 @@ async fn cycle(
         "test requires an absent grantee; an existing grant must not be altered"
     );
     let mut before = Vec::new();
-    for kind in FindingCollection::ALL {
+    for kind in FindingCollection::ALL.iter().copied() {
         let member = FindingResource::Member {
             collection: kind,
             analysis: input.source.analysis,

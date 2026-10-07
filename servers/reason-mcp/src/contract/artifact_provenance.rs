@@ -1,13 +1,13 @@
 //! Stored Reason Artifact provenance, shared by publication and resource readers.
 use super::{AnalysisId, ModelId, PipelineId, ReasoningTask};
 
-#[derive(
-    Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum ReasoningKind {
+    #[vocabulary(rename = "describe_segment")]
     DescribeSegment,
+    #[vocabulary(rename = "detect_events")]
     DetectEvents,
+    #[vocabulary(rename = "answer_question")]
     AnswerQuestion,
 }
 impl From<&ReasoningTask> for ReasoningKind {
@@ -19,24 +19,20 @@ impl From<&ReasoningTask> for ReasoningKind {
         }
     }
 }
-impl ReasoningKind {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::DescribeSegment => "describe_segment",
-            Self::DetectEvents => "detect_events",
-            Self::AnswerQuestion => "answer_question",
-        }
-    }
-}
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct ReasonArtifactMetadata {
     pub provenance: ReasonArtifactProvenance,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ReasonArtifactProvenance {
     #[serde(rename = "reason_results")]
     Results {

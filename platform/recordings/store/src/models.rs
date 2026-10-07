@@ -166,6 +166,7 @@ pub struct RecordingLayerRecord {
     pub failure_reason: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub properties_preparation: Option<crate::RecordingPropertiesPreparation>,
     pub revision: i64,
 }
 

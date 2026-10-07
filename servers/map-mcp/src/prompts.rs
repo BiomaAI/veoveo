@@ -154,7 +154,7 @@ impl MapPrompt {
                 destinations = required_value(arguments.destinations, "destinations")?,
             ),
             Self::PrepareOptimizationTravelModel => format!(
-                "Prepare travel costs for this routing decision: {decision}. Resolve the shared locations [{locations}] once and assign stable ids that the Optimization routing problem will reuse in the same order. Resolve these vehicle types and exact Map mobility profile versions: {vehicle_types}. Use departure time {departure} and cost metric {metric}; declare route constraints, data policy, and either the static or invariant-local-departure time model explicitly. Keep the model within 128 locations, 64 vehicle types, and 1,048,576 total matrix cells. Invoke build_travel_model as an MCP Task, then read map://travel-model/{{travel_model_id}} and retain its artifact:// manifest_uri. Pass both to optimize_routes or every optimize_route_scenarios case as a map_resource travel model. Preserve unavailable cells and never substitute straight-line or route_matrix costs.",
+                "Prepare travel costs for this routing decision: {decision}. Resolve the shared locations [{locations}] once and assign stable ids that the Optimization routing problem will reuse in the same order. Resolve these vehicle types and exact Map mobility profile versions: {vehicle_types}. Use departure time {departure} and cost metric {metric}; declare route constraints, data policy, and either the static or invariant-local-departure time model explicitly. Keep the model within 128 locations, 64 vehicle types, and 1,048,576 total matrix cells. Invoke build_travel_model as an MCP Task, then read map://travel-model/{{travel_model_id}} and retain its artifact:// manifestUri. Pass both to optimize_routes or every optimize_route_scenarios case as a map_resource travel model. Preserve unavailable cells and never substitute straight-line or route_matrix costs.",
                 decision = required_value(arguments.decision, "decision")?,
                 locations = required_value(arguments.locations, "locations")?,
                 vehicle_types = required_value(arguments.vehicle_types, "vehicle_types")?,
@@ -217,6 +217,9 @@ mod tests {
             .render(Some(arguments))
             .unwrap();
         let text = serde_json::to_string(&rendered).unwrap();
+        assert!(
+            text.contains("map://feature-layer/feature-layer-019be7be-68f8-7000-8000-000000000001")
+        );
         assert!(text.contains("validate_feature_changes"));
         assert!(text.contains("commit_feature_changes"));
         assert!(text.contains("Never treat generic authored features as routing restrictions"));
@@ -233,6 +236,12 @@ mod tests {
         let rendered = MapPrompt::PrepareOptimizationTravelModel
             .render(Some(arguments))
             .unwrap();
+        assert!(MapPrompt::PrepareOptimizationTravelModel
+            .definition()
+            .arguments
+            .unwrap()
+            .iter()
+            .any(|argument| argument.name == "vehicle_types" && argument.required == Some(true)));
         let text = serde_json::to_string(&rendered).unwrap();
         assert!(text.contains("build_travel_model"));
         assert!(text.contains("map://travel-model/{travel_model_id}"));

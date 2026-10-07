@@ -52,7 +52,7 @@ export type UploadSha256 = string;
 export type ArtifactUploadNotification = {
   op: "changed";
   state: ArtifactUploadNotificationState;
-  upload_id: string;
+  uploadId: string;
 };
 /**
  * Upload notifications trigger a currently authorized status read.
@@ -114,40 +114,49 @@ export type ArtifactShareLinkId = string;
  * Source-owner Artifact transfer and access contracts consumed by browser clients.
  */
 export interface ArtifactTransferSchema {
-  access_request: ArtifactAccessRequest;
-  access_request_page: ArtifactAccessRequestPage;
+  accessRequest: ArtifactAccessRequest;
+  accessRequestPage: ArtifactAccessRequestPage;
   descriptor: CreateArtifactUpload;
   notification: ArtifactUploadNotification;
   part: UploadPartReceipt;
   policy: EffectiveArtifactUploadPolicy;
   receipt: ArtifactUploadReceipt;
   session: ArtifactUploadSession;
-  share_link: ArtifactShareLink;
+  shareLink: ArtifactShareLink;
 }
 /**
  * This interface was referenced by `ArtifactTransferSchema`'s JSON-Schema
  * via the `definition` "ArtifactAccessRequest".
  */
 export interface ArtifactAccessRequest {
-  artifact_id: ArtifactId;
-  created_at: string;
-  decided_at?: string | null;
-  decided_by?: PrincipalId | null;
-  decision_note?: string | null;
+  artifactId: ArtifactId;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  createdAt: string;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  decidedAt?: string | null;
+  decidedBy?: PrincipalId | null;
+  decisionNote?: string | null;
   id: ArtifactAccessRequestId;
   justification: string;
-  requested_level: AccessLevel;
+  requestedLevel: AccessLevel;
   requester: PrincipalId;
   state: ArtifactAccessRequestState;
-  updated_at: string;
-  work_context: WorkContextId;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  updatedAt: string;
+  workContext: WorkContextId;
 }
 /**
  * This interface was referenced by `ArtifactTransferSchema`'s JSON-Schema
  * via the `definition` "ArtifactAccessRequestPage".
  */
 export interface ArtifactAccessRequestPage {
-  next_cursor?: ArtifactAccessRequestId | null;
+  nextCursor?: ArtifactAccessRequestId | null;
   requests: ArtifactAccessRequest[];
 }
 /**
@@ -155,9 +164,9 @@ export interface ArtifactAccessRequestPage {
  * via the `definition` "CreateArtifactUpload".
  */
 export interface CreateArtifactUpload {
-  byte_len?: number | null;
+  byteLen?: number | null;
   filename: string;
-  mime_type: string;
+  mimeType: string;
   sha256?: UploadSha256 | null;
 }
 /**
@@ -165,8 +174,8 @@ export interface CreateArtifactUpload {
  * via the `definition` "UploadPartReceipt".
  */
 export interface UploadPartReceipt {
-  byte_len: number;
-  part_number: number;
+  byteLen: number;
+  partNumber: number;
   sha256: UploadSha256;
 }
 /**
@@ -174,14 +183,14 @@ export interface UploadPartReceipt {
  * via the `definition` "EffectiveArtifactUploadPolicy".
  */
 export interface EffectiveArtifactUploadPolicy {
-  access_description: string;
+  accessDescription: string;
   actor: PrincipalId;
   allowed: boolean;
-  available_bytes?: number | null;
-  destination_name: string;
+  availableBytes?: number | null;
+  destinationName: string;
   explanation: string;
   policy?: ArtifactUploadPolicy | null;
-  work_context: WorkContextId;
+  workContext: WorkContextId;
 }
 /**
  * Absence of a configured policy disables public uploads. There is no Default.
@@ -190,69 +199,81 @@ export interface EffectiveArtifactUploadPolicy {
  * via the `definition` "ArtifactUploadPolicy".
  */
 export interface ArtifactUploadPolicy {
-  allowed_mime_types: string[];
-  inactivity_seconds: number;
-  lifetime_seconds: number;
-  max_active_uploads_per_tenant: number;
-  max_inflight_bytes: number;
-  max_object_bytes: number;
-  max_part_bytes: number;
-  max_parts: number;
-  parallel_parts: number;
-  part_bytes: number;
-  part_timeout_seconds: number;
-  tenant_quota_bytes: number;
+  allowedMimeTypes: string[];
+  inactivitySeconds: number;
+  lifetimeSeconds: number;
+  maxActiveUploadsPerTenant: number;
+  maxInflightBytes: number;
+  maxObjectBytes: number;
+  maxPartBytes: number;
+  maxParts: number;
+  parallelParts: number;
+  partBytes: number;
+  partTimeoutSeconds: number;
+  tenantQuotaBytes: number;
 }
 /**
  * This interface was referenced by `ArtifactTransferSchema`'s JSON-Schema
  * via the `definition` "ArtifactUploadReceipt".
  */
 export interface ArtifactUploadReceipt {
-  artifact_id: ArtifactId;
-  artifact_uri: ArtifactUri;
-  byte_len: number;
-  created_at: string;
+  artifactId: ArtifactId;
+  artifactUri: ArtifactUri;
+  byteLen: number;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  createdAt: string;
   filename: string;
-  mime_type: string;
+  mimeType: string;
   sha256: UploadSha256;
-  upload_id: ArtifactUploadId;
+  uploadId: ArtifactUploadId;
 }
 /**
  * This interface was referenced by `ArtifactTransferSchema`'s JSON-Schema
  * via the `definition` "ArtifactUploadSession".
  */
 export interface ArtifactUploadSession {
-  accepted_bytes: number;
-  accepted_part_count: number;
-  created_at: string;
+  acceptedBytes: number;
+  acceptedPartCount: number;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  createdAt: string;
   descriptor: CreateArtifactUpload;
-  expires_at: string;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  expiresAt: string;
   failure?: UploadErrorCode | null;
   layout: UploadLayout;
-  next_part_cursor?: number | null;
+  nextPartCursor?: number | null;
   parts: UploadPartReceipt[];
   receipt?: ArtifactUploadReceipt | null;
   state: ArtifactUploadState;
-  upload_id: ArtifactUploadId;
+  uploadId: ArtifactUploadId;
 }
 /**
  * This interface was referenced by `ArtifactTransferSchema`'s JSON-Schema
  * via the `definition` "UploadLayout".
  */
 export interface UploadLayout {
-  max_parts: number;
-  max_total_bytes: number;
-  parallel_parts: number;
-  part_bytes: number;
+  maxParts: number;
+  maxTotalBytes: number;
+  parallelParts: number;
+  partBytes: number;
 }
 /**
  * This interface was referenced by `ArtifactTransferSchema`'s JSON-Schema
  * via the `definition` "ArtifactShareLink".
  */
 export interface ArtifactShareLink {
-  artifact_id: ArtifactId;
-  expires_at: string;
-  link_id: ArtifactShareLinkId;
-  max_downloads?: number | null;
+  artifactId: ArtifactId;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  expiresAt: string;
+  linkId: ArtifactShareLinkId;
+  maxDownloads?: number | null;
   url: string;
 }

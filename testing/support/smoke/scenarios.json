@@ -1,0 +1,45 @@
+{
+  "format": "veoveo.ai/smoke-scenarios/v1",
+  "owner": "testing/support",
+  "scenarios": [
+    {
+      "id": "shared-framework-selection",
+      "description": "Qualify exact nonzero/no-skip selection through maintained Node and pytest frameworks.",
+      "target": {
+        "kind": "cargo_test",
+        "selection": {
+          "owner": "testing/support",
+          "package": "veoveo-testing-support",
+          "target": "framework_execution",
+          "features": [],
+          "defaultFeatures": false,
+          "profile": "dev"
+        },
+        "case": "native_frameworks_refuse_missing_failed_and_skipped_selection",
+        "ignored": true
+      },
+      "arguments": [],
+      "prerequisites": [
+        {
+          "kind": "uv_sync",
+          "owner": "testing/fixtures/fork-workload",
+          "extras": [
+            "dev"
+          ],
+          "groups": []
+        }
+      ],
+      "requirements": {
+        "network": false,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Node and the locked Python dev environment must be installed; preparations may fetch pinned package artifacts. Runtime uses isolated local framework fixtures only."
+      },
+      "deadlineSeconds": 300,
+      "cleanupSeconds": 5
+    }
+  ]
+}

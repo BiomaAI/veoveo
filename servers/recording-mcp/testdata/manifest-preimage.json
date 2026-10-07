@@ -1,0 +1,32 @@
+{
+  "descriptor": {
+    "artifactId": "019fa000-0000-7000-8000-000000000001",
+    "artifact": {
+      "mimeType": "application/vnd.veoveo.recording-manifest+json",
+      "filename": "rollover.recording-v10.json",
+      "classification": "restricted",
+      "dataLabels": [
+        "restricted"
+      ],
+      "metadata": {
+        "provenance": {
+          "catalogRevision": "r1",
+          "datasetId": "019fa000-0000-7000-8000-000000000002",
+          "datasetRevision": 7,
+          "kind": "recording_manifest",
+          "recordingId": "019fa000-0000-7000-8000-000000000001",
+          "recordingRevision": 11,
+          "sealedAt": "2026-10-03T00:01:00Z",
+          "sha256": "f91433906a5db90dd81da4e593288c3e07ea06bedf47718adaef0b4cf4635301"
+        }
+      }
+    },
+    "expectedByteLen": 736,
+    "expectedSha256": "f91433906a5db90dd81da4e593288c3e07ea06bedf47718adaef0b4cf4635301"
+  },
+  "descriptorSha256": "a90ea44b3bf60e227f9791393a823e9cdc6a3f6f71bb4bb4707059594a2c2af6",
+  "prettyJson": "{\n  \"schema\": \"veoveo.ai/recording-manifest/v10\",\n  \"datasetId\": \"019fa000-0000-7000-8000-000000000002\",\n  \"recordingSegmentId\": \"019fa000-0000-7000-8000-000000000001\",\n  \"catalogRevision\": \"r1\",\n  \"layers\": [\n    {\n      \"layerId\": \"019fa000-0000-7000-8000-000000000003\",\n      \"layerName\": \"capture-00000000000000000000\",\n      \"kind\": \"capture\",\n      \"ordinal\": 0,\n      \"byteLen\": 128,\n      \"sha256\": \"0101010101010101010101010101010101010101010101010101010101010101\",\n      \"artifactUri\": \"artifact://019fa000-0000-7000-8000-000000000003\",\n      \"rrdVersion\": \"0.38.1\",\n      \"schemaDigest\": \"0202020202020202020202020202020202020202020202020202020202020202\"\n    }\n  ],\n  \"blueprint\": null,\n  \"sealedAt\": \"2026-10-03T00:01:00Z\"\n}",
+  "byteLen": 736,
+  "sha256": "f91433906a5db90dd81da4e593288c3e07ea06bedf47718adaef0b4cf4635301",
+  "filename": "rollover.recording-v10.json"
+}

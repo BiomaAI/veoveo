@@ -1,0 +1,155 @@
+{
+  "pipelines": [
+    {
+      "id": "preview",
+      "uri": "stream://pipeline/preview",
+      "title": "Preview",
+      "description": "",
+      "profile": {
+        "kind": "pass_through"
+      },
+      "supportsRecordingReplay": false,
+      "supportsLiveInput": true
+    }
+  ],
+  "sessions": {
+    "sessions": [
+      {
+        "sessionId": "01983da0-0000-7000-8000-000000000001",
+        "sessionUri": "stream://session/01983da0-0000-7000-8000-000000000001",
+        "resultsUri": "stream://session/01983da0-0000-7000-8000-000000000001/results",
+        "pipelineId": "preview",
+        "pipelineUri": "stream://pipeline/preview",
+        "ingress": {
+          "transport": "rtp_h264_udp",
+          "host": "fixture",
+          "port": 9001,
+          "payloadType": 97,
+          "clockRate": 90000,
+          "caps": ""
+        },
+        "video": {
+          "codec": "avc1.42e01f",
+          "width": 640,
+          "height": 480,
+          "frameRate": 30,
+          "expectedBitrateBps": 4000000
+        },
+        "previewUri": "stream://session/01983da0-0000-7000-8000-000000000001/preview",
+        "lifecycle": "stopped",
+        "startedAt": "2026-09-28T00:00:00+00:00",
+        "stoppedAt": "2026-09-28T00:01:00+00:00",
+        "receivedVideoFrames": 1,
+        "processedFrames": 1
+      }
+    ],
+    "limit": 100
+  },
+  "session": {
+    "sessionId": "01983da0-0000-7000-8000-000000000001",
+    "sessionUri": "stream://session/01983da0-0000-7000-8000-000000000001",
+    "resultsUri": "stream://session/01983da0-0000-7000-8000-000000000001/results",
+    "pipelineId": "preview",
+    "pipelineUri": "stream://pipeline/preview",
+    "ingress": {
+      "transport": "rtp_h264_udp",
+      "host": "fixture",
+      "port": 9001,
+      "payloadType": 97,
+      "clockRate": 90000,
+      "caps": ""
+    },
+    "video": {
+      "codec": "avc1.42e01f",
+      "width": 640,
+      "height": 480,
+      "frameRate": 30,
+      "expectedBitrateBps": 4000000
+    },
+    "previewUri": "stream://session/01983da0-0000-7000-8000-000000000001/preview",
+    "lifecycle": "stopped",
+    "startedAt": "2026-09-28T00:00:00+00:00",
+    "stoppedAt": "2026-09-28T00:01:00+00:00",
+    "receivedVideoFrames": 1,
+    "processedFrames": 1
+  },
+  "results": {
+    "schema": "veoveo.ai/stream-live-results/v2",
+    "sessionId": "01983da0-0000-7000-8000-000000000001",
+    "pipelineId": "preview",
+    "frames": [
+      {
+        "index": 0,
+        "observedAt": "2026-09-28T00:00:00Z",
+        "detections": [
+          {
+            "classId": 1,
+            "label": "person",
+            "confidence": 0.800000011920929,
+            "trackerConfidence": 0.8999999761581421,
+            "bounds": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 1.0,
+              "height": 1.0
+            },
+            "trackId": 7
+          }
+        ]
+      }
+    ],
+    "processedFrames": 1,
+    "droppedResultFrames": 0
+  },
+  "preview": {
+    "schema": "veoveo.ai/stream-live-preview/v2",
+    "sessionId": "01983da0-0000-7000-8000-000000000001",
+    "video": {
+      "codec": "avc1.42e01f",
+      "width": 640,
+      "height": 480,
+      "frameRate": 30,
+      "expectedBitrateBps": 4000000
+    },
+    "chunks": [
+      {
+        "sequence": 0,
+        "timestampUs": 0,
+        "keyframe": true,
+        "dataBase64": "AA=="
+      }
+    ],
+    "droppedChunks": 0,
+    "receivedVideoFrames": 1
+  },
+  "started": {
+    "sessionId": "01983da0-0000-7000-8000-000000000001",
+    "resultUri": "stream://session/01983da0-0000-7000-8000-000000000001",
+    "resultsUri": "stream://session/01983da0-0000-7000-8000-000000000001/results",
+    "pipelineUri": "stream://pipeline/preview",
+    "ingress": {
+      "transport": "rtp_h264_udp",
+      "host": "fixture",
+      "port": 9001,
+      "payloadType": 97,
+      "clockRate": 90000,
+      "caps": ""
+    },
+    "video": {
+      "codec": "avc1.42e01f",
+      "width": 640,
+      "height": 480,
+      "frameRate": 30,
+      "expectedBitrateBps": 4000000
+    },
+    "previewUri": "stream://session/01983da0-0000-7000-8000-000000000001/preview",
+    "startedAt": "2026-09-28T00:00:00+00:00"
+  },
+  "stopped": {
+    "resultUri": "stream://session/01983da0-0000-7000-8000-000000000001",
+    "lifecycle": "stopped",
+    "receivedVideoFrames": 1,
+    "processedFrames": 1,
+    "stoppedAt": "2026-09-28T00:01:00+00:00"
+  }
+}

@@ -845,9 +845,6 @@ export interface KnowledgeReadObservation {
  */
 export interface AccessDescriptor {
   dataLabels: DataLabelId[];
-  /**
-   * Deadline for every read path, including tenant, context and owner access.
-   */
   expiresAt?: string | null;
   grants?: ReadGrant[];
   owner: AccessSubject;

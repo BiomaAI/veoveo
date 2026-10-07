@@ -1,4 +1,4 @@
-//! Collection-bound continuation with the published version 1 JSON/base64 profile.
+//! Collection-bound version-2 Run and version-1 Session JSON/base64 continuations.
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -12,13 +12,13 @@ pub struct RunCursor {
     cursor: veoveo_types::OpaqueCursor<RunCursorCodec>,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Position {
     created_at: DateTime<Utc>,
     task_id: RunId,
 }
 #[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Wire {
     version: u8,
     collection: String,
@@ -35,7 +35,7 @@ impl veoveo_types::CursorCodec for RunCursorCodec {
     }
     fn encode(&self, position: &Position) -> Result<String, StreamContractError> {
         let bytes = serde_json::to_vec(&Wire {
-            version: 1,
+            version: 2,
             collection: uris::RUNS_URI.to_owned(),
             position: position.clone(),
         })
@@ -51,7 +51,7 @@ impl veoveo_types::CursorCodec for RunCursorCodec {
             .map_err(|_| StreamContractError::InvalidCursor)?;
         let value: Wire =
             serde_json::from_slice(&bytes).map_err(|_| StreamContractError::InvalidCursor)?;
-        if value.version != 1 || value.collection != uris::RUNS_URI {
+        if value.version != 2 || value.collection != uris::RUNS_URI {
             return Err(StreamContractError::InvalidCursor);
         }
         Ok(value.position)
@@ -102,7 +102,7 @@ pub struct SessionCursor {
     cursor: veoveo_types::OpaqueCursor<SessionCursorCodec>,
 }
 #[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SessionWire {
     version: u8,
     collection: String,

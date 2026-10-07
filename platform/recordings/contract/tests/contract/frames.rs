@@ -19,13 +19,10 @@ fn projection_frames_use_the_owner_address_and_preserve_request_identity() {
     let request = builder.build().unwrap();
     let schema =
         serde_json::to_value(schemars::schema_for!(CreateRecordingProjectionRequest)).unwrap();
-    assert_eq!(
-        schema["properties"]["coordinate_frame_refs"]["maxItems"],
-        64
-    );
+    assert_eq!(schema["properties"]["coordinateFrameRefs"]["maxItems"], 64);
     let wire = serde_json::to_value(&request).unwrap();
     assert_eq!(
-        wire["coordinate_frame_refs"][0],
+        wire["coordinateFrameRefs"][0],
         "frames://world/survey/revision/revision-1/frame/camera-0"
     );
     let decoded: CreateRecordingProjectionRequest = serde_json::from_value(wire.clone()).unwrap();
@@ -39,7 +36,7 @@ fn projection_frames_use_the_owner_address_and_preserve_request_identity() {
     expected_identity
         .as_object_mut()
         .unwrap()
-        .remove("idempotency_key");
+        .remove("idempotencyKey");
     assert_eq!(
         serde_json::to_value(request.query_identity()).unwrap(),
         expected_identity
@@ -57,14 +54,14 @@ fn projection_frames_use_the_owner_address_and_preserve_request_identity() {
         json!(["frame"]),
     ] {
         let mut invalid = wire.clone();
-        invalid["coordinate_frame_refs"] = frames.clone();
+        invalid["coordinateFrameRefs"] = frames.clone();
         assert!(serde_json::from_value::<CreateRecordingProjectionRequest>(invalid).is_err());
         let mut invalid = result_wire.clone();
-        invalid["result"]["coordinate_frame_refs"] = frames;
+        invalid["result"]["coordinateFrameRefs"] = frames;
         assert!(serde_json::from_value::<RecordingProjectionHandle>(invalid).is_err());
     }
     let mut other_revision = result_wire;
-    other_revision["result"]["coordinate_frame_refs"][0] =
+    other_revision["result"]["coordinateFrameRefs"][0] =
         json!("frames://world/survey/revision/revision-2/frame/camera-0");
     let other: RecordingProjectionHandle = serde_json::from_value(other_revision).unwrap();
     assert!(other.validate_request(&request).is_err());

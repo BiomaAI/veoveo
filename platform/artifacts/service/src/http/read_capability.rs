@@ -25,7 +25,7 @@ pub(super) fn routes<R: ArtifactRepository + 'static, S: BlobStore + 'static>()
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct TaskQuery {
     task_id: ArtifactTaskId,
 }

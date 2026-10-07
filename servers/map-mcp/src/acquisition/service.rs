@@ -297,8 +297,8 @@ impl AcquisitionService {
                 "application/octet-stream",
                 serde_json::json!({
                     "kind": "map_raw_source",
-                    "source_id": source.source_id,
-                    "acquisition_id": acquisition_id,
+                    "sourceId": source.source_id,
+                    "acquisitionId": acquisition_id,
                     "sha256": normalized.source_digest_sha256,
                 }),
             )
@@ -312,8 +312,8 @@ impl AcquisitionService {
                     media_type(path),
                     serde_json::json!({
                         "kind": "map_normalized_release",
-                        "source_id": source.source_id,
-                        "acquisition_id": acquisition_id,
+                        "sourceId": source.source_id,
+                        "acquisitionId": acquisition_id,
                     }),
                 )
                 .await?;
@@ -327,8 +327,8 @@ impl AcquisitionService {
                     "application/gzip",
                     serde_json::json!({
                         "kind": "map_routing_build",
-                        "source_id": source.source_id,
-                        "acquisition_id": acquisition_id,
+                        "sourceId": source.source_id,
+                        "acquisitionId": acquisition_id,
                     }),
                 )
                 .await?;
@@ -341,8 +341,8 @@ impl AcquisitionService {
                 "application/json",
                 serde_json::json!({
                     "kind": "map_quality_report",
-                    "source_id": source.source_id,
-                    "acquisition_id": acquisition_id,
+                    "sourceId": source.source_id,
+                    "acquisitionId": acquisition_id,
                 }),
             )
             .await?;

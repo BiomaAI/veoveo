@@ -181,7 +181,10 @@ async fn create_with_pin(
                     amount: None,
                     currency: None,
                     recorded_at: Utc::now(),
-                    metadata: json!({}),
+                    metadata: match kind {
+                        UsageKind::Estimate => json!({"source":"model_registry","modelType":"image","formula":null,"costKind":"estimate"}),
+                        UsageKind::Actual => json!({"source":"billing_record","billingType":"deduct","sourceCreatedAt":null,"sourceUpdatedAt":null,"orderId":null,"orderState":null,"orderStatus":null,"jobStatus":null}),
+                    },
                 },
             )
             .await
@@ -746,7 +749,7 @@ async fn subscriptions_and_unlinked_estimates_follow_current_task_authority() {
             amount: None,
             currency: None,
             recorded_at: Utc::now(),
-            metadata: json!({}),
+            metadata: json!({"source":"model_registry","modelType":"image","formula":null,"costKind":"estimate"}),
         };
         state.record_usage(&task, None, &estimate).await.unwrap();
         assert_eq!(reads.usage(&caller, &usage).await.unwrap().len(), 1);
@@ -754,6 +757,39 @@ async fn subscriptions_and_unlinked_estimates_follow_current_task_authority() {
             reads.usage_page(&caller, None).await.unwrap().items().len(),
             1
         );
+        for metadata in [json!({}), json!({"source":"future"}), json!({"source":"model_registry","modelType":"image","model_type":"image","costKind":"estimate"}), json!({"source":"model_registry","model_type":"image","costKind":"estimate"}), json!({"source":"model_registry","modelType":"image","costKind":"estimate","cost_kind":"estimate"})] {
+            let mut malformed = estimate.clone();
+            malformed.metadata = metadata;
+            assert!(state.record_usage(&task, None, &malformed).await.is_err());
+            assert_eq!(reads.usage(&caller, &usage).await.unwrap().len(), 1);
+        }
+        for metadata in [json!({}), json!({"source":"unknown"}), json!({"source":"model_registry","modelType":"image","costKind":"estimate","model_type":"image"})] {
+            db.a.client().query(include_str!("queries/corrupt_usage_metadata.surql")).bind(("task", task_record_id(task.task_id))).bind(("metadata", veoveo_platform_store::native_json_into_value(metadata))).await.unwrap().check().unwrap();
+            assert!(reads.usage(&caller, &usage).await.is_err());
+        }
+        db.a.client().query(include_str!("queries/corrupt_usage_metadata.surql")).bind(("task", task_record_id(task.task_id))).bind(("metadata", veoveo_platform_store::native_json_into_value(estimate.metadata.clone()))).await.unwrap().check().unwrap();
+        assert_eq!(reads.usage(&caller, &usage).await.unwrap().len(), 1);
+        // Both typed sources are valid individually; billing kind binds the admitted source.
+        let billing = json!({"source":"billing_record","billingType":"generation"});
+        for (kind, metadata) in [(UsageKind::Estimate, billing.clone()), (UsageKind::Actual, estimate.metadata.clone())] {
+            let before = serde_json::to_value(reads.usage(&caller, &usage).await.unwrap()).unwrap();
+            let mut mismatch = estimate.clone();
+            mismatch.kind = kind;
+            mismatch.metadata = metadata.clone();
+            assert!(state.record_usage(&task, None, &mismatch).await.is_err());
+            assert_eq!(serde_json::to_value(reads.usage(&caller, &usage).await.unwrap()).unwrap(), before);
+            db.a.client().query(include_str!("queries/corrupt_usage_kind.surql"))
+                .bind(("task", task_record_id(task.task_id)))
+                .bind(("kind", match kind { UsageKind::Estimate => "estimate", UsageKind::Actual => "actual" }))
+                .bind(("metadata", veoveo_platform_store::native_json_into_value(metadata)))
+                .await.unwrap().check().unwrap();
+            assert!(reads.usage(&caller, &usage).await.is_err());
+            db.a.client().query(include_str!("queries/corrupt_usage_kind.surql"))
+                .bind(("task", task_record_id(task.task_id))).bind(("kind", "estimate"))
+                .bind(("metadata", veoveo_platform_store::native_json_into_value(estimate.metadata.clone())))
+                .await.unwrap().check().unwrap();
+            assert_eq!(serde_json::to_value(reads.usage(&caller, &usage).await.unwrap()).unwrap(), before);
+        }
         let mut wrong = estimate.clone();
         wrong.provider_job_id = Some(job.external_job_id.to_string());
         assert!(state.record_usage(&task, None, &wrong).await.is_err());
@@ -1201,6 +1237,11 @@ async fn generation_results_require_success_and_consistent_retained_parents() {
         store_result(&writer, task.task_id, json!({"structuredContent": wrong_parent})).await;
         assert!(reads.generation_result(&caller, expected.result_uri()).await.is_err());
         assert!(reads.generation_for_task(&caller, task.task_id).await.is_err());
+        for (label, profile) in generation_fixture::retired_spellings(&serde_json::to_value(&expected).unwrap()) {
+            store_result(&writer, task.task_id, json!({"structuredContent": profile})).await;
+            assert!(reads.generation_result(&caller, expected.result_uri()).await.is_err(), "resource accepted {label}");
+            assert!(reads.generation_for_task(&caller, task.task_id).await.is_err(), "Task accepted {label}");
+        }
         for profile in [
             json!({"prediction": expected.prediction(), "artifacts": expected.artifacts()}),
             json!({"schema":"veoveo.ai/media-generation/v2", "prediction":expected.prediction(), "artifacts": expected.artifacts()}),

@@ -4,7 +4,8 @@
 
 These Rust Serde and Schemars types define the Speech subset of MCP 2026-07-28,
 JSON Schema 2020-12 and the Veoveo native dictation projection. Transcript JSON uses
-`veoveo.speech-transcript/v1`; captions use WebVTT. Raw microphone chunks are mono
+`veoveo.ai/speech-transcript/v2` with camelCase JSON fields; controlled enum values
+use snake_case. Captions use WebVTT. Raw microphone chunks are mono
 little-endian float32 PCM. They are an authenticated input transport, not an Artifact
 byte-download route.
 
@@ -54,10 +55,31 @@ is portable; the smaller dictation ceiling is checked by the session service.
 Immutable transcript documents admit their owned schema tag and bare lowercase
 SHA-256 source digest. Transcription outputs admit distinct JSON and WebVTT
 occurrences, Speech presentation, no download locations and finite duration.
-Retained reads additionally bind the source and result Task to the selected request.
+Retained reads additionally bind the source and result Task to the selected request. Each output occurrence's
+Speech attribution admits exactly `sourceArtifactUri`, `sourceSha256`, `model` and
+`modelRevision`. Construction and retained decoding reject additional fields in
+that owner projection, including retired names alongside current fields. The generic
+Artifact metadata map stays open for other owners. Speech also checks that both
+occurrences agree on attribution and identify the selected source.
 
 Speech maps transcript subscriptions through the shared Task resource watch. It
 authorizes source access before subscribing and again before every notification,
 including resource-only updates. Independent dictation state is not a Task watch.
 
 Hosted transcript listeners deliver through the maintained subscription context and filter-enforcing sink. Each native Task update rechecks current source access before resource or Task notifications. Context cancellation and a dropped client subscription end the listener and release its native observation stream; reconnect establishes a newly authorized baseline.
+
+## Wire Naming And Format Admission
+
+`TranscribeRequest` admits `artifactUri`; the prompt argument `artifact_uri` keeps
+its identifier profile. Dictation controls and receipts admit `sampleRate`,
+`resultUri`, `nextSequence` and `maxDurationSeconds`. Transcript products admit
+`durationSeconds`, `sourceArtifactUri`, `sourceSha256` and `modelRevision` where
+those fields occur. Typed constructors and decoding keep the same ID, interval,
+source attribution and resource agreement checks. Unknown or retired field names
+fail decoding; no alias selects a second spelling.
+
+`TRANSCRIPT_SCHEMA` supplies the supported document tag. Its decoder rejects
+unsupported formats with a coordinated-upgrade diagnostic. JSON schema generation
+uses the same owner field spelling as serialization and admission. Task kind names,
+resource templates and identity values keep their own grammar. The parent design
+owns the required installation drain and the private worker protocol.

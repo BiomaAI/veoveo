@@ -1,14 +1,14 @@
 {
   "tenant": "bioma",
-  "client_id": "knowledge-indexer",
-  "key_id": "bioma-knowledge-indexer-v1",
-  "signing_algorithm": "ed_dsa",
-  "private_key_file": "/etc/veoveo/knowledge/signing/private.pem",
-  "trusted_ca_file": null,
-  "chunk_settings": {
+  "clientId": "knowledge-indexer",
+  "keyId": "bioma-knowledge-indexer-v1",
+  "signingAlgorithm": "ed_dsa",
+  "privateKeyFile": "/etc/veoveo/knowledge/signing/private.pem",
+  "trustedCaFile": null,
+  "chunkSettings": {
     "version": "structure-v1",
     "maxCharacters": 1500,
     "overlapCharacters": 150
   },
-  "query_task": "Given a web search query, retrieve relevant passages that answer the query"
+  "queryTask": "Given a web search query, retrieve relevant passages that answer the query"
 }

@@ -8,18 +8,19 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StartLiveSessionRequest {
     pub pipeline_id: PipelineId,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StopLiveSessionRequest {
     pub session_id: SessionId,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StopLiveSessionOutput {
     pub result_uri: SessionUri,
     pub lifecycle: LiveSessionLifecycle,
@@ -31,6 +32,7 @@ pub struct StopLiveSessionOutput {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveIngressView {
     pub transport: LiveTransport,
     pub host: String,
@@ -41,6 +43,7 @@ pub struct LiveIngressView {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveVideoView {
     /// RFC 6381 AVC codec string admitted with the native pipeline.
     pub codec: String,
@@ -50,32 +53,40 @@ pub struct LiveVideoView {
     pub expected_bitrate_bps: u32,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum LiveTransport {
+    #[vocabulary(rename = "rtp_h264_udp")]
     RtpH264Udp,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum LiveSessionLifecycle {
+    #[vocabulary(rename = "starting")]
     Starting,
+    #[vocabulary(rename = "running")]
     Running,
+    #[vocabulary(rename = "failed")]
     Failed,
+    #[vocabulary(rename = "stopped")]
     Stopped,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum LiveRecordingLifecycle {
+    #[vocabulary(rename = "starting")]
     Starting,
+    #[vocabulary(rename = "forwarding")]
     Forwarding,
+    #[vocabulary(rename = "draining")]
     Draining,
+    #[vocabulary(rename = "failed")]
     Failed,
+    #[vocabulary(rename = "stopped")]
     Stopped,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveRecordingOutputView {
     pub recording_key: String,
     pub application_id: String,
@@ -89,7 +100,7 @@ pub struct LiveRecordingOutputView {
 
 /// One authorized page of process-local live sessions, newest IDs first.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveSessionsPage {
     pub sessions: Vec<LiveSessionView>,
     pub limit: usize,

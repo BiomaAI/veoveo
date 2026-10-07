@@ -161,14 +161,14 @@ spec:
         initialize(&installation)?;
         let profile_path = installation.join("deployment.json");
         let definition = json!({
-            "schemaVersion":"veoveo.ai/deployment/v8", "name":"scope-fixture",
-            "registry":{"pushAddress":args.push_registry,"pullAddress":args.pull_registry,"transport":"insecure-http"},
+            "schemaVersion":"veoveo.ai/deployment/v9", "name":"scope-fixture",
+            "registry":{"pushAddress":args.push_registry,"pullAddress":args.pull_registry,"transport":"insecure_http"},
             "namespace":namespace,"kubernetes":{"context":context,"localCluster":null},
             "sources":[
                 {"name":"platform","role":"platform","repository":{"kind":"local","path":"../platform"},"revision":"HEAD","imageGroups":[],
                     "releases":[{"name":"platform","chart":"chart","sourceValues":[],"installationValues":[],"valuesContract":"platform","timeoutSeconds":60}]},
                 {"name":"workload","role":"workload","repository":{"kind":"local","path":"../workload"},"revision":"HEAD","imageGroups":["workload"],
-                    "releases":[{"name":"workload","chart":"chart","sourceValues":[],"installationValues":[],"valuesContract":"veoveo-source","timeoutSeconds":60}]}
+                    "releases":[{"name":"workload","chart":"chart","sourceValues":[],"installationValues":[],"valuesContract":"veoveo_source","timeoutSeconds":60}]}
             ],
             "components":[
                 {"id":"installation","owner":{"kind":"installation"},"role":"installation","dependencies":[],"namespaces":[namespace],
@@ -197,7 +197,7 @@ spec:
             });
         }
         let lock = DeploymentLock {
-            schema_version: "veoveo.ai/deployment-lock/v8".into(),
+            schema_version: "veoveo.ai/deployment-lock/v9".into(),
             profile: profile.definition.name.clone(),
             profile_revision: revision,
             registry: profile.definition.registry.locked(),

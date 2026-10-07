@@ -25,6 +25,7 @@ pub enum RecurrenceFrequency {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "RecurrenceRule")]
+#[serde(rename_all = "camelCase")]
 pub struct RecurrenceRuleValue {
     pub frequency: RecurrenceFrequency,
     #[serde(default = "one")]
@@ -42,6 +43,7 @@ const fn one() -> u32 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "CalendarWindow")]
+#[serde(rename_all = "camelCase")]
 pub struct CalendarWindowValue {
     pub start_local: String,
     pub end_local: String,
@@ -53,6 +55,7 @@ pub struct CalendarWindowValue {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "OperationalCalendar")]
+#[serde(rename_all = "camelCase")]
 pub struct OperationalCalendarValue {
     pub calendar_id: CalendarId,
     pub version: super::TimeVersion,
@@ -64,6 +67,8 @@ pub struct OperationalCalendarValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MissionEpoch {
     pub epoch_id: MissionEpochId,
     pub name: String,
@@ -73,6 +78,7 @@ pub struct MissionEpoch {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExpandScheduleRequest {
     pub calendar: OperationalCalendar,
     pub horizon: TimeWindow,
@@ -85,6 +91,8 @@ const fn default_occurrence_limit() -> u32 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ScheduleOccurrence {
     pub sequence: u32,
     pub window: TimeWindow,
@@ -92,6 +100,8 @@ pub struct ScheduleOccurrence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ExpandScheduleOutput {
     pub occurrences: Vec<ScheduleOccurrence>,
     pub truncated: bool,
@@ -107,6 +117,7 @@ pub enum WindowOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct EvaluateWindowsRequest {
     pub operation: WindowOperation,
     pub left: Vec<TimeWindow>,
@@ -115,12 +126,15 @@ pub struct EvaluateWindowsRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct EvaluateWindowsOutput {
     pub windows: Vec<TimeWindow>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TimelinePoint {
     pub name: String,
     pub at: TimeExpression,
@@ -128,6 +142,7 @@ pub struct TimelinePoint {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TimelineConstraint {
     pub predecessor: String,
     pub successor: String,
@@ -139,12 +154,15 @@ pub struct TimelineConstraint {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "ValidateTimelineRequest")]
+#[serde(rename_all = "camelCase")]
 pub struct ValidateTimelineRequestValue {
     pub points: Vec<TimelinePoint>,
     pub constraints: Vec<TimelineConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimelineViolation {
     pub constraint_index: u32,
     pub message: String,
@@ -152,12 +170,16 @@ pub struct TimelineViolation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "ValidateTimelineOutput")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ValidateTimelineOutputValue {
     pub valid: bool,
     pub violations: Vec<TimelineViolation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TemporalEvent {
     pub event_id: TemporalEventId,
     pub name: String,
@@ -176,6 +198,7 @@ pub enum TemporalEventState {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateTemporalEventRequest {
     pub name: String,
     pub due: TimeInstant,
@@ -192,6 +215,7 @@ pub struct CreateTemporalEventRequest {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CancelTemporalEventRequest {
     pub event_id: TemporalEventId,
     pub expected_record_version: super::TimeVersion,
@@ -199,6 +223,8 @@ pub struct CancelTemporalEventRequest {
 
 /// One page of a Time collection, in the order declared by its resource.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct CollectionPage<T, C> {
     pub items: Vec<T>,
     pub limit: usize,

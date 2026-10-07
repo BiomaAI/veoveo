@@ -6,6 +6,7 @@ use veoveo_types::Sha256Digest;
 const MAX_METADATA_REVISIONS: usize = 64;
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = sealed_rrd_properties_role)]
 pub struct RecordingPropertiesBuilder {
     #[serde(with = "property_dataset_id")]
     #[schemars(with = "RecordingDatasetId")]
@@ -283,4 +284,34 @@ mod tests {
         let state = serde::de::value::U32Deserializer::<serde::de::value::Error>::new(3);
         assert!(property_state::deserialize(state).is_err());
     }
+}
+
+fn sealed_rrd_properties_role(schema: &mut schemars::Schema) {
+    use veoveo_types::{
+        NamingAuthority, NamingDeclaration, NamingLabel, NamingProfile, NamingRole,
+        NamingSchemaContext,
+    };
+    let original = schema.clone();
+    let profile = NamingProfile::new(NamingRole::Frozen {
+        declaration: NamingDeclaration {
+            authority: NamingAuthority::Owner {
+                module: NamingLabel::new("platform/recordings/contract::properties")
+                    .expect("static owner"),
+            },
+            profile: NamingLabel::new("deterministic sealed RRD properties JSON")
+                .expect("static profile"),
+            version: NamingLabel::new("Rerun 0.38.1").expect("static RRD profile"),
+            applicability: NamingLabel::new(
+                "native sealed properties object and its SHA-256 preimage only",
+            )
+            .expect("static applicability"),
+        },
+    })
+    .expect("sealed properties naming declaration");
+    *schema = veoveo_types::with_naming_profile(
+        original.clone(),
+        profile,
+        NamingSchemaContext::new(&original),
+    )
+    .expect("native sealed properties naming profile");
 }

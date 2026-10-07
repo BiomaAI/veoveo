@@ -11,14 +11,14 @@ export interface GovernedRerunSource {
   redapToken: string;
   receiver: GovernedRerunReceiver;
   blueprintUrl?: string;
-  blueprintMapProvider?: "none" | "openStreetMap" | "mapbox" | "mixed";
+  blueprintMapProvider?: "none" | "open_street_map" | "mapbox" | "mixed";
 }
 
 export interface OpenedRerunSources {
   redapToken?: string;
   receiver?: GovernedRerunReceiver;
   blueprintUrl?: string;
-  blueprintMapProvider?: "none" | "openStreetMap" | "mapbox" | "mixed";
+  blueprintMapProvider?: "none" | "open_street_map" | "mapbox" | "mixed";
 }
 
 export type RerunPlaybackMode = "live" | "archive";

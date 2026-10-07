@@ -15,12 +15,17 @@ use tokio::{
 };
 use veoveo_speech_contract::transcript::Transcript;
 
-pub const PROTOCOL: &str = "veoveo.speech-worker/v1";
+pub const PROTOCOL: &str = "veoveo.ai/speech-worker/v2";
 pub const MAX_FRAME_BYTES: usize = 192_000;
 pub const MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Debug, Serialize, JsonSchema)]
-#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "operation",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum WorkerRequest {
     Probe,
     File {
@@ -33,7 +38,12 @@ pub enum WorkerRequest {
     },
 }
 #[derive(Deserialize)]
-#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "operation",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 enum WorkerRequestWire {
     Probe {},
     File {
@@ -69,7 +79,12 @@ impl<'de> Deserialize<'de> for WorkerRequest {
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum WorkerEvent {
     Accepted,
     Ready {
@@ -87,7 +102,12 @@ pub enum WorkerEvent {
     },
 }
 #[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 enum WorkerEventWire {
     Accepted {},
     Ready {
@@ -230,8 +250,48 @@ mod strict_protocol_tests {
             serde_json::from_str::<WorkerEvent>(r#"{"kind":"accepted","unexpected":true}"#)
                 .is_err()
         );
-        assert!(serde_json::from_str::<WorkerEvent>(r#"{"kind":"transcript","complete":true,"transcript":{"text":"","duration_seconds":0,"segments":[],"unexpected":true}}"#).is_err());
+        assert!(serde_json::from_str::<WorkerEvent>(r#"{"kind":"transcript","complete":true,"transcript":{"text":"","durationSeconds":0,"segments":[],"unexpected":true}}"#).is_err());
     }
+    #[test]
+    fn worker_products_and_receivers_admit_only_current_field_names() {
+        let current = serde_json::to_value(WorkerRequest::Live {
+            sample_rate: 16_000,
+            max_duration_seconds: 120,
+        })
+        .unwrap();
+        assert_eq!(
+            current,
+            serde_json::json!({"operation":"live", "sampleRate":16000, "maxDurationSeconds":120})
+        );
+        assert!(serde_json::from_value::<WorkerRequest>(current.clone()).is_ok());
+        for invalid in [
+            serde_json::json!({"operation":"live", "sample_rate":16000, "max_duration_seconds":120}),
+            serde_json::json!({"operation":"live", "sampleRate":16000, "maxDurationSeconds":120, "sample_rate":16000}),
+        ] {
+            assert!(serde_json::from_value::<WorkerRequest>(invalid).is_err());
+        }
+        let transcript = veoveo_speech_contract::transcript::TranscriptValue {
+            text: String::new(),
+            duration_seconds: 0.0,
+            segments: vec![],
+        }
+        .build()
+        .unwrap();
+        let event = serde_json::to_value(WorkerEvent::Transcript {
+            complete: true,
+            transcript,
+        })
+        .unwrap();
+        assert!(serde_json::from_value::<WorkerEvent>(event.clone()).is_ok());
+        let mut mixed = event;
+        mixed["transcript"]["duration_seconds"] = 0.into();
+        assert!(serde_json::from_value::<WorkerEvent>(mixed).is_err());
+        assert_eq!(
+            serde_json::to_value(WorkerError::InferenceFailed).unwrap(),
+            "inference_failed"
+        );
+    }
+
     #[test]
     fn private_protocol_schema_snapshot() {
         let snapshot = serde_json::json!({

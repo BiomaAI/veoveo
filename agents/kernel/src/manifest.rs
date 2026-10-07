@@ -15,7 +15,7 @@ const MAX_RESOURCE_SUBSCRIPTIONS: usize = 128;
 const MAX_RESOURCE_URI_BYTES: usize = 2_048;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AgentManifest {
     pub agent: AgentIdentity,
     pub model: ModelConfig,
@@ -42,7 +42,7 @@ pub struct AgentManifest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ResourceSubscription {
     /// Absolute resource URI. Like every manifest string, `${VAR}`
     /// placeholders are expanded from the environment while loading.
@@ -50,7 +50,7 @@ pub struct ResourceSubscription {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MemoryConfig {
     /// RRD segment directory, relative to the data dir.
     #[serde(default = "default_rrd_dir")]
@@ -75,7 +75,7 @@ impl Default for MemoryConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ContextConfig {
     /// Approximate token budget for the assembled episode prompt.
     #[serde(default = "default_max_context_tokens")]
@@ -86,7 +86,7 @@ pub struct ContextConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct BudgetConfig {
     #[serde(default)]
     pub per_episode: PerEpisodeBudget,
@@ -96,7 +96,7 @@ pub struct BudgetConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PerEpisodeBudget {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_completion_calls: Option<u64>,
@@ -105,7 +105,7 @@ pub struct PerEpisodeBudget {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ScheduleConfig {
     /// Heartbeat cadence; every tick wakes an episode so silence is bounded.
     #[serde(default = "default_heartbeat_interval_s")]
@@ -134,7 +134,7 @@ impl Default for ScheduleConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ContextSection {
     pub name: String,
     /// Lower renders earlier and survives truncation longer.
@@ -148,7 +148,7 @@ pub struct ContextSection {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AgentIdentity {
     /// Installation-local tenant key used for all platform records.
     pub tenant: String,
@@ -158,7 +158,7 @@ pub struct AgentIdentity {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModelConfig {
     /// OpenAI-compatible chat-completions base URL.
     pub base_url: String,
@@ -177,7 +177,7 @@ pub struct ModelConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GatewayAccess {
     /// Canonical public gateway origin used for HTTP authority and OAuth
     /// identity.
@@ -210,7 +210,7 @@ pub struct GatewayAccess {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EpisodeConfig {
     #[serde(default = "default_max_turns")]
     pub max_turns: usize,
@@ -519,23 +519,23 @@ mod tests {
 
     fn manifest_json() -> serde_json::Value {
         serde_json::json!({
-            "agent": { "tenant": "test", "id": "test-agent", "display_name": "Test Agent" },
+            "agent": { "tenant": "test", "id": "test-agent", "displayName": "Test Agent" },
             "model": {
-                "base_url": "http://127.0.0.1:9/v1",
-                "api_key_env": "TEST_MANIFEST_API_KEY",
+                "baseUrl": "http://127.0.0.1:9/v1",
+                "apiKeyEnv": "TEST_MANIFEST_API_KEY",
                 "model": "test/model"
             },
             "gateway": {
                 "url": "https://veoveo.example",
-                "transport_url": "http://127.0.0.1:9",
+                "transportUrl": "http://127.0.0.1:9",
                 "profile": "operator",
-                "client_id": "operator-service",
-                "work_context": "operations",
+                "clientId": "operator-service",
+                "workContext": "operations",
                 "audience": "https://veoveo.example/oauth/token",
                 "resource": "https://veoveo.example/mcp/operator",
                 "scopes": ["operator:use"],
-                "private_key_env": "TEST_MANIFEST_PRIVATE_KEY",
-                "private_key_kid": "test-key"
+                "privateKeyEnv": "TEST_MANIFEST_PRIVATE_KEY",
+                "privateKeyKid": "test-key"
             },
             "episode": {},
             "preamble": "You are a test agent."
@@ -578,8 +578,8 @@ mod tests {
         }
         for (field, invalid) in [
             ("temperature", serde_json::json!(2.1)),
-            ("top_p", serde_json::json!(0.0)),
-            ("top_k", serde_json::json!(0)),
+            ("topP", serde_json::json!(0.0)),
+            ("topK", serde_json::json!(0)),
         ] {
             let mut value = manifest_json();
             value["model"][field] = invalid;
@@ -621,12 +621,12 @@ mod tests {
         let mut value = manifest_json();
         value["agent"]["tenant"] = serde_json::json!("${TEST_DYNAMIC_TENANT}");
         value["agent"]["id"] = serde_json::json!("${TEST_DYNAMIC_AGENT_ID}");
-        value["agent"]["display_name"] = serde_json::json!("Worker ${TEST_DYNAMIC_AGENT_ID}");
-        value["model"]["api_key_env"] = serde_json::json!("TEST_DYNAMIC_API_KEY");
-        value["gateway"]["client_id"] = serde_json::json!("${TEST_DYNAMIC_CLIENT_ID}");
+        value["agent"]["displayName"] = serde_json::json!("Worker ${TEST_DYNAMIC_AGENT_ID}");
+        value["model"]["apiKeyEnv"] = serde_json::json!("TEST_DYNAMIC_API_KEY");
+        value["gateway"]["clientId"] = serde_json::json!("${TEST_DYNAMIC_CLIENT_ID}");
         value["gateway"]["scopes"] = serde_json::json!(["${TEST_DYNAMIC_SCOPE}"]);
-        value["gateway"]["private_key_env"] = serde_json::json!("TEST_DYNAMIC_PRIVATE_KEY");
-        value["resource_subscriptions"] = serde_json::json!([{
+        value["gateway"]["privateKeyEnv"] = serde_json::json!("TEST_DYNAMIC_PRIVATE_KEY");
+        value["resourceSubscriptions"] = serde_json::json!([{
             "uri": "domain://asset/${TEST_DYNAMIC_RESOURCE_ID}"
         }]);
         value["preamble"] = serde_json::json!(
@@ -659,7 +659,7 @@ mod tests {
         }
         for (field, invalid) in [
             ("url", "https://veoveo.example/path"),
-            ("transport_url", "http://gateway.internal:8788/path"),
+            ("transportUrl", "http://gateway.internal:8788/path"),
         ] {
             let mut value = manifest_json();
             value["gateway"][field] = serde_json::json!(invalid);
@@ -686,11 +686,10 @@ mod tests {
             std::env::set_var("TEST_GATEWAY_IDENTITY_TRANSPORT", "http://127.0.0.1:9");
         }
         let mut value = manifest_json();
-        value["model"]["api_key_env"] = serde_json::json!("TEST_GATEWAY_IDENTITY_API_KEY");
-        value["gateway"]["private_key_env"] =
-            serde_json::json!("TEST_GATEWAY_IDENTITY_PRIVATE_KEY");
+        value["model"]["apiKeyEnv"] = serde_json::json!("TEST_GATEWAY_IDENTITY_API_KEY");
+        value["gateway"]["privateKeyEnv"] = serde_json::json!("TEST_GATEWAY_IDENTITY_PRIVATE_KEY");
         value["gateway"]["url"] = serde_json::json!("${TEST_GATEWAY_IDENTITY_ORIGIN}");
-        value["gateway"]["transport_url"] = serde_json::json!("${TEST_GATEWAY_IDENTITY_TRANSPORT}");
+        value["gateway"]["transportUrl"] = serde_json::json!("${TEST_GATEWAY_IDENTITY_TRANSPORT}");
         value["gateway"]["audience"] =
             serde_json::json!("${TEST_GATEWAY_IDENTITY_ORIGIN}/oauth/token");
         value["gateway"]["resource"] =
@@ -720,10 +719,10 @@ mod tests {
             std::env::set_var("TEST_RESOURCE_SESSION", "simulation-alpha");
         }
         let mut value = manifest_json();
-        value["model"]["api_key_env"] = serde_json::json!("TEST_RESOURCE_SUBSCRIPTION_API_KEY");
-        value["gateway"]["private_key_env"] =
+        value["model"]["apiKeyEnv"] = serde_json::json!("TEST_RESOURCE_SUBSCRIPTION_API_KEY");
+        value["gateway"]["privateKeyEnv"] =
             serde_json::json!("TEST_RESOURCE_SUBSCRIPTION_PRIVATE_KEY");
-        value["resource_subscriptions"] = serde_json::json!([
+        value["resourceSubscriptions"] = serde_json::json!([
             {"uri": "telemetry://session/${TEST_RESOURCE_SESSION}/events/latest"},
             {"uri": "telemetry://session/${TEST_RESOURCE_SESSION}/plans"}
         ]);
@@ -763,13 +762,146 @@ mod tests {
             ],
         ] {
             let mut value = manifest_json();
-            value["resource_subscriptions"] = serde_json::Value::Array(
+            value["resourceSubscriptions"] = serde_json::Value::Array(
                 uris.into_iter()
                     .map(|uri| serde_json::json!({"uri": uri}))
                     .collect(),
             );
             let manifest: AgentManifest = serde_json::from_value(value).expect("parses");
             assert!(manifest.validate().is_err());
+        }
+    }
+    #[test]
+    fn entire_manifest_wire_family_refuses_retired_and_mixed_keys() {
+        let mut typed: AgentManifest = serde_json::from_value(manifest_json()).unwrap();
+        typed.migrations_dir = Some("migrations".into());
+        typed.model.api_key_env = "TEST_WIRE_FAMILY_API_KEY".into();
+        typed.gateway.private_key_env = "TEST_WIRE_FAMILY_PRIVATE_KEY".into();
+        // SAFETY: unique test-only environment keys; no provider is started.
+        unsafe {
+            std::env::set_var("TEST_WIRE_FAMILY_API_KEY", "fixture");
+            std::env::set_var("TEST_WIRE_FAMILY_PRIVATE_KEY", "fixture");
+        }
+        typed.budgets.hourly_max_episodes = Some(8);
+        typed.budgets.per_episode.max_completion_calls = Some(4);
+        typed.budgets.per_episode.max_tool_calls = Some(16);
+        typed.model.temperature = Some(0.2);
+        typed.model.top_p = Some(0.9);
+        typed.model.top_k = Some(8);
+        typed.model.max_output_tokens = Some(128);
+        typed.context.sections.push(ContextSection {
+            name: "notes".into(),
+            priority: 1,
+            sql: "SELECT * FROM notes".into(),
+            max_rows: 4,
+            max_tokens: 64,
+        });
+        let current = serde_json::to_value(typed).unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("manifest.json");
+        std::fs::create_dir(directory.path().join("migrations")).unwrap();
+        std::fs::write(&path, serde_json::to_vec(&current).unwrap()).unwrap();
+        AgentManifest::load(&path).unwrap();
+        serde_json::from_slice::<AgentManifest>(&serde_json::to_vec(&current).unwrap()).unwrap();
+        // Options retain their native absent/null/value semantics at the current wire names.
+        for (parent, key) in [
+            ("", "migrationsDir"),
+            ("/model", "temperature"),
+            ("/model", "topP"),
+            ("/model", "topK"),
+            ("/model", "maxOutputTokens"),
+            ("/budgets", "hourlyMaxEpisodes"),
+            ("/budgets/perEpisode", "maxCompletionCalls"),
+            ("/budgets/perEpisode", "maxToolCalls"),
+        ] {
+            assert!(current.pointer(parent).unwrap().get(key).is_some());
+            for explicit_null in [false, true] {
+                let mut admitted = current.clone();
+                let fields = admitted
+                    .pointer_mut(parent)
+                    .unwrap()
+                    .as_object_mut()
+                    .unwrap();
+                if explicit_null {
+                    fields.insert(key.into(), serde_json::Value::Null);
+                } else {
+                    fields.remove(key);
+                }
+                serde_json::from_value::<AgentManifest>(admitted.clone()).unwrap();
+                serde_json::from_slice::<AgentManifest>(&serde_json::to_vec(&admitted).unwrap())
+                    .unwrap();
+                std::fs::write(&path, serde_json::to_vec(&admitted).unwrap()).unwrap();
+                AgentManifest::load(&path).unwrap();
+            }
+        }
+        for (parent, key, retired) in [
+            ("", "resourceSubscriptions", "resource_subscriptions"),
+            ("", "migrationsDir", "migrations_dir"),
+            ("/agent", "displayName", "display_name"),
+            ("/model", "baseUrl", "base_url"),
+            ("/model", "apiKeyEnv", "api_key_env"),
+            ("/model", "topP", "top_p"),
+            ("/model", "topK", "top_k"),
+            ("/model", "maxOutputTokens", "max_output_tokens"),
+            ("/gateway", "transportUrl", "transport_url"),
+            ("/gateway", "clientId", "client_id"),
+            ("/gateway", "workContext", "work_context"),
+            ("/gateway", "privateKeyEnv", "private_key_env"),
+            ("/gateway", "privateKeyKid", "private_key_kid"),
+            ("/gateway", "tokenRefreshFraction", "token_refresh_fraction"),
+            ("/episode", "maxTurns", "max_turns"),
+            ("/episode", "requestTimeoutS", "request_timeout_s"),
+            ("/episode", "taskDeadlineS", "task_deadline_s"),
+            ("/memory", "rrdDir", "rrd_dir"),
+            ("/memory", "segmentMaxBytes", "segment_max_bytes"),
+            ("/memory", "memoryWriteTables", "memory_write_tables"),
+            ("/context", "maxContextTokens", "max_context_tokens"),
+            ("/context/sections/0", "maxRows", "max_rows"),
+            ("/context/sections/0", "maxTokens", "max_tokens"),
+            ("/budgets", "perEpisode", "per_episode"),
+            ("/budgets", "hourlyMaxEpisodes", "hourly_max_episodes"),
+            (
+                "/budgets/perEpisode",
+                "maxCompletionCalls",
+                "max_completion_calls",
+            ),
+            ("/budgets/perEpisode", "maxToolCalls", "max_tool_calls"),
+            ("/schedule", "heartbeatIntervalS", "heartbeat_interval_s"),
+            ("/schedule", "minWakeIntervalS", "min_wake_interval_s"),
+            (
+                "/schedule",
+                "wakeCoalesceWindowMs",
+                "wake_coalesce_window_ms",
+            ),
+            ("/schedule", "inputGraceS", "input_grace_s"),
+        ] {
+            for keep in [false, true] {
+                let mut bad = current.clone();
+                let object = bad.pointer_mut(parent).unwrap().as_object_mut().unwrap();
+                let field = object
+                    .get(key)
+                    .unwrap_or_else(|| panic!("missing current {parent}/{key}"))
+                    .clone();
+                object.insert(retired.into(), field);
+                if !keep {
+                    object.remove(key);
+                }
+                assert!(
+                    serde_json::from_value::<AgentManifest>(bad.clone()).is_err(),
+                    "{parent}/{retired} mixed={keep}"
+                );
+                assert!(
+                    serde_json::from_slice::<AgentManifest>(&serde_json::to_vec(&bad).unwrap())
+                        .is_err(),
+                    "JSON {parent}/{retired} mixed={keep}"
+                );
+                std::fs::write(&path, serde_json::to_vec(&bad).unwrap()).unwrap();
+                let error = AgentManifest::load(&path).unwrap_err();
+                assert!(
+                    format!("{error:#}").contains("unknown field"),
+                    "loader must refuse shape before runtime: {error:#}"
+                );
+            }
         }
     }
 }

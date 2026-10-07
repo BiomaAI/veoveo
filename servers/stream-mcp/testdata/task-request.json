@@ -1,10 +1,10 @@
 {
   "input": {
     "operation": "run_recording",
-    "pipeline_id": "fixture",
+    "pipelineId": "fixture",
     "video": {
-      "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000001",
-      "entity_path": "/camera/front",
+      "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+      "entityPath": "/camera/front",
       "timeline": "sensor_time",
       "range": {
         "start": 10,
@@ -12,16 +12,16 @@
       }
     }
   },
-  "artifact_write_capability": {
+  "artifactWriteCapability": {
     "capability_id": "01983da0-0000-7000-8000-000000000004",
     "secret": "inert_fixture_capability_not_issued_0000",
-    "task_id": "01983da0-0000-7000-8000-000000000001",
-    "expires_at": "2030-01-01T00:00:00Z"
+    "expires_at": "2030-01-01T00:00:00Z",
+    "task_id": "01983da0-0000-7000-8000-000000000001"
   },
-  "artifact_read_capability": {
+  "artifactReadCapability": {
     "capability_id": "01983da0-0000-7000-8000-000000000004",
     "secret": "inert_fixture_capability_not_issued_0000",
-    "task_id": "01983da0-0000-7000-8000-000000000001",
-    "expires_at": "2030-01-01T00:00:00Z"
+    "expires_at": "2030-01-01T00:00:00Z",
+    "task_id": "01983da0-0000-7000-8000-000000000001"
   }
 }

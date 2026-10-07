@@ -22,6 +22,7 @@ pub(crate) fn solution_digest(
     // Preserve the struct serializer's field order: replacement occurs at the
     // digest field, rather than sorting an intermediate JSON object.
     #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase", deny_unknown_fields)]
     struct Preimage<'a> {
         solution_id: &'a SolutionId,
         solution_uri: &'a OptimizationSolutionUri,

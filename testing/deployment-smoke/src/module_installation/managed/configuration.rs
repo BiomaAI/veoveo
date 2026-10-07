@@ -26,18 +26,18 @@ impl Configuration {
         let agent_namespace = format!("{namespace}-agents");
         // No prompt, subscriptions, domain migrations or actionable wake producers.
         let manifest = json!({
-            "agent":{"tenant":"${VEOVEO_AGENT_TENANT}","id":"${VEOVEO_AGENT_ID}","display_name":"${VEOVEO_AGENT_NAME}"},
-            "model":{"base_url":"${VEOVEO_AGENT_MODEL_URL}","model":"${VEOVEO_AGENT_MODEL_ID}","api_key_env":"VEOVEO_MANAGED_MODEL_KEY"},
-            "gateway":{"url":"${VEOVEO_GATEWAY_URL}","transport_url":"${VEOVEO_GATEWAY_TRANSPORT_URL}","profile":"${VEOVEO_AGENT_PROFILE}","client_id":"${VEOVEO_AGENT_CLIENT_ID}","work_context":"${VEOVEO_AGENT_WORK_CONTEXT}","audience":"${VEOVEO_GATEWAY_AUDIENCE}","resource":"${VEOVEO_GATEWAY_RESOURCE}","scopes":["operator:use"],"private_key_env":"VEOVEO_MANAGED_PRIVATE_KEY","private_key_kid":"${VEOVEO_AGENT_KEY_ID}"},
-            "episode":{},"schedule":{"heartbeat_interval_s":3600},"resource_subscriptions":[],"preamble":"Credential recovery fixture"
+            "agent":{"tenant":"${VEOVEO_AGENT_TENANT}","id":"${VEOVEO_AGENT_ID}","displayName":"${VEOVEO_AGENT_NAME}"},
+            "model":{"baseUrl":"${VEOVEO_AGENT_MODEL_URL}","model":"${VEOVEO_AGENT_MODEL_ID}","apiKeyEnv":"VEOVEO_MANAGED_MODEL_KEY"},
+            "gateway":{"url":"${VEOVEO_GATEWAY_URL}","transportUrl":"${VEOVEO_GATEWAY_TRANSPORT_URL}","profile":"${VEOVEO_AGENT_PROFILE}","clientId":"${VEOVEO_AGENT_CLIENT_ID}","workContext":"${VEOVEO_AGENT_WORK_CONTEXT}","audience":"${VEOVEO_GATEWAY_AUDIENCE}","resource":"${VEOVEO_GATEWAY_RESOURCE}","scopes":["operator:use"],"privateKeyEnv":"VEOVEO_MANAGED_PRIVATE_KEY","privateKeyKid":"${VEOVEO_AGENT_KEY_ID}"},
+            "episode":{},"schedule":{"heartbeatIntervalS":3600},"resourceSubscriptions":[],"preamble":"Credential recovery fixture"
         });
         let data = BTreeMap::from([("manifest.json".into(), serde_json::to_string(&manifest)?)]);
         let model: ModelConnection = serde_json::from_value(
-            json!({"id":"approved","name":"Inert recovery model","provider":"fixture","tenant":"fixture","work_contexts":["mission"],"required_scopes":["operator:use"],"base_url":"https://model.invalid/v1","model":"fixture","api_key":"fixture-model-key","limits":{"maxOutputTokens":64,"maxCompletionCalls":1,"maxToolCalls":1,"deadlineSeconds":30}}),
+            json!({"id":"approved","name":"Inert recovery model","provider":"fixture","tenant":"fixture","workContexts":["mission"],"requiredScopes":["operator:use"],"baseUrl":"https://model.invalid/v1","model":"fixture","apiKey":"fixture-model-key","limits":{"maxOutputTokens":64,"maxCompletionCalls":1,"maxToolCalls":1,"deadlineSeconds":30}}),
         )?;
         let template: RuntimeTemplate = serde_json::from_value(json!({
-            "id":"recovery","name":"Credential recovery","tenant":"fixture","work_contexts":["mission"],"required_deployer_scopes":["operator:use"],"profile":"operator","scopes":["operator:use"],"roles":["fixture-managed"],"membership":"contributor","models":["approved"],"tools":[],"resource_subscriptions":[],"parameters":{},
-            "workload":{"namespace":agent_namespace,"config_map":"fixture-runtime-template","config_digest":wire::runtime_config_revision(&data),"image":args.kernel_image.reference(),"database_secret":"veoveo-surreal-runtime","storage_class":"local-path","storage_gib":1,"cpu_millis":500,"memory_mib":1024,"model_secrets":[{"reference":"fixture-model-key","secret":"fixture-model","key":"api-key"}]}
+            "id":"recovery","name":"Credential recovery","tenant":"fixture","workContexts":["mission"],"requiredDeployerScopes":["operator:use"],"profile":"operator","scopes":["operator:use"],"roles":["fixture-managed"],"membership":"contributor","models":["approved"],"tools":[],"resourceSubscriptions":[],"parameters":{},
+            "workload":{"namespace":agent_namespace,"configMap":"fixture-runtime-template","configDigest":wire::runtime_config_revision(&data),"image":args.kernel_image.reference(),"databaseSecret":"veoveo-surreal-runtime","storageClass":"local-path","storageGib":1,"cpuMillis":500,"memoryMib":1024,"modelSecrets":[{"reference":"fixture-model-key","secret":"fixture-model","key":"api-key"}]}
         }))?;
         let private_path = directory.join("authorization.der");
         process::checked(
@@ -102,11 +102,11 @@ impl Configuration {
             ),
         ]);
         let plane: GatewayControlPlane = serde_json::from_value(json!({
-            "identity_providers":[{"id":"fixture-idp","issuer":"https://idp.invalid","jwks":{"source":"file","path":"/etc/veoveo/gateway/jwks.json"},"metadata":{}}],
-            "authorization_servers":[{"id":"fixture-as","issuer":"https://gateway.invalid/oauth","jwks":{"source":"file","path":"/etc/veoveo/gateway/jwks.json"},"access_token_key_id":"fixture-as","access_token_signing_key":"fixture-signing","identity_provider":"fixture-idp","authorization_endpoint":"https://gateway.invalid/oauth/authorize","token_endpoint":"https://gateway.invalid/oauth/token","metadata":{}}],
-            "servers":[],"profiles":[{"id":"operator","identity_provider":"fixture-idp","authorization_server":"fixture-as","protected_resource":"https://gateway.invalid/mcp/operator","policy_version":"policy-fixture","auth_modes":["oauth_client_credentials"],"required_scopes":["operator:use"],"servers":[],"metadata":{}}],
-            "tenants":[{"id":"fixture","metadata":{}}],"work_contexts":[{"id":"mission","tenant":"fixture","title":"Mission","policy_revision":"policy-fixture","output_policy":{"owner":{"kind":"group","id":"operations"},"initial_grants":[],"classification":null,"data_labels":[]},"memberships":[{"level":"contributor","groups":["operations"],"roles":["fixture-managed"]}]}],
-            "policies":[{"version":"policy-fixture","rules":[],"metadata":{}}],"data_labels":[],"oidc_clients":[],
+            "identityProviders":[{"id":"fixture-idp","issuer":"https://idp.invalid","jwks":{"source":"file","path":"/etc/veoveo/gateway/jwks.json"},"metadata":{}}],
+            "authorizationServers":[{"id":"fixture-as","issuer":"https://gateway.invalid/oauth","jwks":{"source":"file","path":"/etc/veoveo/gateway/jwks.json"},"accessTokenKeyId":"fixture-as","accessTokenSigningKey":"fixture-signing","identityProvider":"fixture-idp","authorizationEndpoint":"https://gateway.invalid/oauth/authorize","tokenEndpoint":"https://gateway.invalid/oauth/token","metadata":{}}],
+            "servers":[],"profiles":[{"id":"operator","identityProvider":"fixture-idp","authorizationServer":"fixture-as","protectedResource":"https://gateway.invalid/mcp/operator","policyVersion":"policy-fixture","authModes":["oauth_client_credentials"],"requiredScopes":["operator:use"],"servers":[],"metadata":{}}],
+            "tenants":[{"id":"fixture","metadata":{}}],"workContexts":[{"id":"mission","tenant":"fixture","title":"Mission","policyRevision":"policy-fixture","outputPolicy":{"owner":{"kind":"group","id":"operations"},"initialGrants":[],"classification":null,"dataLabels":[]},"memberships":[{"level":"contributor","groups":["operations"],"roles":["fixture-managed"]}]}],
+            "policies":[{"version":"policy-fixture","rules":[],"metadata":{}}],"dataLabels":[],"oidcClients":[],
             "secrets":[{"id":"fixture-signing","source":"env","purpose":"jwks_private_key","locator":"VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64","owner":{"kind":"gateway"},"metadata":{}},{"id":"fixture-model-key","source":"env","purpose":"provider_api_key","locator":"VEOVEO_AGENT_MODEL_FIXTURE_KEY","owner":{"kind":"gateway"},"metadata":{}}]
         }))?;
         Ok(Self {

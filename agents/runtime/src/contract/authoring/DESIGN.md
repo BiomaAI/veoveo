@@ -3,7 +3,7 @@
 ## Standards And Protocols
 
 The management surface uses authenticated HTTP JSON and cursor-based SSE. Rust owns
-closed request/response DTOs and JSON Schema 2020-12 definitions used to generate the
+camelCase request/response and installation-configuration DTOs, snake_case controlled values and JSON Schema 2020-12 definitions used to generate the
 browser's TypeScript types. SHA-256 values use the shared `sha256:` representation.
 Management is a Veoveo application API; MCP `2026-07-28` remains the protocol for
 capability execution and native Tasks, as specified by the [MCP server contract](../../../../../mcp/contract/DESIGN.md).

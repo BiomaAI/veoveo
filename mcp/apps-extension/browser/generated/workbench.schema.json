@@ -4,7 +4,7 @@
       "additionalProperties": false,
       "description": "Request construction and decoding share the same bounds.\n```compile_fail\nuse veoveo_recording_contract::CreateRecordingProjectionRequest;\nfn remove_deadline(request: &mut CreateRecordingProjectionRequest) {\n    request.deadline_ms = 0;\n}\n```",
       "properties": {
-        "component_ids": {
+        "componentIds": {
           "items": {
             "type": "string"
           },
@@ -12,23 +12,41 @@
           "minItems": 1,
           "type": "array"
         },
-        "coordinate_frame_refs": {
+        "coordinateFrameRefs": {
           "items": {
             "$ref": "#/$defs/WorldFrameUri"
           },
           "maxItems": 64,
           "type": "array"
         },
-        "dataset_id": {
+        "datasetId": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_recording_contract::ids"
+                  },
+                  "profile": "RecordingDatasetId",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "type": "string"
         },
-        "deadline_ms": {
+        "deadlineMs": {
           "format": "uint64",
           "maximum": 15000,
           "minimum": 1,
           "type": "integer"
         },
-        "entity_paths": {
+        "entityPaths": {
           "items": {
             "type": "string"
           },
@@ -36,46 +54,64 @@
           "minItems": 1,
           "type": "array"
         },
-        "idempotency_key": {
+        "idempotencyKey": {
           "type": "string"
         },
-        "maximum_bytes": {
+        "maximumBytes": {
           "format": "uint64",
           "maximum": 33554432,
           "minimum": 1,
           "type": "integer"
         },
-        "maximum_columns": {
+        "maximumColumns": {
           "format": "uint",
           "maximum": 64,
           "minimum": 1,
           "type": "integer"
         },
-        "maximum_entities": {
+        "maximumEntities": {
           "format": "uint",
           "maximum": 64,
           "minimum": 1,
           "type": "integer"
         },
-        "maximum_rows": {
+        "maximumRows": {
           "format": "uint64",
           "maximum": 10000,
           "minimum": 1,
           "type": "integer"
         },
-        "maximum_samples": {
+        "maximumSamples": {
           "format": "uint",
           "maximum": 10000,
           "minimum": 1,
           "type": "integer"
         },
-        "recording_id": {
+        "recordingId": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_recording_contract::ids"
+                  },
+                  "profile": "RecordingId",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "type": "string"
         },
         "sampling": {
           "$ref": "#/$defs/RecordingProjectionSampling"
         },
-        "sparse_fill": {
+        "sparseFill": {
           "$ref": "#/$defs/RecordingProjectionSparseFill"
         },
         "timeline": {
@@ -85,26 +121,35 @@
           "additionalProperties": {
             "type": "string"
           },
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "keySchema": {
+                "type": "string"
+              },
+              "kind": "dictionary"
+            }
+          },
           "type": "object"
         }
       },
       "required": [
-        "dataset_id",
-        "recording_id",
-        "entity_paths",
-        "component_ids",
+        "datasetId",
+        "recordingId",
+        "entityPaths",
+        "componentIds",
         "timeline",
         "sampling",
-        "sparse_fill",
-        "maximum_entities",
-        "maximum_columns",
-        "maximum_samples",
-        "maximum_rows",
-        "maximum_bytes",
-        "deadline_ms",
-        "idempotency_key",
+        "sparseFill",
+        "maximumEntities",
+        "maximumColumns",
+        "maximumSamples",
+        "maximumRows",
+        "maximumBytes",
+        "deadlineMs",
+        "idempotencyKey",
         "units",
-        "coordinate_frame_refs"
+        "coordinateFrameRefs"
       ],
       "type": "object"
     },
@@ -112,16 +157,71 @@
       "additionalProperties": false,
       "description": "An immutable result with admitted shape. Consumers with the request also check agreement.\n```compile_fail\nuse veoveo_recording_contract::RecordingProjectionHandle;\nfn change_length(handle: &mut RecordingProjectionHandle) {\n    handle.result.byte_len = 1.try_into().unwrap();\n}\n```",
       "properties": {
-        "dataset_id": {
+        "datasetId": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_recording_contract::ids"
+                  },
+                  "profile": "RecordingDatasetId",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "type": "string"
         },
-        "expires_at": {
+        "expiresAt": {
+          "format": "date-time",
           "type": "string"
         },
-        "projection_id": {
+        "projectionId": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_recording_contract::ids"
+                  },
+                  "profile": "RecordingProjectionId",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "type": "string"
         },
-        "recording_id": {
+        "recordingId": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_recording_contract::ids"
+                  },
+                  "profile": "RecordingId",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "type": "string"
         },
         "result": {
@@ -133,17 +233,27 @@
       },
       "required": [
         "schema",
-        "projection_id",
-        "dataset_id",
-        "recording_id",
+        "projectionId",
+        "datasetId",
+        "recordingId",
         "result",
-        "expires_at"
+        "expiresAt"
       ],
       "type": "object"
     },
     "RecordingProjectionHandleSchema": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "format_tag",
+            "kind": "builtin"
+          }
+        }
+      },
       "enum": [
-        "veoveo.ai/recording-projection-handle/v1"
+        "veoveo.ai/recording-projection-handle/v2"
       ],
       "type": "string"
     },
@@ -151,44 +261,44 @@
       "additionalProperties": false,
       "description": "Result facts supplied to the handle builder. File integrity is checked by the service.",
       "properties": {
-        "arrow_schema_sha256": {
+        "arrowSchemaSha256": {
           "pattern": "^[0-9a-f]{64}$",
           "type": "string"
         },
-        "byte_len": {
+        "byteLen": {
           "format": "uint64",
           "minimum": 1,
           "type": "integer"
         },
-        "catalog_revision": {
+        "catalogRevision": {
           "type": "string"
         },
-        "coordinate_frame_refs": {
+        "coordinateFrameRefs": {
           "items": {
             "$ref": "#/$defs/WorldFrameUri"
           },
           "maxItems": 64,
           "type": "array"
         },
-        "omitted_sample_count": {
+        "omittedSampleCount": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "payload_sha256": {
+        "payloadSha256": {
           "pattern": "^[0-9a-f]{64}$",
           "type": "string"
         },
-        "query_digest": {
+        "queryDigest": {
           "pattern": "^[0-9a-f]{64}$",
           "type": "string"
         },
-        "row_count": {
+        "rowCount": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "sample_grid": {
+        "sampleGrid": {
           "items": {
             "format": "int64",
             "type": "integer"
@@ -202,21 +312,30 @@
           "additionalProperties": {
             "type": "string"
           },
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "keySchema": {
+                "type": "string"
+              },
+              "kind": "dictionary"
+            }
+          },
           "type": "object"
         }
       },
       "required": [
-        "catalog_revision",
-        "query_digest",
+        "catalogRevision",
+        "queryDigest",
         "timeline",
-        "sample_grid",
+        "sampleGrid",
         "units",
-        "coordinate_frame_refs",
-        "omitted_sample_count",
-        "row_count",
-        "arrow_schema_sha256",
-        "byte_len",
-        "payload_sha256"
+        "coordinateFrameRefs",
+        "omittedSampleCount",
+        "rowCount",
+        "arrowSchemaSha256",
+        "byteLen",
+        "payloadSha256"
       ],
       "type": "object"
     },

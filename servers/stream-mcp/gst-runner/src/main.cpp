@@ -32,15 +32,15 @@
 namespace {
 
 constexpr std::string_view kRequestSchema =
-    "veoveo.stream-recording-runner-request/v1";
+    "veoveo.ai/stream-recording-runner-request/v2";
 constexpr std::string_view kResponseSchema =
-    "veoveo.stream-recording-runner-response/v1";
+    "veoveo.ai/stream-recording-runner-response/v2";
 constexpr std::string_view kLiveRequestSchema =
-    "veoveo.stream-live-runner-request/v1";
+    "veoveo.ai/stream-live-runner-request/v2";
 constexpr std::string_view kLiveFrameSchema =
-    "veoveo.stream-live-frame/v1";
+    "veoveo.ai/stream-live-frame/v2";
 constexpr std::string_view kLiveVideoChunkSchema =
-    "veoveo.stream-live-video-chunk/v1";
+    "veoveo.ai/stream-live-video-chunk/v2";
 constexpr std::string_view kTrackerLibrary =
     "/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so";
 
@@ -121,7 +121,7 @@ json_object *frame_json(const Frame &frame) {
       std::min<std::size_t>(frame.detections.size(), INT_MAX)));
   for (const auto &detection : frame.detections) {
     auto *detection_json = json_object_new_object();
-    json_object_object_add(detection_json, "class_id",
+    json_object_object_add(detection_json, "classId",
                            json_object_new_uint64(detection.class_id));
     json_object_object_add(detection_json, "label",
                            json_object_new_string(detection.label.c_str()));
@@ -131,7 +131,7 @@ json_object *frame_json(const Frame &frame) {
     }
     if (detection.tracker_confidence) {
       json_object_object_add(
-          detection_json, "tracker_confidence",
+          detection_json, "trackerConfidence",
           json_object_new_double(*detection.tracker_confidence));
     }
     auto *bounds = json_object_new_object();
@@ -145,7 +145,7 @@ json_object *frame_json(const Frame &frame) {
                            json_object_new_double(detection.bounds.height));
     json_object_object_add(detection_json, "bounds", bounds);
     if (detection.track_id) {
-      json_object_object_add(detection_json, "track_id",
+      json_object_object_add(detection_json, "trackId",
                              json_object_new_uint64(*detection.track_id));
     }
     json_object_array_add(detections, detection_json);
@@ -214,11 +214,11 @@ public:
     auto *chunk = json_object_new_object();
     json_object_object_add(chunk, "sequence",
                            json_object_new_uint64(sequence));
-    json_object_object_add(chunk, "timestamp_us",
+    json_object_object_add(chunk, "timestampUs",
                            json_object_new_uint64(timestamp_us));
     json_object_object_add(chunk, "keyframe",
                            json_object_new_boolean(keyframe));
-    json_object_object_add(chunk, "data_base64",
+    json_object_object_add(chunk, "dataBase64",
                            json_object_new_string(encoded));
     g_free(encoded);
     json_object_object_add(root.get(), "chunk", chunk);
@@ -332,9 +332,9 @@ json_object *required_member(json_object *object, const char *name,
 }
 
 std::string required_string(json_object *object, const char *name) {
-  const char *value =
-      json_object_get_string(required_member(object, name, json_type_string));
-  if (value == nullptr || *value == '\0') {
+  auto *member = required_member(object, name, json_type_string);
+  const char *value = json_object_get_string(member);
+  if (value == nullptr || *value == '\0' || std::strlen(value) != static_cast<std::size_t>(json_object_get_string_len(member))) {
     fail(std::string("JSON field `") + name + "` must not be empty");
   }
   return value;
@@ -351,14 +351,40 @@ std::optional<std::string> optional_string(json_object *object,
     fail(std::string("JSON field `") + name + "` has the wrong type");
   }
   const char *value = json_object_get_string(member);
-  if (value == nullptr || *value == '\0') {
+  if (value == nullptr || *value == '\0' || std::strlen(value) != static_cast<std::size_t>(json_object_get_string_len(member))) {
     fail(std::string("JSON field `") + name + "` must not be empty");
   }
   return std::string(value);
 }
 
+void require_catalog_id(json_object *object, const char *name) {
+  const auto value = required_string(object, name);
+  const auto admitted = [](unsigned char c) { return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'); };
+  if (value.size() > 128 || !admitted(value.front()) || !std::all_of(value.begin(), value.end(), [&](unsigned char c) { return admitted(c) || c == '-'; })) {
+    fail("invalid Stream catalog identity");
+  }
+}
+
+void require_uuid_v7(json_object *object, const char *name) {
+  const auto value = required_string(object, name);
+  if (value.size() != 36 || value[14] != '7' || std::string_view("89ab").find(value[19]) == std::string_view::npos) {
+    fail("invalid Stream UUIDv7 identity");
+  }
+  for (std::size_t index = 0; index < value.size(); ++index) {
+    const auto c = value[index];
+    const bool separator = index == 8 || index == 13 || index == 18 || index == 23;
+    if (separator ? c != '-' : !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) {
+      fail("invalid Stream UUIDv7 identity");
+    }
+  }
+}
+
 std::int64_t required_i64(json_object *object, const char *name) {
-  return json_object_get_int64(required_member(object, name, json_type_int));
+  auto *member = required_member(object, name, json_type_int);
+  if (json_object_get_uint64(member) > static_cast<std::uint64_t>(INT64_MAX)) {
+    fail("JSON integer exceeds i64");
+  }
+  return json_object_get_int64(member);
 }
 
 std::uint64_t required_positive_u64(json_object *object, const char *name) {
@@ -399,7 +425,7 @@ void require_regular_file(const std::filesystem::path &path,
   std::error_code error;
   if (!std::filesystem::is_regular_file(path, error) || error) {
     fail(std::string(description) +
-         " is not a readable regular file: " + path.string());
+         " is not a readable regular file");
   }
 }
 
@@ -410,7 +436,7 @@ void closed_object(json_object *object, std::initializer_list<std::string_view> 
   json_object_object_foreach(object, key, value) {
     (void)value;
     if (std::find(fields.begin(), fields.end(), std::string_view(key)) == fields.end()) {
-      fail(std::string("unknown JSON field `") + key + "`");
+      fail("unknown JSON field");
     }
   }
 }
@@ -430,28 +456,28 @@ Sampling parse_sampling(json_object *object) {
     return {SamplingMode::MaximumFrames,
             required_positive_u64(object, "count")};
   }
-  fail("unsupported sampling mode `" + mode + "`");
+  fail("unsupported sampling mode");
 }
 
 void parse_pipeline_and_model(json_object *root, Request &request) {
   auto *pipeline = required_member(root, "pipeline", json_type_object);
-  closed_object(pipeline, {"pipeline_id", "graph", "profile"});
-  (void)required_string(pipeline, "pipeline_id");
+  closed_object(pipeline, {"pipelineId", "graph", "profile"});
+  require_catalog_id(pipeline, "pipelineId");
   auto *graph = required_member(pipeline, "graph", json_type_object);
-  closed_object(graph, {"launch", "source_element", "stream_muxer_element", "inference_element", "tracker_element", "results_element", "encoded_output_element"});
+  closed_object(graph, {"launch", "sourceElement", "streamMuxerElement", "inferenceElement", "trackerElement", "resultsElement", "encodedOutputElement"});
   request.launch = required_string(graph, "launch");
   if (request.launch.size() > 64U * 1024U ||
       request.launch.find('\0') != std::string::npos) {
     fail("GStreamer launch text exceeds the admitted bound");
   }
-  request.source_element = optional_string(graph, "source_element");
+  request.source_element = optional_string(graph, "sourceElement");
   request.stream_muxer_element =
-      optional_string(graph, "stream_muxer_element");
-  request.inference_element = optional_string(graph, "inference_element");
-  request.tracker_element = optional_string(graph, "tracker_element");
-  request.results_element = optional_string(graph, "results_element");
+      optional_string(graph, "streamMuxerElement");
+  request.inference_element = optional_string(graph, "inferenceElement");
+  request.tracker_element = optional_string(graph, "trackerElement");
+  request.results_element = optional_string(graph, "resultsElement");
   request.encoded_output_element =
-      optional_string(graph, "encoded_output_element");
+      optional_string(graph, "encodedOutputElement");
 
   auto *profile = required_member(pipeline, "profile", json_type_object);
   const auto profile_kind = required_string(profile, "kind");
@@ -470,16 +496,16 @@ void parse_pipeline_and_model(json_object *root, Request &request) {
     return;
   }
   if (profile_kind != "perception") {
-    fail("unsupported Stream pipeline profile `" + profile_kind + "`");
+    fail("unsupported Stream pipeline profile");
   }
-  closed_object(profile, {"kind", "operation", "inference_config_path", "tracker"});
+  closed_object(profile, {"kind", "operation", "inferenceConfigPath", "tracker"});
   request.operation = required_string(profile, "operation");
   if (request.operation != "object_detection" &&
       request.operation != "object_detection_tracking") {
     fail("the typed perception profile supports only object detection");
   }
   request.inference_config_path =
-      required_absolute_path(profile, "inference_config_path");
+      required_absolute_path(profile, "inferenceConfigPath");
 
   json_object *tracker = nullptr;
   if (json_object_object_get_ex(profile, "tracker", &tracker) &&
@@ -487,9 +513,9 @@ void parse_pipeline_and_model(json_object *root, Request &request) {
     if (!json_object_is_type(tracker, json_type_object)) {
       fail("JSON field `tracker` has the wrong type");
     }
-    closed_object(tracker, {"config_path", "width", "height"});
+    closed_object(tracker, {"configPath", "width", "height"});
     TrackerRequest parsed;
-    parsed.config_path = required_absolute_path(tracker, "config_path");
+    parsed.config_path = required_absolute_path(tracker, "configPath");
     parsed.width = required_positive_u32(tracker, "width");
     parsed.height = required_positive_u32(tracker, "height");
     if (parsed.width % 32 != 0 || parsed.height % 32 != 0) {
@@ -510,31 +536,58 @@ void parse_pipeline_and_model(json_object *root, Request &request) {
   }
 
   auto *model = required_member(root, "model", json_type_object);
-  closed_object(model, {"model_id", "model_path", "format"});
-  (void)required_string(model, "model_id");
+  closed_object(model, {"modelId", "modelPath", "format"});
+  require_catalog_id(model, "modelId");
   if (required_string(model, "format") != "tensor_rt_engine") {
     fail("the typed perception profile accepts TensorRT engine models only");
   }
-  request.model_path = required_absolute_path(model, "model_path");
+  request.model_path = required_absolute_path(model, "modelPath");
+}
+
+// The current private JSON envelope is admitted before any GStreamer or socket effects.
+JsonPtr read_request(const std::filesystem::path &path) {
+  constexpr std::size_t kMaximumRequestBytes = 1024U * 1024U;
+  std::ifstream input(path, std::ios::binary);
+  if (!input) { fail("failed to read request JSON"); }
+  std::string bytes(kMaximumRequestBytes + 1, '\0');
+  input.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+  const auto count = static_cast<std::size_t>(input.gcount());
+  if (count == 0 || count > kMaximumRequestBytes || input.bad()) {
+    fail("request JSON exceeds the admitted byte bound or cannot be read");
+  }
+  bytes.resize(count);
+  std::unique_ptr<json_tokener, decltype(&json_tokener_free)> tokener(json_tokener_new_ex(64), &json_tokener_free);
+  if (!tokener) { fail("failed to allocate request decoder"); }
+  json_tokener_set_flags(tokener.get(), JSON_TOKENER_STRICT | JSON_TOKENER_VALIDATE_UTF8);
+  JsonPtr result(json_tokener_parse_ex(tokener.get(), bytes.data(), static_cast<int>(bytes.size())), &json_object_put);
+  if (json_tokener_get_error(tokener.get()) != json_tokener_success || !result) {
+    fail("request JSON is invalid");
+  }
+  const auto end = json_tokener_get_parse_end(tokener.get());
+  if (end > bytes.size() || bytes.find_first_not_of(" \t\r\n", end) != std::string::npos) {
+    fail("request JSON has trailing data");
+  }
+  return result;
 }
 
 Request parse_request(const std::filesystem::path &request_path,
                       const std::filesystem::path &cli_response_path) {
-  JsonPtr root(json_object_from_file(request_path.c_str()), &json_object_put);
+  auto root = read_request(request_path);
   if (!root || !json_object_is_type(root.get(), json_type_object)) {
     fail("request JSON is not a valid object");
   }
   if (required_string(root.get(), "schema") != kRequestSchema) {
     fail("unsupported Stream recording runner request schema");
   }
-  closed_object(root.get(), {"schema", "task_id", "input_mp4", "input_width", "input_height", "response_json", "pipeline", "model", "requested_range", "decode_start_index", "sampling", "max_output_frames", "max_detections_per_frame", "max_response_bytes"});
-  (void)required_string(root.get(), "task_id");
+  closed_object(root.get(), {"schema", "taskId", "inputMp4", "inputWidth", "inputHeight", "responseJson", "pipeline", "model", "requestedRange", "decodeStartIndex", "sampling", "maxOutputFrames", "maxDetectionsPerFrame", "maxResponseBytes"});
+  require_uuid_v7(root.get(), "taskId");
 
   Request request;
-  request.input_mp4 = required_absolute_path(root.get(), "input_mp4");
-  request.input_width = required_positive_u32(root.get(), "input_width");
-  request.input_height = required_positive_u32(root.get(), "input_height");
-  request.response_json = required_absolute_path(root.get(), "response_json");
+  request.input_mp4 = required_absolute_path(root.get(), "inputMp4");
+  request.input_width = required_positive_u32(root.get(), "inputWidth");
+  request.input_height = required_positive_u32(root.get(), "inputHeight");
+  if (request.input_width > UINT16_MAX || request.input_height > UINT16_MAX) { fail("input dimensions exceed u16"); }
+  request.response_json = required_absolute_path(root.get(), "responseJson");
   if (request.response_json != cli_response_path) {
     fail("response path argument does not match the typed request");
   }
@@ -545,25 +598,25 @@ Request parse_request(const std::filesystem::path &request_path,
   }
 
   auto *range =
-      required_member(root.get(), "requested_range", json_type_object);
+      required_member(root.get(), "requestedRange", json_type_object);
   closed_object(range, {"start", "end"});
   request.requested_range = {required_i64(range, "start"),
                              required_i64(range, "end")};
   if (request.requested_range.start > request.requested_range.end) {
     fail("requested range is reversed");
   }
-  request.decode_start_index = required_i64(root.get(), "decode_start_index");
+  request.decode_start_index = required_i64(root.get(), "decodeStartIndex");
   if (request.decode_start_index > request.requested_range.end) {
     fail("decode start is after the requested range end");
   }
   request.sampling =
       parse_sampling(required_member(root.get(), "sampling", json_type_object));
   request.max_output_frames =
-      required_positive_size(root.get(), "max_output_frames");
+      required_positive_size(root.get(), "maxOutputFrames");
   request.max_detections_per_frame =
-      required_positive_size(root.get(), "max_detections_per_frame");
+      required_positive_size(root.get(), "maxDetectionsPerFrame");
   request.max_response_bytes =
-      required_positive_size(root.get(), "max_response_bytes");
+      required_positive_size(root.get(), "maxResponseBytes");
   if (request.sampling.mode == SamplingMode::MaximumFrames &&
       request.sampling.value > request.max_output_frames) {
     fail("maximum_frames count exceeds max_output_frames");
@@ -584,20 +637,21 @@ Request parse_request(const std::filesystem::path &request_path,
 }
 
 Request parse_live_request(const std::filesystem::path &request_path) {
-  JsonPtr root(json_object_from_file(request_path.c_str()), &json_object_put);
+  auto root = read_request(request_path);
   if (!root || !json_object_is_type(root.get(), json_type_object)) {
     fail("live request JSON is not a valid object");
   }
   if (required_string(root.get(), "schema") != kLiveRequestSchema) {
     fail("unsupported Stream live runner request schema");
   }
-  closed_object(root.get(), {"schema", "session_id", "input_width", "input_height", "pipeline", "model", "max_detections_per_frame", "max_event_bytes", "max_video_chunk_bytes"});
-  (void)required_string(root.get(), "session_id");
+  closed_object(root.get(), {"schema", "sessionId", "inputWidth", "inputHeight", "pipeline", "model", "maxDetectionsPerFrame", "maxEventBytes", "maxVideoChunkBytes"});
+  require_uuid_v7(root.get(), "sessionId");
 
   Request request;
   request.live = true;
-  request.input_width = required_positive_u32(root.get(), "input_width");
-  request.input_height = required_positive_u32(root.get(), "input_height");
+  request.input_width = required_positive_u32(root.get(), "inputWidth");
+  request.input_height = required_positive_u32(root.get(), "inputHeight");
+  if (request.input_width > UINT16_MAX || request.input_height > UINT16_MAX) { fail("input dimensions exceed u16"); }
   parse_pipeline_and_model(root.get(), request);
   request.requested_range = {
       std::numeric_limits<std::int64_t>::min(),
@@ -607,11 +661,11 @@ Request parse_live_request(const std::filesystem::path &request_path) {
   request.sampling = {SamplingMode::EveryFrame, 1};
   request.max_output_frames = 1;
   request.max_detections_per_frame =
-      required_positive_size(root.get(), "max_detections_per_frame");
+      required_positive_size(root.get(), "maxDetectionsPerFrame");
   request.max_response_bytes =
-      required_positive_size(root.get(), "max_event_bytes");
+      required_positive_size(root.get(), "maxEventBytes");
   request.max_video_chunk_bytes =
-      required_positive_size(root.get(), "max_video_chunk_bytes");
+      required_positive_size(root.get(), "maxVideoChunkBytes");
 
   if (request.operation != "pass_through") {
     require_regular_file(request.inference_config_path,
@@ -1046,12 +1100,12 @@ void write_response(const Request &request, const ProbeContext &probe,
         std::min<std::size_t>(frame.detections.size(), INT_MAX)));
     for (const auto &detection : frame.detections) {
       auto *detection_json = json_object_new_object();
-      json_object_object_add(detection_json, "class_id",
+      json_object_object_add(detection_json, "classId",
                              json_object_new_uint64(detection.class_id));
       json_object_object_add(detection_json, "label",
                              json_object_new_string(detection.label.c_str()));
       add_optional_double(detection_json, "confidence", detection.confidence);
-      add_optional_double(detection_json, "tracker_confidence",
+      add_optional_double(detection_json, "trackerConfidence",
                           detection.tracker_confidence);
       auto *bounds = json_object_new_object();
       json_object_object_add(bounds, "x",
@@ -1064,7 +1118,7 @@ void write_response(const Request &request, const ProbeContext &probe,
                              json_object_new_double(detection.bounds.height));
       json_object_object_add(detection_json, "bounds", bounds);
       if (detection.track_id) {
-        json_object_object_add(detection_json, "track_id",
+        json_object_object_add(detection_json, "trackId",
                                json_object_new_uint64(*detection.track_id));
       }
       json_object_array_add(detections, detection_json);
@@ -1073,9 +1127,9 @@ void write_response(const Request &request, const ProbeContext &probe,
     json_object_array_add(frames, frame_json);
   }
   json_object_object_add(root.get(), "frames", frames);
-  json_object_object_add(root.get(), "processed_frames",
+  json_object_object_add(root.get(), "processedFrames",
                          json_object_new_uint64(probe.processed_frames));
-  json_object_object_add(root.get(), "elapsed_ms",
+  json_object_object_add(root.get(), "elapsedMs",
                          json_object_new_uint64(elapsed_ms));
 
   const auto temporary = request.response_json.string() + ".tmp";
@@ -1110,12 +1164,14 @@ struct CliArguments {
   std::filesystem::path request;
   std::optional<std::filesystem::path> response;
   std::optional<std::filesystem::path> event_socket;
+  bool validate_request = false;
 };
 
 CliArguments parse_arguments(int argc, char **argv) {
   std::optional<std::filesystem::path> request;
   std::optional<std::filesystem::path> response;
   std::optional<std::filesystem::path> event_socket;
+  bool validate_request = false;
   for (int index = 1; index < argc; ++index) {
     const std::string_view argument(argv[index]);
     if ((argument == "--request-json" || argument == "--response-json" ||
@@ -1123,14 +1179,20 @@ CliArguments parse_arguments(int argc, char **argv) {
         index + 1 >= argc) {
       fail(std::string(argument) + " requires a path");
     }
-    if (argument == "--request-json") {
+    if (argument == "--validate-request") {
+      if (validate_request) { fail("duplicate validation argument"); }
+      validate_request = true;
+    } else if (argument == "--request-json") {
+      if (request) { fail("duplicate request argument"); }
       request = std::filesystem::path(argv[++index]);
     } else if (argument == "--response-json") {
+      if (response) { fail("duplicate response argument"); }
       response = std::filesystem::path(argv[++index]);
     } else if (argument == "--event-socket") {
+      if (event_socket) { fail("duplicate event socket argument"); }
       event_socket = std::filesystem::path(argv[++index]);
     } else {
-      fail("unknown runner argument `" + std::string(argument) + "`");
+      fail("unknown runner argument");
     }
   }
   if (!request || !request->is_absolute() ||
@@ -1139,7 +1201,7 @@ CliArguments parse_arguments(int argc, char **argv) {
       (event_socket && !event_socket->is_absolute())) {
     fail("--request-json and exactly one absolute --response-json or --event-socket path are required");
   }
-  return {*request, response, event_socket};
+  return {*request, response, event_socket, validate_request};
 }
 
 } // namespace
@@ -1147,12 +1209,16 @@ CliArguments parse_arguments(int argc, char **argv) {
 int main(int argc, char **argv) {
   try {
     const auto arguments = parse_arguments(argc, argv);
-    redirect_native_stdout_to_stderr();
-    gst_init(nullptr, nullptr);
     const auto request = arguments.response
                              ? parse_request(arguments.request,
                                              *arguments.response)
                              : parse_live_request(arguments.request);
+    if (arguments.validate_request) {
+      std::fprintf(stderr, "stream-gst-runner: request admitted\n");
+      return 0;
+    }
+    redirect_native_stdout_to_stderr();
+    gst_init(nullptr, nullptr);
     std::unique_ptr<EventWriter> events;
     if (arguments.event_socket) {
       events = std::make_unique<EventWriter>(*arguments.event_socket);

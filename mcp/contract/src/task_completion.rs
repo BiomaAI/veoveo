@@ -14,10 +14,13 @@ pub fn result_uri(result: &CallToolResult) -> Result<Option<ResourceUri>, ErrorD
             None,
         )
     };
+    if result.structured_content.as_ref().is_some_and(|value| value.get("result_uri").is_some()) {
+        return Err(invalid());
+    }
     let declared = result
         .structured_content
         .as_ref()
-        .and_then(|value| value.get("result_uri"));
+        .and_then(|value| value.get("resultUri"));
     let links: Vec<_> = result
         .content
         .iter()
@@ -51,7 +54,7 @@ mod tests {
         let product = crate::hosting::product_result(
             "done",
             Resource::new("fixture://items/1", "item"),
-            &json!({"result_uri":"fixture://items/1"}),
+            &json!({"resultUri":"fixture://items/1"}),
         )
         .unwrap();
         assert_eq!(
@@ -68,11 +71,15 @@ mod tests {
         error.is_error = Some(true);
         assert_eq!(result_uri(&error).unwrap(), None);
         let mut mismatch = product.clone();
-        mismatch.structured_content = Some(json!({"result_uri":"fixture://items/2"}));
+        mismatch.structured_content = Some(json!({"resultUri":"fixture://items/2"}));
         assert!(result_uri(&mismatch).is_err());
-        mismatch.structured_content = Some(json!({"result_uri":"not a resource address"}));
+        mismatch.structured_content = Some(json!({"resultUri":"not a resource address"}));
         assert!(result_uri(&mismatch).is_err());
-        mismatch.structured_content = Some(json!({"result_uri":42}));
+        mismatch.structured_content = Some(json!({"resultUri":42}));
+        assert!(result_uri(&mismatch).is_err());
+        mismatch.structured_content = Some(json!({"result_uri":"fixture://items/1"}));
+        assert!(result_uri(&mismatch).is_err());
+        mismatch.structured_content = Some(json!({"resultUri":"fixture://items/1", "result_uri":"fixture://items/1"}));
         assert!(result_uri(&mismatch).is_err());
         mismatch = product.clone();
         mismatch.is_error = Some(true);

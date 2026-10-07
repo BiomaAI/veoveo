@@ -159,6 +159,19 @@ async fn unknown_tool_arguments_complete_without_provider_dispatch() {
             }
         }
         assert_eq!(seen.len(), 237);
+        let model_resource = gateway.rpc("resources/read", json!({"uri":"media://model/fixture/model-000"})).await;
+        assert!(model_resource.get("error").is_none(), "{model_resource}");
+        let resource_wire: serde_json::Value = serde_json::from_str(model_resource["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        let _: veoveo_media_mcp::contract::ModelResourceOutput = serde_json::from_value(resource_wire.clone()).unwrap();
+        assert_eq!(resource_wire["apiSchema"], json!({"providerExtension":{"open":true}}));
+        assert_eq!(resource_wire["modelId"], "fixture/model-000");
+        for arguments in [json!({"artifact_uri":"media://artifact/0195dabe-8888-7abc-8def-000000000001"}), json!({"artifactUri":"media://artifact/0195dabe-8888-7abc-8def-000000000001","artifact_uri":"media://artifact/0195dabe-8888-7abc-8def-000000000002"})] {
+            let body = gateway.rpc("tools/call", json!({"name":"artifact","arguments":arguments})).await;
+            assert!(body.get("error").is_none(), "{body}");
+            assert_eq!(body["result"]["isError"], true, "{body}");
+            // Reaching the deliberately unavailable Artifact service would return a transport error.
+            assert!(body["result"]["content"][0]["text"].as_str().unwrap().contains("artifact_uri"), "{body}");
+        }
         let registry_before = state.registry_snapshot().await.unwrap();
         let installs_before = state
             .registry_install_attempts

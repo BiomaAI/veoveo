@@ -278,9 +278,9 @@ class ArtifactRepository:
         data: bytes,
     ) -> ArtifactMetadata:
         redemption = RedeemArtifactWriteCapabilityRequest(
-            capability_id=capability.capability_id,
-            task_id=capability.task_id,
-            idempotency_key=idempotency_key,
+            capabilityId=capability.capability_id,
+            taskId=capability.task_id,
+            idempotencyKey=idempotency_key,
             artifact=request,
         )
         metadata = await self.plane.redeem_write_capability(

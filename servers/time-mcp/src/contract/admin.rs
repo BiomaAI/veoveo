@@ -8,6 +8,8 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct AdminPage<T> {
     pub items: Vec<T>,
     pub next_cursor: Option<String>,
@@ -36,6 +38,8 @@ pub enum AuthorityReleaseState {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "TimeSource")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeSourceValue {
     pub source_id: TimeSourceId,
     pub name: String,
@@ -54,6 +58,8 @@ pub struct TimeSourceValue {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "NewTimeSource")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct NewTimeSourceValue {
     pub source_id: TimeSourceId,
     pub name: String,
@@ -66,6 +72,8 @@ pub struct NewTimeSourceValue {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "AuthorityRelease")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct AuthorityReleaseValue {
     pub release_id: AuthorityReleaseId,
     pub source_id: TimeSourceId,
@@ -111,6 +119,8 @@ pub enum TimeAcquisitionPhase {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeAcquisition {
     pub acquisition_id: TimeAcquisitionId,
     pub source_id: TimeSourceId,
@@ -126,12 +136,16 @@ pub struct TimeAcquisition {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "CreateSourceRequest")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct CreateSourceRequestValue {
     pub source: NewTimeSource,
     pub idempotency_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ReplaceSourceRequest {
     pub source: TimeSource,
     pub expected_record_version: super::TimeVersion,
@@ -139,6 +153,8 @@ pub struct ReplaceSourceRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "CreateAcquisitionRequest")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct CreateAcquisitionRequestValue {
     pub source_id: TimeSourceId,
     pub expected_source_digest_sha256: Option<super::AuthoritySourceDigest>,
@@ -146,6 +162,8 @@ pub struct CreateAcquisitionRequestValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ActivateReleaseRequest {
     pub expected_release_record_version: super::TimeVersion,
     pub expected_active_pointer_version: super::TimeWriteGuard,
@@ -153,12 +171,16 @@ pub struct ActivateReleaseRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "CreateCalendarRequest")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct CreateCalendarRequestValue {
     pub calendar: OperationalCalendar,
     pub idempotency_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct CalendarVersionPath {
     pub calendar_id: CalendarId,
     pub version: super::TimeVersion,
@@ -166,18 +188,24 @@ pub struct CalendarVersionPath {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "UpsertMissionEpochRequest")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct UpsertMissionEpochRequestValue {
     pub epoch: MissionEpoch,
     pub idempotency_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ReplaceClockQualityPolicyRequest {
     pub policy: ClockQualityPolicy,
     pub expected_record_version: super::TimeWriteGuard,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct AdminError {
     pub code: AdminErrorCode,
     pub message: String,
@@ -373,6 +401,8 @@ impl veoveo_types::Check for TimeAcquisition {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 struct AcquisitionWire {
     acquisition_id: TimeAcquisitionId,
     source_id: TimeSourceId,

@@ -94,7 +94,7 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
     );
     let registered: Value =
         serde_json::from_str(include_str!("../../../examples/bioma/gateway.json"))?;
-    let client = registered["oauth_clients"]
+    let client = registered["oauthClients"]
         .as_array()
         .context("clients")?
         .iter()
@@ -121,7 +121,7 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
         .into_iter()
         .map(|scope| scope.to_string())
         .collect();
-    let expected: std::collections::BTreeSet<_> = client["allowed_scopes"]
+    let expected: std::collections::BTreeSet<_> = client["allowedScopes"]
         .as_array()
         .context("registered scopes")?
         .iter()
@@ -163,7 +163,7 @@ fn workspace_chart_rejects_ambient_credentials_and_unbounded_model_settings() ->
             }
             "budget" => workspace["models"][0]["limits"]["maxOutputTokens"] = json!(8193),
             "contexts" => {
-                workspace["models"][0]["work_contexts"] = json!(["operations", "operations"])
+                workspace["models"][0]["workContexts"] = json!(["operations", "operations"])
             }
             _ => unreachable!(),
         }

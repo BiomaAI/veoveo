@@ -22,7 +22,7 @@ struct Status {
     lanes: Vec<Lane>,
 }
 #[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Publication {
     status: String,
     revision_id: String,

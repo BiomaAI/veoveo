@@ -40,7 +40,9 @@ setup, tools, typed reads, prompts, completion and in-process tests.
 
 ## Contract Compliance
 
-Contract revision: 3
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met — `define` declares input and output schemas and creates no product
@@ -73,4 +75,6 @@ Contract revision: 3
 - C29: met — the server keeps no state between requests
 - C30: met — the server makes no upstream requests
 - C31: met
-- C32: pending — the knowledge-source extension is not declared
+- C32: pending — Shared checked setup declares the docs knowledge collection; installed K01–K10 qualification remains pending.
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

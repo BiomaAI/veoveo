@@ -76,6 +76,8 @@ fn downsample<T>(rows: &[T], cap: usize) -> impl Iterator<Item = &T> {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 struct Observation {
     source_row: i64,
     event_time: Option<String>,
@@ -83,6 +85,8 @@ struct Observation {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 struct ForecastPoint {
     step: u32,
     mean: f64,
@@ -91,6 +95,8 @@ struct ForecastPoint {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 struct SeriesForecastDocument {
     series_id: String,
     observed_rows: u64,
@@ -99,6 +105,8 @@ struct SeriesForecastDocument {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 struct RrdProvenance<'a> {
     task_id: TaskId,
     source_digest: String,
@@ -110,7 +118,11 @@ struct RrdProvenance<'a> {
 }
 
 #[derive(Debug, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 enum SourceProvenance {
     InlineCsv {
         filename: Option<String>,
@@ -196,9 +208,9 @@ pub fn run_forecast(
     };
     let rrd_bytes = write_rrd(task_id, request, &provenance, &series_docs)?;
     let metadata = json!({
-        "task_id": task_id,
-        "artifact_format": "rerun_rrd",
-        "rrd_application_id": "veoveo_timeseries_forecast",
+        "taskId": task_id,
+        "artifactFormat": "rerun_rrd",
+        "rrdApplicationId": "veoveo_timeseries_forecast",
         "summary": summary,
         "provenance": provenance,
     });
@@ -477,7 +489,7 @@ fn write_rrd(
             "/timeseries/task".to_owned(),
             TimePoint::STATIC,
             &TextDocument::new(serde_json::to_string_pretty(&json!({
-                "task_id": task_id,
+                "taskId": task_id,
                 "horizon": request.horizon,
                 "method": request.method,
             }))?)
@@ -696,6 +708,7 @@ mod tests {
     use super::*;
 
     #[derive(Debug, Deserialize)]
+    #[serde(rename_all = "camelCase")]
     struct FixtureManifest {
         schema: FixtureSchema,
         training_filter: TimeseriesRowFilter,
@@ -703,12 +716,14 @@ mod tests {
     }
 
     #[derive(Debug, Deserialize)]
+    #[serde(rename_all = "camelCase")]
     struct FixtureSchema {
         time_column: veoveo_duckdb_mcp::contract::DuckDbColumnName,
         value_column: veoveo_duckdb_mcp::contract::DuckDbColumnName,
     }
 
     #[derive(Debug, Deserialize)]
+    #[serde(rename_all = "camelCase")]
     struct FixtureExample {
         id: String,
         file: String,
@@ -752,6 +767,78 @@ mod tests {
         let error =
             run_forecast(TaskId::new(), &input, &HttpsSourcePolicy::deny_network()).unwrap_err();
         assert!(error.to_string().contains("finite"));
+    }
+
+    #[test]
+    fn actual_rrd_embeds_current_owned_json_and_recomputed_source_digest() {
+        let task = TaskId::new();
+        let request = TimeseriesForecastRequest::new(
+            DuckDbTabularSource::InlineCsv {
+                csv: "value\n1\n2\n".into(),
+                filename: Some("series.csv".into()),
+                options: DuckDbReadOptions::default()
+                    .with_header(true)
+                    .with_timestamp_format("%Y-%m-%d")
+                    .unwrap(),
+            },
+            TimeseriesTableMapping::new("value".parse().unwrap()),
+            TimeseriesForecastHorizon::new(2).unwrap(),
+        );
+        let artifact = run_forecast(task, &request, &HttpsSourcePolicy::deny_network()).unwrap();
+        let messages = re_log_encoding::Decoder::<LogMsg>::decode_eager(std::io::Cursor::new(
+            &artifact.rrd_bytes,
+        ))
+        .unwrap();
+        let mut documents = BTreeMap::new();
+        for message in messages {
+            if let LogMsg::ArrowMsg(_, arrow) = message.unwrap() {
+                let chunk = Chunk::from_arrow_msg(&arrow).unwrap();
+                for batch in chunk.iter_component::<re_sdk_types::components::Text>(
+                    TextDocument::descriptor_text().component,
+                ) {
+                    for text in batch.as_slice() {
+                        documents.insert(
+                            chunk.entity_path().to_string(),
+                            serde_json::from_str::<Value>(&text.0.to_string()).unwrap(),
+                        );
+                    }
+                }
+            }
+        }
+        let provenance = &documents["/timeseries/provenance"];
+        assert_eq!(provenance["taskId"], task.to_string());
+        assert_eq!(
+            provenance["sourceDigest"],
+            source_digest(&request.source).unwrap()
+        );
+        assert_eq!(provenance["mapping"]["valueColumn"], "value");
+        assert!(provenance.get("task_id").is_none());
+        assert!(provenance.get("source_digest").is_none());
+        assert_eq!(documents["/timeseries/task"]["taskId"], task.to_string());
+        let series = documents
+            .values()
+            .find(|value| value.get("seriesId").is_some())
+            .unwrap();
+        assert_eq!(series["observedRows"], 2);
+        assert!(series.get("series_id").is_none());
+        assert_eq!(artifact.metadata["provenance"], *provenance);
+        let mut obsolete = serde_json::to_value(&request.source).unwrap();
+        let value = obsolete["options"]
+            .as_object_mut()
+            .unwrap()
+            .remove("timestampFormat")
+            .unwrap();
+        obsolete["options"]["timestamp_format"] = value;
+        assert!(serde_json::from_value::<DuckDbTabularSource>(obsolete.clone()).is_err());
+        assert_ne!(
+            source_digest(&request.source).unwrap(),
+            hex::encode(Sha256::digest(serde_json::to_vec(&obsolete).unwrap()))
+        );
+        let current = serde_json::to_vec(&request.source).unwrap();
+        assert_eq!(
+            source_digest(&request.source).unwrap(),
+            hex::encode(Sha256::digest(current))
+        );
     }
 
     #[test]

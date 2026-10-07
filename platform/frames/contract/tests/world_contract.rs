@@ -53,9 +53,9 @@ fn metadata_round_trips_and_derives_all_identities() {
     assert_eq!(
         wire,
         serde_json::json!({
-            "world_id":"survey", "world_uri":"frames://world/survey", "display_name":"Survey",
-            "description":"Complete tree", "head_revision_id":"revision-1", "revision":1,
-            "created_at":"2026-01-01T00:00:00Z", "updated_at":"2026-01-01T00:00:00Z"
+            "worldId":"survey", "worldUri":"frames://world/survey", "displayName":"Survey",
+            "description":"Complete tree", "headRevisionId":"revision-1", "revision":1,
+            "createdAt":"2026-01-01T00:00:00Z", "updatedAt":"2026-01-01T00:00:00Z"
         })
     );
     assert_eq!(
@@ -63,9 +63,9 @@ fn metadata_round_trips_and_derives_all_identities() {
         summary
     );
     let wire = serde_json::to_value(&revision).unwrap();
-    assert_eq!(wire["world_uri"], "frames://world/survey");
+    assert_eq!(wire["worldUri"], "frames://world/survey");
     assert_eq!(
-        wire["root_frame_uri"],
+        wire["rootFrameUri"],
         "frames://world/survey/revision/revision-1/frame/earth"
     );
     assert_eq!(
@@ -74,7 +74,7 @@ fn metadata_round_trips_and_derives_all_identities() {
     );
     let source = FrameSourceReference::from(&revision);
     let wire = serde_json::to_value(&source).unwrap();
-    assert_eq!(wire["revision_id"], "revision-1");
+    assert_eq!(wire["revisionId"], "revision-1");
     assert_eq!(
         serde_json::from_value::<FrameSourceReference>(wire).unwrap(),
         source
@@ -98,32 +98,32 @@ fn metadata_round_trips_and_derives_all_identities() {
 fn decoding_rejects_identity_tree_root_and_digest_disagreement() {
     let baseline = serde_json::to_value(revision()).unwrap();
     for (field, value) in [
-        ("world_id", serde_json::json!("other")),
-        ("world_uri", serde_json::json!("frames://world/other")),
-        ("revision_id", serde_json::json!("revision-other")),
+        ("worldId", serde_json::json!("other")),
+        ("worldUri", serde_json::json!("frames://world/other")),
+        ("revisionId", serde_json::json!("revision-other")),
         (
-            "revision_uri",
+            "revisionUri",
             serde_json::json!("frames://world/other/revision/revision-1"),
         ),
         ("revision", serde_json::json!(0)),
         (
-            "spec_digest",
+            "specDigest",
             serde_json::json!(format!("sha256:{}", "0".repeat(64))),
         ),
         (
-            "root_frame_uri",
+            "rootFrameUri",
             serde_json::json!("frames://world/survey/revision/revision-1/frame/camera"),
         ),
         (
-            "root_frame_uri",
+            "rootFrameUri",
             serde_json::json!("frames://world/other/revision/revision-1/frame/earth"),
         ),
         (
-            "root_frame_uri",
+            "rootFrameUri",
             serde_json::json!("frames://world/survey/revision/revision-other/frame/earth"),
         ),
         (
-            "root_frame_uri",
+            "rootFrameUri",
             serde_json::json!("frames://world/survey/revision/revision-1/frame/missing"),
         ),
         ("tree", serde_json::json!({"frames":[]})),
@@ -140,7 +140,7 @@ fn decoding_rejects_identity_tree_root_and_digest_disagreement() {
     assert!(serde_json::from_value::<FrameWorldRevision>(wire).is_err());
 
     let mut source = serde_json::to_value(FrameSourceReference::from(&revision())).unwrap();
-    source["revision_id"] = "other".into();
+    source["revisionId"] = "other".into();
     assert!(serde_json::from_value::<FrameSourceReference>(source).is_err());
 }
 
@@ -152,17 +152,17 @@ fn summary_admits_only_coherent_empty_or_published_heads() {
         revision().created_at(),
     );
     let baseline = serde_json::to_value(&empty).unwrap();
-    assert!(baseline.get("head_revision_id").is_none());
+    assert!(baseline.get("headRevisionId").is_none());
     assert_eq!(baseline["revision"], 0);
     assert_eq!(
         serde_json::from_value::<FrameWorldSummary>(baseline.clone()).unwrap(),
         empty
     );
     for (field, value) in [
-        ("world_id", serde_json::json!("other")),
-        ("world_uri", serde_json::json!("frames://world/other")),
+        ("worldId", serde_json::json!("other")),
+        ("worldUri", serde_json::json!("frames://world/other")),
         ("revision", serde_json::json!(1)),
-        ("head_revision_id", serde_json::json!("revision-1")),
+        ("headRevisionId", serde_json::json!("revision-1")),
     ] {
         let mut wire = baseline.clone();
         wire[field] = value;
@@ -261,11 +261,19 @@ fn canonical_digest_preserves_the_published_root_tree_encoding() {
     .unwrap();
     assert_eq!(
         serde_json::to_string(tree.tree()).unwrap(),
-        r#"{"frames":[{"frame_id":"earth","basis":{"kind":"ecef_wgs84"}}]}"#
+        r#"{"frames":[{"frameId":"earth","basis":{"kind":"ecef_wgs84"}}]}"#
     );
-    assert_eq!(
+    assert_ne!(
         tree.spec_digest().hex(),
         "3e36f3d4c9f0adc10416c017af7b567ab3b9e7fe654ffe8f51b1f697536206bc"
+    );
+    assert_eq!(
+        tree.spec_digest(),
+        ValidatedWorldTree::new(
+            serde_json::from_slice(&serde_json::to_vec(tree.tree()).unwrap()).unwrap()
+        )
+        .unwrap()
+        .spec_digest()
     );
 }
 
@@ -295,7 +303,7 @@ fn dynamic_references_accept_independent_producers_and_preserve_components() {
     assert_eq!(
         wire,
         serde_json::json!({
-            "kind": "dynamic_stream", "stream_uri": uri.as_str(), "entity_path": entity.as_str()
+            "kind": "dynamic_stream", "streamUri": uri.as_str(), "entityPath": entity.as_str()
         })
     );
     assert_eq!(
@@ -338,7 +346,7 @@ fn dynamic_reference_decoding_rejects_templates_credentials_and_normalization() 
         assert!(FrameStreamUri::parse(value).is_err(), "{value}");
         assert!(
             serde_json::from_value::<FrameParentTransform>(serde_json::json!({
-                "kind": "dynamic_stream", "stream_uri": value, "entity_path": "vehicle/body"
+                "kind": "dynamic_stream", "streamUri": value, "entityPath": "vehicle/body"
             }))
             .is_err(),
             "{value}"
@@ -365,9 +373,12 @@ fn entity_paths_have_byte_bounds_and_preserve_the_producer_selector() {
     }
     for value in ["", " ", "\t", "body\nposition", "body\0", &"é".repeat(1025)] {
         assert!(FrameEntityPath::new(value).is_err());
-        assert!(serde_json::from_value::<FrameParentTransform>(serde_json::json!({
-            "kind": "dynamic_stream", "stream_uri": "producer://session/run", "entity_path": value
-        })).is_err());
+        assert!(
+            serde_json::from_value::<FrameParentTransform>(serde_json::json!({
+                "kind": "dynamic_stream", "streamUri": "producer://session/run", "entityPath": value
+            }))
+            .is_err()
+        );
     }
 }
 
@@ -381,7 +392,7 @@ fn existing_uav_dynamic_world_keeps_its_wire_tree() {
     let tree: FrameWorldTree = serde_json::from_value(wire.clone()).unwrap();
     assert_eq!(serde_json::to_value(&tree).unwrap(), wire);
     let admitted = ValidatedWorldTree::new(tree).unwrap();
-    assert_eq!(
+    assert_ne!(
         admitted.spec_digest().hex(),
         "7941fba19b5edcce73d37e1c1bef82d98f42e9c79b5fdb19671e21d1924e3b8a"
     );
@@ -455,4 +466,87 @@ fn frame_world_input_policy_preserves_route_and_identity_errors() {
         "frames://world/{world_id}"
     );
     assert_eq!(world.as_str(), "frames://world/survey");
+}
+
+#[test]
+fn current_frames_wire_refuses_retired_keys_at_roots_and_nested_variants() {
+    let revision = revision();
+    let child = revision
+        .tree()
+        .frames
+        .iter()
+        .position(|frame| frame.frame_id == FrameId::parse("camera").unwrap())
+        .expect("producer includes camera child");
+    let baseline = serde_json::to_value(&revision).unwrap();
+    for (path, retired) in [
+        ("/worldId".to_owned(), "world_id"),
+        ("/revisionUri".to_owned(), "revision_uri"),
+        ("/specDigest".to_owned(), "spec_digest"),
+        (format!("/tree/frames/{child}/frameId"), "frame_id"),
+        (
+            format!("/tree/frames/{child}/parentFrameId"),
+            "parent_frame_id",
+        ),
+        (
+            format!("/tree/frames/{child}/parentTransform/translationM"),
+            "translation_m",
+        ),
+        (
+            format!("/tree/frames/{child}/parentTransform/rotationXyzw"),
+            "rotation_xyzw",
+        ),
+    ] {
+        let (parent, current) = path.rsplit_once('/').unwrap();
+        for mixed in [false, true] {
+            let mut bad = baseline.clone();
+            let object = if parent.is_empty() {
+                &mut bad
+            } else {
+                bad.pointer_mut(parent).unwrap()
+            };
+            let object = object.as_object_mut().unwrap();
+            let value = object[current].clone();
+            if !mixed {
+                object.remove(current);
+            }
+            object.insert(retired.into(), value);
+            assert!(
+                serde_json::from_value::<FrameWorldRevision>(bad).is_err(),
+                "{path}, mixed={mixed}"
+            );
+        }
+    }
+}
+
+// Optional owner producer capture keeps dependent fixture digests derived from
+// the same checked tree constructor used by Frames publication.
+#[test]
+fn dependent_uav_fixture_revisions_are_produced_by_checked_frames() {
+    let mut cases: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../servers/uav-sim-mcp/testdata/controlled-inputs.json"
+    ))
+    .unwrap();
+    for case in cases.as_array_mut().unwrap() {
+        let Some(wire) = case.pointer_mut("/arguments/world_revision") else {
+            continue;
+        };
+        let tree: FrameWorldTree = serde_json::from_value(wire["tree"].clone()).unwrap();
+        let revision = FrameWorldRevision::new(
+            serde_json::from_value(wire["revisionUri"].clone()).unwrap(),
+            wire["revision"].as_u64().unwrap().try_into().unwrap(),
+            ValidatedWorldTree::new(tree).unwrap(),
+            serde_json::from_value(wire["createdAt"].clone()).unwrap(),
+        );
+        let produced = serde_json::to_value(&revision).unwrap();
+        if std::env::var_os("VEOVEO_FRAMES_FIXTURE_CAPTURE").is_none() {
+            assert_eq!(
+                *wire, produced,
+                "dependent UAV revision differs from its Frames producer"
+            );
+        }
+        *wire = produced;
+    }
+    if let Some(output) = std::env::var_os("VEOVEO_FRAMES_FIXTURE_CAPTURE") {
+        std::fs::write(output, serde_json::to_vec_pretty(&cases).unwrap()).unwrap();
+    }
 }

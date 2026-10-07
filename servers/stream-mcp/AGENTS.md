@@ -1,7 +1,7 @@
 # Stream MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 4.
 
 ## Purpose
 
@@ -50,7 +50,7 @@ provider-neutral.
 - A missing GPU, NVIDIA decoder, inference plugin, engine, catalog, or runner
   is a readiness or execution failure. There is no CPU inference fallback.
 - Derived replay artifacts inherit source classification and labels.
-- Every successful product has one canonical `result_uri` and one content link.
+- Every successful product has one canonical `resultUri` and one content link.
   Current stored Task products must match their Task, pipeline and content link;
   authorize before decoding them and return a redacted diagnostic for corruption.
 
@@ -74,9 +74,20 @@ lives in `gst-runner/` and builds separately inside the exact DeepStream
 image. GPU acceptance requires NVIDIA Container Toolkit and a model engine
 compiled for the deployment GPU.
 
+## Controlled Data Profiles
+
+Controlled JSON and operator catalog wrappers use camelCase; keep native launch
+property names, issued capability fields and JWT claims in their declared profiles.
+Current private runner markers and public live/replay markers are v2. Run cursor
+version 2 and session cursor version 1 have different owner envelopes; never
+infer one from the other. The SDK executable's `--validate-request` diagnostic
+runs admission only and cannot establish GPU readiness.
+
 ## Contract Compliance
 
-Contract revision: 3
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met — each tool returns a typed canonical result_uri and one matching resource link; current Task products are validated after SQL authorization
@@ -94,7 +105,7 @@ Contract revision: 3
 - C14: met
 - C15: met
 - C16: met
-- C17: met — both gateway registrations declare revision 3
+- C17: met — both gateway registrations declare current contract revision 4
 - C18: met
 - C19: met
 - C20: met
@@ -110,3 +121,5 @@ Contract revision: 3
 - C30: met
 - C31: pending — installed Discover and list readiness qualification is pending
 - C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

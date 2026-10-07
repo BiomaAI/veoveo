@@ -44,7 +44,7 @@ def solve_route_scenarios(
     )
     return [
         {
-            "case_id": case["case_id"],
+            'caseId': case['caseId'],
             "solution": _solution(
                 case["problem"], solution, solve_seconds, routing
             ),
@@ -59,30 +59,30 @@ def _build_model(problem: dict[str, Any], routing: Any) -> Any:
     nodes = problem["nodes"]
     vehicles = problem["vehicles"]
     model = routing.DataModel(
-        len(problem["location_ids"]), len(vehicles), len(nodes)
+        len(problem['locationIds']), len(vehicles), len(nodes)
     )
-    for matrix in problem["cost_matrices"]:
+    for matrix in problem['costMatrices']:
         model.add_cost_matrix(
-            _matrix(matrix, cudf), int(matrix["vehicle_type"])
+            _matrix(matrix, cudf), int(matrix['vehicleType'])
         )
-    for matrix in problem.get("transit_time_matrices", []):
+    for matrix in problem.get('transitTimeMatrices', []):
         model.add_transit_time_matrix(
-            _matrix(matrix, cudf), int(matrix["vehicle_type"])
+            _matrix(matrix, cudf), int(matrix['vehicleType'])
         )
 
     model.set_vehicle_types(
         cudf.Series(
-            [vehicle["vehicle_type"] for vehicle in vehicles],
+            [vehicle['vehicleType'] for vehicle in vehicles],
             dtype="uint8",
         )
     )
     model.set_vehicle_locations(
         cudf.Series(
-            [vehicle["start_location"] for vehicle in vehicles],
+            [vehicle['startLocation'] for vehicle in vehicles],
             dtype="int32",
         ),
         cudf.Series(
-            [vehicle["end_location"] for vehicle in vehicles],
+            [vehicle['endLocation'] for vehicle in vehicles],
             dtype="int32",
         ),
     )
@@ -96,39 +96,39 @@ def _build_model(problem: dict[str, Any], routing: Any) -> Any:
     )
     model.set_skip_first_trips(
         cudf.Series(
-            [vehicle["omit_first_trip"] for vehicle in vehicles],
+            [vehicle['omitFirstTrip'] for vehicle in vehicles],
             dtype="bool",
         )
     )
     model.set_drop_return_trips(
         cudf.Series(
-            [vehicle["omit_last_trip"] for vehicle in vehicles],
+            [vehicle['omitLastTrip'] for vehicle in vehicles],
             dtype="bool",
         )
     )
     model.set_vehicle_fixed_costs(
         cudf.Series(
-            [vehicle["fixed_cost"] for vehicle in vehicles], dtype="float32"
+            [vehicle['fixedCost'] for vehicle in vehicles], dtype="float32"
         )
     )
-    if any(vehicle.get("maximum_cost") is not None for vehicle in vehicles):
+    if any(vehicle.get('maximumCost') is not None for vehicle in vehicles):
         model.set_vehicle_max_costs(
             cudf.Series(
                 [
-                    vehicle.get("maximum_cost")
-                    if vehicle.get("maximum_cost") is not None
+                    vehicle.get('maximumCost')
+                    if vehicle.get('maximumCost') is not None
                     else np.finfo(np.float32).max
                     for vehicle in vehicles
                 ],
                 dtype="float32",
             )
         )
-    if any(vehicle.get("maximum_time") is not None for vehicle in vehicles):
+    if any(vehicle.get('maximumTime') is not None for vehicle in vehicles):
         model.set_vehicle_max_times(
             cudf.Series(
                 [
-                    vehicle.get("maximum_time")
-                    if vehicle.get("maximum_time") is not None
+                    vehicle.get('maximumTime')
+                    if vehicle.get('maximumTime') is not None
                     else np.finfo(np.float32).max
                     for vehicle in vehicles
                 ],
@@ -143,14 +143,14 @@ def _build_model(problem: dict[str, Any], routing: Any) -> Any:
                 int(vehicle_break["latest"]),
                 int(vehicle_break["duration"]),
             ]
-            allowed = vehicle_break.get("allowed_locations", [])
+            allowed = vehicle_break.get('allowedLocations', [])
             if allowed:
                 arguments.append(cudf.Series(allowed, dtype="int32"))
             model.add_vehicle_break(*arguments)
 
     model.set_order_locations(
         cudf.Series(
-            [node["location_index"] for node in nodes], dtype="int32"
+            [node['locationIndex'] for node in nodes], dtype="int32"
         )
     )
     model.set_order_time_windows(
@@ -159,31 +159,31 @@ def _build_model(problem: dict[str, Any], routing: Any) -> Any:
     )
     model.set_order_service_times(
         cudf.Series(
-            [node["service_duration"] for node in nodes], dtype="int32"
+            [node['serviceDuration'] for node in nodes], dtype="int32"
         )
     )
     prizes = [node["prize"] for node in nodes]
     if any(prize > 0 for prize in prizes):
         model.set_order_prizes(cudf.Series(prizes, dtype="float32"))
 
-    pairs = problem.get("pickup_delivery_pairs", [])
+    pairs = problem.get('pickupDeliveryPairs', [])
     if pairs:
         model.set_pickup_delivery_pairs(
             cudf.Series(
-                [pair["pickup_node"] for pair in pairs], dtype="int32"
+                [pair['pickupNode'] for pair in pairs], dtype="int32"
             ),
             cudf.Series(
-                [pair["delivery_node"] for pair in pairs], dtype="int32"
+                [pair['deliveryNode'] for pair in pairs], dtype="int32"
             ),
         )
-    for restriction in problem.get("order_vehicle_matches", []):
+    for restriction in problem.get('orderVehicleMatches', []):
         model.add_order_vehicle_match(
             int(restriction["node"]),
             cudf.Series(restriction["vehicles"], dtype="int32"),
         )
-    for dimension in problem.get("capacity_dimensions", []):
+    for dimension in problem.get('capacityDimensions', []):
         model.add_capacity_dimension(
-            dimension["dimension_id"],
+            dimension['dimensionId'],
             cudf.Series(dimension["demand"], dtype="int32"),
             cudf.Series(dimension["capacity"], dtype="int32"),
         )
@@ -200,10 +200,10 @@ def _build_model(problem: dict[str, Any], routing: Any) -> Any:
             dtype="float32",
         ),
     )
-    minimum_vehicles = int(problem.get("minimum_vehicles", 0))
+    minimum_vehicles = int(problem.get('minimumVehicles', 0))
     if minimum_vehicles:
         model.set_min_vehicles(minimum_vehicles)
-    initial = problem.get("initial_solution")
+    initial = problem.get('initialSolution')
     if initial is not None:
         kind_names = {
             "depot": "Depot",
@@ -212,13 +212,13 @@ def _build_model(problem: dict[str, Any], routing: Any) -> Any:
             "break": "Break",
         }
         model.add_initial_solutions(
-            cudf.Series(initial["vehicle_indices"], dtype="int32"),
-            cudf.Series(initial["route_nodes"], dtype="int32"),
+            cudf.Series(initial['vehicleIndices'], dtype="int32"),
+            cudf.Series(initial['routeNodes'], dtype="int32"),
             cudf.Series(
-                [kind_names[kind] for kind in initial["node_kinds"]],
+                [kind_names[kind] for kind in initial['nodeKinds']],
                 dtype="str",
             ),
-            cudf.Series(initial["solution_offsets"], dtype="int32"),
+            cudf.Series(initial['solutionOffsets'], dtype="int32"),
         )
     return model
 
@@ -228,7 +228,7 @@ def _matrix(matrix: dict[str, Any], cudf: Any) -> Any:
     values = np.asarray(matrix["values"], dtype=np.float32).reshape(
         (dimension, dimension)
     )
-    for index in matrix.get("unavailable_cells", []):
+    for index in matrix.get('unavailableCells', []):
         row, column = divmod(int(index), dimension)
         values[row, column] = np.finfo(np.float32).max
     return cudf.DataFrame(values)
@@ -236,7 +236,7 @@ def _matrix(matrix: dict[str, Any], cudf: Any) -> Any:
 
 def _solver_settings(settings: dict[str, Any], routing: Any) -> Any:
     result = routing.SolverSettings()
-    result.set_time_limit(float(settings["time_limit_seconds"]))
+    result.set_time_limit(float(settings['timeLimitSeconds']))
     result.set_verbose_mode(bool(settings.get("verbose", False)))
     return result
 
@@ -314,9 +314,9 @@ def _solution(
         "status": status,
         "message": str(solution.get_message()),
         "objective": float(solution.get_total_objective()),
-        "objective_components": objective_components,
-        "vehicles_used": int(solution.get_vehicle_count()),
+        'objectiveComponents': objective_components,
+        'vehiclesUsed': int(solution.get_vehicle_count()),
         "routes": routes,
-        "undeliverable_nodes": undeliverable,
-        "solve_seconds": float(max(0.0, elapsed)),
+        'undeliverableNodes': undeliverable,
+        'solveSeconds': float(max(0.0, elapsed)),
     }

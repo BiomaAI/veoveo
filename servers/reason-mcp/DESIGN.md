@@ -36,30 +36,69 @@ these wrappers and keeps collection cursors and optional-domain dispatch local.
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Video selection, reasoning request, model and pipeline catalog, event, grounding, provenance, and artifact contracts. |
 | RFC 3986 and RFC 6570 | Concrete resource addresses use the shared URI component parser and builder; discovery templates expand to the same typed routes. Reason accepts one spelling for each address and rejects duplicate or unsupported query parameters. |
 | RFC 9562 UUIDv7 | Analysis identities use lowercase hyphenated UUIDv7 values with the RFC UUID variant, backed by native Task identities. |
-| Reason analyses cursor version 1 | URL-safe, unpadded base64 wraps collection-bound JSON with creation time and analysis identity. The input limit is 1024 bytes. |
-| Reason terminal result `veoveo.ai/reason-analysis/v1` | Public structured completion with one canonical result URI; the reader accepts this current profile only. |
-| Stream replay `veoveo.stream-results/v1` | Grounding consumes the complete result through Stream's contract-only library and its validation API. |
-| Reason grounding `veoveo.reason-grounding/v1` | Selected frame indices, labels and track IDs passed to the runner. |
+| Reason analyses cursor version 2 | URL-safe, unpadded base64 wraps collection-bound JSON with creation time and analysis identity. The input limit is 1024 bytes. |
+| Reason runner `veoveo.ai/reason-runner-request/v4` and `veoveo.ai/reason-runner-response/v2` | Private Rust/Python JSON file protocol with closed fields, explicit markers and bounded answers. |
+| Reason annotations `veoveo.ai/reason-annotations/v2` | Controlled JSON provenance embedded in a Rerun TextDocument; RRD binary framing uses the pinned Rerun profile. |
+| Reason terminal result `veoveo.ai/reason-analysis/v2` | Public structured completion with one canonical result URI; the reader accepts this current profile only. |
+| Stream replay `veoveo.ai/stream-results/v2` | Grounding consumes the complete result through Stream's contract-only library and its validation API. |
+| Reason grounding `veoveo.ai/reason-grounding/v2` | Selected frame indices, labels and track IDs passed to the runner. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; every reasoning invocation is a durable, cancellable task whose terminal payload is returned by `tasks/get`. |
 | [Rerun 0.38.1](https://rerun.io/docs/) RRD and `VideoStream` | Frozen or sealed sources and task-start snapshots of complete acknowledged ingest parts preserve exact time; derived semantic events are published as RRD annotations. |
 | H.264/AVC Annex B | The source profile matches Stream: no B-frames and decoder-reentrant IDRs marked in the Rerun stream. |
 | ISO Base Media File Format / MP4 | A bounded source range is remuxed without re-encoding for the task-local decoder and world-model runner. |
 | Typed JSON process protocol | One schema-controlled request and response per isolated runner process. This boundary is private and does not replace MCP. |
 | OAuth bearer and signed JWT identity | Source recording, grounding artifacts, results, and derived artifacts retain gateway-resolved Work Context authority and labels. |
-| [vLLM 0.30.0](https://github.com/vllm-project/vllm/releases/tag/v0.30.0) | Official CUDA 13.0 runtime, pinned by OCI index digest. The image supplies the matched Torch and Transformers stack. |
+| [vLLM 0.31.0](https://github.com/vllm-project/vllm/releases/tag/v0.31.0) | Official CUDA 13.0 runtime, pinned by OCI index digest. The image supplies the matched Torch and Transformers stack. |
 | Hugging Face checkpoint | A site-supplied, revision- and digest-pinned checkpoint in native Transformers layout. |
 | [PyNvVideoCodec 2.2.2](https://pypi.org/project/pynvvideocodec/2.2.2/), NVDEC, CUDA, and DLPack | Internal image-input adapter: NVDEC exports device RGB surfaces, Torch owns resized CUDA observations, and Transformers produces CUDA pixel patches. PyAV 18.1.0 reads container metadata only. |
 | vLLM precomputed image embeddings | Internal Qwen3-VL profile with base and deepstack features. The offline engine and its single worker share the runner process; embeddings never enter the RPC tensor serializer. |
 
-The qualified image uses vLLM 0.30.0, Torch 2.13.0+cu130, and
-PyNvVideoCodec 2.2.2 on an RTX 4090. vLLM's package metadata pins
-PyNvVideoCodec 2.0.4 for its own video loader. Reason uses its separate
+The current shared image pin is vLLM 0.31.0; its official CUDA image has not yet
+completed Reason qualification. The 0.31 CUDA dependency profile still pins Torch
+2.13.0 and PyNvVideoCodec 2.0.4 for vLLM's own video loader. Reason uses its separate
 NVDEC-to-CUDA RGB adapter and passes precomputed embeddings to vLLM; it does
 not invoke that loader. The 2.2.2 override supports device-memory frame
 ownership and DLPack transfer. Each runtime update must qualify CUDA decode,
 the in-process embedding path, and a complete Reason task. Remove the override
 when vLLM supports the required codec release or the adapter qualifies against
 vLLM's own pin.
+
+Reason imports the recorded-video owner's camelCase selection and source snapshot
+without a parallel wire representation. The source digest hashes that owner's
+ordered current JSON. A result embedding the changed snapshot carries
+`veoveo.ai/reason-results/v2`; its decoder checks that marker. The private runner uses
+`veoveo.ai/reason-runner-request/v4` and `veoveo.ai/reason-runner-response/v2`, with
+closed camelCase fields. Grounding uses `veoveo.ai/reason-grounding/v2`.
+
+
+## Owned JSON And Native Adapters
+
+Public requests, results, Findings, catalog views, Artifact provenance, configuration
+and private runner messages use camelCase fields and reject undeclared keys. Tagged
+answer and Task variants use snake_case values. MCP prompt arguments and URI template
+variables use their declared snake_case names. Task status uses the shared lightweight
+TaskStatus vocabulary. Current authority and mutable progress stay with the services.
+
+The AnalysisCursor v2 base64url envelope contains a JSON object with createdAt and
+taskId position fields. The FindingCursor v1 tuple has no renamed field bytes. Decoders
+require their collection and version before using positions.
+
+The result resource first selects an authorized current Task, reads its bound Artifact
+occurrence, and admits the complete ReasoningResults. The selected request, recording,
+range, pipeline, Task, model, source digest, Finding, summary and Artifact provenance
+must agree before the resource returns the original bytes. Summary-only knowledge
+reads continue to use current metadata and grants without downloading result bytes.
+
+ReasonUsageMetadata describes the sole Reason usage producer. Publication converts
+that closed value into the platform's open metadata object; native usage columns keep
+their Store profile. Reason adds no usage read endpoint.
+
+The model adapter's structured events use external track_ids. The adapter admits that
+profile and translates it to owned trackIds fields. vLLM keyword arguments and native
+GPU buffers keep their external spellings and representation. Python peer fields have
+one admitted wire spelling on both validation paths; unknown and mixed keys fail
+before inference or response-file publication.
+
 
 ## Library Features
 
@@ -223,8 +262,9 @@ Those values cannot be reconstructed from an unseen Artifact during decoding.
 
 This coordinated admission cut requires producers and retained-result consumers
 to upgrade together. Contradictory products are rejected without rewriting their
-payloads. Existing JSON tags, enum ordinals, provenance bytes and source snapshot
-hash profiles continue to define published valid products. The shared Workbench
+payloads. Each current format tag selects one closed shape. Enum ordinals, signed timeline
+indices and the shared recorded-video snapshot hash profile agree across the producers
+and receivers. The shared Workbench
 keeps its normal MCP envelope admission; Reason adds no owner renderer.
 
 Results, annotations and a source clip each name a distinct Artifact occurrence;
@@ -250,7 +290,7 @@ Every result carries its audit identity: the model, the optional engine
 digest from the catalog, the prompt template revision, and the decode
 parameters that produced it. Decoding is greedy by default. Sampled decoding
 is opt-in per request and its parameters are recorded in the result. The
-result also states `confidence_basis: model_reported`, which distinguishes
+result also states `confidenceBasis: model_reported`, which distinguishes
 reasoning output from a Stream perception result's calibrated detector
 confidences. Same engine, same input, same prompt revision, and greedy decoding
 must produce the same result.
@@ -339,7 +379,7 @@ The gateway mounts the server at `/reason/mcp` and exposes:
 - tools: `analyze_recording`;
 - resources and templates for pipelines, models, analyses, results, and
   derived artifacts;
-- prompts: `reason-analyze-recording`, `reason-answer-question`;
+- prompts: `reason_analyze_recording`, `reason_answer_question`;
 - completions for pipeline, model, analysis, and artifact identities;
 - final durable tasks, task subscription, cancellation, and result retrieval;
 - analysis and result resource subscriptions and update notifications;
@@ -368,8 +408,8 @@ registrations declare contract revision 3.
 pipeline and model catalogs. Analysis and result identities use templates and the
 analysis collection. This discovery list is immutable for the running catalog;
 Task changes do not advertise list-change notifications. Reading `reason://analyses` returns an object with `analyses`,
-`limit: 100` and an optional opaque `next_cursor`. Continue through
-`reason://analyses?cursor={next_cursor}`. The Store filters tenant, principal,
+`limit: 100` and an optional opaque `nextCursor`. Continue through
+`reason://analyses?cursor={nextCursor}`. The Store filters tenant, principal,
 profile, data labels and task type before applying the limit, then orders by creation
 time and Task ID. Every page uses the current caller's authority. A cursor is not a
 snapshot: retention can remove Tasks and subsequent Tasks can appear on later pages.
@@ -449,7 +489,7 @@ servers and consumers. Rebuild the disposable reference data for installation ch
 
 ### Terminal Results And Task Recovery
 
-`AnalyzeRecordingOutput` publishes `veoveo.ai/reason-analysis/v1`. Its `result_uri`
+`AnalyzeRecordingOutput` publishes `veoveo.ai/reason-analysis/v2`. Its `resultUri`
 identifies `reason://analysis/{analysis_id}/results`, whose authorized reader returns
 the immutable reasoning result. The adjacent content says `Analysis completed.`
 and links that resource once. Structured content carries the analysis address, model,

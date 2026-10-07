@@ -26,7 +26,7 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
   let gateway = TestGateway::new(testing::for_domain::<TimeseriesMcp>().handler(move || Hosted::new(TimeseriesMcp::new(gateway_state.clone()))).build());
   let discover = gateway.rpc("server/discover",json!({})).await;
   assert!(discover.get("error").is_none(), "{discover}");
-  let mut arguments = json!({"source":{"kind":"inline_csv","csv":"value\n1\n2\n"},"mapping":{"value_column":"value"},"horizon":4});
+  let mut arguments = json!({"source":{"kind":"inline_csv","csv":"value\n1\n2\n"},"mapping":{"valueColumn":"value"},"horizon":4});
   let _: TimeseriesForecastRequest = serde_json::from_value(arguments.clone()).unwrap();
   arguments["undeclared"] = true.into();
   let body = gateway.rpc("tools/call",json!({"name":"forecast","arguments":arguments})).await;
@@ -35,6 +35,17 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
   let result: rmcp::model::CallToolResult = serde_json::from_value(body["result"].clone()).unwrap();
   assert_eq!(result.is_error,Some(true));
   assert!(serde_json::to_string(&result.content).unwrap().contains("undeclared"));
+        for mixed in [false, true] {
+            let mut arguments = json!({"source":{"kind":"inline_csv","csv":"value\n1\n2\n"},"mapping":{"valueColumn":"value"},"horizon":4});
+            arguments["mapping"]["value_column"] = arguments["mapping"]["valueColumn"].clone();
+            if !mixed { arguments["mapping"].as_object_mut().unwrap().remove("valueColumn"); }
+            let body = gateway.rpc("tools/call", json!({"name":"forecast","arguments":arguments})).await;
+            assert!(body.get("error").is_none(), "{body}");
+            assert_eq!(body["result"]["resultType"], "complete", "{body}");
+            let result: rmcp::model::CallToolResult = serde_json::from_value(body["result"].clone()).unwrap();
+            assert_eq!(result.is_error, Some(true));
+            assert!(serde_json::to_string(&result.content).unwrap().contains("value_column"));
+        }
         let cases = input_fixture::ToolInputCase::load(include_bytes!("../../../testdata/controlled-inputs.json"));
         assert_eq!(cases.len(), 24);
         for case in cases {

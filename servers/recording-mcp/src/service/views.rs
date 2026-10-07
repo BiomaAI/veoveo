@@ -23,6 +23,23 @@ pub(super) fn artifact_reference(record: &RecordId) -> Result<ArtifactUri> {
 
 pub(super) fn layer_view(layer: &RecordingLayerRecord) -> Result<LayerView> {
     use crate::contract::RecordingLayerState as Public;
+    use veoveo_recording_store::RecordingLayerKind;
+    match (&layer.kind, &layer.properties_preparation) {
+        (RecordingLayerKind::Properties, Some(preparation)) => {
+            ensure!(
+                preparation.body.recording_id.as_uuid()
+                    == record_uuid(&layer.recording, "recording")?,
+                "properties preparation identifies another recording"
+            );
+        }
+        (RecordingLayerKind::Properties, None) => {
+            anyhow::bail!("properties layer has no preparation snapshot");
+        }
+        (_, Some(_)) => {
+            anyhow::bail!("source layer unexpectedly carries properties preparation");
+        }
+        (_, None) => {}
+    }
     Ok(LayerViewBuilder {
         layer_id: crate::contract::RecordingLayerId::try_from(record_uuid(
             &layer.id,
@@ -123,7 +140,9 @@ impl RecordingService {
             .recording_dataset(tenant_id, dataset_id)
             .await?
             .context("recording dataset is missing")?;
-        let counts = self
+        // These aggregates describe the full current catalog. Sealed manifest
+        // receivers separately admit the immutable intent-selected membership.
+        let catalog_counts = self
             .recordings
             .recording_layer_counts(tenant_id, recording_id)
             .await?;
@@ -145,8 +164,8 @@ impl RecordingService {
                 .as_ref()
                 .map(artifact_reference)
                 .transpose()?,
-            layer_count: counts.total,
-            committed_layer_count: counts.committed,
+            layer_count: catalog_counts.total,
+            committed_layer_count: catalog_counts.committed,
         }
         .build()?)
     }

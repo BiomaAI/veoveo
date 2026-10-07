@@ -22,6 +22,8 @@ collection approvals and signing credentials.
 | [Embedding runtime](../../platform/runtimes/embedding/DESIGN.md) | Internal HTTP API through the shared client; query priority is interactive and indexing priority is bulk |
 | [Veoveo resource URI profile](../../platform/types/DESIGN.md) | Owner routes through `ResourceAddress` and component builders |
 
+Machine indexing configuration uses camelCase JSON members and rejects retired or unknown members before credential files are read. Source page roots admit `items`, optional `limit` and `nextCursor`. Each item projects a typed URI and optional title from its source-owned body; source-specific item fields remain with their source. A retired root cursor cannot silently end traversal. DCAT class identifiers keep the DCAT 3 standard spelling.
+
 ## Library And Coordination
 
 `contract` exposes Knowledge scopes, resource addresses, search models and the shared
@@ -188,17 +190,17 @@ The service rejects missing, ambiguous or invalid registrations before authentic
 ```json
 {
   "tenant": "example",
-  "client_id": "knowledge-indexer",
-  "key_id": "indexer-v1",
-  "signing_algorithm": "ed_dsa",
-  "private_key_file": "/etc/veoveo/knowledge/signing/private.pem",
-  "trusted_ca_file": null,
-  "chunk_settings": {
+  "clientId": "knowledge-indexer",
+  "keyId": "indexer-v1",
+  "signingAlgorithm": "ed_dsa",
+  "privateKeyFile": "/etc/veoveo/knowledge/signing/private.pem",
+  "trustedCaFile": null,
+  "chunkSettings": {
     "version": "structure-v1",
     "maxCharacters": 1500,
     "overlapCharacters": 150
   },
-  "query_task": "Given a web search query, retrieve relevant passages that answer the query"
+  "queryTask": "Given a web search query, retrieve relevant passages that answer the query"
 }
 ```
 

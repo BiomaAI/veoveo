@@ -12,6 +12,7 @@ pub struct DuckDbCatalogError;
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CursorWire {
     version: u8,
     collection: String,
@@ -81,11 +82,14 @@ impl DuckDbDatabaseCursor {
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "EntryWire", into = "EntryWire")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct DuckDbDatabaseEntry {
     uri: DuckDbDatabaseUri,
 }
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct EntryWire {
     db_id: DuckDbDatabaseId,
     db_uri: DuckDbDatabaseUri,
@@ -139,12 +143,15 @@ impl From<DuckDbDatabaseEntry> for EntryWire {
 #[schemars(
     description = "An immutable ascending page from the caller's current database workspace."
 )]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct DuckDbDatabasePage {
     items: Vec<DuckDbDatabaseEntry>,
     next_cursor: Option<DuckDbDatabaseCursor>,
 }
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct PageWire {
     #[schemars(length(max = 100))]
     items: Vec<DuckDbDatabaseEntry>,
@@ -222,18 +229,21 @@ impl From<DuckDbDatabasePage> for PageWire {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct DuckDbDatabaseSchema {
     pub db_id: DuckDbDatabaseId,
     pub tables: Vec<DuckDbTableSchema>,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct DuckDbTableSchema {
     pub name: String,
     pub columns: Vec<DuckDbSchemaColumn>,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct DuckDbSchemaColumn {
     pub name: String,
     #[serde(rename = "type")]

@@ -8,14 +8,17 @@ import { once } from "node:events";
 import test from "node:test";
 import { McpServer, createMcpHandler } from "@modelcontextprotocol/server";
 import { toNodeHandler } from "@modelcontextprotocol/node";
-import { buildDocumentManifest, loadDocuments, MANIFEST_FILE } from "./documents.mjs";
-import { KNOWLEDGE_EXTENSION, OBSERVATION_KEY, registerKnowledgeDocuments } from "./knowledge.mjs";
+import { buildDocumentManifest, loadDocuments, loadDocumentBundle, MANIFEST_FILE } from "./documents.mjs";
+import { registerWellKnownResources } from "./well-known.mjs";
+import { KNOWLEDGE_EXTENSION, OBSERVATION_KEY } from "./knowledge.mjs";
 import { loadInternalTokenVerifier, requireInternalIdentity } from "./internal-auth.mjs";
 
 test("packaged knowledge documents negotiate over authenticated stateless HTTP", { timeout: 15000 }, async (t) => {
   const directory = mkdtempSync(join(tmpdir(), "veoveo-chart-docs-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  writeFileSync(join(directory, "AGENTS.md"), "# Agent\r\n\r\nFixture.\r\n");
+  for (const filename of ["AGENTS.md", "contract-compliance.json", "requirements.json", "compliance-profile.schema.json"]) {
+    writeFileSync(join(directory, filename), readFileSync(new URL(filename, import.meta.url)));
+  }
   writeFileSync(join(directory, "DESIGN.md"), "\ufeff# Design\n\nFixture.\n");
   assert.throws(() => loadDocuments(directory), /ENOENT/);
   buildDocumentManifest(directory);
@@ -37,7 +40,7 @@ test("packaged knowledge documents negotiate over authenticated stateless HTTP",
     const server = new McpServer({ name: "charts", version: "fixture" }, {
       capabilities: { extensions: { [KNOWLEDGE_EXTENSION]: {} }, resources: {} },
     });
-    registerKnowledgeDocuments(server, documents);
+    registerWellKnownResources(server, loadDocumentBundle(directory));
     return server;
   }, { legacy: "reject", responseMode: "json" });
   const handle = toNodeHandler(handler);
@@ -52,10 +55,11 @@ test("packaged knowledge documents negotiate over authenticated stateless HTTP",
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const endpoint = `http://127.0.0.1:${server.address().port}/charts/mcp`;
-  const request = async (method, params = {}, meta = {}, bearer = token(), capabilities = { extensions: { [KNOWLEDGE_EXTENSION]: {} } }) => {
+  const request = async (method, params = {}, meta = {}, bearer = token(), capabilities = { extensions: { [KNOWLEDGE_EXTENSION]: {} } }, protocolHeader = "2026-07-28") => {
     const response = await fetch(endpoint, {
       method: "POST", signal: AbortSignal.timeout(3000),
       headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream",
+        ...(protocolHeader ? { "MCP-Protocol-Version": protocolHeader } : {}),
         "Mcp-Method": method, ...(params.uri ? { "Mcp-Name": params.uri } : {}),
         ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: { ...params, _meta: {
@@ -71,6 +75,12 @@ test("packaged knowledge documents negotiate over authenticated stateless HTTP",
     assert.ok(response.body.result, JSON.stringify(response.body));
     return response.body.result;
   };
+  const negotiatedCapabilities = { extensions: { [KNOWLEDGE_EXTENSION]: {} } };
+  for (const protocolHeader of [null, "2025-11-25"]) {
+    const invalid = await request("server/discover", {}, {}, token(), negotiatedCapabilities, protocolHeader);
+    assert.equal(invalid.status, 400);
+    assert.equal(invalid.body.error.code, -32020);
+  }
   const discovery = success(await request("server/discover"));
   assert.deepEqual(discovery.capabilities.extensions[KNOWLEDGE_EXTENSION], {});
   const templates = success(await request("resources/templates/list")).resourceTemplates;
@@ -111,6 +121,8 @@ test("packaged knowledge documents negotiate over authenticated stateless HTTP",
   assert.ok((await request("resources/read", { uri: documents[0].uri }, {}, token(), {
     extensions: { [KNOWLEDGE_EXTENSION]: { unsupported: true } },
   })).body.error);
+  const declarationResponse = success(await request("resources/read", { uri: "charts://contract" }, {}, token(), {}));
+  assert.deepEqual(JSON.parse(declarationResponse.contents[0].text), loadDocumentBundle(directory).profile.wire());
   writeFileSync(join(directory, "DESIGN.md"), "tampered");
   assert.throws(() => loadDocuments(directory), /build manifest/);
   const manifest = JSON.parse(readFileSync(join(directory, MANIFEST_FILE), "utf8"));

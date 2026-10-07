@@ -8,6 +8,6 @@ metadata:
     app.kubernetes.io/component: {{ $name }}
 data:
   catalog.json: |
-    {{- dict "server" $bootstrap.server "tenant_key" $bootstrap.tenantKey "payload" $bootstrap.payload | toJson | nindent 4 }}
+    {{- dict "server" $bootstrap.server "tenantKey" $bootstrap.tenantKey "payload" $bootstrap.payload | toJson | nindent 4 }}
 ---
 {{- end }}

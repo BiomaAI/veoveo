@@ -300,3 +300,47 @@ fn output_access_is_rotatable_purpose_bound_and_cannot_drop_labels() {
     }
     assert!(CommandOutputAccess::new(capability, 0).is_err());
 }
+
+#[test]
+fn frozen_command_aad_and_plaintext_keep_native_names_and_binary_framing() {
+    let bound = binding();
+    let expected = format!(
+        r#"["veoveo.computer.command-envelope.v1",{{"execution_id":"{}","request_id":"{}","computer_id":"{}","grant_id":"{}","provider_instance_id":"{}","owner_key":"{}","actor_key":"{}","template_fingerprint":"{}","resource_id":"native-resource","process_id":"native-process","required_output_labels":[]}}]"#,
+        bound.execution_id,
+        bound.request_id,
+        bound.computer_id,
+        bound.grant_id,
+        bound.provider_instance_id,
+        bound.owner_key,
+        bound.actor_key,
+        bound.template_fingerprint,
+    );
+    assert_eq!(bound.aad().unwrap(), expected.as_bytes());
+    let payload = CommandPayload::new(
+        ExecutionRequest::new(
+            vec!["/bin/true".into()],
+            "work".into(),
+            BTreeMap::new(),
+            Vec::new(),
+        )
+        .unwrap(),
+        veoveo_computers_contract::AutomationExecutionLimitsValue {
+            maximum_seconds: 30,
+            maximum_output_bytes: 1024,
+            on_interruption: veoveo_computers_contract::AutomationInterruption::StopComputer,
+        }
+        .build()
+        .unwrap(),
+    )
+    .unwrap();
+    let body = br#"{"version":1,"arguments":["/bin/true"],"directory":"work","environment":{},"stdin":""}"#;
+    let mut expected = Vec::new();
+    expected.extend_from_slice(&30u32.to_be_bytes());
+    expected.extend_from_slice(&1024u32.to_be_bytes());
+    expected.extend_from_slice(&(body.len() as u32).to_be_bytes());
+    expected.extend_from_slice(body);
+    let actual = payload.encode().unwrap();
+    assert_eq!(actual.as_slice(), expected);
+    let received = CommandPayload::decode(&expected).unwrap();
+    assert_eq!(received.encode().unwrap().as_slice(), expected);
+}

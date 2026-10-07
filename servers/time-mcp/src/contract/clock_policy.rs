@@ -14,10 +14,10 @@ pub enum ClockPolicyField {
 impl ClockPolicyField {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::MaximumErrorNanoseconds => "maximum_error_nanoseconds",
-            Self::MaximumStratum => "maximum_stratum",
-            Self::MinimumSourceDiversity => "minimum_source_diversity",
-            Self::MaximumHoldoverSeconds => "maximum_holdover_seconds",
+            Self::MaximumErrorNanoseconds => "maximumErrorNanoseconds",
+            Self::MaximumStratum => "maximumStratum",
+            Self::MinimumSourceDiversity => "minimumSourceDiversity",
+            Self::MaximumHoldoverSeconds => "maximumHoldoverSeconds",
         }
     }
 }
@@ -61,6 +61,8 @@ impl Error for ClockPolicyError {}
     try_from = "ClockQualityPolicyFields",
     into = "ClockQualityPolicyFields"
 )]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ClockQualityPolicy {
     maximum_error_nanoseconds: u64,
     maximum_stratum: u8,
@@ -132,6 +134,8 @@ impl ClockQualityPolicyBuilder {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 struct ClockQualityPolicyFields {
     #[schemars(range(min = 1, max = 9223372036854775807_u64))]
     maximum_error_nanoseconds: u64,

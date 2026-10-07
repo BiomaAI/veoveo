@@ -1,3 +1,4 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Extension identifier from the ext-apps specification. Note: `…/ui`, not
@@ -12,6 +13,28 @@ pub const UI_META_KEY: &str = "ui";
 /// Resource `_meta` key declaring the exact always-on agents an App may
 /// address through the Console's authenticated human-message bridge.
 pub const AGENT_MESSAGE_TARGETS_META_KEY: &str = "ai.veoveo/agent-message-targets";
+
+/// Advertised SEP-1865 MIME support, shared by the host and server producers.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AppExtensionCapability {
+    pub mime_types: Vec<String>,
+}
+impl AppExtensionCapability {
+    pub fn supported() -> Self {
+        Self {
+            mime_types: vec![APP_MIME_TYPE.to_owned()],
+        }
+    }
+    pub(crate) fn declaration() -> rmcp::model::JsonObject {
+        let serde_json::Value::Object(value) =
+            serde_json::to_value(Self::supported()).expect("typed Apps capability serializes")
+        else {
+            unreachable!("Apps capability is an object");
+        };
+        value
+    }
+}
 
 /// Closed declaration for a view's generic agent-message targets. The host
 /// validates every identifier and treats malformed metadata as no authority.
@@ -44,7 +67,7 @@ fn valid_agent_id(value: &str) -> bool {
 }
 
 /// `_meta.ui` on a tool: links the tool to the app view that renders it.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolUiMeta {
     pub resource_uri: String,
@@ -61,7 +84,7 @@ impl ToolUiMeta {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum UiVisibility {
     Model,
@@ -69,7 +92,7 @@ pub enum UiVisibility {
 }
 
 /// `_meta.ui` on an app view resource.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceUiMeta {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -84,7 +107,7 @@ pub struct ResourceUiMeta {
 /// self-contained. A live-data app may name exact installation-owned origins;
 /// hosts validate and enforce the declaration rather than accepting arbitrary
 /// wildcard or path-bearing sources.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UiCsp {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

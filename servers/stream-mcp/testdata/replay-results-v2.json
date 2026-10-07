@@ -1,0 +1,100 @@
+{
+  "schema": "veoveo.ai/stream-results/v2",
+  "pipelineId": "traffic",
+  "modelId": "detector",
+  "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+  "entityPath": "/camera/front",
+  "timeline": "sensor_time",
+  "timelineKind": "duration_nanoseconds",
+  "requestedRange": {
+    "start": 0,
+    "end": 30
+  },
+  "sourceSnapshot": {
+    "recordingId": "01983da0-0000-7000-8000-000000000000",
+    "datasetId": "01983da0-0000-7000-8000-000000000010",
+    "capturedAt": "2026-09-28T00:00:00Z",
+    "sources": [
+      {
+        "layerId": "01983da0-0000-7000-8000-000000000020",
+        "layerName": "camera",
+        "layerOrdinal": 0,
+        "kind": "committed_layer",
+        "byteLen": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ]
+  },
+  "frames": [
+    {
+      "index": 0,
+      "detections": [
+        {
+          "classId": 0,
+          "label": "car",
+          "confidence": 0.9,
+          "bounds": {
+            "x": 1.0,
+            "y": 2.0,
+            "width": 3.0,
+            "height": 4.0
+          },
+          "trackId": 2
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "detections": [
+        {
+          "classId": 0,
+          "label": "car",
+          "confidence": 0.9,
+          "bounds": {
+            "x": 1.0,
+            "y": 2.0,
+            "width": 3.0,
+            "height": 4.0
+          },
+          "trackId": 7
+        }
+      ]
+    },
+    {
+      "index": 20,
+      "detections": [
+        {
+          "classId": 0,
+          "label": "car",
+          "confidence": 0.9,
+          "bounds": {
+            "x": 1.0,
+            "y": 2.0,
+            "width": 3.0,
+            "height": 4.0
+          },
+          "trackId": 8
+        }
+      ]
+    },
+    {
+      "index": 30,
+      "detections": [
+        {
+          "classId": 0,
+          "label": "car",
+          "confidence": 0.9,
+          "bounds": {
+            "x": 1.0,
+            "y": 2.0,
+            "width": 3.0,
+            "height": 4.0
+          },
+          "trackId": 9
+        }
+      ]
+    }
+  ],
+  "processedFrames": 4,
+  "elapsedMs": 5
+}

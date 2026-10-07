@@ -83,6 +83,7 @@ impl OptimizationPrompt {
 
     pub(super) fn render(self, arguments: Option<JsonObject>) -> Result<GetPromptResult, McpError> {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Arguments {
             objective: Option<String>,
             travel_model_uri: Option<String>,

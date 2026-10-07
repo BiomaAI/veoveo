@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use surrealdb::types::{Error, Kind, SurrealValue, Value};
 use veoveo_platform_store::OpenObject;
 #[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct CancellationReceiptRecord {
     pub recorded_at: DateTime<Utc>,
     pub result: ProviderCancellationOutcome,
@@ -49,7 +49,7 @@ mod tests {
                 error: "request unavailable".into(),
             },
         ] {
-            let expected = serde_json::json!({"recorded_at": recorded_at, "result": result});
+            let expected = serde_json::json!({"recordedAt": recorded_at, "result": result});
             let native = CancellationReceiptRecord {
                 recorded_at,
                 result,
@@ -61,6 +61,36 @@ mod tests {
             );
             let decoded = CancellationReceiptRecord::from_value(native.clone()).unwrap();
             assert_eq!(serde_json::to_value(decoded).unwrap(), expected);
+            for (path, current, retired) in [
+                ("", "recordedAt", "recorded_at"),
+                ("/result", "deletedCount", "deleted_count"),
+            ] {
+                if expected.pointer(path).unwrap().get(current).is_none() {
+                    continue;
+                }
+                for mode in ["replacement", "mixed", "conflicting"] {
+                    let mut bad = expected.clone();
+                    let object = bad.pointer_mut(path).unwrap().as_object_mut().unwrap();
+                    let value = object.get(current).cloned().unwrap();
+                    if mode == "replacement" {
+                        object.remove(current);
+                    }
+                    object.insert(
+                        retired.into(),
+                        if mode == "conflicting" {
+                            serde_json::json!("retired-conflict")
+                        } else {
+                            value
+                        },
+                    );
+                    assert!(
+                        CancellationReceiptRecord::from_value(
+                            veoveo_platform_store::native_json_into_value(bad)
+                        )
+                        .is_err()
+                    );
+                }
+            }
             for invalid in [
                 Value::None,
                 surrealdb::types::RecordId::new("task", "foreign").into_value(),
@@ -69,7 +99,7 @@ mod tests {
                 let Value::Object(mut object) = native.clone() else {
                     panic!("receipt is a native object");
                 };
-                object.insert("recorded_at", invalid);
+                object.insert("recordedAt", invalid);
                 assert!(CancellationReceiptRecord::from_value(Value::Object(object)).is_err());
             }
         }

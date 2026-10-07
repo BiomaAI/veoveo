@@ -139,16 +139,70 @@ pub(super) async fn recover_tasks(
         if snapshot.task_type != ViewTaskKind::CaptureFrame.name() {
             anyhow::bail!("unknown resumable View task type `{}`", snapshot.task_type);
         }
-        let request: ViewCaptureTaskRequest = serde_json::from_value(snapshot.request.clone())?;
-        if let Err(error) = schedule_capture_task(state.clone(), snapshot, request, true).await {
-            match error.downcast_ref::<TaskError>() {
-                Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
-                    tracing::info!(%task_id, "another replica claimed recovered View task");
-                }
-                _ => return Err(error),
-            }
+        let task_id = snapshot.task_id;
+        let request: ViewCaptureTaskRequest = serde_json::from_value(snapshot.request.clone())
+            .map_err(|_| {
+                anyhow::anyhow!("invalid retained View capture request for Task {task_id}")
+            })?;
+        if let Err(error) =
+            schedule_capture_task(state.clone(), snapshot.clone(), request, true).await
+        {
+            reconcile_recovery_claim(&state.tasks, &snapshot, error).await?;
         }
     }
+    Ok(())
+}
+
+// The finite shared observer has handed this Task off. A claim error alone cannot
+// settle that handoff: a control update can conflict without creating a worker.
+async fn reconcile_recovery_claim(
+    runtime: &veoveo_task_runtime::TaskRuntime,
+    admitted: &TaskSnapshot,
+    error: anyhow::Error,
+) -> anyhow::Result<()> {
+    match error.downcast_ref::<TaskError>() {
+        Some(
+            TaskError::Conflict(_)
+            | TaskError::LeaseHeld(_)
+            | TaskError::NotFound(_)
+            | TaskError::InvalidTransition { .. },
+        ) => {}
+        _ => return Err(error),
+    }
+    let Some(current) = runtime.get_for_recovery(admitted.task_id).await? else {
+        return Ok(());
+    };
+    if current.is_terminal() {
+        return Ok(());
+    }
+    validate_claimed_snapshot(admitted, &current)?;
+    if current
+        .lease_owner
+        .as_deref()
+        .is_some_and(|worker| worker != runtime.worker_id())
+        && current
+            .lease_expires_at
+            .is_some_and(|expiry| expiry > chrono::Utc::now())
+    {
+        tracing::info!(task_id = %admitted.task_id, "another replica holds recovered View task lease");
+        return Ok(());
+    }
+    Err(error.context("recovered View Task has no proven live replacement worker"))
+}
+
+fn validate_claimed_snapshot(
+    admitted: &TaskSnapshot,
+    claimed: &TaskSnapshot,
+) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        admitted.task_id == claimed.task_id
+            && admitted.server == claimed.server
+            && admitted.task_type == claimed.task_type
+            && admitted.recovery_class == claimed.recovery_class
+            && admitted.owner == claimed.owner
+            && admitted.request == claimed.request,
+        "recovered View Task changed after capture admission"
+    );
     Ok(())
 }
 
@@ -195,6 +249,7 @@ async fn schedule_capture_task(
         .validate_capture_snapshot(&owner, request.snapshot(), request.request())?;
     let task_id = snapshot.task_id;
     let claimed = state.tasks.claim(task_id, TASK_LEASE_DURATION).await?;
+    validate_claimed_snapshot(&snapshot, &claimed.snapshot)?;
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_capture_task(
         state.clone(),
@@ -381,3 +436,7 @@ mod access_tests;
 #[cfg(test)]
 #[path = "tasks/test_support.rs"]
 mod test_support;
+
+#[cfg(test)]
+#[path = "tasks/recovery_tests.rs"]
+mod recovery_tests;

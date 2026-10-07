@@ -63,17 +63,19 @@ async fn store_artifact(
             .collect::<Result<_, _>>()?,
         ..Default::default()
     };
-    put.metadata = serde_json::json!({
-        "task_id": task_id,
-        "artifact_format": "frames_batch_json",
-        "operation_id": output.result.provenance.operation.operation_id(),
-        "operation_uri": output.result.provenance.operation.operation_uri(),
-        "source_frame": output.result.provenance.operation.source_frame,
-        "target_frame": output.result.provenance.operation.target_frame,
-        "source_crs": output.result.provenance.source_crs,
-        "target_crs": output.result.provenance.target_crs,
-        "approximation_used": output.result.provenance.approximation_used,
-    });
+    let provenance = &output.result.provenance;
+    put.metadata =
+        serde_json::to_value(veoveo_frames_mcp::contract::FramesBatchArtifactMetadata {
+            task_id,
+            artifact_format: veoveo_frames_mcp::contract::FramesBatchArtifactFormat::Json,
+            operation_id: provenance.operation.operation_id().clone(),
+            operation_uri: provenance.operation.operation_uri().clone(),
+            source_frame: provenance.operation.source_frame.clone(),
+            target_frame: provenance.operation.target_frame.clone(),
+            source_crs: provenance.source_crs.clone(),
+            target_crs: provenance.target_crs.clone(),
+            approximation_used: provenance.approximation_used,
+        })?;
     let idempotency_key = ArtifactWriteIdempotencyKey::new(format!("frames:{task_id}:batch"))?;
     Ok(state
         .artifacts
@@ -89,15 +91,15 @@ async fn record_usage(
 ) -> anyhow::Result<()> {
     let metadata = OpenObject::new(BTreeMap::from([
         (
-            "operation_id".to_owned(),
+            "operationId".to_owned(),
             serde_json::json!(output.result.provenance.operation.operation_id()),
         ),
         (
-            "operation_uri".to_owned(),
+            "operationUri".to_owned(),
             serde_json::json!(output.result.provenance.operation.operation_uri()),
         ),
         (
-            "target_frame".to_owned(),
+            "targetFrame".to_owned(),
             serde_json::json!(output.result.provenance.operation.target_frame),
         ),
     ]));

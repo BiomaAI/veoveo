@@ -12,7 +12,7 @@
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only Redap route on a separate Ingress with native HTTP/2 gRPC to the recording service; browser gRPC-Web uses the same path |
 | SurrealDB 3.3.0 | One RocksDB node, digest-pinned image, `/ready` for traffic admission and `/health` for process liveness |
 | OCI image digests | Veoveo image ownership and production digest enforcement through the shared chart helpers |
-| vLLM 0.30.0 pooling and OpenAI Embeddings API subset | Private GPU embedding runtime with an installation API key, local Qwen3 checkpoint and priority scheduling |
+| vLLM 0.31.0 pooling and OpenAI Embeddings API subset | Private GPU embedding runtime with an installation API key, local Qwen3 checkpoint and priority scheduling |
 | Amazon S3 API | Private Artifact object storage through RustFS 1.0.0 or an installation-owned compatible store; multipart write, object metadata and ranged reads are exercised by the Artifact client |
 | OTLP gRPC and HTTP; OpenTelemetry Collector 0.161.0 | Optional telemetry receiver with installation-owned pipeline configuration; the checked-in receiver, batch processor and debug exporter profile is qualified with an OTLP/HTTP log |
 | `veoveo.ai/computers-service/v3` | Private Computers JSON configuration; the typed service validates the selected capacity and trust before store mutation |
@@ -26,6 +26,17 @@ JSON document. The chart preserves its bytes in an immutable ConfigMap and consu
 its lane commands and runtime bindings. The composition binary owns module names and
 dependencies. The chart checks enabled hosts against those bindings and never turns on
 a workload because its schema prerequisite was selected.
+
+Artifact Service receives the same plan path, composition, installation generation,
+credential revision and runtime username as other database-authenticated runtimes. Its
+plan ConfigMap mounts read-only, and the Deployment template changes when the plan
+generation or bytes change. Startup admission checks these values before Artifact
+object-store effects, repository and audit startup, upload recovery, and HTTP binding.
+
+Frames receives that installation plan through the same read-only ConfigMap and
+runtime identity inputs. Its startup checks the authenticated Store account and
+prepared compiled lanes before Task recovery or HTTP binding; the chart does not run
+schema preparation from the server.
 
 Ordinary preparation, per-lane migration and control-plane publication Jobs may start
 concurrently. Gateway commands wait for database readiness and the matching completed
@@ -65,8 +76,24 @@ the other GPU workloads.
 The official vLLM image uses the same digest as Reason's base image. Its startup check
 refuses an unavailable CUDA device. The pooling runner serves the pinned Qwen3
 Embedding 0.6B checkpoint with priority scheduling. Installations set the fraction of
-GPU memory under `embedding.engine.gpuMemoryUtilization`; the default is 0.25.
-Changing that value requires measuring the installation's simultaneous GPU workloads.
+GPU memory under `embedding.engine.gpuMemoryUtilization`; the reference chart uses
+0.45 as a candidate budget for its 24 GiB device. That value does not qualify the
+full-context cache or capacity with the installation's co-resident GPU workloads.
+Startup profiling and the selected production workload must establish both.
+
+`embedding.engine.precision` declares `bfloat16` or `float16` and defaults to
+`bfloat16`. The Deployment passes that value explicitly as vLLM's `--dtype`.
+Installations must match this effective engine precision to the selected qualified
+embedding runtime bundle. Each precision requires its own hardware comparison,
+ranking, scheduling, capacity and production Knowledge workload qualification.
+
+The Deployment starts without profiler instrumentation. The
+[verification guide](../../../platform/runtimes/embedding/verification/README.md)
+describes an isolated local diagnostic process for vLLM 0.31's maintained Proton
+graph-attribution profiler. Its `/start_profile` and `/stop_profile` routes bypass
+API-key middleware, so the diagnostic process uses a no-network container and
+loopback-only requests. The production chart does not enable profiling. The v0.31
+image pin awaits GPU qualification.
 
 An init container verifies every entry in `embedding-checkpoint` before starting the
 server. The packaged manifest is copied from the runtime's `checkpoint.sha256`; the

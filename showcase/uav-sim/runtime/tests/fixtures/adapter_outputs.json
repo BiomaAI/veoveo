@@ -1,82 +1,82 @@
 {
   "state": {
-    "session_id": "session-alpha",
+    "sessionId": "session-alpha",
     "lifecycle": "running",
-    "simulation_time_s": 1.0,
-    "physics_step": 60,
+    "simulationTimeS": 1.0,
+    "physicsStep": 60,
     "timing": {
-      "physics_hz": 60,
-      "native_rendering_hz": 30,
-      "render_cycles": 0,
-      "physics_steps": 0,
-      "refresh_states_wall_seconds": 0.0,
-      "vehicle_update_wall_seconds": 0.0,
-      "state_update_wall_seconds": 0.0,
-      "dynamics_update_wall_seconds": 0.0,
-      "sensor_update_wall_seconds": 0.0,
-      "backend_state_wall_seconds": 0.0,
-      "flush_forces_wall_seconds": 0.0,
-      "after_step_wall_seconds": 0.0,
-      "native_update_wall_seconds": 0.0,
-      "render_cycle_wall_seconds": 0.0,
-      "maximum_physics_step_ms": 0.0,
-      "maximum_native_update_ms": 0.0,
-      "maximum_render_cycle_ms": 0.0
+      "physicsHz": 60,
+      "nativeRenderingHz": 30,
+      "renderCycles": 0,
+      "physicsSteps": 0,
+      "refreshStatesWallSeconds": 0.0,
+      "vehicleUpdateWallSeconds": 0.0,
+      "stateUpdateWallSeconds": 0.0,
+      "dynamicsUpdateWallSeconds": 0.0,
+      "sensorUpdateWallSeconds": 0.0,
+      "backendStateWallSeconds": 0.0,
+      "flushForcesWallSeconds": 0.0,
+      "afterStepWallSeconds": 0.0,
+      "nativeUpdateWallSeconds": 0.0,
+      "renderCycleWallSeconds": 0.0,
+      "maximumPhysicsStepMs": 0.0,
+      "maximumNativeUpdateMs": 0.0,
+      "maximumRenderCycleMs": 0.0
     },
     "world": {
-      "revision_uri": "frames://world/test-world/revision/revision-1",
-      "spec_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "simulation_frame_uri": "frames://world/test-world/revision/revision-1/frame/isaac-world",
-      "georeference_origin": {
-        "latitude_degrees": 13.6929,
-        "longitude_degrees": -89.2182,
-        "ellipsoid_height_m": 700.0
+      "revisionUri": "frames://world/test-world/revision/revision-1",
+      "specSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "simulationFrameUri": "frames://world/test-world/revision/revision-1/frame/isaac-world",
+      "georeferenceOrigin": {
+        "latitudeDegrees": 13.6929,
+        "longitudeDegrees": -89.2182,
+        "ellipsoidHeightM": 700.0
       }
     },
     "tiles": {
       "lifecycle": "ready",
       "source": "google_photorealistic_3d_tiles",
-      "ion_asset_id": 2275207,
-      "resident_tiles": 20,
-      "visible_tiles": 12,
-      "loading_tiles": 0,
-      "geometries_loaded": 20,
-      "geometries_rendered": 12,
-      "materials_loaded": 20,
-      "provider_generation": 1,
-      "event_sequence": 1,
-      "refresh_count": 0,
-      "last_failure": {
+      "ionAssetId": 2275207,
+      "residentTiles": 20,
+      "visibleTiles": 12,
+      "loadingTiles": 0,
+      "geometriesLoaded": 20,
+      "geometriesRendered": 12,
+      "materialsLoaded": 20,
+      "providerGeneration": 1,
+      "eventSequence": 1,
+      "refreshCount": 0,
+      "lastFailure": {
         "code": "request_failed",
-        "load_type": "tile_content",
-        "http_status": 503,
+        "loadType": "tile_content",
+        "httpStatus": 503,
         "generation": 1
       },
       "diagnostic": null
     },
     "cameras": [
       {
-        "vehicle_id": "uav-1",
-        "entity_path": "/world/uav-sim/session-alpha/vehicle/uav-1/camera/down",
+        "vehicleId": "uav-1",
+        "entityPath": "/world/uav-sim/session-alpha/vehicle/uav-1/camera/down",
         "lifecycle": "ready",
         "width": 640,
         "height": 480,
-        "frame_rate_hz": 2,
+        "frameRateHz": 2,
         "codec": "h264",
         "encoder": "nvidia_nvenc",
         "transport": "rtsp_rtp",
-        "frames_observed": 10,
-        "last_access_unit_bytes": 32768,
-        "last_frame_keyframe": false,
-        "render_pose": {
-          "position_error_m": 0.02,
-          "forward_error_degrees": 0.01,
-          "rendered_position_enu_m": {
-            "east_m": 10.0,
-            "north_m": 20.0,
-            "up_m": 30.0
+        "framesObserved": 10,
+        "lastAccessUnitBytes": 32768,
+        "lastFrameKeyframe": false,
+        "renderPose": {
+          "positionErrorM": 0.02,
+          "forwardErrorDegrees": 0.01,
+          "renderedPositionEnuM": {
+            "eastM": 10.0,
+            "northM": 20.0,
+            "upM": 30.0
           },
-          "rendered_forward_enu": {
+          "renderedForwardEnu": {
             "east": 0.0,
             "north": 0.0,
             "up": -1.0
@@ -84,7 +84,7 @@
         }
       }
     ],
-    "live_cameras": [
+    "liveCameras": [
       {
         "cameraId": "camera-0",
         "sessionId": "session-alpha",
@@ -294,7 +294,7 @@
         "health": "healthy"
       }
     ],
-    "stream_products": [
+    "streamProducts": [
       {
         "streamProductId": "camera-atlas",
         "cameraRegions": [
@@ -321,65 +321,65 @@
     ],
     "vehicles": [
       {
-        "vehicle_id": "uav-1",
-        "flight_state": "standby",
+        "vehicleId": "uav-1",
+        "flightState": "standby",
         "wgs84": {
-          "latitude_degrees": 13.6929,
-          "longitude_degrees": -89.2182,
-          "ellipsoid_height_m": 700.0
+          "latitudeDegrees": 13.6929,
+          "longitudeDegrees": -89.2182,
+          "ellipsoidHeightM": 700.0
         },
         "enu": {
-          "east_m": 0.0,
-          "north_m": 0.0,
-          "up_m": 0.0
+          "eastM": 0.0,
+          "northM": 0.0,
+          "upM": 0.0
         },
         "ned": {
-          "north_m": 0.0,
-          "east_m": 0.0,
-          "down_m": 0.0
+          "northM": 0.0,
+          "eastM": 0.0,
+          "downM": 0.0
         },
-        "attitude_xyzw": {
+        "attitudeXyzw": {
           "x": 0.0,
           "y": 0.0,
           "z": 0.0,
           "w": 1.0
         },
-        "linear_velocity_enu_mps": {
-          "east_m": 0.0,
-          "north_m": 0.0,
-          "up_m": 0.0
+        "linearVelocityEnuMps": {
+          "eastM": 0.0,
+          "northM": 0.0,
+          "upM": 0.0
         },
-        "battery_percent": 100.0,
-        "collision_count": 0,
-        "px4_connected": true
+        "batteryPercent": 100.0,
+        "collisionCount": 0,
+        "px4Connected": true
       }
     ],
     "recordings": [
       {
-        "application_id": "veoveo-uav-sim",
-        "recording_key": "019f7122-3d89-7d21-8312-8940d1e0f510",
+        "applicationId": "veoveo-uav-sim",
+        "recordingKey": "019f7122-3d89-7d21-8312-8940d1e0f510",
         "active": true,
-        "publisher_lifecycle": "ready",
-        "queue_capacity": 256,
-        "queued_events": 0,
-        "dropped_events": 0,
-        "camera_streams": [
+        "publisherLifecycle": "ready",
+        "queueCapacity": 256,
+        "queuedEvents": 0,
+        "droppedEvents": 0,
+        "cameraStreams": [
           "/world/uav-sim/session-alpha/vehicle/uav-1/camera/down"
         ],
-        "started_at": "2026-08-07T18:00:00Z"
+        "startedAt": "2026-08-07T18:00:00Z"
       }
     ],
-    "updated_at": "2026-08-07T18:00:00Z"
+    "updatedAt": "2026-08-07T18:00:00Z"
   },
   "results": [
     {
       "result": "run_scenario",
       "output": {
-        "session_id": "session-alpha",
-        "elapsed_seconds": 1.0,
-        "final_simulation_time_s": 2.0,
-        "collision_count": 0,
-        "recording_keys": [
+        "sessionId": "session-alpha",
+        "elapsedSeconds": 1.0,
+        "finalSimulationTimeS": 2.0,
+        "collisionCount": 0,
+        "recordingKeys": [
           "019f7122-3d89-7d21-8312-8940d1e0f510"
         ]
       }
@@ -387,9 +387,9 @@
     {
       "result": "capture_dataset",
       "output": {
-        "session_id": "session-alpha",
-        "elapsed_seconds": 1.0,
-        "recording_keys": [
+        "sessionId": "session-alpha",
+        "elapsedSeconds": 1.0,
+        "recordingKeys": [
           "019f7122-3d89-7d21-8312-8940d1e0f510"
         ]
       }
@@ -397,12 +397,12 @@
     {
       "result": "execute_mission",
       "output": {
-        "mission_id": "mission-1",
+        "missionId": "mission-1",
         "lifecycle": "completed",
-        "started_at": "2026-08-07T18:00:00Z",
-        "finished_at": "2026-08-07T18:00:00Z",
-        "completed_waypoints": 1,
-        "recording_keys": [
+        "startedAt": "2026-08-07T18:00:00Z",
+        "finishedAt": "2026-08-07T18:00:00Z",
+        "completedWaypoints": 1,
+        "recordingKeys": [
           "019f7122-3d89-7d21-8312-8940d1e0f510"
         ]
       }
@@ -425,20 +425,20 @@
   "command": {
     "accepted": true,
     "detail": "simulation paused",
-    "resource_uri": "uav-sim://session/session-alpha"
+    "resourceUri": "uav-sim://session/session-alpha"
   },
   "world": {
     "accepted": true,
     "world": {
-      "revision_uri": "frames://world/test-world/revision/revision-1",
-      "spec_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "simulation_frame_uri": "frames://world/test-world/revision/revision-1/frame/isaac-world",
-      "georeference_origin": {
-        "latitude_degrees": 13.6929,
-        "longitude_degrees": -89.2182,
-        "ellipsoid_height_m": 700.0
+      "revisionUri": "frames://world/test-world/revision/revision-1",
+      "specSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "simulationFrameUri": "frames://world/test-world/revision/revision-1/frame/isaac-world",
+      "georeferenceOrigin": {
+        "latitudeDegrees": 13.6929,
+        "longitudeDegrees": -89.2182,
+        "ellipsoidHeightM": 700.0
       }
     },
-    "resource_uri": "uav-sim://session/session-alpha/world"
+    "resourceUri": "uav-sim://session/session-alpha/world"
   }
 }

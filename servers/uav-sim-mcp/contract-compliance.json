@@ -1,0 +1,147 @@
+{
+  "server": "uav-sim",
+  "compliance": [
+    {
+      "id": "C01",
+      "status": "met"
+    },
+    {
+      "id": "C02",
+      "status": "met"
+    },
+    {
+      "id": "C03",
+      "status": "met"
+    },
+    {
+      "id": "C04",
+      "status": "met",
+      "note": "grant, plan, mission, and usage collections use 100-item SQL pages; direct reads use domain identities"
+    },
+    {
+      "id": "C05",
+      "status": "met"
+    },
+    {
+      "id": "C06",
+      "status": "met"
+    },
+    {
+      "id": "C07",
+      "status": "met"
+    },
+    {
+      "id": "C08",
+      "status": "met"
+    },
+    {
+      "id": "C09",
+      "status": "met"
+    },
+    {
+      "id": "C10",
+      "status": "met"
+    },
+    {
+      "id": "C11",
+      "status": "met"
+    },
+    {
+      "id": "C12",
+      "status": "met"
+    },
+    {
+      "id": "C13",
+      "status": "met"
+    },
+    {
+      "id": "C14",
+      "status": "met"
+    },
+    {
+      "id": "C15",
+      "status": "met"
+    },
+    {
+      "id": "C16",
+      "status": "met"
+    },
+    {
+      "id": "C17",
+      "status": "met",
+      "note": "local and reference gateway registrations declare contract revision 3"
+    },
+    {
+      "id": "C18",
+      "status": "met"
+    },
+    {
+      "id": "C19",
+      "status": "met"
+    },
+    {
+      "id": "C20",
+      "status": "met"
+    },
+    {
+      "id": "C21",
+      "status": "met"
+    },
+    {
+      "id": "C22",
+      "status": "met"
+    },
+    {
+      "id": "C23",
+      "status": "met"
+    },
+    {
+      "id": "C24",
+      "status": "met"
+    },
+    {
+      "id": "C25",
+      "status": "met"
+    },
+    {
+      "id": "C26",
+      "status": "met"
+    },
+    {
+      "id": "C27",
+      "status": "met",
+      "note": "Store LIVE sources with changefeed recovery invalidate durable collection and exact-resource subscriptions"
+    },
+    {
+      "id": "C28",
+      "status": "met",
+      "note": "discovery lists roots and templates without simulator reads or dynamic record enumeration; agent-target metadata retains its declared invalidation source"
+    },
+    {
+      "id": "C29",
+      "status": "met"
+    },
+    {
+      "id": "C30",
+      "status": "met",
+      "note": "the endpoint is stateless; durable and domain state never derives authority from a protocol connection"
+    },
+    {
+      "id": "C31",
+      "status": "pending",
+      "note": "native discovery is qualified with an unreachable simulator; installed readiness qualification is pending"
+    },
+    {
+      "id": "C32",
+      "status": "pending",
+      "note": "shared typed docs support is wired; K01–K08 qualification is in progress"
+    },
+    {
+      "id": "C33",
+      "status": "pending",
+      "note": "Owner naming producers, consumers and installed qualification are pending."
+    }
+  ],
+  "contractRevision": 4,
+  "catalogRevision": 2
+}

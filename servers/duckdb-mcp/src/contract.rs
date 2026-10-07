@@ -118,7 +118,12 @@ impl JsonSchema for DuckDbDatabaseId {
 pub struct DuckDbDatabaseIdError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "mode",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 pub enum DuckDbQueryOutputMode {
     /// Rows inline in the tool result, subject to the server's row/byte caps.
     Inline {},
@@ -132,12 +137,16 @@ impl Default for DuckDbQueryOutputMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct DuckDbColumn {
     pub name: String,
     pub type_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct DuckDbExecuteOutput {
     pub db: DuckDbDatabaseId,
     pub statements: u64,
@@ -146,6 +155,8 @@ pub struct DuckDbExecuteOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct DuckDbIngestOutput {
     pub db: DuckDbDatabaseId,
     pub table: DuckDbTableName,
@@ -163,6 +174,7 @@ impl Serialize for DuckDbExportOutput {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct DuckDbExportWire {
     result_uri: veoveo_artifact_contract::ArtifactUri,
     db: DuckDbDatabaseId,

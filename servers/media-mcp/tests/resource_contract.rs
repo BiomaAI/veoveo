@@ -131,18 +131,25 @@ fn model_identity_owns_segmented_routes_and_request_admission() {
 fn artifact_tool_admits_only_the_media_occurrence_address() {
     let id = ArtifactId::new();
     let uri = MediaArtifactUri::new(id);
-    let args: ArtifactArgs = serde_json::from_value(json!({"artifact_uri": uri})).unwrap();
+    let args: ArtifactArgs = serde_json::from_value(json!({"artifactUri": uri})).unwrap();
     assert_eq!(args.artifact_uri.artifact_id(), id);
     assert_eq!(
         serde_json::to_value(args).unwrap(),
-        json!({"artifact_uri": uri})
+        json!({"artifactUri": uri})
     );
+    for arguments in [
+        json!({"artifact_uri":uri}),
+        json!({"artifactUri":uri,"artifact_uri":uri}),
+        json!({"artifactUri":uri,"artifact_uri":"media://artifact/retired"}),
+    ] {
+        assert!(serde_json::from_value::<ArtifactArgs>(arguments).is_err());
+    }
     for uri in [
         id.plane_uri().to_string(),
         format!("speech://artifact/{id}"),
         "media://artifact/bad".to_owned(),
     ] {
-        assert!(serde_json::from_value::<ArtifactArgs>(json!({"artifact_uri": uri})).is_err());
+        assert!(serde_json::from_value::<ArtifactArgs>(json!({"artifactUri": uri})).is_err());
     }
 }
 

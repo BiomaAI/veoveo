@@ -17,7 +17,12 @@ pub enum DuckDbFormat {
 
 /// Inline and HTTPS tabular inputs; consumers own network admission and execution.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 pub enum DuckDbTabularSource {
     InlineCsv {
         csv: String,
@@ -42,7 +47,12 @@ pub enum DuckDbTabularSource {
 
 /// Sources supported by DuckDB's authenticated hosted materializer.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 pub enum DuckDbSource {
     /// A neutral `artifact://{artifact_id}` reference resolved through the shared
     /// artifact plane under the caller's identity — the cross-server input path.

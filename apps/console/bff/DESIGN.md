@@ -83,6 +83,14 @@ The Workspace API and asset contracts are owned by
 uploads and App hosting keep their existing component contracts. Static bundles have
 independent frontend build stages and do not become Rust compiler inputs.
 
+The browser admits Playback timestamp strings through the Recording owner's lexical
+schema and the focused Chrono calendar adapter. UTC ordering uses whole seconds and
+nanoseconds, including the leap-second extension. The receiver preserves each input
+string, admits signed extended years and numeric offsets, and refuses malformed
+calendars or reversed manifests before mounting a viewer or dispatching playback.
+The behavioral receiver harness consumes Rust-produced manifests; its test renderer
+does not establish hardware playback.
+
 ### Installed Recording Worker Retirement
 
 The browser edge serves `/console/recording-live-proxy-sw.js` as JavaScript with

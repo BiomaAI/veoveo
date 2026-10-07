@@ -113,23 +113,20 @@ impl GovernedResourceUri {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum SafeCorrectionCode {
     InvalidUri,
     InvalidResource,
     BudgetExhausted,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum SafeCorrectionKind {
     Input,
     Budget,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum ResourceBudgetDimension {
     ReadCount,
     FamilyReadCount,
@@ -140,6 +137,7 @@ pub enum ResourceBudgetDimension {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RemainingResourceBudget {
     pub reads: u32,
     pub family_reads: u32,
@@ -151,6 +149,7 @@ pub struct RemainingResourceBudget {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SafeCorrectionDiagnostic {
     pub code: SafeCorrectionCode,
     pub kind: SafeCorrectionKind,
@@ -410,6 +409,7 @@ impl ResourceReadLedger {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ResourceTextContent {
     pub uri: String,
     pub mime_type: String,
@@ -573,7 +573,11 @@ pub struct ResourceReadArgs {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[serde(tag = "status", rename_all = "snake_case")]
+#[serde(
+    tag = "status",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 pub enum ResourceReadOutput {
     Complete {
         uri: String,

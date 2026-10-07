@@ -476,7 +476,7 @@ async fn webhook_on_other_replica_is_idempotent_and_restart_recoverable() {
             task_id: task_id.to_string(), provider_job_id: Some(preserved.external_job_id.to_string()),
             source_id: Some("native-billing".into()), model_id: "test/image".into(),
             kind: veoveo_mcp_contract::UsageKind::Actual, quantity: Some(1.0), unit: Some("run".into()),
-            amount: None, currency: None, recorded_at: Utc::now(), metadata: json!({}),
+            amount: None, currency: None, recorded_at: Utc::now(), metadata: json!({"source":"billing_record","billingType":"deduct","sourceCreatedAt":null,"sourceUpdatedAt":null,"orderId":null,"orderState":null,"orderStatus":null,"jobStatus":null}),
         }).await.unwrap();
         let restarted_state = MediaState::new(first.platform_store().clone());
         assert!(restarted_state.billing_candidates(None).await.unwrap().jobs.iter().any(|job| job.task_id == task_id), "billed but pinned outcome is selected after restart");

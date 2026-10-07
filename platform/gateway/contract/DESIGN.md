@@ -4,7 +4,7 @@
 
 | Boundary | Supported profile |
 |---|---|
-| JSON and JSON Schema draft 2020-12 | Gateway identities, secret references, HTTP/TLS endpoints, catalog declarations, App dependency DTOs and discovery failures; explicit Serde spelling and schemars type names |
+| JSON and JSON Schema draft 2020-12 | Gateway identities, secret references, HTTP/TLS endpoints, catalog declarations, App dependency DTOs and discovery failures; camelCase configuration keys, snake_case controlled values and explicit schemars type names |
 | OAuth 2.0 RFC 6749, PKCE RFC 7636 and OpenID Connect Core 1.0 | Admitted authorization codes, client and identity-provider state, OIDC nonces and S256 challenge/verifier values shared with storage and protocol adapters. The contract supplies values and admission, while the gateway performs the exchanges. |
 | WHATWG URL and HTTP/TLS configuration | The qualified URL library checks HTTP(S) hosts, credentials, query and fragments. Plain HTTP endpoints carry TLS, CA and secret references without an MCP transport selector. |
 | `ai.veoveo/app-resource-dependencies` and `ai.veoveo/app-tool-dependencies` | Gateway-projected metadata for caller-visible App dependencies |
@@ -14,7 +14,9 @@
 
 This crate owns transport-independent OAuth continuity and PKCE values, principal display metadata, authorization-server and protected-resource identities, secret-reference configuration, HTTP/TLS endpoint declarations, catalog registration mechanics, App dependency values, discovery failure vocabularies and their metadata keys. Typed fields reuse `veoveo-types` admission.
 Gateway runtime, MCP adapters and the Console browser contract import these values
-directly. MCP owns the MetaObject adapter and sorted/deduplicated degradation wrapper.
+directly. This crate owns the complete discovery degradation value and its sorted,
+deduplicated constructor and merge behavior. MCP supplies the MetaObject conversion
+trait; consumers import the value from this transport-independent owner.
 
 A separate crate prevents a dependency cycle: MCP contract already feeds gateway
 runtime, while browser schema generation must not enable MCP transports. This library

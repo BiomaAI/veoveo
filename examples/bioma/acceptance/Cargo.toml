@@ -5,6 +5,56 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-mcp-conformance = { path = "../../../mcp/conformance", optional = true }
+veoveo-uav-sim-mcp = { path = "../../../servers/uav-sim-mcp", default-features = false, features = ["contract"], optional = true }
+veoveo-sumo-mcp = { path = "../../../showcase/sumo/sumo-mcp", optional = true }
+veoveo-rrd = { workspace = true, optional = true }
+veoveo-recording-hub = { path = "../../../platform/recordings/hub", optional = true }
+veoveo-media-mcp = { path = "../../../servers/media-mcp", default-features = false, features = ["contract"], optional = true }
+veoveo-deploy-contract = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["full"], optional = true }
+secrecy = { workspace = true, optional = true }
+scraper = { workspace = true, optional = true }
+re_sdk = { workspace = true, optional = true }
+re_log_encoding = { workspace = true, optional = true }
+glam = { workspace = true, optional = true }
+veoveo-types = { workspace = true, optional = true }
+veoveo-reason-mcp = {path = "../../../servers/reason-mcp", optional = true, default-features = false, features = ["contract"]}
+tokio-tungstenite = {workspace = true, optional = true}
+sha2 = {workspace = true, optional = true}
+chrono = {workspace = true, optional = true}
+futures = {workspace = true, optional = true}
+veoveo-browser-smoke = {path = "../../../testing/browser-smoke", optional = true}
+
+
+veoveo-recording-store = { optional = true, workspace = true }
+veoveo-map-mcp = { optional = true, path = "../../../servers/map-mcp", default-features = false, features = ["contract"] }
+veoveo-artifact-contract = { workspace = true, optional = true }
+veoveo-simulation-contract = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+clap = { workspace = true, optional = true }
+dotenvy = { workspace = true, optional = true }
+duckdb = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
+jsonwebtoken = { workspace = true, optional = true }
+reqwest = { optional = true, workspace = true, features = ["cookies", "json", "rustls-no-provider", "stream"] }
+re_grpc_server = { workspace = true, optional = true }
+re_log_types = { workspace = true, optional = true }
+re_sdk_types = { workspace = true, optional = true }
+rmcp = { optional = true, workspace = true, features = ["client", "transport-streamable-http-client-reqwest", "reqwest-tls-no-provider"] }
+rustls = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+veoveo-image-build-control = { workspace = true, optional = true }
+veoveo-frames-mcp = { optional = true, path = "../../../servers/frames-mcp", default-features = false, features = ["contract"] }
+veoveo-recording-forwarder = { optional = true, path = "../../../platform/recordings/forwarder" }
+veoveo-recording-protocol = { optional = true, path = "../../../platform/recordings/protocol" }
+veoveo-stream-mcp = { optional = true, path = "../../../servers/stream-mcp" }
+veoveo-testing-support = { path="../../../testing/support", optional=true, features=[] }
+veoveo-gateway-composition = { path="../../../platform/gateway/composition", optional=true, features=["smoke"] }
+veoveo-duckdb-runtime = { path="../../../platform/runtimes/duckdb", optional=true, features=["smoke"] }
 veoveo-agent-runtime = { path = "../../../agents/runtime", default-features = false, features = ["persistence"] }
 veoveo-gateway-catalog.workspace = true
 veoveo-recording-contract.workspace = true
@@ -12,9 +62,10 @@ veoveo-gateway-contract.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+schemars = { workspace = true, optional = true }
 surrealdb = { version = "=3.3.0", default-features = false }
 uuid.workspace = true
-veoveo-mcp-contract.workspace = true
+veoveo-mcp-contract = { workspace = true, features = ["runtime"] }
 veoveo-mcp-gateway = { path = "../../../platform/gateway" }
 veoveo-platform-store = { path = "../../../platform/store" }
 
@@ -24,3 +75,16 @@ veoveo-agent-runtime = { path = "../../../agents/runtime", default-features = fa
 veoveo-recording-mcp = { path = "../../../servers/recording-mcp", default-features = false, features = ["gateway"] }
 veoveo-types.workspace = true
 tokio = { workspace = true, features = ["process", "io-util", "macros", "rt-multi-thread"] }
+
+[features]
+smoke=["dep:schemars","dep:veoveo-mcp-conformance","dep:veoveo-uav-sim-mcp","dep:veoveo-sumo-mcp","dep:veoveo-rrd","dep:veoveo-recording-hub","dep:veoveo-media-mcp","dep:veoveo-deploy-contract","dep:tokio","dep:secrecy","dep:scraper","dep:re_sdk","dep:re_log_encoding","dep:glam","dep:veoveo-types","dep:veoveo-reason-mcp","dep:tokio-tungstenite","dep:sha2","dep:chrono","dep:futures","dep:veoveo-browser-smoke","dep:veoveo-recording-store","dep:veoveo-map-mcp","dep:veoveo-artifact-contract","dep:veoveo-simulation-contract","dep:bytes","dep:base64","dep:clap","dep:dotenvy","dep:duckdb","dep:hex","dep:image","dep:jsonwebtoken","dep:reqwest","dep:re_grpc_server","dep:re_log_types","dep:re_sdk_types","dep:rmcp","dep:rustls","dep:tempfile","dep:url","dep:veoveo-image-build-control","dep:veoveo-frames-mcp","dep:veoveo-recording-forwarder","dep:veoveo-recording-protocol","dep:veoveo-stream-mcp","dep:veoveo-testing-support","dep:veoveo-gateway-composition","dep:veoveo-duckdb-runtime"]
+
+[[bin]]
+name="installation-smoke"
+path="src/smoke/installation_smoke.rs"
+required-features=["smoke"]
+
+[[bin]]
+name="installation-browser-smoke"
+path="src/browser/main.rs"
+required-features=["smoke"]

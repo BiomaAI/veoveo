@@ -119,7 +119,7 @@ fn empty_page_round_trip_and_invalid_wire_limits_fail() {
     let wire = serde_json::to_value(&page).unwrap();
     assert_eq!(
         wire,
-        serde_json::json!({"items":[], "limit":100,"next_cursor":null})
+        serde_json::json!({"items":[], "limit":100,"nextCursor":null})
     );
     assert_eq!(
         serde_json::from_value::<MapSourcePage>(wire.clone()).unwrap(),
@@ -129,21 +129,21 @@ fn empty_page_round_trip_and_invalid_wire_limits_fail() {
     wrong["limit"] = serde_json::json!(99);
     assert!(serde_json::from_value::<MapSourcePage>(wrong).is_err());
     let mut wrong = wire;
-    wrong["next_cursor"] = serde_json::json!(MapSourceCursor::new(MapSourceId::new()));
+    wrong["nextCursor"] = serde_json::json!(MapSourceCursor::new(MapSourceId::new()));
     assert!(serde_json::from_value::<MapSourcePage>(wrong).is_err());
 }
 
 fn summary(n: usize) -> veoveo_map_mcp::contract::SourceSummary {
     serde_json::from_value(serde_json::json!({
-        "source_id": format!("source-{n:08x}-0000-7000-8000-000000000000"),
-        "dataset_id": "dataset-00000000-0000-7000-8000-000000000000",
-        "name":"Fixture", "adapter_kind":"authority_vector", "authority":"synthetic_test",
-        "acquisition_model":"snapshot", "map_families":["road_street"],
-        "license":{"license_id":"fixture", "source_terms_uri":"https://fixture.local/terms",
-            "attribution":"Fixture", "redistribution_allowed":true, "derivatives_allowed":true,
-            "offline_bundle_allowed":true},
-        "enabled":true, "record_version":1,
-        "created_at":"2026-01-01T00:00:00Z", "updated_at":"2026-01-01T00:00:00Z"
+        "sourceId": format!("source-{n:08x}-0000-7000-8000-000000000000"),
+        "datasetId": "dataset-00000000-0000-7000-8000-000000000000",
+        "name":"Fixture", "adapterKind":"authority_vector", "authority":"synthetic_test",
+        "acquisitionModel":"snapshot", "mapFamilies":["road_street"],
+        "license":{"licenseId":"fixture", "sourceTermsUri":"https://fixture.local/terms",
+            "attribution":"Fixture", "redistributionAllowed":true, "derivativesAllowed":true,
+            "offlineBundleAllowed":true},
+        "enabled":true, "recordVersion":1,
+        "createdAt":"2026-01-01T00:00:00Z", "updatedAt":"2026-01-01T00:00:00Z"
     }))
     .unwrap()
 }
@@ -186,10 +186,10 @@ fn public_summary_checks_metadata_and_keeps_the_existing_wire_fields() {
         ("name", serde_json::json!("")),
         ("name", serde_json::json!("bad\nname")),
         ("record_version", serde_json::json!(0)),
-        ("map_families", serde_json::json!([])),
-        ("updated_at", serde_json::json!("2025-01-01T00:00:00Z")),
+        ("mapFamilies", serde_json::json!([])),
+        ("updatedAt", serde_json::json!("2025-01-01T00:00:00Z")),
         ("credential", serde_json::json!("unexpected secret")),
-        ("source_id", serde_json::json!(admitted.dataset_id())),
+        ("sourceId", serde_json::json!(admitted.dataset_id())),
     ] {
         let mut bad = wire.clone();
         bad[field] = value;
@@ -236,7 +236,7 @@ fn pages_admit_only_sorted_unique_summaries_and_a_matching_full_page_cursor() {
     assert!(MapSourcePage::from_lookahead(vec![summary(1), summary(1)]).is_err());
     assert!(MapSourcePage::from_lookahead(vec![summary(2), summary(1)]).is_err());
     let mut bad = wire.clone();
-    bad["next_cursor"] = serde_json::json!(MapSourceCursor::new(summary(98).source_id().clone()));
+    bad["nextCursor"] = serde_json::json!(MapSourceCursor::new(summary(98).source_id().clone()));
     assert!(serde_json::from_value::<MapSourcePage>(bad).is_err());
     let mut bad = wire;
     bad["items"].as_array_mut().unwrap().remove(0);

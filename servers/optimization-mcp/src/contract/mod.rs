@@ -12,9 +12,12 @@ pub mod uris;
 
 mod common;
 mod index;
+mod map_travel_model;
 mod model;
+pub(crate) mod naming;
 mod profile;
 mod routing;
+pub use map_travel_model::decode_map_travel_model;
 mod solution;
 mod value_admission;
 pub use value_admission::definition_digest;
@@ -30,12 +33,11 @@ pub use routing::*;
 pub use solution::*;
 pub use usage::*;
 
-pub const OPTIMIZATION_CONTRACT_VERSION: &str = "veoveo.ai/optimization/v1";
-pub const ROUTING_PROBLEM_VERSION: &str = "veoveo.ai/routing-problem/v1";
-pub const CONVEX_PROBLEM_VERSION: &str = "veoveo.ai/convex-problem/v1";
-pub const MILP_PROBLEM_VERSION: &str = "veoveo.ai/milp-problem/v1";
-pub const TRAVEL_MODEL_ARTIFACT_VERSION: &str = "veoveo.ai/travel-model-artifact/v1";
-pub const EXECUTOR_PROTOCOL_VERSION: &str = "veoveo.ai/cuopt-executor/v1";
+pub const OPTIMIZATION_CONTRACT_VERSION: &str = "veoveo.ai/optimization/v2";
+pub const ROUTING_PROBLEM_VERSION: &str = "veoveo.ai/routing-problem/v2";
+pub const CONVEX_PROBLEM_VERSION: &str = "veoveo.ai/convex-problem/v2";
+pub const MILP_PROBLEM_VERSION: &str = "veoveo.ai/milp-problem/v2";
+pub const EXECUTOR_PROTOCOL_VERSION: &str = "veoveo.ai/cuopt-executor/v2";
 pub const CUOPT_STABLE_VERSION: &str = "26.08";
 pub const CUOPT_CONTAINER_DIGEST: &str =
     "sha256:81441d50797ffaf6352552d94bd14560c53df28370bd0c9bf413fd7eeebbf178";

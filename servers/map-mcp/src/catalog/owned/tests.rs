@@ -3,6 +3,7 @@ use super::*;
 use crate::contract::*;
 use crate::persistence::MapRepository;
 use crate::persistence::{MapCatalogCompletion, MapRouteMatrixDraft};
+use chrono::Utc;
 use std::{collections::BTreeSet, time::Duration};
 use veoveo_platform_store::{PlatformStore, PrincipalKind};
 
@@ -169,7 +170,7 @@ async fn qualify() {
                     let wire = serde_json::to_value(&page).unwrap();
                     assert!(wire["items"][0].get("legs").is_none());
                     assert_eq!(
-                        wire["items"][0]["resource_uri"],
+                        wire["items"][0]["resourceUri"],
                         crate::contract::MapRouteUri::new(page.items[0].route_id.clone())
                             .to_string()
                     );
@@ -184,11 +185,13 @@ async fn qualify() {
                 MapCatalogPage::Matrices { after } => {
                     let page = reader.matrices_page(&owner, after.as_ref()).await.unwrap();
                     assert_eq!(page.limit, 100);
-                    assert!(
-                        serde_json::to_value(&page).unwrap()["items"][0]
-                            .get("cells")
-                            .is_none()
+                    let wire = serde_json::to_value(&page).unwrap();
+                    assert!(wire["items"][0].get("cells").is_none());
+                    assert_eq!(
+                        wire["items"][0]["resourceUri"],
+                        MapMatrixUri::new(page.items[0].matrix_id.clone()).to_string()
                     );
+                    assert_eq!(page.items[0].resource_uri.id(), &page.items[0].matrix_id);
                     (
                         page.items
                             .into_iter()
@@ -268,14 +271,14 @@ async fn qualify() {
             "map_route_matrix",
             matrix.to_string(),
             serde_json::to_value(&original_matrix).unwrap(),
-            "matrix_id",
+            "matrixId",
             key("matrix", 8000),
         ),
         (
             "map_acquisition",
             job.to_string(),
             serde_json::to_value(&original_job).unwrap(),
-            "source_id",
+            "sourceId",
             key("source", 8000),
         ),
     ] {

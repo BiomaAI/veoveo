@@ -14,6 +14,7 @@ pub enum SolverIntent {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SolverProfileDefaults {
     pub routing_deadline_seconds: NonZeroU32,
     pub convex_deadline_seconds: NonZeroU32,
@@ -25,6 +26,7 @@ pub struct SolverProfileDefaults {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SolverProfile {
     pub profile_id: SolverProfileId,
     pub profile_uri: OptimizationProfileUri,

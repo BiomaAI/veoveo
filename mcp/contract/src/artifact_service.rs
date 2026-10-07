@@ -67,7 +67,7 @@ pub enum ArtifactReadAuthority<'a> {
 
 /// Current task credential scope. This is delegated authority, not a gateway identity.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactReadCapabilityScope {
     pub task_id: ArtifactTaskId,
     pub principal_id: PrincipalId,

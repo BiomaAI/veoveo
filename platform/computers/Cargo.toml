@@ -69,7 +69,7 @@ uuid = { workspace = true, features = ["serde", "v7"], optional = true }
 zeroize = { workspace = true, optional = true }
 veoveo-computer-execution = { path = "execution", optional = true }
 veoveo-computers-contract = { path = "contract", optional = true }
-veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, optional = true }
 veoveo-platform-store = { path = "../store", optional = true }
 veoveo-policy = { path = "../policy", optional = true }
 veoveo-task-runtime = { path = "../task-runtime", optional = true }

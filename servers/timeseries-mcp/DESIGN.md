@@ -17,7 +17,7 @@ structured output.
 | [Rerun 0.38.1](https://rerun.io/docs/) RRD | Full-resolution observations, forecast quantiles, and provenance are encoded into an immutable recording artifact. |
 | SVG | The MCP App renders its bounded preview as inline vector graphics without external network access. |
 | Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, and the 8 MiB final serialized-response cap. |
-| Veoveo usage resource profile | `timeseries://usage` pages and native UUIDv7 Task addresses; the shared URI component profile and version 1 Base64 cursor described under Usage Reads. |
+| Veoveo usage resource profile | `timeseries://usage` pages and native UUIDv7 Task addresses; the shared URI component profile and version 2 Base64 cursor described under Usage Reads. |
 
 The forecast request imports `DuckDbTabularSource` and read SQL rendering from the DuckDB
 server library with only its `contract` feature enabled. Timeseries owns source
@@ -39,6 +39,12 @@ lists require at least one member. Builders and JSON decoding enforce these rule
 Task admission, and JSON Schema declares the same bounds. The extraction query selects
 non-null finite observations and applies the training filter in SQL while preserving
 each observation's original row position.
+
+Controlled JSON object members use camelCase and owner vocabulary values use
+snake_case. Native database columns, SQL identifiers, caller-defined result columns
+and upstream reader option names keep their declared profiles. Typed request and
+result admission rejects retired field spellings. The coordinated installation
+uses drained Tasks and fresh current-format data.
 
 ## Library Features
 
@@ -79,7 +85,7 @@ contract consumer qualify route admission without a hosted service.
 
 Structured output carries three layers:
 
-- `result_uri` — the canonical `timeseries://artifact/{artifact_id}` handoff
+- `resultUri` — the canonical `timeseries://artifact/{artifact_id}` handoff
   for the immutable full-resolution product.
 - `forecast` — the summary (method, horizon, per-series row counts).
 - `preview` — downsampled chartable series (observed points plus
@@ -89,7 +95,7 @@ Structured output carries three layers:
 - `artifact` — metadata for the full-resolution Rerun recording.
 
 Human content contains a short identity-free completion status and one resource
-link for `result_uri`. `resources/list` advertises the stable usage root and
+link for `resultUri`. `resources/list` advertises the stable usage root and
 templates without enumerating task records. Usage reads return at most 100
 authorized task identities in stable task order, with a versioned opaque cursor;
 the per-task URI remains an exact lookup. The shared transport discards any
@@ -120,10 +126,10 @@ from the URI; decoding rejects conflicting identities. Pages enforce ascending u
 Task IDs, the fixed limit, and agreement between a continuation cursor and the last
 entry of a full page.
 
-The cursor uses URL-safe unpadded Base64 over the version 1 JSON object
-`{"version":1,"task_id":"<uuid>"}`. It is a position, and every subsequent query
+The cursor uses URL-safe unpadded Base64 over the version 2 JSON object
+`{"version":2,"taskId":"<uuid>"}`. It is a position, and every subsequent query
 checks current visibility. The page fields are `usage`, `limit` and optional
-`next_cursor`; terminal pages omit the cursor. The URI profile is a Veoveo extension
+`nextCursor`; terminal pages omit the cursor. The URI profile is a Veoveo extension
 over the shared [resource component profile](../../platform/types/DESIGN.md).
 
 ### Usage Deployment And Qualification

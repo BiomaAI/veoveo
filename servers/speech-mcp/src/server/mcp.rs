@@ -315,6 +315,7 @@ fn text_artifact_resource(
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct Capabilities {
     model: &'static str,
     revision: &'static str,
@@ -327,6 +328,7 @@ struct Capabilities {
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct TranscriptionView<'a> {
     task_id: TranscriptionId,
     status: veoveo_platform_store::TaskStatus,

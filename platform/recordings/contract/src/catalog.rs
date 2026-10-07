@@ -10,7 +10,7 @@ use crate::{
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
-pub const RECORDING_CATALOG_GRANT_SCHEMA: &str = "veoveo.ai/recording-catalog-grant/v1";
+pub const RECORDING_CATALOG_GRANT_SCHEMA: &str = "veoveo.ai/recording-catalog-grant/v2";
 
 /// A bounded, sorted Recording selection. Dataset membership is checked by Store.
 /// ```compile_fail
@@ -18,7 +18,7 @@ pub const RECORDING_CATALOG_GRANT_SCHEMA: &str = "veoveo.ai/recording-catalog-gr
 /// CreateRecordingCatalogGrantRequest::new(RecordingId::new(), vec![RecordingDatasetId::new()]);
 /// ```
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(try_from = "CatalogGrantRequestWire")]
+#[serde(try_from = "CatalogGrantRequestWire", rename_all = "camelCase")]
 #[schemars(with = "CatalogGrantRequestWire")]
 pub struct CreateRecordingCatalogGrantRequest {
     dataset_id: RecordingDatasetId,
@@ -47,7 +47,7 @@ impl CreateRecordingCatalogGrantRequest {
     }
 }
 #[derive(Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 #[schemars(rename = "CreateRecordingCatalogGrantRequest")]
 struct CatalogGrantRequestWire {
     dataset_id: RecordingDatasetId,
@@ -62,13 +62,14 @@ impl TryFrom<CatalogGrantRequestWire> for CreateRecordingCatalogGrantRequest {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
+#[schemars(transform = crate::format_tag_role)]
 pub enum RecordingCatalogGrantSchema {
-    #[serde(rename = "veoveo.ai/recording-catalog-grant/v1")]
-    V1,
+    #[serde(rename = "veoveo.ai/recording-catalog-grant/v2")]
+    V2,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 #[schemars(rename = "RecordingCatalogGrant")]
 pub struct RecordingCatalogGrantBuilder {
     pub schema: RecordingCatalogGrantSchema,
@@ -78,7 +79,7 @@ pub struct RecordingCatalogGrantBuilder {
     pub catalog_revision: String,
     pub entry_uri: RecordingCatalogUri,
     pub redap_token: String,
-    #[schemars(with = "String")]
+    #[schemars(with = "String", extend("format" = "date-time"))]
     pub expires_at: DateTime<Utc>,
 }
 

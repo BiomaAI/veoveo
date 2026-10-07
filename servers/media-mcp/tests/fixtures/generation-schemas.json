@@ -1,228 +1,273 @@
 {
-  "output": {
-    "$defs": {
-      "AccessSubject": {
-        "description": "A principal or group that can own governed data or receive access.",
-        "oneOf": [
-          {
-            "properties": {
-              "id": {
-                "$ref": "#/$defs/PrincipalId"
-              },
-              "kind": {
-                "const": "principal",
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind",
-              "id"
-            ],
-            "type": "object",
-            "additionalProperties": false
-          },
-          {
-            "properties": {
-              "id": {
-                "$ref": "#/$defs/GroupId"
-              },
-              "kind": {
-                "const": "group",
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind",
-              "id"
-            ],
-            "type": "object",
-            "additionalProperties": false
-          }
+  "summary": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "GenerationPredictionSummary",
+    "description": "Public, provider-neutral summary of the provider job behind a completed task.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "modelId": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
         ]
       },
-      "ArtifactId": {
-        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+      "executionMs": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "format": "double"
+      },
+      "timings": true,
+      "outputCount": {
+        "type": "integer",
+        "format": "uint",
+        "minimum": 0
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "modelId",
+      "status",
+      "outputCount"
+    ]
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "MediaGenerationResult",
+    "type": "object",
+    "properties": {
+      "schema": {
+        "$ref": "#/$defs/ResultSchema"
+      },
+      "taskId": {
+        "$ref": "#/$defs/TaskId"
+      },
+      "resultUri": {
+        "$ref": "#/$defs/MediaGenerationUri"
+      },
+      "prediction": {
+        "$ref": "#/$defs/GenerationPredictionSummary"
+      },
+      "artifacts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/ArtifactMetadata"
+        }
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "schema",
+      "taskId",
+      "resultUri",
+      "prediction",
+      "artifacts"
+    ],
+    "$defs": {
+      "ResultSchema": {
+        "type": "string",
+        "enum": [
+          "veoveo.ai/media-generation/v2"
+        ],
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "builtin",
+              "grammar": "format_tag"
+            }
+          }
+        }
+      },
+      "TaskId": {
+        "type": "string",
+        "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
+        "maxLength": 45,
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::task"
+                },
+                "profile": "TaskId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "MediaGenerationUri": {
         "type": "string"
+      },
+      "GenerationPredictionSummary": {
+        "description": "Public, provider-neutral summary of the provider job behind a completed task.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "modelId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "executionMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "timings": true,
+          "outputCount": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "modelId",
+          "status",
+          "outputCount"
+        ]
       },
       "ArtifactMetadata": {
         "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "type": "object",
         "properties": {
-          "artifact_id": {
+          "artifactId": {
             "$ref": "#/$defs/ArtifactId"
           },
-          "artifact_uri": {
+          "byteLen": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "mimeType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "artifactUri": {
             "$ref": "#/$defs/ArtifactUri"
           },
-          "byte_len": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
+          "downloadUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "releaseState": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
           },
           "compliance": {
             "$ref": "#/$defs/ComplianceMetadata",
             "default": {}
           },
-          "created_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "download_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "filename": {
-            "default": null,
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "metadata": {
             "default": null
-          },
-          "mime_type": {
-            "default": null,
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "release_state": {
-            "$ref": "#/$defs/ArtifactReleaseState",
-            "default": "private"
           }
         },
+        "additionalProperties": false,
         "required": [
-          "artifact_id",
-          "byte_len",
-          "artifact_uri",
-          "created_at"
-        ],
-        "type": "object"
-      },
-      "ArtifactProvenance": {
-        "description": "Immutable explanation of how an artifact came into being.",
-        "oneOf": [
-          {
-            "properties": {
-              "delegation_id": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/NoIdentity"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "initiator": {
-                "$ref": "#/$defs/PrincipalId"
-              },
-              "invocation_mode": {
-                "const": "direct",
-                "type": "string"
-              },
-              "policy_revision": {
-                "$ref": "#/$defs/PolicyVersion"
-              },
-              "producer": {
-                "$ref": "#/$defs/PrincipalId"
-              }
-            },
-            "required": [
-              "invocation_mode",
-              "producer",
-              "initiator",
-              "policy_revision"
-            ],
-            "type": "object"
-          },
-          {
-            "properties": {
-              "delegation_id": {
-                "$ref": "#/$defs/DelegationId"
-              },
-              "initiator": {
-                "$ref": "#/$defs/PrincipalId"
-              },
-              "invocation_mode": {
-                "const": "delegated",
-                "type": "string"
-              },
-              "policy_revision": {
-                "$ref": "#/$defs/PolicyVersion"
-              },
-              "producer": {
-                "$ref": "#/$defs/PrincipalId"
-              }
-            },
-            "required": [
-              "invocation_mode",
-              "producer",
-              "initiator",
-              "delegation_id",
-              "policy_revision"
-            ],
-            "type": "object"
-          },
-          {
-            "properties": {
-              "delegation_id": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/NoIdentity"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "initiator": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/NoIdentity"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "invocation_mode": {
-                "const": "automated",
-                "type": "string"
-              },
-              "policy_revision": {
-                "$ref": "#/$defs/PolicyVersion"
-              },
-              "producer": {
-                "$ref": "#/$defs/PrincipalId"
-              }
-            },
-            "required": [
-              "invocation_mode",
-              "producer",
-              "policy_revision"
-            ],
-            "type": "object"
-          }
+          "artifactId",
+          "byteLen",
+          "artifactUri",
+          "createdAt"
         ]
       },
-      "ArtifactReleaseState": {
-        "enum": [
-          "private",
-          "releasable",
-          "released"
-        ],
-        "type": "string"
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_artifact_contract::identity"
+                },
+                "profile": "ArtifactId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "ArtifactUri": {
         "description": "Neutral or server-presented Artifact occurrence URI.",
         "type": "string"
       },
+      "ArtifactReleaseState": {
+        "type": "string",
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ]
+      },
       "ComplianceMetadata": {
         "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "type": "object",
         "properties": {
           "classification": {
             "anyOf": [
@@ -234,17 +279,30 @@
               }
             ]
           },
-          "data_labels": {
-            "items": {
-              "$ref": "#/$defs/DataLabelId"
-            },
-            "type": "array",
-            "uniqueItems": true
+          "tenantId": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "owner": {
             "anyOf": [
               {
                 "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workContext": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
               },
               {
                 "type": "null"
@@ -261,14 +319,624 @@
               }
             ]
           },
-          "retention_expires_at": {
-            "format": "date-time",
+          "dataLabels": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            }
+          },
+          "retentionExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DataLabelId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "TenantId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "principal"
+              },
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "group"
+              },
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PrincipalId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "GroupId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "WorkContextId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegationId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policyRevision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocationMode": {
+                "type": "string",
+                "const": "direct"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "invocationMode",
+              "producer",
+              "initiator",
+              "policyRevision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegationId": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "policyRevision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocationMode": {
+                "type": "string",
+                "const": "delegated"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "invocationMode",
+              "producer",
+              "initiator",
+              "delegationId",
+              "policyRevision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delegationId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policyRevision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocationMode": {
+                "type": "string",
+                "const": "automated"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "invocationMode",
+              "producer",
+              "policyRevision"
+            ]
+          }
+        ]
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PolicyVersion",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DelegationId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "attribution": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "MediaOutputArtifactMetadata",
+    "type": "object",
+    "properties": {
+      "taskId": {
+        "$ref": "#/$defs/TaskId"
+      },
+      "jobId": {
+        "$ref": "#/$defs/MediaPredictionId"
+      },
+      "modelId": {
+        "type": "string"
+      },
+      "outputIndex": {
+        "type": "integer",
+        "format": "uint",
+        "minimum": 0
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "taskId",
+      "jobId",
+      "modelId",
+      "outputIndex"
+    ],
+    "$defs": {
+      "TaskId": {
+        "type": "string",
+        "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
+        "maxLength": 45,
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::task"
+                },
+                "profile": "TaskId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "MediaPredictionId": {
+        "description": "Opaque provider identity, distinct from native Task and Store job identities.",
+        "type": "string"
+      }
+    }
+  },
+  "modelResource": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ModelResourceOutput",
+    "description": "Complete owned resource view; the provider schema envelope stays open.",
+    "type": "object",
+    "properties": {
+      "modelId": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "basePrice": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "format": "double"
+      },
+      "formula": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "apiSchema": true
+    },
+    "additionalProperties": false,
+    "required": [
+      "modelId",
+      "name",
+      "type",
+      "description"
+    ]
+  },
+  "modelSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ModelSchemaOutput",
+    "type": "object",
+    "properties": {
+      "modelId": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "basePrice": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "format": "double"
+      },
+      "formula": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "schemaUri": {
+        "$ref": "#/$defs/MediaModelUri"
+      },
+      "requestSchema": true
+    },
+    "additionalProperties": false,
+    "required": [
+      "modelId",
+      "name",
+      "type",
+      "description",
+      "schemaUri"
+    ],
+    "$defs": {
+      "MediaModelUri": {
+        "description": "```compile_fail\nuse veoveo_media_mcp::contract::MediaModelUri;\nMediaModelUri::new(\"openai/gpt-image-2/edit\");\n```",
+        "type": "string"
+      }
+    }
+  },
+  "artifactInput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ArtifactArgs",
+    "type": "object",
+    "properties": {
+      "artifactUri": {
+        "description": "Media artifact resource URI, for example media://artifact/{artifact_id}.",
+        "$ref": "#/$defs/MediaArtifactUri"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "artifactUri"
+    ],
+    "$defs": {
+      "MediaArtifactUri": {
+        "description": "```compile_fail\nuse veoveo_media_mcp::contract::MediaArtifactUri;\nuse veoveo_types::TaskId;\nMediaArtifactUri::new(TaskId::new());\n```",
+        "type": "string"
+      }
+    }
+  },
+  "artifactOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ArtifactOutput",
+    "type": "object",
+    "properties": {
+      "artifact": {
+        "$ref": "#/$defs/ArtifactMetadata"
+      },
+      "inlined": {
+        "type": "boolean"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "artifact",
+      "inlined"
+    ],
+    "$defs": {
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "byteLen": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "mimeType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "artifactUri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "downloadUrl": {
             "type": [
               "string",
               "null"
             ]
           },
-          "tenant_id": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "releaseState": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "metadata": {
+            "default": null
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "artifactId",
+          "byteLen",
+          "artifactUri",
+          "createdAt"
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_artifact_contract::identity"
+                },
+                "profile": "ArtifactId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ArtifactReleaseState": {
+        "type": "string",
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ]
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "type": "object",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenantId": {
             "anyOf": [
               {
                 "$ref": "#/$defs/TenantId"
@@ -278,7 +946,17 @@
               }
             ]
           },
-          "work_context": {
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workContext": {
             "anyOf": [
               {
                 "$ref": "#/$defs/WorkContextId"
@@ -287,180 +965,434 @@
                 "type": "null"
               }
             ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dataLabels": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            }
+          },
+          "retentionExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         },
-        "type": "object"
+        "additionalProperties": false
       },
       "DataLabelId": {
         "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DataLabelId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "DelegationId": {
-        "description": "Auditable identity of authority delegated by an initiator to another actor.",
-        "type": "string"
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "TenantId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "GenerationPredictionSummary": {
-        "description": "Public, provider-neutral summary of the provider job behind a completed task.",
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "type": [
-              "string",
-              "null"
-            ]
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "principal"
+              },
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
           },
-          "error": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "execution_ms": {
-            "format": "double",
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "id": {
-            "type": "string"
-          },
-          "model_id": {
-            "type": "string"
-          },
-          "output_count": {
-            "format": "uint",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "status": {
-            "type": "string"
-          },
-          "timings": true
-        },
-        "required": [
-          "id",
-          "model_id",
-          "status",
-          "output_count"
-        ],
-        "type": "object"
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "group"
+              },
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PrincipalId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "GroupId": {
         "description": "Identity-provider group identifier used by gateway policy.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "GroupId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "MediaGenerationUri": {
-        "type": "string"
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "WorkContextId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegationId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policyRevision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocationMode": {
+                "type": "string",
+                "const": "direct"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "invocationMode",
+              "producer",
+              "initiator",
+              "policyRevision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegationId": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "policyRevision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocationMode": {
+                "type": "string",
+                "const": "delegated"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "invocationMode",
+              "producer",
+              "initiator",
+              "delegationId",
+              "policyRevision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delegationId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policyRevision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocationMode": {
+                "type": "string",
+                "const": "automated"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "invocationMode",
+              "producer",
+              "policyRevision"
+            ]
+          }
+        ]
       },
       "NoIdentity": false,
       "PolicyVersion": {
         "description": "Immutable policy version identifier emitted with decisions and audit records.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PolicyVersion",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "PrincipalId": {
-        "description": "Stable authenticated user or service-principal identity.",
-        "type": "string"
-      },
-      "ResultSchema": {
-        "enum": [
-          "veoveo.ai/media-generation/v1"
-        ],
-        "type": "string"
-      },
-      "TaskId": {
-        "maxLength": 45,
-        "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
-        "type": "string"
-      },
-      "TenantId": {
-        "description": "Tenant, organization, or customer boundary identifier.",
-        "type": "string"
-      },
-      "WorkContextId": {
-        "description": "Tenant-local boundary that governs related work and every output it produces.",
-        "type": "string"
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DelegationId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "artifacts": {
-        "items": {
-          "$ref": "#/$defs/ArtifactMetadata"
-        },
-        "type": "array"
-      },
-      "prediction": {
-        "$ref": "#/$defs/GenerationPredictionSummary"
-      },
-      "result_uri": {
-        "$ref": "#/$defs/MediaGenerationUri"
-      },
-      "schema": {
-        "$ref": "#/$defs/ResultSchema"
-      },
-      "task_id": {
-        "$ref": "#/$defs/TaskId"
-      }
-    },
-    "required": [
-      "schema",
-      "task_id",
-      "result_uri",
-      "prediction",
-      "artifacts"
-    ],
-    "title": "MediaGenerationResult",
-    "type": "object"
+    }
   },
-  "summary": {
+  "usageMetadata": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "description": "Public, provider-neutral summary of the provider job behind a completed task.",
-    "properties": {
-      "created_at": {
-        "format": "date-time",
-        "type": [
-          "string",
-          "null"
+    "title": "MediaUsageMetadata",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "modelType": {
+            "type": "string"
+          },
+          "formula": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "costKind": {
+            "$ref": "#/$defs/MediaUsageCostKind"
+          },
+          "source": {
+            "type": "string",
+            "const": "model_registry"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "modelType",
+          "costKind"
         ]
       },
-      "error": {
-        "type": [
-          "string",
-          "null"
+      {
+        "type": "object",
+        "properties": {
+          "billingType": {
+            "type": "string"
+          },
+          "sourceCreatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "sourceUpdatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "orderId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "orderState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "orderStatus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jobStatus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "const": "billing_record"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "billingType"
         ]
-      },
-      "execution_ms": {
-        "format": "double",
-        "type": [
-          "number",
-          "null"
-        ]
-      },
-      "id": {
-        "type": "string"
-      },
-      "model_id": {
-        "type": "string"
-      },
-      "output_count": {
-        "format": "uint",
-        "minimum": 0,
-        "type": "integer"
-      },
-      "status": {
-        "type": "string"
-      },
-      "timings": true
-    },
-    "required": [
-      "id",
-      "model_id",
-      "status",
-      "output_count"
+      }
     ],
-    "title": "GenerationPredictionSummary",
-    "type": "object"
+    "$defs": {
+      "MediaUsageCostKind": {
+        "type": "string",
+        "enum": [
+          "estimate"
+        ]
+      }
+    }
   }
 }

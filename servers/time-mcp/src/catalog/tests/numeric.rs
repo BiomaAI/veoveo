@@ -182,7 +182,7 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
             .unwrap();
         for version in [0, i64::MAX as u64, u64::MAX] {
             let mut wire = serde_json::to_value(&retained).unwrap();
-            wire["record_version"] = version.into();
+            wire["recordVersion"] = version.into();
             wire["status"] = "running".into();
             wire["phase"] = "downloading".into();
             match serde_json::from_value::<TimeAcquisition>(wire) {

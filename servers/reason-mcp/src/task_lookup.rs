@@ -62,6 +62,8 @@ pub(crate) struct Settlement {
     pub(crate) expected_metadata: Option<MetadataRecord>,
     pub(crate) finding: Option<FindingRecord>,
 }
+// These nested values store controlled JSON documents. Their camelCase keys
+// follow the owning contracts; the surrounding SurrealValue row uses SQL names.
 pub(crate) struct MetadataRecord(pub(crate) crate::contract::ReasonArtifactMetadata);
 pub(crate) struct FindingRecord(pub(crate) crate::contract::FindingData);
 fn from_native<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, Error> {
@@ -188,6 +190,12 @@ impl TaskContributions for Contributions {
         }
         let expected_result = AnalysisResultRecord::new(result.clone())?;
         let output = expected_result.output();
+        let request: crate::task_request::DurableReasonRequest =
+            serde_json::from_value(current.request.clone())?;
+        let crate::task_request::ReasonTaskInput::Analyze(request) = request.input;
+        output.check_request(&request).map_err(|_| {
+            TaskError::InvalidRecord("Reason product differs from its selected request".into())
+        })?;
         if output.analysis_id().task_id() != current.task_id
             || *output.pipeline_uri.id() != identity.pipeline_id
         {
@@ -243,6 +251,86 @@ impl TaskContributions for Contributions {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn checked_documents_preserve_current_fields_and_refuse_retired_or_mixed_fields() {
+        let output: crate::contract::AnalyzeRecordingOutput =
+            serde_json::from_str(include_str!("../testdata/analysis-output-v1.json")).unwrap();
+        let mut finding = serde_json::to_value(&output.finding).unwrap();
+        finding["decode"] = serde_json::to_value(crate::contract::DecodePolicy::Sampled {
+            temperature: 0.5,
+            top_p: 0.9,
+            seed: 42,
+        })
+        .unwrap();
+        let decoded = FindingRecord::from_value(veoveo_platform_store::native_json_into_value(
+            finding.clone(),
+        ))
+        .unwrap();
+        assert_eq!(
+            veoveo_platform_store::native_json_from_value_strict(decoded.into_value()).unwrap(),
+            finding
+        );
+        for (path, current, retired) in [
+            ("", "pipelineId", "pipeline_id"),
+            ("", "modelId", "model_id"),
+            ("", "requestedRange", "requested_range"),
+            ("/decode", "topP", "top_p"),
+            ("/answer/events/0", "trackIds", "track_ids"),
+        ] {
+            for mixed in [false, true] {
+                let mut invalid = finding.clone();
+                let fields = invalid.pointer_mut(path).unwrap().as_object_mut().unwrap();
+                let value = if mixed {
+                    fields[current].clone()
+                } else {
+                    fields.remove(current).unwrap()
+                };
+                fields.insert(retired.into(), value);
+                assert!(
+                    FindingRecord::from_value(veoveo_platform_store::native_json_into_value(
+                        invalid
+                    ))
+                    .is_err()
+                );
+            }
+        }
+        let metadata = output.results_artifact.metadata.clone();
+        let decoded = MetadataRecord::from_value(veoveo_platform_store::native_json_into_value(
+            metadata.clone(),
+        ))
+        .unwrap();
+        assert_eq!(
+            veoveo_platform_store::native_json_from_value_strict(decoded.into_value()).unwrap(),
+            metadata
+        );
+        for (current, retired) in [
+            ("analysisId", "analysis_id"),
+            ("recordingId", "recording_id"),
+            ("pipelineId", "pipeline_id"),
+            ("modelId", "model_id"),
+            ("promptRevision", "prompt_revision"),
+            ("taskKind", "task_kind"),
+            ("sourceSnapshotSha256", "source_snapshot_sha256"),
+        ] {
+            for mixed in [false, true] {
+                let mut invalid = metadata.clone();
+                let fields = invalid["provenance"].as_object_mut().unwrap();
+                let value = if mixed {
+                    fields[current].clone()
+                } else {
+                    fields.remove(current).unwrap()
+                };
+                fields.insert(retired.into(), value);
+                assert!(
+                    MetadataRecord::from_value(veoveo_platform_store::native_json_into_value(
+                        invalid
+                    ))
+                    .is_err()
+                );
+            }
+        }
+    }
+
     #[test]
     fn checked_lookup_adapters_reject_unknown_known_fields() {
         let output: crate::contract::AnalyzeRecordingOutput =

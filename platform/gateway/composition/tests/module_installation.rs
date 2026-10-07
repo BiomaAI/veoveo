@@ -68,7 +68,7 @@ async fn process_preparation_lanes_publication_and_stale_generation_fail_closed(
         let exported: serde_json::Value = serde_json::from_str(&success(process(&["module-plan", "--modules", path(&selection), "--composition", &composition, "--helm-values"], &[]).await)).unwrap();
         assert_eq!(exported["moduleInstallation"]["planJson"], generated.trim());
  std::fs::write(&plan_path, &generated).unwrap();
-        let control = serde_json::json!({"identity_providers":[],"authorization_servers":[],"servers":[],"profiles":[],"tenants":[{"id":"fixture","metadata":{}}],"work_contexts":[{"id":"mission","tenant":"fixture","title":"Mission","policy_revision":"policy-fixture","output_policy":{"owner":{"kind":"group","id":"operations"},"initial_grants":[],"classification":null,"data_labels":[]},"memberships":[{"level":"contributor","groups":["operations"]}]}],"policies":[{"version":"policy-fixture","rules":[],"metadata":{}}],"data_labels":[],"oidc_clients":[]});
+        let control = serde_json::json!({"identityProviders":[],"authorizationServers":[],"servers":[],"profiles":[],"tenants":[{"id":"fixture","metadata":{}}],"workContexts":[{"id":"mission","tenant":"fixture","title":"Mission","policyRevision":"policy-fixture","outputPolicy":{"owner":{"kind":"group","id":"operations"},"initialGrants":[],"classification":null,"dataLabels":[]},"memberships":[{"level":"contributor","groups":["operations"]}]}],"policies":[{"version":"policy-fixture","rules":[],"metadata":{}}],"dataLabels":[],"oidcClients":[]});
         // Decode the real owner model before the process runs; the fixture is not an open JSON contract.
         let control: veoveo_mcp_contract::GatewayControlPlane = serde_json::from_value(control).unwrap();
         std::fs::write(&seed, serde_json::to_vec(&control).unwrap()).unwrap();
@@ -109,8 +109,8 @@ async fn process_preparation_lanes_publication_and_stale_generation_fail_closed(
         success(process(&["module-status"], &runtime).await);
         let first: serde_json::Value = serde_json::from_str(&success(process(&publish,&runtime).await)).unwrap();
         let repeated: serde_json::Value = serde_json::from_str(&success(process(&publish,&runtime).await)).unwrap();
-        assert_eq!(original["revision_id"], first["revision_id"]);
-        assert_eq!(first["revision_id"], repeated["revision_id"]); assert_eq!(repeated["status"], "unchanged");
+        assert_eq!(original["revisionId"], first["revisionId"]);
+        assert_eq!(first["revisionId"], repeated["revisionId"]); assert_eq!(repeated["status"], "unchanged");
         let mut result = db.query(include_str!("queries/module_installation/process_preparation_lanes_publication_and_stale_generation_fail_closed/statement_1.surql")).await.unwrap().check().unwrap();
         let actors: Vec<String> = result.take(0).unwrap(); let applied: Vec<String> = result.take(1).unwrap();
         assert_eq!(actors, vec!["runtime"]); assert_eq!(applied, vec!["declared-operator"]);

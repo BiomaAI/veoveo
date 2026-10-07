@@ -298,7 +298,7 @@ fn cursors_validate_family_identity_position_and_envelope() {
         assert!(CalendarCursor::parse(token).is_err());
     }
     for nanos in [-1, 1_000_000_000] {
-        let value = serde_json::json!({"version":1,"collection":"time://events","position":{"event_key":"event-one","tai_seconds":0,"nanosecond":nanos}});
+        let value = serde_json::json!({"version":2,"collection":"time://events","position":{"eventKey":"event-one","taiSeconds":0,"nanosecond":nanos}});
         assert!(EventCursor::parse(hex::encode(serde_json::to_vec(&value).unwrap())).is_err());
     }
 }
@@ -380,13 +380,13 @@ fn version_schema_and_admin_paths_enforce_the_database_range() {
     for version in [0, -1, i64::MAX as i128 + 1] {
         assert!(
             serde_json::from_value::<CalendarVersionPath>(serde_json::json!({
-                "calendar_id": "calendar-one", "version": version,
+                "calendarId": "calendar-one", "version": version,
             }))
             .is_err()
         );
     }
     let path: CalendarVersionPath = serde_json::from_value(serde_json::json!({
-        "calendar_id": "calendar-one", "version": 12,
+        "calendarId": "calendar-one", "version": 12,
     }))
     .unwrap();
     assert_eq!(path.version, version());
@@ -428,7 +428,7 @@ where
         assert!(serde_json::from_value::<C>(invalid.into()).is_err());
     }
     let mut invalid: serde_json::Value = serde_json::from_str(envelope).unwrap();
-    invalid["version"] = 2.into();
+    invalid["version"] = 255.into();
     assert!(
         serde_json::from_value::<C>(hex::encode(serde_json::to_vec(&invalid).unwrap()).into())
             .is_err()
@@ -463,7 +463,7 @@ fn all_cursor_collections_keep_hex_envelopes_aliases_and_nominal_schemas() {
             -42,
             SubsecondNanoseconds::MAX,
         ),
-        r#"{"version":1,"collection":"time://events","position":{"tai_seconds":-42,"nanosecond":999999999,"event_key":"event-one"}}"#,
+        r#"{"version":2,"collection":"time://events","position":{"taiSeconds":-42,"nanosecond":999999999,"eventKey":"event-one"}}"#,
         "EventCursor",
     );
     let release = AuthorityReleaseId::parse("time-release-fixture").unwrap();
@@ -584,4 +584,34 @@ fn route_query_schema_and_admission_preserve_opaque_cursor_hex_aliases() {
             .unwrap()
             .is_valid(&serde_json::json!(wire.as_str()))
     );
+}
+
+#[test]
+fn event_cursor_revision_two_refuses_old_and_mixed_position_members() {
+    let cursor = EventCursor::new(
+        &TemporalEventId::parse("event-current").unwrap(),
+        -42,
+        SubsecondNanoseconds::ZERO,
+    );
+    let wire: serde_json::Value =
+        serde_json::from_slice(&hex::decode(cursor.as_str()).unwrap()).unwrap();
+    assert_eq!(wire["version"], 2);
+    assert_eq!(wire["position"]["taiSeconds"], -42);
+    assert_eq!(wire["position"]["eventKey"], "event-current");
+    assert_eq!(EventCursor::parse(cursor.as_str()).unwrap(), cursor);
+    let mut previous = wire.clone();
+    previous["version"] = 1.into();
+    assert!(EventCursor::parse(hex::encode(serde_json::to_vec(&previous).unwrap())).is_err());
+    for (current, retired) in [("taiSeconds", "tai_seconds"), ("eventKey", "event_key")] {
+        for mixed in [false, true] {
+            let mut bad = wire.clone();
+            let object = bad["position"].as_object_mut().unwrap();
+            let value = object[current].clone();
+            if !mixed {
+                object.remove(current);
+            }
+            object.insert(retired.into(), value);
+            assert!(EventCursor::parse(hex::encode(serde_json::to_vec(&bad).unwrap())).is_err());
+        }
+    }
 }

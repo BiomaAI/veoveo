@@ -193,7 +193,7 @@ fn valid_owner_requests_reject_extra_keys_in_both_schema_and_decoder() {
         "",
     );
     rejects_extra::<veoveo_speech_mcp::contract::TranscribeRequest>(
-        json!({"artifact_uri":artifact.plane_uri()}),
+        json!({"artifactUri":artifact.plane_uri()}),
         "",
     );
     rejects_extra::<veoveo_media_mcp::contract::ModelsArgs>(json!({}), "");
@@ -205,7 +205,7 @@ fn valid_owner_requests_reject_extra_keys_in_both_schema_and_decoder() {
         "",
     );
     rejects_extra::<veoveo_frames_mcp::contract::CreateWorldRequest>(
-        json!({"world_id":"survey", "display_name":"Survey"}),
+        json!({"worldId":"survey", "displayName":"Survey"}),
         "",
     );
     use veoveo_frames_mcp::contract::{
@@ -242,11 +242,11 @@ fn valid_owner_requests_reject_extra_keys_in_both_schema_and_decoder() {
         "",
     );
     rejects_extra::<veoveo_view_mcp::contract::CloseViewRequest>(
-        json!({"view_id":"view-a", "expected_revision":1}),
+        json!({"viewId":"view-a", "expectedRevision":1}),
         "",
     );
     rejects_extra::<veoveo_uav_sim_mcp::contract::VehicleRequest>(
-        json!({"session_id":"session-a", "vehicle_id":"vehicle-a"}),
+        json!({"sessionId":"session-a", "vehicleId":"vehicle-a"}),
         "",
     );
 }

@@ -9,6 +9,7 @@ pub const MOBILITY_PROFILE_PAGE_SIZE: usize = 100;
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CursorWire {
     version: u8,
     collection: String,
@@ -39,7 +40,7 @@ impl veoveo_types::CursorCodec for MapMobilityProfileCursorCodec {
     }
     fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
         let bytes = serde_json::to_vec(&CursorWire {
-            version: 1,
+            version: 2,
             collection: (MapMobilityProfilesUri::ROOT).to_owned(),
             after_id: position.after_id.clone(),
             after_version: position.after_version,
@@ -54,7 +55,7 @@ impl veoveo_types::CursorCodec for MapMobilityProfileCursorCodec {
         let bytes = hex::decode(wire).map_err(|_| MapMobilityError::Cursor)?;
         let decoded: CursorWire =
             serde_json::from_slice(&bytes).map_err(|_| MapMobilityError::Cursor)?;
-        if decoded.version != 1 || decoded.collection != MapMobilityProfilesUri::ROOT {
+        if decoded.version != 2 || decoded.collection != MapMobilityProfilesUri::ROOT {
             return Err(MapMobilityError::Cursor);
         }
         let position = MapMobilityProfileCursorPosition {
@@ -96,6 +97,8 @@ impl MapMobilityProfileCursor {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "PageWire", into = "PageWire")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapMobilityProfilePage {
     items: Vec<MobilityProfile>,
     next_cursor: Option<MapMobilityProfileCursor>,
@@ -104,6 +107,7 @@ pub struct MapMobilityProfilePage {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(transform = super::app_pages::require_cursor_presence)]
+#[serde(rename_all = "camelCase")]
 struct PageWire {
     #[schemars(length(max = 100))]
     items: Vec<MobilityProfile>,
@@ -188,4 +192,42 @@ impl From<MapMobilityProfilePage> for PageWire {
 fn key(profile: &MobilityProfile) -> (&MobilityProfileId, MobilityProfileVersion) {
     let meta = profile.metadata();
     (&meta.profile_id, meta.version)
+}
+
+#[cfg(test)]
+mod naming_cut_tests {
+    use super::*;
+    #[test]
+    fn current_cursor_refuses_old_revision_and_field_names() {
+        let cursor =
+            MapMobilityProfileCursor::new(MobilityProfileId::new(), MobilityProfileVersion::FIRST);
+        assert_eq!(
+            MapMobilityProfileCursor::parse(cursor.as_str()).unwrap(),
+            cursor
+        );
+        let current: serde_json::Value =
+            serde_json::from_slice(&hex::decode(cursor.as_str()).unwrap()).unwrap();
+        assert_eq!(current["version"], 2);
+        for (canonical, retired) in [("afterId", "after_id"), ("afterVersion", "after_version")] {
+            for mixed in [false, true] {
+                let mut invalid = current.clone();
+                invalid[retired] = invalid[canonical].clone();
+                if !mixed {
+                    invalid.as_object_mut().unwrap().remove(canonical);
+                }
+                assert!(
+                    MapMobilityProfileCursor::parse(hex::encode(
+                        serde_json::to_vec(&invalid).unwrap()
+                    ))
+                    .is_err()
+                );
+            }
+        }
+        let mut old = current;
+        old["version"] = serde_json::json!(1);
+        assert!(
+            MapMobilityProfileCursor::parse(hex::encode(serde_json::to_vec(&old).unwrap()))
+                .is_err()
+        );
+    }
 }

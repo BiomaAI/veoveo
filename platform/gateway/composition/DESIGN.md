@@ -10,6 +10,13 @@
 | Database | SurrealDB SDK and native isolated fixtures pinned to 3.3.0; owner lane admission through [module runner](../../modules/DESIGN.md) |
 | Container | Existing `mcp-gateway` Bake image target, digest-pinned Debian base and non-root UID 10001 |
 
+The audit CLI verification summary is an unversioned controlled camelCase object,
+including `clockFindings`. Its embedded checkpoint uses the Audit owner's frozen
+encoding. Record, block, checkpoint, export and crypto preimages keep that encoding;
+the summary does not change them. Administrator control-plane and server-health
+responses use camelCase. Native database projections and HTTP route capture names
+remain explicit driver adapters.
+
 ## Ownership
 
 `veoveo-gateway-composition` owns the `gateway` executable, installation commands,
@@ -63,3 +70,14 @@ admission before shutdown and reports unresolved cleanup within one module deadl
 Listener setup failures and route composition panics await the same cleanup before
 returning. Module workers drain before the process closes audit delivery.
 Authenticated server health lists module bindings separately from backend probes.
+
+## Owning Smoke Delivery
+
+The nondefault `smoke` feature enables `gateway-smoke` and `gateway-smoke-support`. Gateway assertion source sits beside this composition because it validates the selected production registry, gateway authorization and installed component relationships. `smoke_support` holds these composition-specific fixtures; the shared testing support owns only transport, process, artifact and framework mechanics. The suite invokes the existing Bioma delivery for assertions that compose additional domain processes, without introducing a dependency from a production domain back into a composition.
+
+The composed schema exporter preserves all 52 filenames used by offline bundles and owning schema tests. Native child paths are selected from Cargo compiler messages, verified by package/target/features and content digest, and supplied through the dispatch artifact manifest. An explicit binary path must identify that same observed artifact.
+
+The Audit keygen CLI writes a closed camelCase public summary with `keyId` and
+`publicKey`. The seed file, key identity, raw public key and permissions use the
+Audit owner crypto profile. This stdout wrapper is separate from frozen Audit
+record, block, checkpoint and export bodies.

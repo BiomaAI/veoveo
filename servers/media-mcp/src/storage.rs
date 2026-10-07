@@ -1,12 +1,13 @@
 //! Media-owned database records and persistence identities.
 mod prediction;
+use crate::contract::MediaUsageMetadata;
 use chrono::{DateTime, Utc};
 pub(crate) use prediction::PredictionRecord;
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_platform_store::PersistenceIds;
-use veoveo_platform_store::{OpenObject, RedactedSecret};
+use veoveo_platform_store::RedactedSecret;
 use veoveo_types::id;
 
 #[id(
@@ -27,6 +28,26 @@ pub enum MediaUsageKind {
     Estimate,
     #[vocabulary(rename = "actual")]
     Actual,
+}
+
+impl MediaUsageKind {
+    pub(crate) fn require_metadata(
+        self,
+        metadata: &MediaUsageMetadata,
+    ) -> Result<(), veoveo_platform_store::StoreError> {
+        if matches!(
+            (self, metadata),
+            (Self::Estimate, MediaUsageMetadata::ModelRegistry { .. })
+                | (Self::Actual, MediaUsageMetadata::BillingRecord { .. })
+        ) {
+            Ok(())
+        } else {
+            Err(veoveo_platform_store::StoreError::InvalidUsageField {
+                field: "metadata",
+                reason: "estimate requires model_registry; actual requires billing_record",
+            })
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -54,8 +75,25 @@ pub struct MediaUsageRecord {
     pub unit: Option<String>,
     pub amount: Option<f64>,
     pub currency: Option<String>,
-    pub metadata: OpenObject,
+    pub metadata: MediaUsageMetadata,
     pub recorded_at: DateTime<Utc>,
+}
+
+impl SurrealValue for MediaUsageMetadata {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::Object
+    }
+    fn into_value(self) -> surrealdb::types::Value {
+        veoveo_platform_store::native_json_into_value(
+            serde_json::to_value(self).expect("typed Media usage metadata"),
+        )
+    }
+    fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::types::Error> {
+        serde_json::from_value(veoveo_platform_store::native_json_from_value_strict(value)?)
+            .map_err(|_| {
+                surrealdb::types::Error::internal("invalid Media usage attribution".into())
+            })
+    }
 }
 
 #[cfg(test)]

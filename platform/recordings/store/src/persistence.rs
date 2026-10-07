@@ -36,3 +36,11 @@ impl RecordingRepository {
         self.store.client()
     }
 }
+
+#[path = "manifest_publication.rs"]
+mod manifest_publication;
+pub use manifest_publication::*;
+
+#[path = "properties_preparation.rs"]
+mod properties_preparation;
+pub use properties_preparation::{RecordingPropertiesPreparation, source_layer_manifest_digest};

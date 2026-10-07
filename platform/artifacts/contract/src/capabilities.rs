@@ -99,9 +99,10 @@ impl<'de> Deserialize<'de> for ArtifactWriteCapabilitySecret {
 /// artifact service binds the caller principal, tenant, labels, profile, and
 /// server from that verified identity; clients cannot assert them here.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct IssueArtifactWriteCapabilityRequest {
     pub task_id: ArtifactTaskId,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     pub expires_at: DateTime<Utc>,
     pub max_artifact_count: NonZeroU32,
     pub max_total_bytes: NonZeroU64,
@@ -115,10 +116,12 @@ pub struct IssueArtifactWriteCapabilityRequest {
 /// One-time issuance response. `secret` is returned only here and is redacted
 /// from Debug output.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct IssuedArtifactWriteCapability {
     pub capability_id: ArtifactWriteCapabilityId,
     pub secret: ArtifactWriteCapabilitySecret,
     pub task_id: ArtifactTaskId,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     pub expires_at: DateTime<Utc>,
 }
 
@@ -137,7 +140,7 @@ impl fmt::Debug for IssuedArtifactWriteCapability {
 /// Authorization header and is intentionally absent from this serializable
 /// request body/header shape.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RedeemArtifactWriteCapabilityRequest {
     pub capability_id: ArtifactWriteCapabilityId,
     pub task_id: ArtifactTaskId,
@@ -149,9 +152,10 @@ pub struct RedeemArtifactWriteCapabilityRequest {
 /// Distinct occurrences charge their full length once; retries remain bounded
 /// by the same expiry, context version, current grants, and clearance ceiling.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct IssueArtifactReadCapabilityRequest {
     pub task_id: ArtifactTaskId,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     pub expires_at: DateTime<Utc>,
     pub max_artifact_count: NonZeroU32,
     pub max_total_bytes: NonZeroU64,
@@ -195,12 +199,30 @@ impl<'de> Deserialize<'de> for ArtifactReadCapabilitySecret {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct IssuedArtifactReadCapability {
     pub capability_id: ArtifactReadCapabilityId,
     pub secret: ArtifactReadCapabilitySecret,
     pub task_id: ArtifactTaskId,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     pub expires_at: DateTime<Utc>,
+}
+
+/// Current-only domain separator for retained Artifact write requests.
+/// Admission provides no historical format or implicit default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
+#[schemars(transform = request_format_naming)]
+pub enum ArtifactWriteRequestFormat {
+    #[vocabulary(rename = "veoveo.ai/artifact-write-request/v2")]
+    V2,
+}
+
+fn request_format_naming(schema: &mut schemars::Schema) {
+    *schema = veoveo_types::scalar_schema(
+        schema.clone(),
+        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
+    )
+    .expect("Artifact request format is a declared scalar");
 }
 
 #[cfg(test)]
@@ -215,14 +237,14 @@ mod tests {
             id.as_uuid().simple().to_string(),
             format!("urn:uuid:{canonical}"),
         ] {
-            let mut value = serde_json::json!({"task_id":alias,"expires_at":"2026-10-06T12:00:00Z","max_artifact_count":1,"max_total_bytes":16});
+            let mut value = serde_json::json!({"taskId":alias,"expiresAt":"2026-10-06T12:00:00Z","maxArtifactCount":1,"maxTotalBytes":16});
             let request: IssueArtifactWriteCapabilityRequest =
                 serde_json::from_value(value.clone()).unwrap();
             assert_eq!(request.task_id, id);
-            assert_eq!(serde_json::to_value(request).unwrap()["task_id"], canonical);
+            assert_eq!(serde_json::to_value(request).unwrap()["taskId"], canonical);
             let mut wrong_variant = *id.as_uuid().as_bytes();
             wrong_variant[8] &= 0x3f;
-            value["task_id"] = serde_json::json!(uuid::Uuid::from_bytes(wrong_variant).to_string());
+            value["taskId"] = serde_json::json!(uuid::Uuid::from_bytes(wrong_variant).to_string());
             assert!(serde_json::from_value::<IssueArtifactWriteCapabilityRequest>(value).is_err());
         }
     }
@@ -247,5 +269,26 @@ mod tests {
                 .to_string()
                 .starts_with("invalid request: ")
         );
+    }
+}
+
+#[cfg(test)]
+mod request_format_tests {
+    use super::ArtifactWriteRequestFormat;
+
+    #[test]
+    fn retained_request_format_is_current_only() {
+        let format = ArtifactWriteRequestFormat::V2;
+        assert_eq!(
+            serde_json::to_value(format).unwrap(),
+            "veoveo.ai/artifact-write-request/v2"
+        );
+        for invalid in [
+            serde_json::Value::Null,
+            serde_json::json!("veoveo.ai/artifact-write-request/v1"),
+            serde_json::json!("v2"),
+        ] {
+            assert!(serde_json::from_value::<ArtifactWriteRequestFormat>(invalid).is_err());
+        }
     }
 }

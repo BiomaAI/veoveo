@@ -1,4 +1,5 @@
 {{- if include "veoveo.componentEnabled" (list . "artifact-service") }}
+{{- $modulePlan := include "veoveo.modulePlan" . | fromJson -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -36,6 +37,8 @@ spec:
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
         {{- include "veoveo.databasePodAnnotations" . | nindent 8 }}
+        veoveo.ai/installation-generation: {{ $modulePlan.generation | quote }}
+        checksum/module-plan: {{ .Values.moduleInstallation.planJson | sha256sum | quote }}
     spec:
       terminationGracePeriodSeconds: 90
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
@@ -50,6 +53,7 @@ spec:
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           env:
             {{- include "veoveo.commonEnv" . | nindent 12 }}
+            {{- include "veoveo.modulePlanEnv" . | nindent 12 }}
             - name: ARTIFACT_SERVICE_BIND
               value: 0.0.0.0:8790
             - name: ARTIFACT_PUBLIC_BASE_URL
@@ -108,9 +112,15 @@ spec:
           resources:
             {{- toYaml .Values.artifactService.resources | nindent 12 }}
           volumeMounts:
+            - name: module-plan
+              mountPath: /etc/veoveo/modules
+              readOnly: true
             - name: tmp
               mountPath: /tmp
       volumes:
+        - name: module-plan
+          configMap:
+            name: {{ include "veoveo.modulePlanName" . }}
         - name: tmp
           emptyDir: {}
 {{- end }}

@@ -9,7 +9,7 @@ use veoveo_agent_runtime::persistence::*;
 use veoveo_platform_store::primary_transaction_error;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AgentChatImportMapping {
     pub key: String,
     pub source_digests: Vec<String>,
@@ -18,7 +18,7 @@ pub struct AgentChatImportMapping {
 
 /// Targeted export: identities and disclosure survive the digest conversion.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AgentChatImport {
     pub before: WorkspaceAgent,
     pub target_digest: String,

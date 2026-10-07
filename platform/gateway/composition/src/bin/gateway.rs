@@ -555,6 +555,7 @@ fn control_plane_sha256(
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ControlPlanePublishResult {
     status: &'static str,
     revision_id: String,
@@ -567,6 +568,7 @@ struct ControlPlanePublishResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ResolvedSecretEvidence {
     id: String,
     source: SecretSource,

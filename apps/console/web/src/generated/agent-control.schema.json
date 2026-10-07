@@ -4,34 +4,34 @@
       "additionalProperties": false,
       "description": "One actor-attributed projection of durable agent runtime state.\n\nConversation entries are not a second source of truth. Operator entries\nproject durable wakes and agent entries project durable episodes.",
       "properties": {
-        "actor_id": {
+        "actorId": {
           "type": "string"
         },
         "content": {
           "type": "string"
         },
-        "entry_id": {
+        "entryId": {
           "type": "string"
         },
-        "episode_id": {
+        "episodeId": {
           "format": "uuid",
           "type": [
             "string",
             "null"
           ]
         },
-        "in_reply_to_request_ids": {
+        "inReplyToRequestIds": {
           "items": {
             "format": "uuid",
             "type": "string"
           },
           "type": "array"
         },
-        "occurred_at": {
+        "occurredAt": {
           "format": "date-time",
           "type": "string"
         },
-        "request_id": {
+        "requestId": {
           "format": "uuid",
           "type": [
             "string",
@@ -44,7 +44,7 @@
         "state": {
           "$ref": "#/$defs/AgentConversationEntryState"
         },
-        "wake_id": {
+        "wakeId": {
           "format": "uuid",
           "type": [
             "string",
@@ -53,12 +53,12 @@
         }
       },
       "required": [
-        "entry_id",
+        "entryId",
         "role",
-        "actor_id",
+        "actorId",
         "content",
         "state",
-        "occurred_at"
+        "occurredAt"
       ],
       "type": "object"
     },
@@ -83,7 +83,7 @@
     "AgentConversationView": {
       "additionalProperties": false,
       "properties": {
-        "agent_id": {
+        "agentId": {
           "type": "string"
         },
         "entries": {
@@ -94,7 +94,7 @@
         }
       },
       "required": [
-        "agent_id",
+        "agentId",
         "entries"
       ],
       "type": "object"
@@ -111,14 +111,14 @@
             "content": {
               "default": null
             },
-            "request_id": {
+            "requestId": {
               "format": "uuid",
               "type": "string"
             }
           },
           "required": [
             "action",
-            "request_id"
+            "requestId"
           ],
           "type": "object"
         },
@@ -129,14 +129,14 @@
               "const": "decline",
               "type": "string"
             },
-            "request_id": {
+            "requestId": {
               "format": "uuid",
               "type": "string"
             }
           },
           "required": [
             "action",
-            "request_id"
+            "requestId"
           ],
           "type": "object"
         },
@@ -147,14 +147,14 @@
               "const": "cancel",
               "type": "string"
             },
-            "request_id": {
+            "requestId": {
               "format": "uuid",
               "type": "string"
             }
           },
           "required": [
             "action",
-            "request_id"
+            "requestId"
           ],
           "type": "object"
         }
@@ -163,23 +163,23 @@
     "AgentInputRequestView": {
       "additionalProperties": false,
       "properties": {
-        "input_request_id": {
+        "inputRequestId": {
           "format": "uuid",
           "type": "string"
         },
         "message": {
           "type": "string"
         },
-        "requested_at": {
+        "requestedAt": {
           "format": "date-time",
           "type": "string"
         },
-        "requested_schema": true
+        "requestedSchema": true
       },
       "required": [
-        "input_request_id",
+        "inputRequestId",
         "message",
-        "requested_at"
+        "requestedAt"
       ],
       "type": "object"
     },
@@ -189,14 +189,14 @@
         "message": {
           "type": "string"
         },
-        "request_id": {
+        "requestId": {
           "description": "Client-generated UUIDv7 used as the durable retry identity.",
           "format": "uuid",
           "type": "string"
         }
       },
       "required": [
-        "request_id",
+        "requestId",
         "message"
       ],
       "type": "object"
@@ -204,31 +204,31 @@
     "AgentWakeReceipt": {
       "additionalProperties": false,
       "properties": {
-        "accepted_at": {
+        "acceptedAt": {
           "format": "date-time",
           "type": "string"
         },
-        "agent_id": {
+        "agentId": {
           "type": "string"
         },
-        "request_id": {
+        "requestId": {
           "format": "uuid",
           "type": "string"
         },
-        "wake_id": {
+        "wakeId": {
           "format": "uuid",
           "type": "string"
         },
-        "work_context": {
+        "workContext": {
           "type": "string"
         }
       },
       "required": [
-        "request_id",
-        "wake_id",
-        "agent_id",
-        "work_context",
-        "accepted_at"
+        "requestId",
+        "wakeId",
+        "agentId",
+        "workContext",
+        "acceptedAt"
       ],
       "type": "object"
     }
@@ -242,7 +242,7 @@
     "decision": {
       "$ref": "#/$defs/AgentInputRequestDecision"
     },
-    "input_request": {
+    "inputRequest": {
       "$ref": "#/$defs/AgentInputRequestView"
     },
     "message": {
@@ -256,7 +256,7 @@
     "message",
     "decision",
     "receipt",
-    "input_request",
+    "inputRequest",
     "conversation"
   ],
   "title": "AgentControlSchema",

@@ -153,9 +153,9 @@ fn redap_admission_rejects_ambiguous_or_unqualified_addresses_without_echoing_in
     }
 }
 
-fn grant_builder() -> RecordingCatalogGrantBuilder {
+pub(super) fn grant_builder() -> RecordingCatalogGrantBuilder {
     RecordingCatalogGrantBuilder {
-        schema: RecordingCatalogGrantSchema::V1,
+        schema: RecordingCatalogGrantSchema::V2,
         grant_id: RecordingReadGrantId::new(),
         dataset_id: dataset(),
         recording_segment_ids: vec![RecordingId::new()],
@@ -184,25 +184,25 @@ fn catalog_grants_admit_dataset_selection_version_and_expiry_before_exposure() {
     let schema = serde_json::to_value(schemars::schema_for!(RecordingCatalogGrant)).unwrap();
     assert_eq!(schema["additionalProperties"], false);
     for (field, value) in [
-        ("dataset_id", json!(RecordingDatasetId::new())),
+        ("datasetId", json!(RecordingDatasetId::new())),
         (
-            "entry_uri",
+            "entryUri",
             json!(RecordingCatalogUri::new(
                 &RecordingRedapOrigin::from_http("https://example.com").unwrap(),
                 RecordingDatasetId::new()
             )),
         ),
-        ("recording_segment_ids", json!([])),
+        ("recordingSegmentIds", json!([])),
         (
-            "recording_segment_ids",
+            "recordingSegmentIds",
             json!(vec![grant.recording_segment_ids[0]; 2]),
         ),
-        ("schema", json!("veoveo.ai/recording-catalog-grant/v2")),
-        ("catalog_revision", json!(" ")),
-        ("catalog_revision", json!("a".repeat(129))),
-        ("redap_token", json!("")),
-        ("redap_token", json!("secret\nvalue")),
-        ("expires_at", json!("not-a-date")),
+        ("schema", json!("veoveo.ai/recording-catalog-grant/v1")),
+        ("catalogRevision", json!(" ")),
+        ("catalogRevision", json!("a".repeat(129))),
+        ("redapToken", json!("")),
+        ("redapToken", json!("secret\nvalue")),
+        ("expiresAt", json!("not-a-date")),
         ("unknown", json!(true)),
     ] {
         let mut invalid = wire.clone();

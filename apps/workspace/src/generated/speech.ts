@@ -79,24 +79,24 @@ export type GroupId = string;
  */
 export type ArtifactProvenance =
   | {
-      delegation_id?: NoIdentity | null;
+      delegationId?: NoIdentity | null;
       initiator: PrincipalId;
-      invocation_mode: "direct";
-      policy_revision: PolicyVersion;
+      invocationMode: "direct";
+      policyRevision: PolicyVersion;
       producer: PrincipalId;
     }
   | {
-      delegation_id: DelegationId;
+      delegationId: DelegationId;
       initiator: PrincipalId;
-      invocation_mode: "delegated";
-      policy_revision: PolicyVersion;
+      invocationMode: "delegated";
+      policyRevision: PolicyVersion;
       producer: PrincipalId;
     }
   | {
-      delegation_id?: NoIdentity | null;
+      delegationId?: NoIdentity | null;
       initiator?: NoIdentity | null;
-      invocation_mode: "automated";
-      policy_revision: PolicyVersion;
+      invocationMode: "automated";
+      policyRevision: PolicyVersion;
       producer: PrincipalId;
     };
 /**
@@ -145,10 +145,10 @@ export type ArtifactReleaseState = "private" | "releasable" | "released";
 
 export interface SchemaBundle {
   dictation: DictationSnapshot;
-  dictation_id: DictationId;
+  dictationId: DictationId;
   document: TranscriptDocument;
   output: TranscriptionOutput;
-  start_dictation: StartDictation;
+  startDictation: StartDictation;
   transcribe: TranscribeRequest;
 }
 /**
@@ -157,9 +157,9 @@ export interface SchemaBundle {
  */
 export interface DictationSnapshot {
   id: DictationSessionId;
-  max_duration_seconds: number;
-  next_sequence: number;
-  result_uri: DictationUri;
+  maxDurationSeconds: number;
+  nextSequence: number;
+  resultUri: DictationUri;
   status: DictationStatus;
   transcript?: Transcript | null;
 }
@@ -168,7 +168,7 @@ export interface DictationSnapshot {
  * via the `definition` "Transcript".
  */
 export interface Transcript {
-  duration_seconds: number;
+  durationSeconds: number;
   segments: Segment[];
   text: string;
 }
@@ -204,10 +204,10 @@ export interface DictationId {
  */
 export interface TranscriptDocument {
   model: string;
-  model_revision: string;
-  schema: string;
-  source_artifact_uri: ArtifactUri;
-  source_sha256: UploadSha256;
+  modelRevision: string;
+  schema: "veoveo.ai/speech-transcript/v2";
+  sourceArtifactUri: ArtifactUri;
+  sourceSha256: UploadSha256;
   transcript: Transcript;
 }
 /**
@@ -216,9 +216,9 @@ export interface TranscriptDocument {
  */
 export interface TranscriptionOutput {
   captions: ArtifactMetadata;
-  duration_seconds: number;
-  result_uri: TranscriptionUri;
-  source_artifact_uri: ArtifactUri;
+  durationSeconds: number;
+  resultUri: TranscriptionUri;
+  sourceArtifactUri: ArtifactUri;
   transcript: ArtifactMetadata;
 }
 /**
@@ -232,18 +232,21 @@ export interface TranscriptionOutput {
  * via the `definition` "ArtifactMetadata".
  */
 export interface ArtifactMetadata {
-  artifact_id: ArtifactId;
-  artifact_uri: ArtifactUri;
-  byte_len: number;
+  artifactId: ArtifactId;
+  artifactUri: ArtifactUri;
+  byteLen: number;
   compliance?: ComplianceMetadata;
-  created_at: string;
-  download_url?: string | null;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  createdAt: string;
+  downloadUrl?: string | null;
   filename?: string | null;
   metadata?: {
     [k: string]: unknown;
   };
-  mime_type?: string | null;
-  release_state?: "private" | "releasable" | "released";
+  mimeType?: string | null;
+  releaseState?: "private" | "releasable" | "released";
 }
 /**
  * Compliance and tenancy labels that travel with server-owned artifacts.
@@ -254,12 +257,15 @@ export interface ArtifactMetadata {
  */
 export interface ComplianceMetadata {
   classification?: DataLabelId | null;
-  data_labels?: DataLabelId[];
+  dataLabels?: DataLabelId[];
   owner?: AccessSubject | null;
   provenance?: ArtifactProvenance | null;
-  retention_expires_at?: string | null;
-  tenant_id?: TenantId | null;
-  work_context?: WorkContextId | null;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  retentionExpiresAt?: string | null;
+  tenantId?: TenantId | null;
+  workContext?: WorkContextId | null;
 }
 /**
  * This interface was referenced by `SchemaBundle`'s JSON-Schema
@@ -267,7 +273,7 @@ export interface ComplianceMetadata {
  */
 export interface StartDictation {
   id: DictationSessionId;
-  sample_rate: number;
+  sampleRate: number;
 }
 /**
  * This interface was referenced by `SchemaBundle`'s JSON-Schema
@@ -277,7 +283,7 @@ export interface TranscribeRequest {
   /**
    * Neutral or server-presented Artifact occurrence URI.
    */
-  artifact_uri: string;
+  artifactUri: string;
 }
 /**
  * Compliance and tenancy labels that travel with server-owned artifacts.
@@ -291,10 +297,13 @@ export interface TranscribeRequest {
  */
 export interface ComplianceMetadata1 {
   classification?: DataLabelId | null;
-  data_labels?: DataLabelId[];
+  dataLabels?: DataLabelId[];
   owner?: AccessSubject | null;
   provenance?: ArtifactProvenance | null;
-  retention_expires_at?: string | null;
-  tenant_id?: TenantId | null;
-  work_context?: WorkContextId | null;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  retentionExpiresAt?: string | null;
+  tenantId?: TenantId | null;
+  workContext?: WorkContextId | null;
 }

@@ -7,7 +7,7 @@ recording contract is [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 ## Purpose
 
 This server owns governed recording discovery, immutable layer inspection, sealing,
-dataset-scoped virtual Redap catalogs, manifest v10 playback, bounded Arrow projection,
+dataset-scoped virtual Redap catalogs, manifest v11 playback, bounded Arrow projection,
 and reactive Rerun live following.
 
 ## Invariants
@@ -36,7 +36,7 @@ and reactive Rerun live following.
 - Committed capture, properties, and derived layers are immutable Artifact occurrences.
   SurrealDB manifests and Artifact digests are authoritative. Cache and spool paths are
   never historical playback authority.
-- Playback manifest v10 is the only manifest. It returns one stable Redap archive URI,
+- Playback manifest v11 is the only manifest. It returns one stable Redap archive URI,
   one short-lived viewer grant, one optional live receiver, and the governed Blueprint.
 - A virtual catalog registers only the exact recording set admitted by its durable grant.
   Direct manifest, asset, query, and chunk requests cannot escape that set.
@@ -55,6 +55,8 @@ and reactive Rerun live following.
   replay are outside this activation and must not persist a submitted bearer.
 - `/readyz` checks Store, layer-cache, and projection-scratch readiness. Authenticated
   `/admin/storage` reports their typed bounded counters.
+
+Sealing requires the current call's `x-veoveo-artifact-read-authorization` header for retained manifest verification. Use the existing authenticated seal-recovery fixture for refusal and immutable body admission controls; an unavailable read does not permit another publication.
 
 ## Module Boundaries
 
@@ -97,7 +99,9 @@ browser smoke, a headed browser, and a hardware-backed WebGPU or WebGL context.
 
 ## Contract Compliance
 
-Contract revision: 3
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met
@@ -131,3 +135,5 @@ Contract revision: 3
 - C30: met — the endpoint is connection-stateless and derives no durable or domain authority from an MCP transport session
 - C31: pending — installed Discover and list readiness qualification is pending
 - C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

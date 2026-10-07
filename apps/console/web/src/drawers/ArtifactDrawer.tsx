@@ -54,8 +54,8 @@ export function ArtifactDrawer({
   const recordingRelationTitle =
     artifact.recording?.kind === "recording_manifest"
       ? "Recording manifest"
-      : artifact.recording?.kind === "recording_segment"
-        ? `Recording segment ${artifact.recording.ordinal ?? ""}`.trim()
+      : artifact.recording?.kind === "recording_layer"
+        ? `Recording layer ${artifact.recording.ordinal ?? ""}`.trim()
         : "Derived from recording";
   const canAdminister = artifact.effectiveAccess.admin;
 

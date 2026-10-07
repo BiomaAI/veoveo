@@ -92,7 +92,7 @@ async fn run_engine_blocking<T: Send + 'static>(
             };
             Err(McpError::invalid_params(
                 message,
-                Some(json!({"code": code, "timeout_ms": timeout_ms})),
+                Some(json!({"code": code, "timeoutMs": timeout_ms})),
             ))
         }
     }

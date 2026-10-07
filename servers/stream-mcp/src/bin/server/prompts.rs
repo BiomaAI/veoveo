@@ -20,8 +20,8 @@ impl StreamPrompt {
 
     fn name(self) -> &'static str {
         match self {
-            Self::RunRecording => "stream-run-recording",
-            Self::StartLiveSession => "stream-start-live-session",
+            Self::RunRecording => "stream_run_recording",
+            Self::StartLiveSession => "stream_start_live_session",
         }
     }
 
@@ -64,7 +64,7 @@ impl StreamPrompt {
         let pipeline_uri = veoveo_stream_mcp::uris::pipeline_uri(pipeline_id);
         let text = match self {
             Self::RunRecording => format!(
-                "Read stream://pipelines and verify pipeline {pipeline_id}. Call run_recording with video recording_uri {}, entity_path {}, timeline {}, range {}..={}, and the selected pipeline. Treat the returned run and artifact URIs as canonical.",
+                "Read stream://pipelines and verify pipeline {pipeline_id}. Call run_recording with video recordingUri {}, entityPath {}, timeline {}, range {}..={}, and the selected pipeline. Treat the returned run and artifact URIs as canonical.",
                 args.recording_uri
                     .as_ref()
                     .map(|uri| uri.as_str())
@@ -77,7 +77,7 @@ impl StreamPrompt {
                     .map_or_else(|| "<required>".to_owned(), |value| value.to_string()),
             ),
             Self::StartLiveSession => format!(
-                "Read {pipeline_uri} and verify it supports live input. Call start_live_session with that pipeline_id, then subscribe to the returned session and results resources. Send the source to the returned ingress without waiting for Recording Hub."
+                "Read {pipeline_uri} and verify it supports live input. Call start_live_session with that pipelineId, then subscribe to the returned session and results resources. Send the source to the returned ingress without waiting for Recording Hub."
             ),
         };
         Ok(GetPromptResult::new(vec![PromptMessage::new_text(

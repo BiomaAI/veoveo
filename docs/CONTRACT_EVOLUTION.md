@@ -417,12 +417,14 @@ are optional, and binaries require the runtime features. Tests, CLI tools, and
 cross-server consumers use the owning library. A separate contract crate needs a
 concrete dependency or independent release requirement.
 
-Gateway App import declarations and discovery failure DTOs belong to
+Gateway App import declarations and discovery failure DTOs, including the complete
+degradation aggregate and its ordering and deduplication, belong to
 `platform/gateway/contract`. The separate crate resolves a dependency cycle: MCP
 integration consumes these declarations, while the gateway runtime already depends
 on MCP integration. The browser contract also needs them without HTTP or async-runtime
-dependencies. Consumers import this owner directly; MCP metadata conversion stays in
-the protocol adapter. The extraction preserves public JSON shapes and authorization
+dependencies. Consumers import this owner directly; `GatewayDiscoveryMetadata` in
+the MCP adapter converts the owner values to and from protocol metadata. The
+extraction preserves public JSON shapes and authorization
 behavior and requires an isolated dependency-graph check.
 
 Shared HTTP JSON admission belongs to [`platform/http`](../platform/http/DESIGN.md).
@@ -507,6 +509,12 @@ is tracked in the active plan.
 Media owns its prediction summaries and generation result DTOs. Protocol utilities
 consume Media's contract feature directly; extracting those DTOs preserves their
 published schema and gives MCP core no dependency on Media.
+
+Map owns the immutable travel-model exchange. Optimization imports that contract
+and converts its admitted values into the solver model after checking the selected
+Map resource and matrix relationships. It defines no duplicate exchange DTO or
+wire-version constant. Each owner controls its own inline solver or Map resource
+format; the installation cut qualifies their producer and consumer together.
 
 Recording's [domain contract](../platform/recordings/contract/DESIGN.md) owns its
 public models, UUIDv7 IDs, resource addresses and catalog positions. The MCP server’s

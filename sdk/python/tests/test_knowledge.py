@@ -17,16 +17,16 @@ def documents():
 
 def test_read_policy_is_explicit_and_closed():
     fields = dict(tenant="tenant", workContext="context", owner={"kind": "principal", "id": "author"}, dataLabels=[])
-    for policy in ({"kind": "tenant"}, {"kind": "subjects"}, {"kind": "work-context"},
-                   {"kind": "selected-work-context"}, {"kind": "selected-work-context-members"}, {"kind": "subjects-in-context"}, {"kind": "subjects-in-context", "profile": "operations"}):
+    for policy in ({"kind": "tenant"}, {"kind": "subjects"}, {"kind": "work_context"},
+                   {"kind": "selected_work_context"}, {"kind": "selected_work_context_members"}, {"kind": "subjects_in_context"}, {"kind": "subjects_in_context", "profile": "operations"}):
         value = AccessDescriptor.model_validate({**fields, "readPolicy": policy})
         assert value.wire()["readPolicy"] == policy
     with pytest.raises(ValidationError):
         AccessDescriptor.model_validate(fields)
     for policy in ({"kind": "unknown"}, {"kind": "subjects", "profile": "operations"},
-                   {"kind": "subjects-in-context", "caller": "author"},
-                   {"kind": "subjects-in-context", "profile": "Operations"},
-                   {"kind": "subjects-in-context", "profile": "operations/read"}):
+                   {"kind": "subjects_in_context", "caller": "author"},
+                   {"kind": "subjects_in_context", "profile": "Operations"},
+                   {"kind": "subjects_in_context", "profile": "operations/read"}):
         with pytest.raises(ValidationError):
             AccessDescriptor.model_validate({**fields, "readPolicy": policy})
 
@@ -92,12 +92,25 @@ def test_packaged_docs_require_build_digests_and_preserve_bytes(tmp_path, monkey
     from veoveo_mcp.contract import docs as module
     monkeypatch.setattr(module, "files", lambda package: tmp_path)
     body = b"# Documentation\r\nExact packaged bytes.\n"
-    for name in ("AGENTS.md", "DESIGN.md"):
-        (tmp_path / name).write_bytes(body)
+    from pathlib import Path
+    catalog_root = Path(__file__).resolve().parents[1] / "src/veoveo_mcp/catalog"
+    shared = Path(__file__).resolve().parents[3] / "mcp/contract/testdata"
+    from veoveo_mcp._compliance import ComplianceProfile, RequirementCatalog
+    catalog = (catalog_root / "requirements.json").read_bytes()
+    value = json.loads((shared / "compliance-example.json").read_bytes())
+    value["server"] = "fixture"
+    profile = ComplianceProfile(value, RequirementCatalog(catalog))
+    manual = b"# Agent\r\nExact original prefix.\r\n" + ("## Contract Compliance\n\n<!-- veoveo:contract-compliance:start -->\n" + profile.render() + "<!-- veoveo:contract-compliance:end -->\n").encode()
+    artifacts = {"agents": ("AGENTS.md", manual), "design": ("DESIGN.md", body),
+                 "profile": ("contract-compliance.json", json.dumps(value).encode()),
+                 "catalog": ("requirements.json", catalog),
+                 "schema": ("compliance-profile.schema.json", (catalog_root / "compliance-profile.schema.json").read_bytes())}
+    for filename, data in artifacts.values():
+        (tmp_path / filename).write_bytes(data)
     with pytest.raises(ServerDocsError, match="require build digests"):
         module.server_docs("fixture", "fixture")
     digest = sha256(body).hexdigest()
-    (tmp_path / "_documents.json").write_text(json.dumps({"agents": digest, "design": digest}))
+    (tmp_path / "_documents.json").write_text(json.dumps({key: sha256(data).hexdigest() for key, (_, data) in artifacts.items()}))
     docs = module.server_docs("fixture", "fixture")
     assert docs.doc("design").body.encode() == body
     assert str(docs.doc("design").digest) == digest
@@ -108,7 +121,7 @@ def test_packaged_docs_require_build_digests_and_preserve_bytes(tmp_path, monkey
 
 def test_access_deadlines_and_typed_grants_are_closed_and_timezone_aware():
     fields = dict(tenant="tenant", workContext="context", owner={"kind": "principal", "id": "author"},
-                  readPolicy={"kind": "selected-work-context"}, dataLabels=[], expiresAt="2026-10-01T00:00:00Z",
+                  readPolicy={"kind": "selected_work_context"}, dataLabels=[], expiresAt="2026-10-01T00:00:00Z",
                   grants=[{"subject": {"kind": "group", "id": "readers"}, "expiresAt": "2026-10-01T00:00:00Z"}])
     assert AccessDescriptor.model_validate(fields).wire() == fields
     for grants in ([{"kind": "principal", "id": "reader"}],
@@ -118,3 +131,48 @@ def test_access_deadlines_and_typed_grants_are_closed_and_timezone_aware():
             AccessDescriptor.model_validate({**fields, "grants": grants})
     with pytest.raises(ValidationError):
         AccessDescriptor.model_validate({**fields, "expiresAt": "2026-10-01T00:00:00"})
+
+
+def test_entire_knowledge_wire_family_refuses_retired_field_aliases():
+    from veoveo_mcp.contract.knowledge import (
+        ExpiringFreshness, ReadGrant, ExternalRecord, ReadCondition,
+    )
+    timestamp = "2026-10-06T00:00:00Z"
+    access = {"tenant":"tenant", "workContext":"context", "readPolicy":{"kind":"work_context"},
+              "owner":{"kind":"principal", "id":"author"}, "dataLabels":[], "expiresAt":timestamp}
+    cases = [
+        (CollectionDescriptor, documents().collection().wire(), [
+            ("entityKind","entity_kind"), ("changeSignal","change_signal")]),
+        (CollectionDescriptor, {**documents().collection().wire(), "requiredScopes":["fixture:read"]}, [
+            ("requiredScopes","required_scopes")]),
+        (ExpiringFreshness, {"maxAgeSeconds":1}, [("maxAgeSeconds","max_age_seconds")]),
+        (AccessDescriptor, access, [("workContext","work_context"), ("readPolicy","read_policy"),
+            ("dataLabels","data_labels"), ("expiresAt","expires_at")]),
+        (ReadGrant, {"subject":{"kind":"principal","id":"author"}, "expiresAt":timestamp},
+            [("expiresAt","expires_at")]),
+        (ExternalRecord, {"system":"provider", "nativeId":"external1", "mirroredAt":timestamp},
+            [("nativeId","native_id"), ("mirroredAt","mirrored_at")]),
+        (Observation, {"collection":"fixture.docs", "revision":"r1", "contentSha256":"a"*64,
+            "observedAt":timestamp, "modifiedAt":timestamp, "modifiedBy":{"kind":"principal","id":"author"},
+            "notModified":False, "access":access}, [("contentSha256","content_sha256"),
+            ("observedAt","observed_at"), ("modifiedAt","modified_at"),
+            ("modifiedBy","modified_by"), ("notModified","not_modified")]),
+        (ReadCondition, {"ifNoneMatch":"r1"}, [("ifNoneMatch","if_none_match")]),
+    ]
+    for model, current, fields in cases:
+        assert model.model_validate(current).wire() == model.model_validate_json(json.dumps(current)).wire()
+        for canonical, retired in fields:
+            for keep_current in [False, True]:
+                invalid = dict(current)
+                invalid[retired] = invalid[canonical]
+                if not keep_current:
+                    del invalid[canonical]
+                with pytest.raises(ValidationError):
+                    model.model_validate(invalid)
+                with pytest.raises(ValidationError):
+                    model.model_validate_json(json.dumps(invalid))
+    observed = {**cases[-2][1], "access":{**access, "work_context":"context"}}
+    with pytest.raises(ValidationError):
+        Observation.model_validate(observed)
+    with pytest.raises(ValidationError):
+        Observation.model_validate_json(json.dumps(observed))

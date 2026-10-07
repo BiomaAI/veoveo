@@ -5,7 +5,12 @@ use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactId;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 pub enum DuckDbQueryUsage {
     Inline {
         rows_returned: usize,
@@ -17,7 +22,12 @@ pub enum DuckDbQueryUsage {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "operation",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 pub enum DuckDbUsageDetails {
     Query {
         result: DuckDbQueryUsage,

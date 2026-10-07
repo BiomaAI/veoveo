@@ -588,7 +588,7 @@ version = "0.38.0+1.3.281"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bb44936d800fea8f016d7f2311c6a4f97aebd5dc86f09906139ec848cf3a46f"
 dependencies = [
- "libloading",
+ "libloading 0.8.9",
 ]
 
 [[package]]
@@ -3105,6 +3105,15 @@ checksum = "7d5515a3834141de9eafb9717ad39eea8247b5674e6066c404e8c4b365d2a29e"
 dependencies = [
  "cmov",
  "subtle",
+]
+
+[[package]]
+name = "cudarc"
+version = "0.19.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7359bf1de037ddada72729c3acec9b040f3468400c6e9e740b01ba0cd2e89562"
+dependencies = [
+ "libloading 0.9.0",
 ]
 
 [[package]]
@@ -8472,6 +8481,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "libloading"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60"
+dependencies = [
+ "cfg-if",
+ "windows-link",
+]
+
+[[package]]
 name = "libm"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13711,6 +13730,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_spanned"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6662b5879511e06e8999a8a235d848113e942c9124f211511b16466ee2995f26"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -15169,6 +15197,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "toml"
+version = "1.1.6+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "920602543f0911ab71da12c50d59701da54c196d1a2bf5cb4b75667f137a406a"
+dependencies = [
+ "indexmap 2.14.0",
+ "serde_core",
+ "serde_spanned",
+ "toml_datetime",
+ "toml_parser",
+ "toml_writer",
+ "winnow",
+]
+
+[[package]]
 name = "toml_datetime"
 version = "1.1.1+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -15197,6 +15240,12 @@ checksum = "1d38ac1cf9b95face32296c0a3ede1fdc270627c9d9c02a7274dd6d960dc4d56"
 dependencies = [
  "winnow",
 ]
+
+[[package]]
+name = "toml_writer"
+version = "1.1.2+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 
 [[package]]
 name = "tonic"
@@ -15973,6 +16022,7 @@ name = "veoveo-agent-kernel"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "base64 0.23.1",
  "chrono",
  "clap",
@@ -16000,13 +16050,17 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-agent-runtime",
+ "veoveo-artifact-contract",
  "veoveo-duckdb-mcp",
  "veoveo-duckdb-runtime",
+ "veoveo-gateway-contract",
+ "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-mcp-knowledge-extension",
  "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-testing-support",
  "veoveo-types",
 ]
 
@@ -16142,6 +16196,7 @@ dependencies = [
  "veoveo-mcp-knowledge-extension",
  "veoveo-modules",
  "veoveo-platform-store",
+ "veoveo-testing-support",
  "veoveo-types",
 ]
 
@@ -16153,13 +16208,17 @@ dependencies = [
  "axum",
  "base64 0.23.1",
  "chrono",
+ "clap",
  "dotenvy",
  "futures",
  "getrandom 0.4.3",
  "hex",
+ "jsonwebtoken 11.0.0",
  "object_store 0.14.1",
  "quick-xml 0.42.0",
  "reqwest 0.13.5",
+ "rmcp",
+ "rustls",
  "secrecy",
  "serde",
  "serde_json",
@@ -16175,9 +16234,11 @@ dependencies = [
  "veoveo-audit",
  "veoveo-gateway-contract",
  "veoveo-http",
+ "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-modules",
  "veoveo-platform-store",
+ "veoveo-testing-support",
  "veoveo-types",
 ]
 
@@ -16232,21 +16293,68 @@ name = "veoveo-bioma-acceptance"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.23.1",
+ "bytes",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "duckdb",
+ "futures",
+ "glam 0.33.5",
+ "hex",
+ "image",
+ "jsonwebtoken 11.0.0",
+ "re_grpc_server",
+ "re_log_encoding",
+ "re_log_types",
+ "re_sdk",
+ "re_sdk_types",
+ "reqwest 0.13.5",
+ "rmcp",
+ "rustls",
+ "schemars 1.2.2",
+ "scraper",
+ "secrecy",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "surrealdb",
+ "tempfile",
  "tokio",
+ "tokio-tungstenite 0.30.0",
+ "url",
  "uuid",
  "veoveo-agent-runtime",
+ "veoveo-artifact-contract",
+ "veoveo-browser-smoke",
+ "veoveo-deploy-contract",
+ "veoveo-duckdb-runtime",
+ "veoveo-frames-mcp",
  "veoveo-gateway-catalog",
+ "veoveo-gateway-composition",
  "veoveo-gateway-contract",
+ "veoveo-image-build-control",
+ "veoveo-map-mcp",
+ "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-mcp-gateway",
+ "veoveo-media-mcp",
  "veoveo-modules",
  "veoveo-platform-store",
+ "veoveo-reason-mcp",
  "veoveo-recording-contract",
+ "veoveo-recording-forwarder",
+ "veoveo-recording-hub",
  "veoveo-recording-mcp",
+ "veoveo-recording-protocol",
+ "veoveo-recording-store",
+ "veoveo-rrd",
+ "veoveo-simulation-contract",
+ "veoveo-stream-mcp",
+ "veoveo-sumo-mcp",
+ "veoveo-testing-support",
  "veoveo-types",
+ "veoveo-uav-sim-mcp",
 ]
 
 [[package]]
@@ -16256,7 +16364,6 @@ dependencies = [
  "anyhow",
  "base64 0.23.1",
  "chrono",
- "clap",
  "futures",
  "hex",
  "image",
@@ -16269,13 +16376,8 @@ dependencies = [
  "tokio-tungstenite 0.30.0",
  "url",
  "uuid",
- "veoveo-deploy-contract",
- "veoveo-gateway-catalog",
- "veoveo-gateway-contract",
- "veoveo-mcp-contract",
- "veoveo-recording-contract",
+ "veoveo-testing-support",
  "veoveo-types",
- "veoveo-uav-sim-mcp",
 ]
 
 [[package]]
@@ -16598,6 +16700,8 @@ dependencies = [
  "jsonwebtoken 11.0.0",
  "nix",
  "oci-spec",
+ "reqwest 0.13.5",
+ "rustls",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -16608,11 +16712,15 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-agent-runtime",
+ "veoveo-artifact-contract",
  "veoveo-audit-contract",
  "veoveo-deploy-contract",
  "veoveo-deploy-runtime",
+ "veoveo-embedding-contract",
  "veoveo-gateway-catalog",
+ "veoveo-gateway-contract",
  "veoveo-image-build-control",
+ "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-mcp-gateway",
  "veoveo-media-mcp",
@@ -16620,6 +16728,7 @@ dependencies = [
  "veoveo-platform-store",
  "veoveo-recording-mcp",
  "veoveo-simulation-contract",
+ "veoveo-testing-support",
  "veoveo-time-mcp",
  "veoveo-types",
 ]
@@ -16672,9 +16781,13 @@ dependencies = [
  "base64 0.23.1",
  "chrono",
  "duckdb",
+ "flate2",
+ "futures",
+ "hex",
  "reqwest 0.13.5",
  "rustls",
  "serde_json",
+ "sha2 0.11.0",
  "tempfile",
  "veoveo-types",
 ]
@@ -16715,6 +16828,7 @@ name = "veoveo-flight-smoke"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "base64 0.23.1",
  "chrono",
  "clap",
@@ -16732,6 +16846,7 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-artifact-contract",
+ "veoveo-browser-smoke",
  "veoveo-deploy-contract",
  "veoveo-frames-mcp",
  "veoveo-gateway-catalog",
@@ -16741,6 +16856,7 @@ dependencies = [
  "veoveo-reason-mcp",
  "veoveo-recording-contract",
  "veoveo-stream-mcp",
+ "veoveo-testing-support",
  "veoveo-types",
  "veoveo-uav-sim-mcp",
 ]
@@ -16793,6 +16909,7 @@ dependencies = [
  "veoveo-frames-contract",
  "veoveo-map-mcp",
  "veoveo-mcp-apps-extension",
+ "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-modules",
  "veoveo-platform-store",
@@ -16820,14 +16937,19 @@ dependencies = [
  "anyhow",
  "async-stream",
  "axum",
+ "axum-server",
  "base64 0.23.1",
+ "bytes",
  "chacha20poly1305",
  "chrono",
  "clap",
  "dotenvy",
+ "duckdb",
  "futures",
  "getrandom 0.4.3",
  "hex",
+ "image",
+ "jsonschema",
  "jsonwebtoken 11.0.0",
  "opentelemetry",
  "opentelemetry_sdk",
@@ -16836,11 +16958,14 @@ dependencies = [
  "reqwest 0.13.5",
  "rmcp",
  "rustls",
+ "schemars 1.2.2",
+ "scraper",
  "secrecy",
  "serde",
  "serde_json",
  "sha2 0.11.0",
  "surrealdb",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tokio-util",
@@ -16859,12 +16984,16 @@ dependencies = [
  "veoveo-computers",
  "veoveo-computers-contract",
  "veoveo-console-bff",
+ "veoveo-deploy-contract",
+ "veoveo-duckdb-runtime",
  "veoveo-frames-mcp",
  "veoveo-gateway-catalog",
  "veoveo-gateway-contract",
  "veoveo-http",
  "veoveo-knowledge-contract",
  "veoveo-map-mcp",
+ "veoveo-mcp-apps-extension",
+ "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-mcp-gateway",
  "veoveo-mcp-knowledge-extension",
@@ -16880,6 +17009,7 @@ dependencies = [
  "veoveo-speech-mcp",
  "veoveo-stream-mcp",
  "veoveo-task-runtime",
+ "veoveo-testing-support",
  "veoveo-time-mcp",
  "veoveo-types",
  "veoveo-uav-sim-mcp",
@@ -17066,6 +17196,7 @@ dependencies = [
  "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-testing-support",
  "veoveo-types",
 ]
 
@@ -17078,7 +17209,7 @@ dependencies = [
  "serde",
  "serde_json",
  "veoveo-gateway-contract",
- "veoveo-mcp-contract",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17087,12 +17218,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
- "axum-server",
  "base64 0.23.1",
  "chrono",
  "clap",
  "hex",
- "hmac 0.13.0",
  "jsonschema",
  "jsonwebtoken 11.0.0",
  "rcgen",
@@ -17107,14 +17236,10 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
- "veoveo-artifact-contract",
- "veoveo-frames-mcp",
- "veoveo-gateway-catalog",
  "veoveo-gateway-contract",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-knowledge-extension",
- "veoveo-media-mcp",
  "veoveo-modular-fixture-mcp",
  "veoveo-types",
 ]
@@ -17144,6 +17269,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "thiserror 2.0.21",
  "tokio",
  "tokio-util",
  "tower",
@@ -17278,6 +17404,7 @@ dependencies = [
  "hex",
  "hmac 0.13.0",
  "jsonschema",
+ "jsonwebtoken 11.0.0",
  "reqwest 0.13.5",
  "rmcp",
  "rustls",
@@ -17294,14 +17421,19 @@ dependencies = [
  "tower",
  "tower-http 0.7.0",
  "tracing",
+ "url",
  "uuid",
  "veoveo-artifact-client",
  "veoveo-artifact-contract",
+ "veoveo-artifact-service",
+ "veoveo-gateway-contract",
  "veoveo-mcp-apps-extension",
+ "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-testing-support",
  "veoveo-types",
 ]
 
@@ -17468,7 +17600,9 @@ dependencies = [
  "veoveo-recording-reader",
  "veoveo-recording-video",
  "veoveo-stream-mcp",
+ "veoveo-task-contract",
  "veoveo-task-runtime",
+ "veoveo-testing-support",
  "veoveo-types",
 ]
 
@@ -17478,6 +17612,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "hex",
+ "jsonschema",
  "schemars 1.2.2",
  "serde",
  "serde_json",
@@ -17621,6 +17756,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "surrealdb",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -17636,6 +17772,7 @@ dependencies = [
  "veoveo-gateway-catalog",
  "veoveo-gateway-contract",
  "veoveo-mcp-apps-extension",
+ "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-mcp-gateway",
  "veoveo-modules",
@@ -17673,6 +17810,7 @@ dependencies = [
  "re_sdk_types",
  "rustls",
  "serde",
+ "serde_json",
  "sha2 0.11.0",
  "tempfile",
  "tokio",
@@ -17701,8 +17839,10 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "uuid",
+ "veoveo-artifact-contract",
  "veoveo-modules",
  "veoveo-platform-store",
+ "veoveo-recording-contract",
  "veoveo-types",
 ]
 
@@ -17749,6 +17889,7 @@ dependencies = [
  "sha2 0.11.0",
  "tempfile",
  "uuid",
+ "veoveo-artifact-contract",
  "veoveo-map-mcp",
  "veoveo-recording-contract",
  "veoveo-types",
@@ -17764,70 +17905,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "veoveo-deploy-contract",
-]
-
-[[package]]
-name = "veoveo-smoke"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.23.1",
- "bytes",
- "chrono",
- "clap",
- "dotenvy",
- "duckdb",
- "flate2",
- "futures",
- "glam 0.33.5",
- "hex",
- "image",
- "jsonschema",
- "jsonwebtoken 11.0.0",
- "rcgen",
- "re_grpc_server",
- "re_log_encoding",
- "re_log_types",
- "re_sdk",
- "re_sdk_types",
- "reqwest 0.13.5",
- "rmcp",
- "rustls",
- "scraper",
- "secrecy",
- "serde",
- "serde_json",
- "serde_yaml_ng",
- "sha2 0.11.0",
- "tempfile",
- "tokio",
- "tokio-tungstenite 0.30.0",
- "url",
- "uuid",
- "veoveo-agent-runtime",
- "veoveo-artifact-contract",
- "veoveo-deploy-contract",
- "veoveo-deploy-runtime",
- "veoveo-frames-mcp",
- "veoveo-gateway-catalog",
- "veoveo-gateway-contract",
- "veoveo-image-build-control",
- "veoveo-map-mcp",
- "veoveo-mcp-contract",
- "veoveo-media-mcp",
- "veoveo-modules",
- "veoveo-platform-store",
- "veoveo-reason-mcp",
- "veoveo-recording-contract",
- "veoveo-recording-forwarder",
- "veoveo-recording-hub",
- "veoveo-recording-protocol",
- "veoveo-recording-store",
- "veoveo-rrd",
- "veoveo-simulation-contract",
- "veoveo-stream-mcp",
- "veoveo-sumo-mcp",
- "veoveo-types",
 ]
 
 [[package]]
@@ -17921,6 +17998,7 @@ dependencies = [
  "veoveo-recording-mcp",
  "veoveo-recording-reader",
  "veoveo-recording-video",
+ "veoveo-task-contract",
  "veoveo-task-runtime",
  "veoveo-types",
 ]
@@ -17997,6 +18075,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-testing-support"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.23.1",
+ "hex",
+ "nix",
+ "reqwest 0.13.5",
+ "rmcp",
+ "rustls",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "tokio",
+ "url",
+ "uuid",
+ "veoveo-deploy-contract",
+ "veoveo-gateway-contract",
+ "veoveo-mcp-conformance",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-time-mcp"
 version = "0.1.0"
 dependencies = [
@@ -18039,6 +18142,7 @@ dependencies = [
  "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-testing-support",
  "veoveo-types",
 ]
 
@@ -18154,10 +18258,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "approx",
+ "ash",
  "base64 0.23.1",
  "bevy",
  "chrono",
  "clap",
+ "cudarc",
  "dotenvy",
  "draco-gltf",
  "futures",
@@ -18166,6 +18272,8 @@ dependencies = [
  "hex",
  "image",
  "jsonschema",
+ "libc",
+ "libloading 0.9.0",
  "parking_lot",
  "reqwest 0.13.5",
  "rmcp",
@@ -18194,6 +18302,7 @@ dependencies = [
  "veoveo-recording-contract",
  "veoveo-task-runtime",
  "veoveo-types",
+ "wgpu",
 ]
 
 [[package]]
@@ -18262,6 +18371,8 @@ dependencies = [
  "sha2 0.11.0",
  "syn 3.0.6",
  "tempfile",
+ "tokio",
+ "toml",
  "url",
  "uuid",
  "veoveo-agent-runtime",
@@ -18281,7 +18392,9 @@ dependencies = [
  "veoveo-simulation-contract",
  "veoveo-speech-contract",
  "veoveo-stream-mcp",
+ "veoveo-testing-support",
  "veoveo-timeseries-mcp",
+ "veoveo-types",
  "veoveo-uav-sim-mcp",
  "veoveo-view-mcp",
  "veoveo-workspace",
@@ -18533,6 +18646,7 @@ dependencies = [
  "cfg_aliases",
  "document-features",
  "hashbrown 0.16.1",
+ "js-sys",
  "log",
  "naga",
  "portable-atomic",
@@ -18540,6 +18654,9 @@ dependencies = [
  "raw-window-handle",
  "smallvec",
  "static_assertions",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
  "wgpu-core",
  "wgpu-hal",
  "wgpu-types",
@@ -18614,7 +18731,7 @@ dependencies = [
  "gpu-descriptor",
  "hashbrown 0.16.1",
  "libc",
- "libloading",
+ "libloading 0.8.9",
  "log",
  "naga",
  "objc2",

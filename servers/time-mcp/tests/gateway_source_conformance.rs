@@ -14,12 +14,9 @@ use veoveo_time_mcp::{
 };
 use veoveo_types::ResourceAddress;
 
-#[path = "../../../testing/installed/knowledge.rs"]
-mod installed;
-#[path = "../../../testing/installed/restart.rs"]
-mod restart;
-#[path = "../../../testing/installed/tools.rs"]
-mod tools;
+use veoveo_testing_support::installed::knowledge as installed;
+use veoveo_testing_support::installed::restart;
+use veoveo_testing_support::installed::tools;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

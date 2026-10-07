@@ -18,7 +18,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::contract::RasterDerivationOperation;
 
-const OPERATION_SCHEMA_VERSION: u64 = 1;
+const OPERATION_SCHEMA_VERSION: u64 = 2;
 const MAX_PROTOCOL_BYTES: u64 = 1_048_576;
 
 #[derive(Clone, Debug)]
@@ -35,6 +35,8 @@ pub struct RasterService {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 struct RasterCommand<'a> {
     schema_version: u64,
     source_path: &'a Path,
@@ -45,7 +47,9 @@ struct RasterCommand<'a> {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct GeneratedRasterDerivation {
+    pub schema_version: u64,
     pub path: PathBuf,
     pub filename: String,
     pub mime_type: String,
@@ -158,6 +162,9 @@ fn validate_generated(
     output_dir: &Path,
     maximum_output_bytes: u64,
 ) -> Result<()> {
+    if generated.schema_version != OPERATION_SCHEMA_VERSION {
+        bail!("unsupported raster-operation result schema version");
+    }
     let root = output_dir.canonicalize()?;
     let path = generated.path.canonicalize()?;
     let metadata = path.metadata()?;
@@ -194,6 +201,51 @@ async fn terminate_process_group(pid: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn raster_result_admits_current_wire_and_refuses_old_forms_before_path_access() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("sample.json");
+        std::fs::write(&path, b"{}").unwrap();
+        let current = serde_json::json!({
+            "schemaVersion": OPERATION_SCHEMA_VERSION,
+            "path": path, "filename": "sample.json", "mimeType": "application/json",
+            "outputCrs": "EPSG:4326", "outputTransform": null
+        });
+        let decoded: GeneratedRasterDerivation = serde_json::from_value(current.clone()).unwrap();
+        validate_generated(&decoded, root.path(), 1024).unwrap();
+        for (canonical, retired) in [
+            ("schemaVersion", "schema_version"),
+            ("mimeType", "mime_type"),
+            ("outputCrs", "output_crs"),
+            ("outputTransform", "output_transform"),
+        ] {
+            for mixed in [false, true] {
+                let mut bad = current.clone();
+                let value = bad[canonical].clone();
+                if !mixed {
+                    bad.as_object_mut().unwrap().remove(canonical);
+                }
+                bad[retired] = value;
+                assert!(serde_json::from_value::<GeneratedRasterDerivation>(bad).is_err());
+            }
+        }
+        let mut missing = current.clone();
+        missing.as_object_mut().unwrap().remove("schemaVersion");
+        assert!(serde_json::from_value::<GeneratedRasterDerivation>(missing).is_err());
+        for version in [1, 3] {
+            let mut bad = current.clone();
+            bad["schemaVersion"] = serde_json::json!(version);
+            bad["path"] = serde_json::json!(root.path().join("absent-product"));
+            let decoded = serde_json::from_value(bad).unwrap();
+            let error =
+                validate_generated(&decoded, &root.path().join("absent-root"), 1024).unwrap_err();
+            assert_eq!(
+                error.to_string(),
+                "unsupported raster-operation result schema version"
+            );
+        }
+    }
 
     #[test]
     fn raster_service_requires_an_absolute_python_path() {

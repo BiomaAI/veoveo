@@ -195,9 +195,9 @@ impl AuthoringService {
                 "format": "Mapbox Vector Tile",
                 "version": "2.1",
                 "layer": "features",
-                "publication_id": request.publication_id,
-                "layer_id": request.layer_id,
-                "layer_revision": publication.layer_revision,
+                "publicationId": request.publication_id,
+                "layerId": request.layer_id,
+                "layerRevision": publication.layer_revision,
                 "extent": 4096,
                 "tiles": request.tiles,
             }))?;

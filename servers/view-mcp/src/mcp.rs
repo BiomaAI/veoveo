@@ -474,16 +474,16 @@ fn advertise_configured_layers(mut tool: Tool, layers: &[LayerSummary]) -> Tool 
     let Some(base_layer) = schema
         .get_mut("properties")
         .and_then(serde_json::Value::as_object_mut)
-        .and_then(|properties| properties.get_mut("base_layer"))
+        .and_then(|properties| properties.get_mut("baseLayer"))
         .and_then(serde_json::Value::as_object_mut)
     else {
-        tracing::error!("generated create_scene_composition schema omitted base_layer");
+        tracing::error!("generated create_scene_composition schema omitted baseLayer");
         return tool;
     };
     base_layer.insert(
         "description".to_owned(),
         serde_json::Value::String(
-            "Exact configured layer_id. Use one of the runtime-advertised enum values; do not use the display label or source_kind. Read view://layers for the credential-free catalog."
+            "Exact configured layerId. Use one of the runtime-advertised enum values; do not use the display label or sourceKind. Read view://layers for the credential-free catalog."
                 .to_owned(),
         ),
     );
@@ -523,7 +523,7 @@ mod tests {
         let tool = advertise_configured_layers(tool, &[layer]);
         let schema = serde_json::Value::Object(tool.input_schema.as_ref().clone());
         let base_layer = schema
-            .pointer("/properties/base_layer")
+            .pointer("/properties/baseLayer")
             .expect("base_layer schema");
         assert_eq!(
             base_layer["enum"],
@@ -584,13 +584,13 @@ mod well_known_tests {
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
         let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
-        assert_eq!(declaration.server, "view");
-        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        assert_eq!(declaration.server().as_str(), "view");
+        assert_eq!(declaration.contract_revision(), CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
             let item = declaration
-                .compliance
+                .compliance()
                 .iter()
-                .find(|item| item.id == id)
+                .find(|item| item.id.as_str() == id)
                 .expect("declared checklist item");
             assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
         }

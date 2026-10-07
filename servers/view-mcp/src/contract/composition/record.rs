@@ -7,6 +7,7 @@ use super::*;
 /// fn change_parent(scene: &mut SceneComposition) { scene.revision = 2; }
 /// ```
 #[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(try_from = "SceneCompositionWire")]
 pub struct SceneComposition(veoveo_types::Checked<SceneCompositionWire>);
 
@@ -51,14 +52,7 @@ impl SceneComposition {
             authority,
             created_at,
         };
-        let mut content =
-            serde_json::to_value(&record).map_err(|_| SceneCompositionError::Serialization)?;
-        let fields = content
-            .as_object_mut()
-            .ok_or(SceneCompositionError::Serialization)?;
-        fields.remove("composition_digest_sha256");
-        fields.remove("created_at");
-        record.composition_digest_sha256 = digest_json(&content)?;
+        record.composition_digest_sha256 = digest_json(&SceneCompositionContent::from(&record))?;
         Ok(record)
     }
     pub fn schema_version(&self) -> u64 {
@@ -150,8 +144,68 @@ fn digest_json(value: &impl Serialize) -> Result<Sha256Digest, SceneCompositionE
         .map_err(|_| SceneCompositionError::Serialization)
 }
 
+/// Ordered content preimage. Serialize owner types directly, without a JSON map.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SceneCompositionContent<'a> {
+    schema_version: u64,
+    composition_id: &'a SceneCompositionId,
+    composition_uri: &'a super::super::CompositionUri,
+    revision: u64,
+    base_layer: &'a LayerId,
+    map_releases: &'a BTreeSet<MapReleaseUri>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    local_frame: Option<&'a LocalFrameBinding>,
+    style_id: &'a SceneStyleId,
+    governed_inputs: &'a [GovernedSceneInput],
+    overlays: &'a [SceneOverlay],
+    algorithm_revision: &'a str,
+    request_digest_sha256: &'a Sha256Digest,
+    authority: &'a SceneCompositionAuthority,
+}
+
+impl<'a> From<&'a SceneCompositionWire> for SceneCompositionContent<'a> {
+    fn from(record: &'a SceneCompositionWire) -> Self {
+        // Every new wire field must explicitly enter the preimage or be excluded.
+        let SceneCompositionWire {
+            schema_version,
+            composition_id,
+            composition_uri,
+            revision,
+            base_layer,
+            map_releases,
+            local_frame,
+            style_id,
+            governed_inputs,
+            overlays,
+            algorithm_revision,
+            request_digest_sha256,
+            composition_digest_sha256: _,
+            authority,
+            created_at: _,
+        } = record;
+        Self {
+            schema_version: *schema_version,
+            composition_id,
+            composition_uri,
+            revision: *revision,
+            base_layer,
+            map_releases,
+            local_frame: local_frame.as_ref(),
+            style_id,
+            governed_inputs,
+            overlays,
+            algorithm_revision,
+            request_digest_sha256,
+            authority,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SceneCompositionWire {
+    #[schemars(range(min = 2, max = 2))]
     schema_version: u64,
     composition_id: SceneCompositionId,
     composition_uri: super::super::CompositionUri,
@@ -163,6 +217,7 @@ struct SceneCompositionWire {
     style_id: SceneStyleId,
     governed_inputs: Vec<GovernedSceneInput>,
     overlays: Vec<SceneOverlay>,
+    #[schemars(schema_with = "algorithm_schema")]
     algorithm_revision: String,
     request_digest_sha256: Sha256Digest,
     composition_digest_sha256: Sha256Digest,
@@ -172,3 +227,14 @@ struct SceneCompositionWire {
 
 #[cfg(test)]
 mod tests;
+
+fn algorithm_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    veoveo_types::scalar_schema(
+        schemars::Schema::try_from(
+            serde_json::json!({"type":"string","const":SCENE_COMPOSITION_ALGORITHM_REVISION}),
+        )
+        .expect("static composition algorithm schema"),
+        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
+    )
+    .expect("current View composition algorithm naming profile")
+}

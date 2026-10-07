@@ -19,7 +19,7 @@ function populatedSnapshot() {
   delete artifact.taskId;
   artifact.grants = [{ subjectKind: "principal", subject: "actor", permission: "read", labels: [], createdAt: timestamp }];
   artifact.shareLinks = [{ id, permission: "read", expiresAt: timestamp, downloadCount: 0, createdAt: timestamp, active: true }];
-  artifact.recording = { recordingId: value.recordings[0].id, kind: "recording", ordinal: 0 };
+  artifact.recording = { recordingId: value.recordings[0].id, kind: "recording_layer", ordinal: 0 };
   artifact.effectiveAccess.sources = [{ kind: "principal_grant", subject: "actor", level: "read" }];
   value.servers[0].ownedRoutes = [{ path: "/health", purpose: "health" }];
   return parseConsole("snapshot", value);
@@ -71,7 +71,7 @@ test("every SSE entity admits its row and delete; wrong entities and malformed p
 });
 
 test("reset and access request payloads use closed operations and reasons", () => {
-  for (const reason of ["cursor-out-of-range", "seed-failed", "replay-failed"]) assert.equal(parseConsole("resetEvent", { reason }).reason, reason);
+  for (const reason of ["cursor_out_of_range", "seed_failed", "replay_failed"]) assert.equal(parseConsole("resetEvent", { reason }).reason, reason);
   assert.throws(() => parseConsole("resetEvent", { reason: "unknown" }));
   assert.equal(parseConsole("accessRequestEvent", { op: "changed", id }).id, id);
   assert.throws(() => parseConsole("accessRequestEvent", { op: "delete", id }));
@@ -79,19 +79,19 @@ test("reset and access request payloads use closed operations and reasons", () =
 });
 
 test("generated upload notifications admit six wake states and cannot carry receipts or open sessions", () => {
-  for (const state of ["finalizing", "verifying", "completed", "cancelled", "expired", "failed"]) assert.ok(uploadNotificationSchema.safeParse({ op: "changed", upload_id: id, state }).success);
+  for (const state of ["finalizing", "verifying", "completed", "cancelled", "expired", "failed"]) assert.ok(uploadNotificationSchema.safeParse({ op: "changed", uploadId: id, state }).success);
   for (const invalid of [
-    { op: "changed", upload_id: id, state: "open" },
-    { op: "changed", upload_id: id, state: "completed", receipt: {} },
-    { op: "delete", upload_id: id, state: "failed" },
-    { op: "changed", upload_id: "bad", state: "failed" },
+    { op: "changed", uploadId: id, state: "open" },
+    { op: "changed", uploadId: id, state: "completed", receipt: {} },
+    { op: "delete", uploadId: id, state: "failed" },
+    { op: "changed", uploadId: "bad", state: "failed" },
   ]) assert.equal(uploadNotificationSchema.safeParse(invalid).success, false);
 });
 
 
 test("Rust admitted aliases emit the shared canonical notification accepted by the browser schema", () => {
   assert.ok(uploadNotificationSchema.safeParse(notificationFixture.emitted).success);
-  for (const upload_id of notificationFixture.invalid_ids) {
-    assert.equal(uploadNotificationSchema.safeParse({ ...notificationFixture.emitted, upload_id }).success, false);
+  for (const uploadId of notificationFixture.invalid_ids) {
+    assert.equal(uploadNotificationSchema.safeParse({ ...notificationFixture.emitted, uploadId }).success, false);
   }
 });

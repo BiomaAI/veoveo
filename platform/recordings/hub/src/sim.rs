@@ -37,14 +37,19 @@ impl TryFrom<String> for SensorId {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct LatLon {
     pub lat: f64,
     pub lon: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "pattern", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "pattern",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum TrackPattern {
     /// Circular orbit around the origin.
     Orbit { radius_m: f64, period_s: f64 },
@@ -53,7 +58,12 @@ pub enum TrackPattern {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "wave", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "wave",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum Wave {
     Sine { amplitude: f64, period_s: f64 },
     Step { low: f64, high: f64, period_s: f64 },
@@ -61,7 +71,12 @@ pub enum Wave {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum SensorKind {
     Imu {
         rate_hz: f64,
@@ -106,7 +121,7 @@ impl SensorKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(from = "SensorSpecWire")]
+#[serde(from = "SensorSpecWire", rename_all = "camelCase")]
 pub struct SensorSpec {
     pub id: SensorId,
     /// The recording (session) this sensor writes into at the hub.
@@ -122,7 +137,7 @@ pub struct SensorSpec {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct SensorStack {
     pub sensors: Vec<SensorSpec>,
 }
@@ -131,7 +146,12 @@ pub struct SensorStack {
 // Decode that whole object as one closed variant; Serde cannot safely combine
 // flatten with deny_unknown_fields during deserialization.
 #[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 enum SensorSpecWire {
     Imu {
         id: SensorId,
@@ -418,6 +438,7 @@ fn seeded_unit(seed: u64, tick: u64) -> f64 {
 
 /// Per-sensor ground truth after a run.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct SensorReport {
     pub id: SensorId,
     pub recording: String,
@@ -431,6 +452,7 @@ pub struct SensorReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct StackReport {
     pub sensors: Vec<SensorReport>,
     pub total_emitted: u64,
@@ -448,20 +470,20 @@ mod tests {
 
     fn sensor_manifests() -> Vec<serde_json::Value> {
         let kinds = [
-            serde_json::json!({"kind": "imu", "rate_hz": 200.0,
-                "accel_bias": [0.05, -0.02, 0.01], "gyro_noise": 0.01}),
-            serde_json::json!({"kind": "camera", "fps": 30.0, "frame_bytes": 1024}),
-            serde_json::json!({"kind": "gnss", "rate_hz": 10.0,
+            serde_json::json!({"kind": "imu", "rateHz": 200.0,
+                "accelBias": [0.05, -0.02, 0.01], "gyroNoise": 0.01}),
+            serde_json::json!({"kind": "camera", "fps": 30.0, "frameBytes": 1024}),
+            serde_json::json!({"kind": "gnss", "rateHz": 10.0,
                 "origin": {"lat": 47.0, "lon": 8.0},
-                "pattern": {"pattern": "orbit", "radius_m": 120.0, "period_s": 40.0}}),
-            serde_json::json!({"kind": "gnss", "rate_hz": 10.0,
+                "pattern": {"pattern": "orbit", "radiusM": 120.0, "periodS": 40.0}}),
+            serde_json::json!({"kind": "gnss", "rateHz": 10.0,
                 "origin": {"lat": 47.0, "lon": 8.0},
-                "pattern": {"pattern": "line", "heading_deg": 90.0, "speed_mps": 5.0}}),
-            serde_json::json!({"kind": "scalar", "rate_hz": 20.0, "name": "speed_mps",
-                "wave": {"wave": "sine", "amplitude": 12.0, "period_s": 15.0}}),
-            serde_json::json!({"kind": "scalar", "rate_hz": 20.0, "name": "speed_mps",
-                "wave": {"wave": "step", "low": 0.0, "high": 12.0, "period_s": 15.0}}),
-            serde_json::json!({"kind": "scalar", "rate_hz": 20.0, "name": "speed_mps",
+                "pattern": {"pattern": "line", "headingDeg": 90.0, "speedMps": 5.0}}),
+            serde_json::json!({"kind": "scalar", "rateHz": 20.0, "name": "speedMps",
+                "wave": {"wave": "sine", "amplitude": 12.0, "periodS": 15.0}}),
+            serde_json::json!({"kind": "scalar", "rateHz": 20.0, "name": "speedMps",
+                "wave": {"wave": "step", "low": 0.0, "high": 12.0, "periodS": 15.0}}),
+            serde_json::json!({"kind": "scalar", "rateHz": 20.0, "name": "speedMps",
                 "wave": {"wave": "random_walk", "step": 0.5}}),
         ];
         kinds
@@ -470,9 +492,9 @@ mod tests {
                 let fields = sensor.as_object_mut().unwrap();
                 fields.insert("id".into(), "sensor-a".into());
                 fields.insert("recording".into(), "sim-sensor-a".into());
-                fields.insert("application_id".into(), "veoveo-sim-sensor-a".into());
+                fields.insert("applicationId".into(), "veoveo-sim-sensor-a".into());
                 fields.insert("seed".into(), 42.into());
-                fields.insert("duration_s".into(), 2.0.into());
+                fields.insert("durationS".into(), 2.0.into());
                 sensor
             })
             .collect()
@@ -489,10 +511,10 @@ mod tests {
             unbounded["sensors"][0]
                 .as_object_mut()
                 .unwrap()
-                .remove("duration_s");
+                .remove("durationS");
             let stack: SensorStack = serde_json::from_value(unbounded.clone()).unwrap();
             assert_eq!(stack.sensors[0].duration_s, None);
-            unbounded["sensors"][0]["duration_s"] = serde_json::Value::Null;
+            unbounded["sensors"][0]["durationS"] = serde_json::Value::Null;
             assert_eq!(serde_json::to_value(&stack).unwrap(), unbounded);
             let stack: SensorStack = serde_json::from_value(unbounded).unwrap();
             assert_eq!(stack.sensors[0].duration_s, None);
@@ -522,9 +544,9 @@ mod tests {
             // A field declared by another sensor kind is also unknown here.
             let mut invalid = manifest;
             let foreign_field = if invalid["sensors"][0]["kind"] == "camera" {
-                "rate_hz"
+                "rateHz"
             } else {
-                "frame_bytes"
+                "frameBytes"
             };
             invalid["sensors"][0][foreign_field] = 1.into();
             let error = serde_json::from_value::<SensorStack>(invalid).unwrap_err();
@@ -566,7 +588,7 @@ mod tests {
                 let Some(fields) = sensor.pointer(path).and_then(|v| v.as_object()) else {
                     continue;
                 };
-                for field in fields.keys().filter(|field| *field != "duration_s") {
+                for field in fields.keys().filter(|field| *field != "durationS") {
                     let mut invalid = sensor.clone();
                     invalid
                         .pointer_mut(path)

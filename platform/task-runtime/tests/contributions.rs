@@ -376,18 +376,17 @@ async fn recovery_and_cancellation_settle_rows_and_cascade_is_transactional() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = store::TestDb::new().await;
         install(&db).await;
+        let replacement = runtime(&db, "replacement", Arc::default());
         let runtime = runtime(&db, "worker", Arc::default());
         let id = runtime.create(draft(1)).await.unwrap().snapshot.task_id;
-        runtime.claim(id, Duration::from_secs(60)).await.unwrap();
-        db.b.client()
-            .query(include_str!("queries/contributions/recovery_and_cancellation_settle_rows_and_cascade_is_transactional/statement_1.surql"))
-            .bind(("task", task_record_id(id)))
-            .bind(("expired", Utc::now() - chrono::Duration::seconds(1)))
-            .await
-            .unwrap()
-            .check()
-            .unwrap();
-        let report = runtime.recover().await.unwrap();
+        runtime.claim(id, Duration::from_secs(2)).await.unwrap();
+        let mut recovery = replacement.observe_startup_recovery().await.unwrap();
+        use futures::StreamExt;
+        assert!(recovery.next().await.unwrap().unwrap().failed_indeterminate.is_empty());
+        let report = loop {
+            let report = recovery.next().await.unwrap().unwrap();
+            if !report.failed_indeterminate.is_empty() { break report; }
+        };
         assert_eq!(report.failed_indeterminate.len(), 1);
         assert_eq!(
             runtime.get(id).await.unwrap().unwrap().status,

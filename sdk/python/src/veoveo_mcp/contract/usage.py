@@ -6,6 +6,8 @@ from enum import Enum
 from typing import Any
 import math
 
+from pydantic.alias_generators import to_camel
+from .wire import CurrentWireModel
 from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
 
 
@@ -14,8 +16,8 @@ class UsageKind(str, Enum):
     ACTUAL = "actual"
 
 
-class UsageRecord(BaseModel):
-    model_config = ConfigDict(use_enum_values=True, frozen=True)
+class UsageRecord(CurrentWireModel):
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=False, serialize_by_alias=True, extra="forbid", use_enum_values=True, frozen=True)
 
     task_id: str
     source_id: str | None = None
@@ -38,11 +40,11 @@ class UsageRecord(BaseModel):
         return self
 
     def model_copy(self, *, update=None, deep=False):
-        return type(self).model_validate({**self.model_dump(), **(update or {})})
+        return type(self).model_validate({**self.model_dump(), **{to_camel(key): value for key, value in (update or {}).items()}})
 
 
-class UsageReport(BaseModel):
-    model_config = ConfigDict(use_enum_values=True, frozen=True)
+class UsageReport(CurrentWireModel):
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=False, serialize_by_alias=True, extra="forbid", use_enum_values=True, frozen=True)
 
     task_id: str
     usage_uri: str
@@ -68,7 +70,7 @@ class UsageReport(BaseModel):
         return self
 
     def model_copy(self, *, update=None, deep=False):
-        return type(self).model_validate({**self.model_dump(), **(update or {})})
+        return type(self).model_validate({**self.model_dump(), **{to_camel(key): value for key, value in (update or {}).items()}})
 
     @classmethod
     def build(
@@ -87,12 +89,12 @@ class UsageReport(BaseModel):
         currency = _common_currency(totals)
         total_amount = _sum_amounts(totals, currency) if currency else None
         return cls(
-            task_id=task_id,
-            usage_uri=usage_uri,
+            taskId=task_id,
+            usageUri=usage_uri,
             records=records,
-            total_amount=total_amount,
+            totalAmount=total_amount,
             currency=currency,
-            total_kind=total_kind,
+            totalKind=total_kind,
         )
 
     def wire(self) -> dict[str, Any]:

@@ -33,7 +33,7 @@ fn usage_builders_preserve_native_task_identity_and_wire_shape() {
     assert_eq!(entry.usage_uri(), &usage);
     assert_eq!(
         serde_json::to_value(&entry).unwrap(),
-        json!({"task_id": task_id, "usage_uri": usage})
+        json!({"taskId": task_id, "usageUri": usage})
     );
     let cursor = TimeseriesUsageCursor::new(task_id).unwrap();
     assert_eq!(
@@ -62,10 +62,10 @@ fn usage_admission_rejects_invalid_envelopes_and_address_aliases() {
     let id = task(7);
     let cursor = TimeseriesUsageCursor::new(id).unwrap();
     for envelope in [
-        json!({"version":2,"task_id":id}),
-        json!({"version":1,"after":id}),
-        json!({"version":1,"task_id":"not-a-task"}),
-        json!({"version":1,"task_id":id,"extra":true}),
+        json!({"version":2,"taskId":id}),
+        json!({"version":2,"after":id}),
+        json!({"version":2,"taskId":"not-a-task"}),
+        json!({"version":2,"taskId":id,"extra":true}),
     ] {
         assert!(
             TimeseriesUsageCursor::parse(
@@ -151,7 +151,7 @@ fn usage_pages_and_entries_reject_inconsistent_construction_and_decoding() {
         assert!(TimeseriesUsagePage::from_task_ids(ids, next).is_err());
     }
     let mut wrong_entry = encoded["usage"][0].clone();
-    wrong_entry["task_id"] = json!(task(9));
+    wrong_entry["taskId"] = json!(task(9));
     assert!(serde_json::from_value::<TimeseriesUsageEntry>(wrong_entry).is_err());
     let mut wrong_page = encoded;
     wrong_page["limit"] = json!(200);
@@ -162,7 +162,7 @@ fn usage_pages_and_entries_reject_inconsistent_construction_and_decoding() {
 fn usage_preserves_published_cursor_envelope_and_page_fields() {
     let id = task(7);
     // Existing version 1 cursor bytes remain valid, including field order.
-    let published = URL_SAFE_NO_PAD.encode(format!(r#"{{"version":1,"task_id":"{id}"}}"#));
+    let published = URL_SAFE_NO_PAD.encode(format!(r#"{{"version":2,"taskId":"{id}"}}"#));
     let cursor = TimeseriesUsageCursor::new(id).unwrap();
     assert_eq!(cursor.as_str(), published);
     assert_eq!(TimeseriesUsageCursor::parse(published).unwrap(), cursor);
@@ -170,7 +170,7 @@ fn usage_preserves_published_cursor_envelope_and_page_fields() {
     assert_eq!(
         serde_json::to_value(page).unwrap(),
         json!({
-            "usage": [{"task_id": id, "usage_uri": TimeseriesTaskUsageUri::new(id).unwrap()}],
+            "usage": [{"taskId": id, "usageUri": TimeseriesTaskUsageUri::new(id).unwrap()}],
             "limit": 100
         })
     );
@@ -240,5 +240,26 @@ fn hosted_resources_admit_only_their_typed_families() {
     ] {
         assert!(TimeseriesArtifactUri::parse(&invalid).is_err(), "{invalid}");
         assert!(serde_json::from_value::<TimeseriesArtifactUri>(json!(invalid)).is_err());
+    }
+}
+
+#[test]
+fn current_usage_cursor_refuses_previous_revision_and_retired_member() {
+    let id = TaskId::new();
+    let current = json!({"version":2,"taskId":id});
+    let encode =
+        |value: &serde_json::Value| URL_SAFE_NO_PAD.encode(serde_json::to_vec(value).unwrap());
+    assert_eq!(
+        TimeseriesUsageCursor::parse(encode(&current))
+            .unwrap()
+            .after(),
+        id
+    );
+    for bad in [
+        json!({"version":1,"taskId":id}),
+        json!({"version":2,"task_id":id}),
+        json!({"version":2,"taskId":id,"task_id":id}),
+    ] {
+        assert!(TimeseriesUsageCursor::parse(encode(&bad)).is_err());
     }
 }

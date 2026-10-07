@@ -31,10 +31,7 @@ impl<'de> Deserialize<'de> for ComponentOwner {
 }
 
 /// Installation operations that must have an owner before component selection.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
 pub enum InstallationInput {
     Namespace,
     NodeBootstrap,

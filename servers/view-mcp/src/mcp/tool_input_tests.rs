@@ -80,10 +80,10 @@ async fn unknown_tool_arguments_complete_before_view_changes() {
             .find(|tool| tool["name"] == "create_scene_composition")
             .unwrap();
         assert_eq!(
-            tool["inputSchema"]["properties"]["base_layer"]["enum"],
+            tool["inputSchema"]["properties"]["baseLayer"]["enum"],
             json!(["fixture-layer"])
         );
-        let mut arguments = json!({"view_id":"view-fixture","expected_revision":1});
+        let mut arguments = json!({"viewId":"view-fixture","expectedRevision":1});
         let _: CloseViewRequest = serde_json::from_value(arguments.clone()).unwrap();
         arguments["undeclared"] = true.into();
         let body = gateway
@@ -120,10 +120,24 @@ async fn unknown_tool_arguments_complete_before_view_changes() {
                 }
                 _ => panic!("unexpected fixture tool"),
             }
-            for (location, arguments) in case
+            let mut retired = crate::contract::test_support::retired_field_cases(&case.arguments);
+            if case.tool == "create_scene_composition" {
+                for version in [0, 1, 3] {
+                    let mut unsupported = case.arguments.clone();
+                    unsupported["schemaVersion"] = version.into();
+                    retired.push((format!("unsupported schemaVersion {version}"), unsupported));
+                }
+            }
+            for (location, arguments, shared_diagnostic) in case
                 .unknown_fields()
                 .into_iter()
                 .chain(case.invalid_values())
+                .map(|(location, arguments)| (location, arguments, true))
+                .chain(
+                    retired
+                        .into_iter()
+                        .map(|(location, arguments)| (location, arguments, false)),
+                )
             {
                 let body = gateway
                     .rpc(
@@ -149,7 +163,9 @@ async fn unknown_tool_arguments_complete_before_view_changes() {
                     "{} {location}: {body}",
                     case.branch
                 );
-                case.assert_error(&location, &serde_json::to_string(&result.content).unwrap());
+                if shared_diagnostic {
+                    case.assert_error(&location, &serde_json::to_string(&result.content).unwrap());
+                }
             }
         }
         assert!(state.tasks.list().await.unwrap().is_empty());

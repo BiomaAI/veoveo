@@ -204,9 +204,21 @@ mod identity_profiles {
         assert_eq!(stable, format!("{prefix}{expected}"));
         assert_eq!(I::parse_identity(stable).unwrap().identity_text(), stable);
         let schema = I::json_schema(&mut schemars::SchemaGenerator::default());
+        assert_eq!(schema.as_value()["type"], "string");
+        let naming =
+            veoveo_types::naming_profile(&schema, veoveo_types::NamingSchemaContext::new(&schema))
+                .unwrap()
+                .unwrap();
+        assert_eq!(naming.revision(), 1);
         assert_eq!(
-            serde_json::to_value(schema).unwrap(),
-            serde_json::json!({"type":"string"})
+            naming.role(),
+            &veoveo_types::NamingRole::Scalar {
+                profile: veoveo_types::ScalarNaming::owner(
+                    module_path!().strip_suffix("::identity_profiles").unwrap(),
+                    &I::schema_name(),
+                )
+                .unwrap(),
+            }
         );
     }
     #[test]

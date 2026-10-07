@@ -23,17 +23,24 @@ pub struct MemberLink {
 #[serde(try_from = "PageWire", into = "PageWire")]
 pub struct SourcePage(veoveo_types::Checked<PageWire>);
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PageWire {
     items: Vec<MemberLink>,
     next_cursor: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    limit: Option<u16>,
 }
 impl SourcePage {
     pub fn new(
         items: Vec<MemberLink>,
         next_cursor: Option<String>,
     ) -> Result<Self, KnowledgeError> {
-        PageWire { items, next_cursor }.try_into()
+        PageWire {
+            items,
+            next_cursor,
+            limit: None,
+        }
+        .try_into()
     }
     pub fn items(&self) -> &[MemberLink] {
         &self.0.items
@@ -46,7 +53,10 @@ impl veoveo_types::Check for PageWire {
     type Error = KnowledgeError;
     fn check(&self) -> Result<(), Self::Error> {
         let page = self;
-        if page.items.len() > 100
+        if page
+            .limit
+            .is_some_and(|limit| limit == 0 || limit > 100 || page.items.len() > usize::from(limit))
+            || page.items.len() > 100
             || page
                 .items
                 .iter()

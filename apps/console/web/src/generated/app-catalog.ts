@@ -98,13 +98,13 @@ export interface AppDescriptor {
  * via the `definition` "AppResourceDependency".
  */
 export interface AppResourceDependency {
-  app_resource: ResourceUri;
-  data_labels?: DataLabelId[];
+  appResource: ResourceUri;
+  dataLabels?: DataLabelId[];
   operations: AppResourceOperation[];
-  required_scope: ScopeName;
+  requiredScope: ScopeName;
   scheme: ResourceScheme;
   server: ServerSlug;
-  uri_prefix: ResourceUriPrefix;
+  uriPrefix: ResourceUriPrefix;
 }
 /**
  * One exact cross-server tool set admitted to one owning MCP App.
@@ -113,9 +113,9 @@ export interface AppResourceDependency {
  * via the `definition` "AppToolDependency".
  */
 export interface AppToolDependency {
-  app_resource: ResourceUri;
-  data_labels?: DataLabelId[];
-  required_scope: ScopeName;
+  appResource: ResourceUri;
+  dataLabels?: DataLabelId[];
+  requiredScope: ScopeName;
   server: ServerSlug;
   tools: AppToolImport[];
 }
@@ -128,7 +128,7 @@ export interface AppToolImport {
    * Stable name exposed to the App frame.
    */
   name: string;
-  target_tool: LocalToolName;
+  targetTool: LocalToolName;
 }
 /**
  * This interface was referenced by `AppCatalog`'s JSON-Schema

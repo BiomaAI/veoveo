@@ -56,13 +56,13 @@ async fn managed_publication_requires_exact_template_parameters_and_credential_a
 pub(super) fn managed_state(store: &PlatformStore) -> AgentManagementState {
     let mut state = state(store);
     let template = json!({
-        "id":"bounded", "name":"Bounded worker", "tenant":"test", "work_contexts":["shared"],
-        "required_deployer_scopes":["operator:use"], "profile":"operator", "scopes":["operator:use"], "roles":[], "membership":"contributor",
-        "models":["approved"], "tools":[], "resource_subscriptions":[],
-        "parameters":{"session":{"label":"Session", "shape":{"kind":"identifier","maxLength":40}, "environment_variable":"VEOVEO_PARAM_SESSION"}},
-        "workload":{"namespace":"agents", "config_map":"bounded-template", "config_digest":format!("sha256:{}", "b".repeat(64)), "image":format!("registry.test/kernel@sha256:{}", "a".repeat(64)),
-            "database_secret":"agent-store", "storage_class":"local-path", "storage_gib":2, "cpu_millis":500, "memory_mib":1024,
-            "model_secrets":[{"reference":"media_provider_api_key", "secret":"agent-model", "key":"api-key"}]}
+        "id":"bounded", "name":"Bounded worker", "tenant":"test", "workContexts":["shared"],
+        "requiredDeployerScopes":["operator:use"], "profile":"operator", "scopes":["operator:use"], "roles":[], "membership":"contributor",
+        "models":["approved"], "tools":[], "resourceSubscriptions":[],
+        "parameters":{"session":{"label":"Session", "shape":{"kind":"identifier","maxLength":40}, "environmentVariable":"VEOVEO_PARAM_SESSION"}},
+        "workload":{"namespace":"agents", "configMap":"bounded-template", "configDigest":format!("sha256:{}", "b".repeat(64)), "image":format!("registry.test/kernel@sha256:{}", "a".repeat(64)),
+            "databaseSecret":"agent-store", "storageClass":"local-path", "storageGib":2, "cpuMillis":500, "memoryMib":1024,
+            "modelSecrets":[{"reference":"media_provider_api_key", "secret":"agent-model", "key":"api-key"}]}
     });
     state.install_templates(
         ManagedTemplateCatalog::from_json(&json!([template]).to_string(), &state.catalog.current())

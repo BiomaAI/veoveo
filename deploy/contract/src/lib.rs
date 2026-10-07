@@ -38,11 +38,11 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 /// Canonical multi-source deployment profile.
-pub const PROFILE_SCHEMA: &str = "veoveo.ai/deployment/v8";
+pub const PROFILE_SCHEMA: &str = "veoveo.ai/deployment/v9";
 /// Canonical immutable multi-source deployment lock.
-pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.ai/deployment-lock/v8";
+pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.ai/deployment-lock/v9";
 /// Canonical non-release image closure used by development GitOps deployments.
-pub const DEVELOPMENT_IMAGE_LOCK_SCHEMA: &str = "veoveo.ai/development-image-lock/v1";
+pub const DEVELOPMENT_IMAGE_LOCK_SCHEMA: &str = "veoveo.ai/development-image-lock/v2";
 /// Canonical local OCI registry declaration.
 pub const REGISTRY_SCHEMA: &str = "veoveo.ai/local-registry/v1";
 
@@ -168,8 +168,7 @@ impl LockedRegistry {
 }
 
 /// Registry transport and trust profile.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum RegistryTransport {
     /// HTTPS using trust roots already installed for the OCI client and BuildKit daemon.
     Tls,
@@ -205,8 +204,7 @@ pub struct DeploymentSource {
 }
 
 /// Ownership role for one independently versioned deployment source.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum DeploymentSourceRole {
     /// The sole Veoveo platform source in this deployment.
     Platform,
@@ -216,7 +214,12 @@ pub enum DeploymentSourceRole {
 
 /// Repository location for one deployment source.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum SourceRepository {
     /// Repository path relative to the deployment profile.
     Local { path: PathBuf },
@@ -325,8 +328,7 @@ pub struct ReleaseSpec {
 }
 
 /// Values surface implemented by one selected chart.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum ReleaseValuesContract {
     /// Core Veoveo platform chart, including typed component selection.
     Platform,
@@ -335,10 +337,7 @@ pub enum ReleaseValuesContract {
 }
 
 /// A chart-level installation preset.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
 pub enum InstallationPreset {
     /// Complete first-party platform surface.
     Full,
@@ -349,10 +348,7 @@ pub enum InstallationPreset {
 }
 
 /// Independently selectable platform infrastructure.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
 pub enum PlatformComponent {
     Gateway,
     PlatformStore,
@@ -371,11 +367,28 @@ pub enum PlatformComponent {
     Ingress,
 }
 
+impl PlatformComponent {
+    /// Chart selectors are installation identities, separate from JSON vocabulary.
+    #[must_use]
+    pub const fn helm_value(self) -> &'static str {
+        match self {
+            Self::Gateway => "gateway",
+            Self::PlatformStore => "platform-store",
+            Self::ObjectStore => "object-store",
+            Self::ArtifactService => "artifact-service",
+            Self::RecordingDataPlane => "recording-data-plane",
+            Self::SimulationRuntimeSupport => "simulation-runtime-support",
+            Self::EmbeddingRuntime => "embedding-runtime",
+            Self::AgentRuntimeSupport => "agent-runtime-support",
+            Self::Console => "console",
+            Self::Telemetry => "telemetry",
+            Self::Ingress => "ingress",
+        }
+    }
+}
+
 /// First-party hosted MCP servers selectable by an installation.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
 pub enum FirstPartyMcpServer {
     Computers,
     Knowledge,
@@ -398,10 +411,7 @@ pub enum FirstPartyMcpServer {
 }
 
 /// Platform capability names accepted from gateway composition requirements.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
 pub enum PlatformCapability {
     Artifact,
     Frames,
@@ -413,10 +423,7 @@ pub enum PlatformCapability {
 }
 
 /// Provider-neutral isolation selected for one physical-device group.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
 pub enum GpuIsolation {
     /// One workload replica owns the whole physical device.
     Exclusive,
@@ -427,10 +434,7 @@ pub enum GpuIsolation {
 }
 
 /// NVIDIA DRA time-slice interval compiled from a provider-neutral placement group.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
 pub enum GpuTimeSliceInterval {
     Short,
     Default,
@@ -512,8 +516,7 @@ pub struct ManagedOciImage {
 }
 
 /// Explicit acceptance of the upstream maturity of NVIDIA GPU allocation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum GpuAllocatorMaturityAcceptance {
     /// NVIDIA v0.5.0 marks GPU allocation as a technology-preview feature.
     TechnologyPreview,
@@ -521,7 +524,12 @@ pub enum GpuAllocatorMaturityAcceptance {
 
 /// Authorized removal of a conflicting NVIDIA device plugin from DRA-owned nodes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
-#[serde(tag = "mode", rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(
+    tag = "mode",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ConflictingGpuDevicePluginRemoval {
     /// The installation guarantees that no device plugin runs on selected nodes.
     RequireAbsent,
@@ -538,7 +546,12 @@ pub enum ConflictingGpuDevicePluginRemoval {
 impl<'de> Deserialize<'de> for ConflictingGpuDevicePluginRemoval {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(tag = "mode", rename_all = "kebab-case", deny_unknown_fields)]
+        #[serde(
+            tag = "mode",
+            rename_all = "snake_case",
+            rename_all_fields = "camelCase",
+            deny_unknown_fields
+        )]
         enum Wire {
             RequireAbsent {},
             DeleteDaemonSet {
@@ -629,8 +642,7 @@ pub struct GpuSchedulingProfile {
 }
 
 /// Typed first-party platform selection.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum ComputerCapacity {
     #[default]
     Unconfigured,
@@ -639,7 +651,7 @@ pub enum ComputerCapacity {
 }
 impl ComputerCapacity {
     #[must_use]
-    pub const fn as_str(self) -> &'static str {
+    pub const fn helm_value(self) -> &'static str {
         match self {
             Self::Unconfigured => "unconfigured",
             Self::OpenshellDocker => "openshell-docker",
@@ -738,7 +750,12 @@ pub struct DevelopmentLockedImage {
 
 /// Evidence lineage for one development image identity.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum DevelopmentImageOrigin {
     /// The runnable digest came unchanged from the qualified base closure.
     Qualified { publication_digest: String },
@@ -2415,17 +2432,17 @@ mod tests {
     use jsonschema::Validator;
 
     use super::{
-        ConflictingGpuDevicePluginRemoval, DeploymentLock, DeploymentSourceRole,
-        FirstPartyMcpServer, GatewayDeploymentRequirements, GpuAllocatorMaturityAcceptance,
-        GpuDifferentPhysicalDeviceConstraint, GpuDynamicResourceAllocator, GpuIsolation,
-        GpuSamePhysicalDeviceGroup, GpuSchedulingProfile, GpuTimeSliceInterval,
-        GpuWorkloadPlacement, InstallationPreset, LoadedProfile, ManagedGpuAllocatorInstallation,
-        ManagedOciChart, ManagedOciImage, NVIDIA_DRA_CHART_CONTENT_DIGEST,
-        NVIDIA_DRA_CHART_COORDINATE, NVIDIA_DRA_CHART_DIGEST, NVIDIA_DRA_IMAGE_AMD64_DIGEST,
-        NVIDIA_DRA_IMAGE_ARM64_DIGEST, NVIDIA_DRA_IMAGE_DIGEST, NVIDIA_DRA_IMAGE_REPOSITORY,
-        NVIDIA_DRA_VERSION, PlannedImage, PlatformCapability, PlatformComponent, PlatformSelection,
-        deployment_lock_schema, deployment_profile_schema, development_image_lock_schema,
-        validate_managed_gpu_allocator,
+        ComputerCapacity, ConflictingGpuDevicePluginRemoval, DeploymentLock, DeploymentSourceRole,
+        DevelopmentImageOrigin, FirstPartyMcpServer, GatewayDeploymentRequirements,
+        GpuAllocatorMaturityAcceptance, GpuDifferentPhysicalDeviceConstraint,
+        GpuDynamicResourceAllocator, GpuIsolation, GpuSamePhysicalDeviceGroup,
+        GpuSchedulingProfile, GpuTimeSliceInterval, GpuWorkloadPlacement, InstallationPreset,
+        LoadedProfile, ManagedGpuAllocatorInstallation, ManagedOciChart, ManagedOciImage,
+        NVIDIA_DRA_CHART_CONTENT_DIGEST, NVIDIA_DRA_CHART_COORDINATE, NVIDIA_DRA_CHART_DIGEST,
+        NVIDIA_DRA_IMAGE_AMD64_DIGEST, NVIDIA_DRA_IMAGE_ARM64_DIGEST, NVIDIA_DRA_IMAGE_DIGEST,
+        NVIDIA_DRA_IMAGE_REPOSITORY, NVIDIA_DRA_VERSION, PlannedImage, PlatformCapability,
+        PlatformComponent, PlatformSelection, RegistryTransport, deployment_lock_schema,
+        deployment_profile_schema, development_image_lock_schema, validate_managed_gpu_allocator,
     };
 
     fn managed_gpu_allocator_installation() -> ManagedGpuAllocatorInstallation {
@@ -3071,7 +3088,7 @@ mod tests {
     #[test]
     fn computer_capacity_adds_the_host_closure_and_requires_core_control() {
         let mut selection: PlatformSelection = serde_json::from_value(serde_json::json!({
-            "installationPreset": "custom", "computerCapacity": "openshell-docker",
+            "installationPreset": "custom", "computerCapacity": "openshell_docker",
             "components": ["gateway", "platform-store"], "mcpServers": ["computers"]
         }))
         .unwrap();
@@ -3120,5 +3137,95 @@ mod tests {
                 .to_string()
                 .contains("core Computers control")
         );
+    }
+    #[test]
+    fn current_deployment_wire_refuses_retired_values_and_variant_fields() {
+        for (value, retired) in [
+            (
+                crate::components::InstallationInput::NodeBootstrap,
+                "node-bootstrap",
+            ),
+            (
+                crate::components::InstallationInput::PublicResources,
+                "public-resources",
+            ),
+            (
+                crate::components::InstallationInput::GatewayActivation,
+                "gateway-activation",
+            ),
+            (
+                crate::components::InstallationInput::GpuAllocator,
+                "gpu-allocator",
+            ),
+            (
+                crate::components::InstallationInput::GpuPlacement,
+                "gpu-placement",
+            ),
+        ] {
+            let current = serde_json::to_value(value).unwrap();
+            assert_eq!(current, retired.replace('-', "_"));
+            assert_eq!(
+                serde_json::from_value::<crate::components::InstallationInput>(current).unwrap(),
+                value
+            );
+            assert!(
+                serde_json::from_value::<crate::components::InstallationInput>(serde_json::json!(
+                    retired
+                ))
+                .is_err()
+            );
+        }
+        assert_eq!(
+            serde_json::to_value(RegistryTransport::InsecureHttp).unwrap(),
+            "insecure_http"
+        );
+        assert!(
+            serde_json::from_value::<RegistryTransport>(serde_json::json!("insecure-http"))
+                .is_err()
+        );
+        assert_eq!(
+            serde_json::to_value(ComputerCapacity::OpenshellDocker).unwrap(),
+            "openshell_docker"
+        );
+        assert_eq!(
+            ComputerCapacity::OpenshellDocker.helm_value(),
+            "openshell-docker"
+        );
+        assert!(
+            serde_json::from_value::<ComputerCapacity>(serde_json::json!("openshell-docker"))
+                .is_err()
+        );
+        let current = serde_json::json!({"mode":"uninstall_helm_release", "namespace":"gpu", "releaseName":"plugin", "expectedChartVersion":"1.0.0"});
+        let admitted: ConflictingGpuDevicePluginRemoval =
+            serde_json::from_value(current.clone()).unwrap();
+        assert_eq!(serde_json::to_value(admitted).unwrap(), current);
+        for keep_current in [false, true] {
+            for (key, retired) in [
+                ("releaseName", "release_name"),
+                ("expectedChartVersion", "expected_chart_version"),
+            ] {
+                let mut bad = current.clone();
+                let value = bad[key].clone();
+                if !keep_current {
+                    bad.as_object_mut().unwrap().remove(key);
+                }
+                bad[retired] = value;
+                assert!(serde_json::from_value::<ConflictingGpuDevicePluginRemoval>(bad).is_err());
+            }
+        }
+        let mut retired_mode = current;
+        retired_mode["mode"] = "uninstall-helm-release".into();
+        assert!(serde_json::from_value::<ConflictingGpuDevicePluginRemoval>(retired_mode).is_err());
+        let origin = serde_json::json!({"kind":"qualified", "publicationDigest":format!("sha256:{}", "a".repeat(64))});
+        assert!(serde_json::from_value::<DevelopmentImageOrigin>(origin.clone()).is_ok());
+        for keep_current in [false, true] {
+            let mut bad = origin.clone();
+            let digest = bad["publicationDigest"].clone();
+            if !keep_current {
+                bad.as_object_mut().unwrap().remove("publicationDigest");
+            }
+            bad["publication_digest"] = digest;
+            assert!(serde_json::from_value::<DevelopmentImageOrigin>(bad).is_err());
+        }
     }
 }

@@ -30,7 +30,7 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
   let gateway = TestGateway::new(testing::for_domain::<DuckdbMcp>().handler(move || Hosted::new(DuckdbMcp::new(gateway_state.clone()))).build());
   let discover = gateway.rpc("server/discover",json!({})).await;
   assert!(discover.get("error").is_none(), "{discover}");
-  let mut arguments = json!({"db":"strict_input","sql":"CREATE TABLE effects (value INTEGER)","create_if_missing":true});
+  let mut arguments = json!({"db":"strict_input","sql":"CREATE TABLE effects (value INTEGER)","createIfMissing":true});
   let _: veoveo_duckdb_mcp::contract::DuckDbExecuteRequest = serde_json::from_value(arguments.clone()).unwrap();
   arguments["undeclared"] = true.into();
   let body = gateway.rpc("tools/call",json!({"name":"execute","arguments":arguments})).await;
@@ -39,6 +39,17 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
   let result: rmcp::model::CallToolResult = serde_json::from_value(body["result"].clone()).unwrap();
   assert_eq!(result.is_error,Some(true));
   assert!(serde_json::to_string(&result.content).unwrap().contains("undeclared"));
+        for mixed in [false, true] {
+            let mut arguments = json!({"db":"strict_input","sql":"CREATE TABLE effects (value INTEGER)","createIfMissing":true});
+            arguments["create_if_missing"] = arguments["createIfMissing"].clone();
+            if !mixed { arguments.as_object_mut().unwrap().remove("createIfMissing"); }
+            let body = gateway.rpc("tools/call", json!({"name":"execute","arguments":arguments})).await;
+            assert!(body.get("error").is_none(), "{body}");
+            assert_eq!(body["result"]["resultType"], "complete", "{body}");
+            let result: rmcp::model::CallToolResult = serde_json::from_value(body["result"].clone()).unwrap();
+            assert_eq!(result.is_error, Some(true));
+            assert!(serde_json::to_string(&result.content).unwrap().contains("create_if_missing"));
+        }
         let cases = input_fixture::ToolInputCase::load(include_bytes!("../../../testdata/controlled-inputs.json"));
         assert_eq!(cases.len(), 26);
         for case in cases {

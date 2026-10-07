@@ -26,11 +26,11 @@ def decoder_reservation_gib(request: RunnerRequest) -> float:
     cover the H.264 DPB; RGB-sized accounting also covers its smaller NV12 form.
     vLLM separately profiles the vision tower at the admitted observation size.
     """
-    count = min(request.sampling.max_frames, request.pipeline.observation.maximum_frames)
+    count = min(request.sampling.maxFrames, request.pipeline.observation.maximumFrames)
     observation = request.pipeline.observation
-    if min(request.input_width, request.input_height, observation.width, observation.height, count) <= 0:
+    if min(request.inputWidth, request.inputHeight, observation.width, observation.height, count) <= 0:
         raise ValueError("frame counts and dimensions must be positive")
-    source_bytes = request.input_width * request.input_height * 3 * 20
+    source_bytes = request.inputWidth * request.inputHeight * 3 * 20
     observation_bytes = observation.width * observation.height * 3 * count * 8
     return (source_bytes + observation_bytes + 512 * 1024**2) / 1024**3
 
@@ -47,7 +47,7 @@ def create_model(request: RunnerRequest, maximum_frames: int) -> LLM:
         raise RuntimeError("Reason inference requires an NVIDIA CUDA device")
     observation = request.pipeline.observation
     model = LLM(
-        model=request.model.model_path,
+        model=request.model.modelPath,
         trust_remote_code=False,
         tensor_parallel_size=1,
         pipeline_parallel_size=1,
@@ -60,8 +60,8 @@ def create_model(request: RunnerRequest, maximum_frames: int) -> LLM:
             "width": observation.width,
             "height": observation.height,
         }},
-        gpu_memory_utilization=request.model.engine.gpu_memory_utilization,
-        max_model_len=request.model.engine.max_model_len,
+        gpu_memory_utilization=request.model.engine.gpuMemoryUtilization,
+        max_model_len=request.model.engine.maxModelLen,
         max_num_seqs=1,
     )
     core = model.llm_engine.engine_core
@@ -84,7 +84,7 @@ def generate(
 
     if not frames or any(not frame.image.is_cuda for frame in frames):
         raise RuntimeError("Reason accepts only owned CUDA observation tensors")
-    processor = AutoProcessor.from_pretrained(request.model.model_path, trust_remote_code=False)
+    processor = AutoProcessor.from_pretrained(request.model.modelPath, trust_remote_code=False)
     if not isinstance(processor.image_processor, TorchvisionBackend):
         raise RuntimeError("Reason requires the CUDA-capable Transformers image processor")
     # CPU grid and token metadata never contain image pixels or embeddings.

@@ -58,7 +58,7 @@ fn live_tool_handoffs_link_to_the_session_product() {
         assert_eq!(text.text, status);
         assert_eq!(link.uri, SessionUri::new(id).to_string());
         assert_eq!(link.mime_type.as_deref(), Some("application/json"));
-        assert_eq!(result.structured_content.unwrap()["result_uri"], link.uri);
+        assert_eq!(result.structured_content.unwrap()["resultUri"], link.uri);
     }
 }
 
@@ -74,7 +74,7 @@ fn assert_handoff(task: DetailedTask, expected: &Value) {
         panic!("completion needs one status and one result link")
     };
     assert_eq!(status.text, RUN_COMPLETED);
-    assert_eq!(link.uri, expected["result_uri"].as_str().unwrap());
+    assert_eq!(link.uri, expected["resultUri"].as_str().unwrap());
     assert_eq!(
         link.mime_type.as_deref(),
         Some("application/vnd.veoveo.stream-results+json")
@@ -152,7 +152,7 @@ async fn current_results_survive_cross_replica_reads_and_listener_reconnects() {
         let retained = reader.for_owner(&owner()).get(id).await.unwrap().unwrap();
         assert_eq!(
             retained.result_uri.as_ref().map(|uri| uri.as_str()),
-            expected["result_uri"].as_str()
+            expected["resultUri"].as_str()
         );
         assert_eq!(retained.result, Some(stored));
         assert_eq!(
@@ -198,6 +198,9 @@ async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode
             "missing-result-uri",
             "wrong-link",
             "extra-link",
+            "retired-product",
+            "mixed-product",
+            "conflicting-provenance",
         ] {
             let id = TaskId::new();
             create(&writer, owner(), id).await;
@@ -205,7 +208,7 @@ async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode
             let mut result =
                 recording_result(serde_json::from_value(value.clone()).unwrap()).unwrap();
             match corruption {
-                "wrong-pipeline" => value["pipeline_uri"] = "stream://pipeline/other".into(),
+                "wrong-pipeline" => value["pipelineUri"] = "stream://pipeline/other".into(),
                 "wrong-task" => {
                     value = current_output(TaskId::new());
                     result =
@@ -213,7 +216,7 @@ async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode
                 }
                 "missing-product" => value = Value::Null,
                 "missing-result-uri" => {
-                    value.as_object_mut().unwrap().remove("result_uri");
+                    value.as_object_mut().unwrap().remove("resultUri");
                 }
                 "wrong-link" => {
                     let ContentBlock::ResourceLink(link) = &mut result.content[1] else {
@@ -222,6 +225,19 @@ async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode
                     link.uri = "stream://pipeline/other".into();
                 }
                 "extra-link" => result.content.push(result.content[1].clone()),
+                "retired-product" => {
+                    let old = value
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("resultsArtifact")
+                        .unwrap();
+                    value["results_artifact"] = old;
+                }
+                "mixed-product" => value["results_artifact"] = value["resultsArtifact"].clone(),
+                "conflicting-provenance" => {
+                    value["annotationsArtifact"]["metadata"]["provenance"]["run_id"] =
+                        TaskId::new().to_string().into()
+                }
                 _ => unreachable!(),
             }
             result.structured_content = Some(value);

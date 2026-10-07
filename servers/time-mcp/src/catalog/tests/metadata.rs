@@ -81,14 +81,16 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
         let original = body(&db.a, &record).await;
         for (field, value) in [
             (
-                "calendar_id",
+                "calendarId",
                 json!("calendar-00000000-0000-7000-8000-000000000002"),
             ),
             ("version", json!(2)),
             ("name", json!("other")),
-            ("zone_id", json!("Europe/London")),
+            ("zoneId", json!("Europe/London")),
         ] {
             let bad = corrupt(&original, field, value);
+            serde_json::from_str::<crate::OperationalCalendar>(&bad)
+                .expect("selected calendar corruption stays portable-admitted");
             set(&db.a, &record, "canonical_json", bad.clone()).await;
             assert!(
                 catalog
@@ -169,7 +171,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
         wrong_instant.tai_seconds_since_1970 += 1;
         for (field, value) in [
             (
-                "epoch_id",
+                "epochId",
                 json!("epoch-00000000-0000-7000-8000-000000000002"),
             ),
             ("version", json!(2)),
@@ -229,7 +231,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
             crate::SubsecondNanoseconds::new(wrong_due.nanosecond.get() + 1).unwrap();
         for (field, value) in [
             (
-                "event_id",
+                "eventId",
                 json!("event-00000000-0000-7000-8000-000000000002"),
             ),
             ("name", json!("other")),
@@ -347,14 +349,14 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         let original = body(&db.a, &record).await;
         for (field, value) in [
             (
-                "source_id",
+                "sourceId",
                 json!("time-source-00000000-0000-7000-8000-000000000002"),
             ),
-            ("dataset_kind", json!("tzdb")),
+            ("datasetKind", json!("tzdb")),
             ("url", json!("https://example.test/other")),
-            ("expected_content_type", json!("application/json")),
+            ("expectedContentType", json!("application/json")),
             ("enabled", json!(false)),
-            ("dataset_kind", json!("STORED_SECRET_MARKER")),
+            ("datasetKind", json!("STORED_SECRET_MARKER")),
         ] {
             let bad = corrupt(&original, field, value);
             set(&db.a, &record, "canonical_json", bad.clone()).await;
@@ -434,15 +436,15 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         assert_eq!(retired.state, AuthorityReleaseState::Retired);
         assert_eq!(retired.record_version.get(), 3);
         for (field, value) in [
-            ("release_id", json!(second.release_id)),
+            ("releaseId", json!(second.release_id)),
             (
-                "source_id",
+                "sourceId",
                 json!("time-source-00000000-0000-7000-8000-000000000002"),
             ),
-            ("dataset_kind", json!("tzdb")),
-            ("source_digest_sha256", json!("c".repeat(64))),
-            ("version_label", json!("other")),
-            ("artifact_path", json!("/other")),
+            ("datasetKind", json!("tzdb")),
+            ("sourceDigestSha256", json!("c".repeat(64))),
+            ("versionLabel", json!("other")),
+            ("artifactPath", json!("/other")),
         ] {
             let bad = corrupt(&active_body, field, value);
             set(&db.a, &record, "canonical_json", bad.clone()).await;
@@ -514,14 +516,14 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
 
         for (field, value) in [
             (
-                "acquisition_id",
+                "acquisitionId",
                 json!("time-acquisition-00000000-0000-7000-8000-000000000002"),
             ),
             (
-                "source_id",
+                "sourceId",
                 json!("time-source-00000000-0000-7000-8000-000000000002"),
             ),
-            ("expected_source_digest_sha256", json!("b".repeat(64))),
+            ("expectedSourceDigestSha256", json!("b".repeat(64))),
         ] {
             let bad = corrupt(&original, field, value);
             set(&db.a, &record, "canonical_json", bad.clone()).await;
@@ -800,8 +802,8 @@ async fn retained_instants_reject_ambiguous_authority_bindings_after_sql_visibil
         for (record, field) in &records {
             let original = body(&db.a, record).await;
             let mut corrupted: serde_json::Value = serde_json::from_str(&original).unwrap();
-            corrupted[field]["authority"]["leap_seconds_release_id"] =
-                corrupted[field]["authority"]["tzdb_release_id"].clone();
+            corrupted[field]["authority"]["leapSecondsReleaseId"] =
+                corrupted[field]["authority"]["tzdbReleaseId"].clone();
             let corrupted = corrupted.to_string();
             set(&db.a, record, "canonical_json", corrupted.clone()).await;
             originals.push(original);

@@ -12,6 +12,7 @@ use std::collections::BTreeSet;
 /// fn corrupt(frame: &mut FrameRecord) { frame.view_revision = 0; }
 /// ```
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(try_from = "FrameRecordWire")]
 pub struct FrameRecord(veoveo_types::Checked<FrameRecordWire>);
 
@@ -358,6 +359,7 @@ mod encoding_mime {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct FrameRecordWire {
     frame_id: FrameId,
     result_uri: FrameUri,
@@ -378,7 +380,7 @@ struct FrameRecordWire {
     resolved_camera: GeodeticCameraPose,
     width_px: u32,
     height_px: u32,
-    #[serde(rename = "mime_type", with = "encoding_mime")]
+    #[serde(rename = "mimeType", with = "encoding_mime")]
     #[schemars(schema_with = "encoding_schema")]
     encoding: FrameEncoding,
     byte_length: u64,

@@ -15,7 +15,7 @@ use crate::uris;
 
 const TOKEN_PROTOCOL_PREFIX: &str = "authorization.bearer.";
 const STREAM_PROTOCOL: &str = "veoveo.h264.annexb.v1";
-const LIVE_VIEW_QUERY: &str = "live_view_id";
+const LIVE_VIEW_QUERY: &str = "liveViewId";
 const MAX_HEADER_BYTES: usize = 64 * 1024;
 const HEADER_TIMEOUT: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -502,7 +502,7 @@ mod tests {
         assert!(unique_query("live_view_id=one&live_view_id=two").is_err());
         assert_eq!(
             unique_query("live_view_id=one").unwrap(),
-            vec![("live_view_id".to_owned(), "one".to_owned())]
+            vec![("liveViewId".to_owned(), "one".to_owned())]
         );
     }
 

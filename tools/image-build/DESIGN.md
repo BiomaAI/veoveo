@@ -16,7 +16,10 @@
 | sccache 0.17.0 | SHA-256-pinned Linux amd64 experiment tool; local disk cache and client-side compilation, incremental Rust disabled |
 | `veoveo.ai/compiler-cache-comparison/v1` | fresh Cargo target comparison, exact compiler and binary identity, typed sccache counters, no release eligibility |
 | BuildKit local cache export | OCI cache index pinned to one manifest digest, `mode=max` export, and import into an initially empty worker |
-| `veoveo.ai/compiler-worker-comparison/v1` | same-host worker isolation, unchanged result reuse, matched source-edit inputs and artifacts, CPU/phase timing, and verified cleanup |
+| `veoveo.ai/compiler-worker-comparison/v2` | same-host worker isolation, unchanged result reuse, matched source-edit inputs and artifacts, CPU/phase timing, and verified cleanup |
+| `veoveo.ai/image-build-plan/v3` | camelCase build plan members and snake_case owned compiler, mode and auxiliary-artifact values; Buildx target names remain upstream declarations |
+| `veoveo.ai/image-command/v2` | camelCase operation progress with snake_case owned phases and outcomes |
+| `veoveo.ai/cargo-cache-maintenance/v3` | camelCase cache plan with snake_case candidate kinds; native filesystem paths and timestamps identify selected outputs |
 | Git | exact committed publication source; local builds also admit non-ignored working-tree files |
 
 ## Ownership
@@ -24,6 +27,8 @@
 `tools/xtask/src/commands/image/source_context.rs` derives source contexts for every Rust compiler family.
 The checked-in Bake catalog owns compiler images and runtime assembly. Managed worker
 identity, resource limits, and cache-preserving maintenance belong to `control/`.
+Controlled report values use one snake_case spelling. Native worker case directories
+and Buildx identifiers keep their declared spelling; they are not report vocabulary.
 The xtask image benchmark owns controlled source-edit comparisons. It operates on
 temporary Cargo-derived contexts and holds a control-library quota lease through
 restoration. Its local artifacts grant no compiler-family or image-release admission.
@@ -200,7 +205,7 @@ Map's analytics family. The DeepStream development stage compiles only the C++ r
 and mounts only `servers/stream-mcp/gst-runner`; Rust edits preserve that native action.
 Runtime assembly combines the two binaries with the digest-pinned DeepStream runtime.
 Reason consumes the same control compiler and assembles its executable with the
-digest-pinned vLLM 0.30.0 runtime. Runner dependency manifests have their own build
+digest-pinned vLLM 0.31.0 runtime. Runner dependency manifests have their own build
 mounts, while Python source becomes an executable archive in a later layer. Rust and
 Python source edits reuse the large GPU runtime and dependency installation.
 Reason disables install-time Python bytecode and fixes archive timestamps, member

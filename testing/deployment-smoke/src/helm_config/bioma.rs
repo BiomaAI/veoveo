@@ -74,6 +74,7 @@ pub(super) fn check() -> Result<()> {
         ["kustomize".into(), "examples/bioma".into()],
         [],
     )?;
+    knowledge_embedding_configuration(&installation, &bioma)?;
     let mut bundles = Vec::new();
     let mut manager_bundles = Vec::new();
     for document in serde_yaml_ng::Deserializer::from_str(&installation) {
@@ -114,7 +115,7 @@ pub(super) fn check() -> Result<()> {
                 .and_then(|servers| servers.iter().find(|server| server["slug"] == slug))
                 .with_context(|| format!("{slug} registration missing"))?;
             ensure!(
-                server["upstream"]["health_url"]
+                server["upstream"]["healthUrl"]
                     .as_str()
                     .is_some_and(|url| url.ends_with(&format!("/{slug}/readyz"))),
                 "{slug} gateway health must use dependency readiness"
@@ -125,7 +126,7 @@ pub(super) fn check() -> Result<()> {
             .and_then(|servers| servers.iter().find(|server| server["slug"] == "speech"))
             .context("Speech registration missing")?;
         ensure!(
-            speech["referenced_resource_schemes"] == serde_json::json!(["artifact"]),
+            speech["referencedResourceSchemes"] == serde_json::json!(["artifact"]),
             "Speech must preserve source Artifact URIs through gateway projection"
         );
     }
@@ -473,6 +474,246 @@ fn dependency_readiness_probes(rendered: &str) -> Result<()> {
                 "{name} {probe} Host is not admitted"
             );
         }
+    }
+    Ok(())
+}
+
+fn knowledge_embedding_configuration(installation: &str, rendered: &str) -> Result<()> {
+    use veoveo_embedding_contract::{EmbeddingGraphAllowance, QualifiedEmbeddingRuntime};
+
+    let values: Value =
+        serde_yaml_ng::from_str(&fs::read_to_string("examples/bioma/values.yaml")?)?;
+    let knowledge = &values["knowledge"];
+    let config_name = knowledge["existingConfigMap"]
+        .as_str()
+        .context("Knowledge ConfigMap name")?;
+    let runtime_key = knowledge["embeddingRuntimeConfigKey"]
+        .as_str()
+        .context("Knowledge runtime key")?;
+    let objects = serde_yaml_ng::Deserializer::from_str(installation)
+        .map(Value::deserialize)
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    let configurations = objects
+        .iter()
+        .filter(|object| {
+            object["kind"] == "ConfigMap"
+                && object["metadata"]["name"] == config_name
+                && object["metadata"]["namespace"] == "veoveo"
+        })
+        .collect::<Vec<_>>();
+    ensure!(
+        configurations.len() == 1,
+        "expected one Knowledge public ConfigMap"
+    );
+    let data =
+        serde_json::from_value::<BTreeMap<String, String>>(configurations[0]["data"].clone())?;
+    let indexing_keys = knowledge["indexingConfigKeys"]
+        .as_array()
+        .context("Knowledge indexing keys")?;
+    ensure!(
+        data.len() == indexing_keys.len() + 1,
+        "Knowledge public bundle must contain its indexing files and runtime only"
+    );
+    for key in indexing_keys {
+        let key = key.as_str().context("Knowledge indexing filename")?;
+        ensure!(
+            data.get(key)
+                == Some(&fs::read_to_string(
+                    Path::new("examples/bioma/knowledge").join(key)
+                )?),
+            "Knowledge ConfigMap changed indexing file {key}"
+        );
+    }
+    let runtime_json = data
+        .get(runtime_key)
+        .context("Knowledge ConfigMap omitted its runtime bundle")?;
+    ensure!(
+        *runtime_json
+            == fs::read_to_string(Path::new("examples/bioma/knowledge").join(runtime_key))?,
+        "Knowledge ConfigMap changed runtime file bytes"
+    );
+    let runtime: QualifiedEmbeddingRuntime = serde_json::from_str(runtime_json)
+        .context("admitting the installation-selected Knowledge embedding runtime")?;
+    // Helm's Knowledge contract hashes sorted compact ConfigMap data plus a newline.
+    let mut encoded = serde_json::to_vec(&data)?;
+    encoded.push(b'\n');
+    let revision = hex::encode(Sha256::digest(encoded));
+    ensure!(
+        knowledge["configurationRevision"] == revision,
+        "Knowledge configurationRevision must hash all public ConfigMap data"
+    );
+
+    let common = run_checked(
+        Path::new("timeout"),
+        [
+            "25s".into(),
+            "helm".into(),
+            "template".into(),
+            "bioma".into(),
+            "deploy/helm/veoveo".into(),
+            "--namespace".into(),
+            "veoveo".into(),
+            "--values".into(),
+            "examples/bioma/modules-values.yaml".into(),
+            "--values".into(),
+            "testing/fixtures/platform-selection/platform-values.yaml".into(),
+            "--values".into(),
+            "examples/bioma/values.yaml".into(),
+            "--values".into(),
+            "examples/bioma/images/veoveo.lock.yaml".into(),
+        ],
+        [],
+    )?;
+    let chart_values: Value =
+        serde_yaml_ng::from_str(&fs::read_to_string("deploy/helm/veoveo/values.yaml")?)?;
+    let declared_image = &chart_values["embedding"]["image"];
+    let declared_tag = declared_image["tag"]
+        .as_str()
+        .context("declared embedding image tag")?;
+    let declared_reference: oci_spec::distribution::Reference = format!(
+        "{}:{}@{}",
+        declared_image["repository"]
+            .as_str()
+            .context("declared embedding image repository")?,
+        declared_tag,
+        declared_image["digest"]
+            .as_str()
+            .context("declared embedding image digest")?
+    )
+    .parse()
+    .context("admitting declared embedding OCI image reference")?;
+    for (context, rendered) in [
+        ("common reference", common.as_str()),
+        ("k3d reference", rendered),
+    ] {
+        let objects = serde_yaml_ng::Deserializer::from_str(rendered)
+            .map(Value::deserialize)
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let embedding = objects
+            .iter()
+            .find(|object| {
+                object["kind"] == "Deployment" && object["metadata"]["name"] == "embedding"
+            })
+            .context("rendered embedding Deployment")?;
+        let container = embedding["spec"]["template"]["spec"]["containers"]
+            .as_array()
+            .and_then(|containers| {
+                containers
+                    .iter()
+                    .find(|container| container["name"] == "embedding")
+            })
+            .context("rendered embedding container")?;
+        ensure!(
+            container["resources"]["limits"]["cpu"] == "4"
+                && container["resources"]["limits"]["memory"] == "12Gi",
+            "{context} embedding resource limits must match the qualified four-CPU/12 GiB workload"
+        );
+        let contents = runtime.profile().contents();
+        let image = container["image"].as_str().context("embedding image")?;
+        let reference: oci_spec::distribution::Reference = image
+            .parse()
+            .context("admitting rendered embedding OCI image reference")?;
+        ensure!(
+            reference.digest() == Some(contents.runtime_image.as_str())
+                && declared_reference.digest() == Some(contents.runtime_image.as_str())
+                && reference.registry() == declared_reference.registry()
+                && reference.repository() == declared_reference.repository()
+                && declared_reference.registry() == "docker.io"
+                && declared_reference.repository() == "vllm/vllm-openai"
+                && declared_tag == format!("v{}", contents.vllm_version.as_ref())
+                && reference.tag().is_none_or(|tag| tag == declared_tag),
+            "{context} image disagrees with its qualified embedding runtime"
+        );
+        let args = container["args"]
+            .as_array()
+            .context("embedding arguments")?
+            .iter()
+            .map(|argument| argument.as_str().context("embedding string argument"))
+            .collect::<Result<Vec<_>>>()?;
+        let serving = &contents.serving;
+        for (flag, expected) in [
+            ("--runner", "pooling".to_owned()),
+            ("--served-model-name", contents.space.model.to_string()),
+            ("--dtype", serving.precision.to_string()),
+            ("--scheduling-policy", serving.scheduling.to_string()),
+            (
+                "--max-model-len",
+                serving.max_input_tokens.get().to_string(),
+            ),
+            (
+                "--max-num-batched-tokens",
+                serving.max_num_batched_tokens.to_string(),
+            ),
+            ("--max-num-seqs", serving.max_num_sequences.to_string()),
+        ] {
+            let position = args
+                .iter()
+                .position(|argument| *argument == flag)
+                .with_context(|| format!("{context} missing {flag}"))?;
+            ensure!(
+                args.get(position + 1).copied() == Some(expected.as_str()),
+                "{context} {flag} disagrees with its qualified embedding runtime"
+            );
+        }
+        let memory_position = args
+            .iter()
+            .position(|argument| *argument == "--gpu-memory-utilization")
+            .context("embedding memory fraction argument")?;
+        let fraction = args
+            .get(memory_position + 1)
+            .context("embedding memory fraction value")?
+            .parse::<f64>()?;
+        ensure!(
+            (fraction * 10_000. - f64::from(serving.gpu_memory_basis_points)).abs() < 0.000_001,
+            "{context} GPU memory fraction disagrees with its qualified embedding runtime"
+        );
+        ensure!(
+            serving.graph_allowance == EmbeddingGraphAllowance::GraphsAllowed
+                && serving.explicit_kv_cache_bytes.is_none()
+                && !args.contains(&"--enforce-eager")
+                && !args.contains(&"--kv-cache-memory-bytes"),
+            "{context} graph or cache arguments disagree with its qualified embedding runtime"
+        );
+        let model_path = format!(
+            "/models/{}-{}",
+            contents.space.model, contents.space.revision
+        );
+        ensure!(
+            args.contains(&model_path.as_str()),
+            "{context} checkpoint path disagrees with its qualified model revision"
+        );
+        ensure!(
+            contents.checkpoint_manifest.as_str()
+                == format!(
+                    "sha256:{}",
+                    hex::encode(Sha256::digest(fs::read(
+                        "platform/runtimes/embedding/checkpoint.sha256"
+                    )?))
+                ),
+            "{context} checkpoint manifest disagrees with its qualified embedding runtime"
+        );
+        let knowledge = objects
+            .iter()
+            .find(|object| {
+                object["kind"] == "Deployment" && object["metadata"]["name"] == "knowledge-mcp"
+            })
+            .context("rendered Knowledge Deployment")?;
+        ensure!(
+            knowledge["spec"]["template"]["metadata"]["annotations"]["checksum/knowledge-configuration"]
+                == revision,
+            "{context} Knowledge Pod revision must identify the delivered public ConfigMap"
+        );
+        let environment = knowledge["spec"]["template"]["spec"]["containers"][0]["env"]
+            .as_array()
+            .context("Knowledge environment")?;
+        let bundle_path = format!("/etc/veoveo/knowledge/config/{runtime_key}");
+        ensure!(
+            environment.iter().any(
+                |variable| variable["name"] == "VEOVEO_EMBEDDING_RUNTIME_FILE"
+                    && variable["value"] == bundle_path
+            ),
+            "{context} Knowledge must load the installation-selected runtime bundle"
+        );
     }
     Ok(())
 }

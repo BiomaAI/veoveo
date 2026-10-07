@@ -1,1 +1,10 @@
-UPDATE ONLY $blueprint SET artifact = $artifact WHERE artifact = NONE RETURN NONE;
+BEGIN TRANSACTION;
+LET $parent = (SELECT * FROM ONLY $recording FOR UPDATE);
+LET $current = (SELECT * FROM ONLY $blueprint FOR UPDATE);
+LET $intent = (SELECT * FROM ONLY $publication FOR UPDATE);
+IF $parent = NONE OR $parent.tenant != $tenant OR $parent.state != 'sealing' OR $current.tenant != $tenant OR $current.recording != $recording { THROW 'recording_blueprint_parent_conflict'; };
+IF $intent != NONE { THROW 'recording_source_selection_frozen'; };
+IF $current.artifact != NONE { THROW 'recording_blueprint_artifact_conflict'; };
+UPDATE ONLY $blueprint SET artifact = $artifact RETURN NONE;
+UPDATE ONLY $recording SET revision += 1, updated_at = time::now() RETURN NONE;
+COMMIT TRANSACTION;

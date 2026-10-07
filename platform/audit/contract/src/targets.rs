@@ -9,6 +9,7 @@ use std::{
     marker::PhantomData,
     sync::Arc,
 };
+use veoveo_types::{NAMING_PROFILE_KEY, NamingSchemaContext, naming_profile};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum AuditTargetError {
@@ -361,12 +362,21 @@ impl Serialize for AdmittedAuditTarget {
 /// The admitted owner profile is generated closed objects, scalar constraints,
 /// arrays and local definitions. Unrecognized schema mechanics fail registration.
 fn check_closed_schema(schema: &Value, root: &Value) -> Result<(), AuditTargetError> {
-    check_schema_node(schema, root, &mut BTreeSet::new(), &mut BTreeSet::new())
+    let naming_root =
+        schemars::Schema::try_from(root.clone()).map_err(|_| AuditTargetError::Invalid)?;
+    check_schema_node(
+        schema,
+        root,
+        NamingSchemaContext::new(&naming_root),
+        &mut BTreeSet::new(),
+        &mut BTreeSet::new(),
+    )
 }
 
 fn check_schema_node(
     schema: &Value,
     root: &Value,
+    naming_context: NamingSchemaContext<'_>,
     active: &mut BTreeSet<String>,
     checked: &mut BTreeSet<String>,
 ) -> Result<(), AuditTargetError> {
@@ -410,6 +420,7 @@ fn check_schema_node(
         "deprecated",
         "readOnly",
         "writeOnly",
+        NAMING_PROFILE_KEY,
     ];
     if object.keys().any(|key| !KEYWORDS.contains(&key.as_str()))
         || !["type", "$ref", "oneOf", "anyOf", "allOf", "const", "enum"]
@@ -417,6 +428,11 @@ fn check_schema_node(
             .any(|key| object.contains_key(*key))
     {
         return Err(AuditTargetError::Invalid);
+    }
+    if object.contains_key(NAMING_PROFILE_KEY) {
+        let node =
+            schemars::Schema::try_from(schema.clone()).map_err(|_| AuditTargetError::Invalid)?;
+        naming_profile(&node, naming_context).map_err(|_| AuditTargetError::Invalid)?;
     }
     if let Some(reference) = object.get("$ref") {
         let reference = reference.as_str().ok_or(AuditTargetError::Invalid)?;
@@ -439,7 +455,7 @@ fn check_schema_node(
             if !active.insert(name.to_owned()) {
                 return Err(AuditTargetError::Invalid);
             }
-            check_schema_node(definition, root, active, checked)?;
+            check_schema_node(definition, root, naming_context, active, checked)?;
             active.remove(name);
             checked.insert(name.to_owned());
         }
@@ -490,7 +506,7 @@ fn check_schema_node(
         if let Some(children) = object.get(key) {
             let children = children.as_object().ok_or(AuditTargetError::Invalid)?;
             for child in children.values() {
-                check_schema_node(child, root, active, checked)?;
+                check_schema_node(child, root, naming_context, active, checked)?;
             }
         }
     }
@@ -501,13 +517,13 @@ fn check_schema_node(
                 return Err(AuditTargetError::Invalid);
             }
             for child in children {
-                check_schema_node(child, root, active, checked)?;
+                check_schema_node(child, root, naming_context, active, checked)?;
             }
         }
     }
     for key in ["items", "additionalProperties"] {
         if let Some(child) = object.get(key) {
-            check_schema_node(child, root, active, checked)?;
+            check_schema_node(child, root, naming_context, active, checked)?;
         }
     }
     Ok(())
@@ -534,6 +550,65 @@ mod schema_tests {
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(generated, CORE.iter().copied().collect());
     }
+    #[test]
+    fn naming_annotations_preserve_closed_schema_admission_and_constraints() {
+        let id = serde_json::to_value(schemars::schema_for!(veoveo_types::TenantId)).unwrap();
+        assert!(id.get(NAMING_PROFILE_KEY).is_some());
+        let schema = serde_json::json!({
+            "type":"object", "additionalProperties":false,
+            "properties":{"tenant":{"$ref":"#/$defs/Tenant"},"count":{"type":"integer","minimum":1}},
+            "required":["tenant","count"], "$defs":{"Tenant":id}
+        });
+        let original = schema.clone();
+        assert!(check_closed_schema(&schema, &schema).is_ok());
+        assert_eq!(schema, original);
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        assert!(validator.is_valid(&serde_json::json!({"tenant":"tenant-a","count":1})));
+        for invalid in [
+            serde_json::json!({"tenant":"tenant-a","count":0}),
+            serde_json::json!({"tenant":"tenant-a"}),
+            serde_json::json!({"tenant":"tenant-a","count":1,"extra":true}),
+        ] {
+            assert!(!validator.is_valid(&invalid));
+        }
+        let marker = schema["$defs"]["Tenant"][NAMING_PROFILE_KEY].clone();
+        let mut extra = marker.clone();
+        extra["extra"] = true.into();
+        let mut revision = marker.clone();
+        revision["revision"] = 2.into();
+        let mut kind = marker.clone();
+        kind["role"]["kind"] = "unsupported".into();
+        for malformed in [Value::Null, extra, revision, kind] {
+            let mut invalid = schema.clone();
+            invalid["$defs"]["Tenant"][NAMING_PROFILE_KEY] = malformed;
+            assert!(check_closed_schema(&invalid, &invalid).is_err());
+        }
+        let mut misplaced = schema.clone();
+        misplaced[NAMING_PROFILE_KEY] = marker;
+        assert!(check_closed_schema(&misplaced, &misplaced).is_err());
+        for keyword in ["unknownAssertion", "x-owner-ignore"] {
+            let mut invalid = schema.clone();
+            invalid["$defs"]["Tenant"][keyword] = true.into();
+            assert!(check_closed_schema(&invalid, &invalid).is_err());
+        }
+        let declaration = veoveo_types::NamingDeclaration {
+            authority: veoveo_types::NamingAuthority::Owner {
+                module: veoveo_types::NamingLabel::new("independent-owner").unwrap(),
+            },
+            profile: veoveo_types::NamingLabel::new("external-object").unwrap(),
+            version: veoveo_types::NamingLabel::new("v1").unwrap(),
+            applicability: veoveo_types::NamingLabel::new("the annotated object").unwrap(),
+        };
+        let profile =
+            veoveo_types::NamingProfile::new(veoveo_types::NamingRole::External { declaration })
+                .unwrap();
+        let mut open = serde_json::json!({"type":"object","additionalProperties":true});
+        open[NAMING_PROFILE_KEY] = serde_json::to_value(profile).unwrap();
+        let root = schemars::Schema::try_from(open.clone()).unwrap();
+        assert!(naming_profile(&root, NamingSchemaContext::new(&root)).is_ok());
+        assert!(check_closed_schema(&open, &open).is_err());
+    }
+
     #[test]
     fn rejects_schema_holes_in_supported_profile() {
         for schema in [

@@ -101,7 +101,7 @@ addresses its members:
       "enumerate": "time://events{?cursor}",
       "freshness": { "maxAgeSeconds": 300 },
       "changeSignal": "listen",
-      "access": "work-context",
+      "access": "work_context",
       "indexing": "content"
     }
   }
@@ -115,7 +115,7 @@ addresses its members:
 | `enumerate` | Bounded, cursor-paged collection resource that lists member URIs in stable order, per contract rule C04 |
 | `freshness` | Either `{ "immutable": true }` or `{ "maxAgeSeconds": n }` |
 | `changeSignal` | `listen`: member and collection URIs are subscribable and a restart-safe source emits their changes. `immutable`: members never change after creation. `revalidate`: the server emits no changes, and consumers revalidate after `maxAgeSeconds` |
-| `access` | `work-context`: each observation carries a Work Context access descriptor. `profile`: members share the current tenant and collection exposure, without per-record access restrictions |
+| `access` | `work_context`: each observation carries a Work Context access descriptor. `profile`: members share the current tenant and collection exposure, without per-record access restrictions |
 | `requiredScopes` | Typed scope names every reader must hold, in addition to collection exposure and record access. An empty set adds no scope requirement. The source owns these names |
 | `indexing` | `content`: the knowledge service may index returned text. `metadata`: it may index titles and observation fields only. `none`: it catalogs the collection without indexing it |
 
@@ -203,7 +203,7 @@ has no annotations field; read-time modification metadata belongs in the observa
 | `observedAt` | yes | Server time when the domain produced this read |
 | `modifiedAt` | when recorded | Stored modification time of the returned content; an access-only revision need not change this timestamp |
 | `modifiedBy` | when recorded | Principal ID that produced the current revision, in the platform's shared human and service principal namespace |
-| `access` | for `work-context` collections | Tenant, stored Work Context, explicit read policy, owner, direct grants when the domain stores them, and data labels |
+| `access` | for `work_context` collections | Tenant, stored Work Context, explicit read policy, owner, direct grants when the domain stores them, and data labels |
 | `external` | for connector projections | `system`, `nativeId`, and optional `url` of the record in an external system of record, plus `mirroredAt` when the connector served a stored copy |
 
 A domain server fills observations from its own records. The caller never supplies
@@ -219,14 +219,14 @@ exposure of the collection.
 |---|---|
 | `tenant` | Every caller admitted to this collection in the tenant may read |
 | `subjects` | The caller matches the owner or a direct principal/group grant |
-| `work-context` | The caller has read membership in the stored Work Context, or matches an owner/grant subject |
-| `selected-work-context` | The caller selects the stored Work Context and has read membership there, or matches an owner/grant subject |
-| `selected-work-context-members` | The caller selects the stored Work Context and has read membership there. Ownership and subject grants do not bypass membership |
-| `subjects-in-context` | The caller matches an owner/grant subject and selects the stored Work Context; an optional typed `profile` additionally requires that gateway profile |
+| `work_context` | The caller has read membership in the stored Work Context, or matches an owner/grant subject |
+| `selected_work_context` | The caller selects the stored Work Context and has read membership there, or matches an owner/grant subject |
+| `selected_work_context_members` | The caller selects the stored Work Context and has read membership there. Ownership and subject grants do not bypass membership |
+| `subjects_in_context` | The caller matches an owner/grant subject and selects the stored Work Context; an optional typed `profile` additionally requires that gateway profile |
 
 Servers select the policy from their persistence contract. Tenant-shared calendars
 can declare `tenant`; private events use `subjects`. Owner-scoped Tasks whose source
-also checks the selected context and profile use `subjects-in-context`. None of these
+also checks the selected context and profile use `subjects_in_context`. None of these
 declarations expands the source's read policy. A source policy outside these forms
 requires an extension of the contract before that collection can be indexed.
 

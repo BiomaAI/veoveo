@@ -20,7 +20,7 @@ MAX_GROUNDING_PROMPT_FRAMES = 200
 
 def task_instruction(request: RunnerRequest) -> str:
     task = request.task
-    span = request.requested_range
+    span = request.requestedRange
     if task.kind == "describe_segment":
         focus = f" Focus on: {task.prompt}" if task.prompt else ""
         return (
@@ -39,7 +39,7 @@ def task_instruction(request: RunnerRequest) -> str:
 
 
 def build_prompt(request: RunnerRequest, frame_indices: list[int]) -> str:
-    template = Path(request.pipeline.prompt_template_path).read_text(encoding="utf-8").strip()
+    template = Path(request.pipeline.promptTemplatePath).read_text(encoding="utf-8").strip()
     sections = [template]
     sections.append(
         "Frames are ordered and each carries its source-timeline index: "
@@ -50,7 +50,7 @@ def build_prompt(request: RunnerRequest, frame_indices: list[int]) -> str:
         for frame in request.grounding.frames[:MAX_GROUNDING_PROMPT_FRAMES]:
             detections = ", ".join(
                 detection.label
-                + (f" (track {detection.track_id})" if detection.track_id is not None else "")
+                + (f" (track {detection.trackId})" if detection.trackId is not None else "")
                 for detection in frame.detections
             )
             if detections:
@@ -122,7 +122,7 @@ def normalize_events(
     events: list[ReasonedEvent] = []
     for entry in document.get("events", []):
         try:
-            event = ReasonedEvent.model_validate(entry)
+            event = model_event(entry)
         except ValueError:
             continue
         if event.range.start > event.range.end:
@@ -138,10 +138,10 @@ def normalize_events(
                 range=event.range,
                 label=label[:MAX_EVENT_LABEL_BYTES],
                 description=description[:MAX_EVENT_DESCRIPTION_BYTES],
-                track_ids=sorted(
+                trackIds=sorted(
                     {
                         track
-                        for track in event.track_ids[:MAX_TRACK_CITATIONS_PER_EVENT]
+                        for track in event.trackIds[:MAX_TRACK_CITATIONS_PER_EVENT]
                         if track in grounded_tracks
                     }
                 ),
@@ -157,3 +157,13 @@ def truncate_text(text: str, max_bytes: int) -> str:
     if len(encoded) <= max_bytes:
         return stripped
     return encoded[:max_bytes].decode("utf-8", errors="ignore").strip()
+
+
+def model_event(entry: dict) -> ReasonedEvent:
+    """Translate the model's declared structured output into owned event fields."""
+    if not isinstance(entry, dict) or entry.keys() - {"range", "label", "description", "track_ids"}:
+        raise ValueError("undeclared model event field")
+    value = dict(entry)
+    if "track_ids" in value:
+        value["trackIds"] = value.pop("track_ids")
+    return ReasonedEvent.model_validate(value)

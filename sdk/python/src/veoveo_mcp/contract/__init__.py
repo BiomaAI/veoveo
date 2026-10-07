@@ -2,6 +2,8 @@
 
 from .artifacts import (
     ArtifactId,
+    ArtifactUploadId,
+    ArtifactUploadReceipt,
     ArtifactTaskId,
     ArtifactUri,
     ArtifactReleaseState,
@@ -19,7 +21,10 @@ from .artifacts import (
 )
 from .audit import AuditManagedExecution, AuditRequest, AuditRequestId, AuditSpanId, AuditTraceId
 from .docs import (
-    CHECKLIST_IDS,
+    CATALOG_REVISION,
+    ComplianceProfile,
+    RequirementId,
+    requirement_catalog,
     CONTRACT_REVISION,
     ComplianceItem,
     ComplianceStatus,
@@ -32,7 +37,6 @@ from .docs import (
     ServerDoc,
     ServerDocs,
     ServerDocsError,
-    parse_compliance,
     server_docs,
 )
 from .identity import (
@@ -69,6 +73,8 @@ __all__ = [
     "AuditSpanId",
     "AuditTraceId",
     "ArtifactId",
+    "ArtifactUploadId",
+    "ArtifactUploadReceipt",
     "ArtifactMetadata",
     "ArtifactObject",
     "ArtifactWriteCapabilityId",
@@ -79,7 +85,10 @@ __all__ = [
     "IssuedArtifactWriteCapability",
     "PutArtifactRequest",
     "RedeemArtifactWriteCapabilityRequest",
-    "CHECKLIST_IDS",
+    "CATALOG_REVISION",
+    "ComplianceProfile",
+    "RequirementId",
+    "requirement_catalog",
     "CONTRACT_REVISION",
     "ComplianceItem",
     "ComplianceStatus",
@@ -92,7 +101,6 @@ __all__ = [
     "ServerDoc",
     "ServerDocs",
     "ServerDocsError",
-    "parse_compliance",
     "server_docs",
     "AccessLevel",
     "AccessSubject",

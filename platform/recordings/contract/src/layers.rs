@@ -37,7 +37,7 @@ fn valid_identity(kind: RecordingLayerKind, name: &str, ordinal: Option<u64>) ->
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 #[schemars(rename = "LayerView")]
 pub struct LayerViewBuilder {
     pub layer_id: RecordingLayerId,
@@ -55,9 +55,9 @@ pub struct LayerViewBuilder {
     #[serde(default, with = "sha256_hex::optional")]
     #[schemars(with = "Option<String>")]
     pub schema_digest: Option<Sha256Digest>,
-    #[schemars(with = "String")]
+    #[schemars(with = "String", extend("format" = "date-time"))]
     pub created_at: DateTime<Utc>,
-    #[schemars(with = "String")]
+    #[schemars(with = "String", extend("format" = "date-time"))]
     pub updated_at: DateTime<Utc>,
 }
 impl LayerViewBuilder {
@@ -108,7 +108,7 @@ impl std::ops::Deref for LayerView {
 /// fn change_digest(layer: &mut ManifestLayer) { layer.sha256 = layer.sha256.clone(); }
 /// ```
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 #[schemars(rename = "ManifestLayer")]
 pub struct ManifestLayerBuilder {
     pub layer_id: RecordingLayerId,

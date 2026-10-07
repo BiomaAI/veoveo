@@ -48,6 +48,40 @@ fn metadata_constructor_rejects_body_chunks_and_mismatched_mode() {
         },
         control_revision: Sha256Digest::from_bytes([1; 32]),
     };
+    let current = serde_json::to_vec(&registration).unwrap();
+    let admitted: CollectionRegistration = serde_json::from_slice(&current).unwrap();
+    admitted.validate().unwrap();
+    assert_eq!(admitted, registration);
+    assert_eq!(admitted.revision(), registration.revision());
+    let mut unrelated_control = registration.clone();
+    unrelated_control.control_revision = Sha256Digest::from_bytes([9; 32]);
+    assert_eq!(unrelated_control.revision(), registration.revision());
+    let mut changed_approval = registration.clone();
+    changed_approval.approval.mode = CollectionApproval::CatalogOnly;
+    changed_approval.validate().unwrap();
+    assert_ne!(changed_approval.revision(), registration.revision());
+    for (canonical, retired) in [
+        ("authoritativeFor", "authoritative_for"),
+        ("dataLabels", "data_labels"),
+    ] {
+        for mixed in [false, true] {
+            let mut bad = serde_json::to_value(&registration).unwrap();
+            let approval = bad["approval"].as_object_mut().unwrap();
+            let value = if mixed {
+                approval[canonical].clone()
+            } else {
+                approval.remove(canonical).unwrap()
+            };
+            approval.insert(retired.into(), value);
+            assert!(serde_json::from_value::<CollectionRegistration>(bad.clone()).is_err());
+            assert!(
+                serde_json::from_slice::<CollectionRegistration>(
+                    &serde_json::to_vec(&bad).unwrap()
+                )
+                .is_err()
+            );
+        }
+    }
     let space = EmbeddingSpace {
         model: EmbeddingModelId::parse("fixture").unwrap(),
         revision: EmbeddingModelRevision::parse("v1").unwrap(),
@@ -207,4 +241,45 @@ fn generation_digest_excludes_execution_but_includes_query_chunking_and_approval
     )
     .unwrap();
     assert_ne!(collection_changed.revision(), first.revision());
+}
+
+#[test]
+fn approvals_refuse_retired_and_mixed_names_and_vocabulary() {
+    use veoveo_knowledge_contract::{CollectionApproval, KnowledgeCollectionApproval};
+    let current = serde_json::json!({
+        "collection":"fixture.records", "mode":"catalog_only", "stewards":["stewards"],
+        "authoritativeFor":["facilities"], "dataLabels":["restricted"]
+    });
+    let approval: KnowledgeCollectionApproval = serde_json::from_value(current.clone()).unwrap();
+    approval.validate().unwrap();
+    assert_eq!(approval.mode, CollectionApproval::CatalogOnly);
+    assert_eq!(serde_json::to_value(&approval).unwrap(), current);
+    for (canonical, retired) in [
+        ("authoritativeFor", "authoritative_for"),
+        ("dataLabels", "data_labels"),
+    ] {
+        for mixed in [false, true] {
+            let mut bad = current.clone();
+            let fields = bad.as_object_mut().unwrap();
+            let value = fields[canonical].clone();
+            if !mixed {
+                fields.remove(canonical);
+            }
+            fields.insert(retired.into(), value);
+            assert!(serde_json::from_value::<KnowledgeCollectionApproval>(bad.clone()).is_err());
+            assert!(
+                serde_json::from_slice::<KnowledgeCollectionApproval>(
+                    &serde_json::to_vec(&bad).unwrap()
+                )
+                .is_err()
+            );
+        }
+    }
+    let mut retired_mode = current.clone();
+    retired_mode["mode"] = "catalog-only".into();
+    assert!(serde_json::from_value::<KnowledgeCollectionApproval>(retired_mode).is_err());
+    for name in ["catalog_only", "index"] {
+        assert!(serde_json::from_value::<CollectionApproval>(name.into()).is_ok());
+    }
+    assert!(serde_json::from_value::<CollectionApproval>("catalog-only".into()).is_err());
 }

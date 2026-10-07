@@ -349,7 +349,10 @@ services its focused check requires, after stopping other GPU workloads as neede
 Installations with different checkpoints, solver pools, or GPU capacity
 size `reason.engine.gpuMemoryUtilization` and
 `embedding.engine.gpuMemoryUtilization` and `VEOVEO_CUOPT_POOL_GIB` against all
-concurrently resident workloads. The embedding profile requests 25% of device memory.
+concurrently resident workloads. The reference embedding profile requests 45% of
+device memory as a candidate budget. The fraction does not establish capacity. Runtime
+profiling must confirm the full-context cache and selected production workload with
+co-resident GPU workloads.
 Flight acceptance reports Reason as a separate check.
 The development chart requests 4 GiB of host memory for the cuOpt executor. The
 simulator's operator-camera products run inside the simulator allocation. Higher
@@ -409,12 +412,19 @@ must grant its Knowledge scopes and tool allowlist before a managed kernel can u
 
 The public [worker configuration](knowledge/indexing.json) names the signing key
 file mounted from `bioma-knowledge-indexer`. Kustomize includes the public JWKS in
-the gateway bundle and mounts the worker configuration separately. Update
-`knowledge.configurationRevision` when its ConfigMap data changes:
+the gateway bundle and mounts the worker configuration separately. The same Knowledge
+ConfigMap supplies the [measured embedding runtime](knowledge/embedding-runtime.json)
+named by `knowledge.embeddingRuntimeConfigKey`. The reference values select its FP16
+serving settings. This bundle qualifies the reference NVIDIA GeForce RTX 4090
+environment recorded in the profile. Other hardware requires its own qualification.
+The reference values reproduce the measured workload's four-CPU limit and 12 GiB
+memory limit.
+Update `knowledge.configurationRevision` when either public file changes:
 
 ~~~bash
 jq -cnS --rawfile config examples/bioma/knowledge/indexing.json \
-  '{"indexing.json":$config}' | sha256sum
+  --rawfile runtime examples/bioma/knowledge/embedding-runtime.json \
+  '{"indexing.json":$config,"embedding-runtime.json":$runtime}' | sha256sum
 ~~~
 
 Use the resulting 64-character digest in `values.yaml`. The gateway's
@@ -788,7 +798,8 @@ it into place, delete the transfer Pod, and restart `deployment/embedding`.
 The [retrieval comparison](../../platform/runtimes/embedding/verification/retrieval-2026-10-02.md)
 selects 0.6B for this installation. Larger checkpoints provide no recall gain on the
 fixed domain corpus and use more GPU memory. The comparison's fixed cache allocation
-is separate from this installation's 25% memory fraction.
+is separate from this installation's configured 45% candidate fraction and does not
+establish its runtime cache capacity.
 
 Readiness requires checkpoint verification, a visible NVIDIA CUDA device and vLLM's
 `/health`. The runtime serves internal requests at `http://embedding:8000`, authenticated

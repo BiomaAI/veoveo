@@ -80,6 +80,7 @@ impl JsonSchema for SubsecondNanoseconds {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TimeInstant {
     /// Integral TAI seconds elapsed since 1970-01-01 00:00:00 TAI.
     pub tai_seconds_since_1970: i64,

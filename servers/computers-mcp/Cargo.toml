@@ -80,7 +80,7 @@ veoveo-computers = { path = "../../platform/computers", optional = true }
 veoveo-computers-runtime = { path = "../../platform/runtimes/computers", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 veoveo-platform-store = { path = "../../platform/store", optional = true }
-veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, optional = true }
 veoveo-artifact-client = { path = "../../platform/artifacts/client", optional = true }
 veoveo-types = { workspace = true, optional = true }
 

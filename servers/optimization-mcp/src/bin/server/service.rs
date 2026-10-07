@@ -315,7 +315,7 @@ impl OptimizationMcp {
                             veoveo_mcp_apps_extension::WorkbenchTool {
                                 label: "Verify solution",
                                 name: "verify_solution",
-                                arguments_json: r#"{"solution_uri":""}"#,
+                                arguments_json: r#"{"solutionUri":""}"#,
                             },
                         ],
                     )
@@ -595,6 +595,7 @@ impl OptimizationMcp {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct OptimizationCapabilities {
     contract_version: &'static str,
     cuopt_version: &'static str,
@@ -614,12 +615,14 @@ struct OptimizationCapabilities {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProblemIndexEntry {
     problem_uri: OptimizationProblemUri,
     family: ProblemFamily,
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProblemIndexPage {
     problems: Vec<ProblemIndexEntry>,
     limit: usize,
@@ -628,6 +631,7 @@ struct ProblemIndexPage {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RunIndexEntry {
     run_uri: OptimizationRunUri,
     family: ProblemFamily,
@@ -635,6 +639,7 @@ struct RunIndexEntry {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RunIndexPage {
     runs: Vec<RunIndexEntry>,
     limit: usize,
@@ -643,6 +648,7 @@ struct RunIndexPage {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SolutionIndexEntry {
     result_uri: OptimizationSolutionUri,
     family: ProblemFamily,
@@ -651,6 +657,7 @@ struct SolutionIndexEntry {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SolutionIndexPage {
     solutions: Vec<SolutionIndexEntry>,
     limit: usize,
@@ -669,7 +676,7 @@ fn capabilities(state: &AppState) -> OptimizationCapabilities {
         compute_capability: state.executor_health.compute_capability.clone(),
         problem_families: vec!["routing", "route_scenarios", "convex", "milp"],
         routing_order_families: vec!["service", "pickup_delivery"],
-        model_artifact_formats: vec!["optimization_json_v1"],
+        model_artifact_formats: vec!["optimization_json_v2"],
         maximum_inline_matrix_cells: veoveo_optimization_mcp::contract::MAX_INLINE_MATRIX_CELLS,
         maximum_inline_model_nonzeros: veoveo_optimization_mcp::contract::MAX_INLINE_MODEL_NONZEROS,
         maximum_route_cases: veoveo_optimization_mcp::contract::MAX_ROUTE_CASES,
@@ -682,8 +689,8 @@ fn capabilities(state: &AppState) -> OptimizationCapabilities {
             "routing_travel_arcs",
             "variable_bounds",
             "integrality",
-            "linear_constraints",
-            "quadratic_constraints",
+            "linearConstraints",
+            "quadraticConstraints",
             "objective",
         ],
     }

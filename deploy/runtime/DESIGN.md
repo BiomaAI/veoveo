@@ -5,12 +5,12 @@
 | Boundary | Supported profile |
 |---|---|
 | `veoveo.ai/module-selection/v1` and `veoveo.ai/module-plan/v1` | Checked camelCase JSON; optional selection, decimal-string generation, nonsecret credential revision and composition-generated lane/runtime bindings |
-| `veoveo.ai/deployment/v8` and `veoveo.ai/deployment-lock/v8` | Disposable installation profiles and immutable artifacts defined by `../contract/DESIGN.md` |
+| `veoveo.ai/deployment/v9` and `veoveo.ai/deployment-lock/v9` | Disposable installation profiles and immutable artifacts defined by `../contract/DESIGN.md` |
 | `veoveo.ai/source-chart-content/v1` | Shared content identity for source charts in verified immutable checkouts |
 | `veoveo.ai/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
 | `veoveo.ai/component-publication/v1` | Internal xtask receipt for exact component lock composition; records chart revisions, configuration refresh, image evidence, and retained owners, with no cluster execution claim |
-| `veoveo.ai/installed-deployment-unit/v1` | Local installation provenance, exact Helm revision and manifest identity, and observed object fingerprints used to verify reuse |
-| `veoveo.ai/component-installation/v2` | Successful selected installation plan, actual unit outcomes, unselected observations, and released cluster coordination identity; API request auditing stays separate |
+| `veoveo.ai/installed-deployment-unit/v2` | Local installation provenance, exact Helm revision and manifest identity, and observed object fingerprints used to verify reuse |
+| `veoveo.ai/component-installation/v3` | Successful selected installation plan, actual unit outcomes, unselected observations, and released cluster coordination identity; API request auditing stays separate |
 | Git | Immutable source checkouts, origin verification, and tracked installation input checks |
 | Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
 | Helm v4.3.0 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
@@ -419,7 +419,7 @@ configuration checks do not establish a new hardware acceptance result.
 `profile-up` and `profile-down` coordinate through the fixed Lease
 `kube-system/veoveo-profile-mutation`. This is installer control metadata, separate
 from component-owned application objects. The catalog cannot claim its identity.
-The v2 installation receipt records its UID, holder identity, and successful release.
+The v3 installation receipt records its UID, holder identity, and successful release.
 The native scope observer accounts for its acquisition and release explicitly.
 
 Kubernetes `coordination.k8s.io/v1` supplies atomic object creation. This repository
@@ -457,3 +457,9 @@ cluster. This result does not qualify a publication. `profile_validate`, release
 publication and installation still resolve immutable Git snapshots and check their
 input bytes. A source check must not silently validate the previous commit when the
 working tree contains a newly added workload.
+
+`PlatformComponent::helm_value` exhaustively maps typed public components to the
+chart's installation selector identities. Deployment JSON uses snake_case values;
+Helm components keep their declared kebab-case identities. Computer capacity uses
+its own explicit chart adapter. Server selectors have single-word values in both
+profiles, while GPU placement compiles provider-native DRA fields explicitly.

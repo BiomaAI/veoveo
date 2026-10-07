@@ -19,7 +19,7 @@ function resourceOwnedByApp(app: AppDescriptor, uri: string): boolean {
   if (uri.startsWith(`${app.server}://`) && uri.length > app.server.length + 3) return true;
   return app.resourceDependencies.some((dependency) =>
     dependency.operations.includes("subscribe") &&
-    uri.startsWith(dependency.uri_prefix) &&
+    uri.startsWith(dependency.uriPrefix) &&
     uri.startsWith(`${dependency.scheme}://`),
   );
 }

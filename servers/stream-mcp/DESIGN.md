@@ -15,17 +15,76 @@ over encoded sensor streams and governed recordings.
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with direct live-session tools, durable recording runs, resources, templates, prompts, completions, subscriptions, and notifications. |
 | MCP Apps SEP-1865 / `ext-apps` | Version `2026-01-26`; `ui://stream/live.html` is a self-contained App using canonical Stream tools and resources. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Pipeline profiles, RTP ingress, live sessions, detections, encoded preview chunks, recording selections, and artifact results use closed typed shapes. |
-| Stream replay `veoveo.stream-results/v1` | The contract library owns the version enum, complete result model and portable validation shared by producers and consumers. |
+| Stream replay `veoveo.ai/stream-results/v2` | The contract library owns the version enum, complete result model and portable validation shared by producers and consumers. |
 | Stream resource addresses | `StreamResource` owns the route vocabulary. Distinct catalog IDs and UUIDv7 run/session IDs compose through foundational URI builders. Collection continuations use distinct typed JSON/base64url cursors. |
 | Stream Artifact addresses | `StreamArtifactUri` wraps the Artifact contract's presented address with the fixed `stream` scheme and a typed Artifact occurrence ID. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; recording replay is durable, cancellable, resumable from governed identity, and returns its terminal payload through `tasks/get`. A live session is direct bounded work, not an indefinitely running task. |
 | [GStreamer 1.0](https://gstreamer.freedesktop.org/documentation/) | Operator-admitted native launch graphs are private installation configuration. Clients select stable pipeline IDs and never submit launch text. |
-| Rust 1.99.0 and GNU ELF | The Linux amd64 control executable compiles on Bookworm independently of the DeepStream C++ runner; their private JSON process boundary is unchanged. |
+| Rust 1.99.0 and GNU ELF | The Linux amd64 control executable compiles on Bookworm independently of the DeepStream C++ runner; their private JSON process boundary admits the current v2 envelopes. |
 | [NVIDIA DeepStream 9.1](https://docs.nvidia.com/metropolis/deepstream/9.1/text/DS_Release_notes.html) and TensorRT | NVIDIA NVDEC, `nvstreammux`, `nvinfer`, and optional `nvtracker` execute the perception profile. Triton is a build-stage dependency only. |
 | [RTP 2.0](https://www.rfc-editor.org/rfc/rfc3550) and [RTP payload format for H.264](https://www.rfc-editor.org/rfc/rfc6184) | Live ingress accepts one admitted RTP/H.264 UDP endpoint with a dynamic payload type and a 90 kHz clock. |
 | H.264/AVC Annex B and RFC 6381 | Encoded access units use Annex B byte-stream alignment. Each live pipeline declares the exact `avc1.PPCCLL` decoder profile exposed to its App. |
 | [WebCodecs](https://www.w3.org/TR/webcodecs/) and Media Capabilities | The App decodes the existing H.264 access units with `VideoDecoder`; Media Capabilities must report the exact stream as supported and smooth. The App identifies whether the browser reports power-efficient or software H.264 decode. |
 | [Rerun 0.38.1](https://rerun.io/docs/) RRD and `VideoStream` | Recording replay consumes authorized H.264 `VideoStream` ranges. Derived detections are published as typed JSON and immutable RRD annotations. |
+
+The controlled public, catalog and process envelopes use camelCase member names.
+Ordinary enum values and MCP identifiers use snake_case. Pipeline launch text,
+GStreamer properties, TensorRT engine bytes, Rerun entity/timeline vocabulary,
+native SQL rows, JWT claims and issued Artifact capability fields follow their
+respective declared profiles. The catalog wraps those native values in a closed
+owner model; clients cannot supply a launch graph.
+
+Replay results carry `veoveo.ai/stream-results/v2`. The RRD provenance TextDocument
+carries `veoveo.ai/stream-annotations/v2`; its Rerun binary encoding is unchanged.
+Live result and preview documents carry `veoveo.ai/stream-live-results/v2` and
+`veoveo.ai/stream-live-preview/v2`. Their typed tag decoders refuse unsupported
+markers, and schema nodes declare the foundational `format_tag` role while
+preserving the admitted literal. Recording runner request/response, live runner
+request, live frame events and live video chunk events each use their
+`veoveo.ai/stream-<format>/v2` marker. Rust and C++ admit the same current fields
+before dispatch or event publication. Retired and mixed field spellings are errors.
+
+Run cursor version 2 encodes `createdAt` and typed `taskId` in its position.
+Session cursor version 1 encodes an unchanged scalar session position. Both
+receivers refuse unsupported versions and collection mismatches before state access.
+The shared recorded-video owner serializes ordered camelCase source identities;
+its digest hashes those actual bytes and excludes private local paths. Stream
+publication and imported Reason grounding use that one owner type.
+
+## Private Runner Admission
+
+The C++ runner reads at most 1 MiB of JSON with json-c strict syntax, UTF-8
+validation and a nesting limit of 64. It checks current discriminants, known
+members, member types, UUIDv7 and catalog identities, range and dimension bounds,
+profile/model agreement and required local files before initializing GStreamer.
+Its JSON integer profile rejects unsigned values above the signed i64 limit.
+Private requests are produced by the typed Rust adapter inside the owning pod.
+The json-c tokener uses last-value semantics for duplicate member names; its
+STRICT flag does not establish duplicate-name rejection. This parser limitation
+is distinct from unknown, retired and mixed member refusal. Direct Rust typed JSON deserialization rejects duplicate known members.
+The [json-c tokener API](https://json-c.github.io/json-c/json-c-current-release/doc/html/json__tokener_8h.html)
+declares strict syntax and UTF-8 flags; it declares no duplicate-name rejection hook.
+
+`--validate-request` uses the same admission function and terminates before
+GStreamer initialization, sockets, graph execution or output publication. Supply
+the normal absolute request and response/event paths. A successful diagnostic
+prints only `request admitted` to stderr. Existing Rust executor and live-owner
+tests select the SDK executable through `VEOVEO_STREAM_GST_RUNNER`; their ignored
+parser cases require that executable and run without opening a live graph.
+This developer diagnostic establishes parser behavior, not GPU readiness or
+execution. Normal execution still requires the NVIDIA data plane.
+
+Stream's sole usage producer serializes a closed `StreamUsageMetadata` value
+with `pipelineId`, `entityPath` and `timeline` into the native platform metadata
+object. The generic Usage receiver admits its declared open metadata boundary;
+Stream owns no separate usage hydration endpoint. Native Usage columns and other
+domains' metadata do not inherit Stream's shape.
+
+The App contract controls capture current products from the retained session
+manager with `UPDATE_STREAM_APP_FIXTURES`, then compare the same producers with
+the saved file. The maintained browser validator consumes that file and rejects
+replacement, mixed and conflicting retired spellings before retaining a product.
+Synthetic encoded bytes in these controls establish metadata admission only.
 
 ## Library Features
 
@@ -50,7 +109,12 @@ selected Recording before dispatch. Artifact descriptors carry the typed Recordi
 identity and serialize their digest as bare lowercase hex.
 Portable replay-result validation also checks that the source snapshot belongs to
 the result Recording; Reason grounding reuses that check.
-Runtime source access still requires current authorization.
+Runtime source access still requires current authorization. The run-results resource
+selects the current owner Task before reading an Artifact. Its receiver decodes the
+current replay document, checks the requested selector, pipeline/model and summary,
+and requires the ordered source digest to match the bound Artifact provenance.
+It returns the original validated bytes. Another occurrence, a retired body, or
+mismatched source identity produces a redacted error before public projection.
 `StreamArtifactUri` is available through `contract`. It delegates parsing and building
 to the Artifact owner's `ArtifactUri`, preserves admitted wire spelling and implements
 the foundational `ResourceAddress` trait. The contract-only `uris` module builds
@@ -83,7 +147,7 @@ an empty `StreamScope` vocabulary. Gateway operation policy and current owner, c
 and label checks authorize access. Startup builds `McpServerSetup` before Store access
 or recovery. Discovery serves its checked descriptors and validates catalog addresses.
 Template expansion tests compare every declaration with the owning builder. Both gateway
-registrations and the embedded manual declare contract revision 3.
+registrations and the embedded manual declare contract revision 4.
 
 The server accepts requested Task updates and mutable run/session resource addresses.
 Static catalogs accept no list-change subscriptions. Live sessions have a process-local
@@ -107,7 +171,7 @@ C02 tool schemas and result delivery use a canonical top-level `result_uri`.
 The installed GPU replay checks product reads and completion across distinct replicas.
 C27 uses the shared Task source for runs and the admitted GPU owner for live sessions.
 The replica probe checks run invalidations, completed-state recovery and cancellation.
-The [flight harness](../../testing/flight-smoke/DESIGN.md) qualifies live-owner delivery
+The [flight harness](../../examples/bioma/acceptance/DESIGN.md#installation-assertion-delivery) qualifies live-owner delivery
 through the public Gateway. It checks initial session, result and preview invalidations,
 advancing GPU inference and preview counters, reconnected baselines and cancellation.
 Discover/list readiness (C31) and knowledge-source publication (C32) require the work recorded in the
@@ -457,8 +521,8 @@ updates coordinate the server and its consumers.
 
 Prompts:
 
-- `stream-start-live-session`
-- `stream-run-recording`
+- `stream_start_live_session`
+- `stream_run_recording`
 
 Canonical resources:
 
@@ -482,10 +546,10 @@ stream://artifact/{artifact_id}
 Discovery lists collection roots and item templates without enumerating runs or
 sessions. These records do not change the discovery surface, so Stream declares no
 resource-list-change capability. Run pages contain `runs`, `limit: 100`, and an
-optional `next_cursor`. The Store applies task ownership, tenant, profile, labels,
+optional `nextCursor`. The Store applies task ownership, tenant, profile, labels,
 and task type before the page limit. Pages order creation time and Task ID ascending.
 
-Session pages contain `sessions`, `limit: 100`, and an optional `next_cursor`.
+Session pages contain `sessions`, `limit: 100`, and an optional `nextCursor`.
 The process-local session index orders UUIDv7 IDs newest first and checks Work Context
 membership and labels before materializing at most 100 session views. Live sessions
 belong to their running GPU process; pagination does not make them persistent.

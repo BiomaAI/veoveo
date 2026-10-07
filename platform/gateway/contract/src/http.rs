@@ -35,7 +35,7 @@ pub enum CertificateAuthoritySource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct HttpUpstreamEndpoint {
     pub url: UpstreamUrl,
     pub health_url: UpstreamUrl,

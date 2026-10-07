@@ -10,6 +10,22 @@ pub struct GatewayToolNameError(#[from] IdentifierError);
 #[veoveo_types::id(text(ToolNames))]
 pub struct GatewayToolName(String);
 impl GatewayToolName {
+    /// Resolve the admitted namespace into typed owner and local identities.
+    /// Unqualified names remain admitted by this wire scalar but have no projection.
+    pub fn parts(&self) -> Result<(ServerSlug, LocalToolName), GatewayToolNamespaceError> {
+        let (server, tool) = self
+            .as_str()
+            .split_once("__")
+            .ok_or(GatewayToolNamespaceError::Missing)?;
+        if tool.contains("__") {
+            return Err(GatewayToolNamespaceError::Ambiguous);
+        }
+        Ok((
+            ServerSlug::parse(server).map_err(GatewayToolNamespaceError::Server)?,
+            LocalToolName::parse(tool).map_err(GatewayToolNamespaceError::Tool)?,
+        ))
+    }
+
     /// Compose the gateway namespace from typed server and local tool names.
     pub fn from_parts(
         server: &ServerSlug,
@@ -17,6 +33,18 @@ impl GatewayToolName {
     ) -> Result<Self, GatewayToolNameError> {
         Self::parse(format!("{server}__{tool}"))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum GatewayToolNamespaceError {
+    #[error("gateway tool name has no server namespace")]
+    Missing,
+    #[error("gateway tool name has multiple namespace delimiters")]
+    Ambiguous,
+    #[error("invalid server namespace: {0}")]
+    Server(IdentifierError),
+    #[error("invalid local tool identity: {0}")]
+    Tool(IdentifierError),
 }
 
 #[doc(hidden)]
@@ -55,6 +83,20 @@ mod tests {
         )
         .unwrap();
         assert_eq!(projected.to_string(), "media__render");
+        assert_eq!(
+            projected.parts().unwrap(),
+            (
+                ServerSlug::parse("media").unwrap(),
+                LocalToolName::parse("render").unwrap()
+            )
+        );
+        assert!(GatewayToolName::parse("plain").unwrap().parts().is_err());
+        assert!(
+            GatewayToolName::parse("media__run__extra")
+                .unwrap()
+                .parts()
+                .is_err()
+        );
         assert_eq!(serde_json::to_value(&projected).unwrap(), "media__render");
         for valid in ["plain", "under_score", "dash-1", "media__render"] {
             assert_eq!(valid.parse::<GatewayToolName>().unwrap().as_str(), valid);

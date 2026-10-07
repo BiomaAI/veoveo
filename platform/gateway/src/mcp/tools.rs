@@ -2,7 +2,9 @@ use super::http_response::RequestError;
 use std::{borrow::Cow, time::Instant};
 use veoveo_audit_contract::{AuditDetail, AuditOutcome, AuditReason, AuditTarget, ToolResultKind};
 use veoveo_gateway_contract::GatewayAction;
+use veoveo_gateway_contract::GatewayDiscoveryDegradation;
 use veoveo_gateway_contract::{GatewayDiscoveryFailure, GatewayDiscoverySurface};
+use veoveo_mcp_contract::GatewayDiscoveryMetadata;
 
 use futures::{StreamExt, stream};
 use rmcp::{
@@ -15,8 +17,7 @@ use rmcp::{
 };
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    DiscoveryFailureMode, GatewayDiscoveryDegradation, LocalToolName, TaskExposure,
-    related_task_meta, sanitized_request_meta,
+    DiscoveryFailureMode, LocalToolName, TaskExposure, related_task_meta, sanitized_request_meta,
 };
 use veoveo_platform_store::PrincipalKind as StorePrincipalKind;
 

@@ -43,7 +43,7 @@ pub use veoveo_recording_video::contract::{
     RecordingVideoSelection, VideoTimelineKind,
 };
 
-pub const REASONING_RESULTS_SCHEMA: &str = "veoveo.reason-results/v1";
+pub const REASONING_RESULTS_SCHEMA: &str = "veoveo.ai/reason-results/v2";
 
 pub const MAX_EVENT_LABEL_BYTES: usize = 256;
 pub const MAX_EVENT_DESCRIPTION_BYTES: usize = 4_096;
@@ -53,7 +53,7 @@ pub const MAX_PROMPT_BYTES: usize = 8_192;
 pub const MAX_OBSERVATION_FRAMES: u32 = 1_024;
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct AnalyzeRecordingRequest {
     pub video: RecordingVideoSelection,
     pub pipeline_id: PipelineId,
@@ -70,7 +70,12 @@ pub struct AnalyzeRecordingRequest {
 
 /// One typed reasoning task over the selected video range.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ReasoningTask {
     /// Describe what happens in the selected range.
     DescribeSegment {
@@ -91,7 +96,7 @@ impl ReasoningTask {
 
 /// How many decoded frames the model observes across the requested range.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct ObservationSampling {
     pub max_frames: u32,
 }
@@ -105,7 +110,12 @@ impl Default for ObservationSampling {
 /// Decode parameters. Greedy decoding is the deterministic default; sampled
 /// decoding is opt-in and its parameters are recorded in the result.
 #[derive(Clone, Copy, Debug, Default, Serialize, JsonSchema, PartialEq)]
-#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "mode",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum DecodePolicy {
     #[default]
     Greedy,
@@ -116,7 +126,12 @@ pub enum DecodePolicy {
     },
 }
 #[derive(Deserialize)]
-#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "mode",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 enum DecodePolicyWire {
     Greedy {},
     Sampled {
@@ -146,7 +161,7 @@ impl<'de> Deserialize<'de> for DecodePolicy {
 /// The results artifact of a completed Stream perception run over the same
 /// recording. Pass it so detected events can cite track IDs.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct GroundingReference {
     /// `stream://artifact/{uuidv7}` identity of a typed perception
     /// results artifact, exactly as a completed perception analysis
@@ -155,15 +170,16 @@ pub struct GroundingReference {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[schemars(transform = groundingschema_format_role)]
 pub enum GroundingSchema {
-    #[serde(rename = "veoveo.reason-grounding/v1")]
-    V1,
+    #[serde(rename = "veoveo.ai/reason-grounding/v2")]
+    V2,
 }
 
 /// Bounded typed subset of perception detections embedded in the durable
 /// request at submission time.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct GroundingDetections {
     pub schema: GroundingSchema,
     pub source_artifact_uri: StreamArtifactUri,
@@ -171,14 +187,14 @@ pub struct GroundingDetections {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct GroundingFrame {
     pub index: i64,
     pub detections: Vec<GroundingDetection>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct GroundingDetection {
     pub label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -186,7 +202,12 @@ pub struct GroundingDetection {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ReasoningAnswer {
     Description { text: String },
     Events { events: Vec<ReasonedEvent> },
@@ -211,7 +232,7 @@ impl ReasoningAnswer {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct ReasonedEvent {
     /// Inclusive source-timeline index range of the event.
     pub range: IndexRange,
@@ -224,15 +245,17 @@ pub struct ReasonedEvent {
 
 /// Confidence provenance of a reasoning result. Reasoning output is
 /// model-reported and never calibrated detector output.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum ConfidenceBasis {
+    #[vocabulary(rename = "model_reported")]
     ModelReported,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 #[schemars(rename = "ReasoningResults")]
 pub struct ReasoningResultsBuilder {
+    #[schemars(schema_with = "reasoning_results_format_schema")]
     pub schema: String,
     pub pipeline_id: PipelineId,
     pub model_id: ModelId,
@@ -254,6 +277,7 @@ pub struct ReasoningResultsBuilder {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct ReasoningSummary {
     pub observed_frames: u64,
     pub event_count: u64,
@@ -263,24 +287,21 @@ pub struct ReasoningSummary {
     pub requested_end_index: i64,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum PipelineOperation {
+    #[vocabulary(rename = "video_reasoning")]
     VideoReasoning,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum ModelFormat {
-    /// A locally mounted world-model checkpoint directory or file, supplied
-    /// by the deployment. Runtime optimization belongs to the runner image,
-    /// never to the request path.
+    #[vocabulary(rename = "local_checkpoint")]
     LocalCheckpoint,
 }
 
 /// One authorized page of analyses, in descending creation time and native ID order.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct AnalysisPage {
     pub analyses: Vec<AnalysisView>,
     pub limit: usize,
@@ -496,5 +517,43 @@ mod strict_decode_tests {
         assert!(
             serde_json::from_str::<DecodePolicy>(r#"{"mode":"greedy","temperature":1}"#).is_err()
         );
+    }
+}
+
+fn reasoning_results_format_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    veoveo_types::scalar_schema(
+        schemars::json_schema!({"type":"string", "const": REASONING_RESULTS_SCHEMA}),
+        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
+    )
+    .expect("Reason replay format tag profile")
+}
+
+fn groundingschema_format_role(schema: &mut schemars::Schema) {
+    *schema = veoveo_types::scalar_schema(
+        schema.clone(),
+        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
+    )
+    .expect("declared Reason format naming profile");
+}
+
+/// Metadata emitted by the sole Reason usage producer.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ReasonUsageMetadata {
+    pub pipeline_id: PipelineId,
+    pub task_kind: ReasoningKind,
+    pub entity_path: String,
+    pub timeline: String,
+    pub prompt_revision: String,
+}
+impl From<&ReasoningResults> for ReasonUsageMetadata {
+    fn from(results: &ReasoningResults) -> Self {
+        Self {
+            pipeline_id: results.pipeline_id.clone(),
+            task_kind: ReasoningKind::from(&results.task),
+            entity_path: results.entity_path.clone(),
+            timeline: results.timeline.clone(),
+            prompt_revision: results.prompt_revision.clone(),
+        }
     }
 }

@@ -7,27 +7,48 @@ import json
 import sys
 from datetime import datetime, timezone
 from urllib.parse import urlparse
+from uuid import UUID
+import unicodedata
 
 import rerun as rr
 from datafusion import col
 
 
-def validate_grant(result: dict, dataset: str, recording: str) -> None:
-    if result["schema"] != "veoveo.ai/recording-catalog-grant/v1":
+def validate_grant(result: dict, dataset: str, recording: str) -> str:
+    fields = {"schema", "grantId", "datasetId", "recordingSegmentIds", "catalogRevision", "entryUri", "redapToken", "expiresAt"}
+    if not isinstance(result, dict) or set(result) != fields:
+        raise ValueError("invalid current Recording catalog grant fields")
+    if result["schema"] != "veoveo.ai/recording-catalog-grant/v2":
         raise ValueError("unexpected recording grant schema")
-    if result["dataset_id"] != dataset:
+    if not all(isinstance(result[key], str) for key in fields - {"recordingSegmentIds"}):
+        raise ValueError("invalid Recording catalog grant field types")
+    if (not result["redapToken"].strip() or not result["catalogRevision"].strip()
+        or len(result["catalogRevision"].encode()) > 128
+        or any(unicodedata.category(char) == "Cc" for char in result["redapToken"] + result["catalogRevision"])):
+        raise ValueError("invalid Recording catalog grant authority fields")
+    if result["datasetId"] != dataset:
         raise ValueError("recording grant changed the dataset")
-    if result["recording_segment_ids"] != [recording]:
+    if result["recordingSegmentIds"] != [recording]:
         raise ValueError("recording grant changed the admitted segment set")
-    if datetime.fromisoformat(result["expires_at"].replace("Z", "+00:00")) <= datetime.now(
-        timezone.utc
-    ):
+    for value in [result["grantId"], dataset, recording]:
+        admitted = UUID(value)
+        if admitted.version != 7 or str(admitted) != value:
+            raise ValueError("invalid current Recording catalog identity")
+    dataset_uuid = UUID(dataset).hex
+    entry_id = dataset_uuid[:16].upper() + dataset_uuid[16:]
+    entry = urlparse(result["entryUri"])
+    if (entry.scheme not in {"rerun", "rerun+http"} or not entry.hostname or not entry.port
+        or entry.username or entry.password or entry.query or entry.fragment
+        or entry.path != "/entry/" + entry_id):
+        raise ValueError("Recording catalog address changed its selected dataset")
+    expires = datetime.fromisoformat(result["expiresAt"].replace("Z", "+00:00"))
+    if expires.utcoffset() is None or expires <= datetime.now(timezone.utc):
         raise ValueError("recording grant has already expired")
+    return entry_id
 
 
-def query(redap_url: str, issued_grant: dict, recording: str) -> tuple[str, int]:
-    entry_id = urlparse(issued_grant["entry_uri"]).path.rsplit("/", 1)[-1]
-    client = rr.catalog.CatalogClient(redap_url, token=issued_grant["redap_token"])
+def query(redap_url: str, issued_grant: dict, recording: str, entry_id: str) -> tuple[str, int]:
+    client = rr.catalog.CatalogClient(redap_url, token=issued_grant["redapToken"])
     dataset = client.get_dataset(id=entry_id)
     if recording not in dataset.segment_ids():
         raise ValueError("admitted recording is absent from the Redap dataset")
@@ -56,10 +77,10 @@ def main() -> None:
     grants = json.load(sys.stdin)
     first = grants["first"]
     renewed = grants["renewed"]
-    validate_grant(first, args.dataset_id, args.recording_id)
-    validate_grant(renewed, args.dataset_id, args.recording_id)
-    timeline, rows = query(args.redap_url, first, args.recording_id)
-    renewed_timeline, renewed_rows = query(args.redap_url, renewed, args.recording_id)
+    first_entry = validate_grant(first, args.dataset_id, args.recording_id)
+    renewed_entry = validate_grant(renewed, args.dataset_id, args.recording_id)
+    timeline, rows = query(args.redap_url, first, args.recording_id, first_entry)
+    renewed_timeline, renewed_rows = query(args.redap_url, renewed, args.recording_id, renewed_entry)
     if timeline != renewed_timeline or rows != renewed_rows:
         raise ValueError("renewed grant changed the immutable recording query")
     print(json.dumps({"timeline": timeline, "rows": rows, "renewed": True}))

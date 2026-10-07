@@ -108,3 +108,69 @@ def test_artifact_id_stays_nominal_after_pydantic_validation():
     for invalid in [value.upper(), "not-a-uuid", "550e8400-e29b-41d4-a716-446655440000"]:
         with pytest.raises(ValueError):
             ArtifactId(invalid)
+
+
+def test_chrono_timestamp_precision_calendar_and_explicit_conversion():
+    from datetime import datetime, timezone
+    from dataclasses import FrozenInstanceError
+    from veoveo_mcp.types import ChronoTimestamp
+
+    first = ChronoTimestamp("2026-10-05T12:34:56.123456001Z")
+    second = ChronoTimestamp("2026-10-05T12:34:56.123456002Z")
+    assert not first.same_instant(second)
+    assert first.same_instant(ChronoTimestamp("2026-10-05T14:34:56.123456001+02:00"))
+    assert first.instant_parts()[1] == 123456001
+    with pytest.raises(TypeError):
+        first < second
+    with pytest.raises(FrozenInstanceError):
+        first.wire = "invalid"
+    with pytest.raises(ValueError, match="exactly"):
+        first.as_datetime_exact()
+    assert first.as_datetime_lossy_microseconds().microsecond == 123456
+    exact = datetime(2026, 10, 5, 12, 34, 56, 123456, tzinfo=timezone.utc)
+    assert ChronoTimestamp.from_datetime(exact).as_datetime_exact() == exact
+    with pytest.raises(ValueError, match="aware"):
+        ChronoTimestamp.from_datetime(exact.replace(tzinfo=None))
+    leap = ChronoTimestamp("2016-12-31T23:59:60.123456789Z")
+    assert leap.instant_parts()[1] == 1_123_456_789
+    for conversion in [leap.as_datetime_exact, leap.as_datetime_lossy_microseconds]:
+        with pytest.raises(ValueError, match="leap"):
+            conversion()
+    for text in ["0000-02-29T00:00:00Z", "-0400-02-29T00:00:00Z",
+                 "+10000-02-29T00:00:00Z", "-262143-01-01T00:00:00Z",
+                 "+262142-12-31T23:59:59.999999999Z"]:
+        value = ChronoTimestamp(text)
+        assert str(value) == text
+        with pytest.raises(ValueError):
+            value.as_datetime_exact()
+
+
+
+@pytest.mark.parametrize("wire", [
+    None, True, 1, 1.5, "", "2026-1-2 3:4:5 UTC", "2026-01-01T00:00:00+0000",
+    "2026-01-01t00:00:00z", "2026-01-01T00:00:00.123456789123Z", "2026-01-01T00:00:00", "2026-01-01T00:00:00+24:00",
+    "2026-01-01T00:00:00+00:60", "2026-02-29T00:00:00Z", "-0100-02-29T00:00:00Z",
+    "2026-01-01T24:00:00Z", "2026-01-01T00:60:00Z", "2026-01-01T00:00:61Z",
+    "2026-01-01T00:00:00.Z", "+262143-01-01T00:00:00Z", "-262144-12-31T23:59:59Z",
+    "-262143-01-01T00:00:00+00:01", "+262142-12-31T23:59:59-00:01",
+])
+def test_chrono_timestamp_all_decoder_paths_reject_invalid_values(wire):
+    import json
+    from veoveo_mcp.types import ChronoTimestamp
+    adapter = TypeAdapter(ChronoTimestamp)
+    for decode in [lambda: adapter.validate_python(wire),
+                   lambda: adapter.validate_json(json.dumps(wire))]:
+        with pytest.raises(ValueError):
+            decode()
+
+
+def test_chrono_timestamp_schema_and_forged_nominal_instance():
+    from veoveo_mcp.types import ChronoTimestamp
+    adapter = TypeAdapter(ChronoTimestamp)
+    schema = adapter.json_schema()
+    assert schema["type"] == "string" and "pattern" in schema
+    assert "format" not in schema
+    forged = object.__new__(ChronoTimestamp)
+    object.__setattr__(forged, "wire", "2026-02-30T00:00:00Z")
+    with pytest.raises(ValueError):
+        adapter.validate_python(forged)

@@ -1,0 +1,100 @@
+{
+  "effectiveProfile": {
+    "id": "sha256:2d839a877733390306f684822ecd4a5b8a9b39042ae5e58231c0569dbb8b834b",
+    "contents": {
+      "space": {
+        "model": "qwen3-embedding-0.6b",
+        "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+        "dimension": 1024,
+        "pooling": "last_token",
+        "normalization": "l2",
+        "precision": "float16",
+        "maxInputTokens": 32768
+      },
+      "runtimeImage": "sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3",
+      "checkpointManifest": "sha256:2f0df70974121b6286d288c6b8639b576c4157fc7499fff717984cce3ab72323",
+      "vllmVersion": "0.31.0",
+      "environment": {
+        "gpu": "NVIDIA GeForce RTX 4090",
+        "driver": "595.91.07",
+        "cuda": "13.0"
+      },
+      "serving": {
+        "precision": "float16",
+        "scheduling": "priority",
+        "graphAllowance": "graphs_allowed",
+        "observedGraphExecution": "cuda_graph",
+        "attentionBackend": "FLASH_ATTN",
+        "explicitKvCacheBytes": null,
+        "maxInputTokens": 32768,
+        "maxNumBatchedTokens": 8192,
+        "maxNumSequences": 32,
+        "gpuMemoryBasisPoints": 4500
+      }
+    }
+  },
+  "profiles": [
+    {
+      "id": "sha256:2d839a877733390306f684822ecd4a5b8a9b39042ae5e58231c0569dbb8b834b",
+      "contents": {
+        "space": {
+          "model": "qwen3-embedding-0.6b",
+          "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+          "dimension": 1024,
+          "pooling": "last_token",
+          "normalization": "l2",
+          "precision": "float16",
+          "maxInputTokens": 32768
+        },
+        "runtimeImage": "sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3",
+        "checkpointManifest": "sha256:2f0df70974121b6286d288c6b8639b576c4157fc7499fff717984cce3ab72323",
+        "vllmVersion": "0.31.0",
+        "environment": {
+          "gpu": "NVIDIA GeForce RTX 4090",
+          "driver": "595.91.07",
+          "cuda": "13.0"
+        },
+        "serving": {
+          "precision": "float16",
+          "scheduling": "priority",
+          "graphAllowance": "graphs_allowed",
+          "observedGraphExecution": "cuda_graph",
+          "attentionBackend": "FLASH_ATTN",
+          "explicitKvCacheBytes": null,
+          "maxInputTokens": 32768,
+          "maxNumBatchedTokens": 8192,
+          "maxNumSequences": 32,
+          "gpuMemoryBasisPoints": 4500
+        }
+      }
+    }
+  ],
+  "qualifications": [
+    {
+      "id": "sha256:65e14d4577884d1cccbd0a7588d25ae8c6fdcfb6f3ef88bf8f477596c962b3e0",
+      "contents": {
+        "queryProfile": "sha256:2d839a877733390306f684822ecd4a5b8a9b39042ae5e58231c0569dbb8b834b",
+        "producerProfile": "sha256:2d839a877733390306f684822ecd4a5b8a9b39042ae5e58231c0569dbb8b834b",
+        "space": {
+          "model": "qwen3-embedding-0.6b",
+          "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+          "dimension": 1024,
+          "pooling": "last_token",
+          "normalization": "l2",
+          "precision": "float16",
+          "maxInputTokens": 32768
+        },
+        "evidence": {
+          "referenceReport": "sha256:209e84209a7c8ef32a18b1deadfa64494884e3227f4f5997e3c0aeb6914004d0",
+          "retrievalReport": "sha256:f6fe29b58944233215eb0084e98cad0bd71162ca072de92adc5f8e6d1444e8f3",
+          "schedulingReport": "sha256:a5cef384e2711e1c649c9d9d87e1eeba96d7698ae0bfc27069bfd1f51f8c341f",
+          "capacityReport": "sha256:f79cd81966b036599cb8e009f587fc1577cc63ed9793e1fbad2247d6e9ec30e2",
+          "minimumCosineMillionths": 999959,
+          "retrievalPassed": true,
+          "interactivePriorityPassed": true,
+          "capacityPassed": true
+        }
+      }
+    }
+  ]
+}

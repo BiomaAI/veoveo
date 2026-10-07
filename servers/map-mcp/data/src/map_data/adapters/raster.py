@@ -107,9 +107,9 @@ def raster_metadata(info: Any, raster: Path) -> dict[str, Any]:
     if not crs:
         raise ContractError("gdalinfo returned an empty raster CRS")
     return {
-        "schema_version": 1,
-        "source_file": raster.name,
-        "checksum_sha256": sha256(raster),
+        "schemaVersion": 2,
+        "sourceFile": raster.name,
+        "checksumSha256": sha256(raster),
         "crs": crs,
         "transform": transform,
         "width": size[0],
@@ -153,7 +153,7 @@ def raster_band(index: int, value: Any) -> dict[str, Any]:
     return {
         "index": index,
         "name": name or None,
-        "data_type": data_type,
+        "dataType": data_type,
         "unit": unit or None,
         "interpretation": interpretation,
         "nodata": nodata,

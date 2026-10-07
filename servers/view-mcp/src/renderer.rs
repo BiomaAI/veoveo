@@ -1,12 +1,16 @@
 use std::{
     collections::{HashMap, HashSet},
     io::Cursor,
-    sync::{Arc, mpsc},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
     thread,
 };
 
 use bevy::{
-    app::SubApps,
+    app::{AppLabel, SubApps},
     asset::RenderAssetUsages,
     camera::{PerspectiveProjection, Projection, RenderTarget},
     core_pipeline::tonemapping::Tonemapping,
@@ -26,6 +30,16 @@ use bevy::{
 use glam::DMat4;
 use tokio::sync::oneshot;
 
+mod gpu_jpeg;
+#[allow(
+    non_camel_case_types,
+    non_snake_case,
+    non_upper_case_globals,
+    dead_code
+)]
+mod nvjpeg_bindings;
+mod vulkan_cuda;
+
 use crate::{
     contract::{FrameEncoding, GeodeticCameraPose, Wgs84Position3d},
     decode::{CpuImage, CpuMaterial, CpuTileContent, CpuWrapMode},
@@ -34,12 +48,12 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct RendererConfig {
-    pub require_nvidia: bool,
     pub gpu_cache_bytes: u64,
     pub jpeg_quality: u8,
 }
 
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GpuAdapterStatus {
     pub name: String,
     pub backend: String,
@@ -47,13 +61,25 @@ pub struct GpuAdapterStatus {
     pub vendor: u32,
     pub hardware_accelerated: bool,
     pub nvidia: bool,
+    pub jpeg_encoder: GpuJpegBackend,
+    pub cuda_device_uuid: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
+pub enum GpuJpegBackend {
+    #[vocabulary(rename = "nvjpeg_cuda_gpu")]
+    NvjpegCudaGpu,
+    #[vocabulary(rename = "unavailable")]
+    Unavailable,
 }
 
 #[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GpuCacheStats {
     pub resident_tiles: usize,
     pub resident_bytes: u64,
     pub tile_uploads: u64,
+    pub gpu_jpeg_frames: u64,
 }
 
 #[derive(Clone)]
@@ -65,10 +91,20 @@ pub struct RendererHandle {
 struct RendererSender {
     commands: mpsc::Sender<RenderCommand>,
     thread: Option<thread::JoinHandle<()>>,
+    shutdown: Arc<AtomicBool>,
+}
+
+pub(crate) struct RendererShutdownGuard(RendererHandle);
+impl Drop for RendererShutdownGuard {
+    fn drop(&mut self) {
+        self.0.sender.shutdown.store(true, Ordering::Release);
+        let _ = self.0.sender.commands.send(RenderCommand::Shutdown);
+    }
 }
 
 impl Drop for RendererSender {
     fn drop(&mut self) {
+        self.shutdown.store(true, Ordering::Release);
         let _ = self.commands.send(RenderCommand::Shutdown);
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
@@ -109,6 +145,22 @@ enum RenderCommand {
     Shutdown,
 }
 
+fn dispatch_commands(
+    receiver: mpsc::Receiver<RenderCommand>,
+    shutdown: &AtomicBool,
+    mut dispatch: impl FnMut(RenderCommand),
+) {
+    while let Ok(command) = receiver.recv() {
+        if shutdown.load(Ordering::Acquire) || matches!(command, RenderCommand::Shutdown) {
+            break;
+        }
+        if matches!(&command, RenderCommand::Capture { response, .. } if response.is_closed()) {
+            continue;
+        }
+        dispatch(command);
+    }
+}
+
 impl RendererHandle {
     /// Closed render channel for hosted admission tests; dispatch always fails.
     #[cfg(all(test, feature = "mcp"))]
@@ -119,6 +171,7 @@ impl RendererHandle {
             sender: Arc::new(RendererSender {
                 commands,
                 thread: None,
+                shutdown: Arc::new(AtomicBool::new(false)),
             }),
             adapter: GpuAdapterStatus {
                 name: "unavailable protocol fixture".into(),
@@ -127,6 +180,8 @@ impl RendererHandle {
                 vendor: 0,
                 hardware_accelerated: false,
                 nvidia: false,
+                jpeg_encoder: GpuJpegBackend::Unavailable,
+                cuda_device_uuid: String::new(),
             },
         }
     }
@@ -134,6 +189,8 @@ impl RendererHandle {
     pub fn start(config: RendererConfig) -> Result<Self, RendererError> {
         let (sender, receiver) = mpsc::channel();
         let (ready_sender, ready_receiver) = mpsc::sync_channel(1);
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let render_shutdown = shutdown.clone();
         let thread = thread::Builder::new()
             .name("view-bevy-renderer".to_owned())
             .spawn(move || {
@@ -145,7 +202,7 @@ impl RendererHandle {
                 match result {
                     Ok(mut renderer) => {
                         let _ = ready_sender.send(Ok(renderer.adapter.clone()));
-                        renderer.run(receiver);
+                        renderer.run(receiver, &render_shutdown);
                     }
                     Err(error) => {
                         let _ = ready_sender.send(Err(error));
@@ -160,9 +217,14 @@ impl RendererHandle {
             sender: Arc::new(RendererSender {
                 commands: sender,
                 thread: Some(thread),
+                shutdown,
             }),
             adapter,
         })
+    }
+
+    pub(crate) fn shutdown_on_drop(&self) -> RendererShutdownGuard {
+        RendererShutdownGuard(self.clone())
     }
 
     pub fn adapter(&self) -> &GpuAdapterStatus {
@@ -192,6 +254,7 @@ impl RendererHandle {
 }
 
 struct Renderer {
+    jpeg: gpu_jpeg::GpuJpeg,
     apps: SubApps,
     adapter: GpuAdapterStatus,
     cache: HashMap<String, GpuTile>,
@@ -232,17 +295,34 @@ impl Renderer {
             ..default()
         };
         let mut app = App::new();
-        app.add_plugins(DefaultPlugins.set(window_plugin).set(render_plugin));
+        // Vulkan/CUDA ownership and the render world stay on this renderer thread.
+        // ECS systems may still use their worker pool, but a second render thread
+        // must not submit on the shared Vulkan queue during interop transitions.
+        app.add_plugins(
+            DefaultPlugins
+                .set(window_plugin)
+                .set(render_plugin)
+                .disable::<bevy::render::pipelined_rendering::PipelinedRenderingPlugin>(),
+        );
         app.finish();
         app.cleanup();
-        let adapter = adapter_status(app.world())?;
+        let mut adapter = adapter_status(app.world())?;
         if !adapter.hardware_accelerated {
             return Err(RendererError::SoftwareAdapter(adapter.name));
         }
-        if config.require_nvidia && !adapter.nvidia {
+        if !adapter.nvidia {
             return Err(RendererError::NonNvidiaAdapter(adapter.name));
         }
+        let jpeg = gpu_jpeg::GpuJpeg::new(
+            app.world().resource::<RenderDevice>().wgpu_device(),
+            app.world()
+                .resource::<bevy::render::renderer::RenderQueue>(),
+            config.jpeg_quality,
+        )?;
+        adapter.jpeg_encoder = GpuJpegBackend::NvjpegCudaGpu;
+        adapter.cuda_device_uuid = hex::encode(jpeg.uuid());
         Ok(Self {
+            jpeg,
             apps: std::mem::take(app.sub_apps_mut()),
             adapter,
             cache: HashMap::new(),
@@ -253,31 +333,28 @@ impl Renderer {
         })
     }
 
-    fn run(&mut self, receiver: mpsc::Receiver<RenderCommand>) {
-        while let Ok(command) = receiver.recv() {
-            match command {
-                RenderCommand::Capture { request, response } => {
-                    let result = self.capture(request);
-                    let _ = response.send(result);
-                }
-                RenderCommand::Stats { response } => {
-                    let _ = response.send(GpuCacheStats {
-                        resident_tiles: self.cache.len(),
-                        resident_bytes: self.cache_bytes,
-                        tile_uploads: self.tile_uploads,
-                    });
-                }
-                RenderCommand::Shutdown => {
-                    if let Err(error) = self.update() {
-                        tracing::warn!(%error, "renderer shutdown update failed");
-                    }
-                    break;
-                }
+    fn run(&mut self, receiver: mpsc::Receiver<RenderCommand>, shutdown: &AtomicBool) {
+        dispatch_commands(receiver, shutdown, |command| match command {
+            RenderCommand::Capture { request, response } => {
+                let result = self.capture(request);
+                let _ = response.send(result);
             }
-        }
+            RenderCommand::Stats { response } => {
+                let _ = response.send(GpuCacheStats {
+                    resident_tiles: self.cache.len(),
+                    resident_bytes: self.cache_bytes,
+                    tile_uploads: self.tile_uploads,
+                    gpu_jpeg_frames: self.jpeg.encoded_frames(),
+                });
+            }
+            RenderCommand::Shutdown => {
+                unreachable!("shutdown never dispatches new GPU work");
+            }
+        });
     }
 
     fn capture(&mut self, request: RenderFrameRequest) -> Result<RenderedImage, RendererError> {
+        let deadline = std::time::Instant::now() + vulkan_cuda::CAPTURE_TIMEOUT;
         if request.tiles.is_empty() {
             return Err(RendererError::EmptyRenderCut);
         }
@@ -348,25 +425,57 @@ impl Renderer {
         // extraction/upload frame before requesting readback. A screenshot
         // requested in the insertion frame can legally capture only the clear
         // color while render assets are still moving into the render world.
-        self.update()?;
+        self.update_until(deadline);
+
+        let encoded = if request.encoding == FrameEncoding::Jpeg {
+            // Render once after the upload frame. JPEG reads the live render-world
+            // texture directly; Screenshot would force a full-frame CPU readback.
+            self.update_until(deadline);
+            let render = self
+                .apps
+                .sub_apps
+                .get(&bevy::render::RenderApp.intern())
+                .ok_or(RendererError::RenderTargetInvariant)?;
+            let handle = target
+                .as_image()
+                .ok_or(RendererError::RenderTargetInvariant)?;
+            let image = render.world().resource::<bevy::render::render_asset::RenderAssets<bevy::render::texture::GpuImage>>()
+                .get(handle.id()).ok_or(RendererError::RenderTargetInvariant)?;
+            let queue = render
+                .world()
+                .resource::<bevy::render::renderer::RenderQueue>();
+            Some(
+                self.jpeg
+                    .encode_before(&image.texture, queue, deadline)
+                    .map(|bytes| RenderedImage {
+                        bytes,
+                        encoding: FrameEncoding::Jpeg,
+                    })
+                    .map_err(RendererError::from),
+            )
+        } else {
+            None
+        };
 
         let (captured_sender, captured_receiver) = mpsc::sync_channel(1);
-        self.apps
-            .main
-            .world_mut()
-            .spawn(Screenshot::image(
-                target
-                    .as_image()
-                    .ok_or(RendererError::RenderTargetInvariant)?
-                    .clone(),
-            ))
-            .observe(move |event: On<ScreenshotCaptured>| {
-                let _ = captured_sender.send(event.image.clone());
-            });
+        if encoded.is_none() {
+            self.apps
+                .main
+                .world_mut()
+                .spawn(Screenshot::image(
+                    target
+                        .as_image()
+                        .ok_or(RendererError::RenderTargetInvariant)?
+                        .clone(),
+                ))
+                .observe(move |event: On<ScreenshotCaptured>| {
+                    let _ = captured_sender.send(event.image.clone());
+                });
+        }
 
         let mut captured = None;
-        for _ in 0..16 {
-            self.update()?;
+        for _ in 0..if encoded.is_none() { 16 } else { 0 } {
+            self.update_until(deadline);
             if let Ok(image) = captured_receiver.try_recv() {
                 captured = Some(image);
                 break;
@@ -384,26 +493,32 @@ impl Renderer {
                 .resource_mut::<Assets<Image>>()
                 .remove(handle.id());
         }
-        self.update()?;
+        self.update_until(deadline);
         self.evict(&selected);
 
+        if let Some(encoded) = encoded {
+            return encoded;
+        }
+
         let image = captured.ok_or(RendererError::ScreenshotTimeout)?;
-        encode_image(image, request.encoding, self.config.jpeg_quality)
+        encode_png(image)
     }
 
-    fn update(&mut self) -> Result<(), RendererError> {
-        self.apps.update();
-        self.apps
-            .main
-            .world()
-            .resource::<RenderDevice>()
-            .wgpu_device()
-            .poll(PollType::Wait {
-                submission_index: None,
-                timeout: None,
-            })
-            .map_err(|error| RendererError::DevicePoll(error.to_string()))?;
-        Ok(())
+    fn update_until(&mut self, deadline: std::time::Instant) {
+        gpu_jpeg::native_call("View render pump", || self.apps.update());
+        if let Err(error) = gpu_jpeg::native_call("View render poll", || {
+            self.apps
+                .main
+                .world()
+                .resource::<RenderDevice>()
+                .wgpu_device()
+                .poll(PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(deadline.saturating_duration_since(std::time::Instant::now())),
+                })
+        }) {
+            gpu_jpeg::fatal_in_flight("View render submission", error);
+        }
     }
 
     fn create_render_target(&mut self, width: u32, height: u32) -> RenderTarget {
@@ -418,6 +533,7 @@ impl Renderer {
             RenderAssetUsages::RENDER_WORLD,
         );
         image.texture_descriptor.usage |= TextureUsages::RENDER_ATTACHMENT;
+        image.texture_descriptor.view_formats = &[TextureFormat::Rgba8Unorm];
         self.apps
             .main
             .world_mut()
@@ -579,6 +695,8 @@ fn adapter_status(world: &World) -> Result<GpuAdapterStatus, RendererError> {
         vendor: info.vendor,
         hardware_accelerated,
         nvidia,
+        jpeg_encoder: GpuJpegBackend::Unavailable,
+        cuda_device_uuid: String::new(),
     })
 }
 
@@ -590,44 +708,27 @@ fn address_mode(mode: CpuWrapMode) -> ImageAddressMode {
     }
 }
 
-fn encode_image(
-    image: Image,
-    encoding: FrameEncoding,
-    jpeg_quality: u8,
-) -> Result<RenderedImage, RendererError> {
-    // TODO(GPU): keep RGB conversion and JPEG encoding on CUDA buffers via nvJPEG;
-    // qualify that path before replacing this CPU encoder and GPU readback.
+fn encode_png(image: Image) -> Result<RenderedImage, RendererError> {
+    // TODO(GPU): replace PNG screenshot readback, RGB conversion and compression
+    // with a device-resident PNG encoder. PNG cannot qualify the GPU JPEG path.
     let dynamic = image
         .try_into_dynamic()
         .map_err(|error| RendererError::ImageConversion(error.to_string()))?
         .to_rgb8();
     let mut bytes = Vec::new();
-    match encoding {
-        FrameEncoding::Png => {
-            image::DynamicImage::ImageRgb8(dynamic)
-                .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)
-                .map_err(RendererError::ImageEncoding)?;
-            Ok(RenderedImage {
-                bytes,
-                encoding: FrameEncoding::Png,
-            })
-        }
-        FrameEncoding::Jpeg => {
-            let mut encoder =
-                image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, jpeg_quality);
-            encoder
-                .encode_image(&image::DynamicImage::ImageRgb8(dynamic))
-                .map_err(RendererError::ImageEncoding)?;
-            Ok(RenderedImage {
-                bytes,
-                encoding: FrameEncoding::Jpeg,
-            })
-        }
-    }
+    image::DynamicImage::ImageRgb8(dynamic)
+        .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)
+        .map_err(RendererError::ImageEncoding)?;
+    Ok(RenderedImage {
+        bytes,
+        encoding: FrameEncoding::Png,
+    })
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum RendererError {
+    #[error(transparent)]
+    GpuJpeg(#[from] gpu_jpeg::GpuJpegError),
     #[error("renderer thread could not start: {0}")]
     ThreadSpawn(std::io::Error),
     #[error("renderer initialization panicked")]
@@ -654,4 +755,97 @@ pub enum RendererError {
     ImageConversion(String),
     #[error("captured image encoding failed: {0}")]
     ImageEncoding(image::ImageError),
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+
+    fn capture_command() -> (
+        RenderCommand,
+        oneshot::Receiver<Result<RenderedImage, RendererError>>,
+    ) {
+        let (response, receiver) = oneshot::channel();
+        let position = Wgs84Position3d {
+            latitude_degrees: 0.0,
+            longitude_degrees: 0.0,
+            ellipsoidal_height_meters: 1.0,
+        };
+        let request = RenderFrameRequest {
+            camera: GeodeticCameraPose {
+                position,
+                orientation: crate::contract::HeadingPitchRoll {
+                    heading_degrees: 0.0,
+                    pitch_degrees: 0.0,
+                    roll_degrees: 0.0,
+                },
+                vertical_fov_degrees: 45.0,
+            },
+            local_origin: position,
+            width_px: 16,
+            height_px: 16,
+            encoding: FrameEncoding::Jpeg,
+            tiles: vec![],
+        };
+        (RenderCommand::Capture { request, response }, receiver)
+    }
+
+    #[cfg(feature = "mcp")]
+    #[tokio::test]
+    async fn canceled_queued_capture_never_dispatches() {
+        let (sender, commands) = mpsc::channel();
+        let mut handle = RendererHandle::unavailable();
+        Arc::get_mut(&mut handle.sender).unwrap().commands = sender.clone();
+        let (RenderCommand::Capture { request, .. }, _) = capture_command() else {
+            unreachable!()
+        };
+        let cancellation = tokio_util::sync::CancellationToken::new();
+        let mut capture = Box::pin(crate::state::render_until_cancelled(
+            &handle,
+            request,
+            &cancellation,
+        ));
+        // Poll the actual service entry once to admit its command before cancellation.
+        assert!(futures::poll!(&mut capture).is_pending());
+        cancellation.cancel();
+        assert!(matches!(
+            capture.await,
+            Err(crate::state::ServiceError::Cancelled)
+        ));
+        let (live, _receiver) = capture_command();
+        sender.send(live).unwrap();
+        sender.send(RenderCommand::Shutdown).unwrap();
+        let mut dispatched = 0;
+        dispatch_commands(commands, &AtomicBool::new(false), |_| dispatched += 1);
+        assert_eq!(dispatched, 1);
+    }
+
+    #[cfg(feature = "mcp")]
+    #[test]
+    fn shutdown_skips_all_queued_captures_after_current_dispatch() {
+        let (sender, commands) = mpsc::channel();
+        let mut handle = RendererHandle::unavailable();
+        Arc::get_mut(&mut handle.sender).unwrap().commands = sender.clone();
+        let shutdown = handle.sender.shutdown.clone();
+        let owner = handle.shutdown_on_drop();
+        let retained_task_handle = handle.clone();
+        let mut receivers = vec![];
+        for _ in 0..4 {
+            let (command, receiver) = capture_command();
+            sender.send(command).unwrap();
+            receivers.push(receiver);
+        }
+        let mut owner = Some(owner);
+        let mut dispatched = 0;
+        dispatch_commands(commands, &shutdown, |_| {
+            dispatched += 1;
+            drop(owner.take());
+        });
+        assert_eq!(dispatched, 1);
+        assert!(Arc::strong_count(&retained_task_handle.sender) >= 2);
+        assert!(receivers.iter_mut().all(|receiver| matches!(
+            receiver.try_recv(),
+            Err(oneshot::error::TryRecvError::Closed)
+        )));
+    }
 }

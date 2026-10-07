@@ -40,6 +40,8 @@ mod actions;
 pub use actions::{ActionHandle, ActionKey, ActionName, ActionRegistry, ActionRegistryBuilder};
 mod access_grant;
 mod checked;
+mod chrono_timestamp;
+pub use chrono_timestamp::ChronoUtcTimestampSchema;
 mod extensions;
 pub use extensions::{
     AdmittedExtensions, ExtensionError, ExtensionKey, ExtensionName, ExtensionRegistry,

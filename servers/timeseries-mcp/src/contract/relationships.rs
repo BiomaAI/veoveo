@@ -127,9 +127,9 @@ mod tests {
     fn wire() -> serde_json::Value {
         let mut value: serde_json::Value =
             serde_json::from_str(include_str!("../../testdata/app-output.json")).unwrap();
-        value["forecast"] = serde_json::json!({"method":"naive_trend","horizon":1000,"source_rows":2,
-            "series":[{"series_id":"user label","observed_rows":2,"forecast_rows":1000}]});
-        value["preview"] = serde_json::json!([{"series_id":"user label","observed":[{"value":1.0}],
+        value["forecast"] = serde_json::json!({"method":"naive_trend","horizon":1000,"sourceRows":2,
+            "series":[{"seriesId":"user label","observedRows":2,"forecastRows":1000}]});
+        value["preview"] = serde_json::json!([{"seriesId":"user label","observed":[{"value":1.0}],
             "forecast":[{"step":1,"mean":2.0,"q10":1.0,"q90":3.0},
                 {"step":1000,"mean":4.0,"q10":3.0,"q90":5.0}]}]);
         value
@@ -147,7 +147,7 @@ mod tests {
         let validator = jsonschema::validator_for(&schema).unwrap();
         let mut value = wire();
         value["forecast"]["horizon"] = serde_json::json!(501);
-        value["forecast"]["series"][0]["forecast_rows"] = serde_json::json!(501);
+        value["forecast"]["series"][0]["forecastRows"] = serde_json::json!(501);
         value["preview"][0]["forecast"] = (1..=501)
             .map(|step| {
                 serde_json::json!({
@@ -160,7 +160,7 @@ mod tests {
         let admitted: TimeseriesForecastOutput = serde_json::from_value(value.clone()).unwrap();
         assert_eq!(serde_json::to_value(admitted).unwrap(), value);
         value["forecast"]["horizon"] = serde_json::json!(502);
-        value["forecast"]["series"][0]["forecast_rows"] = serde_json::json!(502);
+        value["forecast"]["series"][0]["forecastRows"] = serde_json::json!(502);
         value["preview"][0]["forecast"]
             .as_array_mut()
             .unwrap()
@@ -182,14 +182,14 @@ mod tests {
         let schema = serde_json::to_value(schemars::schema_for!(TimeseriesForecastOutput)).unwrap();
         let validator = jsonschema::validator_for(&schema).unwrap();
         let mut empty = wire();
-        empty["forecast"]["source_rows"] = serde_json::json!(0);
+        empty["forecast"]["sourceRows"] = serde_json::json!(0);
         empty["forecast"]["series"] = serde_json::json!([]);
         empty["preview"] = serde_json::json!([]);
         assert!(validator.is_valid(&empty));
         assert!(serde_json::from_value::<TimeseriesForecastOutput>(empty).is_err());
         let mut zero = wire();
-        zero["forecast"]["source_rows"] = serde_json::json!(0);
-        zero["forecast"]["series"][0]["observed_rows"] = serde_json::json!(0);
+        zero["forecast"]["sourceRows"] = serde_json::json!(0);
+        zero["forecast"]["series"][0]["observedRows"] = serde_json::json!(0);
         zero["preview"][0]["observed"] = serde_json::json!([]);
         assert!(validator.is_valid(&zero));
         assert!(serde_json::from_value::<TimeseriesForecastOutput>(zero).is_err());
@@ -206,19 +206,28 @@ mod tests {
     }
     #[test]
     fn forecast_admission_rejects_detached_artifact_counts_series_and_quantiles() {
+        let schema = serde_json::to_value(schemars::schema_for!(TimeseriesForecastOutput)).unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        let current = wire();
+        assert!(validator.is_valid(&current));
+        serde_json::from_value::<TimeseriesForecastOutput>(current).unwrap();
         for (pointer, invalid) in [
             (
-                "/result_uri",
+                "/resultUri",
                 serde_json::json!("timeseries://artifact/00000000-0000-7000-8000-000000000002"),
             ),
-            ("/forecast/source_rows", serde_json::json!(3)),
-            ("/forecast/series/0/forecast_rows", serde_json::json!(999)),
-            ("/preview/0/series_id", serde_json::json!("other label")),
+            ("/forecast/sourceRows", serde_json::json!(3)),
+            ("/forecast/series/0/forecastRows", serde_json::json!(999)),
+            ("/preview/0/seriesId", serde_json::json!("other label")),
             ("/preview/0/forecast/1/step", serde_json::json!(999)),
             ("/preview/0/forecast/0/q10", serde_json::json!(3.0)),
         ] {
             let mut value = wire();
             *value.pointer_mut(pointer).unwrap() = invalid;
+            assert!(
+                validator.is_valid(&value),
+                "{pointer} must reach relationship admission"
+            );
             assert!(
                 serde_json::from_value::<TimeseriesForecastOutput>(value).is_err(),
                 "{pointer}"

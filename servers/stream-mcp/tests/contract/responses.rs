@@ -7,12 +7,12 @@ const OTHER: &str = "01983da0-0000-7000-8000-000000000002";
 fn output(id: &str, pipeline: &str) -> RunRecordingOutput {
     let mut wire: Value =
         serde_json::from_str(include_str!("../../testdata/run-output.json")).unwrap();
-    wire["run_uri"] = format!("stream://run/{id}").into();
-    wire["result_uri"] = format!("stream://run/{id}/results").into();
-    wire["pipeline_uri"] = format!("stream://pipeline/{pipeline}").into();
-    wire["results_artifact"]["metadata"]["provenance"]["run_id"] = id.into();
-    wire["results_artifact"]["metadata"]["provenance"]["pipeline_id"] = pipeline.into();
-    wire["annotations_artifact"]["metadata"]["provenance"]["run_id"] = id.into();
+    wire["runUri"] = format!("stream://run/{id}").into();
+    wire["resultUri"] = format!("stream://run/{id}/results").into();
+    wire["pipelineUri"] = format!("stream://pipeline/{pipeline}").into();
+    wire["resultsArtifact"]["metadata"]["provenance"]["runId"] = id.into();
+    wire["resultsArtifact"]["metadata"]["provenance"]["pipelineId"] = pipeline.into();
+    wire["annotationsArtifact"]["metadata"]["provenance"]["runId"] = id.into();
     serde_json::from_value(wire).unwrap()
 }
 
@@ -21,10 +21,13 @@ fn run() -> RunView {
         ID.parse().unwrap(),
         "traffic".parse().unwrap(),
         RunDetails {
-            status: "succeeded".into(),
+            status: veoveo_task_contract::TaskStatus::Succeeded,
             progress: 1.0,
             recording_uri: veoveo_recording_mcp::contract::RecordingUri::new(
-                veoveo_recording_mcp::contract::RecordingId::parse(OTHER).unwrap(),
+                veoveo_recording_mcp::contract::RecordingId::parse(
+                    "01983da0-0000-7000-8000-000000000000",
+                )
+                .unwrap(),
             ),
             entity_path: "/camera/front".into(),
             timeline: "sensor_time".into(),
@@ -83,13 +86,13 @@ fn catalog_ids_and_profile_model_relationships_are_checked() {
         assert!(serde_json::from_value::<PipelineView>(invalid).is_err());
     }
     let mut missing_model = pipeline_wire;
-    missing_model.as_object_mut().unwrap().remove("model_uri");
+    missing_model.as_object_mut().unwrap().remove("modelUri");
     assert!(serde_json::from_value::<PipelineView>(missing_model).is_err());
     let pass = PipelineView::pass_through("relay".parse().unwrap(), pipeline_details());
     assert!(pass.model_uri().is_none());
     let mut pass_wire = serde_json::to_value(pass).unwrap();
     assert!(serde_json::from_value::<PipelineView>(pass_wire.clone()).is_ok());
-    pass_wire["model_uri"] = "stream://model/detector".into();
+    pass_wire["modelUri"] = "stream://model/detector".into();
     assert!(serde_json::from_value::<PipelineView>(pass_wire).is_err());
 }
 
@@ -102,8 +105,8 @@ fn output_addresses_cannot_disagree() {
         wire
     );
     for (field, address) in [
-        ("run_uri", format!("stream://run/{OTHER}")),
-        ("result_uri", format!("stream://run/{OTHER}/results")),
+        ("runUri", format!("stream://run/{OTHER}")),
+        ("resultUri", format!("stream://run/{OTHER}/results")),
     ] {
         let mut invalid = wire.clone();
         invalid[field] = address.into();
@@ -129,10 +132,10 @@ fn run_builder_and_wire_bind_output_to_the_task_and_pipeline() {
         assert!(serde_json::from_value::<RunView>(invalid).is_err());
     }
     for (field, value) in [
-        ("task_id", OTHER.to_owned()),
-        ("run_uri", format!("stream://run/{OTHER}")),
-        ("results_uri", format!("stream://run/{OTHER}/results")),
-        ("pipeline_id", "different".into()),
+        ("taskId", OTHER.to_owned()),
+        ("runUri", format!("stream://run/{OTHER}")),
+        ("resultsUri", format!("stream://run/{OTHER}/results")),
+        ("pipelineId", "different".into()),
     ] {
         let mut invalid = wire.clone();
         invalid[field] = value.into();
@@ -205,12 +208,12 @@ fn live_builders_share_one_identity_and_decoders_reject_foreign_addresses() {
     };
     let stop_wire = serde_json::to_value(stop).unwrap();
     assert_eq!(
-        stop_wire["result_uri"],
+        stop_wire["resultUri"],
         serde_json::to_value(start.result_uri()).unwrap()
     );
     assert!(serde_json::from_value::<StopLiveSessionOutput>(stop_wire.clone()).is_ok());
     let mut missing = stop_wire;
-    missing.as_object_mut().unwrap().remove("result_uri");
+    missing.as_object_mut().unwrap().remove("resultUri");
     assert!(serde_json::from_value::<StopLiveSessionOutput>(missing).is_err());
     let start_wire = serde_json::to_value(start).unwrap();
     let view_wire = serde_json::to_value(view).unwrap();
@@ -227,14 +230,14 @@ fn live_builders_share_one_identity_and_decoders_reject_foreign_addresses() {
         view_wire
     );
     for (field, value) in [
-        ("session_id", OTHER.to_owned()),
-        ("session_uri", format!("stream://session/{OTHER}")),
-        ("results_uri", format!("stream://session/{OTHER}/results")),
-        ("preview_uri", format!("stream://session/{OTHER}/preview")),
+        ("sessionId", OTHER.to_owned()),
+        ("sessionUri", format!("stream://session/{OTHER}")),
+        ("resultsUri", format!("stream://session/{OTHER}/results")),
+        ("previewUri", format!("stream://session/{OTHER}/preview")),
     ] {
         let mut invalid = start_wire.clone();
-        invalid[if field == "session_uri" {
-            "result_uri"
+        invalid[if field == "sessionUri" {
+            "resultUri"
         } else {
             field
         }] = Value::String(value.clone());
@@ -250,8 +253,8 @@ fn live_builders_share_one_identity_and_decoders_reject_foreign_addresses() {
         );
     }
     for (field, value) in [
-        ("pipeline_id", "other"),
-        ("pipeline_uri", "stream://pipeline/other"),
+        ("pipelineId", "other"),
+        ("pipelineUri", "stream://pipeline/other"),
     ] {
         let mut invalid = view_wire.clone();
         invalid[field] = value.into();
@@ -262,8 +265,8 @@ fn live_builders_share_one_identity_and_decoders_reject_foreign_addresses() {
 #[test]
 fn recording_output_requires_its_canonical_result_uri() {
     let mut value = serde_json::to_value(output(ID, "traffic")).unwrap();
-    assert_eq!(value["result_uri"], format!("stream://run/{ID}/results"));
-    value.as_object_mut().unwrap().remove("result_uri");
+    assert_eq!(value["resultUri"], format!("stream://run/{ID}/results"));
+    value.as_object_mut().unwrap().remove("resultUri");
     assert!(serde_json::from_value::<RunRecordingOutput>(value).is_err());
 }
 
@@ -277,7 +280,7 @@ fn recording_references_use_the_recording_owner_admission() {
         "recording://recordings/01983da0-0000-4000-8000-000000000002",
     ] {
         let mut invalid = valid.clone();
-        invalid["recording_uri"] = address.into();
+        invalid["recordingUri"] = address.into();
         let error = serde_json::from_value::<RunView>(invalid).unwrap_err();
         assert!(!error.to_string().contains(address));
     }
@@ -288,26 +291,26 @@ fn terminal_artifact_provenance_and_visible_ranges_share_constructor_admission()
     let good = output(ID, "traffic");
     let original = serde_json::to_value(&good).unwrap();
     for (pointer, value) in [
-        ("/summary/requested_end_index", serde_json::json!(9)),
-        ("/summary/decode_start_index", serde_json::json!(11)),
+        ("/summary/requestedEndIndex", serde_json::json!(9)),
+        ("/summary/decodeStartIndex", serde_json::json!(11)),
         (
-            "/results_artifact/metadata/provenance/run_id",
+            "/resultsArtifact/metadata/provenance/runId",
             serde_json::json!(OTHER),
         ),
         (
-            "/results_artifact/metadata/provenance/pipeline_id",
+            "/resultsArtifact/metadata/provenance/pipelineId",
             serde_json::json!("other"),
         ),
         (
-            "/annotations_artifact/metadata/provenance/recording_id",
+            "/annotationsArtifact/metadata/provenance/recordingId",
             serde_json::json!(OTHER),
         ),
         (
-            "/annotations_artifact/metadata/provenance/results_artifact_uri",
+            "/annotationsArtifact/metadata/provenance/resultsArtifactUri",
             serde_json::json!(format!("stream://artifact/{OTHER}")),
         ),
         (
-            "/annotations_artifact/metadata/provenance/source_snapshot_sha256",
+            "/annotationsArtifact/metadata/provenance/sourceSnapshotSha256",
             serde_json::json!("b".repeat(64)),
         ),
     ] {
@@ -331,20 +334,20 @@ fn terminal_artifact_provenance_and_visible_ranges_share_constructor_admission()
     );
     let mut clip = good.results_artifact.clone();
     let mut clip_wire = serde_json::to_value(&clip).unwrap();
-    clip_wire["artifact_id"] = "01983da0-0000-7000-8000-000000000004".into();
-    clip_wire["artifact_uri"] = "stream://artifact/01983da0-0000-7000-8000-000000000004".into();
+    clip_wire["artifactId"] = "01983da0-0000-7000-8000-000000000004".into();
+    clip_wire["artifactUri"] = "stream://artifact/01983da0-0000-7000-8000-000000000004".into();
     clip = serde_json::from_value(clip_wire).unwrap();
     clip.metadata = serde_json::json!({"provenance":{
-        "kind":"stream_source_clip", "run_id":ID,
-        "recording_id":"01983da0-0000-7000-8000-000000000000",
-        "entity_path":"/camera", "timeline":"sensor_time", "decode_start_index":0,
-        "source_snapshot_sha256":"a".repeat(64)}});
+        "kind":"stream_source_clip", "runId":ID,
+        "recordingId":"01983da0-0000-7000-8000-000000000000",
+        "entityPath":"/camera", "timeline":"sensor_time", "decodeStartIndex":0,
+        "sourceSnapshotSha256":"a".repeat(64)}});
     let with_clip = good.clone().with_source_clip(Some(clip.clone())).unwrap();
     assert!(
         serde_json::from_value::<RunRecordingOutput>(serde_json::to_value(with_clip).unwrap())
             .is_ok()
     );
-    clip.metadata["provenance"]["decode_start_index"] = 1.into();
+    clip.metadata["provenance"]["decodeStartIndex"] = 1.into();
     assert!(good.with_source_clip(Some(clip)).is_err());
 }
 
@@ -364,25 +367,25 @@ fn admitted_products_emit_the_actual_object_schemas() {
 #[test]
 fn terminal_roles_cannot_reuse_one_immutable_artifact_occurrence() {
     let mut wire = serde_json::to_value(output(ID, "traffic")).unwrap();
-    let mut clip = wire["annotations_artifact"].clone();
-    clip["artifact_id"] = "01983da0-0000-7000-8000-000000000004".into();
-    clip["artifact_uri"] = "stream://artifact/01983da0-0000-7000-8000-000000000004".into();
+    let mut clip = wire["annotationsArtifact"].clone();
+    clip["artifactId"] = "01983da0-0000-7000-8000-000000000004".into();
+    clip["artifactUri"] = "stream://artifact/01983da0-0000-7000-8000-000000000004".into();
     clip["metadata"]["provenance"] = serde_json::json!({
-        "kind": "stream_source_clip", "run_id": ID,
-        "recording_id": "01983da0-0000-7000-8000-000000000000", "entity_path":"/camera/front", "timeline":"sensor_time",
-        "decode_start_index": wire["summary"]["decode_start_index"],
-        "source_snapshot_sha256": wire["results_artifact"]["metadata"]["provenance"]["source_snapshot_sha256"]
+        "kind": "stream_source_clip", "runId": ID,
+        "recordingId": "01983da0-0000-7000-8000-000000000000", "entityPath":"/camera/front", "timeline":"sensor_time",
+        "decodeStartIndex": wire["summary"]["decodeStartIndex"],
+        "sourceSnapshotSha256": wire["resultsArtifact"]["metadata"]["provenance"]["sourceSnapshotSha256"]
     });
-    wire["source_clip_artifact"] = clip;
+    wire["sourceClipArtifact"] = clip;
     assert!(serde_json::from_value::<RunRecordingOutput>(wire.clone()).is_ok());
     for (target, source) in [
-        ("annotations_artifact", "results_artifact"),
-        ("source_clip_artifact", "results_artifact"),
-        ("source_clip_artifact", "annotations_artifact"),
+        ("annotationsArtifact", "resultsArtifact"),
+        ("sourceClipArtifact", "resultsArtifact"),
+        ("sourceClipArtifact", "annotationsArtifact"),
     ] {
         let mut bad = wire.clone();
-        bad[target]["artifact_id"] = wire[source]["artifact_id"].clone();
-        bad[target]["artifact_uri"] = wire[source]["artifact_uri"].clone();
+        bad[target]["artifactId"] = wire[source]["artifactId"].clone();
+        bad[target]["artifactUri"] = wire[source]["artifactUri"].clone();
         assert!(
             serde_json::from_value::<RunRecordingOutput>(bad.clone()).is_err(),
             "{target}/{source}"
@@ -392,6 +395,61 @@ fn terminal_roles_cannot_reuse_one_immutable_artifact_occurrence() {
                 .unwrap()
                 .build()
                 .is_err()
+        );
+    }
+}
+
+#[test]
+fn current_task_status_vocabulary_rejects_unknown_response_values() {
+    let current = serde_json::to_value(run()).unwrap();
+    assert_eq!(current["status"], "succeeded");
+    for status in ["unknown", "cancelRequested", "cancel-requested"] {
+        let mut changed = current.clone();
+        changed["status"] = status.into();
+        assert!(serde_json::from_value::<RunView>(changed).is_err());
+    }
+}
+
+#[test]
+fn run_public_decoder_refuses_visible_recording_contradiction() {
+    let mut current =
+        serde_json::to_value(run().with_output(Some(output(ID, "traffic"))).unwrap()).unwrap();
+    *current.pointer_mut("/recordingUri").unwrap() =
+        format!("recording://recordings/{OTHER}").into();
+    let error = serde_json::from_value::<RunView>(current).unwrap_err();
+    assert!(
+        error.to_string().contains("run output recording"),
+        "{error}"
+    );
+}
+
+#[test]
+fn run_public_decoder_refuses_visible_clip_source_contradictions() {
+    let mut wire = serde_json::to_value(output(ID, "traffic")).unwrap();
+    let mut clip = wire["annotationsArtifact"].clone();
+    clip["artifactId"] = "01983da0-0000-7000-8000-000000000004".into();
+    clip["artifactUri"] = "stream://artifact/01983da0-0000-7000-8000-000000000004".into();
+    clip["metadata"]["provenance"] = serde_json::json!({
+        "kind": "stream_source_clip", "runId": ID,
+        "recordingId": "01983da0-0000-7000-8000-000000000000",
+        "entityPath": "/camera/front", "timeline": "sensor_time", "decodeStartIndex": 0,
+        "sourceSnapshotSha256": wire["resultsArtifact"]["metadata"]["provenance"]["sourceSnapshotSha256"]
+    });
+    wire["sourceClipArtifact"] = clip;
+    let current = serde_json::to_value(
+        run()
+            .with_output(Some(serde_json::from_value(wire).unwrap()))
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(serde_json::from_value::<RunView>(current.clone()).is_ok());
+    for (pointer, value) in [("/entityPath", "/other"), ("/timeline", "other_time")] {
+        let mut changed = current.clone();
+        *changed.pointer_mut(pointer).unwrap() = value.into();
+        let error = serde_json::from_value::<RunView>(changed).unwrap_err();
+        assert!(
+            error.to_string().contains("run clip entity and timeline"),
+            "{pointer}: {error}"
         );
     }
 }

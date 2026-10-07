@@ -1,0 +1,5 @@
+# Collector-only URI dependencies. Never replace the image's CUDA packages.
+# Primary provenance: https://pypi.org/project/rfc3986/2.0.0/
+rfc3986==2.0.0 --hash=sha256:50b1502b60e289cb37883f3dfd34532b8873c7de9f49bb546641ce9cbd256ebd
+# Primary provenance: https://pypi.org/project/rfc3986-validator/0.1.1/
+rfc3986-validator==0.1.1 --hash=sha256:2f235c432ef459970b4306369336b9d5dbdda31b510ca1e327636e01f528bfa9

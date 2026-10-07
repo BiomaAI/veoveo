@@ -182,7 +182,7 @@ async fn recovery_classes_and_leases_are_enforced() {
             .unwrap()
             .snapshot;
         runtime
-            .claim(resumable.task_id, Duration::from_millis(10))
+            .claim(resumable.task_id, Duration::from_secs(2))
             .await
             .unwrap();
 
@@ -195,7 +195,7 @@ async fn recovery_classes_and_leases_are_enforced() {
             .unwrap()
             .snapshot;
         runtime
-            .claim(mutating.task_id, Duration::from_millis(10))
+            .claim(mutating.task_id, Duration::from_secs(2))
             .await
             .unwrap();
 
@@ -205,7 +205,7 @@ async fn recovery_classes_and_leases_are_enforced() {
             .unwrap()
             .snapshot;
         runtime
-            .claim(cancelling.task_id, Duration::from_millis(10))
+            .claim(cancelling.task_id, Duration::from_secs(2))
             .await
             .unwrap();
         runtime.cancel(cancelling.task_id).await.unwrap();
@@ -216,7 +216,7 @@ async fn recovery_classes_and_leases_are_enforced() {
             .unwrap()
             .snapshot;
         runtime
-            .claim(webhook.task_id, Duration::from_millis(10))
+            .claim(webhook.task_id, Duration::from_secs(2))
             .await
             .unwrap();
         runtime
@@ -230,7 +230,7 @@ async fn recovery_classes_and_leases_are_enforced() {
             .await
             .unwrap();
 
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        tokio::time::sleep(Duration::from_millis(2100)).await;
         let restarted = TaskRuntime::new(db.b.clone(), "integration-server", "worker-c");
         let report = restarted.recover().await.unwrap();
         assert!(
@@ -730,3 +730,6 @@ async fn sdk_task_storage_interop() -> anyhow::Result<()> {
         .await
         .map_err(|_| anyhow::anyhow!("Task interoperability fixture exceeded 90 seconds"))?
 }
+
+#[path = "support/recovery_cases.rs"]
+mod recovery_cases;

@@ -7,8 +7,26 @@
       "video": {
         "$ref": "#/$defs/RecordingVideoSelection"
       },
-      "pipeline_id": {
-        "type": "string"
+      "pipelineId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "PipelineId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "sampling": {
         "$ref": "#/$defs/SamplingPolicy",
@@ -16,7 +34,7 @@
           "mode": "every_frame"
         }
       },
-      "include_source_clip": {
+      "includeSourceClip": {
         "type": "boolean",
         "default": false
       }
@@ -24,17 +42,35 @@
     "additionalProperties": false,
     "required": [
       "video",
-      "pipeline_id"
+      "pipelineId"
     ],
     "$defs": {
       "RecordingVideoSelection": {
         "type": "object",
         "properties": {
-          "recording_uri": {
+          "recordingUri": {
             "description": "Canonical `recording://recordings/{recording_id}` URI.",
-            "type": "string"
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_recording_contract::resources"
+                    },
+                    "profile": "RecordingUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "entity_path": {
+          "entityPath": {
             "description": "Exact Rerun entity path containing `VideoStream` samples.",
             "type": "string"
           },
@@ -48,8 +84,8 @@
         },
         "additionalProperties": false,
         "required": [
-          "recording_uri",
-          "entity_path",
+          "recordingUri",
+          "entityPath",
           "timeline",
           "range"
         ]
@@ -100,11 +136,11 @@
                 "const": "every_nth"
               }
             },
+            "additionalProperties": false,
             "required": [
               "mode",
               "step"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -119,11 +155,11 @@
                 "const": "maximum_frames"
               }
             },
+            "additionalProperties": false,
             "required": [
               "mode",
               "count"
-            ],
-            "additionalProperties": false
+            ]
           }
         ]
       }
@@ -159,11 +195,11 @@
             "const": "every_nth"
           }
         },
+        "additionalProperties": false,
         "required": [
           "mode",
           "step"
-        ],
-        "additionalProperties": false
+        ]
       },
       {
         "type": "object",
@@ -178,19 +214,59 @@
             "const": "maximum_frames"
           }
         },
+        "additionalProperties": false,
         "required": [
           "mode",
           "count"
-        ],
-        "additionalProperties": false
+        ]
       }
+    ]
+  },
+  "StreamUsageMetadata": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "StreamUsageMetadata",
+    "description": "Stream's recorded usage facts inside the generic platform Usage metadata object.",
+    "type": "object",
+    "properties": {
+      "pipelineId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "PipelineId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "entityPath": {
+        "type": "string"
+      },
+      "timeline": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "pipelineId",
+      "entityPath",
+      "timeline"
     ]
   },
   "BoundingBox2D": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "BoundingBox2D",
     "type": "object",
-    "additionalProperties": false,
     "properties": {
       "x": {
         "type": "number",
@@ -209,6 +285,7 @@
         "format": "float"
       }
     },
+    "additionalProperties": false,
     "required": [
       "x",
       "y",
@@ -220,9 +297,8 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Detection",
     "type": "object",
-    "additionalProperties": false,
     "properties": {
-      "class_id": {
+      "classId": {
         "type": "integer",
         "format": "uint32",
         "minimum": 0
@@ -238,7 +314,7 @@
         ],
         "format": "float"
       },
-      "tracker_confidence": {
+      "trackerConfidence": {
         "description": "Tracker confidence when the selected tracker exposes one.",
         "type": [
           "number",
@@ -249,7 +325,7 @@
       "bounds": {
         "$ref": "#/$defs/BoundingBox2D"
       },
-      "track_id": {
+      "trackId": {
         "type": [
           "integer",
           "null"
@@ -258,15 +334,15 @@
         "minimum": 0
       }
     },
+    "additionalProperties": false,
     "required": [
-      "class_id",
+      "classId",
       "label",
       "bounds"
     ],
     "$defs": {
       "BoundingBox2D": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "x": {
             "type": "number",
@@ -285,6 +361,7 @@
             "format": "float"
           }
         },
+        "additionalProperties": false,
         "required": [
           "x",
           "y",
@@ -298,7 +375,6 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "FrameDetections",
     "type": "object",
-    "additionalProperties": false,
     "properties": {
       "index": {
         "type": "integer",
@@ -311,6 +387,7 @@
         }
       }
     },
+    "additionalProperties": false,
     "required": [
       "index",
       "detections"
@@ -318,9 +395,8 @@
     "$defs": {
       "Detection": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
-          "class_id": {
+          "classId": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -336,7 +412,7 @@
             ],
             "format": "float"
           },
-          "tracker_confidence": {
+          "trackerConfidence": {
             "description": "Tracker confidence when the selected tracker exposes one.",
             "type": [
               "number",
@@ -347,7 +423,7 @@
           "bounds": {
             "$ref": "#/$defs/BoundingBox2D"
           },
-          "track_id": {
+          "trackId": {
             "type": [
               "integer",
               "null"
@@ -356,15 +432,15 @@
             "minimum": 0
           }
         },
+        "additionalProperties": false,
         "required": [
-          "class_id",
+          "classId",
           "label",
           "bounds"
         ]
       },
       "BoundingBox2D": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "x": {
             "type": "number",
@@ -383,6 +459,7 @@
             "format": "float"
           }
         },
+        "additionalProperties": false,
         "required": [
           "x",
           "y",
@@ -400,28 +477,82 @@
       "schema": {
         "$ref": "#/$defs/StreamResultsSchema"
       },
-      "pipeline_id": {
-        "type": "string"
+      "pipelineId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "PipelineId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "model_id": {
-        "type": "string"
+      "modelId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "ModelId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "recording_uri": {
-        "type": "string"
+      "recordingUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_recording_contract::resources"
+                },
+                "profile": "RecordingUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "entity_path": {
+      "entityPath": {
         "type": "string"
       },
       "timeline": {
         "type": "string"
       },
-      "timeline_kind": {
+      "timelineKind": {
         "$ref": "#/$defs/VideoTimelineKind"
       },
-      "requested_range": {
+      "requestedRange": {
         "$ref": "#/$defs/IndexRange"
       },
-      "source_snapshot": {
+      "sourceSnapshot": {
         "$ref": "#/$defs/RecordingSourceSnapshot"
       },
       "frames": {
@@ -430,32 +561,49 @@
           "$ref": "#/$defs/FrameDetections"
         }
       },
-      "processed_frames": {
+      "processedFrames": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       },
-      "elapsed_ms": {
+      "elapsedMs": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       }
     },
+    "additionalProperties": false,
     "required": [
       "schema",
-      "pipeline_id",
-      "model_id",
-      "recording_uri",
-      "entity_path",
+      "pipelineId",
+      "modelId",
+      "recordingUri",
+      "entityPath",
       "timeline",
-      "timeline_kind",
-      "requested_range",
-      "source_snapshot",
+      "timelineKind",
+      "requestedRange",
+      "sourceSnapshot",
       "frames",
-      "processed_frames",
-      "elapsed_ms"
+      "processedFrames",
+      "elapsedMs"
     ],
     "$defs": {
+      "StreamResultsSchema": {
+        "type": "string",
+        "enum": [
+          "veoveo.ai/stream-results/v2"
+        ],
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "builtin",
+              "grammar": "format_tag"
+            }
+          }
+        }
+      },
       "VideoTimelineKind": {
         "description": "Timeline kinds a remuxed clip can preserve. Sequence timelines carry no\nmedia time and are rejected at materialization mapping.",
         "type": "string",
@@ -486,13 +634,49 @@
         "description": "Ordered source identities captured for one recording analysis.",
         "type": "object",
         "properties": {
-          "recording_id": {
-            "type": "string"
+          "recordingId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_recording_contract::ids"
+                    },
+                    "profile": "RecordingId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "dataset_id": {
-            "type": "string"
+          "datasetId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_recording_contract::ids"
+                    },
+                    "profile": "RecordingDatasetId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "captured_at": {
+          "capturedAt": {
             "type": "string",
             "format": "date-time"
           },
@@ -506,36 +690,55 @@
         },
         "additionalProperties": false,
         "required": [
-          "recording_id",
-          "dataset_id",
-          "captured_at",
+          "recordingId",
+          "datasetId",
+          "capturedAt",
           "sources"
         ]
       },
       "RecordingSourceIdentity": {
+        "description": "Identity and integrity of one committed layer or acknowledged live part.",
         "type": "object",
         "properties": {
-          "layer_id": {
-            "type": "string"
-          },
-          "layer_name": {
+          "layerId": {
             "type": "string",
-            "maxLength": 256,
-            "minLength": 1
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_recording_contract::ids"
+                    },
+                    "profile": "RecordingLayerId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "layer_ordinal": {
+          "layerName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "layerOrdinal": {
             "type": [
               "integer",
               "null"
             ],
             "format": "uint64",
-            "maximum": 9223372036854775807,
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 9223372036854775807
           },
           "kind": {
             "$ref": "#/$defs/RecordingSourceIdentityKind"
           },
-          "part_sequence": {
+          "partSequence": {
             "type": [
               "integer",
               "null"
@@ -543,7 +746,7 @@
             "format": "uint64",
             "minimum": 0
           },
-          "byte_len": {
+          "byteLen": {
             "type": "integer",
             "format": "uint64",
             "minimum": 1
@@ -555,13 +758,12 @@
         },
         "additionalProperties": false,
         "required": [
-          "layer_id",
-          "layer_name",
+          "layerId",
+          "layerName",
           "kind",
-          "byte_len",
+          "byteLen",
           "sha256"
-        ],
-        "description": "Identity and integrity of one committed layer or acknowledged live part."
+        ]
       },
       "RecordingSourceIdentityKind": {
         "type": "string",
@@ -572,7 +774,6 @@
       },
       "FrameDetections": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "index": {
             "type": "integer",
@@ -585,6 +786,7 @@
             }
           }
         },
+        "additionalProperties": false,
         "required": [
           "index",
           "detections"
@@ -592,9 +794,8 @@
       },
       "Detection": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
-          "class_id": {
+          "classId": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -610,7 +811,7 @@
             ],
             "format": "float"
           },
-          "tracker_confidence": {
+          "trackerConfidence": {
             "description": "Tracker confidence when the selected tracker exposes one.",
             "type": [
               "number",
@@ -621,7 +822,7 @@
           "bounds": {
             "$ref": "#/$defs/BoundingBox2D"
           },
-          "track_id": {
+          "trackId": {
             "type": [
               "integer",
               "null"
@@ -630,15 +831,15 @@
             "minimum": 0
           }
         },
+        "additionalProperties": false,
         "required": [
-          "class_id",
+          "classId",
           "label",
           "bounds"
         ]
       },
       "BoundingBox2D": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "x": {
             "type": "number",
@@ -657,18 +858,13 @@
             "format": "float"
           }
         },
+        "additionalProperties": false,
         "required": [
           "x",
           "y",
           "width",
           "height"
         ]
-      },
-      "StreamResultsSchema": {
-        "enum": [
-          "veoveo.stream-results/v1"
-        ],
-        "type": "string"
       }
     }
   },
@@ -677,28 +873,100 @@
     "title": "RunRecordingOutput",
     "type": "object",
     "properties": {
-      "run_uri": {
-        "type": "string"
+      "runUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "RunUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "result_uri": {
-        "type": "string"
+      "resultUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "RunResultsUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "pipeline_uri": {
-        "type": "string"
+      "pipelineUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "PipelineUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "model_uri": {
-        "type": "string"
+      "modelUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "ModelUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
       "summary": {
         "$ref": "#/$defs/AnalysisSummary"
       },
-      "results_artifact": {
+      "resultsArtifact": {
         "$ref": "#/$defs/ArtifactMetadata"
       },
-      "annotations_artifact": {
+      "annotationsArtifact": {
         "$ref": "#/$defs/ArtifactMetadata"
       },
-      "source_clip_artifact": {
+      "sourceClipArtifact": {
         "anyOf": [
           {
             "$ref": "#/$defs/ArtifactMetadata"
@@ -709,69 +977,71 @@
         ]
       }
     },
+    "additionalProperties": false,
     "required": [
-      "run_uri",
-      "result_uri",
-      "pipeline_uri",
-      "model_uri",
+      "runUri",
+      "resultUri",
+      "pipelineUri",
+      "modelUri",
       "summary",
-      "results_artifact",
-      "annotations_artifact"
+      "resultsArtifact",
+      "annotationsArtifact"
     ],
     "$defs": {
       "AnalysisSummary": {
         "type": "object",
         "properties": {
-          "processed_frames": {
+          "processedFrames": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "detection_count": {
+          "detectionCount": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "elapsed_ms": {
+          "elapsedMs": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "decode_start_index": {
+          "decodeStartIndex": {
             "type": "integer",
             "format": "int64"
           },
-          "requested_start_index": {
+          "requestedStartIndex": {
             "type": "integer",
             "format": "int64"
           },
-          "requested_end_index": {
+          "requestedEndIndex": {
             "type": "integer",
             "format": "int64"
           }
         },
+        "additionalProperties": false,
         "required": [
-          "processed_frames",
-          "detection_count",
-          "elapsed_ms",
-          "decode_start_index",
-          "requested_start_index",
-          "requested_end_index"
+          "processedFrames",
+          "detectionCount",
+          "elapsedMs",
+          "decodeStartIndex",
+          "requestedStartIndex",
+          "requestedEndIndex"
         ]
       },
       "ArtifactMetadata": {
         "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
         "type": "object",
         "properties": {
-          "artifact_id": {
+          "artifactId": {
             "$ref": "#/$defs/ArtifactId"
           },
-          "byte_len": {
+          "byteLen": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "mime_type": {
+          "mimeType": {
             "type": [
               "string",
               "null"
@@ -785,20 +1055,21 @@
             ],
             "default": null
           },
-          "artifact_uri": {
+          "artifactUri": {
             "$ref": "#/$defs/ArtifactUri"
           },
-          "download_url": {
+          "downloadUrl": {
             "type": [
               "string",
               "null"
             ]
           },
-          "created_at": {
+          "createdAt": {
+            "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
             "type": "string",
-            "format": "date-time"
+            "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
           },
-          "release_state": {
+          "releaseState": {
             "$ref": "#/$defs/ArtifactReleaseState",
             "default": "private"
           },
@@ -810,16 +1081,35 @@
             "default": null
           }
         },
+        "additionalProperties": false,
         "required": [
-          "artifact_id",
-          "byte_len",
-          "artifact_uri",
-          "created_at"
+          "artifactId",
+          "byteLen",
+          "artifactUri",
+          "createdAt"
         ]
       },
       "ArtifactId": {
         "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_artifact_contract::identity"
+                },
+                "profile": "ArtifactId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "ArtifactUri": {
         "description": "Neutral or server-presented Artifact occurrence URI.",
@@ -847,7 +1137,7 @@
               }
             ]
           },
-          "tenant_id": {
+          "tenantId": {
             "anyOf": [
               {
                 "$ref": "#/$defs/TenantId"
@@ -867,7 +1157,7 @@
               }
             ]
           },
-          "work_context": {
+          "workContext": {
             "anyOf": [
               {
                 "$ref": "#/$defs/WorkContextId"
@@ -887,29 +1177,67 @@
               }
             ]
           },
-          "data_labels": {
+          "dataLabels": {
             "type": "array",
             "uniqueItems": true,
             "items": {
               "$ref": "#/$defs/DataLabelId"
             }
           },
-          "retention_expires_at": {
+          "retentionExpiresAt": {
+            "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
             "type": [
               "string",
               "null"
             ],
-            "format": "date-time"
+            "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "DataLabelId": {
         "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DataLabelId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "TenantId": {
         "description": "Tenant, organization, or customer boundary identifier.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "TenantId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "AccessSubject": {
         "description": "A principal or group that can own governed data or receive access.",
@@ -952,15 +1280,69 @@
       },
       "PrincipalId": {
         "description": "Stable authenticated user or service-principal identity.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PrincipalId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "GroupId": {
         "description": "Identity-provider group identifier used by gateway policy.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "GroupId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "WorkContextId": {
         "description": "Tenant-local boundary that governs related work and every output it produces.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "WorkContextId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "ArtifactProvenance": {
         "description": "Immutable explanation of how an artifact came into being.",
@@ -974,7 +1356,7 @@
               "initiator": {
                 "$ref": "#/$defs/PrincipalId"
               },
-              "delegation_id": {
+              "delegationId": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/NoIdentity"
@@ -984,19 +1366,20 @@
                   }
                 ]
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "type": "string",
                 "const": "direct"
               }
             },
+            "additionalProperties": false,
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
               "initiator",
-              "policy_revision"
+              "policyRevision"
             ]
           },
           {
@@ -1008,23 +1391,24 @@
               "initiator": {
                 "$ref": "#/$defs/PrincipalId"
               },
-              "delegation_id": {
+              "delegationId": {
                 "$ref": "#/$defs/DelegationId"
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "type": "string",
                 "const": "delegated"
               }
             },
+            "additionalProperties": false,
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
               "initiator",
-              "delegation_id",
-              "policy_revision"
+              "delegationId",
+              "policyRevision"
             ]
           },
           {
@@ -1043,7 +1427,7 @@
                   }
                 ]
               },
-              "delegation_id": {
+              "delegationId": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/NoIdentity"
@@ -1053,18 +1437,19 @@
                   }
                 ]
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "type": "string",
                 "const": "automated"
               }
             },
+            "additionalProperties": false,
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
-              "policy_revision"
+              "policyRevision"
             ]
           }
         ]
@@ -1072,11 +1457,47 @@
       "NoIdentity": false,
       "PolicyVersion": {
         "description": "Immutable policy version identifier emitted with decisions and audit records.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PolicyVersion",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "DelegationId": {
         "description": "Auditable identity of authority delegated by an initiator to another actor.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DelegationId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -1085,41 +1506,42 @@
     "title": "AnalysisSummary",
     "type": "object",
     "properties": {
-      "processed_frames": {
+      "processedFrames": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       },
-      "detection_count": {
+      "detectionCount": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       },
-      "elapsed_ms": {
+      "elapsedMs": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       },
-      "decode_start_index": {
+      "decodeStartIndex": {
         "type": "integer",
         "format": "int64"
       },
-      "requested_start_index": {
+      "requestedStartIndex": {
         "type": "integer",
         "format": "int64"
       },
-      "requested_end_index": {
+      "requestedEndIndex": {
         "type": "integer",
         "format": "int64"
       }
     },
+    "additionalProperties": false,
     "required": [
-      "processed_frames",
-      "detection_count",
-      "elapsed_ms",
-      "decode_start_index",
-      "requested_start_index",
-      "requested_end_index"
+      "processedFrames",
+      "detectionCount",
+      "elapsedMs",
+      "decodeStartIndex",
+      "requestedStartIndex",
+      "requestedEndIndex"
     ]
   },
   "PipelineView": {
@@ -1128,10 +1550,46 @@
     "type": "object",
     "properties": {
       "id": {
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "PipelineId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "uri": {
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "PipelineUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
       "title": {
         "type": "string"
@@ -1142,27 +1600,46 @@
       "profile": {
         "$ref": "#/$defs/PipelineProfile"
       },
-      "model_uri": {
+      "modelUri": {
         "type": [
           "string",
           "null"
-        ]
+        ],
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "ModelUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "supports_recording_replay": {
+      "supportsRecordingReplay": {
         "type": "boolean"
       },
-      "supports_live_input": {
+      "supportsLiveInput": {
         "type": "boolean"
       }
     },
+    "additionalProperties": false,
     "required": [
       "id",
       "uri",
       "title",
       "description",
       "profile",
-      "supports_recording_replay",
-      "supports_live_input"
+      "supportsRecordingReplay",
+      "supportsLiveInput"
     ],
     "$defs": {
       "PipelineProfile": {
@@ -1177,7 +1654,8 @@
             },
             "required": [
               "kind"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -1193,6 +1671,7 @@
                 "const": "perception"
               }
             },
+            "additionalProperties": false,
             "required": [
               "kind",
               "operation",
@@ -1226,7 +1705,8 @@
         },
         "required": [
           "kind"
-        ]
+        ],
+        "additionalProperties": false
       },
       {
         "type": "object",
@@ -1242,6 +1722,7 @@
             "const": "perception"
           }
         },
+        "additionalProperties": false,
         "required": [
           "kind",
           "operation",
@@ -1278,10 +1759,46 @@
     "type": "object",
     "properties": {
       "id": {
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "ModelId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "uri": {
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "ModelUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
       "title": {
         "type": "string"
@@ -1293,6 +1810,7 @@
         "$ref": "#/$defs/ModelFormat"
       }
     },
+    "additionalProperties": false,
     "required": [
       "id",
       "uri",
@@ -1322,38 +1840,128 @@
     "title": "RunView",
     "type": "object",
     "properties": {
-      "run_uri": {
-        "type": "string"
+      "runUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "RunUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "results_uri": {
-        "type": "string"
+      "resultsUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "RunResultsUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "task_id": {
-        "type": "string"
+      "taskId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "RunId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "status": {
-        "type": "string"
+        "$ref": "#/$defs/TaskStatus"
       },
       "progress": {
         "type": "number",
         "format": "double"
       },
-      "pipeline_id": {
-        "type": "string"
+      "pipelineId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "PipelineId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "recording_uri": {
-        "type": "string"
+      "recordingUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_recording_contract::resources"
+                },
+                "profile": "RecordingUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "entity_path": {
+      "entityPath": {
         "type": "string"
       },
       "timeline": {
         "type": "string"
       },
-      "created_at": {
+      "createdAt": {
         "type": "string"
       },
-      "updated_at": {
+      "updatedAt": {
         "type": "string"
       },
       "output": {
@@ -1373,45 +1981,130 @@
         ]
       }
     },
+    "additionalProperties": false,
     "required": [
-      "run_uri",
-      "results_uri",
-      "task_id",
+      "runUri",
+      "resultsUri",
+      "taskId",
       "status",
       "progress",
-      "pipeline_id",
-      "recording_uri",
-      "entity_path",
+      "pipelineId",
+      "recordingUri",
+      "entityPath",
       "timeline",
-      "created_at",
-      "updated_at"
+      "createdAt",
+      "updatedAt"
     ],
     "$defs": {
+      "TaskStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "waiting",
+          "succeeded",
+          "failed",
+          "cancel_requested",
+          "cancelled"
+        ]
+      },
       "RunRecordingOutput": {
         "type": "object",
         "properties": {
-          "run_uri": {
-            "type": "string"
+          "runUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "RunUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "result_uri": {
-            "type": "string"
+          "resultUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "RunResultsUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "pipeline_uri": {
-            "type": "string"
+          "pipelineUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "PipelineUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "model_uri": {
-            "type": "string"
+          "modelUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "ModelUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
           "summary": {
             "$ref": "#/$defs/AnalysisSummary"
           },
-          "results_artifact": {
+          "resultsArtifact": {
             "$ref": "#/$defs/ArtifactMetadata"
           },
-          "annotations_artifact": {
+          "annotationsArtifact": {
             "$ref": "#/$defs/ArtifactMetadata"
           },
-          "source_clip_artifact": {
+          "sourceClipArtifact": {
             "anyOf": [
               {
                 "$ref": "#/$defs/ArtifactMetadata"
@@ -1422,69 +2115,71 @@
             ]
           }
         },
+        "additionalProperties": false,
         "required": [
-          "run_uri",
-          "result_uri",
-          "pipeline_uri",
-          "model_uri",
+          "runUri",
+          "resultUri",
+          "pipelineUri",
+          "modelUri",
           "summary",
-          "results_artifact",
-          "annotations_artifact"
+          "resultsArtifact",
+          "annotationsArtifact"
         ]
       },
       "AnalysisSummary": {
         "type": "object",
         "properties": {
-          "processed_frames": {
+          "processedFrames": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "detection_count": {
+          "detectionCount": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "elapsed_ms": {
+          "elapsedMs": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "decode_start_index": {
+          "decodeStartIndex": {
             "type": "integer",
             "format": "int64"
           },
-          "requested_start_index": {
+          "requestedStartIndex": {
             "type": "integer",
             "format": "int64"
           },
-          "requested_end_index": {
+          "requestedEndIndex": {
             "type": "integer",
             "format": "int64"
           }
         },
+        "additionalProperties": false,
         "required": [
-          "processed_frames",
-          "detection_count",
-          "elapsed_ms",
-          "decode_start_index",
-          "requested_start_index",
-          "requested_end_index"
+          "processedFrames",
+          "detectionCount",
+          "elapsedMs",
+          "decodeStartIndex",
+          "requestedStartIndex",
+          "requestedEndIndex"
         ]
       },
       "ArtifactMetadata": {
         "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
         "type": "object",
         "properties": {
-          "artifact_id": {
+          "artifactId": {
             "$ref": "#/$defs/ArtifactId"
           },
-          "byte_len": {
+          "byteLen": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "mime_type": {
+          "mimeType": {
             "type": [
               "string",
               "null"
@@ -1498,20 +2193,21 @@
             ],
             "default": null
           },
-          "artifact_uri": {
+          "artifactUri": {
             "$ref": "#/$defs/ArtifactUri"
           },
-          "download_url": {
+          "downloadUrl": {
             "type": [
               "string",
               "null"
             ]
           },
-          "created_at": {
+          "createdAt": {
+            "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
             "type": "string",
-            "format": "date-time"
+            "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
           },
-          "release_state": {
+          "releaseState": {
             "$ref": "#/$defs/ArtifactReleaseState",
             "default": "private"
           },
@@ -1523,16 +2219,35 @@
             "default": null
           }
         },
+        "additionalProperties": false,
         "required": [
-          "artifact_id",
-          "byte_len",
-          "artifact_uri",
-          "created_at"
+          "artifactId",
+          "byteLen",
+          "artifactUri",
+          "createdAt"
         ]
       },
       "ArtifactId": {
         "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_artifact_contract::identity"
+                },
+                "profile": "ArtifactId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "ArtifactUri": {
         "description": "Neutral or server-presented Artifact occurrence URI.",
@@ -1560,7 +2275,7 @@
               }
             ]
           },
-          "tenant_id": {
+          "tenantId": {
             "anyOf": [
               {
                 "$ref": "#/$defs/TenantId"
@@ -1580,7 +2295,7 @@
               }
             ]
           },
-          "work_context": {
+          "workContext": {
             "anyOf": [
               {
                 "$ref": "#/$defs/WorkContextId"
@@ -1600,29 +2315,67 @@
               }
             ]
           },
-          "data_labels": {
+          "dataLabels": {
             "type": "array",
             "uniqueItems": true,
             "items": {
               "$ref": "#/$defs/DataLabelId"
             }
           },
-          "retention_expires_at": {
+          "retentionExpiresAt": {
+            "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
             "type": [
               "string",
               "null"
             ],
-            "format": "date-time"
+            "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "DataLabelId": {
         "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DataLabelId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "TenantId": {
         "description": "Tenant, organization, or customer boundary identifier.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "TenantId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "AccessSubject": {
         "description": "A principal or group that can own governed data or receive access.",
@@ -1665,15 +2418,69 @@
       },
       "PrincipalId": {
         "description": "Stable authenticated user or service-principal identity.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PrincipalId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "GroupId": {
         "description": "Identity-provider group identifier used by gateway policy.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "GroupId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "WorkContextId": {
         "description": "Tenant-local boundary that governs related work and every output it produces.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "WorkContextId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "ArtifactProvenance": {
         "description": "Immutable explanation of how an artifact came into being.",
@@ -1687,7 +2494,7 @@
               "initiator": {
                 "$ref": "#/$defs/PrincipalId"
               },
-              "delegation_id": {
+              "delegationId": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/NoIdentity"
@@ -1697,19 +2504,20 @@
                   }
                 ]
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "type": "string",
                 "const": "direct"
               }
             },
+            "additionalProperties": false,
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
               "initiator",
-              "policy_revision"
+              "policyRevision"
             ]
           },
           {
@@ -1721,23 +2529,24 @@
               "initiator": {
                 "$ref": "#/$defs/PrincipalId"
               },
-              "delegation_id": {
+              "delegationId": {
                 "$ref": "#/$defs/DelegationId"
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "type": "string",
                 "const": "delegated"
               }
             },
+            "additionalProperties": false,
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
               "initiator",
-              "delegation_id",
-              "policy_revision"
+              "delegationId",
+              "policyRevision"
             ]
           },
           {
@@ -1756,7 +2565,7 @@
                   }
                 ]
               },
-              "delegation_id": {
+              "delegationId": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/NoIdentity"
@@ -1766,18 +2575,19 @@
                   }
                 ]
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "type": "string",
                 "const": "automated"
               }
             },
+            "additionalProperties": false,
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
-              "policy_revision"
+              "policyRevision"
             ]
           }
         ]
@@ -1785,11 +2595,47 @@
       "NoIdentity": false,
       "PolicyVersion": {
         "description": "Immutable policy version identifier emitted with decisions and audit records.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PolicyVersion",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "DelegationId": {
         "description": "Auditable identity of authority delegated by an initiator to another actor.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DelegationId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -1810,7 +2656,7 @@
         "format": "uint",
         "minimum": 0
       },
-      "next_cursor": {
+      "nextCursor": {
         "type": [
           "string",
           "null"
@@ -1826,38 +2672,128 @@
       "RunView": {
         "type": "object",
         "properties": {
-          "run_uri": {
-            "type": "string"
+          "runUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "RunUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "results_uri": {
-            "type": "string"
+          "resultsUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "RunResultsUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "task_id": {
-            "type": "string"
+          "taskId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::ids"
+                    },
+                    "profile": "RunId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
           "status": {
-            "type": "string"
+            "$ref": "#/$defs/TaskStatus"
           },
           "progress": {
             "type": "number",
             "format": "double"
           },
-          "pipeline_id": {
-            "type": "string"
+          "pipelineId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::ids"
+                    },
+                    "profile": "PipelineId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "recording_uri": {
-            "type": "string"
+          "recordingUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_recording_contract::resources"
+                    },
+                    "profile": "RecordingUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "entity_path": {
+          "entityPath": {
             "type": "string"
           },
           "timeline": {
             "type": "string"
           },
-          "created_at": {
+          "createdAt": {
             "type": "string"
           },
-          "updated_at": {
+          "updatedAt": {
             "type": "string"
           },
           "output": {
@@ -1877,45 +2813,130 @@
             ]
           }
         },
+        "additionalProperties": false,
         "required": [
-          "run_uri",
-          "results_uri",
-          "task_id",
+          "runUri",
+          "resultsUri",
+          "taskId",
           "status",
           "progress",
-          "pipeline_id",
-          "recording_uri",
-          "entity_path",
+          "pipelineId",
+          "recordingUri",
+          "entityPath",
           "timeline",
-          "created_at",
-          "updated_at"
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "TaskStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "waiting",
+          "succeeded",
+          "failed",
+          "cancel_requested",
+          "cancelled"
         ]
       },
       "RunRecordingOutput": {
         "type": "object",
         "properties": {
-          "run_uri": {
-            "type": "string"
+          "runUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "RunUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "result_uri": {
-            "type": "string"
+          "resultUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "RunResultsUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "pipeline_uri": {
-            "type": "string"
+          "pipelineUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "PipelineUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "model_uri": {
-            "type": "string"
+          "modelUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "ModelUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
           "summary": {
             "$ref": "#/$defs/AnalysisSummary"
           },
-          "results_artifact": {
+          "resultsArtifact": {
             "$ref": "#/$defs/ArtifactMetadata"
           },
-          "annotations_artifact": {
+          "annotationsArtifact": {
             "$ref": "#/$defs/ArtifactMetadata"
           },
-          "source_clip_artifact": {
+          "sourceClipArtifact": {
             "anyOf": [
               {
                 "$ref": "#/$defs/ArtifactMetadata"
@@ -1926,69 +2947,71 @@
             ]
           }
         },
+        "additionalProperties": false,
         "required": [
-          "run_uri",
-          "result_uri",
-          "pipeline_uri",
-          "model_uri",
+          "runUri",
+          "resultUri",
+          "pipelineUri",
+          "modelUri",
           "summary",
-          "results_artifact",
-          "annotations_artifact"
+          "resultsArtifact",
+          "annotationsArtifact"
         ]
       },
       "AnalysisSummary": {
         "type": "object",
         "properties": {
-          "processed_frames": {
+          "processedFrames": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "detection_count": {
+          "detectionCount": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "elapsed_ms": {
+          "elapsedMs": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "decode_start_index": {
+          "decodeStartIndex": {
             "type": "integer",
             "format": "int64"
           },
-          "requested_start_index": {
+          "requestedStartIndex": {
             "type": "integer",
             "format": "int64"
           },
-          "requested_end_index": {
+          "requestedEndIndex": {
             "type": "integer",
             "format": "int64"
           }
         },
+        "additionalProperties": false,
         "required": [
-          "processed_frames",
-          "detection_count",
-          "elapsed_ms",
-          "decode_start_index",
-          "requested_start_index",
-          "requested_end_index"
+          "processedFrames",
+          "detectionCount",
+          "elapsedMs",
+          "decodeStartIndex",
+          "requestedStartIndex",
+          "requestedEndIndex"
         ]
       },
       "ArtifactMetadata": {
         "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
         "type": "object",
         "properties": {
-          "artifact_id": {
+          "artifactId": {
             "$ref": "#/$defs/ArtifactId"
           },
-          "byte_len": {
+          "byteLen": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "mime_type": {
+          "mimeType": {
             "type": [
               "string",
               "null"
@@ -2002,20 +3025,21 @@
             ],
             "default": null
           },
-          "artifact_uri": {
+          "artifactUri": {
             "$ref": "#/$defs/ArtifactUri"
           },
-          "download_url": {
+          "downloadUrl": {
             "type": [
               "string",
               "null"
             ]
           },
-          "created_at": {
+          "createdAt": {
+            "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
             "type": "string",
-            "format": "date-time"
+            "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
           },
-          "release_state": {
+          "releaseState": {
             "$ref": "#/$defs/ArtifactReleaseState",
             "default": "private"
           },
@@ -2027,16 +3051,35 @@
             "default": null
           }
         },
+        "additionalProperties": false,
         "required": [
-          "artifact_id",
-          "byte_len",
-          "artifact_uri",
-          "created_at"
+          "artifactId",
+          "byteLen",
+          "artifactUri",
+          "createdAt"
         ]
       },
       "ArtifactId": {
         "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_artifact_contract::identity"
+                },
+                "profile": "ArtifactId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "ArtifactUri": {
         "description": "Neutral or server-presented Artifact occurrence URI.",
@@ -2064,7 +3107,7 @@
               }
             ]
           },
-          "tenant_id": {
+          "tenantId": {
             "anyOf": [
               {
                 "$ref": "#/$defs/TenantId"
@@ -2084,7 +3127,7 @@
               }
             ]
           },
-          "work_context": {
+          "workContext": {
             "anyOf": [
               {
                 "$ref": "#/$defs/WorkContextId"
@@ -2104,29 +3147,67 @@
               }
             ]
           },
-          "data_labels": {
+          "dataLabels": {
             "type": "array",
             "uniqueItems": true,
             "items": {
               "$ref": "#/$defs/DataLabelId"
             }
           },
-          "retention_expires_at": {
+          "retentionExpiresAt": {
+            "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
             "type": [
               "string",
               "null"
             ],
-            "format": "date-time"
+            "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "DataLabelId": {
         "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DataLabelId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "TenantId": {
         "description": "Tenant, organization, or customer boundary identifier.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "TenantId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "AccessSubject": {
         "description": "A principal or group that can own governed data or receive access.",
@@ -2169,15 +3250,69 @@
       },
       "PrincipalId": {
         "description": "Stable authenticated user or service-principal identity.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PrincipalId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "GroupId": {
         "description": "Identity-provider group identifier used by gateway policy.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "GroupId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "WorkContextId": {
         "description": "Tenant-local boundary that governs related work and every output it produces.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "WorkContextId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "ArtifactProvenance": {
         "description": "Immutable explanation of how an artifact came into being.",
@@ -2191,7 +3326,7 @@
               "initiator": {
                 "$ref": "#/$defs/PrincipalId"
               },
-              "delegation_id": {
+              "delegationId": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/NoIdentity"
@@ -2201,19 +3336,20 @@
                   }
                 ]
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "type": "string",
                 "const": "direct"
               }
             },
+            "additionalProperties": false,
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
               "initiator",
-              "policy_revision"
+              "policyRevision"
             ]
           },
           {
@@ -2225,23 +3361,24 @@
               "initiator": {
                 "$ref": "#/$defs/PrincipalId"
               },
-              "delegation_id": {
+              "delegationId": {
                 "$ref": "#/$defs/DelegationId"
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "type": "string",
                 "const": "delegated"
               }
             },
+            "additionalProperties": false,
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
               "initiator",
-              "delegation_id",
-              "policy_revision"
+              "delegationId",
+              "policyRevision"
             ]
           },
           {
@@ -2260,7 +3397,7 @@
                   }
                 ]
               },
-              "delegation_id": {
+              "delegationId": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/NoIdentity"
@@ -2270,18 +3407,19 @@
                   }
                 ]
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "type": "string",
                 "const": "automated"
               }
             },
+            "additionalProperties": false,
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
-              "policy_revision"
+              "policyRevision"
             ]
           }
         ]
@@ -2289,11 +3427,47 @@
       "NoIdentity": false,
       "PolicyVersion": {
         "description": "Immutable policy version identifier emitted with decisions and audit records.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PolicyVersion",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "DelegationId": {
         "description": "Auditable identity of authority delegated by an initiator to another actor.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DelegationId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -2307,7 +3481,7 @@
         "type": "integer",
         "format": "int64"
       },
-      "observed_at": {
+      "observedAt": {
         "type": "string"
       },
       "detections": {
@@ -2317,17 +3491,17 @@
         }
       }
     },
+    "additionalProperties": false,
     "required": [
       "index",
-      "observed_at",
+      "observedAt",
       "detections"
     ],
     "$defs": {
       "Detection": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
-          "class_id": {
+          "classId": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -2343,7 +3517,7 @@
             ],
             "format": "float"
           },
-          "tracker_confidence": {
+          "trackerConfidence": {
             "description": "Tracker confidence when the selected tracker exposes one.",
             "type": [
               "number",
@@ -2354,7 +3528,7 @@
           "bounds": {
             "$ref": "#/$defs/BoundingBox2D"
           },
-          "track_id": {
+          "trackId": {
             "type": [
               "integer",
               "null"
@@ -2363,15 +3537,15 @@
             "minimum": 0
           }
         },
+        "additionalProperties": false,
         "required": [
-          "class_id",
+          "classId",
           "label",
           "bounds"
         ]
       },
       "BoundingBox2D": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "x": {
             "type": "number",
@@ -2390,6 +3564,7 @@
             "format": "float"
           }
         },
+        "additionalProperties": false,
         "required": [
           "x",
           "y",
@@ -2405,13 +3580,49 @@
     "type": "object",
     "properties": {
       "schema": {
-        "type": "string"
+        "$ref": "#/$defs/LiveResultsSchema"
       },
-      "session_id": {
-        "type": "string"
+      "sessionId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "SessionId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "pipeline_id": {
-        "type": "string"
+      "pipelineId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "PipelineId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "frames": {
         "type": "array",
@@ -2419,26 +3630,43 @@
           "$ref": "#/$defs/LiveResultFrame"
         }
       },
-      "processed_frames": {
+      "processedFrames": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       },
-      "dropped_result_frames": {
+      "droppedResultFrames": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       }
     },
+    "additionalProperties": false,
     "required": [
       "schema",
-      "session_id",
-      "pipeline_id",
+      "sessionId",
+      "pipelineId",
       "frames",
-      "processed_frames",
-      "dropped_result_frames"
+      "processedFrames",
+      "droppedResultFrames"
     ],
     "$defs": {
+      "LiveResultsSchema": {
+        "type": "string",
+        "enum": [
+          "veoveo.ai/stream-live-results/v2"
+        ],
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "builtin",
+              "grammar": "format_tag"
+            }
+          }
+        }
+      },
       "LiveResultFrame": {
         "type": "object",
         "properties": {
@@ -2447,7 +3675,7 @@
             "type": "integer",
             "format": "int64"
           },
-          "observed_at": {
+          "observedAt": {
             "type": "string"
           },
           "detections": {
@@ -2457,17 +3685,17 @@
             }
           }
         },
+        "additionalProperties": false,
         "required": [
           "index",
-          "observed_at",
+          "observedAt",
           "detections"
         ]
       },
       "Detection": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
-          "class_id": {
+          "classId": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -2483,7 +3711,7 @@
             ],
             "format": "float"
           },
-          "tracker_confidence": {
+          "trackerConfidence": {
             "description": "Tracker confidence when the selected tracker exposes one.",
             "type": [
               "number",
@@ -2494,7 +3722,7 @@
           "bounds": {
             "$ref": "#/$defs/BoundingBox2D"
           },
-          "track_id": {
+          "trackId": {
             "type": [
               "integer",
               "null"
@@ -2503,15 +3731,15 @@
             "minimum": 0
           }
         },
+        "additionalProperties": false,
         "required": [
-          "class_id",
+          "classId",
           "label",
           "bounds"
         ]
       },
       "BoundingBox2D": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "x": {
             "type": "number",
@@ -2530,6 +3758,7 @@
             "format": "float"
           }
         },
+        "additionalProperties": false,
         "required": [
           "x",
           "y",
@@ -2543,7 +3772,6 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "EncodedVideoChunk",
     "type": "object",
-    "additionalProperties": false,
     "properties": {
       "sequence": {
         "description": "Decode-order identity. This is the ordering contract for retained chunks.",
@@ -2551,7 +3779,7 @@
         "format": "uint64",
         "minimum": 0
       },
-      "timestamp_us": {
+      "timestampUs": {
         "description": "H.264 presentation timestamp in microseconds. AVC frame reordering can make\npresentation timestamps non-monotonic in decode sequence.",
         "type": "integer",
         "format": "uint64",
@@ -2560,15 +3788,16 @@
       "keyframe": {
         "type": "boolean"
       },
-      "data_base64": {
+      "dataBase64": {
         "type": "string"
       }
     },
+    "additionalProperties": false,
     "required": [
       "sequence",
-      "timestamp_us",
+      "timestampUs",
       "keyframe",
-      "data_base64"
+      "dataBase64"
     ]
   },
   "LivePreviewView": {
@@ -2577,10 +3806,28 @@
     "type": "object",
     "properties": {
       "schema": {
-        "type": "string"
+        "$ref": "#/$defs/LivePreviewSchema"
       },
-      "session_id": {
-        "type": "string"
+      "sessionId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "SessionId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "video": {
         "$ref": "#/$defs/LiveVideoView"
@@ -2591,26 +3838,43 @@
           "$ref": "#/$defs/EncodedVideoChunk"
         }
       },
-      "dropped_chunks": {
+      "droppedChunks": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       },
-      "received_video_frames": {
+      "receivedVideoFrames": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       }
     },
+    "additionalProperties": false,
     "required": [
       "schema",
-      "session_id",
+      "sessionId",
       "video",
       "chunks",
-      "dropped_chunks",
-      "received_video_frames"
+      "droppedChunks",
+      "receivedVideoFrames"
     ],
     "$defs": {
+      "LivePreviewSchema": {
+        "type": "string",
+        "enum": [
+          "veoveo.ai/stream-live-preview/v2"
+        ],
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "builtin",
+              "grammar": "format_tag"
+            }
+          }
+        }
+      },
       "LiveVideoView": {
         "type": "object",
         "properties": {
@@ -2630,29 +3894,29 @@
             "minimum": 0,
             "maximum": 65535
           },
-          "frame_rate": {
+          "frameRate": {
             "type": "integer",
             "format": "uint16",
             "minimum": 0,
             "maximum": 65535
           },
-          "expected_bitrate_bps": {
+          "expectedBitrateBps": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
           }
         },
+        "additionalProperties": false,
         "required": [
           "codec",
           "width",
           "height",
-          "frame_rate",
-          "expected_bitrate_bps"
+          "frameRate",
+          "expectedBitrateBps"
         ]
       },
       "EncodedVideoChunk": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "sequence": {
             "description": "Decode-order identity. This is the ordering contract for retained chunks.",
@@ -2660,7 +3924,7 @@
             "format": "uint64",
             "minimum": 0
           },
-          "timestamp_us": {
+          "timestampUs": {
             "description": "H.264 presentation timestamp in microseconds. AVC frame reordering can make\npresentation timestamps non-monotonic in decode sequence.",
             "type": "integer",
             "format": "uint64",
@@ -2669,15 +3933,16 @@
           "keyframe": {
             "type": "boolean"
           },
-          "data_base64": {
+          "dataBase64": {
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "required": [
           "sequence",
-          "timestamp_us",
+          "timestampUs",
           "keyframe",
-          "data_base64"
+          "dataBase64"
         ]
       }
     }
@@ -2705,29 +3970,48 @@
   "RecordingSourceIdentity": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "RecordingSourceIdentity",
+    "description": "Identity and integrity of one committed layer or acknowledged live part.",
     "type": "object",
     "properties": {
-      "layer_id": {
-        "type": "string"
-      },
-      "layer_name": {
+      "layerId": {
         "type": "string",
-        "maxLength": 256,
-        "minLength": 1
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_recording_contract::ids"
+                },
+                "profile": "RecordingLayerId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "layer_ordinal": {
+      "layerName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "layerOrdinal": {
         "type": [
           "integer",
           "null"
         ],
         "format": "uint64",
-        "maximum": 9223372036854775807,
-        "minimum": 0
+        "minimum": 0,
+        "maximum": 9223372036854775807
       },
       "kind": {
         "$ref": "#/$defs/RecordingSourceIdentityKind"
       },
-      "part_sequence": {
+      "partSequence": {
         "type": [
           "integer",
           "null"
@@ -2735,7 +4019,7 @@
         "format": "uint64",
         "minimum": 0
       },
-      "byte_len": {
+      "byteLen": {
         "type": "integer",
         "format": "uint64",
         "minimum": 1
@@ -2747,10 +4031,10 @@
     },
     "additionalProperties": false,
     "required": [
-      "layer_id",
-      "layer_name",
+      "layerId",
+      "layerName",
       "kind",
-      "byte_len",
+      "byteLen",
       "sha256"
     ],
     "$defs": {
@@ -2761,8 +4045,7 @@
           "live_ingest_part"
         ]
       }
-    },
-    "description": "Identity and integrity of one committed layer or acknowledged live part."
+    }
   },
   "RecordingSourceIdentityKind": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2779,13 +4062,49 @@
     "description": "Ordered source identities captured for one recording analysis.",
     "type": "object",
     "properties": {
-      "recording_id": {
-        "type": "string"
+      "recordingId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_recording_contract::ids"
+                },
+                "profile": "RecordingId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "dataset_id": {
-        "type": "string"
+      "datasetId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_recording_contract::ids"
+                },
+                "profile": "RecordingDatasetId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "captured_at": {
+      "capturedAt": {
         "type": "string",
         "format": "date-time"
       },
@@ -2799,36 +4118,55 @@
     },
     "additionalProperties": false,
     "required": [
-      "recording_id",
-      "dataset_id",
-      "captured_at",
+      "recordingId",
+      "datasetId",
+      "capturedAt",
       "sources"
     ],
     "$defs": {
       "RecordingSourceIdentity": {
+        "description": "Identity and integrity of one committed layer or acknowledged live part.",
         "type": "object",
         "properties": {
-          "layer_id": {
-            "type": "string"
-          },
-          "layer_name": {
+          "layerId": {
             "type": "string",
-            "maxLength": 256,
-            "minLength": 1
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_recording_contract::ids"
+                    },
+                    "profile": "RecordingLayerId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "layer_ordinal": {
+          "layerName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "layerOrdinal": {
             "type": [
               "integer",
               "null"
             ],
             "format": "uint64",
-            "maximum": 9223372036854775807,
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 9223372036854775807
           },
           "kind": {
             "$ref": "#/$defs/RecordingSourceIdentityKind"
           },
-          "part_sequence": {
+          "partSequence": {
             "type": [
               "integer",
               "null"
@@ -2836,7 +4174,7 @@
             "format": "uint64",
             "minimum": 0
           },
-          "byte_len": {
+          "byteLen": {
             "type": "integer",
             "format": "uint64",
             "minimum": 1
@@ -2848,13 +4186,12 @@
         },
         "additionalProperties": false,
         "required": [
-          "layer_id",
-          "layer_name",
+          "layerId",
+          "layerName",
           "kind",
-          "byte_len",
+          "byteLen",
           "sha256"
-        ],
-        "description": "Identity and integrity of one committed layer or acknowledged live part."
+        ]
       },
       "RecordingSourceIdentityKind": {
         "type": "string",
@@ -2870,11 +4207,29 @@
     "title": "RecordingVideoSelection",
     "type": "object",
     "properties": {
-      "recording_uri": {
+      "recordingUri": {
         "description": "Canonical `recording://recordings/{recording_id}` URI.",
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_recording_contract::resources"
+                },
+                "profile": "RecordingUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "entity_path": {
+      "entityPath": {
         "description": "Exact Rerun entity path containing `VideoStream` samples.",
         "type": "string"
       },
@@ -2888,8 +4243,8 @@
     },
     "additionalProperties": false,
     "required": [
-      "recording_uri",
-      "entity_path",
+      "recordingUri",
+      "entityPath",
       "timeline",
       "range"
     ],
@@ -2929,13 +4284,31 @@
     "title": "StartLiveSessionRequest",
     "type": "object",
     "properties": {
-      "pipeline_id": {
-        "type": "string"
+      "pipelineId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "PipelineId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       }
     },
     "additionalProperties": false,
     "required": [
-      "pipeline_id"
+      "pipelineId"
     ]
   },
   "StopLiveSessionRequest": {
@@ -2943,13 +4316,31 @@
     "title": "StopLiveSessionRequest",
     "type": "object",
     "properties": {
-      "session_id": {
-        "type": "string"
+      "sessionId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "SessionId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       }
     },
     "additionalProperties": false,
     "required": [
-      "session_id"
+      "sessionId"
     ]
   },
   "StartLiveSessionOutput": {
@@ -2957,17 +4348,89 @@
     "title": "StartLiveSessionOutput",
     "type": "object",
     "properties": {
-      "session_id": {
-        "type": "string"
+      "sessionId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "SessionId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "result_uri": {
-        "type": "string"
+      "resultUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "SessionUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "results_uri": {
-        "type": "string"
+      "resultsUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "SessionResultsUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "pipeline_uri": {
-        "type": "string"
+      "pipelineUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "PipelineUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
       "ingress": {
         "$ref": "#/$defs/LiveIngressView"
@@ -2975,10 +4438,28 @@
       "video": {
         "$ref": "#/$defs/LiveVideoView"
       },
-      "preview_uri": {
-        "type": "string"
+      "previewUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "SessionPreviewUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "recording_output": {
+      "recordingOutput": {
         "anyOf": [
           {
             "$ref": "#/$defs/LiveRecordingOutputView"
@@ -2988,19 +4469,20 @@
           }
         ]
       },
-      "started_at": {
+      "startedAt": {
         "type": "string"
       }
     },
+    "additionalProperties": false,
     "required": [
-      "session_id",
-      "result_uri",
-      "results_uri",
-      "pipeline_uri",
+      "sessionId",
+      "resultUri",
+      "resultsUri",
+      "pipelineUri",
       "ingress",
       "video",
-      "preview_uri",
-      "started_at"
+      "previewUri",
+      "startedAt"
     ],
     "$defs": {
       "LiveIngressView": {
@@ -3018,13 +4500,13 @@
             "minimum": 0,
             "maximum": 65535
           },
-          "payload_type": {
+          "payloadType": {
             "type": "integer",
             "format": "uint8",
             "minimum": 0,
             "maximum": 255
           },
-          "clock_rate": {
+          "clockRate": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -3033,12 +4515,13 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "required": [
           "transport",
           "host",
           "port",
-          "payload_type",
-          "clock_rate",
+          "payloadType",
+          "clockRate",
           "caps"
         ]
       },
@@ -3067,36 +4550,37 @@
             "minimum": 0,
             "maximum": 65535
           },
-          "frame_rate": {
+          "frameRate": {
             "type": "integer",
             "format": "uint16",
             "minimum": 0,
             "maximum": 65535
           },
-          "expected_bitrate_bps": {
+          "expectedBitrateBps": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
           }
         },
+        "additionalProperties": false,
         "required": [
           "codec",
           "width",
           "height",
-          "frame_rate",
-          "expected_bitrate_bps"
+          "frameRate",
+          "expectedBitrateBps"
         ]
       },
       "LiveRecordingOutputView": {
         "type": "object",
         "properties": {
-          "recording_key": {
+          "recordingKey": {
             "type": "string"
           },
-          "application_id": {
+          "applicationId": {
             "type": "string"
           },
-          "entity_path": {
+          "entityPath": {
             "type": "string"
           },
           "timeline": {
@@ -3105,7 +4589,7 @@
           "lifecycle": {
             "$ref": "#/$defs/LiveRecordingLifecycle"
           },
-          "forwarded_video_frames": {
+          "forwardedVideoFrames": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
@@ -3117,13 +4601,14 @@
             ]
           }
         },
+        "additionalProperties": false,
         "required": [
-          "recording_key",
-          "application_id",
-          "entity_path",
+          "recordingKey",
+          "applicationId",
+          "entityPath",
           "timeline",
           "lifecycle",
-          "forwarded_video_frames"
+          "forwardedVideoFrames"
         ]
       },
       "LiveRecordingLifecycle": {
@@ -3143,23 +4628,41 @@
     "title": "StopLiveSessionOutput",
     "type": "object",
     "properties": {
-      "result_uri": {
-        "type": "string"
+      "resultUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "SessionUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
       "lifecycle": {
         "$ref": "#/$defs/LiveSessionLifecycle"
       },
-      "received_video_frames": {
+      "receivedVideoFrames": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       },
-      "processed_frames": {
+      "processedFrames": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       },
-      "recording_output": {
+      "recordingOutput": {
         "anyOf": [
           {
             "$ref": "#/$defs/LiveRecordingOutputView"
@@ -3169,16 +4672,17 @@
           }
         ]
       },
-      "stopped_at": {
+      "stoppedAt": {
         "type": "string"
       }
     },
+    "additionalProperties": false,
     "required": [
-      "result_uri",
+      "resultUri",
       "lifecycle",
-      "received_video_frames",
-      "processed_frames",
-      "stopped_at"
+      "receivedVideoFrames",
+      "processedFrames",
+      "stoppedAt"
     ],
     "$defs": {
       "LiveSessionLifecycle": {
@@ -3193,13 +4697,13 @@
       "LiveRecordingOutputView": {
         "type": "object",
         "properties": {
-          "recording_key": {
+          "recordingKey": {
             "type": "string"
           },
-          "application_id": {
+          "applicationId": {
             "type": "string"
           },
-          "entity_path": {
+          "entityPath": {
             "type": "string"
           },
           "timeline": {
@@ -3208,7 +4712,7 @@
           "lifecycle": {
             "$ref": "#/$defs/LiveRecordingLifecycle"
           },
-          "forwarded_video_frames": {
+          "forwardedVideoFrames": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
@@ -3220,13 +4724,14 @@
             ]
           }
         },
+        "additionalProperties": false,
         "required": [
-          "recording_key",
-          "application_id",
-          "entity_path",
+          "recordingKey",
+          "applicationId",
+          "entityPath",
           "timeline",
           "lifecycle",
-          "forwarded_video_frames"
+          "forwardedVideoFrames"
         ]
       },
       "LiveRecordingLifecycle": {
@@ -3258,13 +4763,13 @@
         "minimum": 0,
         "maximum": 65535
       },
-      "payload_type": {
+      "payloadType": {
         "type": "integer",
         "format": "uint8",
         "minimum": 0,
         "maximum": 255
       },
-      "clock_rate": {
+      "clockRate": {
         "type": "integer",
         "format": "uint32",
         "minimum": 0
@@ -3273,12 +4778,13 @@
         "type": "string"
       }
     },
+    "additionalProperties": false,
     "required": [
       "transport",
       "host",
       "port",
-      "payload_type",
-      "clock_rate",
+      "payloadType",
+      "clockRate",
       "caps"
     ],
     "$defs": {
@@ -3311,24 +4817,25 @@
         "minimum": 0,
         "maximum": 65535
       },
-      "frame_rate": {
+      "frameRate": {
         "type": "integer",
         "format": "uint16",
         "minimum": 0,
         "maximum": 65535
       },
-      "expected_bitrate_bps": {
+      "expectedBitrateBps": {
         "type": "integer",
         "format": "uint32",
         "minimum": 0
       }
     },
+    "additionalProperties": false,
     "required": [
       "codec",
       "width",
       "height",
-      "frame_rate",
-      "expected_bitrate_bps"
+      "frameRate",
+      "expectedBitrateBps"
     ]
   },
   "LiveTransport": {
@@ -3367,13 +4874,13 @@
     "title": "LiveRecordingOutputView",
     "type": "object",
     "properties": {
-      "recording_key": {
+      "recordingKey": {
         "type": "string"
       },
-      "application_id": {
+      "applicationId": {
         "type": "string"
       },
-      "entity_path": {
+      "entityPath": {
         "type": "string"
       },
       "timeline": {
@@ -3382,7 +4889,7 @@
       "lifecycle": {
         "$ref": "#/$defs/LiveRecordingLifecycle"
       },
-      "forwarded_video_frames": {
+      "forwardedVideoFrames": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
@@ -3394,13 +4901,14 @@
         ]
       }
     },
+    "additionalProperties": false,
     "required": [
-      "recording_key",
-      "application_id",
-      "entity_path",
+      "recordingKey",
+      "applicationId",
+      "entityPath",
       "timeline",
       "lifecycle",
-      "forwarded_video_frames"
+      "forwardedVideoFrames"
     ],
     "$defs": {
       "LiveRecordingLifecycle": {
@@ -3420,20 +4928,110 @@
     "title": "LiveSessionView",
     "type": "object",
     "properties": {
-      "session_id": {
-        "type": "string"
+      "sessionId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "SessionId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "session_uri": {
-        "type": "string"
+      "sessionUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "SessionUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "results_uri": {
-        "type": "string"
+      "resultsUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "SessionResultsUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "pipeline_id": {
-        "type": "string"
+      "pipelineId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::ids"
+                },
+                "profile": "PipelineId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
-      "pipeline_uri": {
-        "type": "string"
+      "pipelineUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "PipelineUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
       "ingress": {
         "$ref": "#/$defs/LiveIngressView"
@@ -3441,10 +5039,28 @@
       "video": {
         "$ref": "#/$defs/LiveVideoView"
       },
-      "preview_uri": {
-        "type": "string"
+      "previewUri": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_resource",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_stream_mcp::contract::resources"
+                },
+                "profile": "SessionPreviewUri",
+                "version": "unversioned",
+                "applicability": "the declared scalar resource schema"
+              }
+            }
+          }
+        }
       },
-      "recording_output": {
+      "recordingOutput": {
         "anyOf": [
           {
             "$ref": "#/$defs/LiveRecordingOutputView"
@@ -3457,26 +5073,26 @@
       "lifecycle": {
         "$ref": "#/$defs/LiveSessionLifecycle"
       },
-      "started_at": {
+      "startedAt": {
         "type": "string"
       },
-      "stopped_at": {
+      "stoppedAt": {
         "type": [
           "string",
           "null"
         ]
       },
-      "received_video_frames": {
+      "receivedVideoFrames": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       },
-      "processed_frames": {
+      "processedFrames": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       },
-      "newest_result_at": {
+      "newestResultAt": {
         "type": [
           "string",
           "null"
@@ -3489,19 +5105,20 @@
         ]
       }
     },
+    "additionalProperties": false,
     "required": [
-      "session_id",
-      "session_uri",
-      "results_uri",
-      "pipeline_id",
-      "pipeline_uri",
+      "sessionId",
+      "sessionUri",
+      "resultsUri",
+      "pipelineId",
+      "pipelineUri",
       "ingress",
       "video",
-      "preview_uri",
+      "previewUri",
       "lifecycle",
-      "started_at",
-      "received_video_frames",
-      "processed_frames"
+      "startedAt",
+      "receivedVideoFrames",
+      "processedFrames"
     ],
     "$defs": {
       "LiveIngressView": {
@@ -3519,13 +5136,13 @@
             "minimum": 0,
             "maximum": 65535
           },
-          "payload_type": {
+          "payloadType": {
             "type": "integer",
             "format": "uint8",
             "minimum": 0,
             "maximum": 255
           },
-          "clock_rate": {
+          "clockRate": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -3534,12 +5151,13 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "required": [
           "transport",
           "host",
           "port",
-          "payload_type",
-          "clock_rate",
+          "payloadType",
+          "clockRate",
           "caps"
         ]
       },
@@ -3568,36 +5186,37 @@
             "minimum": 0,
             "maximum": 65535
           },
-          "frame_rate": {
+          "frameRate": {
             "type": "integer",
             "format": "uint16",
             "minimum": 0,
             "maximum": 65535
           },
-          "expected_bitrate_bps": {
+          "expectedBitrateBps": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
           }
         },
+        "additionalProperties": false,
         "required": [
           "codec",
           "width",
           "height",
-          "frame_rate",
-          "expected_bitrate_bps"
+          "frameRate",
+          "expectedBitrateBps"
         ]
       },
       "LiveRecordingOutputView": {
         "type": "object",
         "properties": {
-          "recording_key": {
+          "recordingKey": {
             "type": "string"
           },
-          "application_id": {
+          "applicationId": {
             "type": "string"
           },
-          "entity_path": {
+          "entityPath": {
             "type": "string"
           },
           "timeline": {
@@ -3606,7 +5225,7 @@
           "lifecycle": {
             "$ref": "#/$defs/LiveRecordingLifecycle"
           },
-          "forwarded_video_frames": {
+          "forwardedVideoFrames": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
@@ -3618,13 +5237,14 @@
             ]
           }
         },
+        "additionalProperties": false,
         "required": [
-          "recording_key",
-          "application_id",
-          "entity_path",
+          "recordingKey",
+          "applicationId",
+          "entityPath",
           "timeline",
           "lifecycle",
-          "forwarded_video_frames"
+          "forwardedVideoFrames"
         ]
       },
       "LiveRecordingLifecycle": {
@@ -3665,7 +5285,7 @@
         "format": "uint",
         "minimum": 0
       },
-      "next_cursor": {
+      "nextCursor": {
         "type": [
           "string",
           "null"
@@ -3681,20 +5301,110 @@
       "LiveSessionView": {
         "type": "object",
         "properties": {
-          "session_id": {
-            "type": "string"
+          "sessionId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::ids"
+                    },
+                    "profile": "SessionId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "session_uri": {
-            "type": "string"
+          "sessionUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "SessionUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "results_uri": {
-            "type": "string"
+          "resultsUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "SessionResultsUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "pipeline_id": {
-            "type": "string"
+          "pipelineId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::ids"
+                    },
+                    "profile": "PipelineId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "pipeline_uri": {
-            "type": "string"
+          "pipelineUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "PipelineUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
           "ingress": {
             "$ref": "#/$defs/LiveIngressView"
@@ -3702,10 +5412,28 @@
           "video": {
             "$ref": "#/$defs/LiveVideoView"
           },
-          "preview_uri": {
-            "type": "string"
+          "previewUri": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_resource",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_stream_mcp::contract::resources"
+                    },
+                    "profile": "SessionPreviewUri",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar resource schema"
+                  }
+                }
+              }
+            }
           },
-          "recording_output": {
+          "recordingOutput": {
             "anyOf": [
               {
                 "$ref": "#/$defs/LiveRecordingOutputView"
@@ -3718,26 +5446,26 @@
           "lifecycle": {
             "$ref": "#/$defs/LiveSessionLifecycle"
           },
-          "started_at": {
+          "startedAt": {
             "type": "string"
           },
-          "stopped_at": {
+          "stoppedAt": {
             "type": [
               "string",
               "null"
             ]
           },
-          "received_video_frames": {
+          "receivedVideoFrames": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "processed_frames": {
+          "processedFrames": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
           },
-          "newest_result_at": {
+          "newestResultAt": {
             "type": [
               "string",
               "null"
@@ -3750,19 +5478,20 @@
             ]
           }
         },
+        "additionalProperties": false,
         "required": [
-          "session_id",
-          "session_uri",
-          "results_uri",
-          "pipeline_id",
-          "pipeline_uri",
+          "sessionId",
+          "sessionUri",
+          "resultsUri",
+          "pipelineId",
+          "pipelineUri",
           "ingress",
           "video",
-          "preview_uri",
+          "previewUri",
           "lifecycle",
-          "started_at",
-          "received_video_frames",
-          "processed_frames"
+          "startedAt",
+          "receivedVideoFrames",
+          "processedFrames"
         ]
       },
       "LiveIngressView": {
@@ -3780,13 +5509,13 @@
             "minimum": 0,
             "maximum": 65535
           },
-          "payload_type": {
+          "payloadType": {
             "type": "integer",
             "format": "uint8",
             "minimum": 0,
             "maximum": 255
           },
-          "clock_rate": {
+          "clockRate": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -3795,12 +5524,13 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "required": [
           "transport",
           "host",
           "port",
-          "payload_type",
-          "clock_rate",
+          "payloadType",
+          "clockRate",
           "caps"
         ]
       },
@@ -3829,36 +5559,37 @@
             "minimum": 0,
             "maximum": 65535
           },
-          "frame_rate": {
+          "frameRate": {
             "type": "integer",
             "format": "uint16",
             "minimum": 0,
             "maximum": 65535
           },
-          "expected_bitrate_bps": {
+          "expectedBitrateBps": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
           }
         },
+        "additionalProperties": false,
         "required": [
           "codec",
           "width",
           "height",
-          "frame_rate",
-          "expected_bitrate_bps"
+          "frameRate",
+          "expectedBitrateBps"
         ]
       },
       "LiveRecordingOutputView": {
         "type": "object",
         "properties": {
-          "recording_key": {
+          "recordingKey": {
             "type": "string"
           },
-          "application_id": {
+          "applicationId": {
             "type": "string"
           },
-          "entity_path": {
+          "entityPath": {
             "type": "string"
           },
           "timeline": {
@@ -3867,7 +5598,7 @@
           "lifecycle": {
             "$ref": "#/$defs/LiveRecordingLifecycle"
           },
-          "forwarded_video_frames": {
+          "forwardedVideoFrames": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0
@@ -3879,13 +5610,14 @@
             ]
           }
         },
+        "additionalProperties": false,
         "required": [
-          "recording_key",
-          "application_id",
-          "entity_path",
+          "recordingKey",
+          "applicationId",
+          "entityPath",
           "timeline",
           "lifecycle",
-          "forwarded_video_frames"
+          "forwardedVideoFrames"
         ]
       },
       "LiveRecordingLifecycle": {

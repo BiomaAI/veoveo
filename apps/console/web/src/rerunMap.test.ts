@@ -70,7 +70,7 @@ test("missing installation token produces an explicit map-scoped diagnostic", as
 
 test("explicit provider mismatch never silently substitutes a background", () => {
   assert.match(
-    mapProviderCompatibilityError("mapbox", "openStreetMap") ?? "",
+    mapProviderCompatibilityError("mapbox", "open_street_map") ?? "",
     /does not select a Mapbox background/,
   );
   assert.match(

@@ -561,11 +561,11 @@ async fn native_dynamic_references_round_trip_and_reject_malformed_retained_node
             .position(|frame| frame.frame_id == node.frame_id)
             .unwrap();
         for (field, value) in [
-            ("stream_uri", "uav-sim://session/{session_id}"),
-            ("entity_path", "body\nposition"),
+            ("streamUri", "uav-sim://session/{session_id}"),
+            ("entityPath", "body\nposition"),
         ] {
             let mut definition = baseline.clone();
-            definition["frames"][index]["parent_transform"][field] = value.into();
+            definition["frames"][index]["parentTransform"][field] = value.into();
             db.a.client()
                 .query(include_str!(
                     "../../tests/queries/replace_revision_definition.surql"

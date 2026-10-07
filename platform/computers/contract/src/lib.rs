@@ -34,8 +34,7 @@ pub use actions::{ComputerAction, register_catalog};
 #[error("Computer result identities or limits do not agree")]
 pub struct ComputerResultError;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum ComputerPhase {
     Reserved,
     Provisioning,
@@ -53,16 +52,14 @@ impl ComputerPhase {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum Action {
     Create,
     Start,
     Stop,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum OperationStatus {
     Queued,
     Running,
@@ -103,8 +100,7 @@ pub struct ComputerSnapshotValue {
     pub next_cursor: Option<crate::ComputerId>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum CapacityAvailability {
     SetupRequired,
     Available,
@@ -143,8 +139,7 @@ pub struct ComputerViewValue {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum ComputerAccessMode {
     Owner,
     Granted,
@@ -174,7 +169,7 @@ pub struct OperationReceipt {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LifecycleResult {
-    #[serde(rename = "result_uri", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     result_uri: Option<ComputerResultUri>,
     computer_id: crate::ComputerId,
     operation_id: veoveo_types::TaskId,
@@ -210,7 +205,7 @@ impl LifecycleResult {
 #[derive(Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct LifecycleResultWire {
-    #[serde(rename = "result_uri", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     result_uri: Option<ComputerResultUri>,
     computer_id: crate::ComputerId,
     operation_id: veoveo_types::TaskId,
@@ -232,7 +227,6 @@ impl<'de> Deserialize<'de> for LifecycleResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MaintenanceResult {
-    #[serde(rename = "result_uri")]
     result_uri: ComputerResultUri,
     computer_id: crate::ComputerId,
     maintenance_id: veoveo_types::TaskId,
@@ -268,7 +262,6 @@ impl MaintenanceResult {
 #[derive(Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct MaintenanceResultWire {
-    #[serde(rename = "result_uri")]
     result_uri: ComputerResultUri,
     computer_id: crate::ComputerId,
     maintenance_id: veoveo_types::TaskId,
@@ -369,8 +362,7 @@ pub struct TerminalTicket {
     pub endpoint: String,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum ErrorCode {
     Forbidden,
     NotFound,
@@ -394,8 +386,7 @@ pub struct ApiError {
     pub message: String,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum ComputerEventKind {
     SnapshotChanged,
 }
@@ -408,26 +399,22 @@ pub struct ComputerEvent {
     pub computer_id: Option<crate::ComputerId>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum TerminalAttachKind {
     Attach,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum TerminalResizeKind {
     Resize,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum TerminalReadyKind {
     Ready,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum TerminalReplayCompleteKind {
     ReplayComplete,
 }
@@ -448,8 +435,7 @@ pub enum TerminalServerControl {
     Lease(TerminalLease),
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum TerminalLeaseKind {
     Lease,
 }
@@ -465,14 +451,16 @@ pub struct TerminalLease {
     pub expires_at: DateTime<Utc>,
 }
 
-pub const TERMINAL_VERSION: u8 = 2;
+mod terminal_version;
+pub use terminal_version::TerminalVersion;
+pub const TERMINAL_VERSION: TerminalVersion = TerminalVersion::CURRENT;
 
 /// The relay enforces version, dimensions and a 1024-byte first-frame bound.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TerminalAttach {
     #[schemars(range(min = 2, max = 2))]
-    pub version: u8,
+    pub version: TerminalVersion,
     #[serde(rename = "type")]
     pub kind: TerminalAttachKind,
     pub computer_id: crate::ComputerId,
@@ -498,7 +486,7 @@ pub struct TerminalResize {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TerminalReady {
     #[schemars(range(min = 2, max = 2))]
-    pub version: u8,
+    pub version: TerminalVersion,
     #[serde(rename = "type")]
     pub kind: TerminalReadyKind,
     pub expires_at: DateTime<Utc>,
@@ -697,11 +685,11 @@ mod tests {
         let schema = serde_json::to_value(schema_bundle()).unwrap();
         assert_eq!(
             schema["$defs"]["TerminalAttach"]["properties"]["version"]["minimum"],
-            TERMINAL_VERSION
+            TERMINAL_VERSION.get()
         );
         assert_eq!(
             schema["$defs"]["TerminalReady"]["properties"]["version"]["maximum"],
-            TERMINAL_VERSION
+            TERMINAL_VERSION.get()
         );
         assert!(schema["$defs"].get("TerminalServerControl").is_some());
     }

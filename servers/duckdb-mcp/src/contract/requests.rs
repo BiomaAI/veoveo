@@ -18,6 +18,7 @@ pub struct DuckDbQueryRequest(veoveo_types::Checked<QueryWire>);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct QueryWire {
     db: DuckDbDatabaseId,
     sql: DuckDbSqlText,
@@ -137,6 +138,7 @@ impl std::error::Error for DuckDbQueryRequestError {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct DuckDbExecuteRequest {
     pub db: DuckDbDatabaseId,
     pub sql: DuckDbSqlText,
@@ -166,6 +168,7 @@ pub enum DuckDbIngestMode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct DuckDbIngestRequest {
     pub db: DuckDbDatabaseId,
     pub table: DuckDbTableName,
@@ -198,6 +201,6 @@ fn unique_attachments(schema: &mut schemars::Schema) {
 fn query_relationships(schema: &mut schemars::Schema) {
     schema.insert("allOf".into(), serde_json::json!([{
         "if":{"properties":{"output":{"properties":{"mode":{"const":"artifact"}},"required":["mode"]}},"required":["output"]},
-        "then":{"properties":{"row_limit":{"type":"null"}}}
+        "then":{"properties":{"rowLimit":{"type":"null"}}}
     }]));
 }

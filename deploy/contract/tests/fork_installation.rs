@@ -76,7 +76,7 @@ fn fork_merge_preserves_separate_release_ownership_and_retained_images() {
     );
 
     let profile = serde_json::json!({
-        "schemaVersion": "veoveo.ai/deployment/v8",
+        "schemaVersion": "veoveo.ai/deployment/v9",
         "name": "anonymous-installation",
         "registry": {
             "pushAddress": "registry.example.internal",
@@ -117,7 +117,7 @@ fn fork_merge_preserves_separate_release_ownership_and_retained_images() {
                     "chart": "workload-chart",
                     "sourceValues": ["workload-chart/source-values.yaml"],
                     "installationValues": ["workload-values.yaml"],
-                    "valuesContract": "veoveo-source",
+                    "valuesContract": "veoveo_source",
                     "timeoutSeconds": 600
                 }]
             }

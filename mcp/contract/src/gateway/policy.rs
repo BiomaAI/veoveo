@@ -10,6 +10,7 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct PolicySet {
     pub version: PolicyVersion,
     pub rules: Vec<PolicyRule>,
@@ -19,6 +20,7 @@ pub struct PolicySet {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct PolicyRule {
     pub id: PolicyRuleId,
     pub effect: PolicyEffect,
@@ -97,7 +99,7 @@ impl Principal {
     ///
     /// Every group in `groups` yields a membership: its explicit role from
     /// `group_roles` when present, otherwise `Read` (bare membership grants
-    /// read-level group access). This is what a [`crate::PlaneCaller`] carries
+    /// read-level group access). The runtime Artifact adapter carries this set in its `PlaneCaller`
     /// so the artifact plane can resolve group grants.
     pub fn group_memberships(&self) -> BTreeSet<crate::access::GroupMembership> {
         use crate::access::{GroupMembership, GroupRole};
@@ -268,7 +270,12 @@ pub enum PolicyReasonCode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "kind")]
+#[serde(
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    tag = "kind",
+    deny_unknown_fields
+)]
 pub enum PolicyTarget {
     Gateway,
     Server {

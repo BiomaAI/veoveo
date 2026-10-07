@@ -1,0 +1,139 @@
+{
+  "server": "map",
+  "tenantKey": "bioma",
+  "payload": {
+    "sources": [
+      {
+        "sourceId": "source-019f684b-3433-7737-8ecc-761781845859",
+        "datasetId": "dataset-019f684b-3434-75bb-a946-c4112703fdab",
+        "name": "OpenStreetMap El Salvador",
+        "adapterKind": "open_street_map",
+        "authority": "community",
+        "acquisitionModel": "snapshot",
+        "mapFamilies": [
+          "road_street",
+          "active_mobility"
+        ],
+        "location": {
+          "kind": "https",
+          "endpoint": "https://download.geofabrik.de/central-america/el-salvador-latest.osm.pbf",
+          "allowedRedirectHosts": [
+            "download.geofabrik.de"
+          ]
+        },
+        "publisherKeyRefs": [],
+        "expectedMediaTypes": [
+          "application/octet-stream"
+        ],
+        "maximumDownloadBytes": 134217728,
+        "maximumElapsedSeconds": 1800,
+        "license": {
+          "licenseId": "odbl-1.0",
+          "sourceTermsUri": "https://www.openstreetmap.org/copyright",
+          "attribution": "© OpenStreetMap contributors",
+          "redistributionAllowed": true,
+          "derivativesAllowed": true,
+          "offlineBundleAllowed": true
+        },
+        "enabled": true,
+        "recordVersion": 1,
+        "createdAt": "2026-07-15T00:00:00Z",
+        "updatedAt": "2026-07-15T00:00:00Z"
+      },
+      {
+        "sourceId": "source-019ffdb2-0596-7c91-ac83-0a45b82d7952",
+        "datasetId": "dataset-019ffdb2-0598-7717-b916-e359c426f8cf",
+        "name": "New York UAV showcase operational map",
+        "adapterKind": "authority_vector",
+        "authority": "synthetic_test",
+        "acquisitionModel": "snapshot",
+        "mapFamilies": [
+          "aviation"
+        ],
+        "location": {
+          "kind": "https",
+          "endpoint": "https://raw.githubusercontent.com/BiomaAI/veoveo/89133b70ea53e06b87b6a6aa268eae7727b0b27d/showcase/uav-sim/map/new-york-showcase.geojson",
+          "allowedRedirectHosts": [
+            "raw.githubusercontent.com"
+          ]
+        },
+        "publisherKeyRefs": [],
+        "expectedMediaTypes": [
+          "application/geo+json",
+          "application/json",
+          "text/plain"
+        ],
+        "maximumDownloadBytes": 1048576,
+        "maximumElapsedSeconds": 120,
+        "license": {
+          "licenseId": "veoveo-showcase-synthetic-v1",
+          "sourceTermsUri": "https://github.com/BiomaAI/veoveo/blob/89133b70ea53e06b87b6a6aa268eae7727b0b27d/showcase/uav-sim/map/README.md",
+          "attribution": "Veoveo synthetic simulation planning data",
+          "redistributionAllowed": true,
+          "derivativesAllowed": true,
+          "offlineBundleAllowed": true
+        },
+        "enabled": true,
+        "recordVersion": 1,
+        "createdAt": "2026-08-13T00:00:00Z",
+        "updatedAt": "2026-08-13T00:00:00Z"
+      }
+    ],
+    "mobilityProfiles": [
+      {
+        "family": "uas",
+        "profile": {
+          "metadata": {
+            "profileId": "mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e",
+            "name": "New York showcase multirotor",
+            "version": 1,
+            "validFrom": "2026-08-13T00:00:00Z",
+            "labels": [
+              "planning-advisory",
+              "showcase"
+            ]
+          },
+          "planning": {
+            "minimumSpeed": 0.1,
+            "maximumClimbAngle": 45.0,
+            "maximumDescentAngle": 45.0,
+            "verticalClearance": 15.0,
+            "lateralClearance": 10.0,
+            "operatingCeiling": 500.0,
+            "maximumRange": 30000.0,
+            "maximumRoutePoints": 1024,
+            "maximumSegmentLength": 5000.0
+          },
+          "class": "multirotor",
+          "dimensions": {
+            "length": 1.2,
+            "width": 1.2,
+            "height": 0.5
+          },
+          "maximumTakeoffMass": 25.0,
+          "performance": {
+            "maximumSpeed": 30.0,
+            "cruiseSpeed": 20.0,
+            "serviceCeiling": 500.0,
+            "maximumRange": 30000.0,
+            "payloadCapacity": 5.0,
+            "minimumReserve": 0.2
+          },
+          "energy": {
+            "source": "battery",
+            "batteryCapacity": 20.0,
+            "minimumReserve": 0.2
+          },
+          "beyondVisualLineOfSight": true,
+          "navigationCapabilities": [
+            "gnss",
+            "px4"
+          ],
+          "airspacePermissions": [
+            "showcase-planning-advisory"
+          ]
+        }
+      }
+    ]
+  }
+}

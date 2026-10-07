@@ -1,0 +1,158 @@
+{
+  "server": "charts",
+  "compliance": [
+    {
+      "id": "C01",
+      "status": "pending",
+      "note": "upstream surface not audited against the protocol table"
+    },
+    {
+      "id": "C02",
+      "status": "pending",
+      "note": "unverified"
+    },
+    {
+      "id": "C03",
+      "status": "pending",
+      "note": "unverified"
+    },
+    {
+      "id": "C04",
+      "status": "pending",
+      "note": "unverified"
+    },
+    {
+      "id": "C05",
+      "status": "pending",
+      "note": "unverified"
+    },
+    {
+      "id": "C06",
+      "status": "pending",
+      "note": "unverified"
+    },
+    {
+      "id": "C07",
+      "status": "pending",
+      "note": "upstream schemas unverified against the 2020-12 profile"
+    },
+    {
+      "id": "C08",
+      "status": "pending",
+      "note": "upstream package does not use the shared schema machinery"
+    },
+    {
+      "id": "C09",
+      "status": "pending",
+      "note": "unverified"
+    },
+    {
+      "id": "C10",
+      "status": "pending",
+      "note": "does not consume shared contract crate"
+    },
+    {
+      "id": "C11",
+      "status": "pending",
+      "note": "unverified"
+    },
+    {
+      "id": "C12",
+      "status": "met"
+    },
+    {
+      "id": "C13",
+      "status": "met"
+    },
+    {
+      "id": "C14",
+      "status": "pending",
+      "note": "unverified"
+    },
+    {
+      "id": "C15",
+      "status": "met"
+    },
+    {
+      "id": "C16",
+      "status": "met"
+    },
+    {
+      "id": "C17",
+      "status": "pending",
+      "note": "registration does not state the contract revision"
+    },
+    {
+      "id": "C18",
+      "status": "met"
+    },
+    {
+      "id": "C19",
+      "status": "met"
+    },
+    {
+      "id": "C20",
+      "status": "met"
+    },
+    {
+      "id": "C21",
+      "status": "met"
+    },
+    {
+      "id": "C22",
+      "status": "met"
+    },
+    {
+      "id": "C23",
+      "status": "met"
+    },
+    {
+      "id": "C24",
+      "status": "pending",
+      "note": "no Rust crate; the server is a pinned upstream npm package"
+    },
+    {
+      "id": "C25",
+      "status": "met"
+    },
+    {
+      "id": "C26",
+      "status": "met"
+    },
+    {
+      "id": "C27",
+      "status": "pending",
+      "note": "upstream notification behavior is not yet audited"
+    },
+    {
+      "id": "C28",
+      "status": "met"
+    },
+    {
+      "id": "C29",
+      "status": "met"
+    },
+    {
+      "id": "C30",
+      "status": "met",
+      "note": "the server is stateless and does not require sticky routing"
+    },
+    {
+      "id": "C31",
+      "status": "pending",
+      "note": "installed Discover and list readiness qualification is pending"
+    },
+    {
+      "id": "C32",
+      "status": "pending",
+      "note": "docs declarations, observations and authenticated conditional reads pass native HTTP qualification; installed K01–K08 certification remains open"
+    },
+    {
+      "id": "C33",
+      "status": "pending",
+      "note": "Owner naming producers, consumers and installed qualification are pending."
+    }
+  ],
+  "contractRevision": 4,
+  "catalogRevision": 2
+}

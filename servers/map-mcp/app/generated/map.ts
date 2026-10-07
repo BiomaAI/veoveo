@@ -455,12 +455,12 @@ export type AuthorityClass =
 export type SourceCredential =
   | {
       kind: "bearer";
-      secret_ref: SecretReference;
+      secretRef: SecretReference;
     }
   | {
-      header_name: SourceHeaderName;
+      headerName: SourceHeaderName;
       kind: "header";
-      secret_ref: SecretReference;
+      secretRef: SecretReference;
     };
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -478,19 +478,19 @@ export type SourceHeaderName = string;
  */
 export type SourceLocation =
   | {
-      allowed_redirect_hosts?: SourceHost[];
+      allowedRedirectHosts?: SourceHost[];
       endpoint: HttpsUrl;
       kind: "https";
     }
   | {
       kind: "osm_replication";
-      replication_endpoint: HttpsUrl;
-      snapshot_endpoint: HttpsUrl;
+      replicationEndpoint: HttpsUrl;
+      snapshotEndpoint: HttpsUrl;
     }
   | {
       kind: "mounted_exchange_set";
-      mount_id: SourceMountId;
-      relative_path: MountRelativePath;
+      mountId: SourceMountId;
+      relativePath: MountRelativePath;
     };
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -538,7 +538,7 @@ export type SourceElementType = "node" | "way" | "relation" | "feature";
 export interface AppContracts {
   acquisition: AcquisitionJob;
   acquisitions: OwnedPage;
-  active_releases: ActiveDatasetRelease[];
+  activeReleases: ActiveDatasetRelease[];
   committed: CommitFeatureChangesOutput;
   composition: MapComposition;
   compositions: MapMetadataPage3;
@@ -554,7 +554,7 @@ export interface AppContracts {
   publications: MapMetadataPage2;
   release: ReleaseMutationResponse;
   source: RegisteredSource;
-  source_features: QuerySourceFeaturesOutput;
+  sourceFeatures: QuerySourceFeaturesOutput;
   sources: MapSourcePage;
   style: MapStyleRevision;
   validated: ValidateFeatureChangesOutput;
@@ -565,29 +565,29 @@ export interface AppContracts {
  * via the `definition` "AcquisitionJob".
  */
 export interface AcquisitionJob {
-  acquisition_id: AcquisitionId;
-  created_at: string;
-  created_by: string;
-  diagnostics_uri?: string | null;
-  expected_source_digest_sha256?: string | null;
+  acquisitionId: AcquisitionId;
+  createdAt: string;
+  createdBy: string;
+  diagnosticsUri?: string | null;
+  expectedSourceDigestSha256?: string | null;
   progress: AcquisitionProgress;
-  raw_artifact_uri?: ArtifactUri | null;
-  record_version: number;
-  requested_coverage: Wgs84BoundingBox;
-  source_id: MapSourceId;
-  staged_release_id?: DatasetReleaseId | null;
+  rawArtifactUri?: ArtifactUri | null;
+  recordVersion: number;
+  requestedCoverage: Wgs84BoundingBox;
+  sourceId: MapSourceId;
+  stagedReleaseId?: DatasetReleaseId | null;
   status: AcquisitionStatus;
-  updated_at: string;
+  updatedAt: string;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "AcquisitionProgress".
  */
 export interface AcquisitionProgress {
-  completed_units: number;
+  completedUnits: number;
   message: string;
   phase: AcquisitionPhase;
-  total_units?: number | null;
+  totalUnits?: number | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -606,7 +606,7 @@ export interface Wgs84BoundingBox {
 export interface OwnedPage {
   items: AcquisitionJob[];
   limit: number;
-  next_cursor: string | null;
+  nextCursor: string | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -621,37 +621,37 @@ export interface ActiveDatasetRelease {
  * via the `definition` "ActiveReleasePointer".
  */
 export interface ActiveReleasePointer {
-  activated_at: string;
-  dataset_id: MapDatasetId;
-  previous_release_id?: DatasetReleaseId | null;
-  record_version: number;
-  release_id: DatasetReleaseId;
+  activatedAt: string;
+  datasetId: MapDatasetId;
+  previousReleaseId?: DatasetReleaseId | null;
+  recordVersion: number;
+  releaseId: DatasetReleaseId;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "DatasetRelease".
  */
 export interface DatasetRelease {
-  acquired_at: string;
+  acquiredAt: string;
   coverage: Wgs84BoundingBox;
-  dataset_id: MapDatasetId;
+  datasetId: MapDatasetId;
   license: DatasetLicense;
-  normalization_pipeline_version: string;
-  normalized_artifact_uris: ArtifactUri[];
-  quality_report_uri: ArtifactUri;
-  raw_artifact_uri: ArtifactUri;
-  record_version: number;
-  release_id: DatasetReleaseId;
-  routing_build_version?: string | null;
-  schema_version: number;
-  source_digest_sha256: string;
-  source_id: MapSourceId;
+  normalizationPipelineVersion: string;
+  normalizedArtifactUris: ArtifactUri[];
+  qualityReportUri: ArtifactUri;
+  rawArtifactUri: ArtifactUri;
+  recordVersion: number;
+  releaseId: DatasetReleaseId;
+  routingBuildVersion?: string | null;
+  schemaVersion: number;
+  sourceDigestSha256: string;
+  sourceId: MapSourceId;
   state: DatasetReleaseState;
-  supersedes_release_id?: DatasetReleaseId | null;
-  updated_at: string;
-  valid_from: string;
-  valid_until?: string | null;
-  version_label: string;
+  supersedesReleaseId?: DatasetReleaseId | null;
+  updatedAt: string;
+  validFrom: string;
+  validUntil?: string | null;
+  versionLabel: string;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -659,12 +659,12 @@ export interface DatasetRelease {
  */
 export interface DatasetLicense {
   attribution: string;
-  derivatives_allowed: boolean;
-  expires_at?: string | null;
-  license_id: string;
-  offline_bundle_allowed: boolean;
-  redistribution_allowed: boolean;
-  source_terms_uri: HttpsUrl;
+  derivativesAllowed: boolean;
+  expiresAt?: string | null;
+  licenseId: string;
+  offlineBundleAllowed: boolean;
+  redistributionAllowed: boolean;
+  sourceTermsUri: HttpsUrl;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -673,24 +673,24 @@ export interface DatasetLicense {
 export interface CommitFeatureChangesOutput {
   changeset: FeatureChangeSet;
   features: MapFeature[];
-  projection_state: ProjectionState;
+  projectionState: ProjectionState;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "FeatureChangeSet".
  */
 export interface FeatureChangeSet {
-  actor_id: PrincipalId;
-  base_layer_revision: number;
-  changeset_id: FeatureChangeSetId;
-  commit_sequence: number;
-  created_at: string;
-  feature_ids: MapFeatureId[];
-  idempotency_key: string;
-  layer_id: FeatureLayerId;
-  request_digest_sha256: string;
-  resulting_layer_revision: number;
-  work_context: WorkContextId;
+  actorId: PrincipalId;
+  baseLayerRevision: number;
+  changesetId: FeatureChangeSetId;
+  commitSequence: number;
+  createdAt: string;
+  featureIds: MapFeatureId[];
+  idempotencyKey: string;
+  layerId: FeatureLayerId;
+  requestDigestSha256: string;
+  resultingLayerRevision: number;
+  workContext: WorkContextId;
 }
 /**
  * A map feature in a feature layer. Its core fields are valid GeoJSON, and
@@ -701,21 +701,21 @@ export interface FeatureChangeSet {
  */
 export interface MapFeature {
   conformsTo: string[];
-  created_at: string;
+  createdAt: string;
   deleted: boolean;
-  evidence_resources?: FeatureResourceReference[];
+  evidenceResources?: FeatureResourceReference[];
+  featureRevision: number;
   featureType: string;
-  feature_revision: number;
   geometry: FeatureGeometry;
   id: MapFeatureId;
-  layer_id: FeatureLayerId;
-  layer_revision: number;
+  layerId: FeatureLayerId;
+  layerRevision: number;
   properties?: {
     [k: string]: unknown;
   };
   provenance: FeatureProvenance;
-  related_resources?: FeatureResourceReference[];
-  schema_version: number;
+  relatedResources?: FeatureResourceReference[];
+  schemaVersion: number;
   time?: FeatureTime | null;
   title?: string | null;
   type: GeoJsonFeatureType;
@@ -725,12 +725,12 @@ export interface MapFeature {
  * via the `definition` "FeatureProvenance".
  */
 export interface FeatureProvenance {
-  actor_id: PrincipalId;
-  delegation_id?: DelegationId | null;
-  initiator_id?: PrincipalId | null;
-  invocation_mode: InvocationMode;
-  policy_revision: PolicyVersion;
-  work_context: WorkContextId;
+  actorId: PrincipalId;
+  delegationId?: DelegationId | null;
+  initiatorId?: PrincipalId | null;
+  invocationMode: InvocationMode;
+  policyRevision: PolicyVersion;
+  workContext: WorkContextId;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -750,27 +750,27 @@ export interface FeatureTime {
  * via the `definition` "MapComposition".
  */
 export interface MapComposition {
-  archived_at?: string | null;
+  archivedAt?: string | null;
   classification?: DataLabelId | null;
-  composition_id: MapCompositionId;
-  created_at: string;
-  created_by: PrincipalId;
+  compositionId: MapCompositionId;
+  createdAt: string;
+  createdBy: PrincipalId;
   current: MapCompositionRevision;
-  data_labels?: DataLabelId[];
+  dataLabels?: DataLabelId[];
   owner: AccessSubject;
   title: string;
-  updated_at: string;
-  work_context: WorkContextId;
+  updatedAt: string;
+  workContext: WorkContextId;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "MapCompositionRevision".
  */
 export interface MapCompositionRevision {
-  composition_id: MapCompositionId;
-  composition_revision_id: MapCompositionRevisionId;
-  created_at: string;
-  created_by: PrincipalId;
+  compositionId: MapCompositionId;
+  compositionRevisionId: MapCompositionRevisionId;
+  createdAt: string;
+  createdBy: PrincipalId;
   layers: CompositionLayer[];
   revision: number;
   view: CompositionView;
@@ -780,10 +780,10 @@ export interface MapCompositionRevision {
  * via the `definition` "CompositionLayer".
  */
 export interface CompositionLayer {
-  layer_id: FeatureLayerId;
+  layerId: FeatureLayerId;
   opacity?: number;
-  publication_id: LayerPublicationId;
-  style_revision_id?: StyleRevisionId | null;
+  publicationId: LayerPublicationId;
+  styleRevisionId?: StyleRevisionId | null;
   visible?: boolean;
 }
 /**
@@ -791,9 +791,9 @@ export interface CompositionLayer {
  * via the `definition` "CompositionView".
  */
 export interface CompositionView {
-  bearing_deg?: number;
+  bearingDeg?: number;
   center: Wgs84Position;
-  pitch_deg?: number;
+  pitchDeg?: number;
   zoom: number;
 }
 /**
@@ -801,9 +801,9 @@ export interface CompositionView {
  * via the `definition` "Wgs84Position".
  */
 export interface Wgs84Position {
-  ellipsoidal_height_m?: number | null;
-  latitude_deg: number;
-  longitude_deg: number;
+  ellipsoidalHeightM?: number | null;
+  latitudeDeg: number;
+  longitudeDeg: number;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -812,7 +812,7 @@ export interface Wgs84Position {
 export interface MapMetadataPage3 {
   items: MapComposition[];
   limit: number;
-  next_cursor: MapMetadataCursor | null;
+  nextCursor: MapMetadataCursor | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -821,7 +821,7 @@ export interface MapMetadataPage3 {
 export interface ReleasePage {
   items: DatasetRelease[];
   limit: number;
-  next_cursor: string | null;
+  nextCursor: string | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -829,9 +829,9 @@ export interface ReleasePage {
  */
 export interface QueryFeaturesOutput {
   features: MapFeature[];
-  layer_id: FeatureLayerId;
-  next_cursor?: string | null;
-  projection_sequence: number;
+  layerId: FeatureLayerId;
+  nextCursor?: string | null;
+  projectionSequence: number;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -842,9 +842,9 @@ export interface QueryFeaturesOutput {
  */
 export interface MapTaskProduct {
   changeset: FeatureChangeSet;
-  imported_feature_count: number;
-  projection_state: ProjectionState;
-  result_uri: ResourceUri;
+  importedFeatureCount: number;
+  projectionState: ProjectionState;
+  resultUri: ResourceUri;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -852,18 +852,18 @@ export interface MapTaskProduct {
  */
 export interface InspectGeoPackageOutput {
   manifest: GeoPackageManifest;
-  source_artifact_uri: ArtifactUri;
+  sourceArtifactUri: ArtifactUri;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "GeoPackageManifest".
  */
 export interface GeoPackageManifest {
-  application_id: number;
+  applicationId: number;
   extensions: GeoPackageExtension[];
-  feature_tables: GeoPackageFeatureTable[];
+  featureTables: GeoPackageFeatureTable[];
   findings: GeoPackageFinding[];
-  user_version: number;
+  userVersion: number;
   version: string;
 }
 /**
@@ -882,16 +882,16 @@ export interface GeoPackageExtension {
  * via the `definition` "GeoPackageFeatureTable".
  */
 export interface GeoPackageFeatureTable {
-  crs_name?: string | null;
+  crsName?: string | null;
   description: string;
-  extent_wgs84?: Wgs84BoundingBox | null;
-  feature_count: number;
+  extentWgs84?: Wgs84BoundingBox | null;
+  featureCount: number;
   fields: GeoPackageField[];
-  geometry_column: string;
-  geometry_type: string;
-  has_spatial_index: boolean;
+  geometryColumn: string;
+  geometryType: string;
+  hasSpatialIndex: boolean;
   identifier: string;
-  srs_id: number;
+  srsId: number;
   table: string;
 }
 /**
@@ -899,7 +899,7 @@ export interface GeoPackageFeatureTable {
  * via the `definition` "GeoPackageField".
  */
 export interface GeoPackageField {
-  field_type: GeoPackageFieldType;
+  fieldType: GeoPackageFieldType;
   name: string;
   nullable: boolean;
 }
@@ -918,32 +918,32 @@ export interface GeoPackageFinding {
  * via the `definition` "FeatureLayer".
  */
 export interface FeatureLayer {
-  archived_at?: string | null;
+  archivedAt?: string | null;
   classification?: DataLabelId | null;
-  content_class: FeatureContentClass;
-  created_at: string;
-  created_by: PrincipalId;
-  data_labels?: DataLabelId[];
+  contentClass: FeatureContentClass;
+  createdAt: string;
+  createdBy: PrincipalId;
+  dataLabels?: DataLabelId[];
   description?: string | null;
-  layer_id: FeatureLayerId;
+  layerId: FeatureLayerId;
   owner: AccessSubject;
   revision: number;
   schema: FeatureSchemaRevision;
   style?: MapStyleRevision | null;
   title: string;
-  updated_at: string;
-  work_context: WorkContextId;
+  updatedAt: string;
+  workContext: WorkContextId;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "FeatureSchemaRevision".
  */
 export interface FeatureSchemaRevision {
-  created_at: string;
-  digest_sha256: string;
-  layer_id: FeatureLayerId;
+  createdAt: string;
+  digestSha256: string;
+  layerId: FeatureLayerId;
   schema: unknown;
-  schema_revision_id: FeatureSchemaRevisionId;
+  schemaRevisionId: FeatureSchemaRevisionId;
   version: number;
 }
 /**
@@ -951,10 +951,10 @@ export interface FeatureSchemaRevision {
  * via the `definition` "MapStyleRevision".
  */
 export interface MapStyleRevision {
-  created_at: string;
-  layer_id: FeatureLayerId;
+  createdAt: string;
+  layerId: FeatureLayerId;
   style: LayerStyle;
-  style_revision_id: StyleRevisionId;
+  styleRevisionId: StyleRevisionId;
   version: number;
 }
 /**
@@ -969,16 +969,16 @@ export interface LayerStyle {
  * via the `definition` "StyleRule".
  */
 export interface StyleRule {
-  circle_color?: string | null;
-  circle_radius_px?: number | null;
-  fill_color?: string | null;
-  fill_opacity?: number | null;
-  geometry_type?: FeatureGeometryType | null;
-  label_property?: string | null;
-  line_color?: string | null;
-  line_width_px?: number | null;
-  maximum_zoom?: number | null;
-  minimum_zoom?: number | null;
+  circleColor?: string | null;
+  circleRadiusPx?: number | null;
+  fillColor?: string | null;
+  fillOpacity?: number | null;
+  geometryType?: FeatureGeometryType | null;
+  labelProperty?: string | null;
+  lineColor?: string | null;
+  lineWidthPx?: number | null;
+  maximumZoom?: number | null;
+  minimumZoom?: number | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -987,25 +987,25 @@ export interface StyleRule {
 export interface MapMetadataPage {
   items: FeatureLayer[];
   limit: number;
-  next_cursor: MapMetadataCursor | null;
+  nextCursor: MapMetadataCursor | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "HumanMobilityProfile".
  */
 export interface HumanMobilityProfile {
-  accessibility_requirements?: string[];
-  carried_load: number;
-  maximum_continuous_duration: number;
-  maximum_slope: number;
-  maximum_speed: number;
-  maximum_step: number;
+  accessibilityRequirements?: string[];
+  carriedLoad: number;
+  maximumContinuousDuration: number;
+  maximumSlope: number;
+  maximumSpeed: number;
+  maximumStep: number;
   metadata: MobilityProfileMetadata;
   mode: HumanMovementMode;
   planning: MobilityPlanningEnvelope;
-  preferred_speed: number;
-  stairs_allowed?: boolean;
-  unpaved_allowed?: boolean;
+  preferredSpeed: number;
+  stairsAllowed?: boolean;
+  unpavedAllowed?: boolean;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -1014,9 +1014,9 @@ export interface HumanMobilityProfile {
 export interface MobilityProfileMetadata {
   labels?: string[];
   name: string;
-  profile_id: MobilityProfileId;
-  valid_from: string;
-  valid_until?: string | null;
+  profileId: MobilityProfileId;
+  validFrom: string;
+  validUntil?: string | null;
   version: MobilityProfileVersion;
 }
 /**
@@ -1024,36 +1024,36 @@ export interface MobilityProfileMetadata {
  * via the `definition` "MobilityPlanningEnvelope".
  */
 export interface MobilityPlanningEnvelope {
-  allowed_restriction_kinds?: RestrictionKind[];
-  allowed_terrain_classes?: string[];
-  lateral_clearance: number;
-  maximum_climb_angle?: number | null;
-  maximum_descent_angle?: number | null;
-  maximum_range?: number | null;
-  maximum_route_points: number;
-  maximum_segment_length: number;
-  minimum_speed: number;
-  minimum_turn_radius?: number | null;
-  operating_ceiling?: number | null;
-  vertical_clearance: number;
+  allowedRestrictionKinds?: RestrictionKind[];
+  allowedTerrainClasses?: string[];
+  lateralClearance: number;
+  maximumClimbAngle?: number | null;
+  maximumDescentAngle?: number | null;
+  maximumRange?: number | null;
+  maximumRoutePoints: number;
+  maximumSegmentLength: number;
+  minimumSpeed: number;
+  minimumTurnRadius?: number | null;
+  operatingCeiling?: number | null;
+  verticalClearance: number;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "RoadVehicleProfile".
  */
 export interface RoadVehicleProfile {
-  axle_count: number;
+  axleCount: number;
   class: RoadVehicleClass;
   dimensions: VehicleDimensions;
-  emissions_class?: string | null;
+  emissionsClass?: string | null;
   energy: EnergyProfile;
-  gross_mass: number;
-  hazardous_cargo?: boolean;
-  maximum_axle_load: number;
+  grossMass: number;
+  hazardousCargo?: boolean;
+  maximumAxleLoad: number;
   metadata: MobilityProfileMetadata;
   performance: VehiclePerformance;
   planning: MobilityPlanningEnvelope;
-  unpaved_allowed?: boolean;
+  unpavedAllowed?: boolean;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -1069,9 +1069,9 @@ export interface VehicleDimensions {
  * via the `definition` "EnergyProfile".
  */
 export interface EnergyProfile {
-  battery_capacity?: number | null;
-  liquid_fuel_capacity?: number | null;
-  minimum_reserve: number;
+  batteryCapacity?: number | null;
+  liquidFuelCapacity?: number | null;
+  minimumReserve: number;
   source: EnergySource;
 }
 /**
@@ -1079,28 +1079,28 @@ export interface EnergyProfile {
  * via the `definition` "VehiclePerformance".
  */
 export interface VehiclePerformance {
-  maximum_range?: number | null;
-  maximum_speed: number;
-  nominal_speed: number;
-  payload_capacity?: number | null;
+  maximumRange?: number | null;
+  maximumSpeed: number;
+  nominalSpeed: number;
+  payloadCapacity?: number | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "OffRoadVehicleProfile".
  */
 export interface OffRoadVehicleProfile {
-  allowed_surface_classes?: string[];
+  allowedSurfaceClasses?: string[];
   class: OffRoadLocomotionClass;
   dimensions: VehicleDimensions;
   energy: EnergyProfile;
-  gross_mass: number;
-  ground_clearance: number;
-  ground_pressure: number;
-  maximum_cross_slope: number;
-  maximum_gap: number;
-  maximum_slope: number;
-  maximum_step: number;
-  maximum_water_depth: number;
+  grossMass: number;
+  groundClearance: number;
+  groundPressure: number;
+  maximumCrossSlope: number;
+  maximumGap: number;
+  maximumSlope: number;
+  maximumStep: number;
+  maximumWaterDepth: number;
   metadata: MobilityProfileMetadata;
   performance: VehiclePerformance;
   planning: MobilityPlanningEnvelope;
@@ -1112,32 +1112,32 @@ export interface OffRoadVehicleProfile {
 export interface RailVehicleProfile {
   class: RailVehicleClass;
   dimensions: VehicleDimensions;
-  electrification_systems?: string[];
+  electrificationSystems?: string[];
   energy: EnergyProfile;
   gauge: number;
-  gross_mass: number;
-  maximum_axle_load: number;
+  grossMass: number;
+  maximumAxleLoad: number;
   metadata: MobilityProfileMetadata;
-  operator_permissions?: string[];
+  operatorPermissions?: string[];
   performance: VehiclePerformance;
   planning: MobilityPlanningEnvelope;
-  schedule_required?: boolean;
-  train_length: number;
+  scheduleRequired?: boolean;
+  trainLength: number;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "SurfaceVesselProfile".
  */
 export interface SurfaceVesselProfile {
-  air_draft: number;
-  berth_requirements?: string[];
+  airDraft: number;
+  berthRequirements?: string[];
   class: SurfaceVesselClass;
   dimensions: VehicleDimensions;
   displacement: number;
   draft: number;
   energy: EnergyProfile;
   metadata: MobilityProfileMetadata;
-  minimum_under_keel_clearance: number;
+  minimumUnderKeelClearance: number;
   performance: VehiclePerformance;
   planning: MobilityPlanningEnvelope;
 }
@@ -1150,13 +1150,13 @@ export interface SubsurfaceVesselProfile {
   dimensions: VehicleDimensions;
   displacement: number;
   energy: EnergyProfile;
-  maximum_operating_depth: number;
-  maximum_submerged_duration: number;
+  maximumOperatingDepth: number;
+  maximumSubmergedDuration: number;
   metadata: MobilityProfileMetadata;
-  minimum_bathymetric_clearance: number;
-  minimum_operating_depth: number;
+  minimumBathymetricClearance: number;
+  minimumOperatingDepth: number;
   performance: VehiclePerformance;
-  periodic_surfacing_required?: boolean;
+  periodicSurfacingRequired?: boolean;
   planning: MobilityPlanningEnvelope;
 }
 /**
@@ -1164,14 +1164,14 @@ export interface SubsurfaceVesselProfile {
  * via the `definition` "FixedWingProfile".
  */
 export interface FixedWingProfile {
-  airspace_permissions?: string[];
+  airspacePermissions?: string[];
   class: FixedWingClass;
   dimensions: VehicleDimensions;
   energy: EnergyProfile;
-  maximum_takeoff_mass: number;
+  maximumTakeoffMass: number;
   metadata: MobilityProfileMetadata;
-  minimum_runway_length: number;
-  navigation_capabilities?: string[];
+  minimumRunwayLength: number;
+  navigationCapabilities?: string[];
   performance: AircraftPerformance;
   planning: MobilityPlanningEnvelope;
 }
@@ -1180,42 +1180,42 @@ export interface FixedWingProfile {
  * via the `definition` "AircraftPerformance".
  */
 export interface AircraftPerformance {
-  cruise_speed: number;
-  maximum_range: number;
-  maximum_speed: number;
-  minimum_reserve: number;
-  payload_capacity: number;
-  service_ceiling: number;
+  cruiseSpeed: number;
+  maximumRange: number;
+  maximumSpeed: number;
+  minimumReserve: number;
+  payloadCapacity: number;
+  serviceCeiling: number;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "RotorcraftProfile".
  */
 export interface RotorcraftProfile {
-  airspace_permissions?: string[];
+  airspacePermissions?: string[];
   class: RotorcraftClass;
   dimensions: VehicleDimensions;
   energy: EnergyProfile;
-  maximum_takeoff_mass: number;
+  maximumTakeoffMass: number;
   metadata: MobilityProfileMetadata;
-  navigation_capabilities?: string[];
+  navigationCapabilities?: string[];
   performance: AircraftPerformance;
   planning: MobilityPlanningEnvelope;
-  rotor_diameter: number;
+  rotorDiameter: number;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "UasProfile".
  */
 export interface UasProfile {
-  airspace_permissions?: string[];
-  beyond_visual_line_of_sight?: boolean;
+  airspacePermissions?: string[];
+  beyondVisualLineOfSight?: boolean;
   class: UasClass;
   dimensions: VehicleDimensions;
   energy: EnergyProfile;
-  maximum_takeoff_mass: number;
+  maximumTakeoffMass: number;
   metadata: MobilityProfileMetadata;
-  navigation_capabilities?: string[];
+  navigationCapabilities?: string[];
   performance: AircraftPerformance;
   planning: MobilityPlanningEnvelope;
 }
@@ -1229,23 +1229,23 @@ export interface MapMobilityProfilePage {
    */
   items: MobilityProfile[];
   limit: number;
-  next_cursor: string | null;
+  nextCursor: string | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "LayerPublication".
  */
 export interface LayerPublication {
-  artifact_uris?: ArtifactUri[];
-  layer_id: FeatureLayerId;
-  layer_revision: number;
-  publication_id: LayerPublicationId;
-  published_at: string;
-  published_by: PrincipalId;
-  schema_version: number;
-  style_revision_id?: StyleRevisionId | null;
+  artifactUris?: ArtifactUri[];
+  layerId: FeatureLayerId;
+  layerRevision: number;
+  publicationId: LayerPublicationId;
+  publishedAt: string;
+  publishedBy: PrincipalId;
+  schemaVersion: number;
+  styleRevisionId?: StyleRevisionId | null;
   title?: string | null;
-  work_context: WorkContextId;
+  workContext: WorkContextId;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -1254,14 +1254,14 @@ export interface LayerPublication {
 export interface MapMetadataPage2 {
   items: LayerPublication[];
   limit: number;
-  next_cursor: MapMetadataCursor | null;
+  nextCursor: MapMetadataCursor | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "ReleaseMutationResponse".
  */
 export interface ReleaseMutationResponse {
-  invalidated_route_count: number;
+  invalidatedRouteCount: number;
   release: DatasetRelease;
 }
 /**
@@ -1269,24 +1269,24 @@ export interface ReleaseMutationResponse {
  * via the `definition` "RegisteredSource".
  */
 export interface RegisteredSource {
-  acquisition_model: AcquisitionModel;
-  adapter_kind: SourceAdapterKind;
+  acquisitionModel: AcquisitionModel;
+  adapterKind: SourceAdapterKind;
   authority: AuthorityClass;
-  created_at: string;
+  createdAt: string;
   credential?: SourceCredential | null;
-  dataset_id: MapDatasetId;
+  datasetId: MapDatasetId;
   enabled: boolean;
-  expected_media_types: string[];
+  expectedMediaTypes: string[];
   license: DatasetLicense;
   location: SourceLocation;
-  map_families: MapFamily[];
-  maximum_download_bytes: number;
-  maximum_elapsed_seconds: number;
+  mapFamilies: MapFamily[];
+  maximumDownloadBytes: number;
+  maximumElapsedSeconds: number;
   name: string;
-  publisher_key_refs?: SecretReference[];
-  record_version: number;
-  source_id: MapSourceId;
-  updated_at: string;
+  publisherKeyRefs?: SecretReference[];
+  recordVersion: number;
+  sourceId: MapSourceId;
+  updatedAt: string;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -1294,9 +1294,9 @@ export interface RegisteredSource {
  */
 export interface QuerySourceFeaturesOutput {
   features: SourceFeatureMatch[];
-  next_cursor?: string | null;
-  query_digest_sha256: string;
-  release_id: DatasetReleaseId;
+  nextCursor?: string | null;
+  queryDigestSha256: string;
+  releaseId: DatasetReleaseId;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -1311,37 +1311,37 @@ export interface SourceFeatureMatch {
  * via the `definition` "SourceFeature".
  */
 export interface SourceFeature {
-  acquired_at: string;
-  feature_id: SourceFeatureId;
+  acquiredAt: string;
+  featureId: SourceFeatureId;
   geometry: FeatureGeometry;
-  geometry_digest_sha256: string;
+  geometryDigestSha256: string;
   license: DatasetLicense;
   /**
    * Source-owned properties are deliberately open-ended. Map preserves
    * every normalized key and value rather than projecting an allowlist.
    */
-  normalized_tags: {
+  normalizedTags: {
     [k: string]: unknown;
   };
-  operating_area_ids?: string[];
-  original_names?: {
+  operatingAreaIds?: string[];
+  originalNames?: {
     [k: string]: string;
   };
-  original_references?: string[];
-  release_id: DatasetReleaseId;
+  originalReferences?: string[];
+  releaseId: DatasetReleaseId;
   representation: SourceFeatureRepresentation;
-  schema_version: number;
-  source_digest_sha256: string;
-  source_element_id: string;
-  source_element_type: SourceElementType;
-  source_element_version: string;
+  schemaVersion: number;
+  sourceDigestSha256: string;
+  sourceElementId: string;
+  sourceElementType: SourceElementType;
+  sourceElementVersion: string;
   /**
    * Zero-based traversal path from the source element's root geometry to
    * this simple or multi-geometry. The root geometry uses an
    * empty path. Relation GeometryCollections produce one feature per leaf.
    */
-  source_geometry_path?: number[];
-  source_id: MapSourceId;
+  sourceGeometryPath?: number[];
+  sourceId: MapSourceId;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -1353,37 +1353,37 @@ export interface MapSourcePage {
    */
   items: SourceSummary[];
   limit: number;
-  next_cursor: string | null;
+  nextCursor: string | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "SourceSummary".
  */
 export interface SourceSummary {
-  acquisition_model: AcquisitionModel;
-  adapter_kind: SourceAdapterKind;
+  acquisitionModel: AcquisitionModel;
+  adapterKind: SourceAdapterKind;
   authority: AuthorityClass;
-  created_at: string;
-  dataset_id: MapDatasetId;
+  createdAt: string;
+  datasetId: MapDatasetId;
   enabled: boolean;
   license: DatasetLicense;
   /**
    * @minItems 1
    */
-  map_families: [MapFamily, ...MapFamily[]];
+  mapFamilies: [MapFamily, ...MapFamily[]];
   name: string;
-  record_version: number;
-  source_id: MapSourceId;
-  updated_at: string;
+  recordVersion: number;
+  sourceId: MapSourceId;
+  updatedAt: string;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "ValidateFeatureChangesOutput".
  */
 export interface ValidateFeatureChangesOutput {
-  expected_layer_revision: number;
+  expectedLayerRevision: number;
   findings: FeatureValidationFinding[];
-  layer_id: FeatureLayerId;
+  layerId: FeatureLayerId;
   valid: boolean;
 }
 /**
@@ -1393,7 +1393,7 @@ export interface ValidateFeatureChangesOutput {
 export interface FeatureValidationFinding {
   code: string;
   message: string;
-  mutation_index: number;
+  mutationIndex: number;
 }
 /**
  * Caller-specific capabilities for the single Map MCP workspace App.
@@ -1408,10 +1408,10 @@ export interface FeatureValidationFinding {
 export interface MapWorkspaceAccess {
   administration: boolean;
   basemap: MapWorkspaceBasemap;
-  dataset_read: boolean;
-  feature_publish: boolean;
-  feature_read: boolean;
-  feature_write: boolean;
+  datasetRead: boolean;
+  featurePublish: boolean;
+  featureRead: boolean;
+  featureWrite: boolean;
 }
 /**
  * Presentation-safe MapLibre Style basemap configuration owned by Map MCP.
@@ -1425,8 +1425,8 @@ export interface MapWorkspaceAccess {
  * via the `definition` "MapWorkspaceBasemap".
  */
 export interface MapWorkspaceBasemap {
-  dark_style_url: string;
+  darkStyleUrl: string;
   id: string;
-  light_style_url: string;
+  lightStyleUrl: string;
   title: string;
 }

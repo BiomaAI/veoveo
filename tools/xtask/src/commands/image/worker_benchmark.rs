@@ -25,8 +25,7 @@ use crate::{
     context::RepositoryContext,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 enum Case {
     Export,
     Import,
@@ -150,7 +149,7 @@ pub(crate) fn run(repository: &RepositoryContext, args: &BuilderWorkerBenchmarkA
         .tempdir_in(&output)?;
     let mut worker = ExperimentWorker::create(repository.root(), &lease)?;
     let mut comparison = Comparison {
-        schema: "veoveo.ai/compiler-worker-comparison/v1",
+        schema: "veoveo.ai/compiler-worker-comparison/v2",
         source_revision: prepared.plan.source.revision.clone(),
         source_dirty: prepared.plan.source.dirty,
         buildkit_image: veoveo_image_build_control::BUILDKIT_IMAGE,
@@ -446,6 +445,20 @@ fn validate_samples(samples: &[Sample]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn owned_report_vocabulary_has_current_snake_values() {
+        assert_eq!(
+            serde_json::to_value(super::Case::PrimaryEdit).unwrap(),
+            "primary_edit"
+        );
+        assert!(serde_json::from_str::<super::Case>(r#""primary-edit""#).is_err());
+        assert_eq!(
+            serde_json::to_value(super::Case::SecondaryEdit).unwrap(),
+            "secondary_edit"
+        );
+        assert!(serde_json::from_str::<super::Case>(r#""secondary-edit""#).is_err());
+    }
+
     use super::*;
     #[test]
     fn cache_import_requires_one_immutable_manifest() {

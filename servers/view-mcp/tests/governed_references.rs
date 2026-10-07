@@ -77,9 +77,9 @@ fn admission_rejects_unpublished_recording_routes_and_arbitrary_product_paths() 
 
 fn request(address: GovernedResourceUri) -> CreateSceneCompositionRequest {
     serde_json::from_value(json!({
-        "schema_version": 1, "base_layer": "fixture", "style_id": "fixture",
-        "governed_inputs": [{"input_id": "source", "resource_uri": address,
-            "digest_sha256": "0".repeat(64), "license": "CC0", "attribution": "fixture"}]
+        "schemaVersion": 1, "baseLayer": "fixture", "styleId": "fixture",
+        "governedInputs": [{"inputId": "source", "resourceUri": address,
+            "digestSha256": "0".repeat(64), "license": "CC0", "attribution": "fixture"}]
     }))
     .unwrap()
 }
@@ -124,12 +124,11 @@ fn source_features_require_their_release_and_presented_map_artifacts_keep_releas
 #[test]
 fn camera_variants_and_scene_coordinates_reject_undeclared_fields() {
     use veoveo_view_mcp::contract::CameraDefinition;
-    let position =
-        json!({"latitude_degrees":1,"longitude_degrees":2,"ellipsoidal_height_meters":3});
+    let position = json!({"latitudeDegrees":1,"longitudeDegrees":2,"ellipsoidalHeightMeters":3});
     let cameras = [
-        json!({"kind":"pose","position":position,"orientation":{"heading_degrees":0,"pitch_degrees":0,"roll_degrees":0},"vertical_fov_degrees":60}),
-        json!({"kind":"look_at","eye":position,"target":position,"vertical_fov_degrees":60}),
-        json!({"kind":"orbit_target","target":position,"distance_meters":10,"azimuth_degrees":0,"elevation_degrees":0,"vertical_fov_degrees":60}),
+        json!({"kind":"pose","position":position,"orientation":{"headingDegrees":0,"pitchDegrees":0,"rollDegrees":0},"verticalFovDegrees":60}),
+        json!({"kind":"look_at","eye":position,"target":position,"verticalFovDegrees":60}),
+        json!({"kind":"orbit_target","target":position,"distanceMeters":10,"azimuthDegrees":0,"elevationDegrees":0,"verticalFovDegrees":60}),
     ];
     for input in cameras {
         assert!(serde_json::from_value::<CameraDefinition>(input.clone()).is_ok());

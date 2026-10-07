@@ -18,6 +18,7 @@ path = "src/bin/sensor_sim.rs"
 [[bin]]
 name = "hub-smoke"
 path = "src/bin/hub_smoke.rs"
+required-features = ["smoke"]
 
 [dependencies]
 veoveo-recording-store = { workspace = true }
@@ -45,7 +46,7 @@ tracing-subscriber.workspace = true
 url.workspace = true
 uuid.workspace = true
 veoveo-platform-store.workspace = true
-veoveo-mcp-contract.workspace = true
+veoveo-mcp-contract = { workspace = true, features = ["runtime"] }
 veoveo-recording-forwarder = { path = "../forwarder" }
 veoveo-recording-protocol.workspace = true
 veoveo-rrd.workspace = true
@@ -71,3 +72,6 @@ re_entity_db.workspace = true
 [dev-dependencies]
 mp4.workspace = true
 futures.workspace = true
+
+[features]
+smoke = []

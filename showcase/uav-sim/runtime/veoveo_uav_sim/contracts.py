@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Mapping, Annotated, Literal
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
 
 
 class ContractError(ValueError):
@@ -76,85 +76,99 @@ class DurableOperation:
     vehicles: tuple[VehicleMission, ...] | None = None
 
 
-class _Wire(BaseModel):
+class WireModel(BaseModel):
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True)
 
+    @model_validator(mode="before")
+    @classmethod
+    def current_members(cls, value):
+        if isinstance(value, dict):
+            wire_names = {field.alias or name for name, field in cls.model_fields.items()}
+            unknown = set(value) - wire_names
+            if unknown:
+                raise ValidationError.from_exception_data(cls.__name__, [
+                    {"type": "extra_forbidden", "loc": (key,), "input": None}
+                    for key in sorted(unknown)
+                ])
+        return value
 
-class SessionCommand(_Wire):
+
+
+class SessionCommand(WireModel):
     command: Literal["pause", "resume", "reset"]
-    session_id: str
+    sessionId: str
 
 
-class StepCommand(_Wire):
+class StepCommand(WireModel):
     command: Literal["step"]
-    session_id: str
+    sessionId: str
     steps: int
 
 
-class VehicleCommand(_Wire):
+class VehicleCommand(WireModel):
     command: Literal["arm", "land"]
-    session_id: str
-    vehicle_id: str
+    sessionId: str
+    vehicleId: str
 
 
-class TakeoffCommand(_Wire):
+class TakeoffCommand(WireModel):
     command: Literal["takeoff"]
-    session_id: str
-    vehicle_id: str
-    relative_altitude_m: float
+    sessionId: str
+    vehicleId: str
+    relativeAltitudeM: float
 
 
 CommandWire = Annotated[SessionCommand | StepCommand | VehicleCommand | TakeoffCommand, Field(discriminator="command")]
 COMMAND_ADAPTER = TypeAdapter(CommandWire, config=ConfigDict(hide_input_in_errors=True))
 
 
-class PositionWire(_Wire):
-    latitude_degrees: float
-    longitude_degrees: float
-    ellipsoid_height_m: float
+class PositionWire(WireModel):
+    latitudeDegrees: float
+    longitudeDegrees: float
+    ellipsoidHeightM: float
 
 
-class WaypointWire(_Wire):
+class WaypointWire(WireModel):
     position: PositionWire
-    speed_mps: float
-    hold_seconds: float
+    speedMps: float
+    holdSeconds: float
 
 
-class VehicleMissionWire(_Wire):
-    vehicle_id: str
+class VehicleMissionWire(WireModel):
+    vehicleId: str
     waypoints: list[WaypointWire]
 
 
-class ScenarioInput(_Wire):
-    session_id: str
-    duration_seconds: float
+class ScenarioInput(WireModel):
+    sessionId: str
+    durationSeconds: float
     parameters: dict[str, str]
 
 
-class CaptureInput(_Wire):
-    session_id: str
-    duration_seconds: float
+class CaptureInput(WireModel):
+    sessionId: str
+    durationSeconds: float
     sensors: list[str]
 
 
-class MissionInput(_Wire):
-    session_id: str
-    mission_id: str
-    expected_world_revision_uri: str
+class MissionInput(WireModel):
+    sessionId: str
+    missionId: str
+    expectedWorldRevisionUri: str
     vehicles: list[VehicleMissionWire]
 
 
-class ScenarioOperation(_Wire):
+class ScenarioOperation(WireModel):
     operation: Literal["run_scenario"]
     input: ScenarioInput
 
 
-class CaptureOperation(_Wire):
+class CaptureOperation(WireModel):
     operation: Literal["capture_dataset"]
     input: CaptureInput
 
 
-class MissionOperation(_Wire):
+class MissionOperation(WireModel):
     operation: Literal["execute_mission"]
     input: MissionInput
 
@@ -181,31 +195,31 @@ def parse_command(payload: Any) -> DirectCommand:
     value = _object(payload, "command")
     command = value.get("command")
     if command in {"pause", "resume", "reset"}:
-        _exact_fields(value, {"command", "session_id"}, "command")
-        return DirectCommand(command, _identity(value["session_id"], "session_id"))
+        _exact_fields(value, {"command", 'sessionId'}, "command")
+        return DirectCommand(command, _identity(value['sessionId'], 'sessionId'))
     if command == "step":
-        _exact_fields(value, {"command", "session_id", "steps"}, "command")
+        _exact_fields(value, {"command", 'sessionId', "steps"}, "command")
         steps = value["steps"]
         if isinstance(steps, bool) or not isinstance(steps, int) or not 1 <= steps <= 10_000:
             raise ContractError("steps must be an integer between 1 and 10000")
-        return DirectCommand(command, _identity(value["session_id"], "session_id"), steps=steps)
+        return DirectCommand(command, _identity(value['sessionId'], 'sessionId'), steps=steps)
     if command in {"arm", "land"}:
-        _exact_fields(value, {"command", "session_id", "vehicle_id"}, "command")
+        _exact_fields(value, {"command", 'sessionId', 'vehicleId'}, "command")
         return DirectCommand(
             command,
-            _identity(value["session_id"], "session_id"),
-            vehicle_id=_identity(value["vehicle_id"], "vehicle_id"),
+            _identity(value['sessionId'], 'sessionId'),
+            vehicle_id=_identity(value['vehicleId'], 'vehicleId'),
         )
     if command == "takeoff":
         _exact_fields(
-            value, {"command", "session_id", "vehicle_id", "relative_altitude_m"}, "command"
+            value, {"command", 'sessionId', 'vehicleId', 'relativeAltitudeM'}, "command"
         )
         return DirectCommand(
             command,
-            _identity(value["session_id"], "session_id"),
-            vehicle_id=_identity(value["vehicle_id"], "vehicle_id"),
+            _identity(value['sessionId'], 'sessionId'),
+            vehicle_id=_identity(value['vehicleId'], 'vehicleId'),
             relative_altitude_m=_number(
-                value["relative_altitude_m"], "relative_altitude_m", 0.5, 500.0
+                value['relativeAltitudeM'], 'relativeAltitudeM', 0.5, 500.0
             ),
         )
     raise ContractError("command must be pause, resume, reset, step, arm, takeoff, or land")
@@ -213,23 +227,23 @@ def parse_command(payload: Any) -> DirectCommand:
 
 def _waypoint(value: Any) -> Waypoint:
     value = _object(value, "waypoint")
-    _exact_fields(value, {"position", "speed_mps", "hold_seconds"}, "waypoint")
+    _exact_fields(value, {"position", 'speedMps', 'holdSeconds'}, "waypoint")
     position = _object(value["position"], "waypoint.position")
     _exact_fields(
         position,
-        {"latitude_degrees", "longitude_degrees", "ellipsoid_height_m"},
+        {'latitudeDegrees', 'longitudeDegrees', 'ellipsoidHeightM'},
         "waypoint.position",
     )
     return Waypoint(
-        latitude_degrees=_number(position["latitude_degrees"], "latitude_degrees", -90.0, 90.0),
+        latitude_degrees=_number(position['latitudeDegrees'], 'latitudeDegrees', -90.0, 90.0),
         longitude_degrees=_number(
-            position["longitude_degrees"], "longitude_degrees", -180.0, 180.0
+            position['longitudeDegrees'], 'longitudeDegrees', -180.0, 180.0
         ),
         ellipsoid_height_m=_number(
-            position["ellipsoid_height_m"], "ellipsoid_height_m", -1_000.0, 100_000.0
+            position['ellipsoidHeightM'], 'ellipsoidHeightM', -1_000.0, 100_000.0
         ),
-        speed_mps=_number(value["speed_mps"], "speed_mps", 0.1, 100.0),
-        hold_seconds=_number(value["hold_seconds"], "hold_seconds", 0.0, 3_600.0),
+        speed_mps=_number(value['speedMps'], 'speedMps', 0.1, 100.0),
+        hold_seconds=_number(value['holdSeconds'], 'holdSeconds', 0.0, 3_600.0),
     )
 
 
@@ -240,7 +254,7 @@ def parse_operation(payload: Any) -> DurableOperation:
     operation = envelope["operation"]
     value = _object(envelope["input"], "operation.input")
     if operation == "run_scenario":
-        _exact_fields(value, {"session_id", "duration_seconds", "parameters"}, "run_scenario")
+        _exact_fields(value, {'sessionId', 'durationSeconds', "parameters"}, "run_scenario")
         parameters = value["parameters"]
         if not isinstance(parameters, dict) or not all(
             isinstance(key, str) and isinstance(item, str) for key, item in parameters.items()
@@ -248,12 +262,12 @@ def parse_operation(payload: Any) -> DurableOperation:
             raise ContractError("parameters must map strings to strings")
         return DurableOperation(
             operation,
-            _identity(value["session_id"], "session_id"),
-            duration_seconds=_number(value["duration_seconds"], "duration_seconds", 0.1, 86_400.0),
+            _identity(value['sessionId'], 'sessionId'),
+            duration_seconds=_number(value['durationSeconds'], 'durationSeconds', 0.1, 86_400.0),
             parameters=parameters,
         )
     if operation == "capture_dataset":
-        _exact_fields(value, {"session_id", "duration_seconds", "sensors"}, "capture_dataset")
+        _exact_fields(value, {'sessionId', 'durationSeconds', "sensors"}, "capture_dataset")
         sensors = value["sensors"]
         if not isinstance(sensors, list) or not 1 <= len(sensors) <= 128 or not all(
             isinstance(sensor, str) and sensor for sensor in sensors
@@ -261,17 +275,17 @@ def parse_operation(payload: Any) -> DurableOperation:
             raise ContractError("sensors must contain 1-128 non-empty strings")
         return DurableOperation(
             operation,
-            _identity(value["session_id"], "session_id"),
-            duration_seconds=_number(value["duration_seconds"], "duration_seconds", 0.1, 86_400.0),
+            _identity(value['sessionId'], 'sessionId'),
+            duration_seconds=_number(value['durationSeconds'], 'durationSeconds', 0.1, 86_400.0),
             sensors=tuple(sensors),
         )
     if operation == "execute_mission":
         _exact_fields(
             value,
             {
-                "session_id",
-                "mission_id",
-                "expected_world_revision_uri",
+                'sessionId',
+                'missionId',
+                'expectedWorldRevisionUri',
                 "vehicles",
             },
             "execute_mission",
@@ -282,23 +296,23 @@ def parse_operation(payload: Any) -> DurableOperation:
         parsed_vehicles: list[VehicleMission] = []
         for vehicle in vehicles:
             vehicle = _object(vehicle, "vehicle mission")
-            _exact_fields(vehicle, {"vehicle_id", "waypoints"}, "vehicle mission")
+            _exact_fields(vehicle, {'vehicleId', "waypoints"}, "vehicle mission")
             waypoints = vehicle["waypoints"]
             if not isinstance(waypoints, list) or not 1 <= len(waypoints) <= 10_000:
                 raise ContractError("waypoints must contain 1-10000 entries")
             parsed_vehicles.append(
                 VehicleMission(
-                    _identity(vehicle["vehicle_id"], "vehicle_id"),
+                    _identity(vehicle['vehicleId'], 'vehicleId'),
                     tuple(_waypoint(waypoint) for waypoint in waypoints),
                 )
             )
         return DurableOperation(
             operation,
-            _identity(value["session_id"], "session_id"),
-            mission_id=_identity(value["mission_id"], "mission_id"),
+            _identity(value['sessionId'], 'sessionId'),
+            mission_id=_identity(value['missionId'], 'missionId'),
             expected_world_revision_uri=(
-                value["expected_world_revision_uri"]
-                if isinstance(value["expected_world_revision_uri"], str)
+                value['expectedWorldRevisionUri']
+                if isinstance(value['expectedWorldRevisionUri'], str)
                 else ""
             ),
             vehicles=tuple(parsed_vehicles),

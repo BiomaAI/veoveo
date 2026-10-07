@@ -33,6 +33,22 @@ pub struct WorkspaceOperation {
     pub updated_at: DateTime<Utc>,
 }
 
+impl WorkspaceOperation {
+    /// Bind an upstream Task observation to the identity retained at dispatch.
+    /// Task IDs remain opaque SDK identities; equality grants no read authority.
+    pub fn check_task_identity(&self, observed: &str) -> super::super::Result<()> {
+        if self.phase != WorkspaceOperationPhase::Task
+            || self.task_id.as_deref() != Some(observed)
+            || observed.is_empty()
+        {
+            return Err(super::super::WorkspaceError::Invalid(
+                "operation Task identity",
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// Request-scoped progress, independent of durable Task completion.
 #[derive(Clone, Debug, PartialEq, SurrealValue)]
 pub struct WorkspaceOperationProgress {

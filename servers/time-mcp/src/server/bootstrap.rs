@@ -30,7 +30,7 @@ pub(super) async fn reference(
     Ok(TimeAuthorityReference::new(
         TimeAuthorityReleaseUri::bootstrap(&release_id),
         dataset_kind,
-        TimeAuthoritySource::Bootstrap,
+        TimeAuthoritySource::Bootstrap {},
         digest,
         version,
     )?)

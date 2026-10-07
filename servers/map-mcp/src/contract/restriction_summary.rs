@@ -10,6 +10,8 @@ use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "SummaryWire", into = "SummaryWire")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct RestrictionSummary {
     uri: MapRestrictionUri,
     kind: RestrictionKind,
@@ -23,6 +25,7 @@ pub struct RestrictionSummary {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct SummaryWire {
     restriction_id: RestrictionId,
     resource_uri: MapRestrictionUri,

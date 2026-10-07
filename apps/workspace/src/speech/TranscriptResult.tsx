@@ -13,9 +13,9 @@ export function TranscriptResult({ value }: { value: unknown }) {
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);
-  const source = output && artifactId(output.source_artifact_uri);
-  const transcript = output && artifactId(output.transcript.artifact_uri);
-  const captions = output && artifactId(output.captions.artifact_uri);
+  const source = output && artifactId(output.sourceArtifactUri);
+  const transcript = output && artifactId(output.transcript.artifactUri);
+  const captions = output && artifactId(output.captions.artifactUri);
   useEffect(() => {
     if (!open || !transcript || !output) return;
     const controller = new AbortController(); setError(""); setDocument(undefined);
@@ -25,10 +25,10 @@ export function TranscriptResult({ value }: { value: unknown }) {
       if (!response.ok) throw new Error("You don't have access to this transcript file.");
       // HTTP compression may omit Content-Length or report encoded bytes.
       // Bound the decoded stream by the immutable Artifact's actual byte length.
-      const length = output.transcript.byte_len;
+      const length = output.transcript.byteLen;
       if (!Number.isSafeInteger(length) || length <= 0 || length > 4 * 1024 * 1024) throw new Error("This transcript is too large to preview (over 4 MiB). Use Download transcript.");
       const document = parseSpeech("TranscriptDocument", await boundedJson(response, length, length));
-      if (document.schema !== "veoveo.speech-transcript/v1" || artifactId(document.source_artifact_uri) !== source) throw new Error("This transcript doesn't match its recording, so it can't be shown.");
+      if (document.schema !== "veoveo.ai/speech-transcript/v2" || artifactId(document.sourceArtifactUri) !== source) throw new Error("This transcript doesn't match its recording, so it can't be shown.");
       if (!controller.signal.aborted) setDocument(document);
     })().catch(error => { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "The transcript couldn't be opened. Try Download transcript."); });
     return () => controller.abort();
@@ -45,7 +45,7 @@ export function TranscriptResult({ value }: { value: unknown }) {
         if (player) { player.currentTime = segment.start; void player.play().catch(() => setError("Playback couldn't start. Use the player controls above.")); }
       }}>{timestamp(segment.start)}</button> {segment.text}</p>)}</div> : !error && <p role="status">Opening transcript…</p>}
       {error && <p role="alert" className="error">{error}</p>}
-      <details><summary>Share transcript link</summary><p>People you share this link with still need access to the file.</p><code>{output.transcript.artifact_uri}</code><button onClick={() => void navigator.clipboard.writeText(output.transcript.artifact_uri).catch(() => setError("The link couldn't be copied. Select it and copy it manually."))}>Copy transcript link</button></details>
+      <details><summary>Share transcript link</summary><p>People you share this link with still need access to the file.</p><code>{output.transcript.artifactUri}</code><button onClick={() => void navigator.clipboard.writeText(output.transcript.artifactUri).catch(() => setError("The link couldn't be copied. Select it and copy it manually."))}>Copy transcript link</button></details>
     </>}
   </section>;
 }

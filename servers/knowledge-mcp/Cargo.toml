@@ -35,7 +35,7 @@ veoveo-knowledge-contract = { workspace = true, optional = true }
 veoveo-embedding-contract = { workspace = true, optional = true }
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 veoveo-platform-store = { path = "../../platform/store", optional = true }
-veoveo-mcp-contract = { path = "../../mcp/contract", default-features = false, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], path = "../../mcp/contract", default-features = false, optional = true }
 veoveo-embedding-client = { workspace = true, optional = true }
 chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"], optional = true }
 serde = { workspace = true, optional = true }

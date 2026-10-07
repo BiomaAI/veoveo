@@ -59,7 +59,9 @@ every change here must keep the template a complete, working reference.
 
 ## Contract Compliance
 
-Contract revision: 3
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met
@@ -93,3 +95,5 @@ Contract revision: 3
 - C30: met — the server is stateless at the MCP boundary and retains only explicit durable domain state
 - C31: met — installed Discover, list surfaces and readiness pass hosted certification
 - C32: pending — typed docs observations and build digests are wired; installed K01–K08 qualification remains
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

@@ -191,7 +191,7 @@ fails the mount when the ConfigMap or key is absent. The BFF fails startup when 
 mounted file is unreadable, empty, or invalid. These roots augment the standard trust
 store and the projected Kubernetes API root; certificate verification stays on.
 Changing the ConfigMap contents requires a Console BFF rollout because clients load the
-bundle at startup. A deployment/v8 installation places these values in a file selected
+bundle at startup. A deployment/v9 installation places these values in a file selected
 through the platform release's `installationValues` array.
 
 ### Embedded Rerun maps

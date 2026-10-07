@@ -11,7 +11,15 @@ use super::{
     RouteConstraints, RouteDataPolicy, RouteEndpoint, TravelModelId,
 };
 
-pub const TRAVEL_MODEL_ARTIFACT_VERSION: &str = "veoveo.ai/travel-model-artifact/v1";
+pub const TRAVEL_MODEL_ARTIFACT_VERSION: &str = "veoveo.ai/travel-model-artifact/v2";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
+#[schemars(transform = super::naming::format_tag)]
+pub enum TravelModelArtifactVersion {
+    #[vocabulary(rename = "veoveo.ai/travel-model-artifact/v2")]
+    V2,
+}
+
 pub const MAX_TRAVEL_MODEL_LOCATIONS: usize = 128;
 pub const MAX_TRAVEL_MODEL_VEHICLE_TYPES: usize = 64;
 pub const MAX_TRAVEL_MODEL_CELLS: usize = 1_048_576;
@@ -32,7 +40,11 @@ pub enum TravelCostMetric {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema, Default)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum TravelTimeModel {
     #[default]
@@ -44,7 +56,12 @@ pub enum TravelTimeModel {
 
 // Struct variants enforce closure even for the public unit variant.
 #[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 enum TravelTimeModelWire {
     Static {},
     InvariantLocalDeparture { local_time: NaiveDateTime },
@@ -63,6 +80,7 @@ impl<'de> Deserialize<'de> for TravelTimeModel {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TravelModelLocation {
     pub location_id: TravelLocationId,
     pub endpoint: RouteEndpoint,
@@ -70,6 +88,7 @@ pub struct TravelModelLocation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TravelModelVehicleType {
     pub vehicle_type_id: TravelVehicleTypeId,
     pub mobility_profile_id: MobilityProfileId,
@@ -78,6 +97,7 @@ pub struct TravelModelVehicleType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct BuildTravelModelRequest {
     pub locations: Vec<TravelModelLocation>,
     pub vehicle_types: Vec<TravelModelVehicleType>,
@@ -146,6 +166,8 @@ impl BuildTravelModelRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TravelModelMatrix {
     pub vehicle_type_id: TravelVehicleTypeId,
     pub dimension: u32,
@@ -155,6 +177,8 @@ pub struct TravelModelMatrix {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct OptimizationTravelModel {
     pub location_ids: Vec<TravelLocationId>,
     pub cost_matrices: Vec<TravelModelMatrix>,
@@ -162,13 +186,17 @@ pub struct OptimizationTravelModel {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TravelModelArtifact {
-    pub version: String,
+    pub version: TravelModelArtifactVersion,
     pub map_resource_uri: Option<MapTravelModelUri>,
     pub model: OptimizationTravelModel,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TravelModelProfileProvenance {
     pub vehicle_type_id: TravelVehicleTypeId,
     pub mobility_profile_id: MobilityProfileId,
@@ -182,6 +210,8 @@ pub struct TravelModelProfileProvenance {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "TravelModelRecord")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TravelModelRecordValue {
     pub travel_model_id: TravelModelId,
     pub travel_model_uri: MapTravelModelUri,
@@ -297,7 +327,7 @@ mod tests {
         let validator = jsonschema::validator_for(&schema).unwrap();
         for wire in [
             serde_json::json!({"kind": "static"}),
-            serde_json::json!({"kind": "invariant_local_departure", "local_time": "2026-01-01T12:00:00"}),
+            serde_json::json!({"kind": "invariant_local_departure", "localTime": "2026-01-01T12:00:00"}),
         ] {
             let value: TravelTimeModel = serde_json::from_value(wire.clone()).unwrap();
             assert_eq!(serde_json::to_value(value).unwrap(), wire);

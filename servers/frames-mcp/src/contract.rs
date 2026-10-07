@@ -18,6 +18,7 @@ impl serde::Serialize for BatchTransformTaskOutput {
     }
 }
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct BatchTransformTaskWire {
     #[serde(
         default,
@@ -69,8 +70,8 @@ fn batch_task_output_schema(schema: &mut schemars::Schema) {
     schema.insert(
         "oneOf".into(),
         serde_json::json!([
-            {"properties":{"artifact":{"type":"null"}},"not":{"required":["result_uri"]}},
-            {"required":["artifact","result_uri"],"properties":{"artifact":{"type":"object"}}}
+            {"properties":{"artifact":{"type":"null"}},"not":{"required":["resultUri"]}},
+            {"required":["artifact","resultUri"],"properties":{"artifact":{"type":"object"}}}
         ]),
     );
 }

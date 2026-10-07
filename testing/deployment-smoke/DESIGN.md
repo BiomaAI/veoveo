@@ -18,8 +18,8 @@
 | Deployment profile and lock `v7` | shared disposable-profile execution from the smoke owner; schema belongs to `deploy/contract` |
 | Flux CLI 2.9.5 and Helm 4.3.0 | native OCI configuration and chart publication for isolated controller verification |
 | `veoveo.ai/flux-cancellation-evidence/v1` | repository-owned controller state, source digest, latency bound, failure, and fixture cleanup evidence |
-| `veoveo.ai/component-installation/v2` | successful selected CLI receipt defined by the deployment contract |
-| `veoveo.ai/component-scope-evidence/v1` | independent Git/OCI fixture inputs, selected installation duration, applied/reused units, native API request metadata, runtime snapshots, overlap rejection, and cleanup |
+| `veoveo.ai/component-installation/v3` | successful selected CLI receipt defined by the deployment contract |
+| `veoveo.ai/component-scope-evidence/v2` | independent Git/OCI fixture inputs, selected installation duration, applied/reused units, native API request metadata, runtime snapshots, overlap rejection, and cleanup |
 | kubectl/client-go v1.37.0/v0.37.0 local proxy logs | internal test observer of completed HTTP method and URI at verbosity 6; canary writes and ordered barriers verify the observer before accepting scope evidence |
 
 ## Module Render Qualification
@@ -303,3 +303,16 @@ cargo xtask smoke module-installation-verify \
   --kernel-image "$PINNED_KERNEL_IMAGE" \
   --evidence-output "$FIXTURE_EVIDENCE"
 ```
+
+## Discovered Deployment Delivery
+
+The nondefault `smoke` feature builds the existing `deployment-smoke` harness and `deployment-fixtures` command utilities. Its descriptor declares Cargo and language preparations independently of core dispatch. Deployment, GPU allocation and offline schema assertions stay beside the deployment composition. Remote cancellation keeps revision settlement with the existing controller; forced local process termination establishes failure only.
+
+The component-scope version 2 receiver admits the complete installation version 3
+receipt against the selected lock catalog. Every expanded atomic target must appear
+once in both the mutation plan and settled operations. Locked source, configuration,
+content and object digests must agree. The receiver derives every unselected object
+and Helm release from the locked owners outside the expanded selection. Both snapshots
+must contain that complete inventory once, including explicit absent observations,
+and the plan's unselected object set must agree. The receiver compares the complete
+before and after states. These local admission controls do not establish installed-cluster behavior.

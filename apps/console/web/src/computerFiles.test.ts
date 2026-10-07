@@ -72,3 +72,44 @@ test("file input keeps canonical paths and Artifact addresses without query auth
   assert.equal(fileFinished({ ...receipt, stage: "failed" }), true);
   assert.equal(fileFinished({ ...receipt, stage: "recovery_required" }), false);
 });
+
+test("saved file current owner fields reject retired and mixed members before dispatch", async () => {
+  function retired(value: object, current: string, old: string, mixed: boolean) {
+    const entries = Object.entries(value);
+    const member = entries.find(([key]) => key === current);
+    assert.ok(member, `current producer member ${current}`);
+    return Object.fromEntries([
+      ...entries.filter(([key]) => mixed || key !== current), [old, member[1]],
+    ]);
+  }
+  const storage = new MemoryStorage();
+  rememberFile(storage, "current", input);
+  assert.deepEqual(readSavedFile(storage, "current", input.computerId)?.input, input);
+  let dispatched = 0;
+  const success = await sendSavedFile(storage, "current", input, async sent => {
+    dispatched += 1;
+    assert.deepEqual(sent, input);
+    return receipt;
+  });
+  assert.equal(success.saved, true);
+  assert.equal(dispatched, 1);
+  for (const [group, fields] of [
+    ["root", ["computerId", "requestId", "grantId"]],
+    ["limits", ["maximumBytes", "maximumSeconds", "onInterruption"]],
+    ["transfer", ["artifactId"]],
+  ] as const) {
+    for (const current of fields) {
+      const old = current.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+      for (const mixed of [false, true]) {
+        const changed = group === "root" ? retired(input, current, old, mixed)
+          : { ...input, [group]: retired(input[group], current, old, mixed) };
+        const bad = new MemoryStorage();
+        bad.setItem("scope", JSON.stringify({ input: changed }));
+        assert.throws(() => readSavedFile(bad, "scope", input.computerId), `${group}.${current} mixed=${mixed}`);
+        await assert.rejects(sendSavedFile(bad, "scope", input, async () => {
+          assert.fail("retired saved intent reached file dispatch");
+        }), `${group}.${current} mixed=${mixed}`);
+      }
+    }
+  }
+});

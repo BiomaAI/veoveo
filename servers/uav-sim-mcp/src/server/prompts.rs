@@ -24,8 +24,8 @@ impl UavSimPrompt {
 
     fn name(self) -> &'static str {
         match self {
-            Self::MissionPlan => "uav-sim-mission-plan",
-            Self::SessionReview => "uav-sim-session-review",
+            Self::MissionPlan => "uav_sim_mission_plan",
+            Self::SessionReview => "uav_sim_session_review",
         }
     }
 
@@ -51,6 +51,7 @@ impl UavSimPrompt {
 
     pub(super) fn render(self, arguments: Option<JsonObject>) -> Result<GetPromptResult, McpError> {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Args {
             session_id: SessionId,
             mission_id: Option<MissionId>,

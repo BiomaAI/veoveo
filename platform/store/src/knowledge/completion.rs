@@ -53,7 +53,12 @@ impl PlatformStore {
                 "approvals",
                 approvals
                     .iter()
-                    .map(|(id, a)| (id.to_string(), Document(a.clone())))
+                    .map(|(id, a)| {
+                        (
+                            id.to_string(),
+                            Document(super::native_approval::NativeApproval::from(a)),
+                        )
+                    })
                     .collect::<Vec<_>>(),
             ))
             .bind((

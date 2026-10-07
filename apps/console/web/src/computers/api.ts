@@ -122,7 +122,7 @@ export async function readAutomation(computerId: string, signal?: AbortSignal) {
 function automationResult(value: unknown, computerId: string, grantId?: string) {
   const result = parseComputer("automation_grant_result", value);
   if (result.grant.computerId !== computerId || (grantId && result.grant.grantId !== grantId)
-    || result.result_uri !== `computer://computers/${computerId}/automation/${result.grant.grantId}`)
+    || result.resultUri !== `computer://computers/${computerId}/automation/${result.grant.grantId}`)
     throw new Error(unexpectedResponseMessage);
   return result;
 }

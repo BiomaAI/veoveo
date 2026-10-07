@@ -114,7 +114,7 @@ changes and restriction withdrawal invalidate dependent routes while preserving
 the original record for review.
 
 Map is also the sole producer of the versioned
-`veoveo.ai/map-route-handoff/v1` cross-server profile. A handoff is prepared
+`veoveo.ai/map-route-handoff/v2` cross-server profile. A handoff is prepared
 from one persisted route only after Map rejects stale, invalidated, or
 unavailable state and repeats complete mobility and restriction validation. It
 contains the Map route identity and digest, exact mobility-profile identity,
@@ -158,7 +158,7 @@ departure across all matrix cells. Per-origin dynamic departure propagation is
 outside this artifact profile because it would make one cell depend on an
 unknown upstream route sequence.
 
-The artifact records `veoveo.ai/travel-model-artifact/v1`, the exact
+The artifact records `veoveo.ai/travel-model-artifact/v2`, the exact
 `map://travel-model/{travel_model_id}` identity, unavailable cell indices, and
 the profile release, operational-snapshot, planner, cost-model, and matrix
 algorithm provenance. The Map record retains its neutral `artifact://`

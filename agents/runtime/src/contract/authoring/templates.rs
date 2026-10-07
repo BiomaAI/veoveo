@@ -34,7 +34,7 @@ pub struct ParameterChoice {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TemplateParameterBinding {
     pub label: String,
     pub shape: ParameterShape,
@@ -43,7 +43,7 @@ pub struct TemplateParameterBinding {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TemplateSecretBinding {
     pub reference: SecretReferenceId,
     pub secret: String,
@@ -51,7 +51,7 @@ pub struct TemplateSecretBinding {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct KernelWorkloadTemplate {
     pub namespace: String,
     pub config_map: String,
@@ -69,7 +69,7 @@ pub struct KernelWorkloadTemplate {
 /// This configuration is loaded by the gateway and lifecycle manager. It is
 /// intentionally absent from the browser schema bundle and public API responses.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RuntimeTemplate {
     pub id: AgentTemplateId,
     pub name: String,

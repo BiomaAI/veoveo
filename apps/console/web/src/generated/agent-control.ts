@@ -21,15 +21,15 @@ export type AgentInputRequestDecision =
       content?: {
         [k: string]: unknown;
       };
-      request_id: string;
+      requestId: string;
     }
   | {
       action: "decline";
-      request_id: string;
+      requestId: string;
     }
   | {
       action: "cancel";
-      request_id: string;
+      requestId: string;
     };
 
 /**
@@ -38,7 +38,7 @@ export type AgentInputRequestDecision =
 export interface AgentControlSchema {
   conversation: AgentConversationView;
   decision: AgentInputRequestDecision;
-  input_request: AgentInputRequestView;
+  inputRequest: AgentInputRequestView;
   message: AgentOperatorMessageRequest;
   receipt: AgentWakeReceipt;
 }
@@ -47,7 +47,7 @@ export interface AgentControlSchema {
  * via the `definition` "AgentConversationView".
  */
 export interface AgentConversationView {
-  agent_id: string;
+  agentId: string;
   entries: AgentConversationEntry[];
 }
 /**
@@ -60,26 +60,26 @@ export interface AgentConversationView {
  * via the `definition` "AgentConversationEntry".
  */
 export interface AgentConversationEntry {
-  actor_id: string;
+  actorId: string;
   content: string;
-  entry_id: string;
-  episode_id?: string | null;
-  in_reply_to_request_ids?: string[];
-  occurred_at: string;
-  request_id?: string | null;
+  entryId: string;
+  episodeId?: string | null;
+  inReplyToRequestIds?: string[];
+  occurredAt: string;
+  requestId?: string | null;
   role: AgentConversationRole;
   state: AgentConversationEntryState;
-  wake_id?: string | null;
+  wakeId?: string | null;
 }
 /**
  * This interface was referenced by `AgentControlSchema`'s JSON-Schema
  * via the `definition` "AgentInputRequestView".
  */
 export interface AgentInputRequestView {
-  input_request_id: string;
+  inputRequestId: string;
   message: string;
-  requested_at: string;
-  requested_schema?: unknown;
+  requestedAt: string;
+  requestedSchema?: unknown;
 }
 /**
  * This interface was referenced by `AgentControlSchema`'s JSON-Schema
@@ -90,16 +90,16 @@ export interface AgentOperatorMessageRequest {
   /**
    * Client-generated UUIDv7 used as the durable retry identity.
    */
-  request_id: string;
+  requestId: string;
 }
 /**
  * This interface was referenced by `AgentControlSchema`'s JSON-Schema
  * via the `definition` "AgentWakeReceipt".
  */
 export interface AgentWakeReceipt {
-  accepted_at: string;
-  agent_id: string;
-  request_id: string;
-  wake_id: string;
-  work_context: string;
+  acceptedAt: string;
+  agentId: string;
+  requestId: string;
+  wakeId: string;
+  workContext: string;
 }

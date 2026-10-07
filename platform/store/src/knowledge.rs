@@ -9,6 +9,7 @@ mod coordinator;
 mod evaluations;
 mod generations;
 mod members;
+mod native_approval;
 mod profiles;
 mod reads;
 mod registration;

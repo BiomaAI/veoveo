@@ -202,6 +202,16 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
         assert_eq!(request(&app, "POST", &path, start).await.0, StatusCode::OK);
         let accepted = detail(&app, id).await;
         assert_eq!(domain.calls.load(Ordering::SeqCst), 1);
+        let retained=WorkspaceRepository::new(db.a.clone()).workspace_operation(&authority, crate::persistence::WorkspaceOperationId::from_uuid(id)).await.unwrap();
+        let observed=domain.runtime.get(accepted.task.as_ref().unwrap().id.parse().unwrap()).await.unwrap().unwrap();
+        let observed=veoveo_task_runtime::project_snapshot(&domain.runtime, observed).await.unwrap();
+        assert!(super::projection::task(&retained, observed.clone()).is_ok());
+        let mut foreign=observed.clone();
+        foreign.task.task_id=uuid::Uuid::now_v7().to_string();
+        assert!(matches!(super::projection::task(&retained,foreign),Err(StatusCode::BAD_GATEWAY)));
+        let mut wrong_phase=retained.clone();
+        wrong_phase.phase=crate::persistence::WorkspaceOperationPhase::Unconfirmed;
+        assert!(matches!(super::projection::task(&wrong_phase,observed),Err(StatusCode::BAD_GATEWAY)));
         let task = accepted.task.unwrap();
         assert_eq!(task.state, wire::TaskState::InputRequired);
         assert_eq!(accepted.inputs.len(), 1);

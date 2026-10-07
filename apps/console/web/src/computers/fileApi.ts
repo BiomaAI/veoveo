@@ -7,7 +7,7 @@ function receipt(value: unknown, computerId: string, taskId?: string) {
   const view = parseComputer("file_transfer_view", value);
   if (view.computerId !== computerId || (taskId && view.taskId !== taskId)
     || (view.result && (view.result.computerId !== computerId || view.result.transferId !== view.taskId
-      || view.result.result_uri !== `computer://transfers/${view.taskId}` || view.result.direction !== view.direction)))
+      || view.result.resultUri !== `computer://transfers/${view.taskId}` || view.result.direction !== view.direction)))
     throw new Error(unexpectedResponseMessage);
   return view;
 }

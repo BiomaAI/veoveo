@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{LockedImage, LockedRegistry, ensure_unique, validate_digest, validate_name};
 
-pub const IMAGE_RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.ai/image-release-evidence/v3";
+pub const IMAGE_RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.ai/image-release-evidence/v4";
 
 /// Qualified images produced from one immutable source snapshot. Mixed-revision
 /// installation closures use DeploymentLock instead of relabeling image provenance.

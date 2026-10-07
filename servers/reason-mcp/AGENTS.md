@@ -30,7 +30,7 @@ appear in its public MCP identities.
   Retained successful outputs must match their owning Task and requested pipeline;
   corrupt output is an explicit recovery error.
 - Publish terminal success through the shared Reason result builder with one
-  canonical `result_uri` and one product link. Task reads and subscriptions validate
+  canonical `resultUri` and one product link. Task reads and subscriptions validate
   the current result type after owner checks. Replace old contracts by hard cut;
   do not add historical-data readers or compatibility migrations.
 - Owner-scoped analysis and result notifications use the shared Task-backed resource listener.
@@ -57,7 +57,7 @@ appear in its public MCP identities.
   ingest profile is the one pinned in `servers/stream-mcp/DESIGN.md`.
 - Every result carries its audit identity (model, engine digest, prompt
   template revision, decode parameters) and states
-  `confidence_basis: model_reported`. Never present reasoning output as
+  `confidenceBasis: model_reported`. Never present reasoning output as
   calibrated detector confidence.
 - Grounding imports Stream's contract-only result and Artifact address types.
   Require the same recording, entity and timeline with a covering replay range;
@@ -116,7 +116,9 @@ appear in its public MCP identities.
 
 ## Contract Compliance
 
-Contract revision: 3
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met — v1 terminal products carry canonical `result_uri`; native current-format Task delivery passes, while [installed qualification](../../docs/CONTRACT_CONSISTENCY_PLAN.md#foundations-transfer-register) is pending
@@ -141,12 +143,14 @@ Contract revision: 3
 - C21: met
 - C22: met
 - C23: met
+- C24: met
 - C25: met
 - C26: met
 - C27: met — analysis and result invalidations use the shared database-backed Task watch with current-owner SQL checks; resource-only requests omit Task payloads
 - C28: met — discovery contains immutable catalog entries and roots; task changes do not advertise discovery-list changes
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
-- C24: met
 - C31: pending — installed Discover and list readiness qualification is pending
 - C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

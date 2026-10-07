@@ -27,21 +27,99 @@ def outputs() -> dict:
 
 
 class AdapterOutputTests(unittest.TestCase):
+    def test_embedded_frames_positions_refuse_retired_and_mixed_keys(self) -> None:
+        for current, retired in [
+            ("latitudeDegrees", "latitude_degrees"),
+            ("longitudeDegrees", "longitude_degrees"),
+            ("ellipsoidHeightM", "ellipsoid_height_m"),
+        ]:
+            for mixed in [False, True]:
+                for path in [("world", 'georeferenceOrigin'), ("vehicles", 0, "wgs84")]:
+                    state = outputs()["state"]
+                    origin = state
+                    for segment in path:
+                        origin = origin[segment]
+                    value = origin[current]
+                    if not mixed:
+                        del origin[current]
+                    origin[retired] = value
+                    with self.subTest(field=current, mixed=mixed, path=path), self.assertRaises(OutputContractError):
+                        admit_output(SimulationState, state)
+
+    def test_current_output_fields_refuse_retired_and_mixed_on_python_and_json_receivers(self) -> None:
+        from pydantic import TypeAdapter, ValidationError
+        import re
+
+        def members(value, path=()):
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    if any(c.isupper() for c in key):
+                        yield path, key, re.sub(r"([A-Z])", lambda m: "_" + m[1].lower(), key)
+                    yield from members(child, (*path, key))
+            elif isinstance(value, list):
+                for index, child in enumerate(value):
+                    yield from members(child, (*path, index))
+
+        fixture = outputs()
+        controls = 0
+        for model, payload in [
+            (SimulationState, fixture["state"]),
+            (WorldAcknowledgement, fixture["world"]),
+            (CommandAcknowledgement, fixture["command"]),
+            *((OPERATION_RESULT_ADAPTER, value) for value in fixture["results"]),
+            *((RuntimeEventWire, value) for value in fixture["events"]),
+        ]:
+            adapter = model if isinstance(model, TypeAdapter) else TypeAdapter(model)
+            self.assertEqual(adapter.validate_python(payload), adapter.validate_json(json.dumps(payload)))
+            for path, key, retired in members(payload):
+                for mixed in [False, True]:
+                    changed = copy.deepcopy(payload)
+                    target = changed
+                    for segment in path:
+                        target = target[segment]
+                    target[retired] = target[key] if mixed else target.pop(key)
+                    with self.subTest(path=path, key=key, mixed=mixed):
+                        for decoder, value in [(adapter.validate_python, changed), (adapter.validate_json, json.dumps(changed))]:
+                            with self.assertRaises(ValidationError):
+                                decoder(value)
+                        if not isinstance(model, TypeAdapter):
+                            for decoder, value in [(model.model_validate, changed), (model.model_validate_json, json.dumps(changed))]:
+                                with self.assertRaises(ValidationError):
+                                    decoder(value)
+                    controls += 1
+        self.assertGreater(controls, 100)
+
+    def test_runtime_event_schema_member_refuses_internal_name_on_all_receivers(self) -> None:
+        from pydantic import TypeAdapter, ValidationError
+        adapter = TypeAdapter(RuntimeEventWire)
+        current = outputs()["events"][0]
+        for mixed in [False, True]:
+            value = copy.deepcopy(current)
+            value["schemaTag"] = value["schema"] if mixed else value.pop("schema")
+            for decode, payload in [
+                (RuntimeEventWire.model_validate, value),
+                (RuntimeEventWire.model_validate_json, json.dumps(value)),
+                (adapter.validate_python, value),
+                (adapter.validate_json, json.dumps(value)),
+            ]:
+                with self.assertRaises(ValidationError):
+                    decode(payload)
+
     def test_complete_private_endpoint_schemas_are_directionally_compatible(self) -> None:
         from testing.python.protocol_schema import assert_compatible
         from veoveo_uav_sim.contracts import COMMAND_ADAPTER, OPERATION_ADAPTER
         from veoveo_uav_sim.world_config import ConfigureWorldWire
         snapshot = json.loads((Path(__file__).resolve().parents[4] / "servers/uav-sim-mcp/testdata/private-protocol.schema.json").read_text())
         requests = {
-            "POST /v1/world request": ConfigureWorldWire,
-            "POST /v1/commands request": COMMAND_ADAPTER,
-            "POST /v1/operations request": OPERATION_ADAPTER,
+            "POST /v2/world request": ConfigureWorldWire,
+            "POST /v2/commands request": COMMAND_ADAPTER,
+            "POST /v2/operations request": OPERATION_ADAPTER,
         }
         responses = {
-            "GET /v1/state response": SimulationState,
-            "POST /v1/world response": WorldAcknowledgement,
-            "POST /v1/commands response": CommandAcknowledgement,
-            "POST /v1/operations response": OPERATION_RESULT_ADAPTER,
+            "GET /v2/state response": SimulationState,
+            "POST /v2/world response": WorldAcknowledgement,
+            "POST /v2/commands response": CommandAcknowledgement,
+            "POST /v2/operations response": OPERATION_RESULT_ADAPTER,
             "GET /v1/events NDJSON": RuntimeEventWire,
         }
         self.assertEqual(set(snapshot), set(requests) | set(responses))
@@ -101,9 +179,9 @@ class AdapterOutputTests(unittest.TestCase):
                       (preceding + 100.0) / 2.0, math.nextafter(100.0, 0.0), 100.0]:
             with self.subTest(value=value):
                 payload = outputs()["state"]
-                payload["vehicles"][0]["battery_percent"] = value
+                payload["vehicles"][0]['batteryPercent'] = value
                 admitted = admit_output(SimulationState, payload)
-                emitted = admitted["vehicles"][0]["battery_percent"]
+                emitted = admitted["vehicles"][0]['batteryPercent']
                 self.assertEqual(emitted, value)
                 rounded = struct.unpack("!f", struct.pack("!f", emitted))[0]
                 self.assertTrue(math.isfinite(rounded))
@@ -111,42 +189,42 @@ class AdapterOutputTests(unittest.TestCase):
                 self.assertLessEqual(rounded, 100)
         for value in [True, -0.1, math.nextafter(100.0, math.inf), float("nan"), float("inf")]:
             payload = outputs()["state"]
-            payload["vehicles"][0]["battery_percent"] = value
+            payload["vehicles"][0]['batteryPercent'] = value
             with self.subTest(value=value), self.assertRaises(OutputContractError):
                 admit_output(SimulationState, payload)
 
     def test_numeric_widths_enums_finiteness_and_bool_separation(self) -> None:
         invalid = [
-            (("physics_step",), True),
-            (("physics_step",), -1),
-            (("physics_step",), 2**64),
-            (("simulation_time_s",), float("nan")),
-            (("simulation_time_s",), float("inf")),
+            (('physicsStep',), True),
+            (('physicsStep',), -1),
+            (('physicsStep',), 2**64),
+            (('simulationTimeS',), float("nan")),
+            (('simulationTimeS',), float("inf")),
             (("lifecycle",), "distinctive-secret-enum"),
-            (("session_id",), ".."),
-            (("timing", "physics_hz"), 29),
-            (("timing", "native_rendering_hz"), 121),
+            (('sessionId',), ".."),
+            (("timing", 'physicsHz'), 29),
+            (("timing", 'nativeRenderingHz'), 121),
             (("cameras", 0, "encoder"), "software"),
             (("cameras", 0, "width"), 2**32),
-            (("cameras", 0, "last_frame_keyframe"), 1),
-            (("cameras", 0, "render_pose", "forward_error_degrees"), 181.0),
-            (("tiles", "last_failure", "http_status"), 2**16),
-            (("vehicles", 0, "battery_percent"), 100.1),
-            (("vehicles", 0, "wgs84", "latitude_degrees"), 90.1),
-            (("live_cameras", 0, "health"), "degraded"),
-            (("live_cameras", 0, "rig", "pose", "orientationXyzw", "w"), 0.0),
-            (("live_cameras", 1, "rig", "smoothing", "resetAfterGapMs"), 0),
-            (("live_cameras", 2, "rig", "radiusM"), 0.1),
-            (("live_cameras", 6, "rig", "targetEntityIds"), ["uav-2", "uav-1"]),
-            (("live_cameras", 0, "farClipM"), 0.01),
-            (("stream_products", 0, "cameraRegions", 0, "widthPx"), 1281),
-            (("world", "georeference_origin", "latitude_degrees"), float("nan")),
-            (("world", "georeference_origin", "latitude_degrees"), 90.1),
-            (("world", "georeference_origin", "longitude_degrees"), -180.1),
-            (("world", "georeference_origin", "ellipsoid_height_m"), float("inf")),
-            (("updated_at",), "20261004T120000+0000"),
-            (("updated_at",), "2026-W40-7T12:00:00+00:00"),
-            (("updated_at",), "distinctive-secret-timestamp"),
+            (("cameras", 0, 'lastFrameKeyframe'), 1),
+            (("cameras", 0, 'renderPose', 'forwardErrorDegrees'), 181.0),
+            (("tiles", 'lastFailure', 'httpStatus'), 2**16),
+            (("vehicles", 0, 'batteryPercent'), 100.1),
+            (("vehicles", 0, "wgs84", "latitudeDegrees"), 90.1),
+            (('liveCameras', 0, "health"), "degraded"),
+            (('liveCameras', 0, "rig", "pose", "orientationXyzw", "w"), 0.0),
+            (('liveCameras', 1, "rig", "smoothing", "resetAfterGapMs"), 0),
+            (('liveCameras', 2, "rig", "radiusM"), 0.1),
+            (('liveCameras', 6, "rig", "targetEntityIds"), ["uav-2", "uav-1"]),
+            (('liveCameras', 0, "farClipM"), 0.01),
+            (('streamProducts', 0, "cameraRegions", 0, "widthPx"), 1281),
+            (("world", 'georeferenceOrigin', "latitudeDegrees"), float("nan")),
+            (("world", 'georeferenceOrigin', "latitudeDegrees"), 90.1),
+            (("world", 'georeferenceOrigin', "longitudeDegrees"), -180.1),
+            (("world", 'georeferenceOrigin', "ellipsoidHeightM"), float("inf")),
+            (('updatedAt',), "20261004T120000+0000"),
+            (('updatedAt',), "2026-W40-7T12:00:00+00:00"),
+            (('updatedAt',), "distinctive-secret-timestamp"),
         ]
         for path, value in invalid:
             state = outputs()["state"]
@@ -159,7 +237,7 @@ class AdapterOutputTests(unittest.TestCase):
             self.assertNotIn("distinctive-secret", str(failure.exception))
 
     def test_world_and_state_child_relationships_are_admitted_before_encoding(self) -> None:
-        for target in ["vehicles", "cameras", "live_cameras", "stream_products", "recordings"]:
+        for target in ["vehicles", "cameras", 'liveCameras', 'streamProducts', "recordings"]:
             state = outputs()["state"]
             if not state[target]:
                 continue
@@ -167,14 +245,14 @@ class AdapterOutputTests(unittest.TestCase):
             with self.subTest(target=target), self.assertRaises(OutputContractError):
                 admit_output(SimulationState, state)
         for path, value in [
-            (("cameras", 0, "vehicle_id"), "foreign"),
-            (("live_cameras", 0, "sessionId"), "foreign"),
-            (("stream_products", 0, "cameraRegions", 0, "cameraId"), "foreign"),
-            (("world", "spec_sha256"), "A" * 64),
-            (("world", "spec_sha256"), "a" * 63),
-            (("world", "spec_sha256"), "a" * 65),
-            (("world", "spec_sha256"), "sha256:" + "a" * 64),
-            (("world", "simulation_frame_uri"), "frames://world/foreign/revision/other/frame/isaac-world"),
+            (("cameras", 0, 'vehicleId'), "foreign"),
+            (('liveCameras', 0, "sessionId"), "foreign"),
+            (('streamProducts', 0, "cameraRegions", 0, "cameraId"), "foreign"),
+            (("world", 'specSha256'), "A" * 64),
+            (("world", 'specSha256'), "a" * 63),
+            (("world", 'specSha256'), "a" * 65),
+            (("world", 'specSha256'), "sha256:" + "a" * 64),
+            (("world", 'simulationFrameUri'), "frames://world/foreign/revision/other/frame/isaac-world"),
         ]:
             state = outputs()["state"]
             parent = state
@@ -185,17 +263,17 @@ class AdapterOutputTests(unittest.TestCase):
                 admit_output(SimulationState, state)
         for uri in ["uav-sim://session/../world", "uav-sim://session/session-alpha/world?query=1", "https://example.test/session", "uav-sim://session/session-alpha/world/extra"]:
             value = outputs()["world"]
-            value["resource_uri"] = uri
+            value['resourceUri'] = uri
             with self.subTest(uri=uri), self.assertRaises(OutputContractError):
                 admit_output(WorldAcknowledgement, value)
 
     def test_timestamp_parser_preserves_rust_accepted_case_and_offset_spellings(self) -> None:
         for stamp in ["2026-10-04t12:00:00z", "2026-10-04T12:00:00+03:30"]:
             state = outputs()["state"]
-            state["updated_at"] = stamp
-            self.assertEqual(admit_output(SimulationState, state)["updated_at"], stamp)
+            state['updatedAt'] = stamp
+            self.assertEqual(admit_output(SimulationState, state)['updatedAt'], stamp)
         world = outputs()["world"]
-        world["world"]["georeference_origin"]["latitude_degrees"] = float("nan")
+        world["world"]['georeferenceOrigin']["latitudeDegrees"] = float("nan")
         with self.assertRaises(OutputContractError):
             admit_output(WorldAcknowledgement, world)
 
@@ -205,11 +283,11 @@ class AdapterOutputTests(unittest.TestCase):
         self.assertNotIn("world", admit_output(SimulationState, state))
         state["world"] = None
         state["cameras"][0]["diagnostic"] = None
-        state["stream_products"][0]["sourceToRenderP95Microseconds"] = None
+        state['streamProducts'][0]["sourceToRenderP95Microseconds"] = None
         encoded = admit_output(SimulationState, state)
         self.assertIsNone(encoded["world"])
         self.assertIsNone(encoded["cameras"][0]["diagnostic"])
-        self.assertIsNone(encoded["stream_products"][0]["sourceToRenderP95Microseconds"])
+        self.assertIsNone(encoded['streamProducts'][0]["sourceToRenderP95Microseconds"])
         state["vehicles"] = None
         with self.assertRaises(OutputContractError):
             admit_output(SimulationState, state)
@@ -217,7 +295,7 @@ class AdapterOutputTests(unittest.TestCase):
     def test_duplicate_and_overlapping_atlas_regions_are_rejected(self) -> None:
         for camera_id, x in [("camera-0", 1280), ("camera-1", 1)]:
             state = outputs()["state"]
-            product = state["stream_products"][0]
+            product = state['streamProducts'][0]
             product["codedWidthPx"] = 2560
             region = copy.deepcopy(product["cameraRegions"][0])
             region.update(cameraId=camera_id, xPx=x)
@@ -227,13 +305,13 @@ class AdapterOutputTests(unittest.TestCase):
 
     def test_completion_keeps_recording_admission_after_physical_settlement(self) -> None:
         result = outputs()["results"][0]
-        result["output"]["recording_keys"] = ["opaque producer key rejected at catalog projection"]
+        result["output"]['recordingKeys'] = ["opaque producer key rejected at catalog projection"]
         self.assertEqual(admit_output(OPERATION_RESULT_ADAPTER, result), result)
-        result["output"]["elapsed_seconds"] = -0.1
+        result["output"]['elapsedSeconds'] = -0.1
         with self.assertRaises(OutputContractError):
             admit_output(OPERATION_RESULT_ADAPTER, result)
         mission = outputs()["results"][2]
-        mission["output"]["finished_at"] = "2026-08-07T17:59:59Z"
+        mission["output"]['finishedAt'] = "2026-08-07T17:59:59Z"
         with self.assertRaises(OutputContractError):
             admit_output(OPERATION_RESULT_ADAPTER, mission)
 
@@ -255,7 +333,7 @@ class AdapterOutputHttpTests(unittest.IsolatedAsyncioTestCase):
     async def test_preconfiguration_and_active_state_validate_before_wire(self) -> None:
         fixture = outputs()
         from veoveo_uav_sim.operator_camera_config import OperatorLiveViewRuntimeConfig
-        camera = fixture["state"]["live_cameras"][0]
+        camera = fixture["state"]['liveCameras'][0]
         operator_config = OperatorLiveViewRuntimeConfig.from_json(
             json.dumps([{
                 "cameraId": camera["cameraId"],
@@ -284,8 +362,8 @@ class AdapterOutputHttpTests(unittest.IsolatedAsyncioTestCase):
         body = json.loads(response.body)
         self.assertEqual(body["lifecycle"], "unconfigured")
         self.assertIsNone(body["world"])
-        self.assertEqual(body["live_cameras"][0]["cameraId"], camera["cameraId"])
-        self.assertEqual(body["stream_products"][0]["cameraRegions"][0]["cameraId"], camera["cameraId"])
+        self.assertEqual(body['liveCameras'][0]["cameraId"], camera["cameraId"])
+        self.assertEqual(body['streamProducts'][0]["cameraRegions"][0]["cameraId"], camera["cameraId"])
         self.assertEqual(admit_output(SimulationState, body), body)
 
         active = object.__new__(AdapterApplication)
@@ -297,6 +375,43 @@ class AdapterOutputHttpTests(unittest.IsolatedAsyncioTestCase):
             await active._get_state(None)
         self.assertNotIn("hidden-input", str(failure.exception))
 
+    async def test_actual_v2_routes_refuse_retired_requests_before_dispatch(self):
+        from unittest.mock import Mock
+        fixture = outputs()
+        application = AdapterApplication(
+            config=SimpleNamespace(adapter_bearer_token="fixture-private-token", session_id="session-alpha"),
+            state=SimpleNamespace(snapshot=lambda: fixture["state"]), timeline=None,
+            commanders={}, recording=None, world_slot=WorldConfigurationSlot(),
+            fleet_loop=None, operator_products=None, runtime_events=RuntimeEventPublisher(),
+            submit_main_thread=lambda call: call(),
+        )
+        application._execute_command = Mock(return_value=fixture["command"])
+        application._execute_operation = Mock(return_value=fixture["results"][0])
+        headers = {"Authorization": "Bearer fixture-private-token"}
+        async with TestClient(TestServer(application.application)) as client:
+            for route, current in [("commands", {"command": "pause", "sessionId": "session-alpha"}),
+                                   ("operations", {"operation": "run_scenario", "input": {"sessionId": "session-alpha", "durationSeconds": 1.0, "parameters": {}}})]:
+                response = await client.post("/v2/" + route, json=current, headers=headers)
+                self.assertEqual(response.status, 200)
+                application._execute_command.reset_mock()
+                application._execute_operation.reset_mock()
+                for mixed in [False, True]:
+                    changed = copy.deepcopy(current)
+                    target = changed if route == "commands" else changed["input"]
+                    target["session_id"] = target["sessionId"] if mixed else target.pop("sessionId")
+                    response = await client.post("/v2/" + route, json=changed, headers=headers)
+                    self.assertEqual(response.status, 400)
+                    application._execute_command.assert_not_called()
+                    application._execute_operation.assert_not_called()
+                response = await client.post("/v1/" + route, json=current, headers=headers)
+                self.assertEqual(response.status, 404)
+                application._execute_command.assert_not_called()
+                application._execute_operation.assert_not_called()
+            for route in ["state", "world"]:
+                response = await (client.get("/v1/" + route, headers=headers) if route == "state" else client.post("/v1/" + route, json={}, headers=headers))
+                self.assertEqual(response.status, 404)
+            self.assertIsNone(application._world_slot.get())
+
     async def test_command_and_operation_success_are_checked_at_http_boundary(self) -> None:
         from aiohttp import web
         fixture = outputs()
@@ -307,16 +422,16 @@ class AdapterOutputHttpTests(unittest.IsolatedAsyncioTestCase):
         app.router.add_post("/commands", application._command)
         app.router.add_post("/operations", application._operation)
         async with TestClient(TestServer(app)) as client:
-            response = await client.post("/commands", json={"command": "pause", "session_id": "session-alpha"})
+            response = await client.post("/commands", json={"command": "pause", 'sessionId': "session-alpha"})
             self.assertEqual(response.status, 200)
             self.assertEqual(await response.json(), fixture["command"])
             fixture["command"]["distinctive-secret-field"] = "hidden-input"
-            response = await client.post("/commands", json={"command": "pause", "session_id": "session-alpha"})
+            response = await client.post("/commands", json={"command": "pause", 'sessionId': "session-alpha"})
             self.assertEqual(response.status, 409)
             self.assertEqual(await response.json(), {"error": "invalid adapter output: extra_forbidden"})
-            response = await client.post("/operations", json={"operation": "run_scenario", "input": {"session_id": "session-alpha", "duration_seconds": 1.0, "parameters": {}}})
+            response = await client.post("/operations", json={"operation": "run_scenario", "input": {'sessionId': "session-alpha", 'durationSeconds': 1.0, "parameters": {}}})
             self.assertEqual(response.status, 200)
-            fixture["results"][0]["output"]["elapsed_seconds"] = True
-            response = await client.post("/operations", json={"operation": "run_scenario", "input": {"session_id": "session-alpha", "duration_seconds": 1.0, "parameters": {}}})
+            fixture["results"][0]["output"]['elapsedSeconds'] = True
+            response = await client.post("/operations", json={"operation": "run_scenario", "input": {'sessionId': "session-alpha", 'durationSeconds': 1.0, "parameters": {}}})
             self.assertEqual(response.status, 409)
             self.assertEqual(await response.json(), {"error": "invalid adapter output: float_type"})

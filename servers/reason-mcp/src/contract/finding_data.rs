@@ -9,7 +9,12 @@ use veoveo_types::Sha256Digest;
 pub const FINDING_DATA_BYTES: usize = 60 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum FindingAnswer {
     Description {
         excerpt: FindingExcerpt,
@@ -38,7 +43,7 @@ impl FindingAnswer {
 pub struct FindingData(pub(super) veoveo_types::Checked<FindingDataWire>);
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(super) struct FindingDataWire {
     pub(super) pipeline_id: PipelineId,
     pub(super) model_id: ModelId,

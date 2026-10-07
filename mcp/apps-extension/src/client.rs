@@ -10,12 +10,10 @@ use crate::models::{
 /// optional per the spec — servers degrade to text-only for hosts that
 /// don't — so there is no rejection path for peers without it.
 pub fn host_extension_capability() -> (String, rmcp::model::JsonObject) {
-    let serde_json::Value::Object(declaration) = serde_json::json!({
-        "mimeTypes": [APP_MIME_TYPE],
-    }) else {
-        unreachable!("host capability is an object literal");
-    };
-    (EXTENSION_ID.to_owned(), declaration)
+    (
+        EXTENSION_ID.to_owned(),
+        crate::AppExtensionCapability::declaration(),
+    )
 }
 
 pub fn server_declares_ui(capabilities: &ServerCapabilities) -> bool {

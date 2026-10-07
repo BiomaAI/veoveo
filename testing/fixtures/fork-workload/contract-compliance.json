@@ -1,0 +1,142 @@
+{
+  "server": "anonymous-simulation",
+  "compliance": [
+    {
+      "id": "C01",
+      "status": "met"
+    },
+    {
+      "id": "C02",
+      "status": "met"
+    },
+    {
+      "id": "C03",
+      "status": "met"
+    },
+    {
+      "id": "C04",
+      "status": "met"
+    },
+    {
+      "id": "C05",
+      "status": "met"
+    },
+    {
+      "id": "C06",
+      "status": "met"
+    },
+    {
+      "id": "C07",
+      "status": "met"
+    },
+    {
+      "id": "C08",
+      "status": "met"
+    },
+    {
+      "id": "C09",
+      "status": "met"
+    },
+    {
+      "id": "C10",
+      "status": "met"
+    },
+    {
+      "id": "C11",
+      "status": "met"
+    },
+    {
+      "id": "C12",
+      "status": "met"
+    },
+    {
+      "id": "C13",
+      "status": "met"
+    },
+    {
+      "id": "C14",
+      "status": "met"
+    },
+    {
+      "id": "C15",
+      "status": "met"
+    },
+    {
+      "id": "C16",
+      "status": "met"
+    },
+    {
+      "id": "C17",
+      "status": "met"
+    },
+    {
+      "id": "C18",
+      "status": "met"
+    },
+    {
+      "id": "C19",
+      "status": "met"
+    },
+    {
+      "id": "C20",
+      "status": "met"
+    },
+    {
+      "id": "C21",
+      "status": "met"
+    },
+    {
+      "id": "C22",
+      "status": "met"
+    },
+    {
+      "id": "C23",
+      "status": "met"
+    },
+    {
+      "id": "C24",
+      "status": "met"
+    },
+    {
+      "id": "C25",
+      "status": "met"
+    },
+    {
+      "id": "C26",
+      "status": "met"
+    },
+    {
+      "id": "C27",
+      "status": "met"
+    },
+    {
+      "id": "C28",
+      "status": "met"
+    },
+    {
+      "id": "C29",
+      "status": "met"
+    },
+    {
+      "id": "C30",
+      "status": "met"
+    },
+    {
+      "id": "C31",
+      "status": "pending",
+      "note": "The isolated Python fixture has not completed installed Discover/list readiness qualification."
+    },
+    {
+      "id": "C32",
+      "status": "pending",
+      "note": "shared Python docs observations and build digests are wired; installed qualification remains"
+    },
+    {
+      "id": "C33",
+      "status": "pending",
+      "note": "Owner naming producers, consumers and installed qualification are pending."
+    }
+  ],
+  "contractRevision": 4,
+  "catalogRevision": 2
+}

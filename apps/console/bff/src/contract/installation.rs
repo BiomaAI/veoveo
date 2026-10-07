@@ -251,7 +251,7 @@ pub struct ArtifactAccessSourceSummary(pub ArtifactAccessSource);
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactRecordingSummary {
     pub recording_id: RecordingId,
-    pub kind: String,
+    pub kind: veoveo_recording_contract::RecordingArtifactProvenanceKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub layer_id: Option<RecordingLayerId>,
     #[serde(skip_serializing_if = "Option::is_none")]

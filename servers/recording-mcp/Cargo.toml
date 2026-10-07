@@ -138,7 +138,7 @@ url = { workspace = true, optional = true }
 uuid = { workspace = true, features = ["serde", "v7"], optional = true }
 veoveo-artifact-client = { path = "../../platform/artifacts/client", optional = true }
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension", optional = true }
-veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, optional = true }
 veoveo-platform-store = { workspace = true, optional = true }
 veoveo-recording-hub = { path = "../../platform/recordings/hub", optional = true }
 veoveo-rrd = { workspace = true, optional = true }
@@ -147,9 +147,11 @@ re_sdk = { workspace = true, optional = true }
 re_sdk_types = { workspace = true, optional = true }
 
 [dev-dependencies]
+surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"] }
+veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 veoveo-modules = { workspace = true, features = ["runner"] }
-veoveo-mcp-contract = { workspace = true, features = ["testing"] }
+veoveo-mcp-contract = { workspace = true, features = ["runtime", "testing"] }
 veoveo-gateway-catalog.workspace = true
 serde.workspace = true
 veoveo-platform-store.workspace = true

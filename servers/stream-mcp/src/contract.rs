@@ -26,7 +26,7 @@ pub use veoveo_recording_video::contract::{
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RunRecordingRequest {
     pub video: RecordingVideoSelection,
     pub pipeline_id: PipelineId,
@@ -37,7 +37,11 @@ pub struct RunRecordingRequest {
 }
 
 #[derive(Clone, Copy, Debug, Default, Serialize, JsonSchema)]
-#[serde(tag = "mode", rename_all = "snake_case")]
+#[serde(
+    tag = "mode",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum SamplingPolicy {
     #[default]
@@ -52,7 +56,12 @@ pub enum SamplingPolicy {
 
 // Empty wire variants reject undeclared keys while public unit variants stay unchanged.
 #[derive(Deserialize)]
-#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "mode",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 enum SamplingPolicyWire {
     EveryFrame {},
     EveryNth { step: u32 },
@@ -70,7 +79,7 @@ impl<'de> Deserialize<'de> for SamplingPolicy {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct BoundingBox2D {
     pub x: f32,
     pub y: f32,
@@ -79,7 +88,7 @@ pub struct BoundingBox2D {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(rename = "Detection")]
 pub struct DetectionBuilder {
     pub class_id: u32,
@@ -97,13 +106,14 @@ pub struct DetectionBuilder {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FrameDetections {
     pub index: i64,
     pub detections: Vec<Detection>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(rename = "AnalysisResults")]
 pub struct AnalysisResultsBuilder {
     pub schema: StreamResultsSchema,
@@ -121,6 +131,7 @@ pub struct AnalysisResultsBuilder {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AnalysisSummary {
     pub processed_frames: u64,
     pub detection_count: u64,
@@ -130,8 +141,13 @@ pub struct AnalysisSummary {
     pub requested_end_index: i64,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[derive(Clone, Debug, Serialize, JsonSchema, Eq, PartialEq)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum PipelineProfile {
     PassThrough,
     Perception {
@@ -140,24 +156,56 @@ pub enum PipelineProfile {
     },
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+enum PipelineProfileWire {
+    PassThrough {},
+    Perception {
+        operation: PerceptionOperation,
+        tracking: bool,
+    },
+}
+impl<'de> Deserialize<'de> for PipelineProfile {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match PipelineProfileWire::deserialize(deserializer)? {
+            PipelineProfileWire::PassThrough {} => Self::PassThrough,
+            PipelineProfileWire::Perception {
+                operation,
+                tracking,
+            } => Self::Perception {
+                operation,
+                tracking,
+            },
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum PerceptionOperation {
+    #[vocabulary(rename = "object_detection")]
     ObjectDetection,
+    #[vocabulary(rename = "object_detection_tracking")]
     ObjectDetectionTracking,
+    #[vocabulary(rename = "instance_segmentation")]
     InstanceSegmentation,
+    #[vocabulary(rename = "pose_estimation")]
     PoseEstimation,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum ModelFormat {
+    #[vocabulary(rename = "tensor_rt_engine")]
     TensorRtEngine,
 }
 
 /// One authorized page of durable recording runs, ordered by creation time and ID.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RunPage {
     pub runs: Vec<RunView>,
     pub limit: usize,
@@ -169,6 +217,7 @@ mod live;
 pub use live::*;
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveResultFrame {
     /// Decode-order identity assigned after the GPU decoder. Presentation timestamps
     /// are intentionally not used because AVC reordering can make them non-monotonic.
@@ -178,8 +227,9 @@ pub struct LiveResultFrame {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveResultsView {
-    pub schema: String,
+    pub schema: LiveResultsSchema,
     pub session_id: SessionId,
     pub pipeline_id: PipelineId,
     pub frames: Vec<LiveResultFrame>,
@@ -188,7 +238,7 @@ pub struct LiveResultsView {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EncodedVideoChunk {
     /// Decode-order identity. This is the ordering contract for retained chunks.
     pub sequence: u64,
@@ -200,8 +250,9 @@ pub struct EncodedVideoChunk {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LivePreviewView {
-    pub schema: String,
+    pub schema: LivePreviewSchema,
     pub session_id: SessionId,
     pub video: LiveVideoView,
     pub chunks: Vec<EncodedVideoChunk>,
@@ -308,7 +359,7 @@ mod strict_runner_product_tests {
 
     #[test]
     fn runner_frame_rejects_nested_additions() {
-        let frame = serde_json::json!({"index": 0, "detections": [{"class_id": 1, "label": "person", "bounds": {"x": 0, "y": 0, "width": 1, "height": 1}}]});
+        let frame = serde_json::json!({"index": 0, "detections": [{"classId": 1, "label": "person", "bounds": {"x": 0, "y": 0, "width": 1, "height": 1}}]});
         assert!(serde_json::from_value::<FrameDetections>(frame.clone()).is_ok());
         for pointer in ["", "/detections/0", "/detections/0/bounds"] {
             let mut changed = frame.clone();
@@ -319,6 +370,37 @@ mod strict_runner_product_tests {
                 .unwrap()
                 .insert("unexpected".into(), true.into());
             assert!(serde_json::from_value::<FrameDetections>(changed).is_err());
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
+#[schemars(transform = results::format_tag_schema)]
+pub enum LiveResultsSchema {
+    #[serde(rename = "veoveo.ai/stream-live-results/v2")]
+    V2,
+}
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
+#[schemars(transform = results::format_tag_schema)]
+pub enum LivePreviewSchema {
+    #[serde(rename = "veoveo.ai/stream-live-preview/v2")]
+    V2,
+}
+
+/// Stream's recorded usage facts inside the generic platform Usage metadata object.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StreamUsageMetadata {
+    pub pipeline_id: PipelineId,
+    pub entity_path: String,
+    pub timeline: String,
+}
+impl StreamUsageMetadata {
+    pub fn from_analysis(results: &AnalysisResults) -> Self {
+        Self {
+            pipeline_id: results.pipeline_id.clone(),
+            entity_path: results.entity_path.clone(),
+            timeline: results.timeline.clone(),
         }
     }
 }

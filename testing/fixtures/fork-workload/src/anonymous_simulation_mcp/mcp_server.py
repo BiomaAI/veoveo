@@ -153,7 +153,9 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
                 return _structured("authoritative fixture state", await runtime.fixture_state())
         except MCPError as error:
             return _error_result(error.message)
-        except (ValidationError, ValueError) as error:
+        except ValidationError:
+            return _error_result("Request does not match the current simulator wire contract.")
+        except ValueError as error:
             return _error_result(str(error))
         return _error_result(f"unknown tool `{params.name}`")
 

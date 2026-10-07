@@ -7,6 +7,7 @@ use veoveo_map_mcp::contract::CrsId;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all_fields = "camelCase")]
 pub enum CoordinateSpace {
     Wgs84,
     EcefWgs84,
@@ -16,6 +17,7 @@ pub enum CoordinateSpace {
 // Empty wire variants reject undeclared keys while public unit variants stay unchanged.
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(rename_all_fields = "camelCase")]
 enum CoordinateSpaceWire {
     Wgs84 {},
     EcefWgs84 {},
@@ -54,6 +56,8 @@ pub struct CoordinateOperationRef {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 struct OperationRefWire {
     operation_id: CoordinateOperationId,
     #[schemars(with = "String")]
@@ -120,6 +124,7 @@ impl From<CoordinateOperationRef> for OperationRefWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CoordinateOperationProvenance {
     pub operation: CoordinateOperationRef,
     pub kind: CoordinateOperationKind,
@@ -173,4 +178,25 @@ mod tests {
         assert_eq!(provenance.source_crs, back.source_crs);
         assert_eq!(provenance.target_crs, back.target_crs);
     }
+}
+
+/// Controlled metadata written beside a Frames batch Artifact.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FramesBatchArtifactMetadata {
+    pub task_id: veoveo_types::TaskId,
+    pub artifact_format: FramesBatchArtifactFormat,
+    pub operation_id: CoordinateOperationId,
+    pub operation_uri: FrameOperationUri,
+    pub source_frame: Option<CoordinateSpace>,
+    pub target_frame: Option<CoordinateSpace>,
+    pub source_crs: Option<CrsId>,
+    pub target_crs: Option<CrsId>,
+    pub approximation_used: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+pub enum FramesBatchArtifactFormat {
+    #[vocabulary(rename = "frames_batch_json")]
+    Json,
 }

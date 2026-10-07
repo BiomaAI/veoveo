@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from veoveo_mcp.contract import (
-    CHECKLIST_IDS,
+    RequirementId,
     CONTRACT_REVISION,
     ComplianceStatus,
     REQUIRED_AGENT_SECTIONS,
@@ -48,7 +48,7 @@ def test_declaration_states_revision_3_with_a_dense_checklist():
     assert CONTRACT_DECLARATION.server == "datasheet"
     assert CONTRACT_DECLARATION.contract_revision == CONTRACT_REVISION == 3
     declared = [item.id for item in CONTRACT_DECLARATION.compliance]
-    assert declared == list(CHECKLIST_IDS)
+    assert declared == [item.value for item in RequirementId]
 
 
 def test_declaration_meets_the_well_known_surface_items():
@@ -62,7 +62,7 @@ def test_declaration_meets_the_well_known_surface_items():
 
 def test_declaration_wire_shape_defers_runtime_surface_to_discover():
     wire = CONTRACT_DECLARATION.wire()
-    assert set(wire) == {"server", "contract_revision", "compliance"}
+    assert set(wire) == {"server", "contract_revision", "catalog_revision", "compliance"}
     assert wire["server"] == "datasheet"
     assert wire["contract_revision"] == 3
     assert json.loads(json.dumps(wire)) == wire

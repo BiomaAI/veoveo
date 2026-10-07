@@ -18,11 +18,12 @@ tempfile = "=3.27.0"
 tokio = { workspace = true, features = ["rt", "fs", "io-util", "sync"] }
 uuid.workspace = true
 veoveo-artifact-client = { path = "../../artifacts/client" }
-veoveo-mcp-contract.workspace = true
+veoveo-mcp-contract = { workspace = true, features = ["runtime"] }
 veoveo-platform-store.workspace = true
 veoveo-rrd.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 re_sdk.workspace = true
 re_sdk_types.workspace = true
 rustls.workspace = true

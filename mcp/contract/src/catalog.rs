@@ -1,34 +1,15 @@
 use rmcp::model::MetaObject;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use veoveo_gateway_contract::{
+    GATEWAY_DISCOVERY_DEGRADATION_META_KEY, GatewayDiscoveryDegradation,
+};
 
-use veoveo_gateway_contract::{GATEWAY_DISCOVERY_DEGRADATION_META_KEY, GatewayDiscoveryFailure};
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct GatewayDiscoveryDegradation {
-    pub failures: Vec<GatewayDiscoveryFailure>,
+/// MCP metadata conversion for the protocol-independent Gateway declaration.
+pub trait GatewayDiscoveryMetadata: Sized {
+    fn into_meta(self) -> Option<MetaObject>;
+    fn from_meta(meta: Option<&MetaObject>) -> Result<Self, serde_json::Error>;
 }
-
-impl GatewayDiscoveryDegradation {
-    pub fn new(failures: impl IntoIterator<Item = GatewayDiscoveryFailure>) -> Self {
-        let mut failures: Vec<_> = failures.into_iter().collect();
-        failures.sort();
-        failures.dedup();
-        Self { failures }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.failures.is_empty()
-    }
-
-    pub fn merge(&mut self, other: Self) {
-        self.failures.extend(other.failures);
-        self.failures.sort();
-        self.failures.dedup();
-    }
-
-    pub fn into_meta(self) -> Option<MetaObject> {
+impl GatewayDiscoveryMetadata for GatewayDiscoveryDegradation {
+    fn into_meta(self) -> Option<MetaObject> {
         if self.is_empty() {
             return None;
         }
@@ -40,7 +21,7 @@ impl GatewayDiscoveryDegradation {
         Some(meta)
     }
 
-    pub fn from_meta(meta: Option<&MetaObject>) -> Result<Self, serde_json::Error> {
+    fn from_meta(meta: Option<&MetaObject>) -> Result<Self, serde_json::Error> {
         let Some(value) =
             meta.and_then(|meta| meta.0.get(GATEWAY_DISCOVERY_DEGRADATION_META_KEY).cloned())
         else {
@@ -54,7 +35,9 @@ impl GatewayDiscoveryDegradation {
 mod tests {
     use super::*;
     use crate::ServerSlug;
-    use veoveo_gateway_contract::{GatewayDiscoveryFailureCode, GatewayDiscoverySurface};
+    use veoveo_gateway_contract::{
+        GatewayDiscoveryFailure, GatewayDiscoveryFailureCode, GatewayDiscoverySurface,
+    };
 
     #[test]
     fn degradation_metadata_is_typed_sorted_and_deduplicated() {

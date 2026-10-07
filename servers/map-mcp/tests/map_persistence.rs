@@ -158,9 +158,9 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
                 style_revision_key: None,
                 artifact_uris: Vec::new(),
                 canonical_json: serde_json::json!({
-                    "publication_id": publication_key,
-                    "layer_id": layer_key,
-                    "layer_revision": 1
+                    "publicationId": publication_key,
+                    "layerId": layer_key,
+                    "layerRevision": 1
                 })
                 .to_string(),
                 published_at: Utc::now(),
@@ -186,8 +186,8 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
             size_bytes: 128,
             feature_count: 1,
             canonical_json: serde_json::json!({
-                "product_id": product_key,
-                "publication_id": publication_key
+                "productId": product_key,
+                "publicationId": publication_key
             })
             .to_string(),
             created_by_key: veoveo_types::PrincipalId::parse(identity.principal_key.clone())

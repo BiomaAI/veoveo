@@ -32,14 +32,14 @@ pub enum ArtifactAccessRequestScope {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateArtifactAccessRequest {
     pub requested_level: AccessLevel,
     pub justification: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DecideArtifactAccessRequest {
     pub decision: ArtifactAccessRequestDecision,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -48,6 +48,7 @@ pub struct DecideArtifactAccessRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "ArtifactAccessRequest")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactAccessRequestValue {
     pub id: ArtifactAccessRequestId,
     pub artifact_id: ArtifactId,
@@ -60,9 +61,12 @@ pub struct ArtifactAccessRequestValue {
     pub decided_by: Option<PrincipalId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decision_note: Option<String>,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     pub created_at: DateTime<Utc>,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     pub updated_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<veoveo_types::ChronoUtcTimestampSchema>")]
     pub decided_at: Option<DateTime<Utc>>,
 }
 
@@ -144,6 +148,7 @@ impl JsonSchema for ArtifactAccessRequest {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ListArtifactAccessRequests {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<ArtifactAccessRequestScope>,
@@ -156,6 +161,7 @@ pub struct ListArtifactAccessRequests {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactAccessRequestPage {
     pub requests: Vec<ArtifactAccessRequest>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

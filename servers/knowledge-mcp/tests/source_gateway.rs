@@ -12,6 +12,7 @@ use std::{
     time::Duration,
 };
 use tokio::sync::Notify;
+use veoveo_gateway_contract::GatewayDiscoveryDegradation;
 use veoveo_gateway_contract::{
     GatewayDiscoveryFailure, GatewayDiscoveryFailureCode, GatewayDiscoverySurface,
 };
@@ -19,7 +20,8 @@ use veoveo_knowledge_contract::{CollectionApproval, KnowledgeCollectionApproval}
 use veoveo_knowledge_mcp::source::{
     ApprovedCollection, DiscoveryScope, GatewaySource, ObservableSource, SourceListener,
 };
-use veoveo_mcp_contract::{GatewayDiscoveryDegradation, SubscriptionHub};
+use veoveo_mcp_contract::GatewayDiscoveryMetadata;
+use veoveo_mcp_contract::SubscriptionHub;
 use veoveo_mcp_knowledge_extension::{self as knowledge, *};
 use veoveo_types::*;
 
@@ -31,6 +33,7 @@ enum Mode {
     Missing,
     Unavailable,
     ForeignContract,
+    ContradictoryKnowledge,
 }
 struct State {
     mode: Mutex<Mode>,
@@ -152,16 +155,32 @@ impl ServerHandler for Gateway {
         assert_eq!(intent.kind, IndexingReadKind::SourceContract);
         assert!(knowledge::server::requested(Some(&context.meta)).unwrap());
         self.0.contracts.fetch_add(1, Ordering::SeqCst);
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration {
-            server: if matches!(*self.0.mode.lock().unwrap(), Mode::ForeignContract) {
-                "foreign"
-            } else {
-                "fixture"
-            }
-            .into(),
-            contract_revision: 3,
-            compliance: vec![],
-        };
+        let mut profile: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../mcp/contract/testdata/compliance-example.json"
+        )))
+        .unwrap();
+        profile["server"] = serde_json::json!(if matches!(
+            *self.0.mode.lock().unwrap(),
+            Mode::ForeignContract
+        ) {
+            "foreign"
+        } else {
+            "fixture"
+        });
+        if matches!(*self.0.mode.lock().unwrap(), Mode::ContradictoryKnowledge) {
+            let item = profile["compliance"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|item| item["id"] == "C32")
+                .unwrap();
+            item["status"] = serde_json::json!("not_applicable");
+            item["note"] = serde_json::json!("Knowledge extension is not declared.");
+        }
+        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::new(
+            serde_json::from_value(profile).unwrap(),
+        );
         Ok(ReadResourceResult::new(vec![ResourceContents::text(
             serde_json::to_string(&declaration).unwrap(),
             request.uri,
@@ -255,9 +274,19 @@ async fn incomplete_ambiguous_and_foreign_source_catalogs_fail_closed() {
             Mode::Missing,
             Mode::Unavailable,
             Mode::ForeignContract,
+            Mode::ContradictoryKnowledge,
         ] {
             *state.mode.lock().unwrap() = mode;
-            assert!(source.discover(&scope()).await.is_err());
+            let outcome = source.discover(&scope()).await;
+            assert!(outcome.is_err());
+            if matches!(mode, Mode::ContradictoryKnowledge) {
+                let Err(error) = outcome else { unreachable!() };
+                assert!(
+                    error
+                        .to_string()
+                        .contains("contradicts its knowledge collection")
+                );
+            }
         }
         *state.mode.lock().unwrap() = Mode::Complete;
         let mut wrong_scheme = scope();

@@ -9,10 +9,8 @@ use veoveo_types::AccessSubject;
 
 #[path = "support/read_grant_probe.rs"]
 mod grant;
-#[path = "../../../testing/installed/knowledge.rs"]
-mod installed;
-#[path = "../../../testing/installed/restart.rs"]
-mod restart;
+use veoveo_testing_support::installed::knowledge as installed;
+use veoveo_testing_support::installed::restart;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

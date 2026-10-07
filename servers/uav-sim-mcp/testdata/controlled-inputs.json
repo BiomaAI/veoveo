@@ -1,1065 +1,1065 @@
 [
   {
-    "branch": "VehicleControlPermission.inspect",
-    "tool": "grant_vehicle_control",
     "arguments": {
-      "grant_id": "grant-fixture",
-      "session_id": "session-fixture",
-      "vehicle_id": "vehicle-fixture",
-      "principal_key": "principal-fixture",
+      "grantId": "grant-fixture",
+      "mapMobilityProfileUri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
       "permissions": [
         "inspect"
       ],
-      "map_mobility_profile_uri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
-      "valid_from": "2026-01-01T00:00:00Z"
+      "principalKey": "principal-fixture",
+      "sessionId": "session-fixture",
+      "validFrom": "2026-01-01T00:00:00Z",
+      "vehicleId": "vehicle-fixture"
     },
-    "tag": "/permissions/0",
-    "required": [
-      "/grant_id",
-      "/session_id",
-      "/vehicle_id"
-    ],
+    "branch": "VehicleControlPermission.inspect",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/grantId",
+      "/sessionId",
+      "/vehicleId"
+    ],
+    "tag": "/permissions/0",
+    "tool": "grant_vehicle_control"
   },
   {
-    "branch": "VehicleControlPermission.plan",
-    "tool": "grant_vehicle_control",
     "arguments": {
-      "grant_id": "grant-fixture",
-      "session_id": "session-fixture",
-      "vehicle_id": "vehicle-fixture",
-      "principal_key": "principal-fixture",
+      "grantId": "grant-fixture",
+      "mapMobilityProfileUri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
       "permissions": [
         "plan"
       ],
-      "map_mobility_profile_uri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
-      "valid_from": "2026-01-01T00:00:00Z"
+      "principalKey": "principal-fixture",
+      "sessionId": "session-fixture",
+      "validFrom": "2026-01-01T00:00:00Z",
+      "vehicleId": "vehicle-fixture"
     },
-    "tag": "/permissions/0",
-    "required": [
-      "/grant_id",
-      "/session_id",
-      "/vehicle_id"
-    ],
+    "branch": "VehicleControlPermission.plan",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/grantId",
+      "/sessionId",
+      "/vehicleId"
+    ],
+    "tag": "/permissions/0",
+    "tool": "grant_vehicle_control"
   },
   {
-    "branch": "VehicleControlPermission.execute",
-    "tool": "grant_vehicle_control",
     "arguments": {
-      "grant_id": "grant-fixture",
-      "session_id": "session-fixture",
-      "vehicle_id": "vehicle-fixture",
-      "principal_key": "principal-fixture",
+      "grantId": "grant-fixture",
+      "mapMobilityProfileUri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
       "permissions": [
         "execute"
       ],
-      "map_mobility_profile_uri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
-      "valid_from": "2026-01-01T00:00:00Z"
+      "principalKey": "principal-fixture",
+      "sessionId": "session-fixture",
+      "validFrom": "2026-01-01T00:00:00Z",
+      "vehicleId": "vehicle-fixture"
     },
-    "tag": "/permissions/0",
-    "required": [
-      "/grant_id",
-      "/session_id",
-      "/vehicle_id"
-    ],
+    "branch": "VehicleControlPermission.execute",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/grantId",
+      "/sessionId",
+      "/vehicleId"
+    ],
+    "tag": "/permissions/0",
+    "tool": "grant_vehicle_control"
   },
   {
-    "branch": "VehicleControlPermission.abort",
-    "tool": "grant_vehicle_control",
     "arguments": {
-      "grant_id": "grant-fixture",
-      "session_id": "session-fixture",
-      "vehicle_id": "vehicle-fixture",
-      "principal_key": "principal-fixture",
+      "grantId": "grant-fixture",
+      "mapMobilityProfileUri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
       "permissions": [
         "abort"
       ],
-      "map_mobility_profile_uri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
-      "valid_from": "2026-01-01T00:00:00Z"
+      "principalKey": "principal-fixture",
+      "sessionId": "session-fixture",
+      "validFrom": "2026-01-01T00:00:00Z",
+      "vehicleId": "vehicle-fixture"
     },
+    "branch": "VehicleControlPermission.abort",
+    "defaults": {},
+    "open_objects": [],
+    "required": [
+      "/grantId",
+      "/sessionId",
+      "/vehicleId"
+    ],
     "tag": "/permissions/0",
-    "required": [
-      "/grant_id",
-      "/session_id",
-      "/vehicle_id"
-    ],
-    "defaults": {},
-    "open_objects": []
+    "tool": "grant_vehicle_control"
   },
   {
+    "arguments": {
+      "sessionId": "session-fixture"
+    },
     "branch": "SessionRequest.object",
-    "tool": "get_simulation_state",
-    "arguments": {
-      "session_id": "session-fixture"
-    },
+    "defaults": {},
+    "open_objects": [],
+    "required": [
+      "/sessionId"
+    ],
     "tag": null,
-    "required": [
-      "/session_id"
-    ],
-    "defaults": {},
-    "open_objects": []
+    "tool": "get_simulation_state"
   },
   {
+    "arguments": {
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
+        "revision": 1,
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:6dfc4676b7ec20e54292983594ac657770a86e077f2b623ad48b76effcd63c66",
+        "tree": {
+          "frames": [
+            {
+              "basis": {
+                "kind": "ecef_wgs84"
+              },
+              "frameId": "ecef"
+            },
+            {
+              "basis": {
+                "kind": "enu"
+              },
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
+                "kind": "geodetic_tangent",
+                "origin": {
+                  "ellipsoidHeightM": 3.0,
+                  "latitudeDegrees": 1.0,
+                  "longitudeDegrees": 2.0
+                }
+              }
+            }
+          ]
+        },
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
+    },
     "branch": "FrameBasis.ecef_wgs84",
-    "tool": "configure_world",
+    "defaults": {},
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/0/frameId"
+    ],
+    "tag": "/worldRevision/tree/frames/0/basis/kind",
+    "tool": "configure_world"
+  },
+  {
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:fc44e5c4a34f660619da027b9c0f0bc026469334eabc085017a5269453cb0701",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:6dfc4676b7ec20e54292983594ac657770a86e077f2b623ad48b76effcd63c66",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
                 "kind": "enu"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "geodetic_tangent",
                 "origin": {
-                  "latitude_degrees": 1.0,
-                  "longitude_degrees": 2.0,
-                  "ellipsoid_height_m": 3.0
+                  "ellipsoidHeightM": 3.0,
+                  "latitudeDegrees": 1.0,
+                  "longitudeDegrees": 2.0
                 }
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/0/basis/kind",
-    "required": [
-      "/world_revision/tree/frames/0/frame_id"
-    ],
-    "defaults": {},
-    "open_objects": []
-  },
-  {
     "branch": "FrameBasis.enu",
-    "tool": "configure_world",
-    "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
-        "revision": 1,
-        "spec_digest": "sha256:fc44e5c4a34f660619da027b9c0f0bc026469334eabc085017a5269453cb0701",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
-        "tree": {
-          "frames": [
-            {
-              "frame_id": "ecef",
-              "basis": {
-                "kind": "ecef_wgs84"
-              }
-            },
-            {
-              "frame_id": "local",
-              "basis": {
-                "kind": "enu"
-              },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
-                "kind": "geodetic_tangent",
-                "origin": {
-                  "latitude_degrees": 1.0,
-                  "longitude_degrees": 2.0,
-                  "ellipsoid_height_m": 3.0
-                }
-              }
-            }
-          ]
-        },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
-    },
-    "tag": "/world_revision/tree/frames/1/basis/kind",
-    "required": [
-      "/world_revision/tree/frames/1/frame_id"
-    ],
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/frameId"
+    ],
+    "tag": "/worldRevision/tree/frames/1/basis/kind",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameBasis.ned",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:97b731871e9ef66ec237ef95e178bc336ef2c14bb318fc4c875bceb0e77d12e0",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:7c31c4370d58fcefd83df4dda1385405b8380b52b9fa4743b54f87a2c9fb6d0a",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
                 "kind": "ned"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "geodetic_tangent",
                 "origin": {
-                  "latitude_degrees": 1.0,
-                  "longitude_degrees": 2.0,
-                  "ellipsoid_height_m": 3.0
+                  "ellipsoidHeightM": 3.0,
+                  "latitudeDegrees": 1.0,
+                  "longitudeDegrees": 2.0
                 }
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/basis/kind",
-    "required": [
-      "/world_revision/tree/frames/1/frame_id"
-    ],
+    "branch": "FrameBasis.ned",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/frameId"
+    ],
+    "tag": "/worldRevision/tree/frames/1/basis/kind",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameBasis.frd",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:199a2031cd0426ecd29c48b59d08902aca788ad5b6dcdaf9d3a8f84acce81a5a",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:93fbffe4532aaa3fb7ef54d656948ce3fac99446b7178f5ae3ba6df194d80a18",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
                 "kind": "frd"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "static_rigid",
-                "translation_m": [
-                  0.0,
-                  0.0,
-                  0.0
-                ],
-                "rotation_xyzw": [
+                "rotationXyzw": [
                   0.0,
                   0.0,
                   0.0,
                   1.0
+                ],
+                "translationM": [
+                  0.0,
+                  0.0,
+                  0.0
                 ]
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/basis/kind",
-    "required": [
-      "/world_revision/tree/frames/1/frame_id"
-    ],
+    "branch": "FrameBasis.frd",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/frameId"
+    ],
+    "tag": "/worldRevision/tree/frames/1/basis/kind",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameBasis.optical_rdf",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:efe6eadcf4d49051a35dd103df1100eb6007a1023dad4120a35950575bf4b269",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:5ddc2f74871e9d72645340a15c4bf857372c127db23efc4adf7726c01540fbb5",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
                 "kind": "optical_rdf"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "static_rigid",
-                "translation_m": [
-                  0.0,
-                  0.0,
-                  0.0
-                ],
-                "rotation_xyzw": [
+                "rotationXyzw": [
                   0.0,
                   0.0,
                   0.0,
                   1.0
+                ],
+                "translationM": [
+                  0.0,
+                  0.0,
+                  0.0
                 ]
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/basis/kind",
-    "required": [
-      "/world_revision/tree/frames/1/frame_id"
-    ],
+    "branch": "FrameBasis.optical_rdf",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/frameId"
+    ],
+    "tag": "/worldRevision/tree/frames/1/basis/kind",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameBasis.cartesian",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:6f42637ad7c164c26ec977527cbabe6c056933576332c0ffa35fbac98ca4874f",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:c4c14f89b11f64974ace69a66747e2fa3e153d14ef7a56adecbe24d75deb6445",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
-                "kind": "cartesian",
                 "axes": {
                   "x": "right",
                   "y": "forward",
                   "z": "up"
-                }
+                },
+                "kind": "cartesian"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "static_rigid",
-                "translation_m": [
+                "rotationXyzw": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "translationM": [
                   0.0,
                   0.0,
                   0.0
-                ],
-                "rotation_xyzw": [
-                  0.0,
-                  0.0,
-                  0.0,
-                  1.0
                 ]
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/basis/kind",
-    "required": [
-      "/world_revision/tree/frames/1/frame_id"
-    ],
+    "branch": "FrameBasis.cartesian",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/frameId"
+    ],
+    "tag": "/worldRevision/tree/frames/1/basis/kind",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameParentTransform.geodetic_tangent",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:fc44e5c4a34f660619da027b9c0f0bc026469334eabc085017a5269453cb0701",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:6dfc4676b7ec20e54292983594ac657770a86e077f2b623ad48b76effcd63c66",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
                 "kind": "enu"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "geodetic_tangent",
                 "origin": {
-                  "latitude_degrees": 1.0,
-                  "longitude_degrees": 2.0,
-                  "ellipsoid_height_m": 3.0
+                  "ellipsoidHeightM": 3.0,
+                  "latitudeDegrees": 1.0,
+                  "longitudeDegrees": 2.0
                 }
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/parent_transform/kind",
-    "required": [
-      "/world_revision/tree/frames/1/parent_transform/origin"
-    ],
+    "branch": "FrameParentTransform.geodetic_tangent",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/parentTransform/origin"
+    ],
+    "tag": "/worldRevision/tree/frames/1/parentTransform/kind",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameParentTransform.static_rigid",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:bb5ad425aa3e272f1d997334a8243f6089226fc5b8de20b1ca2bf95e7ef48466",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:bb93c678f5658bdb8aafb9b4bbb462c9ad51956ebcded97491edb48f9b912803",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
                 "kind": "enu"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "static_rigid",
-                "translation_m": [
-                  1.0,
-                  2.0,
-                  3.0
-                ],
-                "rotation_xyzw": [
+                "rotationXyzw": [
                   0.0,
                   0.0,
                   0.0,
                   1.0
+                ],
+                "translationM": [
+                  1.0,
+                  2.0,
+                  3.0
                 ]
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/parent_transform/kind",
-    "required": [
-      "/world_revision/tree/frames/1/parent_transform/translation_m",
-      "/world_revision/tree/frames/1/parent_transform/rotation_xyzw"
-    ],
+    "branch": "FrameParentTransform.static_rigid",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/parentTransform/translationM",
+      "/worldRevision/tree/frames/1/parentTransform/rotationXyzw"
+    ],
+    "tag": "/worldRevision/tree/frames/1/parentTransform/kind",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameParentTransform.dynamic_stream",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:9c4f8403bb7a2aa4e0dcce21090556348f51d952142f622e42504d8a3d978a47",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:6894a67c053381ea11b4632b508873103a040507634f10b97f3a158d03653a78",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
                 "kind": "enu"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
+                "entityPath": "/transforms/local",
                 "kind": "dynamic_stream",
-                "stream_uri": "frames://stream/01983da0-0000-7000-8000-000000000000",
-                "entity_path": "/transforms/local"
+                "streamUri": "frames://stream/01983da0-0000-7000-8000-000000000000"
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/parent_transform/kind",
-    "required": [
-      "/world_revision/tree/frames/1/parent_transform/stream_uri",
-      "/world_revision/tree/frames/1/parent_transform/entity_path"
-    ],
+    "branch": "FrameParentTransform.dynamic_stream",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/parentTransform/streamUri",
+      "/worldRevision/tree/frames/1/parentTransform/entityPath"
+    ],
+    "tag": "/worldRevision/tree/frames/1/parentTransform/kind",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameAxisDirection.right",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:81a037d722fd25edb70019423e3801ddfc65c4af1734b47360dd5e4562da3d36",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:35dbe2a06fd7361f16ac012aa4ebe27d70fefa8d126ca81904b70d5e25a4aa25",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
-                "kind": "cartesian",
                 "axes": {
                   "x": "right",
                   "y": "up",
                   "z": "forward"
-                }
+                },
+                "kind": "cartesian"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "static_rigid",
-                "translation_m": [
-                  0.0,
-                  0.0,
-                  0.0
-                ],
-                "rotation_xyzw": [
+                "rotationXyzw": [
                   0.0,
                   0.0,
                   0.0,
                   1.0
+                ],
+                "translationM": [
+                  0.0,
+                  0.0,
+                  0.0
                 ]
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/basis/axes/x",
-    "required": [
-      "/world_revision/tree/frames/1/basis/axes/y"
-    ],
+    "branch": "FrameAxisDirection.right",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/basis/axes/y"
+    ],
+    "tag": "/worldRevision/tree/frames/1/basis/axes/x",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameAxisDirection.left",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:3c564de06fe4f16c8cd16d6ba79bd5808efefd334bd39fe4a0bef7af0b3ff1f3",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:dc7011922de08806095750e7cb5a5cf0dbafbc35eb523bde83304498e95ef887",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
-                "kind": "cartesian",
                 "axes": {
                   "x": "left",
                   "y": "up",
                   "z": "forward"
-                }
+                },
+                "kind": "cartesian"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "static_rigid",
-                "translation_m": [
-                  0.0,
-                  0.0,
-                  0.0
-                ],
-                "rotation_xyzw": [
+                "rotationXyzw": [
                   0.0,
                   0.0,
                   0.0,
                   1.0
+                ],
+                "translationM": [
+                  0.0,
+                  0.0,
+                  0.0
                 ]
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/basis/axes/x",
-    "required": [
-      "/world_revision/tree/frames/1/basis/axes/y"
-    ],
+    "branch": "FrameAxisDirection.left",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/basis/axes/y"
+    ],
+    "tag": "/worldRevision/tree/frames/1/basis/axes/x",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameAxisDirection.up",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:36af2e10e6f740211b66a803d4e8e13e7636b812e7e1487c0502d3eb6f53f5de",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:d93fc4e4819e6e8e288cd8b701ebbca561a3a4f400310dcc5b9005fffb466400",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
-                "kind": "cartesian",
                 "axes": {
                   "x": "up",
                   "y": "right",
                   "z": "forward"
-                }
+                },
+                "kind": "cartesian"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "static_rigid",
-                "translation_m": [
-                  0.0,
-                  0.0,
-                  0.0
-                ],
-                "rotation_xyzw": [
+                "rotationXyzw": [
                   0.0,
                   0.0,
                   0.0,
                   1.0
+                ],
+                "translationM": [
+                  0.0,
+                  0.0,
+                  0.0
                 ]
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/basis/axes/x",
-    "required": [
-      "/world_revision/tree/frames/1/basis/axes/y"
-    ],
+    "branch": "FrameAxisDirection.up",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/basis/axes/y"
+    ],
+    "tag": "/worldRevision/tree/frames/1/basis/axes/x",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameAxisDirection.down",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:c84eb792e10506a934eb63bfd6041c1a5bd87cac77e38d3a96f8bec83df828f6",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:0aa6f54af96058da8f2c7d1b67496c3b0a04afe08a7d8f948cd7a3774d650880",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
-                "kind": "cartesian",
                 "axes": {
                   "x": "down",
                   "y": "right",
                   "z": "forward"
-                }
+                },
+                "kind": "cartesian"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "static_rigid",
-                "translation_m": [
-                  0.0,
-                  0.0,
-                  0.0
-                ],
-                "rotation_xyzw": [
+                "rotationXyzw": [
                   0.0,
                   0.0,
                   0.0,
                   1.0
+                ],
+                "translationM": [
+                  0.0,
+                  0.0,
+                  0.0
                 ]
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/basis/axes/x",
-    "required": [
-      "/world_revision/tree/frames/1/basis/axes/y"
-    ],
+    "branch": "FrameAxisDirection.down",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/basis/axes/y"
+    ],
+    "tag": "/worldRevision/tree/frames/1/basis/axes/x",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameAxisDirection.forward",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:dab24f954ce91b13ac0def541edd319958c62c70de88372a87d669f535bbaa68",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:11aab4270338c6fba86c5fca3b9b3e5a6c970149ca97876fe9a8874fa1c15eed",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
-                "kind": "cartesian",
                 "axes": {
                   "x": "forward",
                   "y": "right",
                   "z": "up"
-                }
+                },
+                "kind": "cartesian"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "static_rigid",
-                "translation_m": [
-                  0.0,
-                  0.0,
-                  0.0
-                ],
-                "rotation_xyzw": [
+                "rotationXyzw": [
                   0.0,
                   0.0,
                   0.0,
                   1.0
+                ],
+                "translationM": [
+                  0.0,
+                  0.0,
+                  0.0
                 ]
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/basis/axes/x",
-    "required": [
-      "/world_revision/tree/frames/1/basis/axes/y"
-    ],
+    "branch": "FrameAxisDirection.forward",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/basis/axes/y"
+    ],
+    "tag": "/worldRevision/tree/frames/1/basis/axes/x",
+    "tool": "configure_world"
   },
   {
-    "branch": "FrameAxisDirection.back",
-    "tool": "configure_world",
     "arguments": {
-      "session_id": "session-fixture",
-      "world_revision": {
-        "world_id": "fixture",
-        "world_uri": "frames://world/fixture",
-        "revision_id": "revision-one",
-        "revision_uri": "frames://world/fixture/revision/revision-one",
+      "sessionId": "session-fixture",
+      "simulationFrameUri": "frames://world/fixture/revision/revision-one/frame/local",
+      "worldRevision": {
+        "createdAt": "2026-01-01T00:00:00Z",
         "revision": 1,
-        "spec_digest": "sha256:5a18179b43f5a9452baa3bf4174f15587a018da78e89a446fd75925bbae13ff5",
-        "root_frame_uri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "revisionId": "revision-one",
+        "revisionUri": "frames://world/fixture/revision/revision-one",
+        "rootFrameUri": "frames://world/fixture/revision/revision-one/frame/ecef",
+        "specDigest": "sha256:2841bd293bf6f7cd868b3b265bd2b5f819fdab7f0651d949fa6963e5ef3d478a",
         "tree": {
           "frames": [
             {
-              "frame_id": "ecef",
               "basis": {
                 "kind": "ecef_wgs84"
-              }
+              },
+              "frameId": "ecef"
             },
             {
-              "frame_id": "local",
               "basis": {
-                "kind": "cartesian",
                 "axes": {
                   "x": "back",
                   "y": "right",
                   "z": "up"
-                }
+                },
+                "kind": "cartesian"
               },
-              "parent_frame_id": "ecef",
-              "parent_transform": {
+              "frameId": "local",
+              "parentFrameId": "ecef",
+              "parentTransform": {
                 "kind": "static_rigid",
-                "translation_m": [
-                  0.0,
-                  0.0,
-                  0.0
-                ],
-                "rotation_xyzw": [
+                "rotationXyzw": [
                   0.0,
                   0.0,
                   0.0,
                   1.0
+                ],
+                "translationM": [
+                  0.0,
+                  0.0,
+                  0.0
                 ]
               }
             }
           ]
         },
-        "created_at": "2026-01-01T00:00:00Z"
-      },
-      "simulation_frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+        "worldId": "fixture",
+        "worldUri": "frames://world/fixture"
+      }
     },
-    "tag": "/world_revision/tree/frames/1/basis/axes/x",
-    "required": [
-      "/world_revision/tree/frames/1/basis/axes/y"
-    ],
+    "branch": "FrameAxisDirection.back",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/worldRevision/tree/frames/1/basis/axes/y"
+    ],
+    "tag": "/worldRevision/tree/frames/1/basis/axes/x",
+    "tool": "configure_world"
   },
   {
-    "branch": "MapRouteHandoffSchema.veoveo.ai/map-route-handoff/v1",
-    "tool": "prepare_vehicle_mission",
     "arguments": {
-      "session_id": "session-fixture",
-      "mission_id": "mission-fixture",
-      "vehicle_id": "vehicle-fixture",
-      "expected_world_revision_uri": "frames://world/fixture/revision/revision-one",
-      "map_route": {
-        "schema_profile": "veoveo.ai/map-route-handoff/v1",
-        "route_uri": "map://route/route-01983da0-0000-7000-8000-000000000000",
-        "route_digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "route_status": "validated",
-        "mobility_profile_uri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
-        "path": [
-          {
-            "longitude_deg": 0,
-            "latitude_deg": 0
-          },
-          {
-            "longitude_deg": 1,
-            "latitude_deg": 0
-          }
-        ],
-        "validation_id": "validation-01983da0-0000-7000-8000-000000000000",
-        "validated_at": "2026-01-01T00:00:00Z",
-        "operational_snapshot_id": "snapshot-01983da0-0000-7000-8000-000000000000",
-        "base_release_ids": [
+      "expectedWorldRevisionUri": "frames://world/fixture/revision/revision-one",
+      "holdSecondsAtDestination": 0,
+      "mapRoute": {
+        "baseReleaseIds": [
           "release-01983da0-0000-7000-8000-000000000000"
         ],
-        "restriction_ids": [],
-        "prepared_at": "2026-01-01T00:00:00Z"
+        "mobilityProfileUri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
+        "operationalSnapshotId": "snapshot-01983da0-0000-7000-8000-000000000000",
+        "path": [
+          {
+            "latitudeDeg": 0,
+            "longitudeDeg": 0
+          },
+          {
+            "latitudeDeg": 0,
+            "longitudeDeg": 1
+          }
+        ],
+        "preparedAt": "2026-01-01T00:00:00Z",
+        "restrictionIds": [],
+        "routeDigestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routeStatus": "validated",
+        "routeUri": "map://route/route-01983da0-0000-7000-8000-000000000000",
+        "schemaProfile": "veoveo.ai/map-route-handoff/v2",
+        "validatedAt": "2026-01-01T00:00:00Z",
+        "validationId": "validation-01983da0-0000-7000-8000-000000000000"
       },
-      "speed_mps": 1,
-      "hold_seconds_at_destination": 0
+      "missionId": "mission-fixture",
+      "sessionId": "session-fixture",
+      "speedMps": 1,
+      "vehicleId": "vehicle-fixture"
     },
-    "tag": "/map_route/schema_profile",
-    "required": [
-      "/map_route/path"
-    ],
+    "branch": "MapRouteHandoffSchema.veoveo.ai/map-route-handoff/v2",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/mapRoute/path"
+    ],
+    "tag": "/mapRoute/schemaProfile",
+    "tool": "prepare_vehicle_mission"
   },
   {
+    "arguments": {
+      "expectedWorldRevisionUri": "frames://world/fixture/revision/revision-one",
+      "holdSecondsAtDestination": 0,
+      "mapRoute": {
+        "baseReleaseIds": [
+          "release-01983da0-0000-7000-8000-000000000000"
+        ],
+        "mobilityProfileUri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
+        "operationalSnapshotId": "snapshot-01983da0-0000-7000-8000-000000000000",
+        "path": [
+          {
+            "latitudeDeg": 0,
+            "longitudeDeg": 0
+          },
+          {
+            "latitudeDeg": 0,
+            "longitudeDeg": 1
+          }
+        ],
+        "preparedAt": "2026-01-01T00:00:00Z",
+        "restrictionIds": [],
+        "routeDigestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routeStatus": "validated",
+        "routeUri": "map://route/route-01983da0-0000-7000-8000-000000000000",
+        "schemaProfile": "veoveo.ai/map-route-handoff/v2",
+        "validatedAt": "2026-01-01T00:00:00Z",
+        "validationId": "validation-01983da0-0000-7000-8000-000000000000"
+      },
+      "missionId": "mission-fixture",
+      "sessionId": "session-fixture",
+      "speedMps": 1,
+      "vehicleId": "vehicle-fixture"
+    },
     "branch": "RouteStatus.validated",
-    "tool": "prepare_vehicle_mission",
-    "arguments": {
-      "session_id": "session-fixture",
-      "mission_id": "mission-fixture",
-      "vehicle_id": "vehicle-fixture",
-      "expected_world_revision_uri": "frames://world/fixture/revision/revision-one",
-      "map_route": {
-        "schema_profile": "veoveo.ai/map-route-handoff/v1",
-        "route_uri": "map://route/route-01983da0-0000-7000-8000-000000000000",
-        "route_digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "route_status": "validated",
-        "mobility_profile_uri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
-        "path": [
-          {
-            "longitude_deg": 0,
-            "latitude_deg": 0
-          },
-          {
-            "longitude_deg": 1,
-            "latitude_deg": 0
-          }
-        ],
-        "validation_id": "validation-01983da0-0000-7000-8000-000000000000",
-        "validated_at": "2026-01-01T00:00:00Z",
-        "operational_snapshot_id": "snapshot-01983da0-0000-7000-8000-000000000000",
-        "base_release_ids": [
-          "release-01983da0-0000-7000-8000-000000000000"
-        ],
-        "restriction_ids": [],
-        "prepared_at": "2026-01-01T00:00:00Z"
-      },
-      "speed_mps": 1,
-      "hold_seconds_at_destination": 0
-    },
-    "tag": "/map_route/route_status",
-    "required": [
-      "/map_route/base_release_ids"
-    ],
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/mapRoute/baseReleaseIds"
+    ],
+    "tag": "/mapRoute/routeStatus",
+    "tool": "prepare_vehicle_mission"
   },
   {
-    "branch": "RouteStatus.planning_advisory",
-    "tool": "prepare_vehicle_mission",
     "arguments": {
-      "session_id": "session-fixture",
-      "mission_id": "mission-fixture",
-      "vehicle_id": "vehicle-fixture",
-      "expected_world_revision_uri": "frames://world/fixture/revision/revision-one",
-      "map_route": {
-        "schema_profile": "veoveo.ai/map-route-handoff/v1",
-        "route_uri": "map://route/route-01983da0-0000-7000-8000-000000000000",
-        "route_digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "route_status": "planning_advisory",
-        "mobility_profile_uri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
-        "path": [
-          {
-            "longitude_deg": 0,
-            "latitude_deg": 0
-          },
-          {
-            "longitude_deg": 1,
-            "latitude_deg": 0
-          }
-        ],
-        "validation_id": "validation-01983da0-0000-7000-8000-000000000000",
-        "validated_at": "2026-01-01T00:00:00Z",
-        "operational_snapshot_id": "snapshot-01983da0-0000-7000-8000-000000000000",
-        "base_release_ids": [
+      "expectedWorldRevisionUri": "frames://world/fixture/revision/revision-one",
+      "holdSecondsAtDestination": 0,
+      "mapRoute": {
+        "baseReleaseIds": [
           "release-01983da0-0000-7000-8000-000000000000"
         ],
-        "restriction_ids": [],
-        "prepared_at": "2026-01-01T00:00:00Z"
+        "mobilityProfileUri": "map://mobility-profile/mobility-01983da0-0000-7000-8000-000000000000/1",
+        "operationalSnapshotId": "snapshot-01983da0-0000-7000-8000-000000000000",
+        "path": [
+          {
+            "latitudeDeg": 0,
+            "longitudeDeg": 0
+          },
+          {
+            "latitudeDeg": 0,
+            "longitudeDeg": 1
+          }
+        ],
+        "preparedAt": "2026-01-01T00:00:00Z",
+        "restrictionIds": [],
+        "routeDigestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "routeStatus": "planning_advisory",
+        "routeUri": "map://route/route-01983da0-0000-7000-8000-000000000000",
+        "schemaProfile": "veoveo.ai/map-route-handoff/v2",
+        "validatedAt": "2026-01-01T00:00:00Z",
+        "validationId": "validation-01983da0-0000-7000-8000-000000000000"
       },
-      "speed_mps": 1,
-      "hold_seconds_at_destination": 0
+      "missionId": "mission-fixture",
+      "sessionId": "session-fixture",
+      "speedMps": 1,
+      "vehicleId": "vehicle-fixture"
     },
-    "tag": "/map_route/route_status",
-    "required": [
-      "/map_route/base_release_ids"
-    ],
+    "branch": "RouteStatus.planning_advisory",
     "defaults": {},
-    "open_objects": []
+    "open_objects": [],
+    "required": [
+      "/mapRoute/baseReleaseIds"
+    ],
+    "tag": "/mapRoute/routeStatus",
+    "tool": "prepare_vehicle_mission"
   }
 ]

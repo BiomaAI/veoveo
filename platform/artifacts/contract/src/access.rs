@@ -8,6 +8,7 @@ use veoveo_types::{AccessLevel, AccessSubject, DataLabelId, TenantId};
 
 /// One entry in an artifact's access control list.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Grant {
     pub artifact: ArtifactId,
     pub subject: AccessSubject,
@@ -20,6 +21,7 @@ pub struct Grant {
     #[serde(default)]
     pub data_labels: BTreeSet<DataLabelId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<veoveo_types::ChronoUtcTimestampSchema>")]
     pub retention_expires_at: Option<DateTime<Utc>>,
 }
 
@@ -89,10 +91,12 @@ impl From<ArtifactShareLinkId> for String {
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactShareLink {
     pub link_id: ArtifactShareLinkId,
     pub artifact_id: ArtifactId,
     pub url: String,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     pub expires_at: DateTime<Utc>,
     pub max_downloads: Option<NonZeroU64>,
 }
@@ -148,7 +152,7 @@ mod tests {
             encoded,
             serde_json::json!({"artifact": grant.artifact,
             "subject": {"kind": "principal", "id": "operator"}, "level": "read",
-            "tenant": "example", "data_labels": []})
+            "tenant": "example", "dataLabels": []})
         );
         assert_eq!(serde_json::from_value::<Grant>(encoded).unwrap(), grant);
         let share = ArtifactShareLink {

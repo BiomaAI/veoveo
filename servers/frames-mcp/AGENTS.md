@@ -42,7 +42,7 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 - Keep Frames queries and mutations in the owning runtime with typed IDs through database
   bindings. SQL applies tenant, current labels, and linked-parent checks. World reads
   are shared within the tenant under label clearance; publication requires ownership and current label clearance inside its transaction.
-  World mutation driver records are private to Frames; Store owns connections and schemas.
+  World mutation driver records and the schema lane declarations/migrations are private to Frames; Store provides database connections.
 - Approximation permission is explicit per request, and every result carries
   a `CoordinateOperationProvenance` record. Results also carry canonical
   revision references and typed SHA-256 digests for only the frame-world
@@ -73,11 +73,9 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 
 ## Contract Compliance
 
-Contract revision: 3
-
-Operation resources enforce tenant, owner, profile, labels, and current Task parent
-checks in SQL. Rust and Store require every operation's authority object and profile.
-Installed qualification remains in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met
@@ -102,12 +100,14 @@ Installed qualification remains in the [consolidated plan](../../docs/CONTRACT_C
 - C21: met
 - C22: met
 - C23: met
+- C24: met
 - C25: met
 - C26: met
 - C27: pending — world and usage subscriptions use Store LIVE observations; replica and reconnect qualification is pending
 - C28: met — the Store observer invalidates accepted resource contents; the fixed discovery surface declares no list-change notifications
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
-- C24: met
 - C31: pending — installed Discover and list readiness qualification is pending
 - C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

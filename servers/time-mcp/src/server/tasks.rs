@@ -36,7 +36,13 @@ pub(crate) struct AuthenticatedCaller {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "request", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    content = "request",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 enum TimeTaskRequest {
     ExpandSchedule(Box<ExpandScheduleRequest>),
     ValidateTimeline(ValidateTimelineRequest),

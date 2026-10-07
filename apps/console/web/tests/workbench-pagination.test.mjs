@@ -8,31 +8,32 @@ const tasks = JSON.parse(await readFile(new URL('../../../../mcp/apps-extension/
 const template = await readFile(new URL('../../../../mcp/apps-extension/src/workbench.html', import.meta.url), 'utf8');
 const taskId = index => `0195dabe-7777-7abc-8def-${index.toString(16).padStart(12, '0')}`;
 const modelCatalog = {
-  models: [{model_id: 'test/image', name: 'Fixture image', type: 'text-to-image', description: 'Pagination fixture', schema_uri: 'media://model/test/image'}],
-  returned: 1, total_available: 1, limit: 20, next_cursor: null,
+  models: [{modelId: 'test/image', name: 'Fixture image', type: 'text-to-image', description: 'Pagination fixture', schemaUri: 'media://model/test/image'}],
+  returned: 1, totalAvailable: 1, limit: 20, nextCursor: null,
 };
 const cases = [
   {domain: 'artifact', title: 'Library', collection: 'artifact://index', label: 'Artifact index',
     other: 'artifact://docs', otherLabel: 'Documentation', otherValue: {items: [{uri: 'artifact://docs/design', title: 'Design'}]},
     knowledge: true, entry: index => ({uri: `artifact://metadata/${taskId(index)}`, title: `Output ${index}`}), cursor: `artifact-index-v1_${taskId(99)}`},
   {domain: 'duckdb-databases', title: 'Workbench', collection: 'duckdb://dbs', label: 'Databases',
-    other: 'duckdb://usage', otherLabel: 'Usage ledger', otherValue: {items: [], limit: 100, next_cursor: null},
-    entry: index => ({db_id: `db_${String(index).padStart(3, '0')}`, db_uri: `duckdb://db/db_${String(index).padStart(3, '0')}`}),
+    other: 'duckdb://usage', otherLabel: 'Usage ledger', otherValue: {items: [], limit: 100, nextCursor: null},
+    entry: index => ({dbId: `db_${String(index).padStart(3, '0')}`, dbUri: `duckdb://db/db_${String(index).padStart(3, '0')}`}),
     cursor: Buffer.from(JSON.stringify({version: 1, collection: 'duckdb://dbs', after: 'db_099'})).toString('base64url')},
   {domain: 'time', title: 'Timeline', collection: 'time://events', label: 'Events',
     other: 'time://clock/current', otherLabel: 'Clock', otherValue: {clock: 'current'},
-    knowledge: true, entry: index => ({uri: `time://events/event-${taskId(index)}`, title: `Event ${index}`}), cursor: 'page +two/&?=#'},
+    entry: index => ({eventId: `event-${taskId(index)}`, name: `Event ${index}`, due: {taiSecondsSince1970: index, nanosecond: 0, uncertaintyNanoseconds: 0, authority: {tzdbReleaseId: 'time-release-fixture-tzdb', leapSecondsReleaseId: 'time-release-fixture-leaps'}}, state: 'scheduled', recordVersion: 1}),
+    cursor: Buffer.from(JSON.stringify({version: 2, collection: 'time://events', position: {eventKey: `event-${taskId(99)}`, taiSeconds: 99, nanosecond: 0}})).toString('hex')},
   {domain: 'duckdb', title: 'Workbench', collection: 'duckdb://usage', label: 'Usage',
-    other: 'duckdb://dbs', otherLabel: 'Databases', otherValue: {items: [{db_id: 'metrics', db_uri: 'duckdb://db/metrics'}], limit: 100, next_cursor: null},
-    entry: index => ({task_id: taskId(index), usage_uri: `duckdb://usage/task/${taskId(index)}`}),
+    other: 'duckdb://dbs', otherLabel: 'Databases', otherValue: {items: [{dbId: 'metrics', dbUri: 'duckdb://db/metrics'}], limit: 100, nextCursor: null},
+    entry: index => ({taskId: taskId(index), usageUri: `duckdb://usage/task/${taskId(index)}`}),
     cursor: Buffer.from(JSON.stringify({version: 1, collection: 'duckdb://usage', after: taskId(99)})).toString('base64url')},
   {domain: 'media-usage', title: 'Studio', collection: 'media://usage', label: 'Usage ledger',
     other: 'media://models', otherLabel: 'Model catalog', otherValue: modelCatalog,
-    entry: index => ({task_id: taskId(index), usage_uri: `media://usage/task/${taskId(index)}`}),
+    entry: index => ({taskId: taskId(index), usageUri: `media://usage/task/${taskId(index)}`}),
     cursor: Buffer.from(JSON.stringify({version: 1, collection: 'media://usage', after: taskId(99)})).toString('base64url')},
   {domain: 'media-predictions', title: 'Studio', collection: 'media://predictions', label: 'Predictions',
     other: 'media://models', otherLabel: 'Model catalog', otherValue: modelCatalog,
-    entry: index => ({id: `prediction-${index}`, prediction_uri: `media://prediction/prediction-${index}`}),
+    entry: index => ({id: `prediction-${index}`, predictionUri: `media://prediction/prediction-${index}`}),
     cursor: Buffer.from(JSON.stringify({version: 1, collection: 'media://predictions', after: 'prediction-99'})).toString('base64url')},
 ];
 
@@ -65,10 +66,10 @@ for (const fixture of cases) {
         let value;
         if (uri === fixture.collection) value = fixture.knowledge
           ? {items: Array.from({length: 100}, (_, i) => fixture.entry(i)), nextCursor: fixture.cursor}
-          : {items: Array.from({length: 100}, (_, i) => fixture.entry(i)), limit: 100, next_cursor: fixture.cursor};
+          : {items: Array.from({length: 100}, (_, i) => fixture.entry(i)), limit: 100, nextCursor: fixture.cursor};
         else if (uri === nextPage.href) {
           if (hold) {hold = false; await new Promise(resolve => {release = resolve; arrived();});}
-          value = fixture.knowledge ? {items: [fixture.entry(100)]} : {items: [fixture.entry(100)], limit: 100, next_cursor: null};
+          value = fixture.knowledge ? {items: [fixture.entry(100)]} : {items: [fixture.entry(100)], limit: 100, nextCursor: null};
         } else if (uri === fixture.other) value = fixture.otherValue;
         else throw new Error(`Unexpected read ${uri}`);
         return {contents: [{uri, mimeType: 'application/json', text: JSON.stringify(value)}]};

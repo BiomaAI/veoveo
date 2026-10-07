@@ -1,715 +1,306 @@
 {
-  "DuckDbColumn": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "properties": {
-      "name": {
-        "type": "string"
-      },
-      "type_name": {
-        "type": "string"
-      }
-    },
-    "required": [
-      "name",
-      "type_name"
-    ],
-    "title": "DuckDbColumn",
-    "type": "object"
-  },
-  "DuckDbDatabaseId": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "DuckDbDatabaseId",
-    "type": "string",
-    "pattern": "^[a-z][a-z0-9_]{0,63}$",
-    "description": "Owner-scoped name of a mutable hosted database file."
-  },
-  "DuckDbExecuteOutput": {
-    "$defs": {
-      "DuckDbDatabaseId": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9_]{0,63}$",
-        "description": "Owner-scoped name of a mutable hosted database file."
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "properties": {
-      "db": {
-        "$ref": "#/$defs/DuckDbDatabaseId"
-      },
-      "db_created": {
-        "type": "boolean"
-      },
-      "rows_changed": {
-        "format": "uint64",
-        "minimum": 0,
-        "type": "integer"
-      },
-      "statements": {
-        "format": "uint64",
-        "minimum": 0,
-        "type": "integer"
-      }
-    },
-    "required": [
-      "db",
-      "statements",
-      "rows_changed",
-      "db_created"
-    ],
-    "title": "DuckDbExecuteOutput",
-    "type": "object"
-  },
-  "DuckDbExecuteRequest": {
-    "$defs": {
-      "DuckDbDatabaseId": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9_]{0,63}$",
-        "description": "Owner-scoped name of a mutable hosted database file."
-      },
-      "DuckDbSqlText": {
-        "allOf": [
-          {
-            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
-          },
-          {
-            "pattern": "^[^\\u0000]*$"
-          }
-        ],
-        "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
-        "type": "string"
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "properties": {
-      "create_if_missing": {
-        "default": false,
-        "type": "boolean"
-      },
-      "db": {
-        "$ref": "#/$defs/DuckDbDatabaseId"
-      },
-      "sql": {
-        "$ref": "#/$defs/DuckDbSqlText"
-      },
-      "timeout_ms": {
-        "format": "uint64",
-        "minimum": 1,
-        "type": [
-          "integer",
-          "null"
-        ]
-      }
-    },
-    "required": [
-      "db",
-      "sql"
-    ],
-    "title": "DuckDbExecuteRequest",
-    "type": "object",
-    "additionalProperties": false
-  },
-  "DuckDbExportOutput": {
-    "$defs": {
-      "AccessSubject": {
-        "description": "A principal or group that can own governed data or receive access.",
-        "oneOf": [
-          {
-            "properties": {
-              "id": {
-                "$ref": "#/$defs/PrincipalId"
-              },
-              "kind": {
-                "const": "principal",
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind",
-              "id"
-            ],
-            "type": "object",
-            "additionalProperties": false
-          },
-          {
-            "properties": {
-              "id": {
-                "$ref": "#/$defs/GroupId"
-              },
-              "kind": {
-                "const": "group",
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind",
-              "id"
-            ],
-            "type": "object",
-            "additionalProperties": false
-          }
-        ]
-      },
-      "ArtifactId": {
-        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
-        "type": "string"
-      },
-      "ArtifactMetadata": {
-        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
-        "properties": {
-          "artifact_id": {
-            "$ref": "#/$defs/ArtifactId"
-          },
-          "artifact_uri": {
-            "$ref": "#/$defs/ArtifactUri"
-          },
-          "byte_len": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "compliance": {
-            "$ref": "#/$defs/ComplianceMetadata",
-            "default": {}
-          },
-          "created_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "download_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "filename": {
-            "default": null,
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "metadata": {
-            "default": null
-          },
-          "mime_type": {
-            "default": null,
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "release_state": {
-            "$ref": "#/$defs/ArtifactReleaseState",
-            "default": "private"
-          }
-        },
-        "required": [
-          "artifact_id",
-          "byte_len",
-          "artifact_uri",
-          "created_at"
-        ],
-        "type": "object"
-      },
-      "ArtifactProvenance": {
-        "description": "Immutable explanation of how an artifact came into being.",
-        "oneOf": [
-          {
-            "properties": {
-              "delegation_id": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/NoIdentity"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "initiator": {
-                "$ref": "#/$defs/PrincipalId"
-              },
-              "invocation_mode": {
-                "const": "direct",
-                "type": "string"
-              },
-              "policy_revision": {
-                "$ref": "#/$defs/PolicyVersion"
-              },
-              "producer": {
-                "$ref": "#/$defs/PrincipalId"
-              }
-            },
-            "required": [
-              "invocation_mode",
-              "producer",
-              "initiator",
-              "policy_revision"
-            ],
-            "type": "object"
-          },
-          {
-            "properties": {
-              "delegation_id": {
-                "$ref": "#/$defs/DelegationId"
-              },
-              "initiator": {
-                "$ref": "#/$defs/PrincipalId"
-              },
-              "invocation_mode": {
-                "const": "delegated",
-                "type": "string"
-              },
-              "policy_revision": {
-                "$ref": "#/$defs/PolicyVersion"
-              },
-              "producer": {
-                "$ref": "#/$defs/PrincipalId"
-              }
-            },
-            "required": [
-              "invocation_mode",
-              "producer",
-              "initiator",
-              "delegation_id",
-              "policy_revision"
-            ],
-            "type": "object"
-          },
-          {
-            "properties": {
-              "delegation_id": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/NoIdentity"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "initiator": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/NoIdentity"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "invocation_mode": {
-                "const": "automated",
-                "type": "string"
-              },
-              "policy_revision": {
-                "$ref": "#/$defs/PolicyVersion"
-              },
-              "producer": {
-                "$ref": "#/$defs/PrincipalId"
-              }
-            },
-            "required": [
-              "invocation_mode",
-              "producer",
-              "policy_revision"
-            ],
-            "type": "object"
-          }
-        ]
-      },
-      "ArtifactReleaseState": {
-        "enum": [
-          "private",
-          "releasable",
-          "released"
-        ],
-        "type": "string"
-      },
-      "ArtifactUri": {
-        "description": "Neutral or server-presented Artifact occurrence URI.",
-        "type": "string"
-      },
-      "ComplianceMetadata": {
-        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
-        "properties": {
-          "classification": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/DataLabelId"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "data_labels": {
-            "items": {
-              "$ref": "#/$defs/DataLabelId"
-            },
-            "type": "array",
-            "uniqueItems": true
-          },
-          "owner": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/AccessSubject"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "provenance": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/ArtifactProvenance"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "retention_expires_at": {
-            "format": "date-time",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "tenant_id": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/TenantId"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "work_context": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/WorkContextId"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object"
-      },
-      "DataLabelId": {
-        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
-        "type": "string"
-      },
-      "DelegationId": {
-        "description": "Auditable identity of authority delegated by an initiator to another actor.",
-        "type": "string"
-      },
-      "DuckDbDatabaseId": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9_]{0,63}$",
-        "description": "Owner-scoped name of a mutable hosted database file."
-      },
-      "GroupId": {
-        "description": "Identity-provider group identifier used by gateway policy.",
-        "type": "string"
-      },
-      "NoIdentity": false,
-      "PolicyVersion": {
-        "description": "Immutable policy version identifier emitted with decisions and audit records.",
-        "type": "string"
-      },
-      "PrincipalId": {
-        "description": "Stable authenticated user or service-principal identity.",
-        "type": "string"
-      },
-      "TenantId": {
-        "description": "Tenant, organization, or customer boundary identifier.",
-        "type": "string"
-      },
-      "WorkContextId": {
-        "description": "Tenant-local boundary that governs related work and every output it produces.",
-        "type": "string"
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "properties": {
-      "artifact": {
-        "$ref": "#/$defs/ArtifactMetadata"
-      },
-      "db": {
-        "$ref": "#/$defs/DuckDbDatabaseId"
-      },
-      "rows_exported": {
-        "format": "uint64",
-        "minimum": 0,
-        "type": "integer"
-      }
-    },
-    "required": [
-      "db",
-      "rows_exported",
-      "artifact"
-    ],
-    "title": "DuckDbExportOutput",
-    "type": "object"
-  },
-  "DuckDbExportRequest": {
-    "$defs": {
-      "DuckDbDatabaseId": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9_]{0,63}$",
-        "description": "Owner-scoped name of a mutable hosted database file."
-      },
-      "DuckDbTabularSelection": {
-        "oneOf": [
-          {
-            "additionalProperties": false,
-            "properties": {
-              "kind": {
-                "const": "table",
-                "type": "string"
-              },
-              "table": {
-                "$ref": "#/$defs/DuckDbTableName"
-              }
-            },
-            "required": [
-              "kind",
-              "table"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "description": "Read-only SQL whose result set is exported.",
-            "properties": {
-              "kind": {
-                "const": "sql",
-                "type": "string"
-              },
-              "sql": {
-                "$ref": "#/$defs/DuckDbSqlText"
-              }
-            },
-            "required": [
-              "kind",
-              "sql"
-            ],
-            "type": "object"
-          }
-        ]
-      },
-      "SnapshotSelection": {
-        "oneOf": [
-          {
-            "additionalProperties": false,
-            "properties": {
-              "kind": {
-                "const": "database",
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind"
-            ],
-            "type": "object"
-          }
-        ]
-      },
-      "DuckDbSqlText": {
-        "allOf": [
-          {
-            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
-          },
-          {
-            "pattern": "^[^\\u0000]*$"
-          }
-        ],
-        "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
-        "type": "string"
-      },
-      "DuckDbTableName": {
-        "allOf": [
-          {
-            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
-          },
-          {
-            "pattern": "^[^\\u0000]*$"
-          }
-        ],
-        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
-        "type": "string"
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "DuckDbExportRequest",
-    "type": "object",
-    "description": "A snapshot has its own format; row exports require a tabular format.\n\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbExportRequest, DuckDbTabularFormat};\nlet request = DuckDbExportRequest::Snapshot {\n    db: \"metrics\".parse().unwrap(),\n    format: DuckDbTabularFormat::Csv,\n};\n```",
-    "oneOf": [
-      {
-        "additionalProperties": false,
-        "properties": {
-          "db": {
-            "$ref": "#/$defs/DuckDbDatabaseId"
-          },
-          "format": {
-            "const": "parquet",
-            "type": "string"
-          },
-          "selection": {
-            "$ref": "#/$defs/DuckDbTabularSelection"
-          }
-        },
-        "required": [
-          "format",
-          "db",
-          "selection"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "db": {
-            "$ref": "#/$defs/DuckDbDatabaseId"
-          },
-          "format": {
-            "const": "csv",
-            "type": "string"
-          },
-          "selection": {
-            "$ref": "#/$defs/DuckDbTabularSelection"
-          }
-        },
-        "required": [
-          "format",
-          "db",
-          "selection"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "db": {
-            "$ref": "#/$defs/DuckDbDatabaseId"
-          },
-          "format": {
-            "const": "duck_db",
-            "type": "string"
-          },
-          "selection": {
-            "$ref": "#/$defs/SnapshotSelection"
-          }
-        },
-        "required": [
-          "format",
-          "db",
-          "selection"
-        ],
-        "type": "object"
-      }
-    ]
-  },
   "DuckDbFormat": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbFormat",
+    "type": "string",
     "enum": [
       "auto",
       "csv",
       "parquet",
       "json",
       "ndjson"
-    ],
-    "title": "DuckDbFormat",
-    "type": "string"
+    ]
   },
-  "DuckDbIngestMode": {
+  "DuckDbReadOptions": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "DuckDbIngestMode",
-    "enum": [
-      "create",
-      "append",
-      "replace"
-    ],
-    "type": "string"
-  },
-  "DuckDbIngestOutput": {
-    "$defs": {
-      "DuckDbDatabaseId": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9_]{0,63}$",
-        "description": "Owner-scoped name of a mutable hosted database file."
+    "title": "DuckDbReadOptions",
+    "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```",
+    "type": "object",
+    "properties": {
+      "header": {
+        "type": [
+          "boolean",
+          "null"
+        ]
       },
-      "DuckDbTableName": {
-        "allOf": [
+      "delimiter": {
+        "anyOf": [
           {
-            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+            "$ref": "#/$defs/DuckDbReadOptionText"
           },
           {
-            "pattern": "^[^\\u0000]*$"
+            "type": "null"
           }
-        ],
-        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
-        "type": "string"
+        ]
+      },
+      "timestampFormat": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DuckDbReadOptionText"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "extra": {
+        "type": "object",
+        "additionalProperties": false,
+        "patternProperties": {
+          "^[a-z_]": {
+            "$ref": "#/$defs/DuckDbReadOptionValue"
+          }
+        },
+        "propertyNames": {
+          "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
+          "type": "string",
+          "pattern": "^[a-z_]",
+          "not": {
+            "anyOf": [
+              {
+                "enum": [
+                  "header",
+                  "delim",
+                  "delimiter",
+                  "sep",
+                  "timestampformat",
+                  "timestamp_format"
+                ]
+              },
+              {
+                "pattern": "[^a-z0-9_]"
+              }
+            ]
+          },
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "kind": "standard",
+                "declaration": {
+                  "authority": {
+                    "kind": "standard",
+                    "document": "https://duckdb.org/docs/stable/data/csv/overview.html"
+                  },
+                  "profile": "DuckDB reader option names",
+                  "version": "1.5.6",
+                  "applicability": "only extra reader-option dictionary names"
+                }
+              }
+            }
+          }
+        }
       }
     },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "properties": {
-      "db": {
-        "$ref": "#/$defs/DuckDbDatabaseId"
+    "additionalProperties": false,
+    "$defs": {
+      "DuckDbReadOptionText": {
+        "type": "string",
+        "pattern": "^[^\\u0000]*$"
       },
-      "db_created": {
+      "DuckDbReadOptionValue": {
+        "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning.",
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "$ref": "#/$defs/DuckDbReadOptionText"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/DuckDbReadOptionValue"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "DuckDbReadOptionName": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbReadOptionName",
+    "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
+    "type": "string",
+    "pattern": "^[a-z_]",
+    "not": {
+      "anyOf": [
+        {
+          "enum": [
+            "header",
+            "delim",
+            "delimiter",
+            "sep",
+            "timestampformat",
+            "timestamp_format"
+          ]
+        },
+        {
+          "pattern": "[^a-z0-9_]"
+        }
+      ]
+    },
+    "ai.veoveo/naming-profile": {
+      "revision": 1,
+      "role": {
+        "kind": "scalar",
+        "profile": {
+          "kind": "standard",
+          "declaration": {
+            "authority": {
+              "kind": "standard",
+              "document": "https://duckdb.org/docs/stable/data/csv/overview.html"
+            },
+            "profile": "DuckDB reader option names",
+            "version": "1.5.6",
+            "applicability": "only extra reader-option dictionary names"
+          }
+        }
+      }
+    }
+  },
+  "DuckDbReadOptionValue": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbReadOptionValue",
+    "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning.",
+    "anyOf": [
+      {
         "type": "boolean"
       },
-      "rows_ingested": {
-        "format": "uint64",
-        "minimum": 0,
-        "type": "integer"
+      {
+        "type": "number"
       },
-      "table": {
-        "$ref": "#/$defs/DuckDbTableName"
+      {
+        "$ref": "#/$defs/DuckDbReadOptionText"
+      },
+      {
+        "type": "array",
+        "items": {
+          "$ref": "#"
+        }
       }
-    },
-    "required": [
-      "db",
-      "table",
-      "rows_ingested",
-      "db_created"
     ],
-    "title": "DuckDbIngestOutput",
-    "type": "object"
-  },
-  "DuckDbIngestRequest": {
     "$defs": {
-      "DuckDbDatabaseId": {
+      "DuckDbReadOptionText": {
         "type": "string",
-        "pattern": "^[a-z][a-z0-9_]{0,63}$",
-        "description": "Owner-scoped name of a mutable hosted database file."
+        "pattern": "^[^\\u0000]*$"
+      }
+    }
+  },
+  "DuckDbReadOptionText": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbReadOptionText",
+    "type": "string",
+    "pattern": "^[^\\u0000]*$"
+  },
+  "DuckDbSqlText": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbSqlText",
+    "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
+    "type": "string",
+    "allOf": [
+      {
+        "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+      },
+      {
+        "pattern": "^[^\\u0000]*$"
+      }
+    ]
+  },
+  "DuckDbTableName": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbTableName",
+    "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+    "type": "string",
+    "allOf": [
+      {
+        "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+      },
+      {
+        "pattern": "^[^\\u0000]*$"
+      }
+    ]
+  },
+  "DuckDbColumnName": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbColumnName",
+    "description": "Nonblank column name without NUL, preserved verbatim and quoted as one SQL identifier.",
+    "type": "string",
+    "allOf": [
+      {
+        "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+      },
+      {
+        "pattern": "^[^\\u0000]*$"
+      }
+    ]
+  },
+  "DuckDbSource": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbSource",
+    "description": "Sources supported by DuckDB's authenticated hosted materializer.",
+    "anyOf": [
+      {
+        "description": "A neutral `artifact://{artifact_id}` reference resolved through the shared\nartifact plane under the caller's identity — the cross-server input path.\nAny artifact produced by any hosted server (a media output, a timeseries\nRRD, an optimization DuckDB snapshot) can be read here, gated by the same\ngrant + label checks as any other plane read. The server resolves and\nmaterializes the bytes; the SQL engine never touches the network.",
+        "type": "object",
+        "properties": {
+          "uri": {
+            "$ref": "#/$defs/DuckDbArtifactSourceUri"
+          },
+          "format": {
+            "$ref": "#/$defs/DuckDbFormat"
+          },
+          "options": {
+            "$ref": "#/$defs/DuckDbReadOptions",
+            "default": {}
+          },
+          "kind": {
+            "type": "string",
+            "const": "artifact"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "uri",
+          "format"
+        ]
+      },
+      {
+        "description": "Inline and HTTPS inputs share the same contract with analytical consumers.",
+        "$ref": "#/$defs/DuckDbTabularSource"
+      }
+    ],
+    "$defs": {
+      "DuckDbArtifactSourceUri": {
+        "description": "Neutral Artifact plane URI naming a native UUIDv7 occurrence. Parsed by the Artifact contract.",
+        "type": "string",
+        "pattern": "^artifact://(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9a-fA-F]{12}7[0-9a-fA-F]{3}[89aAbB][0-9a-fA-F]{15})$"
       },
       "DuckDbFormat": {
+        "type": "string",
         "enum": [
           "auto",
           "csv",
           "parquet",
           "json",
           "ndjson"
-        ],
-        "type": "string"
-      },
-      "DuckDbIngestMode": {
-        "enum": [
-          "create",
-          "append",
-          "replace"
-        ],
-        "type": "string"
+        ]
       },
       "DuckDbReadOptions": {
+        "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```",
+        "type": "object",
         "properties": {
+          "header": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "delimiter": {
             "anyOf": [
               {
@@ -720,9 +311,19 @@
               }
             ]
           },
+          "timestampFormat": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DuckDbReadOptionText"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "extra": {
-            "additionalProperties": false,
             "type": "object",
+            "additionalProperties": false,
             "patternProperties": {
               "^[a-z_]": {
                 "$ref": "#/$defs/DuckDbReadOptionValue"
@@ -730,6 +331,8 @@
             },
             "propertyNames": {
               "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
+              "type": "string",
+              "pattern": "^[a-z_]",
               "not": {
                 "anyOf": [
                   {
@@ -747,89 +350,35 @@
                   }
                 ]
               },
-              "pattern": "^[a-z_]",
-              "type": "string"
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "kind": "standard",
+                    "declaration": {
+                      "authority": {
+                        "kind": "standard",
+                        "document": "https://duckdb.org/docs/stable/data/csv/overview.html"
+                      },
+                      "profile": "DuckDB reader option names",
+                      "version": "1.5.6",
+                      "applicability": "only extra reader-option dictionary names"
+                    }
+                  }
+                }
+              }
             }
-          },
-          "header": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "timestamp_format": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/DuckDbReadOptionText"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
-        "type": "object",
-        "additionalProperties": false,
-        "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```"
-      },
-      "DuckDbSource": {
-        "anyOf": [
-          {
-            "additionalProperties": false,
-            "description": "A neutral `artifact://{artifact_id}` reference resolved through the shared\nartifact plane under the caller's identity — the cross-server input path.\nAny artifact produced by any hosted server (a media output, a timeseries\nRRD, an optimization DuckDB snapshot) can be read here, gated by the same\ngrant + label checks as any other plane read. The server resolves and\nmaterializes the bytes; the SQL engine never touches the network.",
-            "properties": {
-              "format": {
-                "$ref": "#/$defs/DuckDbFormat"
-              },
-              "kind": {
-                "const": "artifact",
-                "type": "string"
-              },
-              "options": {
-                "$ref": "#/$defs/DuckDbReadOptions",
-                "default": {}
-              },
-              "uri": {
-                "$ref": "#/$defs/DuckDbArtifactSourceUri"
-              }
-            },
-            "required": [
-              "kind",
-              "uri",
-              "format"
-            ],
-            "type": "object"
-          },
-          {
-            "$ref": "#/$defs/DuckDbTabularSource",
-            "description": "Inline and HTTPS inputs share the same contract with analytical consumers."
-          }
-        ],
-        "description": "Sources supported by DuckDB's authenticated hosted materializer."
-      },
-      "DuckDbArtifactSourceUri": {
-        "description": "Neutral Artifact plane URI naming a native UUIDv7 occurrence. Parsed by the Artifact contract.",
-        "pattern": "^artifact://(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9a-fA-F]{12}7[0-9a-fA-F]{3}[89aAbB][0-9a-fA-F]{15})$",
-        "type": "string"
-      },
-      "DuckDbSourceUris": {
-        "items": {
-          "$ref": "#/$defs/HttpsUrl"
-        },
-        "minItems": 1,
-        "type": "array"
-      },
-      "HttpsUrl": {
-        "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
-        "format": "uri",
-        "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$",
-        "type": "string"
+        "additionalProperties": false
       },
       "DuckDbReadOptionText": {
-        "pattern": "^[^\\u0000]*$",
-        "type": "string"
+        "type": "string",
+        "pattern": "^[^\\u0000]*$"
       },
       "DuckDbReadOptionValue": {
+        "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning.",
         "anyOf": [
           {
             "type": "boolean"
@@ -841,31 +390,18 @@
             "$ref": "#/$defs/DuckDbReadOptionText"
           },
           {
+            "type": "array",
             "items": {
               "$ref": "#/$defs/DuckDbReadOptionValue"
-            },
-            "type": "array"
+            }
           }
-        ],
-        "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning."
-      },
-      "DuckDbTableName": {
-        "allOf": [
-          {
-            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
-          },
-          {
-            "pattern": "^[^\\u0000]*$"
-          }
-        ],
-        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
-        "type": "string"
+        ]
       },
       "DuckDbTabularSource": {
         "description": "Inline and HTTPS tabular inputs; consumers own network admission and execution.",
         "oneOf": [
           {
-            "additionalProperties": false,
+            "type": "object",
             "properties": {
               "csv": {
                 "type": "string"
@@ -876,667 +412,437 @@
                   "null"
                 ]
               },
-              "kind": {
-                "const": "inline_csv",
-                "type": "string"
-              },
               "options": {
                 "$ref": "#/$defs/DuckDbReadOptions",
                 "default": {}
+              },
+              "kind": {
+                "type": "string",
+                "const": "inline_csv"
               }
             },
+            "additionalProperties": false,
             "required": [
               "kind",
               "csv"
-            ],
-            "type": "object"
+            ]
           },
           {
-            "additionalProperties": false,
+            "type": "object",
             "properties": {
+              "uri": {
+                "$ref": "#/$defs/HttpsUrl"
+              },
               "format": {
                 "$ref": "#/$defs/DuckDbFormat"
-              },
-              "kind": {
-                "const": "uri",
-                "type": "string"
               },
               "options": {
                 "$ref": "#/$defs/DuckDbReadOptions",
                 "default": {}
               },
-              "uri": {
-                "$ref": "#/$defs/HttpsUrl"
+              "kind": {
+                "type": "string",
+                "const": "uri"
               }
             },
+            "additionalProperties": false,
             "required": [
               "kind",
               "uri",
               "format"
-            ],
-            "type": "object"
+            ]
           },
           {
-            "additionalProperties": false,
+            "type": "object",
             "properties": {
+              "uris": {
+                "$ref": "#/$defs/DuckDbSourceUris"
+              },
               "format": {
                 "$ref": "#/$defs/DuckDbFormat"
-              },
-              "kind": {
-                "const": "uris",
-                "type": "string"
               },
               "options": {
                 "$ref": "#/$defs/DuckDbReadOptions",
                 "default": {}
               },
-              "uris": {
-                "$ref": "#/$defs/DuckDbSourceUris"
+              "kind": {
+                "type": "string",
+                "const": "uris"
               }
             },
+            "additionalProperties": false,
             "required": [
               "kind",
               "uris",
               "format"
-            ],
-            "type": "object"
+            ]
           }
         ]
+      },
+      "HttpsUrl": {
+        "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$"
+      },
+      "DuckDbSourceUris": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/HttpsUrl"
+        },
+        "minItems": 1
       }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "properties": {
-      "create_db_if_missing": {
-        "default": false,
-        "type": "boolean"
-      },
-      "db": {
-        "$ref": "#/$defs/DuckDbDatabaseId"
-      },
-      "mode": {
-        "$ref": "#/$defs/DuckDbIngestMode"
-      },
-      "source": {
-        "$ref": "#/$defs/DuckDbSource"
-      },
-      "table": {
-        "$ref": "#/$defs/DuckDbTableName"
-      }
-    },
-    "required": [
-      "db",
-      "table",
-      "source",
-      "mode"
-    ],
-    "title": "DuckDbIngestRequest",
-    "type": "object",
-    "additionalProperties": false
+    }
   },
-  "DuckDbQueryOutput": {
-    "$defs": {
-      "AccessSubject": {
-        "description": "A principal or group that can own governed data or receive access.",
-        "oneOf": [
-          {
-            "properties": {
-              "id": {
-                "$ref": "#/$defs/PrincipalId"
-              },
-              "kind": {
-                "const": "principal",
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind",
-              "id"
-            ],
-            "type": "object",
-            "additionalProperties": false
-          },
-          {
-            "properties": {
-              "id": {
-                "$ref": "#/$defs/GroupId"
-              },
-              "kind": {
-                "const": "group",
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind",
-              "id"
-            ],
-            "type": "object",
-            "additionalProperties": false
-          }
-        ]
-      },
-      "ArtifactId": {
-        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
-        "type": "string"
-      },
-      "ArtifactMetadata": {
-        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
-        "properties": {
-          "artifact_id": {
-            "$ref": "#/$defs/ArtifactId"
-          },
-          "artifact_uri": {
-            "$ref": "#/$defs/ArtifactUri"
-          },
-          "byte_len": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "compliance": {
-            "$ref": "#/$defs/ComplianceMetadata",
-            "default": {}
-          },
-          "created_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "download_url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "filename": {
-            "default": null,
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "metadata": {
-            "default": null
-          },
-          "mime_type": {
-            "default": null,
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "release_state": {
-            "$ref": "#/$defs/ArtifactReleaseState",
-            "default": "private"
-          }
-        },
-        "required": [
-          "artifact_id",
-          "byte_len",
-          "artifact_uri",
-          "created_at"
-        ],
-        "type": "object"
-      },
-      "ArtifactProvenance": {
-        "description": "Immutable explanation of how an artifact came into being.",
-        "oneOf": [
-          {
-            "properties": {
-              "delegation_id": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/NoIdentity"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "initiator": {
-                "$ref": "#/$defs/PrincipalId"
-              },
-              "invocation_mode": {
-                "const": "direct",
-                "type": "string"
-              },
-              "policy_revision": {
-                "$ref": "#/$defs/PolicyVersion"
-              },
-              "producer": {
-                "$ref": "#/$defs/PrincipalId"
-              }
-            },
-            "required": [
-              "invocation_mode",
-              "producer",
-              "initiator",
-              "policy_revision"
-            ],
-            "type": "object"
-          },
-          {
-            "properties": {
-              "delegation_id": {
-                "$ref": "#/$defs/DelegationId"
-              },
-              "initiator": {
-                "$ref": "#/$defs/PrincipalId"
-              },
-              "invocation_mode": {
-                "const": "delegated",
-                "type": "string"
-              },
-              "policy_revision": {
-                "$ref": "#/$defs/PolicyVersion"
-              },
-              "producer": {
-                "$ref": "#/$defs/PrincipalId"
-              }
-            },
-            "required": [
-              "invocation_mode",
-              "producer",
-              "initiator",
-              "delegation_id",
-              "policy_revision"
-            ],
-            "type": "object"
-          },
-          {
-            "properties": {
-              "delegation_id": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/NoIdentity"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "initiator": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/NoIdentity"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "invocation_mode": {
-                "const": "automated",
-                "type": "string"
-              },
-              "policy_revision": {
-                "$ref": "#/$defs/PolicyVersion"
-              },
-              "producer": {
-                "$ref": "#/$defs/PrincipalId"
-              }
-            },
-            "required": [
-              "invocation_mode",
-              "producer",
-              "policy_revision"
-            ],
-            "type": "object"
-          }
-        ]
-      },
-      "ArtifactReleaseState": {
-        "enum": [
-          "private",
-          "releasable",
-          "released"
-        ],
-        "type": "string"
-      },
-      "ArtifactUri": {
-        "description": "Neutral or server-presented Artifact occurrence URI.",
-        "type": "string"
-      },
-      "ComplianceMetadata": {
-        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
-        "properties": {
-          "classification": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/DataLabelId"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "data_labels": {
-            "items": {
-              "$ref": "#/$defs/DataLabelId"
-            },
-            "type": "array",
-            "uniqueItems": true
-          },
-          "owner": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/AccessSubject"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "provenance": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/ArtifactProvenance"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "retention_expires_at": {
-            "format": "date-time",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "tenant_id": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/TenantId"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "work_context": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/WorkContextId"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object"
-      },
-      "DataLabelId": {
-        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
-        "type": "string"
-      },
-      "DelegationId": {
-        "description": "Auditable identity of authority delegated by an initiator to another actor.",
-        "type": "string"
-      },
-      "DuckDbColumn": {
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "type_name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "type_name"
-        ],
-        "type": "object"
-      },
-      "GroupId": {
-        "description": "Identity-provider group identifier used by gateway policy.",
-        "type": "string"
-      },
-      "NoIdentity": false,
-      "PolicyVersion": {
-        "description": "Immutable policy version identifier emitted with decisions and audit records.",
-        "type": "string"
-      },
-      "PrincipalId": {
-        "description": "Stable authenticated user or service-principal identity.",
-        "type": "string"
-      },
-      "TenantId": {
-        "description": "Tenant, organization, or customer boundary identifier.",
-        "type": "string"
-      },
-      "WorkContextId": {
-        "description": "Tenant-local boundary that governs related work and every output it produces.",
-        "type": "string"
-      }
-    },
+  "DuckDbTabularSource": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "properties": {
-      "artifact": {
-        "anyOf": [
-          {
-            "$ref": "#/$defs/ArtifactMetadata"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "columns": {
-        "items": {
-          "$ref": "#/$defs/DuckDbColumn"
-        },
-        "type": "array"
-      },
-      "row_count": {
-        "format": "uint64",
-        "minimum": 0,
-        "type": "integer"
-      },
-      "rows": {
-        "items": {
-          "items": true,
-          "type": "array"
-        },
-        "type": "array"
-      },
-      "truncated": {
-        "type": "boolean"
-      }
-    },
-    "required": [
-      "columns",
-      "row_count",
-      "truncated"
-    ],
-    "title": "DuckDbQueryOutput",
-    "type": "object",
-    "additionalProperties": false,
-    "description": "Construct results through `inline` or `exported`; callers cannot mutate\nrow/count or inline/Artifact relationships independently.\n\n```compile_fail\nuse veoveo_duckdb_mcp::contract::DuckDbQueryOutput;\nfn change_count(mut output: DuckDbQueryOutput) { output.row_count = 7; }\n```",
+    "title": "DuckDbTabularSource",
+    "description": "Inline and HTTPS tabular inputs; consumers own network admission and execution.",
     "oneOf": [
       {
+        "type": "object",
         "properties": {
-          "artifact": {
-            "type": "null"
-          }
-        }
-      },
-      {
-        "properties": {
-          "artifact": {
-            "type": "object"
+          "csv": {
+            "type": "string"
           },
-          "columns": {
-            "maxItems": 0
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
-          "rows": {
-            "maxItems": 0
+          "options": {
+            "$ref": "#/$defs/DuckDbReadOptions",
+            "default": {}
           },
-          "truncated": {
-            "const": false
+          "kind": {
+            "type": "string",
+            "const": "inline_csv"
           }
         },
+        "additionalProperties": false,
         "required": [
-          "artifact"
+          "kind",
+          "csv"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "$ref": "#/$defs/HttpsUrl"
+          },
+          "format": {
+            "$ref": "#/$defs/DuckDbFormat"
+          },
+          "options": {
+            "$ref": "#/$defs/DuckDbReadOptions",
+            "default": {}
+          },
+          "kind": {
+            "type": "string",
+            "const": "uri"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "uri",
+          "format"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "uris": {
+            "$ref": "#/$defs/DuckDbSourceUris"
+          },
+          "format": {
+            "$ref": "#/$defs/DuckDbFormat"
+          },
+          "options": {
+            "$ref": "#/$defs/DuckDbReadOptions",
+            "default": {}
+          },
+          "kind": {
+            "type": "string",
+            "const": "uris"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "uris",
+          "format"
         ]
       }
+    ],
+    "$defs": {
+      "DuckDbReadOptions": {
+        "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```",
+        "type": "object",
+        "properties": {
+          "header": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "delimiter": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DuckDbReadOptionText"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timestampFormat": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DuckDbReadOptionText"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extra": {
+            "type": "object",
+            "additionalProperties": false,
+            "patternProperties": {
+              "^[a-z_]": {
+                "$ref": "#/$defs/DuckDbReadOptionValue"
+              }
+            },
+            "propertyNames": {
+              "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
+              "type": "string",
+              "pattern": "^[a-z_]",
+              "not": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "header",
+                      "delim",
+                      "delimiter",
+                      "sep",
+                      "timestampformat",
+                      "timestamp_format"
+                    ]
+                  },
+                  {
+                    "pattern": "[^a-z0-9_]"
+                  }
+                ]
+              },
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "kind": "standard",
+                    "declaration": {
+                      "authority": {
+                        "kind": "standard",
+                        "document": "https://duckdb.org/docs/stable/data/csv/overview.html"
+                      },
+                      "profile": "DuckDB reader option names",
+                      "version": "1.5.6",
+                      "applicability": "only extra reader-option dictionary names"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DuckDbReadOptionText": {
+        "type": "string",
+        "pattern": "^[^\\u0000]*$"
+      },
+      "DuckDbReadOptionValue": {
+        "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning.",
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "$ref": "#/$defs/DuckDbReadOptionText"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/DuckDbReadOptionValue"
+            }
+          }
+        ]
+      },
+      "HttpsUrl": {
+        "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$"
+      },
+      "DuckDbFormat": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "csv",
+          "parquet",
+          "json",
+          "ndjson"
+        ]
+      },
+      "DuckDbSourceUris": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/HttpsUrl"
+        },
+        "minItems": 1
+      }
+    }
+  },
+  "DuckDbSourceUris": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbSourceUris",
+    "type": "array",
+    "items": {
+      "$ref": "#/$defs/HttpsUrl"
+    },
+    "minItems": 1,
+    "$defs": {
+      "HttpsUrl": {
+        "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$"
+      }
+    }
+  },
+  "DuckDbArtifactSourceUri": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbArtifactSourceUri",
+    "description": "Neutral Artifact plane URI naming a native UUIDv7 occurrence. Parsed by the Artifact contract.",
+    "type": "string",
+    "pattern": "^artifact://(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9a-fA-F]{12}7[0-9a-fA-F]{3}[89aAbB][0-9a-fA-F]{15})$"
+  },
+  "DuckDbDatabaseId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbDatabaseId",
+    "description": "Owner-scoped name of a mutable hosted database file.",
+    "type": "string",
+    "pattern": "^[a-z][a-z0-9_]{0,63}$"
+  },
+  "DuckDbTabularFormat": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbTabularFormat",
+    "type": "string",
+    "enum": [
+      "parquet",
+      "csv"
     ]
   },
   "DuckDbQueryOutputMode": {
-    "$defs": {
-      "DuckDbTabularFormat": {
-        "enum": [
-          "parquet",
-          "csv"
-        ],
-        "type": "string"
-      }
-    },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbQueryOutputMode",
     "oneOf": [
       {
         "description": "Rows inline in the tool result, subject to the server's row/byte caps.",
+        "type": "object",
         "properties": {
           "mode": {
-            "const": "inline",
-            "type": "string"
+            "type": "string",
+            "const": "inline"
           }
         },
+        "additionalProperties": false,
         "required": [
           "mode"
-        ],
-        "type": "object",
-        "additionalProperties": false
+        ]
       },
       {
         "description": "Rows written to an immutable artifact; the result carries the link.",
+        "type": "object",
         "properties": {
           "format": {
             "$ref": "#/$defs/DuckDbTabularFormat"
           },
           "mode": {
-            "const": "artifact",
-            "type": "string"
+            "type": "string",
+            "const": "artifact"
           }
         },
+        "additionalProperties": false,
         "required": [
           "mode",
           "format"
-        ],
-        "type": "object",
-        "additionalProperties": false
+        ]
       }
     ],
-    "title": "DuckDbQueryOutputMode"
-  },
-  "DuckDbQueryRequest": {
     "$defs": {
-      "DuckDbDatabaseId": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9_]{0,63}$",
-        "description": "Owner-scoped name of a mutable hosted database file."
-      },
-      "DuckDbQueryOutputMode": {
-        "oneOf": [
-          {
-            "description": "Rows inline in the tool result, subject to the server's row/byte caps.",
-            "properties": {
-              "mode": {
-                "const": "inline",
-                "type": "string"
-              }
-            },
-            "required": [
-              "mode"
-            ],
-            "type": "object",
-            "additionalProperties": false
-          },
-          {
-            "description": "Rows written to an immutable artifact; the result carries the link.",
-            "properties": {
-              "format": {
-                "$ref": "#/$defs/DuckDbTabularFormat"
-              },
-              "mode": {
-                "const": "artifact",
-                "type": "string"
-              }
-            },
-            "required": [
-              "mode",
-              "format"
-            ],
-            "type": "object",
-            "additionalProperties": false
-          }
-        ]
-      },
       "DuckDbTabularFormat": {
+        "type": "string",
         "enum": [
           "parquet",
           "csv"
-        ],
-        "type": "string"
-      },
-      "DuckDbSqlText": {
-        "allOf": [
-          {
-            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
-          },
-          {
-            "pattern": "^[^\\u0000]*$"
-          }
-        ],
-        "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
-        "type": "string"
+        ]
       }
-    },
+    }
+  },
+  "DuckDbQueryRequest": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbQueryRequest",
+    "description": "Query attachments and output options are checked together.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbQueryRequest, DuckDbTableName};\nDuckDbQueryRequest::builder(\"metrics\".parse().unwrap(), DuckDbTableName::new(\"facts\").unwrap());\n```",
+    "type": "object",
     "properties": {
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "sql": {
+        "$ref": "#/$defs/DuckDbSqlText"
+      },
       "attach": {
+        "type": "array",
         "items": {
           "$ref": "#/$defs/DuckDbDatabaseId"
         },
-        "type": "array",
         "uniqueItems": true
       },
-      "db": {
-        "$ref": "#/$defs/DuckDbDatabaseId"
+      "rowLimit": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "format": "uint64",
+        "minimum": 1
+      },
+      "timeoutMs": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "format": "uint64",
+        "minimum": 1
       },
       "output": {
         "$ref": "#/$defs/DuckDbQueryOutputMode",
         "default": {
           "mode": "inline"
         }
-      },
-      "row_limit": {
-        "format": "uint64",
-        "minimum": 1,
-        "type": [
-          "integer",
-          "null"
-        ]
-      },
-      "sql": {
-        "$ref": "#/$defs/DuckDbSqlText"
-      },
-      "timeout_ms": {
-        "format": "uint64",
-        "minimum": 1,
-        "type": [
-          "integer",
-          "null"
-        ]
       }
     },
+    "additionalProperties": false,
     "required": [
       "db",
       "sql"
     ],
-    "title": "DuckDbQueryRequest",
-    "type": "object",
-    "additionalProperties": false,
     "allOf": [
       {
         "if": {
@@ -1558,121 +864,242 @@
         },
         "then": {
           "properties": {
-            "row_limit": {
+            "rowLimit": {
               "type": "null"
             }
           }
         }
       }
     ],
-    "description": "Query attachments and output options are checked together.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbQueryRequest, DuckDbTableName};\nDuckDbQueryRequest::builder(\"metrics\".parse().unwrap(), DuckDbTableName::new(\"facts\").unwrap());\n```"
-  },
-  "DuckDbReadOptions": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "properties": {
-      "delimiter": {
-        "anyOf": [
+    "$defs": {
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      },
+      "DuckDbSqlText": {
+        "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
+        "type": "string",
+        "allOf": [
           {
-            "$ref": "#/$defs/DuckDbReadOptionText"
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
           },
           {
-            "type": "null"
+            "pattern": "^[^\\u0000]*$"
           }
         ]
       },
-      "extra": {
-        "additionalProperties": false,
-        "type": "object",
-        "patternProperties": {
-          "^[a-z_]": {
-            "$ref": "#/$defs/DuckDbReadOptionValue"
-          }
-        },
-        "propertyNames": {
-          "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
-          "not": {
-            "anyOf": [
-              {
-                "enum": [
-                  "header",
-                  "delim",
-                  "delimiter",
-                  "sep",
-                  "timestampformat",
-                  "timestamp_format"
-                ]
-              },
-              {
-                "pattern": "[^a-z0-9_]"
+      "DuckDbQueryOutputMode": {
+        "oneOf": [
+          {
+            "description": "Rows inline in the tool result, subject to the server's row/byte caps.",
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "inline"
               }
+            },
+            "additionalProperties": false,
+            "required": [
+              "mode"
             ]
           },
-          "pattern": "^[a-z_]",
-          "type": "string"
-        }
-      },
-      "header": {
-        "type": [
-          "boolean",
-          "null"
+          {
+            "description": "Rows written to an immutable artifact; the result carries the link.",
+            "type": "object",
+            "properties": {
+              "format": {
+                "$ref": "#/$defs/DuckDbTabularFormat"
+              },
+              "mode": {
+                "type": "string",
+                "const": "artifact"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "mode",
+              "format"
+            ]
+          }
         ]
       },
-      "timestamp_format": {
-        "anyOf": [
-          {
-            "$ref": "#/$defs/DuckDbReadOptionText"
-          },
-          {
-            "type": "null"
-          }
+      "DuckDbTabularFormat": {
+        "type": "string",
+        "enum": [
+          "parquet",
+          "csv"
         ]
       }
-    },
-    "title": "DuckDbReadOptions",
+    }
+  },
+  "DuckDbExecuteRequest": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbExecuteRequest",
     "type": "object",
-    "$defs": {
-      "DuckDbReadOptionText": {
-        "pattern": "^[^\\u0000]*$",
-        "type": "string"
+    "properties": {
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
       },
-      "DuckDbReadOptionValue": {
-        "anyOf": [
-          {
-            "type": "boolean"
-          },
-          {
-            "type": "number"
-          },
-          {
-            "$ref": "#/$defs/DuckDbReadOptionText"
-          },
-          {
-            "items": {
-              "$ref": "#/$defs/DuckDbReadOptionValue"
-            },
-            "type": "array"
-          }
+      "sql": {
+        "$ref": "#/$defs/DuckDbSqlText"
+      },
+      "createIfMissing": {
+        "type": "boolean",
+        "default": false
+      },
+      "timeoutMs": {
+        "type": [
+          "integer",
+          "null"
         ],
-        "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning."
+        "format": "uint64",
+        "minimum": 1
       }
     },
     "additionalProperties": false,
-    "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```"
-  },
-  "DuckDbSource": {
+    "required": [
+      "db",
+      "sql"
+    ],
     "$defs": {
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      },
+      "DuckDbSqlText": {
+        "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
+        "type": "string",
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ]
+      }
+    }
+  },
+  "DuckDbIngestMode": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbIngestMode",
+    "type": "string",
+    "enum": [
+      "create",
+      "append",
+      "replace"
+    ]
+  },
+  "DuckDbIngestRequest": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbIngestRequest",
+    "type": "object",
+    "properties": {
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "table": {
+        "$ref": "#/$defs/DuckDbTableName"
+      },
+      "source": {
+        "$ref": "#/$defs/DuckDbSource"
+      },
+      "mode": {
+        "$ref": "#/$defs/DuckDbIngestMode"
+      },
+      "createDbIfMissing": {
+        "type": "boolean",
+        "default": false
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "db",
+      "table",
+      "source",
+      "mode"
+    ],
+    "$defs": {
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      },
+      "DuckDbTableName": {
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string",
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ]
+      },
+      "DuckDbSource": {
+        "description": "Sources supported by DuckDB's authenticated hosted materializer.",
+        "anyOf": [
+          {
+            "description": "A neutral `artifact://{artifact_id}` reference resolved through the shared\nartifact plane under the caller's identity — the cross-server input path.\nAny artifact produced by any hosted server (a media output, a timeseries\nRRD, an optimization DuckDB snapshot) can be read here, gated by the same\ngrant + label checks as any other plane read. The server resolves and\nmaterializes the bytes; the SQL engine never touches the network.",
+            "type": "object",
+            "properties": {
+              "uri": {
+                "$ref": "#/$defs/DuckDbArtifactSourceUri"
+              },
+              "format": {
+                "$ref": "#/$defs/DuckDbFormat"
+              },
+              "options": {
+                "$ref": "#/$defs/DuckDbReadOptions",
+                "default": {}
+              },
+              "kind": {
+                "type": "string",
+                "const": "artifact"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "uri",
+              "format"
+            ]
+          },
+          {
+            "description": "Inline and HTTPS inputs share the same contract with analytical consumers.",
+            "$ref": "#/$defs/DuckDbTabularSource"
+          }
+        ]
+      },
+      "DuckDbArtifactSourceUri": {
+        "description": "Neutral Artifact plane URI naming a native UUIDv7 occurrence. Parsed by the Artifact contract.",
+        "type": "string",
+        "pattern": "^artifact://(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9a-fA-F]{12}7[0-9a-fA-F]{3}[89aAbB][0-9a-fA-F]{15})$"
+      },
       "DuckDbFormat": {
+        "type": "string",
         "enum": [
           "auto",
           "csv",
           "parquet",
           "json",
           "ndjson"
-        ],
-        "type": "string"
+        ]
       },
       "DuckDbReadOptions": {
+        "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```",
+        "type": "object",
         "properties": {
+          "header": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "delimiter": {
             "anyOf": [
               {
@@ -1683,9 +1110,19 @@
               }
             ]
           },
+          "timestampFormat": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DuckDbReadOptionText"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "extra": {
-            "additionalProperties": false,
             "type": "object",
+            "additionalProperties": false,
             "patternProperties": {
               "^[a-z_]": {
                 "$ref": "#/$defs/DuckDbReadOptionValue"
@@ -1693,6 +1130,8 @@
             },
             "propertyNames": {
               "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
+              "type": "string",
+              "pattern": "^[a-z_]",
               "not": {
                 "anyOf": [
                   {
@@ -1710,54 +1149,35 @@
                   }
                 ]
               },
-              "pattern": "^[a-z_]",
-              "type": "string"
-            }
-          },
-          "header": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "timestamp_format": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/DuckDbReadOptionText"
-              },
-              {
-                "type": "null"
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "kind": "standard",
+                    "declaration": {
+                      "authority": {
+                        "kind": "standard",
+                        "document": "https://duckdb.org/docs/stable/data/csv/overview.html"
+                      },
+                      "profile": "DuckDB reader option names",
+                      "version": "1.5.6",
+                      "applicability": "only extra reader-option dictionary names"
+                    }
+                  }
+                }
               }
-            ]
+            }
           }
         },
-        "type": "object",
-        "additionalProperties": false,
-        "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```"
-      },
-      "DuckDbArtifactSourceUri": {
-        "description": "Neutral Artifact plane URI naming a native UUIDv7 occurrence. Parsed by the Artifact contract.",
-        "pattern": "^artifact://(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9a-fA-F]{12}7[0-9a-fA-F]{3}[89aAbB][0-9a-fA-F]{15})$",
-        "type": "string"
-      },
-      "DuckDbSourceUris": {
-        "items": {
-          "$ref": "#/$defs/HttpsUrl"
-        },
-        "minItems": 1,
-        "type": "array"
-      },
-      "HttpsUrl": {
-        "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
-        "format": "uri",
-        "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$",
-        "type": "string"
+        "additionalProperties": false
       },
       "DuckDbReadOptionText": {
-        "pattern": "^[^\\u0000]*$",
-        "type": "string"
+        "type": "string",
+        "pattern": "^[^\\u0000]*$"
       },
       "DuckDbReadOptionValue": {
+        "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning.",
         "anyOf": [
           {
             "type": "boolean"
@@ -1769,19 +1189,18 @@
             "$ref": "#/$defs/DuckDbReadOptionText"
           },
           {
+            "type": "array",
             "items": {
               "$ref": "#/$defs/DuckDbReadOptionValue"
-            },
-            "type": "array"
+            }
           }
-        ],
-        "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning."
+        ]
       },
       "DuckDbTabularSource": {
         "description": "Inline and HTTPS tabular inputs; consumers own network admission and execution.",
         "oneOf": [
           {
-            "additionalProperties": false,
+            "type": "object",
             "properties": {
               "csv": {
                 "type": "string"
@@ -1792,194 +1211,373 @@
                   "null"
                 ]
               },
-              "kind": {
-                "const": "inline_csv",
-                "type": "string"
-              },
               "options": {
                 "$ref": "#/$defs/DuckDbReadOptions",
                 "default": {}
+              },
+              "kind": {
+                "type": "string",
+                "const": "inline_csv"
               }
             },
+            "additionalProperties": false,
             "required": [
               "kind",
               "csv"
-            ],
-            "type": "object"
+            ]
           },
           {
-            "additionalProperties": false,
+            "type": "object",
             "properties": {
+              "uri": {
+                "$ref": "#/$defs/HttpsUrl"
+              },
               "format": {
                 "$ref": "#/$defs/DuckDbFormat"
-              },
-              "kind": {
-                "const": "uri",
-                "type": "string"
               },
               "options": {
                 "$ref": "#/$defs/DuckDbReadOptions",
                 "default": {}
               },
-              "uri": {
-                "$ref": "#/$defs/HttpsUrl"
+              "kind": {
+                "type": "string",
+                "const": "uri"
               }
             },
+            "additionalProperties": false,
             "required": [
               "kind",
               "uri",
               "format"
-            ],
-            "type": "object"
+            ]
           },
           {
-            "additionalProperties": false,
+            "type": "object",
             "properties": {
+              "uris": {
+                "$ref": "#/$defs/DuckDbSourceUris"
+              },
               "format": {
                 "$ref": "#/$defs/DuckDbFormat"
-              },
-              "kind": {
-                "const": "uris",
-                "type": "string"
               },
               "options": {
                 "$ref": "#/$defs/DuckDbReadOptions",
                 "default": {}
               },
-              "uris": {
-                "$ref": "#/$defs/DuckDbSourceUris"
+              "kind": {
+                "type": "string",
+                "const": "uris"
               }
             },
+            "additionalProperties": false,
             "required": [
               "kind",
               "uris",
               "format"
-            ],
-            "type": "object"
+            ]
+          }
+        ]
+      },
+      "HttpsUrl": {
+        "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$"
+      },
+      "DuckDbSourceUris": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/HttpsUrl"
+        },
+        "minItems": 1
+      },
+      "DuckDbIngestMode": {
+        "type": "string",
+        "enum": [
+          "create",
+          "append",
+          "replace"
+        ]
+      }
+    }
+  },
+  "DuckDbTabularSelection": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbTabularSelection",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "table": {
+            "$ref": "#/$defs/DuckDbTableName"
+          },
+          "kind": {
+            "type": "string",
+            "const": "table"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "table"
+        ]
+      },
+      {
+        "description": "Read-only SQL whose result set is exported.",
+        "type": "object",
+        "properties": {
+          "sql": {
+            "$ref": "#/$defs/DuckDbSqlText"
+          },
+          "kind": {
+            "type": "string",
+            "const": "sql"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "sql"
+        ]
+      }
+    ],
+    "$defs": {
+      "DuckDbTableName": {
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string",
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ]
+      },
+      "DuckDbSqlText": {
+        "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
+        "type": "string",
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
           }
         ]
       }
-    },
+    }
+  },
+  "DuckDbExportRequest": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "DuckDbSource",
-    "anyOf": [
+    "title": "DuckDbExportRequest",
+    "description": "A snapshot has its own format; row exports require a tabular format.\n\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbExportRequest, DuckDbTabularFormat};\nlet request = DuckDbExportRequest::Snapshot {\n    db: \"metrics\".parse().unwrap(),\n    format: DuckDbTabularFormat::Csv,\n};\n```",
+    "type": "object",
+    "oneOf": [
       {
-        "additionalProperties": false,
-        "description": "A neutral `artifact://{artifact_id}` reference resolved through the shared\nartifact plane under the caller's identity — the cross-server input path.\nAny artifact produced by any hosted server (a media output, a timeseries\nRRD, an optimization DuckDB snapshot) can be read here, gated by the same\ngrant + label checks as any other plane read. The server resolves and\nmaterializes the bytes; the SQL engine never touches the network.",
+        "type": "object",
         "properties": {
-          "format": {
-            "$ref": "#/$defs/DuckDbFormat"
-          },
-          "kind": {
-            "const": "artifact",
-            "type": "string"
-          },
-          "options": {
-            "$ref": "#/$defs/DuckDbReadOptions",
-            "default": {}
-          },
-          "uri": {
-            "$ref": "#/$defs/DuckDbArtifactSourceUri"
-          }
-        },
-        "required": [
-          "kind",
-          "uri",
-          "format"
-        ],
-        "type": "object"
-      },
-      {
-        "$ref": "#/$defs/DuckDbTabularSource",
-        "description": "Inline and HTTPS inputs share the same contract with analytical consumers."
-      }
-    ],
-    "description": "Sources supported by DuckDB's authenticated hosted materializer."
-  },
-  "DuckDbDatabaseCursor": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "DuckDbDatabaseCursor",
-    "type": "string"
-  },
-  "DuckDbDatabaseEntry": {
-    "$defs": {
-      "DuckDbDatabaseId": {
-        "pattern": "^[a-z][a-z0-9_]{0,63}$",
-        "type": "string",
-        "description": "Owner-scoped name of a mutable hosted database file."
-      },
-      "DuckDbDatabaseUri": {
-        "type": "string"
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "db_id": {
-        "$ref": "#/$defs/DuckDbDatabaseId"
-      },
-      "db_uri": {
-        "$ref": "#/$defs/DuckDbDatabaseUri"
-      }
-    },
-    "required": [
-      "db_id",
-      "db_uri"
-    ],
-    "title": "DuckDbDatabaseEntry",
-    "type": "object"
-  },
-  "DuckDbDatabasePage": {
-    "$defs": {
-      "DuckDbDatabaseCursor": {
-        "type": "string"
-      },
-      "DuckDbDatabaseEntry": {
-        "additionalProperties": false,
-        "properties": {
-          "db_id": {
+          "db": {
             "$ref": "#/$defs/DuckDbDatabaseId"
           },
-          "db_uri": {
-            "$ref": "#/$defs/DuckDbDatabaseUri"
+          "selection": {
+            "$ref": "#/$defs/DuckDbTabularSelection"
+          },
+          "format": {
+            "type": "string",
+            "const": "parquet"
           }
         },
+        "additionalProperties": false,
         "required": [
-          "db_id",
-          "db_uri"
-        ],
-        "type": "object"
+          "format",
+          "db",
+          "selection"
+        ]
       },
+      {
+        "type": "object",
+        "properties": {
+          "db": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
+          "selection": {
+            "$ref": "#/$defs/DuckDbTabularSelection"
+          },
+          "format": {
+            "type": "string",
+            "const": "csv"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "format",
+          "db",
+          "selection"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "db": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
+          "selection": {
+            "$ref": "#/$defs/SnapshotSelection"
+          },
+          "format": {
+            "type": "string",
+            "const": "duck_db"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "format",
+          "db",
+          "selection"
+        ]
+      }
+    ],
+    "$defs": {
       "DuckDbDatabaseId": {
-        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "description": "Owner-scoped name of a mutable hosted database file.",
         "type": "string",
-        "description": "Owner-scoped name of a mutable hosted database file."
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
       },
-      "DuckDbDatabaseUri": {
+      "DuckDbTabularSelection": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "table": {
+                "$ref": "#/$defs/DuckDbTableName"
+              },
+              "kind": {
+                "type": "string",
+                "const": "table"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "table"
+            ]
+          },
+          {
+            "description": "Read-only SQL whose result set is exported.",
+            "type": "object",
+            "properties": {
+              "sql": {
+                "$ref": "#/$defs/DuckDbSqlText"
+              },
+              "kind": {
+                "type": "string",
+                "const": "sql"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "sql"
+            ]
+          }
+        ]
+      },
+      "DuckDbTableName": {
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string",
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ]
+      },
+      "DuckDbSqlText": {
+        "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
+        "type": "string",
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ]
+      },
+      "SnapshotSelection": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "database"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "DuckDbColumn": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbColumn",
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "typeName": {
         "type": "string"
       }
     },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "An immutable ascending page from the caller's current database workspace.",
+    "required": [
+      "name",
+      "typeName"
+    ]
+  },
+  "DuckDbQueryOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbQueryOutput",
+    "description": "Construct results through `inline` or `exported`; callers cannot mutate\nrow/count or inline/Artifact relationships independently.\n\n```compile_fail\nuse veoveo_duckdb_mcp::contract::DuckDbQueryOutput;\nfn change_count(mut output: DuckDbQueryOutput) { output.row_count = 7; }\n```",
+    "type": "object",
     "properties": {
-      "items": {
+      "resultUri": {
+        "$ref": "#/$defs/ArtifactUri"
+      },
+      "columns": {
+        "type": "array",
         "items": {
-          "$ref": "#/$defs/DuckDbDatabaseEntry"
-        },
-        "maxItems": 100,
-        "type": "array"
+          "$ref": "#/$defs/DuckDbColumn"
+        }
       },
-      "limit": {
-        "format": "uint",
-        "maximum": 100,
-        "minimum": 100,
-        "type": "integer"
+      "rows": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": true
+        }
       },
-      "next_cursor": {
+      "rowCount": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "truncated": {
+        "type": "boolean"
+      },
+      "artifact": {
         "anyOf": [
           {
-            "$ref": "#/$defs/DuckDbDatabaseCursor"
+            "$ref": "#/$defs/ArtifactMetadata"
           },
           {
             "type": "null"
@@ -1987,75 +1585,1123 @@
         ]
       }
     },
-    "required": [
-      "items",
-      "limit"
-    ],
-    "title": "DuckDbDatabasePage",
-    "type": "object"
-  },
-  "DuckDbDatabaseSchema": {
-    "$defs": {
-      "DuckDbDatabaseId": {
-        "pattern": "^[a-z][a-z0-9_]{0,63}$",
-        "type": "string",
-        "description": "Owner-scoped name of a mutable hosted database file."
-      },
-      "DuckDbSchemaColumn": {
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "type"
-        ],
-        "type": "object"
-      },
-      "DuckDbTableSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "columns": {
-            "items": {
-              "$ref": "#/$defs/DuckDbSchemaColumn"
-            },
-            "type": "array"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "columns"
-        ],
-        "type": "object"
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
+    "required": [
+      "columns",
+      "rowCount",
+      "truncated"
+    ],
+    "oneOf": [
+      {
+        "properties": {
+          "artifact": {
+            "type": "null"
+          }
+        },
+        "not": {
+          "required": [
+            "resultUri"
+          ]
+        }
+      },
+      {
+        "properties": {
+          "artifact": {
+            "type": "object"
+          },
+          "columns": {
+            "maxItems": 0
+          },
+          "rows": {
+            "maxItems": 0
+          },
+          "truncated": {
+            "const": false
+          }
+        },
+        "required": [
+          "artifact",
+          "resultUri"
+        ]
+      }
+    ],
+    "$defs": {
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "DuckDbColumn": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "typeName": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "typeName"
+        ]
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "byteLen": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "mimeType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "artifactUri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "downloadUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
+            "type": "string",
+            "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
+          },
+          "releaseState": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "metadata": {
+            "default": null
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "artifactId",
+          "byteLen",
+          "artifactUri",
+          "createdAt"
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_artifact_contract::identity"
+                },
+                "profile": "ArtifactId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "ArtifactReleaseState": {
+        "type": "string",
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ]
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "type": "object",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenantId": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workContext": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dataLabels": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            }
+          },
+          "retentionExpiresAt": {
+            "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DataLabelId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "TenantId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "principal"
+              },
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "group"
+              },
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PrincipalId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "GroupId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "WorkContextId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegationId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policyRevision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocationMode": {
+                "type": "string",
+                "const": "direct"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "invocationMode",
+              "producer",
+              "initiator",
+              "policyRevision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegationId": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "policyRevision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocationMode": {
+                "type": "string",
+                "const": "delegated"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "invocationMode",
+              "producer",
+              "initiator",
+              "delegationId",
+              "policyRevision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delegationId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policyRevision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocationMode": {
+                "type": "string",
+                "const": "automated"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "invocationMode",
+              "producer",
+              "policyRevision"
+            ]
+          }
+        ]
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PolicyVersion",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DelegationId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "DuckDbExecuteOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbExecuteOutput",
+    "type": "object",
     "properties": {
-      "db_id": {
+      "db": {
         "$ref": "#/$defs/DuckDbDatabaseId"
       },
-      "tables": {
-        "items": {
-          "$ref": "#/$defs/DuckDbTableSchema"
-        },
-        "type": "array"
+      "statements": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "rowsChanged": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "dbCreated": {
+        "type": "boolean"
       }
     },
+    "additionalProperties": false,
     "required": [
-      "db_id",
-      "tables"
+      "db",
+      "statements",
+      "rowsChanged",
+      "dbCreated"
     ],
-    "title": "DuckDbDatabaseSchema",
-    "type": "object"
+    "$defs": {
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      }
+    }
+  },
+  "DuckDbIngestOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbIngestOutput",
+    "type": "object",
+    "properties": {
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "table": {
+        "$ref": "#/$defs/DuckDbTableName"
+      },
+      "rowsIngested": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "dbCreated": {
+        "type": "boolean"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "db",
+      "table",
+      "rowsIngested",
+      "dbCreated"
+    ],
+    "$defs": {
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      },
+      "DuckDbTableName": {
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string",
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ]
+      }
+    }
+  },
+  "DuckDbExportOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbExportOutput",
+    "type": "object",
+    "properties": {
+      "resultUri": {
+        "$ref": "#/$defs/ArtifactUri"
+      },
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "rowsExported": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "artifact": {
+        "$ref": "#/$defs/ArtifactMetadata"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "resultUri",
+      "db",
+      "rowsExported",
+      "artifact"
+    ],
+    "$defs": {
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "byteLen": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "mimeType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "artifactUri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "downloadUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
+            "type": "string",
+            "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
+          },
+          "releaseState": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "metadata": {
+            "default": null
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "artifactId",
+          "byteLen",
+          "artifactUri",
+          "createdAt"
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_artifact_contract::identity"
+                },
+                "profile": "ArtifactId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "ArtifactReleaseState": {
+        "type": "string",
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ]
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "type": "object",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenantId": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workContext": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dataLabels": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            }
+          },
+          "retentionExpiresAt": {
+            "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DataLabelId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "TenantId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "principal"
+              },
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "group"
+              },
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PrincipalId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "GroupId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "WorkContextId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegationId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policyRevision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocationMode": {
+                "type": "string",
+                "const": "direct"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "invocationMode",
+              "producer",
+              "initiator",
+              "policyRevision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegationId": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "policyRevision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocationMode": {
+                "type": "string",
+                "const": "delegated"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "invocationMode",
+              "producer",
+              "initiator",
+              "delegationId",
+              "policyRevision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delegationId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policyRevision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocationMode": {
+                "type": "string",
+                "const": "automated"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "invocationMode",
+              "producer",
+              "policyRevision"
+            ]
+          }
+        ]
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PolicyVersion",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DelegationId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      }
+    }
   },
   "DuckDbDatabaseUri": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2067,28 +2713,151 @@
     "title": "DuckDbResource",
     "type": "string"
   },
-  "DuckDbSchemaColumn": {
+  "DuckDbDatabaseCursor": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
+    "title": "DuckDbDatabaseCursor",
+    "type": "string"
+  },
+  "DuckDbDatabaseEntry": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbDatabaseEntry",
+    "type": "object",
     "properties": {
-      "name": {
-        "type": "string"
+      "dbId": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
       },
-      "type": {
-        "type": "string"
+      "dbUri": {
+        "$ref": "#/$defs/DuckDbDatabaseUri"
       }
     },
+    "additionalProperties": false,
     "required": [
-      "name",
-      "type"
+      "dbId",
+      "dbUri"
     ],
-    "title": "DuckDbSchemaColumn",
-    "type": "object"
-  },
-  "DuckDbTableSchema": {
     "$defs": {
-      "DuckDbSchemaColumn": {
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      },
+      "DuckDbDatabaseUri": {
+        "type": "string"
+      }
+    }
+  },
+  "DuckDbDatabasePage": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbDatabasePage",
+    "description": "An immutable ascending page from the caller's current database workspace.",
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/DuckDbDatabaseEntry"
+        },
+        "maxItems": 100
+      },
+      "limit": {
+        "type": "integer",
+        "format": "uint",
+        "minimum": 100,
+        "maximum": 100
+      },
+      "nextCursor": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DuckDbDatabaseCursor"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "items",
+      "limit"
+    ],
+    "$defs": {
+      "DuckDbDatabaseEntry": {
+        "type": "object",
+        "properties": {
+          "dbId": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
+          "dbUri": {
+            "$ref": "#/$defs/DuckDbDatabaseUri"
+          }
+        },
         "additionalProperties": false,
+        "required": [
+          "dbId",
+          "dbUri"
+        ]
+      },
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      },
+      "DuckDbDatabaseUri": {
+        "type": "string"
+      },
+      "DuckDbDatabaseCursor": {
+        "type": "string"
+      }
+    }
+  },
+  "DuckDbDatabaseSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbDatabaseSchema",
+    "type": "object",
+    "properties": {
+      "dbId": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "tables": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/DuckDbTableSchema"
+        }
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "dbId",
+      "tables"
+    ],
+    "$defs": {
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      },
+      "DuckDbTableSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/DuckDbSchemaColumn"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "columns"
+        ]
+      },
+      "DuckDbSchemaColumn": {
+        "type": "object",
         "properties": {
           "name": {
             "type": "string"
@@ -2097,233 +2866,76 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "required": [
           "name",
           "type"
-        ],
-        "type": "object"
+        ]
       }
-    },
+    }
+  },
+  "DuckDbTableSchema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
+    "title": "DuckDbTableSchema",
+    "type": "object",
     "properties": {
-      "columns": {
-        "items": {
-          "$ref": "#/$defs/DuckDbSchemaColumn"
-        },
-        "type": "array"
-      },
       "name": {
         "type": "string"
+      },
+      "columns": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/DuckDbSchemaColumn"
+        }
       }
     },
+    "additionalProperties": false,
     "required": [
       "name",
       "columns"
     ],
-    "title": "DuckDbTableSchema",
-    "type": "object"
-  },
-  "DuckDbArtifactOperation": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "oneOf": [
-      {
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "const": "query",
-            "type": "string"
-          },
-          "row_count": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "kind",
-          "row_count"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "const": "export_sql",
-            "type": "string"
-          },
-          "row_count": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "kind",
-          "row_count"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "const": "export_table",
-            "type": "string"
-          },
-          "row_count": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "table": {
-            "$ref": "#/$defs/DuckDbTableName"
-          }
-        },
-        "required": [
-          "kind",
-          "table",
-          "row_count"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "const": "snapshot",
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind"
-        ],
-        "type": "object"
-      }
-    ],
-    "title": "DuckDbArtifactOperation",
     "$defs": {
-      "DuckDbTableName": {
-        "allOf": [
-          {
-            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+      "DuckDbSchemaColumn": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
           },
-          {
-            "pattern": "^[^\\u0000]*$"
+          "type": {
+            "type": "string"
           }
-        ],
-        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
-        "type": "string"
+        },
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "type"
+        ]
       }
     }
   },
-  "DuckDbArtifactOrigin": {
-    "$defs": {
-      "DuckDbArtifactOperation": {
-        "oneOf": [
-          {
-            "additionalProperties": false,
-            "properties": {
-              "kind": {
-                "const": "query",
-                "type": "string"
-              },
-              "row_count": {
-                "format": "uint64",
-                "minimum": 0,
-                "type": "integer"
-              }
-            },
-            "required": [
-              "kind",
-              "row_count"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "kind": {
-                "const": "export_sql",
-                "type": "string"
-              },
-              "row_count": {
-                "format": "uint64",
-                "minimum": 0,
-                "type": "integer"
-              }
-            },
-            "required": [
-              "kind",
-              "row_count"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "kind": {
-                "const": "export_table",
-                "type": "string"
-              },
-              "row_count": {
-                "format": "uint64",
-                "minimum": 0,
-                "type": "integer"
-              },
-              "table": {
-                "$ref": "#/$defs/DuckDbTableName"
-              }
-            },
-            "required": [
-              "kind",
-              "table",
-              "row_count"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "kind": {
-                "const": "snapshot",
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind"
-            ],
-            "type": "object"
-          }
-        ]
-      },
-      "DuckDbDatabaseId": {
-        "description": "Owner-scoped name of a mutable hosted database file.",
-        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+  "DuckDbSchemaColumn": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbSchemaColumn",
+    "type": "object",
+    "properties": {
+      "name": {
         "type": "string"
       },
-      "TaskId": {
-        "maxLength": 45,
-        "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
-        "type": "string"
-      },
-      "DuckDbTableName": {
-        "allOf": [
-          {
-            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
-          },
-          {
-            "pattern": "^[^\\u0000]*$"
-          }
-        ],
-        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+      "type": {
         "type": "string"
       }
     },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
+    "required": [
+      "name",
+      "type"
+    ]
+  },
+  "DuckDbArtifactOrigin": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbArtifactOrigin",
     "description": "Operation facts checked before publication. The Artifact plane owns authority.",
+    "type": "object",
     "properties": {
       "db": {
         "$ref": "#/$defs/DuckDbDatabaseId"
@@ -2331,7 +2943,7 @@
       "operation": {
         "$ref": "#/$defs/DuckDbArtifactOperation"
       },
-      "task_id": {
+      "taskId": {
         "anyOf": [
           {
             "$ref": "#/$defs/TaskId"
@@ -2342,121 +2954,388 @@
         ]
       }
     },
+    "additionalProperties": false,
     "required": [
       "db",
       "operation"
     ],
-    "title": "DuckDbArtifactOrigin",
-    "type": "object"
-  },
-  "DuckDbQueryUsage": {
     "$defs": {
-      "ArtifactId": {
-        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
-        "type": "string"
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      },
+      "DuckDbArtifactOperation": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "rowCount": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0
+              },
+              "kind": {
+                "type": "string",
+                "const": "query"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "rowCount"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "rowCount": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0
+              },
+              "kind": {
+                "type": "string",
+                "const": "export_sql"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "rowCount"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "table": {
+                "$ref": "#/$defs/DuckDbTableName"
+              },
+              "rowCount": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0
+              },
+              "kind": {
+                "type": "string",
+                "const": "export_table"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "table",
+              "rowCount"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "snapshot"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind"
+            ]
+          }
+        ]
+      },
+      "DuckDbTableName": {
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string",
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ]
+      },
+      "TaskId": {
+        "type": "string",
+        "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
+        "maxLength": 45,
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::task"
+                },
+                "profile": "TaskId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       }
-    },
+    }
+  },
+  "DuckDbArtifactOperation": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbArtifactOperation",
     "oneOf": [
       {
-        "additionalProperties": false,
+        "type": "object",
         "properties": {
+          "rowCount": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
           "kind": {
-            "const": "inline",
-            "type": "string"
-          },
-          "rows_returned": {
-            "format": "uint",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "truncated": {
-            "type": "boolean"
+            "type": "string",
+            "const": "query"
           }
         },
+        "additionalProperties": false,
         "required": [
           "kind",
-          "rows_returned",
-          "truncated"
-        ],
-        "type": "object"
+          "rowCount"
+        ]
       },
       {
-        "additionalProperties": false,
+        "type": "object",
         "properties": {
+          "rowCount": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "kind": {
+            "type": "string",
+            "const": "export_sql"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "rowCount"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "table": {
+            "$ref": "#/$defs/DuckDbTableName"
+          },
+          "rowCount": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "kind": {
+            "type": "string",
+            "const": "export_table"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "table",
+          "rowCount"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "snapshot"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind"
+        ]
+      }
+    ],
+    "$defs": {
+      "DuckDbTableName": {
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string",
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ]
+      }
+    }
+  },
+  "DuckDbUsageDetails": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbUsageDetails",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "result": {
+            "$ref": "#/$defs/DuckDbQueryUsage"
+          },
+          "operation": {
+            "type": "string",
+            "const": "query"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "result"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "db": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
+          "statements": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "operation": {
+            "type": "string",
+            "const": "execute"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "db",
+          "statements"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "db": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
+          "table": {
+            "$ref": "#/$defs/DuckDbTableName"
+          },
+          "operation": {
+            "type": "string",
+            "const": "ingest"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "db",
+          "table"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "db": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
           "artifact": {
             "$ref": "#/$defs/ArtifactId"
           },
-          "kind": {
-            "const": "artifact",
-            "type": "string"
+          "operation": {
+            "type": "string",
+            "const": "export"
           }
         },
+        "additionalProperties": false,
         "required": [
-          "kind",
+          "operation",
+          "db",
           "artifact"
-        ],
-        "type": "object"
+        ]
       }
     ],
-    "title": "DuckDbQueryUsage"
-  },
-  "DuckDbUsageDetails": {
     "$defs": {
-      "ArtifactId": {
-        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
-        "type": "string"
-      },
-      "DuckDbDatabaseId": {
-        "description": "Owner-scoped name of a mutable hosted database file.",
-        "pattern": "^[a-z][a-z0-9_]{0,63}$",
-        "type": "string"
-      },
       "DuckDbQueryUsage": {
         "oneOf": [
           {
-            "additionalProperties": false,
+            "type": "object",
             "properties": {
-              "kind": {
-                "const": "inline",
-                "type": "string"
-              },
-              "rows_returned": {
+              "rowsReturned": {
+                "type": "integer",
                 "format": "uint",
-                "minimum": 0,
-                "type": "integer"
+                "minimum": 0
               },
               "truncated": {
                 "type": "boolean"
+              },
+              "kind": {
+                "type": "string",
+                "const": "inline"
               }
             },
+            "additionalProperties": false,
             "required": [
               "kind",
-              "rows_returned",
+              "rowsReturned",
               "truncated"
-            ],
-            "type": "object"
+            ]
           },
           {
-            "additionalProperties": false,
+            "type": "object",
             "properties": {
               "artifact": {
                 "$ref": "#/$defs/ArtifactId"
               },
               "kind": {
-                "const": "artifact",
-                "type": "string"
+                "type": "string",
+                "const": "artifact"
               }
             },
+            "additionalProperties": false,
             "required": [
               "kind",
               "artifact"
-            ],
-            "type": "object"
+            ]
           }
         ]
       },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_artifact_contract::identity"
+                },
+                "profile": "ArtifactId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      },
       "DuckDbTableName": {
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string",
         "allOf": [
           {
             "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
@@ -2464,493 +3343,78 @@
           {
             "pattern": "^[^\\u0000]*$"
           }
-        ],
-        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
-        "type": "string"
+        ]
       }
-    },
+    }
+  },
+  "DuckDbQueryUsage": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbQueryUsage",
     "oneOf": [
       {
-        "additionalProperties": false,
+        "type": "object",
         "properties": {
-          "operation": {
-            "const": "query",
-            "type": "string"
+          "rowsReturned": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0
           },
-          "result": {
-            "$ref": "#/$defs/DuckDbQueryUsage"
+          "truncated": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string",
+            "const": "inline"
           }
         },
+        "additionalProperties": false,
         "required": [
-          "operation",
-          "result"
-        ],
-        "type": "object"
+          "kind",
+          "rowsReturned",
+          "truncated"
+        ]
       },
       {
-        "additionalProperties": false,
-        "properties": {
-          "db": {
-            "$ref": "#/$defs/DuckDbDatabaseId"
-          },
-          "operation": {
-            "const": "execute",
-            "type": "string"
-          },
-          "statements": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "operation",
-          "db",
-          "statements"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "db": {
-            "$ref": "#/$defs/DuckDbDatabaseId"
-          },
-          "operation": {
-            "const": "ingest",
-            "type": "string"
-          },
-          "table": {
-            "$ref": "#/$defs/DuckDbTableName"
-          }
-        },
-        "required": [
-          "operation",
-          "db",
-          "table"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
+        "type": "object",
         "properties": {
           "artifact": {
             "$ref": "#/$defs/ArtifactId"
           },
-          "db": {
-            "$ref": "#/$defs/DuckDbDatabaseId"
-          },
-          "operation": {
-            "const": "export",
-            "type": "string"
+          "kind": {
+            "type": "string",
+            "const": "artifact"
           }
         },
+        "additionalProperties": false,
         "required": [
-          "operation",
-          "db",
+          "kind",
           "artifact"
-        ],
-        "type": "object"
+        ]
       }
     ],
-    "title": "DuckDbUsageDetails"
-  },
-  "DuckDbTabularFormat": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "enum": [
-      "parquet",
-      "csv"
-    ],
-    "title": "DuckDbTabularFormat",
-    "type": "string"
-  },
-  "DuckDbTabularSelection": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "oneOf": [
-      {
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "const": "table",
-            "type": "string"
-          },
-          "table": {
-            "$ref": "#/$defs/DuckDbTableName"
-          }
-        },
-        "required": [
-          "kind",
-          "table"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "description": "Read-only SQL whose result set is exported.",
-        "properties": {
-          "kind": {
-            "const": "sql",
-            "type": "string"
-          },
-          "sql": {
-            "$ref": "#/$defs/DuckDbSqlText"
-          }
-        },
-        "required": [
-          "kind",
-          "sql"
-        ],
-        "type": "object"
-      }
-    ],
-    "title": "DuckDbTabularSelection",
     "$defs": {
-      "DuckDbSqlText": {
-        "allOf": [
-          {
-            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
-          },
-          {
-            "pattern": "^[^\\u0000]*$"
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_artifact_contract::identity"
+                },
+                "profile": "ArtifactId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
           }
-        ],
-        "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
-        "type": "string"
-      },
-      "DuckDbTableName": {
-        "allOf": [
-          {
-            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
-          },
-          {
-            "pattern": "^[^\\u0000]*$"
-          }
-        ],
-        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
-        "type": "string"
+        }
       }
     }
-  },
-  "DuckDbArtifactSourceUri": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "description": "Neutral Artifact plane URI naming a native UUIDv7 occurrence. Parsed by the Artifact contract.",
-    "pattern": "^artifact://(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9a-fA-F]{12}7[0-9a-fA-F]{3}[89aAbB][0-9a-fA-F]{15})$",
-    "title": "DuckDbArtifactSourceUri",
-    "type": "string"
-  },
-  "DuckDbSourceUris": {
-    "$defs": {
-      "HttpsUrl": {
-        "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
-        "format": "uri",
-        "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$",
-        "type": "string"
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "items": {
-      "$ref": "#/$defs/HttpsUrl"
-    },
-    "minItems": 1,
-    "title": "DuckDbSourceUris",
-    "type": "array"
-  },
-  "DuckDbReadOptionName": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
-    "not": {
-      "anyOf": [
-        {
-          "enum": [
-            "header",
-            "delim",
-            "delimiter",
-            "sep",
-            "timestampformat",
-            "timestamp_format"
-          ]
-        },
-        {
-          "pattern": "[^a-z0-9_]"
-        }
-      ]
-    },
-    "pattern": "^[a-z_]",
-    "title": "DuckDbReadOptionName",
-    "type": "string"
-  },
-  "DuckDbReadOptionText": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "pattern": "^[^\\u0000]*$",
-    "title": "DuckDbReadOptionText",
-    "type": "string"
-  },
-  "DuckDbReadOptionValue": {
-    "$defs": {
-      "DuckDbReadOptionText": {
-        "pattern": "^[^\\u0000]*$",
-        "type": "string"
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "anyOf": [
-      {
-        "type": "boolean"
-      },
-      {
-        "type": "number"
-      },
-      {
-        "$ref": "#/$defs/DuckDbReadOptionText"
-      },
-      {
-        "items": {
-          "$ref": "#"
-        },
-        "type": "array"
-      }
-    ],
-    "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning.",
-    "title": "DuckDbReadOptionValue"
-  },
-  "DuckDbSqlText": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "allOf": [
-      {
-        "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
-      },
-      {
-        "pattern": "^[^\\u0000]*$"
-      }
-    ],
-    "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
-    "title": "DuckDbSqlText",
-    "type": "string"
-  },
-  "DuckDbTableName": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "allOf": [
-      {
-        "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
-      },
-      {
-        "pattern": "^[^\\u0000]*$"
-      }
-    ],
-    "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
-    "title": "DuckDbTableName",
-    "type": "string"
-  },
-  "DuckDbColumnName": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "allOf": [
-      {
-        "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
-      },
-      {
-        "pattern": "^[^\\u0000]*$"
-      }
-    ],
-    "description": "Nonblank column name without NUL, preserved verbatim and quoted as one SQL identifier.",
-    "title": "DuckDbColumnName",
-    "type": "string"
-  },
-  "DuckDbTabularSource": {
-    "$defs": {
-      "DuckDbFormat": {
-        "enum": [
-          "auto",
-          "csv",
-          "parquet",
-          "json",
-          "ndjson"
-        ],
-        "type": "string"
-      },
-      "DuckDbReadOptionText": {
-        "pattern": "^[^\\u0000]*$",
-        "type": "string"
-      },
-      "DuckDbReadOptionValue": {
-        "anyOf": [
-          {
-            "type": "boolean"
-          },
-          {
-            "type": "number"
-          },
-          {
-            "$ref": "#/$defs/DuckDbReadOptionText"
-          },
-          {
-            "items": {
-              "$ref": "#/$defs/DuckDbReadOptionValue"
-            },
-            "type": "array"
-          }
-        ],
-        "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning."
-      },
-      "DuckDbReadOptions": {
-        "additionalProperties": false,
-        "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```",
-        "properties": {
-          "delimiter": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/DuckDbReadOptionText"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "extra": {
-            "additionalProperties": false,
-            "patternProperties": {
-              "^[a-z_]": {
-                "$ref": "#/$defs/DuckDbReadOptionValue"
-              }
-            },
-            "propertyNames": {
-              "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
-              "not": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "header",
-                      "delim",
-                      "delimiter",
-                      "sep",
-                      "timestampformat",
-                      "timestamp_format"
-                    ]
-                  },
-                  {
-                    "pattern": "[^a-z0-9_]"
-                  }
-                ]
-              },
-              "pattern": "^[a-z_]",
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "header": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "timestamp_format": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/DuckDbReadOptionText"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object"
-      },
-      "DuckDbSourceUris": {
-        "items": {
-          "$ref": "#/$defs/HttpsUrl"
-        },
-        "minItems": 1,
-        "type": "array"
-      },
-      "HttpsUrl": {
-        "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
-        "format": "uri",
-        "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$",
-        "type": "string"
-      }
-    },
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "description": "Inline and HTTPS tabular inputs; consumers own network admission and execution.",
-    "oneOf": [
-      {
-        "additionalProperties": false,
-        "properties": {
-          "csv": {
-            "type": "string"
-          },
-          "filename": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "kind": {
-            "const": "inline_csv",
-            "type": "string"
-          },
-          "options": {
-            "$ref": "#/$defs/DuckDbReadOptions",
-            "default": {}
-          }
-        },
-        "required": [
-          "kind",
-          "csv"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "format": {
-            "$ref": "#/$defs/DuckDbFormat"
-          },
-          "kind": {
-            "const": "uri",
-            "type": "string"
-          },
-          "options": {
-            "$ref": "#/$defs/DuckDbReadOptions",
-            "default": {}
-          },
-          "uri": {
-            "$ref": "#/$defs/HttpsUrl"
-          }
-        },
-        "required": [
-          "kind",
-          "uri",
-          "format"
-        ],
-        "type": "object"
-      },
-      {
-        "additionalProperties": false,
-        "properties": {
-          "format": {
-            "$ref": "#/$defs/DuckDbFormat"
-          },
-          "kind": {
-            "const": "uris",
-            "type": "string"
-          },
-          "options": {
-            "$ref": "#/$defs/DuckDbReadOptions",
-            "default": {}
-          },
-          "uris": {
-            "$ref": "#/$defs/DuckDbSourceUris"
-          }
-        },
-        "required": [
-          "kind",
-          "uris",
-          "format"
-        ],
-        "type": "object"
-      }
-    ],
-    "title": "DuckDbTabularSource"
   }
 }

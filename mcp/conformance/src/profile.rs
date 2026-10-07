@@ -7,14 +7,15 @@ use url::Url;
 pub use veoveo_mcp_contract::HOSTED_MCP_CONTRACT_REVISION;
 
 /// Hosted-server conformance profile schema.
-pub const HOSTED_SERVER_PROFILE_SCHEMA: &str = "veoveo.ai/mcp-conformance-profile/v1";
+pub const HOSTED_SERVER_PROFILE_SCHEMA: &str = "veoveo.ai/mcp-conformance-profile/v2";
 
 /// Supported hosted-server conformance profile schema.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[schemars(transform = profile_format_naming)]
 pub enum HostedServerProfileSchema {
-    /// Hosted-server conformance profile version 1.
-    #[serde(rename = "veoveo.ai/mcp-conformance-profile/v1")]
-    V1,
+    /// Hosted-server conformance profile version 2.
+    #[serde(rename = "veoveo.ai/mcp-conformance-profile/v2")]
+    V2,
 }
 
 /// Whether a protocol surface must, may, or must not be advertised.
@@ -235,9 +236,9 @@ mod tests {
 
     fn profile() -> HostedServerConformanceProfile {
         HostedServerConformanceProfile {
-            schema_version: HostedServerProfileSchema::V1,
+            schema_version: HostedServerProfileSchema::V2,
             profile_id: "extension-ci".to_owned(),
-            contract_revision: "veoveo.ai/hosted-mcp/v3".to_owned(),
+            contract_revision: "veoveo.ai/hosted-mcp/v4".to_owned(),
             endpoint: "https://extension.example.internal/domain/mcp".to_owned(),
             server_slug: "domain".to_owned(),
             owned_resource_schemes: BTreeSet::from(["domain".to_owned()]),
@@ -312,4 +313,11 @@ mod tests {
             "https://extension.example.internal:8443/admin/docs/llms.txt".to_owned();
         assert!(other_port.validate().is_err());
     }
+}
+
+fn profile_format_naming(schema: &mut schemars::Schema) {
+    let profile = veoveo_types::ScalarNaming::owner(module_path!(), "conformance-profile-format")
+        .expect("static owner naming declaration");
+    *schema = veoveo_types::scalar_schema(schema.clone(), profile)
+        .expect("owned format schema is scalar");
 }

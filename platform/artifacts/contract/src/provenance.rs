@@ -5,8 +5,8 @@ use veoveo_types::{DelegationId, InvocationProvenance, PolicyVersion, PrincipalI
 /// Immutable explanation of how an artifact came into being.
 ///
 /// The invocation enum carries the identities required by its mode. Its Artifact
-/// wire representation uses the existing flat `invocation_mode`, `initiator`, and
-/// `delegation_id` fields. Constructing this value does not establish authority.
+/// wire representation uses the existing flat `invocationMode`, `initiator`, and
+/// `delegationId` fields. Constructing this value does not establish authority.
 ///
 /// ```compile_fail
 /// use veoveo_artifact_contract::ArtifactProvenance;
@@ -21,6 +21,7 @@ use veoveo_types::{DelegationId, InvocationProvenance, PolicyVersion, PrincipalI
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(from = "ArtifactProvenanceWire", into = "ArtifactProvenanceWire")]
 #[schemars(description = "Immutable explanation of how an artifact came into being.")]
+#[serde(rename_all = "camelCase")]
 pub struct ArtifactProvenance {
     pub producer: PrincipalId,
     pub invocation: InvocationProvenance,
@@ -48,7 +49,12 @@ impl ArtifactProvenance {
 enum NoIdentity {}
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "invocation_mode")]
+#[serde(
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    tag = "invocationMode",
+    deny_unknown_fields
+)]
 enum ArtifactProvenanceWire {
     Direct {
         producer: PrincipalId,

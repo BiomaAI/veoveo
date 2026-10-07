@@ -25,9 +25,9 @@ function declaredDependency(app: AppDescriptor, uri: string): boolean {
   if (uri.includes("..")) return false;
   return app.resourceDependencies.some(
     (dependency) =>
-      dependency.app_resource === app.resourceUri &&
+      dependency.appResource === app.resourceUri &&
       dependency.operations.includes("read") &&
-      uri.startsWith(dependency.uri_prefix) &&
+      uri.startsWith(dependency.uriPrefix) &&
       uri.startsWith(`${dependency.scheme}://`),
   );
 }

@@ -56,7 +56,7 @@ fn map_status_and_handoff_policy_stay_explicit() {
     request.map_route = builder.build().unwrap();
     assert!(validate_map_handoff(&request, &granted).is_err());
     let mut wire = serde_json::to_value(&good).unwrap();
-    wire["map_route"]["path"][0]["unexpected"] = true.into();
+    wire["mapRoute"]["path"][0]["unexpected"] = true.into();
     assert!(serde_json::from_value::<PrepareVehicleMissionRequest>(wire).is_err());
 }
 

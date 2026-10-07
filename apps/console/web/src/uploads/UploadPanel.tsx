@@ -33,15 +33,15 @@ export function UploadPanel({ queue, state, onClose, onView, backgroundSelector 
     return () => { document.removeEventListener("keydown", keydown); shell?.removeAttribute("inert"); previous?.focus(); };
   }, [backgroundSelector]);
   const selected = state.entries.filter((entry) => entry.phase === "Selected");
-  const bytes = selected.reduce((sum, entry) => sum + entry.descriptor.byte_len, 0);
+  const bytes = selected.reduce((sum, entry) => sum + entry.descriptor.byteLen, 0);
   const phases = state.entries.map((entry) => `${entry.descriptor.filename}: ${entry.phase}`).join(". ");
   return <div className="drawer-layer upload-layer">
     <button className="drawer-scrim" aria-label="Close uploads; transfers continue" onClick={onClose} />
     <div ref={panel} className="drawer upload-panel" role="dialog" aria-modal="true" aria-labelledby="upload-title" aria-describedby="upload-access">
-      <header><div><span>Artifacts</span><h2 id="upload-title">Upload to {state.policy?.destination_name ?? "your Work Context"}</h2></div>
+      <header><div><span>Artifacts</span><h2 id="upload-title">Upload to {state.policy?.destinationName ?? "your Work Context"}</h2></div>
         <button className="icon-button" onClick={onClose} aria-label="Close uploads; transfers continue"><X size={18} /></button></header>
       <div className="upload-content">
-        <p id="upload-access">{state.policy?.access_description ?? "Loading destination and access…"}</p>
+        <p id="upload-access">{state.policy?.accessDescription ?? "Loading destination and access…"}</p>
         {state.policyError && <p role="alert">{state.policyError} <button className="button button-secondary" onClick={() => void queue.refreshPolicy()}>Retry policy</button></p>}
         {state.policy && !state.policy.allowed && <p role="status">{state.policy.explanation} <button className="button button-secondary" onClick={() => void queue.refreshPolicy()}>Check access again</button></p>}
         {state.policy?.allowed && <>
@@ -54,8 +54,8 @@ export function UploadPanel({ queue, state, onClose, onView, backgroundSelector 
             <input id="upload-files" type="file" multiple onChange={(event) => { queue.select([...(event.target.files ?? [])]); event.target.value = ""; }} />
             <p>Review your selection before starting. Each file creates a new artifact.</p>
           </div>
-          <p className="subdued">Up to {formatBytes(state.policy.policy?.max_object_bytes ?? 0)} per file.
-            {state.policy.available_bytes != null && ` ${formatBytes(state.policy.available_bytes)} available when last checked.`}</p>
+          <p className="subdued">Up to {formatBytes(state.policy.policy?.maxObjectBytes ?? 0)} per file.
+            {state.policy.availableBytes != null && ` ${formatBytes(state.policy.availableBytes)} available when last checked.`}</p>
         </>}
         {state.notice && <p role="status">{state.notice}</p>}
         {state.persistenceError && <p role="alert">{state.persistenceError}</p>}
@@ -63,7 +63,7 @@ export function UploadPanel({ queue, state, onClose, onView, backgroundSelector 
           <span>{selected.length} selected · {formatBytes(bytes)}</span>
           <button className="button button-primary" onClick={() => queue.start()} disabled={!state.policy?.allowed}>Upload {selected.length} {selected.length === 1 ? "file" : "files"}</button>
         </div>}
-        {state.policy?.available_bytes != null && bytes > state.policy.available_bytes && <p role="status">The selected files exceed the last checked storage allowance. Some files may need to wait until space is available.</p>}
+        {state.policy?.availableBytes != null && bytes > state.policy.availableBytes && <p role="status">The selected files exceed the last checked storage allowance. Some files may need to wait until space is available.</p>}
         <div className="upload-queue-heading"><h3>Uploads</h3>
           {state.entries.some((entry) => ["Ready", "Cancelled"].includes(entry.phase)) && <button className="button button-secondary" onClick={() => queue.clearCompleted()}>Clear finished</button>}
         </div>
@@ -92,9 +92,9 @@ function UploadRow({ entry, queue, onView }: { entry: Entry; queue: UploadQueue;
   };
   return <li className="upload-entry" data-upload-id={entry.uploadId} data-upload-phase={entry.phase}>
     <div className="upload-entry-title"><strong title={entry.descriptor.filename}>{entry.descriptor.filename}</strong><span>{entry.phase}</span></div>
-    <p className="subdued">{formatBytes(entry.descriptor.byte_len)} · {entry.descriptor.mime_type}</p>
+    <p className="subdued">{formatBytes(entry.descriptor.byteLen)} · {entry.descriptor.mimeType}</p>
     {entry.uploadId && !terminal && <>
-      <progress max={entry.descriptor.byte_len || 1} value={entry.phase === "Finishing upload" && entry.descriptor.byte_len === 0 ? 1 : entry.sent} aria-label={`Bytes sent for ${entry.descriptor.filename}`} />
+      <progress max={entry.descriptor.byteLen || 1} value={entry.phase === "Finishing upload" && entry.descriptor.byteLen === 0 ? 1 : entry.sent} aria-label={`Bytes sent for ${entry.descriptor.filename}`} />
       <p>{formatBytes(entry.sent)} sent · {formatBytes(entry.accepted)} accepted
         {entry.speed !== undefined && ` · ${formatBytes(entry.speed)}/s`}
         {entry.eta !== undefined && entry.eta > 0 && ` · about ${entry.eta < 60 ? `${entry.eta} sec` : `${Math.ceil(entry.eta / 60)} min`} remaining to send`}</p>
@@ -114,8 +114,8 @@ function UploadRow({ entry, queue, onView }: { entry: Entry; queue: UploadQueue;
       {entry.file && !entry.cancelRequested && <button className="button button-secondary" aria-label={`Upload another copy of ${entry.descriptor.filename}`} onClick={() => queue.select([entry.file!], true)}>Upload another copy</button>}
       {entry.receipt && <>
         {onView && <button className="button button-primary" aria-label={`View artifact ${entry.descriptor.filename}`} onClick={() => void view()} disabled={viewing}>{viewing ? "Opening…" : "View artifact"}</button>}
-        <a className="button button-secondary" href={artifactDownloadUrl(entry.receipt.artifact_id)} download>Download</a>
-        <button className="button button-secondary" aria-label={`Copy artifact URI for ${entry.descriptor.filename}`} onClick={() => { void navigator.clipboard.writeText(entry.receipt!.artifact_uri).then(() => setActionMessage("Artifact URI copied."), () => setActionMessage("Copy failed. Open the artifact to copy its URI.")); }}>Copy URI</button>
+        <a className="button button-secondary" href={artifactDownloadUrl(entry.receipt.artifactId)} download>Download</a>
+        <button className="button button-secondary" aria-label={`Copy artifact URI for ${entry.descriptor.filename}`} onClick={() => { void navigator.clipboard.writeText(entry.receipt!.artifactUri).then(() => setActionMessage("Artifact URI copied."), () => setActionMessage("Copy failed. Open the artifact to copy its URI.")); }}>Copy URI</button>
       </>}
     </div>
   </li>;

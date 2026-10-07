@@ -1,0 +1,544 @@
+use super::*;
+use veoveo_media_mcp::contract::{
+    MediaGenerationResult, MediaGenerationUri, MediaPredictionIndexUri, MediaPredictionPage,
+    MediaPredictionUri, MediaTaskUsageUri, MediaUsageIndexUri, MediaUsagePage,
+};
+pub(crate) async fn media_mcp_auth(
+    conformance: &Path,
+    media: &Path,
+    artifact_service: &Path,
+) -> Result<()> {
+    assert_executable(conformance)?;
+    assert_executable(media)?;
+    assert_executable(artifact_service)?;
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    let port = 18800u16;
+    let base = format!("http://127.0.0.1:{port}");
+    let log = tmpdir.join("media.log");
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
+    let mut media_child = spawn_media_s3_smoke(
+        media,
+        port,
+        PUBLIC_BASE_URL,
+        &plane.platform,
+        &plane.url,
+        &log,
+    )?;
+    wait_for_http(&format!("{base}/media/healthz")).await?;
+    let health = reqwest::get(format!("{base}/media/healthz"))
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
+    contains(&health, "ok")?;
+    let untrusted_host_status = reqwest::Client::new()
+        .get(format!("{base}/media/healthz"))
+        .header(HOST, "evil.example.com")
+        .send()
+        .await?
+        .status();
+    if untrusted_host_status != StatusCode::MISDIRECTED_REQUEST {
+        bail!("media untrusted Host status was {untrusted_host_status}, expected 421");
+    }
+    assert_json_log(
+        &log,
+        &[
+            ("message", "listening"),
+            ("service", "veoveo-media-mcp"),
+            ("mcp_path", "/media/mcp"),
+        ],
+    )?;
+    assert_json_log(
+        &log,
+        &[("message", "media retention reconciliation completed")],
+    )?;
+    assert_http_status(&format!("{base}/media/mcp"), StatusCode::UNAUTHORIZED).await?;
+    assert_http_status(
+        &format!("{base}/media/artifacts/01900000-0000-7000-8000-000000000001"),
+        StatusCode::NOT_FOUND,
+    )
+    .await?;
+
+    {
+        let identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("simulation")?)?;
+
+        let bearer = fixture_bearer(identity)?;
+        assert_direct_mcp_denied(
+            conformance,
+            &format!("{base}/media/mcp"),
+            ["info".into()],
+            [("MCP_BEARER_TOKEN", bearer.into())],
+            veoveo_mcp_conformance::client::failure::ObservedFailure::Http { status: 401 },
+        )
+    }?;
+
+    {
+        let identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+
+        let bearer = fixture_bearer(identity)?;
+        run_direct_mcp(
+            conformance,
+            &format!("{base}/media/mcp"),
+            ["info".into()],
+            [("MCP_BEARER_TOKEN", bearer.into())],
+        )
+    }?;
+
+    media_child.stop_checked().await?;
+    cleanup.remove_on_drop();
+    println!("media MCP auth smoke ok");
+    Ok(())
+}
+
+pub(crate) async fn media_task_run(
+    conformance: &Path,
+    media: &Path,
+    artifact_service: &Path,
+) -> Result<()> {
+    assert_executable(conformance)?;
+    assert_executable(media)?;
+    assert_executable(artifact_service)?;
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    let media_port = 18807u16;
+    let provider_port = 18808u16;
+    let media_base = format!("http://127.0.0.1:{media_port}");
+    let provider_base = format!("http://127.0.0.1:{provider_port}");
+    let provider_log = tmpdir.join("provider.log");
+    let media_log = tmpdir.join("media.log");
+    let provider_ready = tmpdir.join("provider.ready");
+    let output_dir = tmpdir.join("outputs");
+
+    let mut provider =
+        spawn_fake_media_provider(provider_port, &provider_ready, &provider_log, Some(4000))?;
+    wait_for_file_and_http(&provider_ready, &format!("{provider_base}/api/v3/models")).await?;
+
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
+    let mut media_child = spawn_media_memory_smoke(
+        media,
+        media_port,
+        &media_base,
+        &plane.platform,
+        &provider_base,
+        &plane.url,
+        &media_log,
+    )?;
+    wait_for_http(&format!("{media_base}/media/healthz")).await?;
+    let health = reqwest::get(format!("{media_base}/media/healthz"))
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
+    contains(&health, "ok")?;
+
+    let mcp_url = format!("{media_base}/media/mcp");
+    let resources_output = {
+        let identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+
+        let bearer = fixture_bearer(identity)?;
+        run_direct_mcp(
+            conformance,
+            &mcp_url,
+            ["resources".into()],
+            [("MCP_BEARER_TOKEN", bearer.into())],
+        )
+    }?;
+    contains(&resources_output, "media://models")?;
+    contains(&resources_output, "media://usage")?;
+
+    let prompts_output = {
+        let identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+
+        let bearer = fixture_bearer(identity)?;
+        run_direct_mcp(
+            conformance,
+            &mcp_url,
+            ["prompts".into()],
+            [("MCP_BEARER_TOKEN", bearer.into())],
+        )
+    }?;
+    contains(&prompts_output, "media-model-select")?;
+    contains(&prompts_output, "media-task-review")?;
+
+    let prompt_output = {
+        let identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+
+        let bearer = fixture_bearer(identity)?;
+        run_direct_mcp(conformance,
+&mcp_url,
+["prompt".into(),
+"media-model-select".into(),
+"--arguments".into(),
+r#"{"goal":"generate a compact smoke test image","media_type":"image","budget":"low"}"#
+                .into()],
+[("MCP_BEARER_TOKEN", bearer.into())])
+    }?;
+    contains(&prompt_output, "media://models")?;
+
+    let cancel_output = {
+        let identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+
+        let bearer = fixture_bearer(identity)?;
+        run_direct_mcp(
+            &veoveo_testing_support::artifacts::executable("veoveo-media-mcp", "media-smoke")?,
+            &mcp_url,
+            [
+                "run".into(),
+                "fake/image".into(),
+                "--input".into(),
+                r#"{"prompt":"cancel"}"#.into(),
+                "--cancel".into(),
+            ],
+            [("MCP_BEARER_TOKEN", bearer.into())],
+        )
+    }?;
+    let cancel_task_id = task_id_from_output(&cancel_output)?;
+    contains(&cancel_output, "cancel target ready:")?;
+    contains(
+        &cancel_output,
+        &format!("cancelled task {cancel_task_id} (status Cancelled)"),
+    )?;
+    wait_for_file_text(&provider_log, "fake media provider cancellation accepted:").await?;
+
+    let late_webhook_cancel_output = {
+        let identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+
+        let bearer = fixture_bearer(identity)?;
+        run_direct_mcp(&veoveo_testing_support::artifacts::executable("veoveo-media-mcp", "media-smoke")?,
+&mcp_url,
+["run".into(),
+"fake/image".into(),
+"--input".into(),
+r#"{"prompt":"cancel but reconcile billing","_fake_provider_cancellation":"not_deleted"}"#
+                .into(),
+"--cancel".into()],
+[("MCP_BEARER_TOKEN", bearer.into())])
+    }?;
+    let late_webhook_cancel_task_id = task_id_from_output(&late_webhook_cancel_output)?;
+    contains(&late_webhook_cancel_output, "cancel target ready:")?;
+    contains(
+        &late_webhook_cancel_output,
+        &format!("cancelled task {late_webhook_cancel_task_id} (status Cancelled)"),
+    )?;
+    wait_for_file_text(
+        &provider_log,
+        "fake media provider cancellation not deleted:",
+    )
+    .await?;
+    let cancelled_usage =
+        wait_for_actual_usage(conformance, &mcp_url, &late_webhook_cancel_task_id, None)?;
+    assert_usage_report(&cancelled_usage, "media", &late_webhook_cancel_task_id)?;
+    not_contains(
+        &fs::read_to_string(&provider_log).unwrap_or_default(),
+        "fake media provider output fetched",
+    )?;
+
+    let complete_output = {
+        let identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+
+        let bearer = fixture_bearer(identity)?;
+        run_direct_mcp(
+            &veoveo_testing_support::artifacts::executable("veoveo-media-mcp", "media-smoke")?,
+            &mcp_url,
+            ["complete".into(), "fake".into()],
+            [("MCP_BEARER_TOKEN", bearer.into())],
+        )
+    }?;
+    contains(&complete_output, "fake/image")?;
+
+    let run_result = run_raw(
+        conformance,
+        [
+            "--url".into(),
+            mcp_url.clone().into(),
+            "run".into(),
+            "fake/image".into(),
+            "--input".into(),
+            r#"{"prompt":"smoke"}"#.into(),
+            "--output-dir".into(),
+            output_dir.as_os_str().to_os_string(),
+        ],
+        [(
+            "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+            INTERNAL_SIGNING_KEY_DER_B64.into(),
+        )],
+    )?;
+    let run_output = String::from_utf8(run_result.stdout)?;
+    let notifications = String::from_utf8(run_result.stderr)?;
+    if !run_result.status.success() {
+        bail!(
+            "Media run failed: {}\nstdout:\n{run_output}\nstderr:\n{notifications}",
+            run_result.status
+        );
+    }
+    let task_id = task_id_from_output(&run_output)?;
+    for expected in [
+        "poll: Working — submitted; prediction".to_string(),
+        "poll: Completed — Generation completed.".to_string(),
+        "subscribed to media://prediction/".to_string(),
+        "subscription cancelled".to_string(),
+    ] {
+        contains(&run_output, &expected)?;
+    }
+    let structured: MediaGenerationResult = structured_from_output(&run_output)?;
+    let prediction_uri = MediaPredictionUri::new(structured.prediction().id.clone());
+    contains(
+        &notifications,
+        &format!("[resource updated] {prediction_uri}"),
+    )?;
+    if structured.artifacts().is_empty() {
+        bail!("run output had no artifacts: {run_output}");
+    }
+    if structured.artifacts().iter().any(|artifact| {
+        artifact.metadata.get("taskId").and_then(Value::as_str) != Some(task_id.as_str())
+    }) {
+        bail!("not all artifact metadata rows used task id `{task_id}`: {structured:?}");
+    }
+    let media_scheme = veoveo_types::ResourceScheme::parse("media")?;
+    if structured.artifacts().iter().any(|artifact| {
+        artifact.artifact_uri
+            != veoveo_artifact_contract::ArtifactUri::presented(
+                &media_scheme,
+                artifact.artifact_id(),
+            )
+    }) {
+        bail!("not all artifact metadata rows used canonical media artifact URIs: {structured:?}");
+    }
+    let artifact_uri = structured.artifacts()[0].artifact_uri.clone();
+    assert_output_file(&output_dir, "png")?;
+
+    let usage = wait_for_actual_usage(conformance, &mcp_url, &task_id, None)?;
+    assert_usage_report(&usage, "media", &task_id)?;
+
+    {
+        let mut identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+        identity.profile = veoveo_mcp_contract::GatewayProfileId::parse("admin")?;
+        let bearer = fixture_bearer(identity)?;
+        assert_direct_mcp_denied(
+            &veoveo_testing_support::artifacts::executable("veoveo-media-mcp", "media-smoke")?,
+            &mcp_url,
+            ["usage".into(), task_id.clone().into()],
+            [("MCP_BEARER_TOKEN", bearer.into())],
+            veoveo_mcp_conformance::client::failure::ObservedFailure::mcp(
+                -32602,
+                "unknown task usage",
+            ),
+        )
+    }?;
+
+    // A principal outside the artifact's work context and grants cannot read it.
+    {
+        let mut identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+        identity.work_context = veoveo_types::WorkContextId::parse("intruder-context")?;
+        identity.subject = veoveo_mcp_contract::TokenSubject::parse("intruder")?;
+        let bearer = fixture_bearer(identity)?;
+        assert_direct_mcp_denied(
+            &veoveo_testing_support::artifacts::executable(
+                "veoveo-artifact-service",
+                "artifact-smoke",
+            )?,
+            &mcp_url,
+            [
+                "artifact".into(),
+                structured.artifacts()[0].artifact_id().to_string().into(),
+                "--output-dir".into(),
+                tmpdir.join("denied-artifacts").as_os_str().to_os_string(),
+            ],
+            [("MCP_BEARER_TOKEN", bearer.into())],
+            veoveo_mcp_conformance::client::failure::ObservedFailure::mcp(
+                -32602,
+                format!(
+                    "unknown artifact '{}'",
+                    structured.artifacts()[0].artifact_id()
+                ),
+            ),
+        )
+    }?;
+
+    // And the plane's hard tenant partition: a caller in another tenant is
+    // denied even though it shares the (fixed) conformance principal id.
+    {
+        let mut identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+        identity.tenant = veoveo_types::TenantId::parse("other-tenant")?;
+        let bearer = fixture_bearer(identity)?;
+        assert_direct_mcp_denied(
+            &veoveo_testing_support::artifacts::executable(
+                "veoveo-artifact-service",
+                "artifact-smoke",
+            )?,
+            &mcp_url,
+            [
+                "artifact".into(),
+                structured.artifacts()[0].artifact_id().to_string().into(),
+                "--output-dir".into(),
+                tmpdir
+                    .join("denied-cross-tenant")
+                    .as_os_str()
+                    .to_os_string(),
+            ],
+            [("MCP_BEARER_TOKEN", bearer.into())],
+            veoveo_mcp_conformance::client::failure::ObservedFailure::mcp(
+                -32602,
+                format!(
+                    "unknown artifact '{}'",
+                    structured.artifacts()[0].artifact_id()
+                ),
+            ),
+        )
+    }?;
+
+    let task_review_output = {
+        let identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+
+        let bearer = fixture_bearer(identity)?;
+        run_direct_mcp(
+            conformance,
+            &mcp_url,
+            [
+                "prompt".into(),
+                "media-task-review".into(),
+                "--arguments".into(),
+                format!(r#"{{"task_id":"{task_id}"}}"#).into(),
+            ],
+            [("MCP_BEARER_TOKEN", bearer.into())],
+        )
+    }?;
+    let usage_uri = MediaTaskUsageUri::new(task_id.parse()?)?;
+    contains(&task_review_output, usage_uri.as_str())?;
+
+    let post_run_resources = {
+        let identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+
+        let bearer = fixture_bearer(identity)?;
+        run_direct_mcp(
+            conformance,
+            &mcp_url,
+            ["resources".into()],
+            [("MCP_BEARER_TOKEN", bearer.into())],
+        )
+    }?;
+    not_contains(&post_run_resources, usage_uri.as_str())?;
+    let read_index = |uri: &str| {
+        let identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+
+        let bearer = fixture_bearer(identity)?;
+        run_direct_mcp(
+            conformance,
+            &mcp_url,
+            ["resource".into(), uri.into()],
+            [("MCP_BEARER_TOKEN", bearer.into())],
+        )
+    };
+    let result_uri = MediaGenerationUri::new(structured.prediction().id.clone());
+    let generation: MediaGenerationResult =
+        serde_json::from_str(&read_index(result_uri.as_str())?)?;
+    if generation.task_id().to_string() != task_id
+        || generation.result_uri() != &result_uri
+        || generation.prediction() != structured.prediction()
+        || generation.artifacts() != structured.artifacts()
+    {
+        bail!("Media generation resource disagreed with the completed Task");
+    }
+    not_contains(&post_run_resources, result_uri.as_str())?;
+    let usage_catalog: MediaUsagePage =
+        serde_json::from_str(&read_index(MediaUsageIndexUri::ROOT)?)?;
+    if !usage_catalog
+        .items()
+        .iter()
+        .any(|entry| entry.usage_uri() == &usage_uri)
+        || usage_catalog.next_cursor().is_some()
+    {
+        bail!("Media usage page did not contain the completed task: {usage_catalog:?}");
+    }
+    let predictions: MediaPredictionPage =
+        serde_json::from_str(&read_index(MediaPredictionIndexUri::ROOT)?)?;
+    if predictions.items().is_empty() || predictions.next_cursor().is_some() {
+        bail!("Media predictions page did not contain submitted jobs: {predictions:?}");
+    }
+    for identity in [
+        {
+            let mut identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+            identity.subject = veoveo_mcp_contract::TokenSubject::parse("intruder")?;
+            identity
+        },
+        {
+            let mut identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+            identity.tenant = veoveo_types::TenantId::parse("other-tenant")?;
+            identity
+        },
+        {
+            let mut identity = fixture_identity(veoveo_mcp_contract::ServerSlug::parse("media")?)?;
+            identity.profile = veoveo_mcp_contract::GatewayProfileId::parse("observer")?;
+            identity
+        },
+    ] {
+        let bearer = fixture_bearer(identity)?;
+        assert_direct_mcp_denied(
+            conformance,
+            &mcp_url,
+            ["resource".into(), result_uri.as_str().into()],
+            [("MCP_BEARER_TOKEN", bearer.clone().into())],
+            veoveo_mcp_conformance::client::failure::ObservedFailure::mcp(
+                -32602,
+                "unknown generation result",
+            ),
+        )?;
+        for uri in [MediaUsageIndexUri::ROOT, MediaPredictionIndexUri::ROOT] {
+            let output = run_direct_mcp(
+                conformance,
+                &mcp_url,
+                ["resource".into(), uri.into()],
+                [("MCP_BEARER_TOKEN", bearer.clone().into())],
+            )?;
+            let empty = if uri == MediaUsageIndexUri::ROOT {
+                serde_json::from_str::<MediaUsagePage>(&output)?
+                    .items()
+                    .is_empty()
+            } else {
+                serde_json::from_str::<MediaPredictionPage>(&output)?
+                    .items()
+                    .is_empty()
+            };
+            if !empty {
+                bail!("Media catalog exposed another caller's records");
+            }
+        }
+    }
+    // Artifacts on the shared plane are addressable by URI but deliberately not
+    // enumerated in the resource listing — listing them would be a cross-tenant
+    // existence oracle. The artifact stays readable by its URI (asserted above);
+    // it must not appear in the enumerable resource set.
+    not_contains(&post_run_resources, artifact_uri.as_str())?;
+
+    media_child.stop_checked().await?;
+    let mut restarted = spawn_media_memory_smoke(
+        media,
+        media_port,
+        &media_base,
+        &plane.platform,
+        &provider_base,
+        &plane.url,
+        &tmpdir.join("media-restarted.log"),
+    )?;
+    wait_for_http(&format!("{media_base}/media/healthz")).await?;
+    let restored: MediaGenerationResult = serde_json::from_str(&read_index(result_uri.as_str())?)?;
+    if restored != generation {
+        bail!("Media restart changed the stored generation result");
+    }
+    restarted.stop_checked().await?;
+    provider.stop_checked().await?;
+    cleanup.remove_on_drop();
+    println!("media task run smoke ok");
+    Ok(())
+}

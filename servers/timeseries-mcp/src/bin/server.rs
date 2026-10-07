@@ -90,6 +90,8 @@ const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 const SERVER_SLUG: &str = "timeseries";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 struct ForecastTaskRequest {
     input: TimeseriesForecastRequest,
     artifact_write_capability: IssuedArtifactWriteCapability,
@@ -534,13 +536,13 @@ mod well_known_tests {
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
         let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
-        assert_eq!(declaration.server, "timeseries");
-        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        assert_eq!(declaration.server().as_str(), "timeseries");
+        assert_eq!(declaration.contract_revision(), CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
             let item = declaration
-                .compliance
+                .compliance()
                 .iter()
-                .find(|item| item.id == id)
+                .find(|item| item.id.as_str() == id)
                 .expect("declared checklist item");
             assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
         }

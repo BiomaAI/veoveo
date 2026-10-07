@@ -14,7 +14,7 @@ use veoveo_speech_contract::{
 };
 
 #[derive(Serialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Provenance<'a> {
     source_artifact_uri: &'a veoveo_artifact_contract::ArtifactUri,
     source_sha256: &'a str,
@@ -34,7 +34,7 @@ impl SpeechService {
         let captions = transcript.webvtt()?.into_bytes();
         let duration_seconds = transcript.duration_seconds;
         let document = TranscriptDocumentValue {
-            schema: "veoveo.speech-transcript/v1".into(),
+            schema: veoveo_speech_contract::TRANSCRIPT_SCHEMA.into(),
             source_artifact_uri: source.artifact_uri.clone(),
             source_sha256: veoveo_artifact_contract::UploadSha256::parse(&digest)?,
             model: MODEL.into(),

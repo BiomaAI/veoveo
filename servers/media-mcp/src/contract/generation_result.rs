@@ -7,7 +7,7 @@ use veoveo_artifact_contract::{ArtifactMetadata, ArtifactUri};
 use veoveo_types::{ResourceScheme, TaskId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MediaOutputArtifactMetadata {
     pub task_id: TaskId,
     pub job_id: MediaPredictionId,
@@ -23,9 +23,10 @@ pub struct MediaOutputArtifactMetadata {
 pub struct MediaGenerationError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[schemars(transform = format_tag_schema)]
 enum ResultSchema {
-    #[serde(rename = "veoveo.ai/media-generation/v1")]
-    V1,
+    #[serde(rename = "veoveo.ai/media-generation/v2")]
+    V2,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -38,7 +39,7 @@ pub struct MediaGenerationResult {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ResultWire {
     schema: ResultSchema,
     task_id: TaskId,
@@ -48,7 +49,7 @@ struct ResultWire {
 }
 
 impl MediaGenerationResult {
-    pub const SCHEMA: &str = "veoveo.ai/media-generation/v1";
+    pub const SCHEMA: &str = "veoveo.ai/media-generation/v2";
 
     /// All outputs must be attributed to this Task and prediction in provider order.
     /// ```compile_fail
@@ -122,11 +123,19 @@ impl TryFrom<ResultWire> for MediaGenerationResult {
 impl From<MediaGenerationResult> for ResultWire {
     fn from(result: MediaGenerationResult) -> Self {
         Self {
-            schema: ResultSchema::V1,
+            schema: ResultSchema::V2,
             task_id: result.task_id,
             result_uri: result.result_uri,
             prediction: result.prediction,
             artifacts: result.artifacts,
         }
     }
+}
+
+fn format_tag_schema(schema: &mut schemars::Schema) {
+    *schema = veoveo_types::scalar_schema(
+        schema.clone(),
+        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
+    )
+    .expect("current Media generation format naming profile");
 }

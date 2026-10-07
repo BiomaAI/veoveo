@@ -80,10 +80,10 @@
       "additionalProperties": false,
       "description": "One exact cross-server resource family admitted to one owning MCP App.\n\nThe gateway filters these declarations by the active profile, scopes, and\ndata labels before projecting them to a host. The eventual resource read\nstill passes through ordinary gateway resource exposure and policy.",
       "properties": {
-        "app_resource": {
+        "appResource": {
           "$ref": "#/$defs/ResourceUri"
         },
-        "data_labels": {
+        "dataLabels": {
           "items": {
             "$ref": "#/$defs/DataLabelId"
           },
@@ -97,7 +97,7 @@
           "type": "array",
           "uniqueItems": true
         },
-        "required_scope": {
+        "requiredScope": {
           "$ref": "#/$defs/ScopeName"
         },
         "scheme": {
@@ -106,16 +106,16 @@
         "server": {
           "$ref": "#/$defs/ServerSlug"
         },
-        "uri_prefix": {
+        "uriPrefix": {
           "$ref": "#/$defs/ResourceUriPrefix"
         }
       },
       "required": [
-        "app_resource",
+        "appResource",
         "server",
         "scheme",
-        "uri_prefix",
-        "required_scope",
+        "uriPrefix",
+        "requiredScope",
         "operations"
       ],
       "type": "object"
@@ -131,17 +131,17 @@
       "additionalProperties": false,
       "description": "One exact cross-server tool set admitted to one owning MCP App.",
       "properties": {
-        "app_resource": {
+        "appResource": {
           "$ref": "#/$defs/ResourceUri"
         },
-        "data_labels": {
+        "dataLabels": {
           "items": {
             "$ref": "#/$defs/DataLabelId"
           },
           "type": "array",
           "uniqueItems": true
         },
-        "required_scope": {
+        "requiredScope": {
           "$ref": "#/$defs/ScopeName"
         },
         "server": {
@@ -156,9 +156,9 @@
         }
       },
       "required": [
-        "app_resource",
+        "appResource",
         "server",
-        "required_scope",
+        "requiredScope",
         "tools"
       ],
       "type": "object"
@@ -195,17 +195,35 @@
           "$ref": "#/$defs/LocalToolName",
           "description": "Stable name exposed to the App frame."
         },
-        "target_tool": {
+        "targetTool": {
           "$ref": "#/$defs/LocalToolName"
         }
       },
       "required": [
         "name",
-        "target_tool"
+        "targetTool"
       ],
       "type": "object"
     },
     "DataLabelId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "DataLabelId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
       "type": "string"
     },
@@ -245,24 +263,92 @@
       "type": "string"
     },
     "LocalToolName": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::platform_names"
+              },
+              "profile": "LocalToolName",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Tool name as exposed by one direct MCP server.",
       "type": "string"
     },
     "ResourceScheme": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "resource_scheme",
+            "kind": "builtin"
+          }
+        }
+      },
       "description": "Server-owned resource URI scheme, for example `media`.",
       "type": "string"
     },
     "ResourceUri": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "resource_uri",
+            "kind": "builtin"
+          }
+        }
+      },
       "type": "string"
     },
     "ResourceUriPrefix": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "resource_prefix",
+            "kind": "builtin"
+          }
+        }
+      },
       "type": "string"
     },
     "ScopeName": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "scope_name",
+            "kind": "builtin"
+          }
+        }
+      },
       "description": "OAuth/OIDC scope value. It must not contain whitespace or control characters.",
       "type": "string"
     },
     "ServerSlug": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "server_slug",
+            "kind": "builtin"
+          }
+        }
+      },
       "description": "Canonical hosted MCP server id used in manifests, profiles, and gateway routes.",
       "type": "string"
     }

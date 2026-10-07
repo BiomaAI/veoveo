@@ -1,8 +1,15 @@
-fn check_schema<T: schemars::JsonSchema>(baseline: &serde_json::Value, name: &str) {
-    assert_eq!(
-        serde_json::to_value(schemars::schema_for!(T)).unwrap(),
-        baseline[name],
-        "{name}"
+fn check_schema<T: schemars::JsonSchema>(
+    current: &mut serde_json::Map<String, serde_json::Value>,
+    name: &str,
+) {
+    assert!(
+        current
+            .insert(
+                name.into(),
+                serde_json::to_value(schemars::schema_for!(T)).unwrap()
+            )
+            .is_none(),
+        "repeated owner schema {name}"
     );
 }
 #[path = "contract/catalog.rs"]
@@ -24,45 +31,64 @@ use veoveo_duckdb_mcp::contract::*;
 fn schemas_match_the_declared_contract() {
     let baseline: Value =
         serde_json::from_str(include_str!("../testdata/source-contract.schema.json")).unwrap();
+    let mut current = serde_json::Map::new();
 
-    check_schema::<DuckDbFormat>(&baseline, stringify!(DuckDbFormat));
-    check_schema::<DuckDbReadOptions>(&baseline, stringify!(DuckDbReadOptions));
-    check_schema::<DuckDbReadOptionName>(&baseline, stringify!(DuckDbReadOptionName));
-    check_schema::<DuckDbReadOptionValue>(&baseline, stringify!(DuckDbReadOptionValue));
-    check_schema::<DuckDbReadOptionText>(&baseline, stringify!(DuckDbReadOptionText));
-    check_schema::<DuckDbSqlText>(&baseline, stringify!(DuckDbSqlText));
-    check_schema::<DuckDbTableName>(&baseline, stringify!(DuckDbTableName));
-    check_schema::<DuckDbColumnName>(&baseline, stringify!(DuckDbColumnName));
-    check_schema::<DuckDbSource>(&baseline, stringify!(DuckDbSource));
-    check_schema::<DuckDbTabularSource>(&baseline, stringify!(DuckDbTabularSource));
-    check_schema::<DuckDbSourceUris>(&baseline, stringify!(DuckDbSourceUris));
-    check_schema::<DuckDbArtifactSourceUri>(&baseline, stringify!(DuckDbArtifactSourceUri));
-    check_schema::<DuckDbDatabaseId>(&baseline, stringify!(DuckDbDatabaseId));
-    check_schema::<DuckDbTabularFormat>(&baseline, stringify!(DuckDbTabularFormat));
-    check_schema::<DuckDbQueryOutputMode>(&baseline, stringify!(DuckDbQueryOutputMode));
-    check_schema::<DuckDbQueryRequest>(&baseline, stringify!(DuckDbQueryRequest));
-    check_schema::<DuckDbExecuteRequest>(&baseline, stringify!(DuckDbExecuteRequest));
-    check_schema::<DuckDbIngestMode>(&baseline, stringify!(DuckDbIngestMode));
-    check_schema::<DuckDbIngestRequest>(&baseline, stringify!(DuckDbIngestRequest));
-    check_schema::<DuckDbTabularSelection>(&baseline, stringify!(DuckDbTabularSelection));
-    check_schema::<DuckDbExportRequest>(&baseline, stringify!(DuckDbExportRequest));
-    check_schema::<DuckDbColumn>(&baseline, stringify!(DuckDbColumn));
-    check_schema::<DuckDbQueryOutput>(&baseline, stringify!(DuckDbQueryOutput));
-    check_schema::<DuckDbExecuteOutput>(&baseline, stringify!(DuckDbExecuteOutput));
-    check_schema::<DuckDbIngestOutput>(&baseline, stringify!(DuckDbIngestOutput));
-    check_schema::<DuckDbExportOutput>(&baseline, stringify!(DuckDbExportOutput));
-    check_schema::<DuckDbDatabaseUri>(&baseline, stringify!(DuckDbDatabaseUri));
-    check_schema::<DuckDbResource>(&baseline, stringify!(DuckDbResource));
-    check_schema::<DuckDbDatabaseCursor>(&baseline, stringify!(DuckDbDatabaseCursor));
-    check_schema::<DuckDbDatabaseEntry>(&baseline, stringify!(DuckDbDatabaseEntry));
-    check_schema::<DuckDbDatabasePage>(&baseline, stringify!(DuckDbDatabasePage));
-    check_schema::<DuckDbDatabaseSchema>(&baseline, stringify!(DuckDbDatabaseSchema));
-    check_schema::<DuckDbTableSchema>(&baseline, stringify!(DuckDbTableSchema));
-    check_schema::<DuckDbSchemaColumn>(&baseline, stringify!(DuckDbSchemaColumn));
-    check_schema::<DuckDbArtifactOrigin>(&baseline, stringify!(DuckDbArtifactOrigin));
-    check_schema::<DuckDbArtifactOperation>(&baseline, stringify!(DuckDbArtifactOperation));
-    check_schema::<DuckDbUsageDetails>(&baseline, stringify!(DuckDbUsageDetails));
-    check_schema::<DuckDbQueryUsage>(&baseline, stringify!(DuckDbQueryUsage));
+    check_schema::<DuckDbFormat>(&mut current, stringify!(DuckDbFormat));
+    check_schema::<DuckDbReadOptions>(&mut current, stringify!(DuckDbReadOptions));
+    check_schema::<DuckDbReadOptionName>(&mut current, stringify!(DuckDbReadOptionName));
+    check_schema::<DuckDbReadOptionValue>(&mut current, stringify!(DuckDbReadOptionValue));
+    check_schema::<DuckDbReadOptionText>(&mut current, stringify!(DuckDbReadOptionText));
+    check_schema::<DuckDbSqlText>(&mut current, stringify!(DuckDbSqlText));
+    check_schema::<DuckDbTableName>(&mut current, stringify!(DuckDbTableName));
+    check_schema::<DuckDbColumnName>(&mut current, stringify!(DuckDbColumnName));
+    check_schema::<DuckDbSource>(&mut current, stringify!(DuckDbSource));
+    check_schema::<DuckDbTabularSource>(&mut current, stringify!(DuckDbTabularSource));
+    check_schema::<DuckDbSourceUris>(&mut current, stringify!(DuckDbSourceUris));
+    check_schema::<DuckDbArtifactSourceUri>(&mut current, stringify!(DuckDbArtifactSourceUri));
+    check_schema::<DuckDbDatabaseId>(&mut current, stringify!(DuckDbDatabaseId));
+    check_schema::<DuckDbTabularFormat>(&mut current, stringify!(DuckDbTabularFormat));
+    check_schema::<DuckDbQueryOutputMode>(&mut current, stringify!(DuckDbQueryOutputMode));
+    check_schema::<DuckDbQueryRequest>(&mut current, stringify!(DuckDbQueryRequest));
+    check_schema::<DuckDbExecuteRequest>(&mut current, stringify!(DuckDbExecuteRequest));
+    check_schema::<DuckDbIngestMode>(&mut current, stringify!(DuckDbIngestMode));
+    check_schema::<DuckDbIngestRequest>(&mut current, stringify!(DuckDbIngestRequest));
+    check_schema::<DuckDbTabularSelection>(&mut current, stringify!(DuckDbTabularSelection));
+    check_schema::<DuckDbExportRequest>(&mut current, stringify!(DuckDbExportRequest));
+    check_schema::<DuckDbColumn>(&mut current, stringify!(DuckDbColumn));
+    check_schema::<DuckDbQueryOutput>(&mut current, stringify!(DuckDbQueryOutput));
+    check_schema::<DuckDbExecuteOutput>(&mut current, stringify!(DuckDbExecuteOutput));
+    check_schema::<DuckDbIngestOutput>(&mut current, stringify!(DuckDbIngestOutput));
+    check_schema::<DuckDbExportOutput>(&mut current, stringify!(DuckDbExportOutput));
+    check_schema::<DuckDbDatabaseUri>(&mut current, stringify!(DuckDbDatabaseUri));
+    check_schema::<DuckDbResource>(&mut current, stringify!(DuckDbResource));
+    check_schema::<DuckDbDatabaseCursor>(&mut current, stringify!(DuckDbDatabaseCursor));
+    check_schema::<DuckDbDatabaseEntry>(&mut current, stringify!(DuckDbDatabaseEntry));
+    check_schema::<DuckDbDatabasePage>(&mut current, stringify!(DuckDbDatabasePage));
+    check_schema::<DuckDbDatabaseSchema>(&mut current, stringify!(DuckDbDatabaseSchema));
+    check_schema::<DuckDbTableSchema>(&mut current, stringify!(DuckDbTableSchema));
+    check_schema::<DuckDbSchemaColumn>(&mut current, stringify!(DuckDbSchemaColumn));
+    check_schema::<DuckDbArtifactOrigin>(&mut current, stringify!(DuckDbArtifactOrigin));
+    check_schema::<DuckDbArtifactOperation>(&mut current, stringify!(DuckDbArtifactOperation));
+    check_schema::<DuckDbUsageDetails>(&mut current, stringify!(DuckDbUsageDetails));
+    check_schema::<DuckDbQueryUsage>(&mut current, stringify!(DuckDbQueryUsage));
+    if let Some(output) = std::env::var_os("VEOVEO_CAPTURE_DUCKDB_SOURCE_SCHEMA") {
+        use std::io::Write;
+        let output = std::path::PathBuf::from(output);
+        assert!(output.is_absolute(), "schema capture path must be absolute");
+        let bytes = serde_json::to_vec_pretty(&current).unwrap();
+        assert!(
+            bytes.len() <= 4 * 1024 * 1024,
+            "schema capture exceeds 4 MiB"
+        );
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(output)
+            .unwrap();
+        file.write_all(&bytes).unwrap();
+        file.write_all(b"\n").unwrap();
+    }
+    assert_eq!(Value::Object(current), baseline);
 }
 
 #[test]

@@ -47,37 +47,51 @@ fn owner() -> TaskOwner {
 fn current_output(id: TaskId) -> Value {
     let mut value: Value =
         serde_json::from_str(include_str!("../../../testdata/analysis-output-v1.json")).unwrap();
-    value["analysis_uri"] = format!("reason://analysis/{id}").into();
-    value["result_uri"] = format!("reason://analysis/{id}/results").into();
-    value["results_artifact"]["metadata"]["provenance"]["analysis_id"] = id.to_string().into();
-    value["annotations_artifact"]["metadata"]["provenance"]["analysis_id"] = id.to_string().into();
+    value["analysisUri"] = format!("reason://analysis/{id}").into();
+    value["resultUri"] = format!("reason://analysis/{id}/results").into();
+    value["resultsArtifact"]["metadata"]["provenance"]["analysisId"] = id.to_string().into();
+    value["annotationsArtifact"]["metadata"]["provenance"]["analysisId"] = id.to_string().into();
     value
 }
 
 async fn create(runtime: &TaskRuntime, owner: TaskOwner, id: TaskId) {
     // These capabilities are inert fixture values. No Artifact or GPU service
     // participates in control-plane result-delivery qualification.
-    let capability = json!({
-        "capability_id": "01983da0-0000-7000-8000-000000000004",
-        "secret": "inert_fixture_capability_not_issued_0000",
-        "task_id": id.to_string(),
-        "expires_at": "2030-01-01T00:00:00Z"
-    });
-    let request = json!({
-        "input": {
+    let capability_id = "01983da0-0000-7000-8000-000000000004";
+    let secret = "inert_fixture_capability_not_issued_0000";
+    let expires_at = "2030-01-01T00:00:00Z".parse().unwrap();
+    let task_id = veoveo_artifact_contract::ArtifactTaskId::parse(id.to_string()).unwrap();
+    let request = super::super::tasks::DurableReasonRequest {
+        input: serde_json::from_value::<super::super::tasks::ReasonTaskInput>(json!({
             "operation": "analyze",
             "video": {
-                "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000001",
-                "entity_path": "/camera/front", "timeline": "sensor_time",
+                "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+                "entityPath": "/camera/front", "timeline": "sensor_time",
                 "range": {"start": 10, "end": 20}
             },
-            "pipeline_id": "traffic-events",
-            "task": {"kind": "detect_events", "prompt": "Observe traffic"}
+            "pipelineId": "traffic-events",
+            "task": {"kind": "detect_events", "prompt": "Vehicles entering the intersection"}
+        }))
+        .unwrap(),
+        grounding: None,
+        artifact_write_capability: veoveo_artifact_contract::IssuedArtifactWriteCapability {
+            capability_id: veoveo_artifact_contract::ArtifactWriteCapabilityId::parse(
+                capability_id,
+            )
+            .unwrap(),
+            secret: veoveo_artifact_contract::ArtifactWriteCapabilitySecret::new(secret).unwrap(),
+            task_id,
+            expires_at,
         },
-        "artifact_write_capability": capability,
-        "artifact_read_capability": capability
-    });
-    serde_json::from_value::<super::super::tasks::DurableReasonRequest>(request.clone()).unwrap();
+        artifact_read_capability: veoveo_artifact_contract::IssuedArtifactReadCapability {
+            capability_id: veoveo_artifact_contract::ArtifactReadCapabilityId::parse(capability_id)
+                .unwrap(),
+            secret: veoveo_artifact_contract::ArtifactReadCapabilitySecret::new(secret).unwrap(),
+            task_id,
+            expires_at,
+        },
+    };
+    let request = serde_json::to_value(request).unwrap();
     runtime
         .create(CreateTask {
             task_id: id,
@@ -145,7 +159,7 @@ fn assert_handoff(task: DetailedTask, expected: &Value) {
         panic!("completion needs one status and one result link")
     };
     assert_eq!(status.text, ANALYSIS_COMPLETED);
-    assert_eq!(link.uri, expected["result_uri"].as_str().unwrap());
+    assert_eq!(link.uri, expected["resultUri"].as_str().unwrap());
     assert_eq!(
         link.mime_type.as_deref(),
         Some("application/vnd.veoveo.reason-results+json")
@@ -219,7 +233,7 @@ async fn current_results_survive_cross_replica_reads_and_listener_reconnects() {
         let retained = reader.for_owner(&owner()).get(id).await.unwrap().unwrap();
         assert_eq!(
             retained.result_uri.as_ref().map(|uri| uri.as_str()),
-            expected["result_uri"].as_str()
+            expected["resultUri"].as_str()
         );
         assert_eq!(retained.result, Some(stored));
         assert_eq!(
@@ -265,30 +279,47 @@ async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode
             "wrong-pipeline",
             "wrong-task",
             "missing-product",
+            "retired-product-mixed",
+            "retired-product-conflicting",
+            "retired-provenance-mixed",
+            "retired-provenance-conflicting",
         ] {
             let id = TaskId::new();
             create(&writer, owner(), id).await;
-            let mut value = current_output(id);
+            let canonical = current_output(id);
+            let mut envelope = serde_json::to_value(
+                analysis_tool_result(serde_json::from_value(canonical.clone()).unwrap()).unwrap(),
+            )
+            .unwrap();
+            let mut value = canonical;
             match corruption {
                 "unknown-schema" => value["schema"] = "unknown/v2".into(),
                 "unversioned" => {
                     value.as_object_mut().unwrap().remove("schema");
                 }
                 "obsolete-result-field" => {
-                    value["results_uri"] =
-                        value.as_object_mut().unwrap().remove("result_uri").unwrap();
+                    value["resultsUri"] =
+                        value.as_object_mut().unwrap().remove("resultUri").unwrap();
                 }
-                "wrong-pipeline" => value["pipeline_uri"] = "reason://pipeline/other".into(),
+                "wrong-pipeline" => value["pipelineUri"] = "reason://pipeline/other".into(),
                 "wrong-task" => value = current_output(TaskId::new()),
                 "missing-product" => value = Value::Null,
+                "retired-product-mixed" => value["result_uri"] = value["resultUri"].clone(),
+                "retired-product-conflicting" => {
+                    value["result_uri"] = "private retired payload".into()
+                }
+                "retired-provenance-mixed" => {
+                    value["resultsArtifact"]["metadata"]["provenance"]["analysis_id"] =
+                        value["resultsArtifact"]["metadata"]["provenance"]["analysisId"].clone()
+                }
+                "retired-provenance-conflicting" => {
+                    value["resultsArtifact"]["metadata"]["provenance"]["analysis_id"] =
+                        "private retired payload".into()
+                }
                 _ => unreachable!(),
             }
-            corrupt_result(
-                &writer,
-                id,
-                json!({"content": [], "structuredContent": value}),
-            )
-            .await;
+            envelope["structuredContent"] = value;
+            corrupt_result(&writer, id, envelope).await;
             let error = get_task(&reader, &owner(), GetTaskParams::new(id.to_string()))
                 .await
                 .unwrap_err();

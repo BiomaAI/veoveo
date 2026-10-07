@@ -18,7 +18,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::contract::{GeoPackageIdentifier, GeoPackageManifest, MAX_IMPORT_FEATURES};
 
-const SCHEMA_VERSION: u32 = 1;
+const SCHEMA_VERSION: u32 = 2;
 const MAX_PROTOCOL_BYTES: u64 = 16 * 1_048_576;
 const MAX_DIAGNOSTIC_BYTES: u64 = 1_048_576;
 
@@ -36,7 +36,11 @@ pub struct FeaturePackageService {
 }
 
 #[derive(Debug, Serialize)]
-#[serde(tag = "operation", rename_all = "snake_case")]
+#[serde(
+    tag = "operation",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 enum FeaturePackageCommand<'a> {
     Inspect {
         schema_version: u32,
@@ -67,6 +71,7 @@ enum FeaturePackageCommand<'a> {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct InspectResult {
     schema_version: u32,
     manifest: GeoPackageManifest,
@@ -74,6 +79,7 @@ struct InspectResult {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct GeneratedFeaturePackageFile {
     schema_version: u32,
     pub path: PathBuf,

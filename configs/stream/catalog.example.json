@@ -5,7 +5,7 @@
       "title": "Primary object detector",
       "description": "Site-approved TensorRT object detector",
       "format": "tensor_rt_engine",
-      "model_path": "/models/primary-detector.engine"
+      "modelPath": "/models/primary-detector.engine"
     }
   ],
   "pipelines": [
@@ -16,35 +16,35 @@
       "profile": {
         "kind": "perception",
         "operation": "object_detection",
-        "model_id": "primary-detector",
-        "inference_config_path": "/etc/veoveo/stream/primary-detector.txt"
+        "modelId": "primary-detector",
+        "inferenceConfigPath": "/etc/veoveo/stream/primary-detector.txt"
       },
-      "recording_replay": {
+      "recordingReplay": {
         "launch": "filesrc name=source ! qtdemux name=demux demux.video_0 ! queue ! h264parse ! nvv4l2decoder ! mux.sink_0 nvstreammux name=mux batch-size=1 width=640 height=480 live-source=false batched-push-timeout=40000 ! nvinfer name=infer ! fakesink name=results sync=false async=false",
-        "source_element": "source",
-        "stream_muxer_element": "mux",
-        "inference_element": "infer",
-        "results_element": "results"
+        "sourceElement": "source",
+        "streamMuxerElement": "mux",
+        "inferenceElement": "infer",
+        "resultsElement": "results"
       },
       "live": {
-        "input_width": 640,
-        "input_height": 480,
+        "inputWidth": 640,
+        "inputHeight": 480,
         "codec": "avc1.42e01f",
-        "frame_rate": 30,
-        "expected_bitrate_bps": 4000000,
+        "frameRate": 30,
+        "expectedBitrateBps": 4000000,
         "ingress": {
-          "advertised_host": "stream-mcp",
+          "advertisedHost": "stream-mcp",
           "port": 9000,
-          "payload_type": 96,
-          "clock_rate": 90000
+          "payloadType": 96,
+          "clockRate": 90000
         },
         "graph": {
           "launch": "udpsrc name=source port=9000 caps=\"application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000\" ! rtpjitterbuffer mode=none latency=50 drop-on-latency=true max-dropout-time=1000 max-misorder-time=100 faststart-min-packets=2 ! rtph264depay ! h264parse config-interval=-1 ! video/x-h264,stream-format=byte-stream,alignment=au ! tee name=encoded encoded. ! queue leaky=downstream max-size-buffers=8 ! identity name=encoded-output ! fakesink sync=false async=false encoded. ! queue ! nvv4l2decoder ! mux.sink_0 nvstreammux name=mux batch-size=1 width=640 height=480 live-source=true batched-push-timeout=40000 ! nvinfer name=infer ! fakesink name=results sync=false async=false",
-          "source_element": "source",
-          "stream_muxer_element": "mux",
-          "inference_element": "infer",
-          "results_element": "results",
-          "encoded_output_element": "encoded-output"
+          "sourceElement": "source",
+          "streamMuxerElement": "mux",
+          "inferenceElement": "infer",
+          "resultsElement": "results",
+          "encodedOutputElement": "encoded-output"
         }
       }
     },
@@ -55,21 +55,21 @@
       "profile": {
         "kind": "perception",
         "operation": "object_detection_tracking",
-        "model_id": "primary-detector",
-        "inference_config_path": "/etc/veoveo/stream/primary-detector.txt",
+        "modelId": "primary-detector",
+        "inferenceConfigPath": "/etc/veoveo/stream/primary-detector.txt",
         "tracker": {
-          "config_path": "/etc/veoveo/stream/tracker.yml",
+          "configPath": "/etc/veoveo/stream/tracker.yml",
           "width": 640,
           "height": 384
         }
       },
-      "recording_replay": {
+      "recordingReplay": {
         "launch": "filesrc name=source ! qtdemux name=demux demux.video_0 ! queue ! h264parse ! nvv4l2decoder ! mux.sink_0 nvstreammux name=mux batch-size=1 width=640 height=480 live-source=false batched-push-timeout=40000 ! nvinfer name=infer ! nvtracker name=tracker ! fakesink name=results sync=false async=false",
-        "source_element": "source",
-        "stream_muxer_element": "mux",
-        "inference_element": "infer",
-        "tracker_element": "tracker",
-        "results_element": "results"
+        "sourceElement": "source",
+        "streamMuxerElement": "mux",
+        "inferenceElement": "infer",
+        "trackerElement": "tracker",
+        "resultsElement": "results"
       }
     }
   ]

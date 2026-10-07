@@ -209,7 +209,8 @@ impl LiveCameraSmoothing {
 #[serde(
     tag = "kind",
     rename_all = "snake_case",
-    rename_all_fields = "camelCase"
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
 )]
 pub enum LiveCameraRig {
     Fixed {
@@ -749,7 +750,11 @@ impl IdProfile for LiveViewTokens {
 }
 
 fn live_view_version_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    schemars::json_schema!({"type":"string","const":LIVE_VIEW_SCHEMA})
+    veoveo_types::naming::scalar_schema(
+        schemars::json_schema!({"type":"string","const":LIVE_VIEW_SCHEMA}),
+        veoveo_types::naming::ScalarNaming::builtin(veoveo_types::naming::ScalarGrammar::FormatTag),
+    )
+    .expect("declared live-view format tag")
 }
 
 #[cfg(test)]

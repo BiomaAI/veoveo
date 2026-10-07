@@ -164,13 +164,13 @@ DuckDB is not the platform's multi-process coordination database; SurrealDB is.
 Optimization offers typed problem families for vehicle routing, route scenarios,
 continuous convex problems, and linear mixed-integer problems. It has no generic
 planning graph and no support for the retired planner contract. Map owns geography
-and publishes immutable `veoveo.ai/travel-model-artifact/v1` matrices. Optimization
+and publishes immutable `veoveo.ai/travel-model-artifact/v2` matrices. Optimization
 uses those matrices as-is and never recomputes GIS costs.
 
 The Rust Optimization server handles public identities, authorization, validation,
 compilation, long-running tasks, solver admission, artifacts, and independent
 verification. A pod-local Python sidecar only runs NVIDIA cuOpt, over
-`veoveo.ai/cuopt-executor/v1`. The sidecar uses the digest-pinned cuOpt 26.08 and
+`veoveo.ai/cuopt-executor/v2`. The sidecar uses the digest-pinned cuOpt 26.08 and
 CUDA 13.3 image, requests one NVIDIA GPU, and refuses to start when the runtime,
 driver, or device is missing. There is no CPU solver, GPU-optional profile, or public
 executor endpoint.

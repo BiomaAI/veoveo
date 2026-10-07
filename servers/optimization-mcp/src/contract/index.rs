@@ -26,11 +26,12 @@ impl OptimizationCollection {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[error("expected an Optimization collection address and a matching version 1 native Task cursor")]
+#[error("expected an Optimization collection address and a matching version 2 native Task cursor")]
 pub struct OptimizationIndexError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CursorWire {
     version: u8,
     collection: OptimizationCollection,
@@ -40,6 +41,7 @@ struct CursorWire {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OptimizationIndexCursor {
     #[schemars(with = "String")]
     cursor: veoveo_types::OpaqueCursor<OptimizationIndexCursorCodec>,
@@ -66,7 +68,7 @@ impl veoveo_types::CursorCodec for OptimizationIndexCursorCodec {
             .map_err(|_| OptimizationIndexError)?;
         let position: CursorWire =
             serde_json::from_slice(&bytes).map_err(|_| OptimizationIndexError)?;
-        if position.version != 1 {
+        if position.version != 2 {
             return Err(OptimizationIndexError);
         }
         Ok(position)
@@ -85,7 +87,7 @@ impl OptimizationIndexCursor {
         veoveo_types::OpaqueCursor::try_new(
             OptimizationIndexCursorCodec,
             CursorWire {
-                version: 1,
+                version: 2,
                 collection,
                 created_at,
                 task_id,
@@ -122,6 +124,7 @@ impl OptimizationIndexCursor {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OptimizationCollectionUri {
     wire: ResourceUri,
     collection: OptimizationCollection,

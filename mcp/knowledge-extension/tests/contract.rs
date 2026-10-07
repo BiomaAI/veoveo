@@ -96,11 +96,11 @@ fn read_policy_requires_explicit_closed_source_semantics() {
     for wire in [
         json!({"kind": "tenant"}),
         json!({"kind": "subjects"}),
-        json!({"kind": "work-context"}),
-        json!({"kind": "selected-work-context"}),
-        json!({"kind": "selected-work-context-members"}),
-        json!({"kind": "subjects-in-context"}),
-        json!({"kind": "subjects-in-context", "profile": "operations"}),
+        json!({"kind": "work_context"}),
+        json!({"kind": "selected_work_context"}),
+        json!({"kind": "selected_work_context_members"}),
+        json!({"kind": "subjects_in_context"}),
+        json!({"kind": "subjects_in_context", "profile": "operations"}),
     ] {
         let policy: ReadPolicy = serde_json::from_value(wire.clone()).unwrap();
         assert_eq!(serde_json::to_value(policy).unwrap(), wire);
@@ -108,8 +108,12 @@ fn read_policy_requires_explicit_closed_source_semantics() {
     }
     for wire in [
         json!({"kind": "unknown"}),
+        json!({"kind": "work-context"}),
+        json!({"kind": "selected-work-context"}),
+        json!({"kind": "selected-work-context-members"}),
+        json!({"kind": "subjects-in-context"}),
         json!({"kind": "subjects", "profile": "operations"}),
-        json!({"kind": "subjects-in-context", "caller": "author"}),
+        json!({"kind": "subjects_in_context", "caller": "author"}),
     ] {
         assert!(serde_json::from_value::<ReadPolicy>(wire.clone()).is_err());
         assert!(jsonschema::validate(&schema, &wire).is_err());
@@ -121,7 +125,7 @@ fn read_policy_requires_explicit_closed_source_semantics() {
     for profile in ["Operations", "operations/read", "operations read", ""] {
         assert!(
             serde_json::from_value::<ReadPolicy>(json!({
-                "kind": "subjects-in-context", "profile": profile,
+                "kind": "subjects_in_context", "profile": profile,
             }))
             .is_err()
         );

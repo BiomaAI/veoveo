@@ -14,13 +14,18 @@ for visualization.
 
 ## Standards And Protocols
 
+Mission results use closed camelCase JSON, including typed Recording owner addresses.
+Current, retired and mixed field controls share the durable-result consumer test.
+
 | Standard or protocol | Supported profile |
 |---|---|
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
 | SurrealDB / SurrealQL `3.3.0` | Tenant and Work Context grant/plan queries, transactional command-lease, plan and Task-link transitions, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
 | UAV mission admission | UAV-owned persisted relationship linking each admitted plan to one native Task and its vehicle command lease. Public plan JSON exposes domain state. |
 | RFC 6570 URI Templates | iri-string `0.7.14` through foundational template admission and scalar expansion; every advertised UAV template is checked against the owning address builder. |
-| Concrete resource URIs | URL `2.5.8` and percent-encoding `2.3.2` through foundational components; typed UAV routes and collection-bound hexadecimal JSON cursors, version 1. |
+| Concrete resource URIs | URL `2.5.8` and percent-encoding `2.3.2` through foundational components; typed UAV routes and collection-bound hexadecimal JSON cursors: identity positions use version 1; usage uses version 2. |
+| Private simulator control HTTP | Current-only `/v2/state`, `/v2/world`, `/v2/commands` and `/v2/operations` with strict camelCase JSON. Authenticated NDJSON events and H.264 live streams keep their unchanged `/v1` routes and framing. |
+| UAV acceptance scenario | `veoveo.ai/uav-sim-acceptance/v13`, current camelCase wrapper and owner-imported Frames/Map trees. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, tiled-product, region, and health schemas. |
 | Pydantic `2.13.5` | Private Python adapter models reject undeclared fields and validate controlled JSON and NDJSON before emission. Rust owns the receiving types. |
 | `veoveo.ai/live-view/v4` | Repository-owned provider-neutral profile for authoritative cameras, typed regions in shared encoded products, viewer authorizations, WebSocket H.264 endpoints, and redacted state. |
@@ -31,7 +36,7 @@ for visualization.
 | RTSP, RTP, and H.264 | RTSP 1.0 over loopback TCP with interleaved RTP/RTCP. The adapter supports the RFC 6184 single-NAL, STAP-A, and FU-A packetization modes and emits decoder-reentrant Annex B access units. |
 | OGC 3D Tiles | Cesium Omniverse `0.29.0` with pinned Cesium Native commit `ca0311f25c412b74ad1af9a3636924122cc76156`, one simulator-owned world, and one cache. The repository extension adds private redacted lifecycle events; it does not add an MCP wire protocol. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit world, physics, entity, rig, and camera coordinate boundaries. |
-| `veoveo.ai/map-route-handoff/v1` | Map-owned `MapRouteHandoff` consumed through its contract-only library, including `MapMobilityProfileUri` and `ValidationId`; UAV admits validated routes and explicitly granted planning-advisory routes. |
+| `veoveo.ai/map-route-handoff/v2` | Map-owned `MapRouteHandoff` consumed through its contract-only library, including `MapMobilityProfileUri` and `ValidationId`; UAV admits validated routes and explicitly granted planning-advisory routes. |
 | `frames://world/{world_id}/revision/{revision_id}` | Frames MCP-owned immutable world revision identity consumed by session configuration and mission admission. |
 | MAVLink 2 | Private PX4 command, telemetry, actuator, and HIL sensor integration. The protocol is not projected as high-rate MCP traffic. |
 | World Magnetic Model | Private HIL simulation uses PX4 `1.17.0`'s WMM-2020 tables evaluated at epoch `2024.41257`. This model stays aligned with the pinned estimator; it is not a current geomagnetic survey service. |
@@ -87,6 +92,25 @@ requires no data conversion or deployment drain. Contract schema snapshots and
 an independently resolved consumer qualify the library surface; installation behavior
 and hardware execution require their separate acceptance runs.
 
+## Controlled JSON And Stored Documents
+
+UAV public requests, results, resource bodies and private simulator HTTP bodies use
+camelCase members and snake_case vocabulary values. The scenario wrapper uses
+`veoveo.ai/uav-sim-acceptance/v13`, including its controlled nested configuration.
+Python decoders admit these current member names directly before queueing commands
+or applying world configuration. Retired and mixed spellings are rejected.
+
+Mission `canonical_json` contains the current public plan. Native grant, plan, Task
+catalog and lease columns keep their database names, and their typed adapters bind
+those columns to the public owner values. JWT claims, upstream MAVLink/PX4 packets,
+Rerun framing and simulator-native APIs retain their own profiles. Mission TextLog JSON uses current `vehicleIds` and `completedWaypoints` members. A fresh-state
+drain replaces old retained public documents; the readers do not convert history.
+
+Live-view v4 and runtime-event v2 already publish camelCase and retain their tags.
+The usage cursor advances to revision 2 because its structured position changes.
+Other cursor positions contain unchanged identities. World revisions and spec hashes
+come from the current checked Frames producer, not from rewriting hash strings.
+
 ## Recording References
 
 The Recording domain contract owns public recording IDs and URIs. UAV imports those
@@ -99,7 +123,7 @@ constructs the public address. SQL still selects the tenant, application and pro
 key before the adapter decodes the selected row.
 
 `contract/recordings.rs` owns `RecordingCatalog` and `RecordingState`. Catalog readiness
-carries one typed Recording URI; serialization derives `recording_id` from that address.
+carries one typed Recording URI; serialization derives `recordingId` from that address.
 Pending, unavailable and invalid states have no public recording identity. The private
 wire representation validates status, ID, URI and diagnostic agreement on decoding.
 It preserves the public JSON fields, and the schema inlines the owner's string identity.
@@ -147,8 +171,9 @@ routes. Both resource reads and subscription admission dispatch the parsed varia
 They share scope requirements and check the requested session and child identity.
 Persisted catalogs reach their SQL visibility queries without fetching simulator state.
 
-Each collection owns its cursor type. Version 1 preserves hexadecimal JSON field
-order (`version`, `collection`, `position`). Grant tool cursors bind their active
+Each collection owns its cursor type. Identity-only positions use revision 1
+hexadecimal JSON (`version`, `collection`, `position`). Usage positions use
+revision 2 with `createdAt` and `taskId`; retired revision 1 usage bytes are refused. Grant tool cursors bind their active
 session; live-view cursors bind their session path. Cursors contain positions and
 establish no authority. Every page checks the current caller. UAV usage cursors and
 addresses require native UUIDv7 Task identities. The runtime converts their typed
@@ -269,7 +294,7 @@ simulator state or enumerate grants, plans, Tasks, vehicles, cameras, or viewer 
 Agent-target metadata still invalidates discovery when its Store inputs change.
 
 The `control-grants`, `mission-plans`, `missions`, and `usage` roots return
-`{items, limit, next_cursor}` with at most 100 items. Their `{?cursor}` templates accept
+`{items, limit, nextCursor}` with at most 100 items. Their `{?cursor}` templates accept
 one versioned opaque cursor. Grant and plan pages order their immutable domain IDs.
 Mission pages order distinct mission IDs; usage pages order Task creation time and UUID.
 SQL applies caller visibility and cursor predicates before fetching the extra row used
@@ -288,7 +313,7 @@ limit, returns up to 100 suggestions, and omits a total when more exist. Vehicle
 permission queries select a current grant for the requested session, vehicle, and
 permission directly. Simulator inspection queries only grants for the current inventory.
 
-`list_active_vehicle_control_grants` accepts `session_id` and optional `cursor` and
+`list_active_vehicle_control_grants` accepts `sessionId` and optional `cursor` and
 returns the same page envelope. It applies session, validity, and revocation predicates
 in SQL. Its cursor is bound to that session and cannot be used on the historical grant
 collection. Consumers follow all pages before deciding that only one active grant exists.

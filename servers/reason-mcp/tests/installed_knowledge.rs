@@ -145,7 +145,7 @@ async fn verify(peer: &Peer<RoleClient>, input: &Input) -> Result<Vec<FindingChe
         .context("analysis has no completed output")?;
     ensure!(analysis.error.is_none(), "analysis has a recorded failure");
     let mut checks = Vec::new();
-    for kind in FindingCollection::ALL {
+    for kind in FindingCollection::ALL.iter().copied() {
         let descriptor = kind.descriptor();
         let member = FindingResource::Member {
             collection: kind,

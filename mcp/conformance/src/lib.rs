@@ -3,6 +3,9 @@
 pub mod catalog;
 pub mod knowledge_probes;
 mod knowledge_source;
+pub mod naming;
+pub mod requirements;
+pub mod schema_evidence;
 
 mod profile;
 mod report;
@@ -19,7 +22,14 @@ pub use report::{
     ConformanceReportSchema, ObservedImplementation,
 };
 pub use runner::run_knowledge_source_conformance;
-pub use runner::{run_hosted_server_conformance, run_hosted_server_conformance_with_probes};
+pub use runner::{
+    run_hosted_server_conformance, run_hosted_server_conformance_with_evidence,
+    run_hosted_server_conformance_with_probes,
+};
+pub use schema_evidence::{
+    NamingEvidence, OwnerSchemaEvidence, SchemaEvidenceOrigin, SchemaObservation,
+    ToolNameProjection,
+};
 pub use tool_schema::{SchemaStats, validate_tool_input_schema};
 
 #[must_use]
@@ -49,3 +59,6 @@ impl ConformanceCredentials {
         self.bearer_token.as_deref()
     }
 }
+
+/// Native SDK connection mechanics shared by owner-local utilities.
+pub mod client;

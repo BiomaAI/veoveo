@@ -1,5 +1,6 @@
 mod commands;
 mod context;
+mod discovery;
 mod process;
 
 use std::{ffi::OsString, path::PathBuf};
@@ -38,7 +39,7 @@ enum Command {
         #[command(subcommand)]
         command: ReleaseCommand,
     },
-    /// Build and dispatch the typed Rust smoke harness.
+    /// Discover and dispatch owning smoke declarations.
     Smoke(SmokeArgs),
 }
 
@@ -93,6 +94,11 @@ enum ReleaseCommand {
     /// Generate browser models from the canonical Rust wire schemas.
     ClientTypes {
         /// Verify the committed outputs without modifying them.
+        #[arg(long)]
+        check: bool,
+    },
+    /// Generate and check owner compliance manuals and catalog exports.
+    ContractDocs {
         #[arg(long)]
         check: bool,
     },
@@ -186,7 +192,7 @@ struct BuilderBenchmarkArgs {
 #[derive(Debug, Args)]
 struct SmokeArgs {
     /// Smoke scenario and its typed arguments.
-    #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     arguments: Vec<OsString>,
 }
 
@@ -475,6 +481,9 @@ fn main() -> Result<()> {
             }
             ReleaseCommand::ClientTypes { check } => {
                 commands::client_types::run(&repository, check)
+            }
+            ReleaseCommand::ContractDocs { check } => {
+                commands::contract_docs::run(&repository, check)
             }
             ReleaseCommand::Preflight(args) => release_preflight::run(&repository, &args),
             ReleaseCommand::CachePrune(args) => commands::release_cache::run(&repository, &args),

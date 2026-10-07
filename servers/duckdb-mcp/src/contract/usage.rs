@@ -19,6 +19,7 @@ pub(super) fn task_identity(id: TaskId) -> Result<TaskId, DuckDbUsageError> {
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CursorWire {
     version: u8,
     collection: String,
@@ -135,12 +136,15 @@ impl ResourceFieldCodec<TaskId> for UsageTaskCodec {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "EntryWire", into = "EntryWire")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct DuckDbUsageEntry {
     usage_uri: DuckDbTaskUsageUri,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct EntryWire {
     task_id: TaskId,
     usage_uri: DuckDbTaskUsageUri,
@@ -189,6 +193,8 @@ impl From<DuckDbUsageEntry> for EntryWire {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "PageWire", into = "PageWire")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct DuckDbUsagePage {
     items: Vec<DuckDbUsageEntry>,
     next_cursor: Option<DuckDbUsageCursor>,
@@ -196,6 +202,7 @@ pub struct DuckDbUsagePage {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct PageWire {
     #[schemars(length(max = 100))]
     items: Vec<DuckDbUsageEntry>,

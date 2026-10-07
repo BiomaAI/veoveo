@@ -17,7 +17,7 @@ use crate::{
 /// **create-only**: sources and profile versions that already exist are
 /// skipped, never reconciled.
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct MapBootstrapPayload {
     #[serde(default)]
     sources: Vec<RegisteredSource>,
@@ -107,10 +107,53 @@ mod tests {
     fn envelope(payload: serde_json::Value) -> Vec<u8> {
         serde_json::to_vec(&serde_json::json!({
             "server": "map",
-            "tenant_key": "tenant",
+            "tenantKey": "tenant",
             "payload": payload,
         }))
         .expect("envelope serializes")
+    }
+
+    #[test]
+    fn installation_payload_admits_current_nonempty_sources_and_profiles_only() {
+        let current: serde_json::Value =
+            serde_json::from_str(include_str!("../../testdata/bootstrap-bioma.json")).unwrap();
+        let (_, payload) = decode(&serde_json::to_vec(&current).unwrap()).unwrap();
+        assert_eq!(payload.sources.len(), 2);
+        assert_eq!(payload.mobility_profiles.len(), 1);
+        for (pointer, key, retired) in [
+            ("/payload", "mobilityProfiles", "mobility_profiles"),
+            ("/payload/sources/0", "sourceId", "source_id"),
+            (
+                "/payload/sources/0/location",
+                "allowedRedirectHosts",
+                "allowed_redirect_hosts",
+            ),
+            (
+                "/payload/mobilityProfiles/0/profile/metadata",
+                "profileId",
+                "profile_id",
+            ),
+        ] {
+            for mixed in [false, true] {
+                let mut bad = current.clone();
+                let object = bad.pointer_mut(pointer).unwrap().as_object_mut().unwrap();
+                let value = object[key].clone();
+                if !mixed {
+                    object.remove(key);
+                }
+                object.insert(retired.into(), value);
+                assert!(
+                    decode(&serde_json::to_vec(&bad).unwrap()).is_err(),
+                    "{pointer}/{retired} mixed={mixed}"
+                );
+            }
+        }
+        let mut bad = current.clone();
+        bad["payload"]["mobilityProfiles"][0]["profile"]["metadata"]["version"] = 0.into();
+        assert!(decode(&serde_json::to_vec(&bad).unwrap()).is_err());
+        let mut bad = current;
+        bad["server"] = "time".into();
+        assert!(decode(&serde_json::to_vec(&bad).unwrap()).is_err());
     }
 
     #[test]
@@ -136,7 +179,7 @@ mod tests {
     fn mistargeted_documents_fail_closed() {
         let bytes = serde_json::to_vec(&serde_json::json!({
             "server": "time",
-            "tenant_key": "tenant",
+            "tenantKey": "tenant",
             "payload": {},
         }))
         .expect("envelope serializes");

@@ -1,8 +1,7 @@
 //! Catalog storage lookups derive from one checked registration and hydrate together.
+use super::native_approval::NativeApproval;
 use super::*;
-use veoveo_knowledge_contract::{
-    CollectionApproval, CollectionRegistration, KnowledgeCollectionApproval,
-};
+use veoveo_knowledge_contract::{CollectionApproval, CollectionRegistration};
 use veoveo_mcp_knowledge_extension::{ChangeSignal, EntityKind};
 use veoveo_types::ScopeName;
 
@@ -14,7 +13,7 @@ pub(super) struct RegistrationRow {
     enumeration_root: String,
     revision: String,
     approved: bool,
-    approval: Document<KnowledgeCollectionApproval>,
+    approval: Document<NativeApproval>,
     #[surreal(wrap)]
     required_scopes: Vec<ScopeName>,
     #[surreal(wrap)]
@@ -40,7 +39,7 @@ impl RegistrationRow {
             .to_string(),
             revision: registration.revision().to_string(),
             approved: registration.approval.mode == CollectionApproval::Index,
-            approval: Document(registration.approval.clone()),
+            approval: Document(NativeApproval::from(&registration.approval)),
             required_scopes: registration
                 .descriptor
                 .required_scopes()

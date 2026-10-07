@@ -82,12 +82,9 @@ engine rather than by narrowing SQL.
 
 ## Contract Compliance
 
-Contract revision: 3
-
-Contract-only library consumption, source vocabulary and typed usage resources are implemented.
-Database catalogs use typed 100-item pages over the authenticated owner directory.
-Checked MCP setup owns startup, discovery, documents and the empty domain-scope vocabulary.
-Installed acceptance remains in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met
@@ -112,12 +109,14 @@ Installed acceptance remains in the [consolidated plan](../../docs/CONTRACT_CONS
 - C21: met
 - C22: met
 - C23: met
+- C24: met
 - C25: met
 - C26: met
 - C27: met — the shared task-only filter rejects resource observations; accepted task IDs use the durable task source
 - C28: met — resource subscription and resource-list change capabilities are absent
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
-- C24: met
 - C31: pending — installed Discover and list readiness qualification is pending
 - C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

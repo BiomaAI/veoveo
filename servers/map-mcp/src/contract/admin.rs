@@ -9,6 +9,7 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateSourceRequest {
     pub source: RegisteredSource,
     pub idempotency_key: String,
@@ -16,6 +17,7 @@ pub struct CreateSourceRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ReplaceSourceRequest {
     pub source: RegisteredSource,
     pub expected_record_version: u64,
@@ -23,6 +25,7 @@ pub struct ReplaceSourceRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct DisableSourceRequest {
     pub source_id: MapSourceId,
     pub expected_record_version: u64,
@@ -30,6 +33,7 @@ pub struct DisableSourceRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateAcquisitionRequest {
     pub source_id: MapSourceId,
     pub requested_coverage: Wgs84BoundingBox,
@@ -40,12 +44,14 @@ pub struct CreateAcquisitionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CancelAcquisitionRequest {
     pub acquisition_id: AcquisitionId,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateMobilityProfileRequest {
     pub profile: MobilityProfile,
     pub idempotency_key: String,
@@ -77,6 +83,8 @@ pub enum AcquisitionPhase {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct AcquisitionProgress {
     pub phase: AcquisitionPhase,
     pub completed_units: u64,
@@ -87,6 +95,8 @@ pub struct AcquisitionProgress {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "AcquisitionJob")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct AcquisitionJobValue {
     pub acquisition_id: AcquisitionId,
     pub source_id: MapSourceId,
@@ -108,6 +118,8 @@ pub struct AcquisitionJobValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ActiveReleasePointer {
     pub dataset_id: MapDatasetId,
     pub release_id: DatasetReleaseId,
@@ -119,6 +131,7 @@ pub struct ActiveReleasePointer {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ListActiveDatasetReleasesRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_id: Option<MapSourceId>,
@@ -128,12 +141,16 @@ pub struct ListActiveDatasetReleasesRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ActiveDatasetRelease {
     pub pointer: ActiveReleasePointer,
     pub release: DatasetRelease,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListActiveDatasetReleasesOutput {
     pub releases: Vec<ActiveDatasetRelease>,
     pub truncated: bool,
@@ -141,6 +158,7 @@ pub struct ListActiveDatasetReleasesOutput {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ReleaseMutationRequest {
     pub release_id: DatasetReleaseId,
     pub expected_record_version: u64,
@@ -148,6 +166,8 @@ pub struct ReleaseMutationRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ReleaseMutationResponse {
     pub release: DatasetRelease,
     pub invalidated_route_count: u64,

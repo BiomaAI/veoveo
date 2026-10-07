@@ -36,7 +36,13 @@ impl Fixture {
                         "../../../../testdata/task-request.json"
                     ))
                     .unwrap();
-                    request["input"]["pipeline_id"] = results.pipeline_id.to_string().into();
+                    request["input"]["pipelineId"] = results.pipeline_id.to_string().into();
+                    request["input"]["video"] = serde_json::json!({
+                        "recordingUri": results.recording_uri, "entityPath": results.entity_path,
+                        "timeline": results.timeline, "range": results.requested_range
+                    });
+                    request["input"]["task"] = serde_json::to_value(&results.task).unwrap();
+                    request["input"]["decode"] = serde_json::to_value(results.decode).unwrap();
                     request
                 },
                 recovery_class: RecoveryClass::Resume,

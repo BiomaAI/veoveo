@@ -46,7 +46,7 @@ url.workspace = true
 uuid.workspace = true
 vaultrs.workspace = true
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
-veoveo-mcp-contract.workspace = true
+veoveo-mcp-contract = { workspace = true, features = ["runtime"] }
 veoveo-platform-store = { path = "../store" }
 veoveo-policy = { path = "../policy" }
 veoveo-task-runtime = { path = "../task-runtime" }

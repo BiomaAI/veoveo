@@ -11,7 +11,12 @@ pub enum DuckDbTabularFormat {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 pub enum DuckDbTabularSelection {
     Table {
         table: DuckDbTableName,
@@ -56,7 +61,12 @@ impl DuckDbExportRequest {
 // The public JSON keeps format beside selection. Each wire variant admits only
 // selections that its format can represent. This is the single current format.
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "format", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "format",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 enum ExportWire {
     Parquet {
         db: DuckDbDatabaseId,
@@ -73,7 +83,12 @@ enum ExportWire {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 enum SnapshotSelection {
     Database {},
 }

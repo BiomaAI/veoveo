@@ -9,11 +9,22 @@
 | RFC 3986 and RFC 6570 | Foundational component parsing/building and discovery templates for Recording resources. The domain fixes each route and its parameter types. |
 | WHATWG URL, URL 2.5.8 and Rerun 0.38.1 Redap addresses | URL parsing and setters implement the public-origin, dataset-entry and single-segment address profile. Runtime tests compare the profile with pinned Rerun builders and parsers. This is a selected Redap address profile, not a general Rerun URI implementation. |
 | RFC 3339 and SHA-256 | Catalog, layer, seal and playback timestamps decode to UTC values; layer, Blueprint and projection digests use the foundational digest type and lowercase 64-character hex on the wire. |
-| JSON and JSON Schema Draft 2020-12 | Public Recording views, seal requests/results, playback manifest v10, catalog grants and Arrow projection models. |
-| Recording catalog cursor version 1 | Collection-bound JSON encoded as lowercase hexadecimal, at most 2048 input bytes, with a timestamp and Recording ID. |
+| JSON and JSON Schema Draft 2020-12 | Public Recording views, seal requests/results, playback manifest v11, catalog grants and Arrow projection models. |
+| Recording catalog cursor version 2 | Collection-bound JSON encoded as lowercase hexadecimal, at most 2048 input bytes, with a timestamp and Recording ID. |
 | Veoveo producer HTTP ingest v1 | Producer, dataset, application and ingest-stream identities, quotas, Blueprint limits, retention and closed plain HTTP upstream configuration. The upstream rejects an MCP `transport` selector. |
 | Veoveo Recording policy | Six closed actions, producer/stream targets and the `recording_ingest_resources` JSON-array catalog section. Registration requires no MCP transport. |
 | Veoveo Recording resources | `recording://recordings/{UUIDv7}`, its `layers` child, the catalog, well-known documents and the Recording Explorer address. These are domain declarations; the crate implements no MCP transport. |
+
+Playback timestamps use Chrono 0.4.45 UTC values and its RFC3339 serialization
+profile, including signed extended years and leap-second nanoseconds. The shared foundational
+`ChronoUtcTimestampSchema` declares their existing lexical extension instead of the generic `date-time` format.
+Rust admits the calendar through Chrono and orders the complete UTC value. Console
+uses the shared browser `ChronoTimestamp` Gregorian calendar carrier and an ordered whole-second/nanosecond tuple;
+it preserves the input string and keeps leap-second nanos above one billion.
+Numeric RFC3339 offsets are admitted and fractional digits beyond nine follow
+Chrono's truncation rule. The optional end timestamp admits both an omitted member and JSON null through
+Option's schema carrier, matching the actual Rust receiver. Schema admission alone
+does not establish calendar or manifest ordering validity. Recording playback checks manifest ordering and viewer representability locally after scalar admission.
 
 `properties.rs` owns immutable sealed RRD properties. Its builder and decoders admit
 RFC UUIDv7 dataset and recording identities, the sealed lifecycle state, nonnegative
@@ -22,6 +33,37 @@ producer revision maps. Timestamp strings preserve the producer's spelling; seal
 has no inferred ordering against another clock. The manifest digest uses bare lowercase
 SHA-256. Properties retain UUID bytes in binary Serde and a string lifecycle field;
 these field adapters do not change the public IDs' string-only binary profile.
+The properties schema declares the native sealed RRD JSON representation's
+`frozen` role under Rerun 0.38.1. This declaration describes only the existing
+properties object and its SHA preimage; public Recording views use current owner
+wire names. Projection units declare a dictionary of selected Rerun component
+identities through the same schema generator as their string values.
+
+The closed `RecordingCaptureMetadata` and `RecordingArtifactMetadata` types own
+known capture and publication attribution. Producers convert these values explicitly
+at the generic Artifact metadata map. The retained manifest receiver shares
+`RecordingManifest::validate_selection` for known parent, ordered layer and
+Blueprint facts; current authorization stays with services.
+
+Controlled Recording DTO members use camelCase. Ordinary enum values use snake_case,
+including `open_street_map` for the Blueprint provider. The current formats are
+`veoveo.ai/recording-manifest/v10`, `veoveo.ai/recording-playback/v11`,
+`veoveo.ai/recording-catalog-grant/v2` and
+`veoveo.ai/recording-projection-handle/v2`. Their schema literals declare the
+foundational `format_tag` scalar role. Decoders admit one current spelling and
+reject additional fields at each known nested model.
+
+The catalog cursor's version-2 JSON position uses `startedAt` and `recordingId`.
+Its owner preserves field order, lowercase hex, collection binding, canonical
+re-encoding and the 2048-byte input bound. Projection query identity serializes
+the controlled camelCase request members in the owner's declaration order,
+excluding only `idempotencyKey`. Arrow schema and payload hashes use their actual
+bytes. Native UUID/digest framing is separate from this JSON preimage.
+
+`recording_ingest_resources` identifies a registered catalog section through
+`ExtensionName`. It is an extension dictionary identity; nested section DTO fields
+use camelCase. Installation metadata maps, producer revision maps and Arrow
+component/unit dictionaries keep their declared open key profiles.
 
 ## Ownership And Dependencies
 
@@ -59,7 +101,7 @@ service and Store admission checks.
 enums and checked layer facts. Staged and committed layers require positive byte and
 message counts, RRD version and typed integrity digests; committed layers also require
 an Artifact occurrence. Capture names must match their ordinals.
-`sealing.rs` owns immutable seal results and manifest v9. Builders reject repeated
+`sealing.rs` owns immutable seal results and manifest v10. Builders reject repeated
 layer IDs, names or Artifact occurrences, including references to the same occurrence
 under different URI spellings. Blueprint revision, byte length and message count are
 nonzero. Recording imports `ArtifactUri` from its domain owner; MCP core gains no
@@ -68,6 +110,10 @@ access prevents later mutation from bypassing them. Wire digests use bare lowerc
 hexadecimal through `veoveo_types::sha256_hex`. Catalog views check normalized labels, time ordering, layer counts and
 sealed publication requirements. These models validate supplied facts; the service
 verifies occurrence bytes and access.
+Catalog counts cover every current layer. A Sealed view requires a committed member
+and its reserved manifest occurrence; later Derived layers can still be Writing,
+Staged or Failed. The service admits the complete immutable selection and rejects
+unselected non-Derived rows separately from these aggregate counts.
 
 `playback.rs` owns the
 closed Recording lifecycle, manifest schema, typed timestamps and Blueprint integrity
@@ -149,13 +195,12 @@ tracked in the [consolidated plan](../../../docs/CONTRACT_CONSISTENCY_PLAN.md#mo
 
 ## Qualification
 
-Playback manifest v10 requires a coordinated Recording MCP and Console BFF/browser
+Playback manifest v11 requires a coordinated Recording MCP and Console BFF/browser
 upgrade. Recording owns this wire profile. Drain browser playback requests, deploy
 both images, and reload managed Console tabs before resuming playback. Every decoder
-accepts only v10; mixed manifest versions have no support window or adapter. Qualification
+accepts only v11; mixed manifest versions have no support window or adapter. Qualification
 covers startup without a layer, capture-layer publication gaps, reconnect admission,
-lifecycle completion, caller visibility and Console receiver ownership. This cut changes
-no persisted recording, sealed manifest or ingest format. Rollback restores both
+lifecycle completion, caller visibility and Console receiver ownership.  Rollback restores both
 images and reloads clients together; recording data needs no conversion.
 
 `cargo test -p veoveo-recording-contract` checks wire/schema shapes, UUID admission,
@@ -209,3 +254,20 @@ HTTP endpoint before loading this profile. An old field fails decoding with an
 unknown-field diagnostic; there is no compatibility adapter. Normal MCP upstreams
 keep their required transport selector. Deployments require the installation's
 coordinated drain because mixed old/new configuration readers are unsupported.
+
+## Current Format Admission
+
+Recording MCP publishes the checked manifest as pretty JSON and derives its SHA-256,
+reserved Artifact occurrence and `recording-v10.json` filename from that producer.
+Projection metadata files decode only the current handle and bind its request,
+receipt, catalog revision, expiry and actual Arrow bytes before reuse. Console's
+Recording adapter admits the current playback model against the selected Recording
+before forwarding it. Catalog grant consumers admit the selected dataset and segment
+set before opening Redap.
+
+Activate these formats with a coordinated Recording producer, MCP, Gateway and Console
+upgrade after draining requests. Unsupported retained controlled JSON and cursors fail
+admission; there is no historical reader. Preserve the synchronized native forwarder
+queue, Hub terminal receipts, native Store columns and deterministic sealed RRD
+properties. Recovery restores a complete compatible installation or proceeds forward;
+it does not rewrite retained RRD properties or relabel historical manifests.

@@ -3,8 +3,8 @@
 use veoveo_types::ResourceUri;
 
 use super::{
-    DatasetReleaseId, MapDatasetId, RasterDerivationId, RasterProductId, RouteId, SourceFeatureId,
-    SpatialDerivationId,
+    DatasetReleaseId, MapDatasetId, RasterDerivationId, RasterProductId, RouteId, RouteMatrixId,
+    SourceFeatureId, SpatialDerivationId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -54,6 +54,17 @@ pub struct MapRouteUri {
     id: RouteId,
 }
 impl MapRouteUri {
+    pub const TEMPLATE: &'static str = Self::RESOURCE_TEMPLATE;
+}
+
+#[veoveo_types::resource_address(cached(MapProductUriErrorAddresses), template = "map://matrix/{matrix_id}", traits = ordered, schema = string)]
+pub struct MapMatrixUri {
+    #[resource(cache)]
+    wire: ResourceUri,
+    #[resource(variable = "matrix_id", error = |_| MapProductUriError, accessor = id)]
+    id: RouteMatrixId,
+}
+impl MapMatrixUri {
     pub const TEMPLATE: &'static str = Self::RESOURCE_TEMPLATE;
 }
 

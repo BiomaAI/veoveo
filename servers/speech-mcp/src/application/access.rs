@@ -83,18 +83,18 @@ mod tests {
         let transcript = veoveo_artifact_contract::ArtifactId::new();
         let captions = veoveo_artifact_contract::ArtifactId::new();
         let metadata = |id, mime| {
-            serde_json::json!({"artifact_id": id,
-            "artifact_uri": format!("speech://artifact/{id}"), "mime_type": mime,
-            "byte_len": 1, "created_at": "2026-09-29T00:00:00Z", "metadata": {
-                "source_artifact_uri": artifact.plane_uri(), "source_sha256": "a".repeat(64),
-                "model": "upstream model", "model_revision": "upstream revision"
+            serde_json::json!({"artifactId": id,
+            "artifactUri": format!("speech://artifact/{id}"), "mimeType": mime,
+            "byteLen": 1, "createdAt": "2026-09-29T00:00:00Z", "metadata": {
+                "sourceArtifactUri": artifact.plane_uri(), "sourceSha256": "a".repeat(64),
+                "model": "upstream model", "modelRevision": "upstream revision"
             }})
         };
         let mut result = CallToolResult::success(vec![]);
         result.structured_content = Some(
-            serde_json::json!({"result_uri": TranscriptionUri::new(task),
-            "source_artifact_uri": artifact.plane_uri(), "transcript": metadata(transcript, "application/json"), "captions": metadata(captions, "text/vtt"),
-            "duration_seconds": 1.0}),
+            serde_json::json!({"resultUri": TranscriptionUri::new(task),
+            "sourceArtifactUri": artifact.plane_uri(), "transcript": metadata(transcript, "application/json"), "captions": metadata(captions, "text/vtt"),
+            "durationSeconds": 1.0}),
         );
         assert!(
             decode_output(
@@ -106,6 +106,52 @@ mod tests {
             .is_some()
         );
         let valid = serde_json::to_value(&result).unwrap();
+        let mut admitted = Vec::new();
+        for occurrence in ["transcript", "captions"] {
+            for (wire, retired, conflicting) in [
+                (
+                    "sourceArtifactUri",
+                    "source_artifact_uri",
+                    serde_json::json!(veoveo_artifact_contract::ArtifactId::new().plane_uri()),
+                ),
+                (
+                    "sourceSha256",
+                    "source_sha256",
+                    serde_json::json!("b".repeat(64)),
+                ),
+                (
+                    "modelRevision",
+                    "model_revision",
+                    serde_json::json!("retired-revision"),
+                ),
+            ] {
+                for mode in ["replacement", "mixed", "conflicting"] {
+                    let mut invalid = valid.clone();
+                    let attribution = invalid["structuredContent"][occurrence]["metadata"]
+                        .as_object_mut()
+                        .unwrap();
+                    let original = attribution[wire].clone();
+                    attribution.insert(
+                        retired.into(),
+                        if mode == "conflicting" {
+                            conflicting.clone()
+                        } else {
+                            original
+                        },
+                    );
+                    if mode == "replacement" {
+                        attribution.remove(wire);
+                    }
+                    if decode_output(task.task_id(), &artifact.plane_uri(), invalid).is_ok() {
+                        admitted.push(format!("{occurrence}/{retired}/{mode}"));
+                    }
+                }
+            }
+        }
+        assert!(
+            admitted.is_empty(),
+            "retained retired attribution admitted: {admitted:?}"
+        );
         let mut errored = result.clone();
         errored.is_error = Some(true);
         assert!(
@@ -125,17 +171,17 @@ mod tests {
             .is_err()
         );
         for (pointer, bad) in [
-            ("/structuredContent/duration_seconds", serde_json::json!(-1)),
+            ("/structuredContent/durationSeconds", serde_json::json!(-1)),
             (
-                "/structuredContent/transcript/artifact_uri",
+                "/structuredContent/transcript/artifactUri",
                 serde_json::json!(transcript.plane_uri()),
             ),
             (
-                "/structuredContent/captions/artifact_id",
+                "/structuredContent/captions/artifactId",
                 serde_json::json!(transcript),
             ),
             (
-                "/structuredContent/transcript/metadata/source_sha256",
+                "/structuredContent/transcript/metadata/sourceSha256",
                 serde_json::json!("wrong"),
             ),
         ] {
@@ -150,7 +196,7 @@ mod tests {
             TranscriptionUri::new(TranscriptionId::new()).to_string(),
             artifact.plane_uri().to_string(),
         ] {
-            result.structured_content.as_mut().unwrap()["result_uri"] = uri.into();
+            result.structured_content.as_mut().unwrap()["resultUri"] = uri.into();
             assert!(
                 decode_output(
                     task.task_id(),

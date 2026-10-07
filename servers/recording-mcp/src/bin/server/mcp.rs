@@ -50,7 +50,7 @@ impl RecordingMcp {
 
     #[tool(
         title = "Seal recording",
-        description = "Check a recording's finished layers, publish its v9 manifest as an artifact, and seal the recording in one step. Requires the recording:seal scope.",
+        description = "Check a recording's finished layers, publish its v10 manifest as an artifact, and seal the recording in one step. Requires the recording:seal scope and a current call-scoped Artifact read credential for retained manifest verification.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<SealRecordingOutput>(),
         annotations(
             read_only_hint = false,
@@ -66,10 +66,11 @@ impl RecordingMcp {
     ) -> Result<CallToolResult, McpError> {
         let recording_id = RecordingId::from_uuid(request.recording_id.as_uuid());
         let identity = gateway_identity(&context)?;
+        let artifact_caller = artifact_caller_from_context(&context, identity.clone())?;
         let output = self
             .state
             .recordings
-            .seal(&identity, recording_id)
+            .seal(&identity, &artifact_caller, recording_id)
             .await
             .map_err(invalid_params)?;
         self.state
@@ -363,13 +364,13 @@ mod tests {
         use veoveo_mcp_contract::docs::{CONTRACT_REVISION, ComplianceStatus};
 
         let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
-        assert_eq!(declaration.server, "recording");
-        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        assert_eq!(declaration.server().as_str(), "recording");
+        assert_eq!(declaration.contract_revision(), CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
             let item = declaration
-                .compliance
+                .compliance()
                 .iter()
-                .find(|item| item.id == id)
+                .find(|item| item.id.as_str() == id)
                 .expect("declared checklist item");
             assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
         }

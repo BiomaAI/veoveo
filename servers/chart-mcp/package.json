@@ -1,0 +1,43 @@
+{
+  "name": "flint-chart-mcp",
+  "version": "0.5.1",
+  "type": "module",
+  "description": "Model Context Protocol server for Flint \u2014 compile, validate, and render semantic chart specs across supported backends.",
+  "exports": {
+    ".": {
+      "import": "./flint-v2.mjs"
+    },
+    "./render": {
+      "types": "./dist/render/index.d.ts",
+      "import": "./dist/render/index.js"
+    }
+  },
+  "bin": {
+    "chart-mcp": "server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "zod": "4.2.1",
+    "vega": "^6.0.0",
+    "echarts": "^6.0.0",
+    "chart.js": "^4.4.0",
+    "vega-lite": "^6.0.0",
+    "flint-chart": "^0.5.1",
+    "@napi-rs/canvas": "^1.0.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "vega-interpreter": "^2.2.1",
+    "@modelcontextprotocol/server": "2.3.1",
+    "@modelcontextprotocol/core": "2.3.1",
+    "@modelcontextprotocol/node": "2.1.1",
+    "@cfworker/json-schema": "4.1.1",
+    "jsonc-parser": "3.3.1"
+  },
+  "scripts": {
+    "build:docs": "node build-docs.mjs",
+    "test": "node --test *.test.mjs"
+  }
+}

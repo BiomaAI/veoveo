@@ -10,6 +10,8 @@ pub struct ResolutionAuthorityMismatch;
 /// Representations computed by the temporal engine from its loaded authority data.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "TimeProjection")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeProjectionValue {
     pub utc_rfc3339: String,
     pub utc_is_leap_second: bool,
@@ -39,6 +41,8 @@ pub struct TimeProjectionValue {
 pub struct ResolveTimeOutput(veoveo_types::Checked<ResolutionWire>);
 
 #[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 struct ResolutionWire {
     instant: TimeInstant,
     effective_authority: EffectiveTimeAuthority,

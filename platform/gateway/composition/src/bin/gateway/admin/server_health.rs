@@ -23,6 +23,7 @@ use crate::{audit::authorize_admin_request, runtime::AdminState};
 
 /// Health of every registered server.
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct ServerHealthReport {
     servers: Vec<ServerHealthEntry>,
     module_bindings: Vec<veoveo_mcp_gateway::http::ModuleBindingSnapshot>,
@@ -31,6 +32,7 @@ pub(crate) struct ServerHealthReport {
 /// One server's latest probe. Both fields are null until the first probe after
 /// the gateway starts.
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct ServerHealthEntry {
     server: ServerSlug,
     state: Option<GatewayServerHealthState>,
@@ -118,7 +120,7 @@ mod tests {
         assert_eq!(json["servers"][0]["state"], "healthy");
         assert_eq!(json["servers"][1]["server"], "uav-sim");
         assert!(json["servers"][1]["state"].is_null());
-        assert!(json["servers"][1]["checked_at"].is_null());
+        assert!(json["servers"][1]["checkedAt"].is_null());
     }
     #[test]
     fn module_binding_snapshot_does_not_invent_backend_probe_health() {
@@ -131,7 +133,7 @@ mod tests {
         }];
         let json = serde_json::to_value(report).unwrap();
         assert_eq!(json["servers"], serde_json::json!([]));
-        assert_eq!(json["module_bindings"][0]["state"], "unbound");
-        assert_eq!(json["module_bindings"][0]["required"], false);
+        assert_eq!(json["moduleBindings"][0]["state"], "unbound");
+        assert_eq!(json["moduleBindings"][0]["required"], false);
     }
 }

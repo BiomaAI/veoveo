@@ -31,7 +31,7 @@ fn checked_setup_owns_the_declared_resources_templates_and_capabilities() {
         Some(true)
     );
     assert_eq!(
-        setup.documents().contract_declaration().contract_revision,
+        setup.documents().contract_declaration().contract_revision(),
         veoveo_mcp_contract::docs::CONTRACT_REVISION
     );
     assert!(StreamScope::try_from(&ScopeName::parse("operator:use").unwrap()).is_err());
@@ -75,8 +75,14 @@ fn static_discovery_changes_and_unknown_resource_families_are_not_admitted() {
 #[test]
 fn gateway_registrations_match_the_checked_discovery_profile() {
     #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
     struct Metadata {
-        contract_revision: u64,
+        contract_revision: u32,
+    }
+    #[derive(serde::Deserialize)]
+    struct BridgeMetadata {
+        upstream_kind: String,
+        child: String,
     }
     for source in [
         include_str!("../../../../../configs/gateway.local.json"),
@@ -87,6 +93,31 @@ fn gateway_registrations_match_the_checked_discovery_profile() {
         configuration
             .validate(&veoveo_gateway_catalog::registry().unwrap())
             .unwrap();
+        let mut legacy_bridges = 0;
+        for registered in &configuration.servers {
+            let wire = serde_json::to_value(&registered.metadata).unwrap();
+            assert!(
+                wire.get("contract_revision").is_none(),
+                "retired registration member for {}",
+                registered.slug
+            );
+            if registered.slug.as_str() == "rerun" {
+                assert!(wire.get("contractRevision").is_none());
+                let bridge: BridgeMetadata = serde_json::from_value(wire).unwrap();
+                assert_eq!(bridge.upstream_kind, "stdio_bridge");
+                assert_eq!(bridge.child, "rerun viewer-mcp");
+                legacy_bridges += 1;
+                continue;
+            }
+            let metadata: Metadata = serde_json::from_value(wire).unwrap();
+            assert_eq!(
+                metadata.contract_revision,
+                veoveo_mcp_contract::docs::CONTRACT_REVISION,
+                "registered contract revision for {}",
+                registered.slug
+            );
+        }
+        assert_eq!(legacy_bridges, 1);
         let server = configuration
             .servers
             .iter()
@@ -97,7 +128,7 @@ fn gateway_registrations_match_the_checked_discovery_profile() {
             serde_json::from_value(serde_json::to_value(&server.metadata).unwrap()).unwrap();
         assert_eq!(
             metadata.contract_revision,
-            u64::from(veoveo_mcp_contract::docs::CONTRACT_REVISION)
+            veoveo_mcp_contract::docs::CONTRACT_REVISION
         );
     }
 }

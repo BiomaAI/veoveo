@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ComplianceProfile",
+  "type": "object",
+  "properties": {
+    "catalogRevision": {
+      "type": "integer",
+      "const": 2
+    },
+    "compliance": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ComplianceItem"
+      },
+      "maxItems": 33,
+      "minItems": 33
+    },
+    "contractRevision": {
+      "type": "integer",
+      "const": 4
+    },
+    "server": {
+      "$ref": "#/$defs/ServerSlug"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "server",
+    "contractRevision",
+    "catalogRevision",
+    "compliance"
+  ],
+  "$defs": {
+    "ComplianceItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequirementId"
+        },
+        "note": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ComplianceStatus"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "status"
+      ]
+    },
+    "ComplianceStatus": {
+      "type": "string",
+      "enum": [
+        "met",
+        "pending",
+        "not_applicable"
+      ]
+    },
+    "RequirementId": {
+      "type": "string",
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_mcp_contract::docs::catalog"
+              },
+              "profile": "requirement-catalog-identity",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
+      "enum": [
+        "C01",
+        "C02",
+        "C03",
+        "C04",
+        "C05",
+        "C06",
+        "C07",
+        "C08",
+        "C09",
+        "C10",
+        "C11",
+        "C12",
+        "C13",
+        "C14",
+        "C15",
+        "C16",
+        "C17",
+        "C18",
+        "C19",
+        "C20",
+        "C21",
+        "C22",
+        "C23",
+        "C24",
+        "C25",
+        "C26",
+        "C27",
+        "C28",
+        "C29",
+        "C30",
+        "C31",
+        "C32",
+        "C33"
+      ]
+    },
+    "ServerSlug": {
+      "description": "Canonical hosted MCP server id used in manifests, profiles, and gateway routes.",
+      "type": "string",
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "server_slug",
+            "kind": "builtin"
+          }
+        }
+      }
+    }
+  }
+}

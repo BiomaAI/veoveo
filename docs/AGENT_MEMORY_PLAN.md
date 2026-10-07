@@ -241,8 +241,8 @@ ID changes at conversion. Its earlier segments stay in the timeline directory, a
 | `showcase/uav-sim/deploy/helm/files/agent-template/` | remove `memory_write_tables`, add comments to the starter migrations |
 | `showcase/uav-sim/agents/instructions.md` | confirm table names against the template seed |
 | `configs/agents/pilot/manifest.json` | remove `memory_write_tables` |
-| `mcp/conformance/src/bin/conformance/fake_services.rs` | script `memory_sql` |
-| `testing/smoke/src/bin/smoke/scenarios/agent_kernel.rs` | assert `memory_sql`, the outline and `context` views |
+| `platform/gateway/composition/src/smoke/utility/fake_services.rs` | script `memory_sql` |
+| `examples/bioma/acceptance/src/smoke/scenarios/agent_kernel.rs` | assert `memory_sql`, the outline and `context` views |
 | `docs/veoveo-whitepaper.html` | tool names and examples |
 
 ### Documents On Delivery

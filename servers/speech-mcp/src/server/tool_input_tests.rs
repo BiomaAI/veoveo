@@ -33,7 +33,7 @@ async fn unknown_tool_arguments_complete_before_transcription_admission() {
         let discover = gateway.rpc("server/discover", json!({})).await;
         assert!(discover.get("error").is_none(), "{discover}");
         let mut arguments =
-            json!({"artifact_uri":"artifact://01983da0-0000-7000-8000-000000000000"});
+            json!({"artifactUri":"artifact://01983da0-0000-7000-8000-000000000000"});
         let _: veoveo_speech_contract::TranscribeRequest =
             serde_json::from_value(arguments.clone()).unwrap();
         arguments["undeclared"] = true.into();
@@ -53,6 +53,17 @@ async fn unknown_tool_arguments_complete_before_transcription_admission() {
                 .unwrap()
                 .contains("undeclared")
         );
+        for (tool, arguments) in [
+            ("transcribe", json!({"artifact_uri":"artifact://01983da0-0000-7000-8000-000000000000"})),
+            ("transcribe", json!({"artifactUri":"artifact://01983da0-0000-7000-8000-000000000000", "artifact_uri":"artifact://01983da0-0000-7000-8000-000000000000"})),
+            ("start_dictation", json!({"id":"01983da0-0000-7000-8000-000000000000", "sample_rate":16000})),
+            ("start_dictation", json!({"id":"01983da0-0000-7000-8000-000000000000", "sampleRate":16000, "sample_rate":16000})),
+        ] {
+            let body = gateway.rpc("tools/call", json!({"name":tool,"arguments":arguments})).await;
+            assert!(body.get("error").is_none(), "{body}");
+            let result: rmcp::model::CallToolResult = serde_json::from_value(body["result"].clone()).unwrap();
+            assert_eq!(result.is_error, Some(true), "{body}");
+        }
         let cases = input_fixture::ToolInputCase::load(include_bytes!(
             "../../testdata/controlled-inputs.json"
         ));

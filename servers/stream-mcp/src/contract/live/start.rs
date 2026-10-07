@@ -10,6 +10,7 @@ pub struct LiveStartDetails {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(
     try_from = "StartLiveSessionOutputWire",
     into = "StartLiveSessionOutputWire"
@@ -50,6 +51,7 @@ impl StartLiveSessionOutput {
     }
 }
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct StartLiveSessionOutputWire {
     session_id: SessionId,
     result_uri: SessionUri,

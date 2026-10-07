@@ -43,13 +43,13 @@ gateway:
       name: Daily assistant model
       provider: Cloudflare Workers AI
       tenant: bioma
-      work_contexts: &id001
+      workContexts: &id001
       - operations
-      required_scopes: &id002
+      requiredScopes: &id002
       - operator:use
-      base_url: https://api.cloudflare.com/client/v4/accounts/cd9522254303bfb3d2322a0d9b82764f/ai/v1
+      baseUrl: https://api.cloudflare.com/client/v4/accounts/cd9522254303bfb3d2322a0d9b82764f/ai/v1
       model: '@cf/moonshotai/kimi-k2.6'
-      api_key: agent_model_api_key
+      apiKey: agent_model_api_key
       limits:
         maxOutputTokens: 4096
         maxCompletionCalls: 4
@@ -59,11 +59,11 @@ gateway:
       name: Pilot reasoning model
       provider: Cloudflare Workers AI
       tenant: bioma
-      work_contexts: *id001
-      required_scopes: *id002
-      base_url: https://api.cloudflare.com/client/v4/accounts/cd9522254303bfb3d2322a0d9b82764f/ai/v1
+      workContexts: *id001
+      requiredScopes: *id002
+      baseUrl: https://api.cloudflare.com/client/v4/accounts/cd9522254303bfb3d2322a0d9b82764f/ai/v1
       model: '@cf/moonshotai/kimi-k2.6'
-      api_key: agent_model_api_key
+      apiKey: agent_model_api_key
       limits:
         maxOutputTokens: 4096
         maxCompletionCalls: 16
@@ -77,9 +77,9 @@ gateway:
     - id: uav-pilot
       name: UAV Pilot
       tenant: bioma
-      work_contexts:
+      workContexts:
       - operations
-      required_deployer_scopes:
+      requiredDeployerScopes:
       - operator:use
       profile: agent
       scopes:
@@ -112,7 +112,7 @@ gateway:
       - uav-sim__list_active_vehicle_control_grants
       - uav-sim__prepare_vehicle_mission
       - uav-sim__takeoff_vehicle
-      resource_subscriptions:
+      resourceSubscriptions:
       - uav-sim://control-grants
       - uav-sim://mission-plans
       parameters:
@@ -122,22 +122,22 @@ gateway:
             kind: choice
             values:
             - uav-showcase
-          environment_variable: VEOVEO_PARAM_SESSION
+          environmentVariable: VEOVEO_PARAM_SESSION
       workload:
         namespace: veoveo-agents
-        config_map: uav-pilot-01b19f5aa87b
-        config_digest: sha256:01b19f5aa87bd953be64f55f6c9acd91b6ec9439d3106d0f4547924ad15fa9f0
+        configMap: uav-pilot-037b21aaa992
+        configDigest: sha256:037b21aaa99257ed211e51e8ea2477aff0649a79374a87503c5ed7377837a2bf
         image: k3d-veoveo-registry.localhost:5000/veoveo/agent-kernel@sha256:cb7f0899430845d7d4f631d5475d44407536ca0f965ec5a7c8ceafdd336a1d37
-        database_secret: veoveo-surreal-runtime
-        storage_class: local-path
-        storage_gib: 2
-        cpu_millis: 1000
-        memory_mib: 1024
-        model_secrets:
+        databaseSecret: veoveo-surreal-runtime
+        storageClass: local-path
+        storageGib: 2
+        cpuMillis: 1000
+        memoryMib: 1024
+        modelSecrets:
         - reference: agent_model_api_key
           secret: veoveo-workspace-models
           key: api-key
-  controlPlaneRevision: 28bedbb28375bb2672561bcfc170c9ce5a70fffd3833469f6e8f81d109f1bbcb
+  controlPlaneRevision: abfb648d9e1e94793ac984e99804d69c07f686ef3282289c91bfbbd1f3d98c32
 consoleBff:
   workspace:
     oauthScopes:
@@ -250,8 +250,19 @@ stream:
     forwarder:
       keyId: bioma-recording-producer-20260929
 
+embedding:
+  engine:
+    precision: float16
+    gpuMemoryUtilization: 0.45
+    maxNumBatchedTokens: 8192
+    maxNumSeqs: 32
+  resources:
+    limits:
+      memory: 12Gi
+
 knowledge:
   existingConfigMap: bioma-knowledge-configuration
+  embeddingRuntimeConfigKey: embedding-runtime.json
   indexingConfigKeys: [indexing.json]
-  configurationRevision: f5fe55bf108ed9f6202f43e4db7e0236af74b81e1885161120d549a3bb6180bc
+  configurationRevision: 90e1bd2e6149a6ba58049339218a6f49df58130c01f8df9b53a7839542d3f4bc
   existingSigningSecret: bioma-knowledge-indexer

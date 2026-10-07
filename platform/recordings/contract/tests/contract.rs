@@ -88,7 +88,7 @@ fn sealing_permission_is_an_owner_type_with_one_wire_spelling() {
 
 #[test]
 fn catalog_grant_request_preserves_explicit_recording_selection() {
-    let wire = json!({"dataset_id": DATASET, "recording_ids": [RECORDING]});
+    let wire = json!({"datasetId": DATASET, "recordingIds": [RECORDING]});
     let request: CreateRecordingCatalogGrantRequest = serde_json::from_value(wire.clone()).unwrap();
     assert_eq!(request.dataset_id().to_string(), DATASET);
     assert_eq!(request.recording_ids()[0].to_string(), RECORDING);
@@ -101,13 +101,13 @@ fn catalog_grant_request_preserves_explicit_recording_selection() {
 #[test]
 fn projection_request_preserves_selectors_bounds_and_sampling() {
     let wire = json!({
-        "dataset_id": DATASET, "recording_id": RECORDING,
-        "entity_paths": ["/sensor"], "component_ids": ["Scalars:scalars"],
+        "datasetId": DATASET, "recordingId": RECORDING,
+        "entityPaths": ["/sensor"], "componentIds": ["Scalars:scalars"],
         "timeline": "tick", "sampling": {"kind": "sample_grid", "values": [2, 4]},
-        "sparse_fill": "latest_at_global", "maximum_entities": 1, "maximum_columns": 1,
-        "maximum_samples": 2, "maximum_rows": 2, "maximum_bytes": 1024,
-        "deadline_ms": 1000, "idempotency_key": "projection-1",
-        "units": {"Scalars:scalars": "metres"}, "coordinate_frame_refs": []
+        "sparseFill": "latest_at_global", "maximumEntities": 1, "maximumColumns": 1,
+        "maximumSamples": 2, "maximumRows": 2, "maximumBytes": 1024,
+        "deadlineMs": 1000, "idempotencyKey": "projection-1",
+        "units": {"Scalars:scalars": "metres"}, "coordinateFrameRefs": []
     });
     let request: CreateRecordingProjectionRequest = serde_json::from_value(wire.clone()).unwrap();
     assert!(
@@ -132,12 +132,12 @@ fn projection_request_preserves_selectors_bounds_and_sampling() {
 #[test]
 fn response_models_preserve_grant_and_projection_wire_shapes() {
     let grant = json!({
-        "schema": RECORDING_CATALOG_GRANT_SCHEMA, "grant_id": DATASET,
-        "dataset_id": DATASET, "recording_segment_ids": [RECORDING],
-        "catalog_revision": "catalog-1", "entry_uri": veoveo_recording_contract::RecordingCatalogUri::new(
+        "schema": RECORDING_CATALOG_GRANT_SCHEMA, "grantId": DATASET,
+        "datasetId": DATASET, "recordingSegmentIds": [RECORDING],
+        "catalogRevision": "catalog-1", "entryUri": veoveo_recording_contract::RecordingCatalogUri::new(
             &veoveo_recording_contract::RecordingRedapOrigin::from_http("http://localhost:8080").unwrap(),
             DATASET.parse().unwrap()),
-        "redap_token": "fixture-grant", "expires_at": "2026-09-28T12:00:00Z"
+        "redapToken": "fixture-grant", "expiresAt": "2026-09-28T12:00:00Z"
     });
     assert_eq!(
         serde_json::to_value(
@@ -147,14 +147,14 @@ fn response_models_preserve_grant_and_projection_wire_shapes() {
         grant
     );
     let projection = json!({
-        "schema": RECORDING_PROJECTION_HANDLE_SCHEMA, "projection_id": DATASET,
-        "dataset_id": DATASET, "recording_id": RECORDING,
-        "result": {"catalog_revision": "catalog-1", "query_digest": "a".repeat(64),
-            "timeline": "tick", "sample_grid": [2, 4], "units": {},
-            "coordinate_frame_refs": [], "omitted_sample_count": 0, "row_count": 2,
-            "arrow_schema_sha256": "b".repeat(64), "byte_len": 100,
-            "payload_sha256": "c".repeat(64)},
-        "expires_at": "2026-09-28T12:00:00Z"
+        "schema": RECORDING_PROJECTION_HANDLE_SCHEMA, "projectionId": DATASET,
+        "datasetId": DATASET, "recordingId": RECORDING,
+        "result": {"catalogRevision": "catalog-1", "queryDigest": "a".repeat(64),
+            "timeline": "tick", "sampleGrid": [2, 4], "units": {},
+            "coordinateFrameRefs": [], "omittedSampleCount": 0, "rowCount": 2,
+            "arrowSchemaSha256": "b".repeat(64), "byteLen": 100,
+            "payloadSha256": "c".repeat(64)},
+        "expiresAt": "2026-09-28T12:00:00Z"
     });
     assert_eq!(
         serde_json::to_value(
@@ -176,7 +176,7 @@ fn contract_schemas_are_available_without_protocol_or_runtime_types() {
         let schema: Value = serde_json::to_value(schema).unwrap();
         assert_eq!(schema["type"], "object");
         assert_eq!(schema["additionalProperties"], false);
-        assert_eq!(schema["properties"]["dataset_id"]["type"], "string");
+        assert_eq!(schema["properties"]["datasetId"]["type"], "string");
     }
 }
 
@@ -199,4 +199,167 @@ fn checked_builder_schema_profiles_are_preserved() {
     same::<RecordingView, RecordingViewBuilder>();
     same::<SealRecordingOutput, SealRecordingOutputBuilder>();
     same::<RecordingManifest, RecordingManifestBuilder>();
+}
+
+/// Corrupt an existing admitted member, including optional and nested occurrences.
+fn refuse_retired_members<T: serde::de::DeserializeOwned>(wire: Value, dictionaries: &[&str]) {
+    serde_json::from_value::<T>(wire.clone()).unwrap();
+    fn collect(
+        value: &Value,
+        path: &str,
+        dictionaries: &[&str],
+        cases: &mut Vec<(String, String, String)>,
+    ) {
+        // Owner-declared dictionary keys belong to the source, not the DTO vocabulary.
+        if dictionaries.contains(&path) {
+            assert!(value.is_object(), "{path}: dictionary must be an object");
+            return;
+        }
+        match value {
+            Value::Object(object) => {
+                for (key, child) in object {
+                    let retired: String = key
+                        .chars()
+                        .flat_map(|ch| {
+                            if ch.is_ascii_uppercase() {
+                                vec!['_', ch.to_ascii_lowercase()]
+                            } else {
+                                vec![ch]
+                            }
+                        })
+                        .collect();
+                    if retired != *key {
+                        cases.push((path.into(), key.clone(), retired));
+                    }
+                    collect(
+                        child,
+                        &format!("{path}/{}", key.replace('~', "~0").replace('/', "~1")),
+                        dictionaries,
+                        cases,
+                    );
+                }
+            }
+            Value::Array(array) => {
+                for (index, child) in array.iter().enumerate() {
+                    collect(child, &format!("{path}/{index}"), dictionaries, cases);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut cases = Vec::new();
+    collect(&wire, "", dictionaries, &mut cases);
+    assert!(!cases.is_empty());
+    for (pointer, current, retired) in cases {
+        for mode in ["replacement", "mixed", "conflicting"] {
+            let mut invalid = wire.clone();
+            let object = invalid
+                .pointer_mut(&pointer)
+                .unwrap()
+                .as_object_mut()
+                .unwrap();
+            let value = object.get(&current).unwrap().clone();
+            object.insert(
+                retired.clone(),
+                if mode == "conflicting" {
+                    json!("retired-conflict")
+                } else {
+                    value
+                },
+            );
+            if mode == "replacement" {
+                object.remove(&current).unwrap();
+            }
+            assert!(
+                serde_json::from_value::<T>(invalid).is_err(),
+                "{pointer}/{current}/{mode}"
+            );
+        }
+    }
+}
+
+#[test]
+fn current_controlled_members_admit_one_spelling_at_every_occurrence() {
+    use veoveo_recording_contract::*;
+    refuse_retired_members::<PlaybackManifest>(playback::manifest(), &[]);
+    refuse_retired_members::<RecordingCatalogGrant>(
+        serde_json::to_value(redap::grant_builder().build().unwrap()).unwrap(),
+        &[],
+    );
+    let request = projection::request_builder().build().unwrap();
+    refuse_retired_members::<CreateRecordingProjectionRequest>(
+        serde_json::to_value(&request).unwrap(),
+        &["/units"],
+    );
+    refuse_retired_members::<RecordingProjectionHandle>(
+        projection_result::wire(&request),
+        &["/result/units"],
+    );
+    // Component identities preserve their source spelling even when they resemble DTO members.
+    for key in [
+        "Scalars:scalars",
+        "scalars:scalars",
+        "sensor/front~Scalars:scalars",
+    ] {
+        let mut wire = serde_json::to_value(&request).unwrap();
+        wire["componentIds"] = json!([key]);
+        wire["units"] = json!({(key): "metres"});
+        let selected: CreateRecordingProjectionRequest =
+            serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&selected).unwrap(), wire);
+        let result_wire = projection_result::wire(&selected);
+        let handle: RecordingProjectionHandle =
+            serde_json::from_value(result_wire.clone()).unwrap();
+        handle.validate_request(&selected).unwrap();
+        assert_eq!(serde_json::to_value(handle).unwrap(), result_wire);
+        for value in [json!(null), json!(17), json!({}), json!([])] {
+            let mut invalid = wire.clone();
+            invalid["units"][key] = value.clone();
+            assert!(serde_json::from_value::<CreateRecordingProjectionRequest>(invalid).is_err());
+            let mut invalid = result_wire.clone();
+            invalid["result"]["units"][key] = value;
+            assert!(serde_json::from_value::<RecordingProjectionHandle>(invalid).is_err());
+        }
+    }
+    refuse_retired_members::<LayerView>(metadata::layer(), &[]);
+    refuse_retired_members::<RecordingView>(metadata::catalog(), &[]);
+    let manifest = RecordingManifestBuilder {
+        schema: RecordingManifestSchema::V10,
+        dataset_id: DATASET.parse().unwrap(),
+        recording_segment_id: RECORDING.parse().unwrap(),
+        catalog_revision: "r1".into(),
+        layers: vec![serde_json::from_value(metadata::manifest_layer()).unwrap()],
+        blueprint: None,
+        sealed_at: "2026-09-29T10:02:00Z".parse().unwrap(),
+    }
+    .build()
+    .unwrap();
+    refuse_retired_members::<RecordingManifest>(serde_json::to_value(manifest).unwrap(), &[]);
+    refuse_retired_members::<SealRecordingRequest>(json!({"recordingId":RECORDING}), &[]);
+    refuse_retired_members::<CreateRecordingCatalogGrantRequest>(
+        json!({"datasetId":DATASET,"recordingIds":[RECORDING]}),
+        &[],
+    );
+    let capture = RecordingCaptureMetadata {
+        recording_id: RECORDING.parse().unwrap(),
+        dataset_id: DATASET.parse().unwrap(),
+        layer_kind: RecordingLayerKind::Capture,
+        schema_digest: veoveo_types::Sha256Digest::from_bytes([7; 32]),
+    };
+    refuse_retired_members::<RecordingCaptureMetadata>(serde_json::to_value(capture).unwrap(), &[]);
+    let artifact = RecordingArtifactMetadata {
+        provenance: RecordingArtifactProvenance::RecordingManifest {
+            recording_id: RECORDING.parse().unwrap(),
+            dataset_id: DATASET.parse().unwrap(),
+            catalog_revision: "r1".into(),
+            dataset_revision: 1,
+            recording_revision: 1,
+            sealed_at: "2026-09-29T10:02:00Z".parse().unwrap(),
+            sha256: veoveo_types::Sha256Digest::from_bytes([8; 32]),
+        },
+    };
+    refuse_retired_members::<RecordingArtifactMetadata>(
+        serde_json::to_value(artifact).unwrap(),
+        &[],
+    );
 }

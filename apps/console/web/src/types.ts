@@ -20,14 +20,14 @@ export type ArtifactAccessRequestPage = Omit<Presentation<AccessRequestPageWire>
   requests: ArtifactAccessRequest[];
 };
 
-export type AgentWakeReceipt = Presentation<WakeReceiptWire>;
-export type AgentConversationEntry = Omit<Presentation<ConversationEntryWire>, "inReplyToRequestIds"> & {
-  inReplyToRequestIds: NonNullable<ConversationEntryWire["in_reply_to_request_ids"]>;
+export type AgentWakeReceipt = WakeReceiptWire;
+export type AgentConversationEntry = Omit<ConversationEntryWire, "inReplyToRequestIds"> & {
+  inReplyToRequestIds: NonNullable<ConversationEntryWire["inReplyToRequestIds"]>;
 };
-export type AgentConversation = Omit<Presentation<AgentConversationView>, "entries"> & {
+export type AgentConversation = Omit<AgentConversationView, "entries"> & {
   entries: AgentConversationEntry[];
 };
-export type AgentInputRequest = Presentation<AgentInputRequestView>;
+export type AgentInputRequest = AgentInputRequestView;
 
 export type { PlaybackManifest as RecordingPlaybackManifest } from "./generated/recording-playback";
 

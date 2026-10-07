@@ -22,12 +22,12 @@ use veoveo_reason_mcp::contract::*;
 fn request_defaults_and_validation_are_available_to_contract_consumers() {
     let request: AnalyzeRecordingRequest = serde_json::from_value(serde_json::json!({
         "video": {
-            "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
-            "entity_path": "/camera/front",
+            "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+            "entityPath": "/camera/front",
             "timeline": "sensor_time",
             "range": {"start": 10, "end": 20}
         },
-        "pipeline_id": "traffic-events",
+        "pipelineId": "traffic-events",
         "task": {"kind": "detect_events", "prompt": "Vehicles entering the intersection"}
     }))
     .unwrap();
@@ -73,7 +73,7 @@ fn answer_kinds_and_confidence_provenance_preserve_the_public_wire() {
             0,
         ),
         (
-            serde_json::json!({"kind": "events", "events": [{"range": {"start": 10, "end": 20}, "label": "entry", "description": "Vehicle enters", "track_ids": [7]}]}),
+            serde_json::json!({"kind": "events", "events": [{"range": {"start": 10, "end": 20}, "label": "entry", "description": "Vehicle enters", "trackIds": [7]}]}),
             "detect_events",
             1,
         ),
@@ -107,6 +107,7 @@ fn schemas_preserve_the_published_contract() {
     check_schema::<ConfidenceBasis>(&mut current, stringify!(ConfidenceBasis));
     check_schema::<ReasoningResults>(&mut current, stringify!(ReasoningResults));
     check_schema::<AnalyzeRecordingOutput>(&mut current, stringify!(AnalyzeRecordingOutput));
+    check_schema::<ReasonUsageMetadata>(&mut current, stringify!(ReasonUsageMetadata));
     check_schema::<ReasoningSummary>(&mut current, stringify!(ReasoningSummary));
     check_schema::<PipelineView>(&mut current, stringify!(PipelineView));
     check_schema::<PipelineOperation>(&mut current, stringify!(PipelineOperation));

@@ -164,6 +164,10 @@ impl<C: McpServerContract> McpServerSetup<C> {
                 return Err(McpSetupError::MissingDocument);
             }
         }
+        documents
+            .admitted_profile()
+            .and_then(|profile| profile.check_knowledge_applicability(true))
+            .map_err(|_| McpSetupError::InvalidComplianceProfile)?;
         for root in ["docs", "contract"] {
             let uri = well_known_builder(&scheme, root)?
                 .build()
@@ -325,6 +329,7 @@ pub enum McpSetupError {
     DuplicateScope,
     MissingDocument,
     InvalidDocument,
+    InvalidComplianceProfile,
     MissingWellKnownResource,
     InvalidTemplate,
     DescriptorTemplateMismatch,
@@ -355,6 +360,7 @@ impl fmt::Display for McpSetupError {
             Self::MissingDocument => {
                 "hosted server requires agent and design documents and nonempty document bodies"
             }
+            Self::InvalidComplianceProfile => "owner compliance profile, embedded manual and docs knowledge applicability must agree",
             Self::InvalidDocument => "document identifiers must be unique valid URI path segments",
             Self::MissingWellKnownResource => {
                 "resource discovery must include docs, contract, and every embedded document"

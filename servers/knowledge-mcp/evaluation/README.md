@@ -35,7 +35,7 @@ Generate equivalent configurations for all three pinned model checkpoints:
 ```sh
 VEOVEO_RETRIEVAL_FIXTURE_DIR=/absolute/new/configuration-directory \
   cargo test -p veoveo-knowledge-mcp --test gpu_retrieval \
-  write_domain_comparison_configurations -- --ignored --exact --nocapture
+  write_domain_comparison_configuration -- --ignored --exact --nocapture
 ```
 
 The writer refuses existing files. The source corpus includes the current owning

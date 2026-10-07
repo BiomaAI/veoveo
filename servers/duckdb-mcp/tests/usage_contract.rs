@@ -30,7 +30,7 @@ fn usage_builders_preserve_native_task_identity_and_wire_shape() {
     assert_eq!(entry.usage_uri(), &usage);
     assert_eq!(
         serde_json::to_value(&entry).unwrap(),
-        json!({"task_id": task_id, "usage_uri": usage})
+        json!({"taskId": task_id, "usageUri": usage})
     );
     let cursor = DuckDbUsageCursor::new(task_id).unwrap();
     assert_eq!(
@@ -58,7 +58,7 @@ fn usage_admission_rejects_invalid_envelopes_and_address_aliases() {
         json!({"version":1,"collection":"timeseries://usage","after":id}),
         json!({"version":1,"collection":DuckDbUsageIndexUri::ROOT,"after":"not-a-task"}),
         json!({"version":1,"collection":DuckDbUsageIndexUri::ROOT,"after":id,"extra":true}),
-        json!({"version":1,"task_id":id}),
+        json!({"version":1,"taskId":id}),
     ] {
         assert!(
             DuckDbUsageCursor::parse(
@@ -135,7 +135,7 @@ fn usage_pages_and_entries_reject_inconsistent_construction_and_decoding() {
         assert!(DuckDbUsagePage::from_task_ids(ids, next).is_err());
     }
     let mut wrong_entry = encoded["items"][0].clone();
-    wrong_entry["task_id"] = json!(task(9));
+    wrong_entry["taskId"] = json!(task(9));
     assert!(serde_json::from_value::<DuckDbUsageEntry>(wrong_entry).is_err());
     let mut wrong_page = encoded;
     wrong_page["limit"] = json!(200);
@@ -156,8 +156,8 @@ fn usage_cursor_and_page_follow_the_declared_collection_profile() {
     assert_eq!(
         serde_json::to_value(page).unwrap(),
         json!({
-            "items": [{"task_id": id, "usage_uri": DuckDbTaskUsageUri::new(id).unwrap()}],
-            "limit": 100, "next_cursor": null
+            "items": [{"taskId": id, "usageUri": DuckDbTaskUsageUri::new(id).unwrap()}],
+            "limit": 100, "nextCursor": null
         })
     );
     assert!(serde_json::from_value::<DuckDbUsagePage>(json!([])).is_err());

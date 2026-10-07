@@ -4,15 +4,18 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+from veoveo_mcp.contract.wire import CurrentWireModel
 from pydantic.alias_generators import to_camel
 
 
-class WireModel(BaseModel):
+class WireModel(CurrentWireModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
-        populate_by_name=True,
+        validate_by_alias=True,
+        validate_by_name=False,
         extra="forbid",
     )
 
@@ -35,7 +38,7 @@ class ViewLifecycle(str, Enum):
 
 
 class CameraDescriptor(WireModel):
-    schema_version: str = "veoveo.ai/live-view/v4"
+    schema_version: Literal["veoveo.ai/live-view/v4"]
     session_id: str = Field(min_length=1, max_length=128)
     camera_id: str = Field(min_length=1, max_length=128)
     rig: str = "fixed"
@@ -86,12 +89,12 @@ class CloseLiveViewRequest(RenewLiveViewRequest):
 
 
 class MediaEndpoint(WireModel):
-    transport: str = "web_socket_h264"
+    transport: Literal["web_socket_h264"] = "web_socket_h264"
     stream_url: str
 
 
 class LiveViewState(WireModel):
-    schema_version: str = "veoveo.ai/live-view/v4"
+    schema_version: Literal["veoveo.ai/live-view/v4"]
     live_view_id: str
     resource_uri: str
     session_id: str
@@ -101,8 +104,8 @@ class LiveViewState(WireModel):
     viewer_actor: str
     viewer_instance_id: str
     lifecycle: ViewLifecycle
-    codec: str = "h264"
-    hardware_encoder: str = "nvidia_nvenc"
+    codec: Literal["h264"] = "h264"
+    hardware_encoder: Literal["nvidia_nvenc"] = "nvidia_nvenc"
     width_px: int = Field(ge=16, le=16_384)
     height_px: int = Field(ge=16, le=16_384)
     coded_width_px: int = Field(ge=16, le=16_384)
@@ -130,7 +133,7 @@ class GetFixtureStateRequest(WireModel):
 
 
 class FixtureState(WireModel):
-    schema_version: str = "veoveo.ai/simulator-hosted-live-view-fixture/v2"
+    schema_version: Literal["veoveo.ai/simulator-hosted-live-view-fixture/v2"]
     session_id: str
     cameras: tuple[CameraDescriptor, ...]
     stream_products: tuple[StreamProduct, ...]

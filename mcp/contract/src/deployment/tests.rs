@@ -69,7 +69,7 @@ fn preserves_arbitrary_sql_in_the_sandboxed_runtime() {
 fn rejects_database_ha_claims() {
     let json = serde_json::to_value(canonical_plan()).expect("serialize plan");
     let mut profile = json["profiles"][0].clone();
-    profile["platform_store"]["database_ha"] = serde_json::json!("enabled");
+    profile["platformStore"]["databaseHa"] = serde_json::json!("enabled");
 
     let error = serde_json::from_value::<SelfHostedDeploymentProfile>(profile)
         .expect_err("unsupported DB HA value must fail");
@@ -130,14 +130,14 @@ fn installation_plan_rejects_unknown_root_and_nested_fields() {
     for pointer in [
         "",
         "/profiles/0",
-        "/profiles/0/tenant_model",
-        "/profiles/0/platform_store",
-        "/profiles/0/object_store",
-        "/profiles/0/analytical_runtime",
+        "/profiles/0/tenantModel",
+        "/profiles/0/platformStore",
+        "/profiles/0/objectStore",
+        "/profiles/0/analyticalRuntime",
         "/profiles/0/ingress",
-        "/profiles/0/identity_provider",
-        "/profiles/0/secret_manager",
-        "/profiles/0/service_to_service",
+        "/profiles/0/identityProvider",
+        "/profiles/0/secretManager",
+        "/profiles/0/serviceToService",
         "/profiles/0/telemetry",
         "/profiles/0/retention",
     ] {

@@ -131,7 +131,7 @@ pub enum TileFailureCode {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct TileFailureState {
     pub code: TileFailureCode,
     pub load_type: TileLoadType,
@@ -218,7 +218,7 @@ pub enum MissionPlanLifecycle {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct EnuVector {
     pub east_m: f64,
     pub north_m: f64,
@@ -227,6 +227,7 @@ pub struct EnuVector {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct NedVector {
     pub north_m: f64,
     pub east_m: f64,
@@ -235,6 +236,7 @@ pub struct NedVector {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct QuaternionXyzw {
     pub x: f64,
     pub y: f64,
@@ -244,6 +246,7 @@ pub struct QuaternionXyzw {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct EnuDirection {
     #[schemars(range(min = -1.0, max = 1.0))]
     pub east: f64,
@@ -255,6 +258,7 @@ pub struct EnuDirection {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CameraRenderPoseState {
     #[schemars(range(min = 0.0))]
     pub position_error_m: f64,
@@ -266,6 +270,7 @@ pub struct CameraRenderPoseState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TileState {
     pub lifecycle: TileLifecycle,
     pub source: String,
@@ -287,6 +292,7 @@ pub struct TileState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct VehicleState {
     pub vehicle_id: VehicleId,
     pub flight_state: VehicleFlightState,
@@ -303,6 +309,7 @@ pub struct VehicleState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct GrantVehicleControlRequest {
     pub grant_id: ControlGrantId,
     pub session_id: SessionId,
@@ -319,6 +326,7 @@ pub struct GrantVehicleControlRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RevokeVehicleControlRequest {
     pub grant_id: ControlGrantId,
     pub expected_revision: u64,
@@ -326,6 +334,7 @@ pub struct RevokeVehicleControlRequest {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct VehicleControlGrant {
     pub grant_id: ControlGrantId,
     pub session_id: SessionId,
@@ -349,6 +358,7 @@ pub struct VehicleControlGrant {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct PrepareVehicleMissionRequest {
     pub session_id: SessionId,
     pub mission_id: MissionId,
@@ -363,6 +373,7 @@ pub struct PrepareVehicleMissionRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecuteVehicleMissionPlanRequest {
     pub plan_id: MissionPlanId,
     pub expected_revision: u64,
@@ -370,6 +381,7 @@ pub struct ExecuteVehicleMissionPlanRequest {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct VehicleMissionPlan {
     pub plan_id: MissionPlanId,
     pub mission_id: MissionId,
@@ -389,6 +401,7 @@ pub struct VehicleMissionPlan {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CameraState {
     pub vehicle_id: VehicleId,
     pub entity_path: String,
@@ -410,6 +423,7 @@ pub struct CameraState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RuntimeTimingState {
     #[schemars(range(min = 30, max = 1000))]
     pub physics_hz: u32,
@@ -434,6 +448,7 @@ pub struct RuntimeTimingState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SimulationState {
     pub session_id: SessionId,
     pub lifecycle: SimulationLifecycle,
@@ -454,6 +469,7 @@ pub struct SimulationState {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "SimulationWorldBinding")]
+#[serde(rename_all = "camelCase")]
 pub struct SimulationWorldBindingValue {
     pub revision_uri: FrameWorldRevisionUri,
     pub spec_sha256: veoveo_artifact_contract::UploadSha256,
@@ -463,6 +479,7 @@ pub struct SimulationWorldBindingValue {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ConfigureWorldRequest {
     pub session_id: SessionId,
     pub world_revision: FrameWorldRevision,
@@ -471,6 +488,7 @@ pub struct ConfigureWorldRequest {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ConfigureWorldOutput {
     pub accepted: bool,
     pub world: SimulationWorldBinding,
@@ -479,6 +497,7 @@ pub struct ConfigureWorldOutput {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionRequest {
     pub session_id: SessionId,
 }
@@ -516,6 +535,7 @@ pub struct CloseLiveViewResult {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct StepSimulationRequest {
     pub session_id: SessionId,
     #[schemars(range(min = 1, max = 10_000))]
@@ -524,6 +544,7 @@ pub struct StepSimulationRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct VehicleRequest {
     pub session_id: SessionId,
     pub vehicle_id: VehicleId,
@@ -531,6 +552,7 @@ pub struct VehicleRequest {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TakeoffRequest {
     pub session_id: SessionId,
     pub vehicle_id: VehicleId,
@@ -540,6 +562,7 @@ pub struct TakeoffRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CommandAcknowledgement {
     pub accepted: bool,
     pub detail: String,
@@ -559,7 +582,7 @@ pub enum SimulationCommand {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct MissionWaypoint {
     pub position: Wgs84Position,
     #[schemars(range(min = 0.1, max = 100.0))]
@@ -570,6 +593,7 @@ pub struct MissionWaypoint {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct VehicleMission {
     pub vehicle_id: VehicleId,
     #[schemars(length(min = 1, max = 10_000))]
@@ -578,6 +602,7 @@ pub struct VehicleMission {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecuteMissionRequest {
     pub session_id: SessionId,
     pub mission_id: MissionId,
@@ -588,6 +613,7 @@ pub struct ExecuteMissionRequest {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RunScenarioRequest {
     pub session_id: SessionId,
     #[schemars(range(min = 0.1, max = 86_400.0))]
@@ -598,6 +624,7 @@ pub struct RunScenarioRequest {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CaptureDatasetRequest {
     pub session_id: SessionId,
     #[schemars(range(min = 0.1, max = 86_400.0))]
@@ -630,7 +657,7 @@ impl DurableOperation {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct MissionResult {
     pub mission_id: MissionId,
     pub lifecycle: MissionLifecycle,
@@ -642,6 +669,7 @@ pub struct MissionResult {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ScenarioResult {
     pub session_id: SessionId,
     pub elapsed_seconds: f64,
@@ -652,6 +680,7 @@ pub struct ScenarioResult {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CaptureDatasetResult {
     pub session_id: SessionId,
     pub elapsed_seconds: f64,
@@ -682,6 +711,7 @@ pub struct CollectionPage<T> {
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ActiveVehicleGrantsRequest {
     pub session_id: SessionId,
     #[serde(default)]
@@ -724,6 +754,7 @@ fn validate_id(value: &str) -> Result<(), IdentityError> {
 /// Public session collection row. World is required and nullable on this wire.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionSummary {
     pub session_id: SessionId,
     pub lifecycle: SimulationLifecycle,
@@ -785,6 +816,7 @@ impl veoveo_types::Check for SimulationWorldBindingValue {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct SimulationStateWire {
     session_id: SessionId,
     lifecycle: SimulationLifecycle,
@@ -964,7 +996,7 @@ mod tests {
         });
         let value = serde_json::to_value(command).unwrap();
         assert_eq!(value["command"], "step");
-        assert_eq!(value["session_id"], "session-alpha");
+        assert_eq!(value["sessionId"], "session-alpha");
         assert_eq!(value["steps"], 4);
     }
 
@@ -986,7 +1018,7 @@ mod tests {
             veoveo_map_mcp::contract::MobilityProfileVersion::FIRST,
         );
         let produced = veoveo_map_mcp::MapRouteHandoffBuilder {
-            schema_profile: veoveo_map_mcp::MapRouteHandoffSchema::V1,
+            schema_profile: veoveo_map_mcp::MapRouteHandoffSchema::V2,
             route_uri: veoveo_map_mcp::MapRouteUri::new(veoveo_map_mcp::RouteId::new()),
             route_digest_sha256: veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
             route_status: veoveo_map_mcp::RouteStatus::Validated,
@@ -1008,13 +1040,13 @@ mod tests {
         .unwrap();
 
         let request: PrepareVehicleMissionRequest = serde_json::from_value(serde_json::json!({
-            "session_id": "session-alpha",
-            "mission_id": "mission-alpha",
-            "vehicle_id": "vehicle-one",
-            "expected_world_revision_uri": "frames://world/native/revision/revision-one",
-            "map_route": produced,
-            "speed_mps": 5.0,
-            "hold_seconds_at_destination": 0.0
+            "sessionId": "session-alpha",
+            "missionId": "mission-alpha",
+            "vehicleId": "vehicle-one",
+            "expectedWorldRevisionUri": "frames://world/native/revision/revision-one",
+            "mapRoute": produced,
+            "speedMps": 5.0,
+            "holdSecondsAtDestination": 0.0
         }))
         .unwrap();
         assert_eq!(request.map_route, produced);

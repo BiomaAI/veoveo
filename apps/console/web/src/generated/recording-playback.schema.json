@@ -3,49 +3,105 @@
     "PlaybackAccess": {
       "additionalProperties": false,
       "properties": {
-        "expires_at": {
+        "expiresAt": {
+          "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
+          "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$",
           "type": "string"
         },
-        "grant_id": {
+        "grantId": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_recording_contract::ids"
+                  },
+                  "profile": "RecordingReadGrantId",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "type": "string"
         },
-        "redap_token": {
+        "redapToken": {
           "type": "string"
         }
       },
       "required": [
-        "grant_id",
-        "redap_token",
-        "expires_at"
+        "grantId",
+        "redapToken",
+        "expiresAt"
       ],
       "type": "object"
     },
     "PlaybackArchive": {
       "additionalProperties": false,
       "properties": {
-        "byte_len": {
+        "byteLen": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "catalog_revision": {
+        "catalogRevision": {
           "type": "string"
         },
-        "dataset_id": {
+        "datasetId": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_recording_contract::ids"
+                  },
+                  "profile": "RecordingDatasetId",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "type": "string"
         },
-        "layer_count": {
+        "layerCount": {
           "format": "uint",
           "minimum": 0,
           "type": "integer"
         },
-        "optimization_profile": {
+        "optimizationProfile": {
           "type": "string"
         },
-        "recording_segment_id": {
+        "recordingSegmentId": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_recording_contract::ids"
+                  },
+                  "profile": "RecordingId",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "type": "string"
         },
-        "rrd_version": {
+        "rrdVersion": {
           "type": "string"
         },
         "uri": {
@@ -54,28 +110,28 @@
       },
       "required": [
         "uri",
-        "dataset_id",
-        "recording_segment_id",
-        "catalog_revision",
-        "rrd_version",
-        "optimization_profile",
-        "byte_len",
-        "layer_count"
+        "datasetId",
+        "recordingSegmentId",
+        "catalogRevision",
+        "rrdVersion",
+        "optimizationProfile",
+        "byteLen",
+        "layerCount"
       ],
       "type": "object"
     },
     "PlaybackBlueprint": {
       "additionalProperties": false,
       "properties": {
-        "blueprint_id": {
+        "blueprintId": {
           "type": "string"
         },
-        "byte_len": {
+        "byteLen": {
           "format": "uint64",
           "minimum": 1,
           "type": "integer"
         },
-        "map_provider": {
+        "mapProvider": {
           "$ref": "#/$defs/PlaybackMapProvider"
         },
         "revision": {
@@ -89,11 +145,11 @@
         }
       },
       "required": [
-        "blueprint_id",
+        "blueprintId",
         "revision",
         "sha256",
-        "byte_len",
-        "map_provider"
+        "byteLen",
+        "mapProvider"
       ],
       "type": "object"
     },
@@ -101,7 +157,7 @@
       "additionalProperties": false,
       "description": "Recording-scoped channel, available throughout Live, including capture-layer gaps.",
       "properties": {
-        "history_seconds": {
+        "historySeconds": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -109,15 +165,15 @@
         "transport": {
           "$ref": "#/$defs/PlaybackLiveTransport"
         },
-        "video_preroll_seconds": {
+        "videoPrerollSeconds": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         }
       },
       "required": [
-        "history_seconds",
-        "video_preroll_seconds",
+        "historySeconds",
+        "videoPrerollSeconds",
         "transport"
       ],
       "type": "object"
@@ -129,15 +185,25 @@
       "type": "string"
     },
     "PlaybackManifestSchema": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "format_tag",
+            "kind": "builtin"
+          }
+        }
+      },
       "enum": [
-        "veoveo.ai/recording-playback/v10"
+        "veoveo.ai/recording-playback/v11"
       ],
       "type": "string"
     },
     "PlaybackMapProvider": {
       "enum": [
         "none",
-        "openStreetMap",
+        "open_street_map",
         "mapbox",
         "mixed"
       ],
@@ -162,7 +228,7 @@
     "access": {
       "$ref": "#/$defs/PlaybackAccess"
     },
-    "application_id": {
+    "applicationId": {
       "type": "string"
     },
     "archive": {
@@ -185,13 +251,33 @@
         }
       ]
     },
-    "catalog_revision": {
+    "catalogRevision": {
       "type": "string"
     },
-    "dataset_id": {
+    "datasetId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_recording_contract::ids"
+              },
+              "profile": "RecordingDatasetId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
-    "ended_at": {
+    "endedAt": {
+      "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
+      "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$",
       "type": [
         "string",
         "null"
@@ -207,16 +293,36 @@
         }
       ]
     },
-    "recording_key": {
+    "recordingKey": {
       "type": "string"
     },
-    "recording_segment_id": {
+    "recordingSegmentId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_recording_contract::ids"
+              },
+              "profile": "RecordingId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "schema": {
       "$ref": "#/$defs/PlaybackManifestSchema"
     },
-    "started_at": {
+    "startedAt": {
+      "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
+      "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$",
       "type": "string"
     },
     "state": {
@@ -225,13 +331,13 @@
   },
   "required": [
     "schema",
-    "dataset_id",
-    "recording_segment_id",
-    "application_id",
-    "recording_key",
+    "datasetId",
+    "recordingSegmentId",
+    "applicationId",
+    "recordingKey",
     "state",
-    "started_at",
-    "catalog_revision",
+    "startedAt",
+    "catalogRevision",
     "access"
   ],
   "title": "PlaybackManifest",

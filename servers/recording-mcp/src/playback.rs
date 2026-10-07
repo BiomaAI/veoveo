@@ -149,7 +149,7 @@ impl PlaybackManager {
         let access = self.issue_access(&grant)?;
         self.prune_catalogs();
         PlaybackManifestBuilder {
-            schema: PlaybackManifestSchema::V10,
+            schema: PlaybackManifestSchema::V11,
             dataset_id: crate::contract::RecordingDatasetId::try_from(plan.dataset_id.as_uuid())?,
             recording_segment_id: crate::contract::RecordingId::try_from(
                 plan.recording_id.as_uuid(),
@@ -235,7 +235,7 @@ impl PlaybackManager {
         self.prune_catalogs();
         let dataset_id = crate::contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?;
         RecordingCatalogGrantBuilder {
-            schema: RecordingCatalogGrantSchema::V1,
+            schema: RecordingCatalogGrantSchema::V2,
             grant_id: access.grant_id,
             dataset_id,
             recording_segment_ids: admitted
@@ -876,8 +876,8 @@ mod tests {
     }
 
     #[test]
-    fn manifest_schema_is_the_v10_hard_cut() {
-        assert_eq!(PLAYBACK_MANIFEST_SCHEMA, "veoveo.ai/recording-playback/v10");
+    fn manifest_schema_is_the_v11_hard_cut() {
+        assert_eq!(PLAYBACK_MANIFEST_SCHEMA, "veoveo.ai/recording-playback/v11");
     }
 
     #[test]

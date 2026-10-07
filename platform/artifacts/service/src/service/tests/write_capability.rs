@@ -536,3 +536,216 @@ async fn successful_rebind_readback_rejects_changed_capability_binding() {
             .is_empty()
     );
 }
+
+#[test]
+fn request_hash_v2_binds_camelcase_request_with_existing_nul_framing() {
+    let request = PutArtifactRequest {
+        mime_type: Some("text/plain".into()),
+        data_labels: BTreeSet::from(["cui".parse().unwrap()]),
+        ..Default::default()
+    };
+    let body = serde_json::to_vec(&request).unwrap();
+    assert_eq!(body, br#"{"mimeType":"text/plain","dataLabels":["cui"]}"#);
+    let blob = compute_sha(b"content");
+    let mut expected = Sha256::new();
+    expected.update(b"veoveo.ai/artifact-write-request/v2");
+    expected.update([0]);
+    expected.update(blob.as_str().as_bytes());
+    expected.update([0]);
+    expected.update(&body);
+    assert_eq!(
+        artifact_write_request_hash(&request, &blob).unwrap(),
+        hex::encode(expected.finalize())
+    );
+    let mut obsolete = Sha256::new();
+    obsolete.update(b"veoveo.artifact-write-request.v1");
+    obsolete.update([0]);
+    obsolete.update(blob.as_str().as_bytes());
+    obsolete.update([0]);
+    obsolete.update(&body);
+    assert_ne!(
+        artifact_write_request_hash(&request, &blob).unwrap(),
+        hex::encode(obsolete.finalize())
+    );
+    assert_ne!(
+        artifact_write_request_hash(&request, &blob).unwrap(),
+        artifact_write_request_hash(&request, &compute_sha(b"different")).unwrap()
+    );
+}
+
+#[tokio::test]
+async fn retained_request_format_refuses_missing_and_unsupported_before_rebind() {
+    for corrupt in [
+        include_str!(
+            "../../../tests/queries/service/tests/write_capability/remove_request_format.surql"
+        ),
+        include_str!(
+            "../../../tests/queries/service/tests/write_capability/unsupported_request_format.surql"
+        ),
+    ] {
+        let db = native_store::TestDb::new().await;
+        let alice = caller("alice", "acme", &[]);
+        super::native_database::context(&db.a, &alice).await;
+        let service = ArtifactService::with_options(
+            crate::SurrealArtifactRepository::new(db.a.clone()),
+            InMemoryBlobStore::default(),
+            "http://fixture",
+            1024,
+        );
+        let task_id = veoveo_artifact_contract::ArtifactTaskId::new();
+        let capability = service
+            .issue_write_capability(
+                &alice,
+                IssueArtifactWriteCapabilityRequest {
+                    task_id,
+                    expires_at: Utc::now() + TimeDelta::minutes(5),
+                    max_artifact_count: NonZeroU32::new(1).unwrap(),
+                    max_total_bytes: NonZeroU64::new(1024).unwrap(),
+                    required_data_labels: BTreeSet::new(),
+                },
+            )
+            .await
+            .unwrap();
+        let id = veoveo_platform_store::ArtifactWriteCapabilityId::from_uuid(
+            capability.capability_id.as_uuid(),
+        );
+        let token_hash = secret_hash(
+            b"veoveo.artifact-write.v1",
+            capability.secret.expose_secret(),
+        );
+        let reservation =
+            db.a.reserve_artifact_write_capability(
+                id,
+                &token_hash,
+                &task_id,
+                "format",
+                &"a".repeat(64),
+                6,
+                &[],
+                veoveo_platform_store::ArtifactId::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            reservation.redemption.request_format,
+            veoveo_artifact_contract::ArtifactWriteRequestFormat::V2
+        );
+        let rebound =
+            db.b.reserve_artifact_write_capability(
+                id,
+                &token_hash,
+                &task_id,
+                "format",
+                &"b".repeat(64),
+                7,
+                &[],
+                veoveo_platform_store::ArtifactId::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(rebound.redemption.id, reservation.redemption.id);
+        assert_eq!(rebound.capability.used_artifact_count, 1);
+        assert_eq!(rebound.capability.used_total_bytes, 7);
+        let redemption = rebound.redemption.id.clone();
+        db.a.client()
+            .query(corrupt)
+            .bind(("redemption", redemption.clone()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let snapshot = include_str!(
+            "../../../tests/queries/service/tests/write_capability/read_binding_snapshot.surql"
+        );
+        let mut before =
+            db.a.client()
+                .query(snapshot)
+                .bind(("capability", id.record_id()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        let before_capability: Option<veoveo_platform_store::ArtifactWriteCapabilityRecord> =
+            before.take(0).unwrap();
+        let before_redemptions: Vec<veoveo_platform_store::Value> = before.take(1).unwrap();
+        let before_occurrences: Vec<veoveo_platform_store::RecordId> = before.take(2).unwrap();
+        assert!(
+            db.b.reserve_artifact_write_capability(
+                id,
+                &token_hash,
+                &task_id,
+                "format",
+                &"c".repeat(64),
+                8,
+                &[],
+                veoveo_platform_store::ArtifactId::new()
+            )
+            .await
+            .is_err()
+        );
+        let redemption_uuid = match &rebound.redemption.id.key {
+            veoveo_platform_store::RecordIdKey::Uuid(value) => **value,
+            _ => panic!("redemption UUID"),
+        };
+        let artifact_uuid = match &rebound.redemption.artifact.key {
+            veoveo_platform_store::RecordIdKey::Uuid(value) => **value,
+            _ => panic!("artifact UUID"),
+        };
+        assert!(
+            db.b.finalize_artifact_write_capability(
+                veoveo_platform_store::ArtifactWriteRedemptionId::from_uuid(redemption_uuid),
+                veoveo_platform_store::ArtifactId::from_uuid(artifact_uuid),
+            )
+            .await
+            .is_err()
+        );
+        let mut after =
+            db.a.client()
+                .query(snapshot)
+                .bind(("capability", id.record_id()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        assert_eq!(
+            after
+                .take::<Option<veoveo_platform_store::ArtifactWriteCapabilityRecord>>(0)
+                .unwrap(),
+            before_capability
+        );
+        assert_eq!(
+            after.take::<Vec<veoveo_platform_store::Value>>(1).unwrap(),
+            before_redemptions
+        );
+        assert_eq!(
+            after
+                .take::<Vec<veoveo_platform_store::RecordId>>(2)
+                .unwrap(),
+            before_occurrences
+        );
+        db.a.client()
+            .query(include_str!(
+                "../../../tests/queries/service/tests/write_capability/restore_request_format.surql"
+            ))
+            .bind(("redemption", redemption))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let recovered =
+            db.b.reserve_artifact_write_capability(
+                id,
+                &token_hash,
+                &task_id,
+                "format",
+                &"b".repeat(64),
+                7,
+                &[],
+                veoveo_platform_store::ArtifactId::new(),
+            )
+            .await
+            .unwrap();
+        assert!(recovered.request_matches);
+        assert_eq!(recovered.capability.used_total_bytes, 7);
+    }
+}

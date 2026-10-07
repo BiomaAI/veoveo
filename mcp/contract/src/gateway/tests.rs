@@ -2233,3 +2233,63 @@ fn normalized_identity_and_decision_reject_unknown_fields() {
         admitted
     );
 }
+
+#[test]
+fn control_plane_refuses_retired_core_keys_in_extension_space() {
+    let control = control_plane_with_server_and_secrets(media_manifest(), default_secrets());
+    let wire = serde_json::to_value(control).unwrap();
+    assert!(serde_json::from_value::<GatewayControlPlane>(wire.clone()).is_ok());
+    for key in [
+        "identity_providers",
+        "authorization_servers",
+        "work_contexts",
+        "data_labels",
+        "oauth_clients",
+        "oidc_clients",
+    ] {
+        let mut mixed = wire.clone();
+        mixed[key] = serde_json::json!([]);
+        assert!(
+            serde_json::from_value::<GatewayControlPlane>(mixed).is_err(),
+            "retired core key {key}"
+        );
+    }
+}
+
+#[test]
+fn revision_wire_refuses_retired_names_instead_of_dropping_them() {
+    let value = GatewayControlPlaneRevision {
+        revision_id: GatewayControlPlaneRevisionId::parse("gcp-fixture").unwrap(),
+        sha256: "a".repeat(64),
+        source: GatewayControlPlaneRevisionSource::SeedFile,
+        applied_at: chrono::DateTime::parse_from_rfc3339("2026-10-06T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc),
+        applied_by: PrincipalId::parse("author").unwrap(),
+        tenant: None,
+        control_plane: control_plane_with_server_and_secrets(media_manifest(), default_secrets()),
+    };
+    let current = serde_json::to_value(value).unwrap();
+    let schema = serde_json::to_value(schemars::schema_for!(GatewayControlPlaneRevision)).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&current));
+    assert!(serde_json::from_value::<GatewayControlPlaneRevision>(current.clone()).is_ok());
+    for (canonical, retired) in [
+        ("revisionId", "revision_id"),
+        ("appliedAt", "applied_at"),
+        ("appliedBy", "applied_by"),
+        ("controlPlane", "control_plane"),
+    ] {
+        for mixed in [false, true] {
+            let mut invalid = current.clone();
+            invalid[retired] = invalid[canonical].clone();
+            if !mixed {
+                invalid.as_object_mut().unwrap().remove(canonical);
+            }
+            assert!(
+                serde_json::from_value::<GatewayControlPlaneRevision>(invalid.clone()).is_err()
+            );
+            assert!(!validator.is_valid(&invalid));
+        }
+    }
+}

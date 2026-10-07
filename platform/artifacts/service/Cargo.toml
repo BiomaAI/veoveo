@@ -14,6 +14,14 @@ name = "artifact-service"
 path = "src/bin/server.rs"
 
 [dependencies]
+veoveo-modules = { workspace = true, features = ["runner"] }
+veoveo-testing-support = { path = "../../../testing/support", optional = true }
+rmcp = { workspace = true, optional = true, features = ["client"] }
+reqwest = { workspace = true, optional = true, features = ["rustls-no-provider", "json"] }
+clap = { workspace = true, optional = true }
+jsonwebtoken = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+veoveo-mcp-conformance = { path = "../../../mcp/conformance", optional = true }
 veoveo-http.workspace = true
 veoveo-audit.workspace = true
 veoveo-artifact-contract.workspace = true
@@ -37,12 +45,19 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 url.workspace = true
 uuid = { workspace = true, features = ["v5"] }
-veoveo-mcp-contract = { workspace = true, default-features = false }
+veoveo-mcp-contract = { workspace = true, default-features = false, features = ["runtime"] }
 veoveo-platform-store = { path = "../../store" }
 
 [dev-dependencies]
-veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-gateway-contract.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider", "json"] }
 tempfile = "3"
 veoveo-artifact-client = { path = "../client" }
+
+[[bin]]
+name = "artifact-smoke"
+path = "src/smoke/artifact_smoke.rs"
+required-features = ["smoke"]
+
+[features]
+smoke = ["dep:veoveo-testing-support", "dep:clap", "dep:jsonwebtoken", "dep:rustls", "dep:veoveo-mcp-conformance", "dep:rmcp", "dep:reqwest", "veoveo-mcp-contract/runtime"]

@@ -12,8 +12,7 @@ use serde::Serialize;
 
 use crate::{ReleaseCacheArgs, context::RepositoryContext};
 
-#[derive(Clone, Copy, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 enum Kind {
     ExecutableCopy,
     IncrementalVariant,
@@ -205,7 +204,7 @@ fn plan(root: &Path, age_hours: u64, now: SystemTime) -> Result<CachePlan> {
     candidates.sort_by(|left, right| left.path.cmp(&right.path));
     let reclaimable_bytes = reclaimable_bytes(root, &candidates)?;
     Ok(CachePlan {
-        schema_version: "veoveo.ai/cargo-cache-maintenance/v2",
+        schema_version: "veoveo.ai/cargo-cache-maintenance/v3",
         root: root.to_owned(),
         minimum_age_hours: age_hours,
         candidates,
@@ -311,6 +310,20 @@ fn reclaimable_bytes(_: &Path, _: &[Candidate]) -> Result<u64> {
 
 #[cfg(all(test, unix))]
 mod tests {
+    #[test]
+    fn owned_report_vocabulary_has_current_snake_values() {
+        assert_eq!(
+            serde_json::to_value(super::Kind::ExecutableCopy).unwrap(),
+            "executable_copy"
+        );
+        assert!(serde_json::from_str::<super::Kind>(r#""executable-copy""#).is_err());
+        assert_eq!(
+            serde_json::to_value(super::Kind::IncrementalVariant).unwrap(),
+            "incremental_variant"
+        );
+        assert!(serde_json::from_str::<super::Kind>(r#""incremental-variant""#).is_err());
+    }
+
     use super::*;
     use std::os::unix::fs::PermissionsExt;
 

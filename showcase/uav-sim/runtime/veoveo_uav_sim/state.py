@@ -35,23 +35,23 @@ class VehicleTelemetry:
 
 def initial_runtime_timing(config: RuntimeConfig) -> dict[str, int | float]:
     return {
-        "physics_hz": config.physics_hz,
-        "native_rendering_hz": config.rendering_hz,
-        "render_cycles": 0,
-        "physics_steps": 0,
-        "refresh_states_wall_seconds": 0.0,
-        "vehicle_update_wall_seconds": 0.0,
-        "state_update_wall_seconds": 0.0,
-        "dynamics_update_wall_seconds": 0.0,
-        "sensor_update_wall_seconds": 0.0,
-        "backend_state_wall_seconds": 0.0,
-        "flush_forces_wall_seconds": 0.0,
-        "after_step_wall_seconds": 0.0,
-        "native_update_wall_seconds": 0.0,
-        "render_cycle_wall_seconds": 0.0,
-        "maximum_physics_step_ms": 0.0,
-        "maximum_native_update_ms": 0.0,
-        "maximum_render_cycle_ms": 0.0,
+        'physicsHz': config.physics_hz,
+        'nativeRenderingHz': config.rendering_hz,
+        'renderCycles': 0,
+        'physicsSteps': 0,
+        'refreshStatesWallSeconds': 0.0,
+        'vehicleUpdateWallSeconds': 0.0,
+        'stateUpdateWallSeconds': 0.0,
+        'dynamicsUpdateWallSeconds': 0.0,
+        'sensorUpdateWallSeconds': 0.0,
+        'backendStateWallSeconds': 0.0,
+        'flushForcesWallSeconds': 0.0,
+        'afterStepWallSeconds': 0.0,
+        'nativeUpdateWallSeconds': 0.0,
+        'renderCycleWallSeconds': 0.0,
+        'maximumPhysicsStepMs': 0.0,
+        'maximumNativeUpdateMs': 0.0,
+        'maximumRenderCycleMs': 0.0,
     }
 
 
@@ -67,70 +67,70 @@ class RuntimeState:
         self._condition = threading.Condition()
         started_at = _timestamp()
         self._state: dict[str, Any] = {
-            "session_id": config.session_id,
+            'sessionId': config.session_id,
             "lifecycle": "starting",
-            "simulation_time_s": 0.0,
-            "physics_step": 0,
+            'simulationTimeS': 0.0,
+            'physicsStep': 0,
             "timing": initial_runtime_timing(config),
             "world": world.as_dict(),
             "tiles": {
                 "lifecycle": "connecting",
                 "source": "google_photorealistic_3d_tiles",
-                "ion_asset_id": config.cesium_ion_asset_id,
-                "resident_tiles": 0,
-                "visible_tiles": 0,
-                "loading_tiles": 0,
-                "geometries_loaded": 0,
-                "geometries_rendered": 0,
-                "materials_loaded": 0,
-                "provider_generation": 0,
-                "event_sequence": 0,
-                "refresh_count": 0,
+                'ionAssetId': config.cesium_ion_asset_id,
+                'residentTiles': 0,
+                'visibleTiles': 0,
+                'loadingTiles': 0,
+                'geometriesLoaded': 0,
+                'geometriesRendered': 0,
+                'materialsLoaded': 0,
+                'providerGeneration': 0,
+                'eventSequence': 0,
+                'refreshCount': 0,
             },
             "cameras": [
                 {
-                    "vehicle_id": config.camera.vehicle_id,
-                    "entity_path": (
+                    'vehicleId': config.camera.vehicle_id,
+                    'entityPath': (
                         f"/world/uav-sim/{config.session_id}/vehicle/"
                         f"{config.camera.vehicle_id}/camera/down"
                     ),
                     "lifecycle": "warming",
                     "width": config.camera.width,
                     "height": config.camera.height,
-                    "frame_rate_hz": config.camera.fps,
+                    'frameRateHz': config.camera.fps,
                     "codec": "h264",
                     "encoder": "nvidia_nvenc",
                     "transport": "rtsp_rtp",
-                    "frames_observed": 0,
-                    "last_access_unit_bytes": 0,
-                    "last_frame_keyframe": False,
+                    'framesObserved': 0,
+                    'lastAccessUnitBytes': 0,
+                    'lastFrameKeyframe': False,
                 }
             ],
-            "live_cameras": [
+            'liveCameras': [
                 live_camera_descriptor(config.session_id, camera)
                 for camera in config.operator_live_view.cameras
             ],
-            "stream_products": [
+            'streamProducts': [
                 initial_operator_atlas_state(config.operator_live_view)
             ],
             "vehicles": [],
             "recordings": [
                 {
-                    "application_id": "veoveo-uav-sim",
-                    "recording_key": str(recording_key),
+                    'applicationId': "veoveo-uav-sim",
+                    'recordingKey': str(recording_key),
                     "active": True,
-                    "publisher_lifecycle": "connecting",
-                    "queue_capacity": config.recording.queue_capacity,
-                    "queued_events": 0,
-                    "dropped_events": 0,
-                    "camera_streams": [
+                    'publisherLifecycle': "connecting",
+                    'queueCapacity': config.recording.queue_capacity,
+                    'queuedEvents': 0,
+                    'droppedEvents': 0,
+                    'cameraStreams': [
                         f"/world/uav-sim/{config.session_id}/vehicle/"
                         f"{config.camera.vehicle_id}/camera/down"
                     ],
-                    "started_at": started_at,
+                    'startedAt': started_at,
                 }
             ],
-            "updated_at": started_at,
+            'updatedAt': started_at,
         }
 
     def snapshot(self) -> dict[str, Any]:
@@ -165,14 +165,14 @@ class RuntimeState:
                 refresh_count=snapshot.refresh_count,
             )
             if snapshot.last_failure is not None:
-                tiles["last_failure"] = {
+                tiles['lastFailure'] = {
                     "code": snapshot.last_failure.code,
-                    "load_type": snapshot.last_failure.load_type,
-                    "http_status": snapshot.last_failure.http_status,
+                    'loadType': snapshot.last_failure.load_type,
+                    'httpStatus': snapshot.last_failure.http_status,
                     "generation": snapshot.last_failure.generation,
                 }
             else:
-                tiles.pop("last_failure", None)
+                tiles.pop('lastFailure', None)
             if snapshot.diagnostic:
                 tiles["diagnostic"] = snapshot.diagnostic
             else:
@@ -181,8 +181,8 @@ class RuntimeState:
 
     def advance(self, simulation_time_s: float, physics_step: int) -> None:
         with self._condition:
-            self._state["simulation_time_s"] = simulation_time_s
-            self._state["physics_step"] = physics_step
+            self._state['simulationTimeS'] = simulation_time_s
+            self._state['physicsStep'] = physics_step
             self._touch()
 
     def observe_render_cycle(
@@ -197,39 +197,39 @@ class RuntimeState:
             raise ValueError("render-cycle timing cannot be shorter than native update")
         with self._condition:
             timing = self._state["timing"]
-            timing["render_cycles"] += 1
-            timing["physics_steps"] = physics_timing.physics_steps
-            timing["refresh_states_wall_seconds"] = (
+            timing['renderCycles'] += 1
+            timing['physicsSteps'] = physics_timing.physics_steps
+            timing['refreshStatesWallSeconds'] = (
                 physics_timing.refresh_states_wall_seconds
             )
-            timing["vehicle_update_wall_seconds"] = (
+            timing['vehicleUpdateWallSeconds'] = (
                 physics_timing.vehicle_update_wall_seconds
             )
-            timing["state_update_wall_seconds"] = (
+            timing['stateUpdateWallSeconds'] = (
                 physics_timing.state_update_wall_seconds
             )
-            timing["dynamics_update_wall_seconds"] = (
+            timing['dynamicsUpdateWallSeconds'] = (
                 physics_timing.dynamics_update_wall_seconds
             )
-            timing["sensor_update_wall_seconds"] = (
+            timing['sensorUpdateWallSeconds'] = (
                 physics_timing.sensor_update_wall_seconds
             )
-            timing["backend_state_wall_seconds"] = (
+            timing['backendStateWallSeconds'] = (
                 physics_timing.backend_state_wall_seconds
             )
-            timing["flush_forces_wall_seconds"] = (
+            timing['flushForcesWallSeconds'] = (
                 physics_timing.flush_forces_wall_seconds
             )
-            timing["after_step_wall_seconds"] = physics_timing.after_step_wall_seconds
-            timing["native_update_wall_seconds"] += native_update_wall_seconds
-            timing["render_cycle_wall_seconds"] += render_cycle_wall_seconds
-            timing["maximum_physics_step_ms"] = physics_timing.maximum_physics_step_ms
-            timing["maximum_native_update_ms"] = max(
-                timing["maximum_native_update_ms"],
+            timing['afterStepWallSeconds'] = physics_timing.after_step_wall_seconds
+            timing['nativeUpdateWallSeconds'] += native_update_wall_seconds
+            timing['renderCycleWallSeconds'] += render_cycle_wall_seconds
+            timing['maximumPhysicsStepMs'] = physics_timing.maximum_physics_step_ms
+            timing['maximumNativeUpdateMs'] = max(
+                timing['maximumNativeUpdateMs'],
                 native_update_wall_seconds * 1_000.0,
             )
-            timing["maximum_render_cycle_ms"] = max(
-                timing["maximum_render_cycle_ms"],
+            timing['maximumRenderCycleMs'] = max(
+                timing['maximumRenderCycleMs'],
                 render_cycle_wall_seconds * 1_000.0,
             )
             self._touch()
@@ -249,7 +249,7 @@ class RuntimeState:
             raise ValueError("camera access-unit size must be non-negative")
         with self._condition:
             for camera in self._state["cameras"]:
-                if camera["vehicle_id"] == vehicle_id:
+                if camera['vehicleId'] == vehicle_id:
                     camera.update(
                         lifecycle=lifecycle,
                         frames_observed=max(0, frames_observed),
@@ -261,7 +261,7 @@ class RuntimeState:
                     else:
                         camera.pop("diagnostic", None)
                     if render_pose is not None:
-                        camera["render_pose"] = render_pose.as_dict()
+                        camera['renderPose'] = render_pose.as_dict()
                     self._touch()
                     return
             raise ValueError(f"unknown camera vehicle {vehicle_id!r}")
@@ -276,8 +276,8 @@ class RuntimeState:
                 if camera_id is not None:
                     by_camera.setdefault(str(camera_id), []).append(product)
         with self._condition:
-            self._state["stream_products"] = copy.deepcopy(products)
-            for camera in self._state["live_cameras"]:
+            self._state['streamProducts'] = copy.deepcopy(products)
+            for camera in self._state['liveCameras']:
                 assigned_products = by_camera.get(str(camera["cameraId"]), [])
                 if not assigned_products:
                     camera["health"] = "healthy"
@@ -332,9 +332,9 @@ class RuntimeState:
                 queued_events=max(0, queued_events),
                 dropped_events=max(0, dropped_events),
             )
-            if recording_key is not None and recording_key != recording["recording_key"]:
-                recording["recording_key"] = recording_key
-                recording["started_at"] = _timestamp()
+            if recording_key is not None and recording_key != recording['recordingKey']:
+                recording['recordingKey'] = recording_key
+                recording['startedAt'] = _timestamp()
             if diagnostic:
                 recording["diagnostic"] = diagnostic
             else:
@@ -345,10 +345,10 @@ class RuntimeState:
         self, duration_seconds: float, timeout_seconds: float
     ) -> float:
         with self._condition:
-            start = float(self._state["simulation_time_s"])
+            start = float(self._state['simulationTimeS'])
             target = start + duration_seconds
             if not self._condition.wait_for(
-                lambda: float(self._state["simulation_time_s"]) >= target
+                lambda: float(self._state['simulationTimeS']) >= target
                 or self._state["lifecycle"] in {"failed", "stopped"},
                 timeout_seconds,
             ):
@@ -357,14 +357,14 @@ class RuntimeState:
                 )
             if self._state["lifecycle"] in {"failed", "stopped"}:
                 raise RuntimeError(f"simulation entered {self._state['lifecycle']}")
-            return float(self._state["simulation_time_s"])
+            return float(self._state['simulationTimeS'])
 
     def mutate_vehicle(
         self, vehicle_id: str, callback: Callable[[dict[str, Any]], None]
     ) -> None:
         with self._condition:
             for vehicle in self._state["vehicles"]:
-                if vehicle["vehicle_id"] == vehicle_id:
+                if vehicle['vehicleId'] == vehicle_id:
                     callback(vehicle)
                     self._touch()
                     return
@@ -372,7 +372,7 @@ class RuntimeState:
 
     def recording_keys(self) -> list[str]:
         with self._condition:
-            return [item["recording_key"] for item in self._state["recordings"]]
+            return [item['recordingKey'] for item in self._state["recordings"]]
 
     def _vehicle_state(self, telemetry: VehicleTelemetry) -> dict[str, Any]:
         east, north, up = telemetry.position_enu
@@ -387,26 +387,26 @@ class RuntimeState:
         x, y, z, w = telemetry.attitude_xyzw
         velocity_east, velocity_north, velocity_up = telemetry.linear_velocity_enu_mps
         return {
-            "vehicle_id": telemetry.vehicle_id,
-            "flight_state": telemetry.flight_state,
+            'vehicleId': telemetry.vehicle_id,
+            'flightState': telemetry.flight_state,
             "wgs84": {
-                "latitude_degrees": latitude,
-                "longitude_degrees": longitude,
-                "ellipsoid_height_m": height,
+                "latitudeDegrees": latitude,
+                "longitudeDegrees": longitude,
+                "ellipsoidHeightM": height,
             },
-            "enu": {"east_m": east, "north_m": north, "up_m": up},
-            "ned": {"north_m": north, "east_m": east, "down_m": -up},
-            "attitude_xyzw": {"x": x, "y": y, "z": z, "w": w},
-            "linear_velocity_enu_mps": {
-                "east_m": velocity_east,
-                "north_m": velocity_north,
-                "up_m": velocity_up,
+            "enu": {'eastM': east, 'northM': north, 'upM': up},
+            "ned": {'northM': north, 'eastM': east, 'downM': -up},
+            'attitudeXyzw': {"x": x, "y": y, "z": z, "w": w},
+            'linearVelocityEnuMps': {
+                'eastM': velocity_east,
+                'northM': velocity_north,
+                'upM': velocity_up,
             },
-            "battery_percent": max(0.0, min(100.0, telemetry.battery_percent)),
-            "collision_count": max(0, telemetry.collision_count),
-            "px4_connected": telemetry.px4_connected,
+            'batteryPercent': max(0.0, min(100.0, telemetry.battery_percent)),
+            'collisionCount': max(0, telemetry.collision_count),
+            'px4Connected': telemetry.px4_connected,
         }
 
     def _touch(self) -> None:
-        self._state["updated_at"] = _timestamp()
+        self._state['updatedAt'] = _timestamp()
         self._condition.notify_all()

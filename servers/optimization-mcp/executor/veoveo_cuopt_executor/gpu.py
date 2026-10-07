@@ -1,6 +1,6 @@
 import os
 import subprocess
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 from . import SUPPORTED_CUOPT_VERSION
 
@@ -19,7 +19,13 @@ class GpuHealth:
     compute_capability: str
 
     def to_dict(self) -> dict[str, object]:
-        return asdict(self)
+        # Native health state is projected once into the current private wire DTO.
+        from .protocol import ExecutorHealth
+        return ExecutorHealth(
+            ready=self.ready, cuoptVersion=self.cuopt_version,
+            cudaRuntimeVersion=self.cuda_runtime_version, gpuName=self.gpu_name,
+            gpuUuid=self.gpu_uuid, computeCapability=self.compute_capability,
+        ).model_dump()
 
 
 def initialize_gpu() -> GpuHealth:

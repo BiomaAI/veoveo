@@ -42,6 +42,18 @@ infers a missing initiator or delegation identity. The model's
 [attribution wire profile](../contract/DESIGN.md#attribution-wire-profile) specifies
 the supported mode and identity combinations.
 
+## Installation Prerequisites
+
+The entrypoint admits the installation plan against configured composition,
+generation, credential revision and the authenticated database runtime username.
+The module runner checks the compiled Artifacts, Audit and Tasks dependency closure,
+including current migration identities, and requires completed preparation for the
+full plan and account before object-store construction, repository startup, upload
+recovery or HTTP binding. A filesystem root is created only after this admission.
+Composition-owned execution descriptors participate in plan identity; this check
+does not establish that their images or commands have been qualified. The plane
+performs read-only prerequisite inspection and does not install or migrate lanes.
+
 ## Artifact Metadata And Discovery
 
 `ArtifactReadAuthority` carries the verified tenant and principal, group memberships,
@@ -335,10 +347,10 @@ values delegates the read; the task ID is a binding, not a second authenticator.
 | Operation | Internal route | Credential |
 |---|---|---|
 | Issue | `POST /artifact-read-capabilities` | Gateway assertion |
-| Current scope | `GET /artifact-read-capabilities/{capability}?task_id=…` | Task read secret |
+| Current scope | `GET /artifact-read-capabilities/{capability}?taskId=…` | Task read secret |
 | Revoke | `DELETE /artifact-read-capabilities/{capability}` | Issuing tenant and actor's gateway assertion |
-| Metadata | `GET /artifact-read-capabilities/{capability}/artifacts/{artifact}/meta?task_id=…` | Task read secret |
-| Bytes | `GET` or `HEAD /artifact-read-capabilities/{capability}/artifacts/{artifact}/download?task_id=…` | Task read secret |
+| Metadata | `GET /artifact-read-capabilities/{capability}/artifacts/{artifact}/meta?taskId=…` | Task read secret |
+| Bytes | `GET` or `HEAD /artifact-read-capabilities/{capability}/artifacts/{artifact}/download?taskId=…` | Task read secret |
 
 Issuance sets an explicit deadline within 24 hours, a distinct-occurrence count of at
 most 10,000, and a positive byte limit within signed 64-bit storage. The ledger
@@ -419,7 +431,15 @@ The coordinated installation drains retained Task capability snapshots and recre
 capability/redemption rows before activating this writer profile. This cut requires
 the RFC variant for writes, matching the existing Artifact Task owner admission.
 Current-format restart and idempotent redemption keep their fences and byte/count
-budgets. Request hashes, secret hashes and blob hashes preserve their preimages.
+budgets. Request hashes use `veoveo.ai/artifact-write-request/v2`, followed by NUL,
+the bare blob digest, NUL and compact Serde bytes of the camelCase
+`PutArtifactRequest`. Reservation, rebind, redemption and retained receipts compare
+that same hash. The coordinated drain replaces retained v1 request receipts;
+each receipt requires the typed v2 request-format marker before replay or rebind.
+Missing or unsupported markers refuse without changing retained fences. A valid v2
+reserved receipt may bind changed content through the existing atomic quota rebind;
+a staged or finalized occurrence keeps its existing mismatch protection.
+Secret hashes and blob hashes preserve their existing preimages.
 
 Mutable access progress validates state, actor and times at construction, decoding,
 hydration and after completed mutations. Pending create/reopen has equal creation
@@ -427,3 +447,7 @@ and update times without decision fields. Approved and Denied decisions record a
 actor and equal decision/update times at or after creation. Empty optional decision
 notes remain admitted. Cancellation records the requester as actor and no note.
 The service still establishes who may decide, cancel or reopen a request.
+
+## Owning Command Utilities
+
+The nondefault `smoke` feature builds `artifact-smoke` for the existing Artifact service command controls. The service's pure wire contract stays below the authenticated adapter. Installation fixtures that compose domain processes compile in the existing Bioma delivery.

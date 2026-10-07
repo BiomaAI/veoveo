@@ -103,6 +103,15 @@ pub(super) async fn read(
                     let artifact =
                         inline_artifact(state, &caller, &output.results_artifact.artifact_id())
                             .await?;
+                    let request: veoveo_stream_mcp::task_request::DurableStreamRequest =
+                        serde_json::from_value(snapshot.request.clone())
+                            .map_err(|_| replay_error())?;
+                    decode_replay(
+                        &run,
+                        request.input.video(),
+                        &artifact.metadata,
+                        &artifact.bytes,
+                    )?;
                     let text = String::from_utf8(artifact.bytes).map_err(|_| {
                         McpError::internal_error("results artifact is not UTF-8", None)
                     })?;
@@ -125,6 +134,26 @@ pub(super) async fn read(
             }
         }
     }
+}
+
+fn replay_error() -> McpError {
+    McpError::internal_error(
+        "stored Stream replay does not match its selected run and Artifact",
+        None,
+    )
+}
+
+fn decode_replay(
+    run: &veoveo_stream_mcp::contract::RunView,
+    selected: &veoveo_stream_mcp::contract::RecordingVideoSelection,
+    artifact: &veoveo_artifact_contract::ArtifactMetadata,
+    bytes: &[u8],
+) -> Result<veoveo_stream_mcp::contract::AnalysisResults, McpError> {
+    let results: veoveo_stream_mcp::contract::AnalysisResults =
+        serde_json::from_slice(bytes).map_err(|_| replay_error())?;
+    run.check_replay(selected, artifact, &results)
+        .map_err(|_| replay_error())?;
+    Ok(results)
 }
 
 fn session_missing() -> McpError {
@@ -174,3 +203,7 @@ pub(super) fn accepted_subscription_filter(
         Some(accepted)
     }
 }
+
+#[cfg(test)]
+#[path = "replay_resource_tests.rs"]
+mod replay_resource_tests;

@@ -14,14 +14,14 @@ use crate::contract::{
 const MAX_LAUNCH_BYTES: usize = 64 * 1024;
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CatalogDocument {
     models: Vec<ModelConfig>,
     pipelines: Vec<PipelineConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModelConfig {
     pub id: ModelId,
     pub title: String,
@@ -31,7 +31,7 @@ pub struct ModelConfig {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PipelineConfig {
     pub id: PipelineId,
     pub title: String,
@@ -57,7 +57,12 @@ pub enum PipelineProfileConfig {
 impl<'de> Deserialize<'de> for PipelineProfileConfig {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+        #[serde(
+            tag = "kind",
+            rename_all = "snake_case",
+            rename_all_fields = "camelCase",
+            deny_unknown_fields
+        )]
         enum Wire {
             PassThrough {},
             Perception {
@@ -132,7 +137,7 @@ pub struct PerceptionProfile<'a> {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GStreamerGraphConfig {
     pub launch: String,
     #[serde(default)]
@@ -150,7 +155,7 @@ pub struct GStreamerGraphConfig {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LivePipelineConfig {
     pub input_width: u16,
     pub input_height: u16,
@@ -176,7 +181,7 @@ impl LivePipelineConfig {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RecordingOutputConfig {
     pub proxy_url: String,
     pub application_id: String,
@@ -196,7 +201,7 @@ const fn default_recording_queue_capacity() -> usize {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RtpH264UdpIngress {
     pub advertised_host: String,
     pub port: u16,
@@ -231,7 +236,7 @@ const fn default_clock_rate() -> u32 {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TrackerConfig {
     pub config_path: PathBuf,
     pub width: u32,
@@ -524,16 +529,13 @@ fn validate_graph(
         "GStreamer launch text must not contain NUL"
     );
     for (name, value) in [
-        ("source_element", graph.source_element.as_deref()),
+        ("sourceElement", graph.source_element.as_deref()),
+        ("streamMuxerElement", graph.stream_muxer_element.as_deref()),
+        ("inferenceElement", graph.inference_element.as_deref()),
+        ("trackerElement", graph.tracker_element.as_deref()),
+        ("resultsElement", graph.results_element.as_deref()),
         (
-            "stream_muxer_element",
-            graph.stream_muxer_element.as_deref(),
-        ),
-        ("inference_element", graph.inference_element.as_deref()),
-        ("tracker_element", graph.tracker_element.as_deref()),
-        ("results_element", graph.results_element.as_deref()),
-        (
-            "encoded_output_element",
+            "encodedOutputElement",
             graph.encoded_output_element.as_deref(),
         ),
     ] {
@@ -792,7 +794,12 @@ mod tests {
             }],
         )
         .unwrap_err();
-        assert!(error.to_string().contains("queue_capacity"));
+        assert!(
+            error
+                .to_string()
+                .contains("recording queue_capacity must be within 1..=65536"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -802,10 +809,10 @@ mod tests {
             PipelineProfileConfig::PassThrough
         ));
         let error = serde_json::from_str::<PipelineProfileConfig>(
-            r#"{"kind":"pass_through","model_id":"ignored"}"#,
+            r#"{"kind":"pass_through","modelId":"ignored"}"#,
         )
         .unwrap_err();
-        assert!(error.to_string().contains("model_id"));
+        assert!(error.to_string().contains("modelId"));
     }
 
     #[test]

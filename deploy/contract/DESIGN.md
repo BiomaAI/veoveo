@@ -5,16 +5,16 @@
 | Standard or protocol | Supported profile |
 |---|---|
 | `veoveo.ai/module-selection/v1` and `veoveo.ai/module-plan/v1` | Checked camelCase JSON; optional selection, decimal-string generation, nonsecret credential revision and composition-generated lane/runtime bindings |
-| `veoveo.ai/deployment/v8` | installation-repository profile with exact platform targets, local fork checkouts and workload ownership, split Helm values ownership, explicit host-push and cluster-pull registry endpoints, and a managed GPU allocator closure |
-| `veoveo.ai/deployment-lock/v8` | immutable installation revision, registry endpoints and transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
+| `veoveo.ai/deployment/v9` | installation-repository profile with exact platform targets, local fork checkouts and workload ownership, split Helm values ownership, explicit host-push and cluster-pull registry endpoints, and a managed GPU allocator closure |
+| `veoveo.ai/deployment-lock/v9` | immutable installation revision, registry endpoints and transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
 | `veoveo.ai/local-registry/v1` | repository-owned loopback registry declaration |
-| `veoveo.ai/image-release-evidence/v3` | one publication snapshot, typed registry endpoints, per-image build revision, runnable manifest digest, and attested publication index digest shared by component publication |
+| `veoveo.ai/image-release-evidence/v4` | one publication snapshot, typed registry endpoints, per-image build revision, runnable manifest digest, and attested publication index digest shared by component publication |
 | `veoveo.ai/gateway-activation/v1` | SHA-256 over a domain prefix and the sorted, length-prefixed UTF-8 ConfigMap data keys and values; covers the complete public gateway bundle |
-| `veoveo.ai/component-mutation-plan/v2` | internal preflight evidence for exact atomic targets and installation snapshots; it records allowed actions and does not attest to executed writes |
-| `veoveo.ai/component-installation/v2` | successful disposable installation receipt: mutation plan, applied or reused units, unselected object and Helm observations, and exact released cluster-coordination identity |
-| `veoveo.ai/installed-deployment-unit/v1` | typed local provenance and observed object fingerprints for verified installation reuse; contains no object bodies or Secret values |
-| `veoveo.ai/atomic-deployment-unit/v3` | repository-owned SHA-256 identity over typed source, installation snapshot, target, input closure, and sorted rendered object digests |
-| `veoveo.ai/atomic-deployment-content/v3` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions excluded; used only after exact lock validation |
+| `veoveo.ai/component-mutation-plan/v3` | internal preflight evidence for exact atomic targets and installation snapshots; it records allowed actions and does not attest to executed writes |
+| `veoveo.ai/component-installation/v3` | successful disposable installation receipt: mutation plan, applied or reused units, unselected object and Helm observations, and exact released cluster-coordination identity |
+| `veoveo.ai/installed-deployment-unit/v2` | typed local provenance and observed object fingerprints for verified installation reuse; contains no object bodies or Secret values |
+| `veoveo.ai/atomic-deployment-unit/v4` | repository-owned SHA-256 identity over typed source, installation snapshot, target, input closure, and sorted rendered object digests |
+| `veoveo.ai/atomic-deployment-content/v4` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions excluded; used only after exact lock validation |
 | `veoveo.ai/source-chart-content/v1` | SHA-256 over sorted chart-relative file paths, Git executable modes, and exact file bytes in a verified source checkout; commit metadata and archive export attributes do not enter this identity |
 | `veoveo.ai/installation-target/v1` | installation-owned input for installed smoke scenarios: cluster context, namespace, local and public origins, expected deployments, GPU minimum, operator and optional administrator identities and scopes, and the control-plane document path |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload groups |
@@ -30,6 +30,15 @@ committed recovery and `changefeed_wake` as LIVE's role. The supported database 
 SurrealDB 3.3.0 on single-node RocksDB. Consumers reconcile after disconnect and use
 known deadlines for delayed work.
 
+Controlled JSON members use camelCase, including tagged variant fields. Ordinary
+owned enum values use snake_case. Registry transport `insecure_http` is a public
+contract value; native client flags keep their upstream spellings. The Helm
+Computers capacity value is emitted through the explicit `helm_value` adapter.
+Current profiles, locks, receipts and evidence form one coordinated fresh-state
+cut. Receivers refuse retired tags and spellings without conversion. Existing
+OCI references, provider identifiers and gateway activation framing keep their
+own admitted profiles.
+
 ## Module Installation Inputs
 
 `moduleInstallation.selection` names a checked module-selection v1 JSON file. Its
@@ -38,6 +47,12 @@ optional-module names, positive decimal-string generation and nonsecret
 lane named by each active composition binding. Both keys in a binding must match;
 separate bindings express alternative consumers. Dependencies include schema lanes
 without enabling their runtime workloads.
+
+Runtime binding component keys use the owner's exact Helm selector identities,
+such as `agent-runtime-support` and `recording-data-plane`. Deployment profile
+component enums use their separate snake_case JSON vocabulary. Hosted MCP binding
+keys use the server selection vocabulary. The deployment receiver resolves each
+key through its owner and rejects unsupported spellings before checking selection.
 
 `developmentPlan` may name a genuine gateway-generated plan for source validation of
 an uninstalled profile. It is currently a tracked-input and existence prerequisite.
@@ -68,7 +83,7 @@ disposable profile installer. It consumes this crate's contracts and digest enco
 ## Atomic Ownership Planner
 
 `src/components/` implements the pure preflight boundary for `DEPLOY-SCOPE-023`.
-The disposable profile compiler and installer consume deployment v8 with mandatory
+The disposable profile compiler and installer consume deployment v9 with mandatory
 component ownership and compiled inventories. Installation requires explicit full or
 component selection and expands declared dependencies before source resolution. The
 runtime uses typed local receipts to verify reuse and feeds checked installed observations
@@ -104,7 +119,7 @@ files must belong to that snapshot. The runtime verifies the document and refere
 files against Git before rendering. A retained component can therefore use an older
 configuration even when the current profile has replaced a values file. Configuration
 revisions participate in exact provenance; unchanged configuration contents do not force
-a mutation. Deployment v8 requires this field and v3 unit digests. Earlier generated locks require
+a mutation. Deployment v9 requires this field and v4 unit digests. Earlier generated locks require
 regeneration; no omitted-field default is supported.
 
 The runtime resolves source charts by the component's complete source identity. The
@@ -388,7 +403,7 @@ topology, requires Computers control and contributes the `computer-host` and
 host/trust references and retained storage placement remain installation-owned values;
 the chart rejects incomplete references. Unconfigured control requires only its own
 service image. The additive selection field retains an explicit unconfigured default
-for v8 profiles and locks, without changing their installed capacity.
+for v9 profiles and locks, without changing their installed capacity.
 
 Operational tools derive the platform source targets from the exact typed selection and
 resolve them in one Bake invocation. Platform profiles do not repeat that set through a
@@ -501,8 +516,8 @@ fixture inputs.
 
 ## Version Transition
 
-Deployment v8 profiles describe local sources only, and workload charts use the
-ordinary Helm values contract. Unit and content digests use v3 encodings.
+Deployment v9 profiles describe local sources only, and workload charts use the
+ordinary Helm values contract. Unit and content digests use v4 encodings.
 The coordinated installation upgrade regenerates profiles and locks; v7 profile
 headers fail with a regeneration diagnostic before obsolete fields are decoded.
 Retained image/chart digests and the prior configuration commit provide deployment
@@ -511,3 +526,9 @@ recovery. This metadata cut does not convert application database contents.
 ## Identity Declaration Mechanics
 
 Artifact names, release versions, digests and source revisions use `Id` with the deployment owner’s existing validators and schema regex declarations. Artifact coordinates remain checked address values rather than implementing `Identity`. Serde applies owner admission through String conversion.
+
+`PlatformComponent::helm_value` exhaustively maps typed public components to the
+chart's installation selector identities. Deployment JSON uses snake_case values;
+Helm components keep their declared kebab-case identities. Computer capacity uses
+its own explicit chart adapter. Server selectors have single-word values in both
+profiles, while GPU placement compiles provider-native DRA fields explicitly.

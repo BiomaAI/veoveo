@@ -1,0 +1,150 @@
+{
+  "server": "glossary",
+  "compliance": [
+    {
+      "id": "C01",
+      "status": "met"
+    },
+    {
+      "id": "C02",
+      "status": "met",
+      "note": "`define` declares input and output schemas and creates no product"
+    },
+    {
+      "id": "C03",
+      "status": "met",
+      "note": "the template declares no durable operation"
+    },
+    {
+      "id": "C04",
+      "status": "met"
+    },
+    {
+      "id": "C05",
+      "status": "met"
+    },
+    {
+      "id": "C06",
+      "status": "met"
+    },
+    {
+      "id": "C07",
+      "status": "met"
+    },
+    {
+      "id": "C08",
+      "status": "met"
+    },
+    {
+      "id": "C09",
+      "status": "met"
+    },
+    {
+      "id": "C10",
+      "status": "met"
+    },
+    {
+      "id": "C11",
+      "status": "met",
+      "note": "the template performs no Artifact or recording operation"
+    },
+    {
+      "id": "C12",
+      "status": "met"
+    },
+    {
+      "id": "C13",
+      "status": "met"
+    },
+    {
+      "id": "C14",
+      "status": "met"
+    },
+    {
+      "id": "C15",
+      "status": "pending",
+      "note": "a server copied from the template adds its image and Helm chart"
+    },
+    {
+      "id": "C16",
+      "status": "pending",
+      "note": "a server copied from the template registers its gateway entry"
+    },
+    {
+      "id": "C17",
+      "status": "met"
+    },
+    {
+      "id": "C18",
+      "status": "met"
+    },
+    {
+      "id": "C19",
+      "status": "met"
+    },
+    {
+      "id": "C20",
+      "status": "met"
+    },
+    {
+      "id": "C21",
+      "status": "met"
+    },
+    {
+      "id": "C22",
+      "status": "met"
+    },
+    {
+      "id": "C23",
+      "status": "met"
+    },
+    {
+      "id": "C24",
+      "status": "met"
+    },
+    {
+      "id": "C25",
+      "status": "met"
+    },
+    {
+      "id": "C26",
+      "status": "met"
+    },
+    {
+      "id": "C27",
+      "status": "met",
+      "note": "the default `NoTasks` support admits no subscriptions"
+    },
+    {
+      "id": "C28",
+      "status": "met",
+      "note": "list-change capabilities are absent"
+    },
+    {
+      "id": "C29",
+      "status": "met",
+      "note": "the server keeps no state between requests"
+    },
+    {
+      "id": "C30",
+      "status": "met",
+      "note": "the server makes no upstream requests"
+    },
+    {
+      "id": "C31",
+      "status": "met"
+    },
+    {
+      "id": "C32",
+      "status": "pending",
+      "note": "Shared checked setup declares the docs knowledge collection; installed K01–K10 qualification remains pending."
+    },
+    {
+      "id": "C33",
+      "status": "pending",
+      "note": "Owner naming producers, consumers and installed qualification are pending."
+    }
+  ],
+  "contractRevision": 4,
+  "catalogRevision": 2
+}

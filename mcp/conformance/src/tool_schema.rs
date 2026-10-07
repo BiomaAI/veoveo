@@ -22,6 +22,7 @@ pub struct SchemaStats {
 
 #[derive(Default)]
 struct SchemaInspection {
+    legacy: bool,
     maximum_depth: usize,
     nodes: usize,
     references: usize,
@@ -31,25 +32,7 @@ struct SchemaInspection {
 /// Validate one MCP tool input through the bounded JSON Schema 2020-12 profile.
 pub fn validate_tool_input_schema(tool: &Tool) -> Result<SchemaStats> {
     let schema = Value::Object(tool.input_schema.as_ref().clone());
-    let serialized_bytes = serde_json::to_vec(&schema)?.len();
-    ensure!(
-        serialized_bytes <= MAX_SCHEMA_BYTES,
-        "tool `{}` input schema is {} bytes; maximum is {}",
-        tool.name,
-        serialized_bytes,
-        MAX_SCHEMA_BYTES
-    );
-
-    let mut inspection = SchemaInspection::default();
-    inspect_schema(&schema, 0, &mut inspection).map_err(|error| {
-        anyhow!(
-            "tool `{}` input schema exceeds the bounded profile: {error}",
-            tool.name
-        )
-    })?;
-    inspect_keywords(&schema, &mut inspection, true)?;
-    jsonschema::meta::validate(&schema)
-        .map_err(|error| anyhow!("tool `{}` input schema is invalid: {error}", tool.name))?;
+    let stats = validate_schema_document(&schema)?;
     ensure!(
         schema_accepts_object(schema.get("type")),
         "tool `{}` input schema root must declare object type: {schema}",
@@ -65,6 +48,44 @@ pub fn validate_tool_input_schema(tool: &Tool) -> Result<SchemaStats> {
         },
     )?;
 
+    Ok(stats)
+}
+
+/// Common structural profile for input, output and owner-generated schemas.
+/// Input object closure remains a separate C07 obligation.
+pub fn validate_schema_document(schema: &Value) -> Result<SchemaStats> {
+    let serialized_bytes = serde_json::to_vec(schema)?.len();
+    ensure!(
+        serialized_bytes <= MAX_SCHEMA_BYTES,
+        "schema exceeds {MAX_SCHEMA_BYTES} bytes"
+    );
+    if let Some(uri) = schema.get("$schema") {
+        let uri = uri
+            .as_str()
+            .ok_or_else(|| anyhow!("schema dialect must be text"))?;
+        ensure!(
+            matches!(
+                jsonschema::Draft::from_schema_uri(uri),
+                jsonschema::Draft::Draft7 | jsonschema::Draft::Draft202012
+            ),
+            "only JSON Schema 2020-12 and the guarded Draft7 profile are supported"
+        );
+    }
+    let mut inspection = SchemaInspection {
+        legacy: schema
+            .get("$schema")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| {
+                matches!(
+                    jsonschema::Draft::from_schema_uri(uri),
+                    jsonschema::Draft::Draft7
+                )
+            }),
+        ..SchemaInspection::default()
+    };
+    inspect_schema(schema, 0, &mut inspection)?;
+    inspect_keywords(schema, &mut inspection, true)?;
+    jsonschema::meta::validate(schema).map_err(|error| anyhow!("invalid JSON Schema: {error}"))?;
     Ok(SchemaStats {
         serialized_bytes,
         maximum_depth: inspection.maximum_depth,
@@ -102,7 +123,7 @@ fn inspect_schema(value: &Value, depth: usize, inspection: &mut SchemaInspection
 
 // Schema-bearing keywords only. Annotation and instance values (including
 // examples, defaults and enum members) are ordinary JSON, never schemas.
-fn schema_children(schema: &Value, definitions: bool) -> Vec<(String, &Value)> {
+pub(crate) fn schema_children(schema: &Value, definitions: bool) -> Vec<(String, &Value)> {
     let mut children = Vec::new();
     for keyword in [
         "properties",
@@ -121,6 +142,22 @@ fn schema_children(schema: &Value, definitions: bool) -> Vec<(String, &Value)> {
             );
         }
     }
+    if let Some(dependencies) = schema.get("dependencies").and_then(Value::as_object) {
+        children.extend(
+            dependencies
+                .iter()
+                .filter(|(_, child)| !child.is_array())
+                .map(|(name, child)| (format!("dependencies/{name}"), child)),
+        );
+    }
+    if let Some(items) = schema.get("items").and_then(Value::as_array) {
+        children.extend(
+            items
+                .iter()
+                .enumerate()
+                .map(|(index, child)| (format!("items/{index}"), child)),
+        );
+    }
     for keyword in ["allOf", "anyOf", "oneOf", "prefixItems"] {
         if let Some(array) = schema.get(keyword).and_then(Value::as_array) {
             children.extend(
@@ -133,6 +170,7 @@ fn schema_children(schema: &Value, definitions: bool) -> Vec<(String, &Value)> {
     }
     for keyword in [
         "items",
+        "additionalItems",
         "additionalProperties",
         "unevaluatedProperties",
         "unevaluatedItems",
@@ -145,6 +183,9 @@ fn schema_children(schema: &Value, definitions: bool) -> Vec<(String, &Value)> {
         "contentSchema",
     ] {
         if let Some(child) = schema.get(keyword) {
+            if keyword == "items" && child.is_array() {
+                continue;
+            }
             children.push((keyword.into(), child));
         }
     }
@@ -157,11 +198,42 @@ fn inspect_keywords(
     is_root: bool,
 ) -> Result<()> {
     ensure!(
+        inspection.legacy
+            || (schema.get("dependencies").is_none()
+                && schema.get("additionalItems").is_none()
+                && !schema.get("items").is_some_and(Value::is_array)),
+        "legacy dependencies/tuple items/additionalItems require the admitted Draft7 profile"
+    );
+    ensure!(
+        !inspection.legacy
+            || [
+                "prefixItems",
+                "dependentSchemas",
+                "dependentRequired",
+                "unevaluatedProperties",
+                "unevaluatedItems"
+            ]
+            .iter()
+            .all(|keyword| schema.get(*keyword).is_none()),
+        "modern applicators require the admitted 2020-12 profile, not Draft7"
+    );
+    ensure!(
+        is_root || schema.get("$schema").is_none(),
+        "nested schema dialect rebasing is outside the supported profile"
+    );
+    ensure!(
         is_root || schema.get("$id").is_none(),
         "nested schema $id changes the local reference base and is outside the supported profile"
     );
     ensure!(
-        schema.get("$dynamicRef").is_none() && schema.get("$dynamicAnchor").is_none(),
+        [
+            "$dynamicRef",
+            "$dynamicAnchor",
+            "$recursiveRef",
+            "$recursiveAnchor"
+        ]
+        .iter()
+        .all(|key| schema.get(*key).is_none()),
         "dynamic schema references are outside the supported local $ref profile"
     );
     if let Some(reference) = schema.get("$ref") {
@@ -525,23 +597,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn actual_media_and_frames_owner_schemas_pass_the_shared_profile() {
-        for schema in [
-            serde_json::to_value(schemars::schema_for!(veoveo_media_mcp::contract::RunArgs))
-                .unwrap(),
-            serde_json::to_value(schemars::schema_for!(
-                veoveo_frames_mcp::contract::BatchTransformRequest
-            ))
-            .unwrap(),
-            serde_json::to_value(schemars::schema_for!(
-                veoveo_frames_mcp::contract::PublishWorldRequest
-            ))
-            .unwrap(),
-        ] {
-            validate_tool_input_schema(&tool(schema)).unwrap();
-        }
-    }
     #[test]
     fn bounds_repeated_reference_expansion_including_closure_proofs() {
         let mut definitions = serde_json::Map::new();

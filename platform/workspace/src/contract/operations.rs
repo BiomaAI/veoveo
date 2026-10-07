@@ -23,8 +23,7 @@ pub struct StartOperation {
     pub arguments: BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum OperationPhase {
     Dispatching,
     InputRequired,
@@ -61,8 +60,7 @@ pub struct OperationPage {
     pub next: Option<OperationId>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum TaskState {
     Working,
     InputRequired,
@@ -83,8 +81,7 @@ pub struct TaskView {
     pub poll_interval_ms: Option<u64>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum InputKind {
     Form,
     Link,
@@ -103,8 +100,7 @@ pub struct OperationInput {
     pub url: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum InputDecision {
     Accept,
     Decline,

@@ -18,6 +18,7 @@ fn task_identity(id: TaskId) -> Result<TaskId, FrameUsageError> {
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CursorWire {
     version: u8,
     collection: String,
@@ -149,6 +150,7 @@ pub struct FrameUsageEntry {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct EntryWire {
     task_id: TaskId,
     usage_uri: FrameTaskUsageUri,
@@ -204,6 +206,7 @@ pub struct FrameUsagePage {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct PageWire {
     #[schemars(length(max = 100))]
     items: Vec<FrameUsageEntry>,

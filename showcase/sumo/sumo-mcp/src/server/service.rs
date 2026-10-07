@@ -328,6 +328,29 @@ impl SumoMcp {
     }
 }
 
+pub(super) fn server_configuration(
+    documents: &veoveo_mcp_contract::docs::ServerDocs,
+) -> ServerConfig {
+    let mut info = ServerConfig::default();
+    let mut capabilities = ServerCapabilities::builder()
+        .enable_tools()
+        .enable_resources()
+        .enable_resources_subscribe()
+        .build();
+    capabilities.extensions.get_or_insert_default().insert(
+        rmcp::model::TASKS_EXTENSION_ID.to_owned(),
+        rmcp::model::JsonObject::new(),
+    );
+    documents.declare_knowledge(&mut capabilities);
+    info.capabilities = capabilities;
+    info.server_info = rmcp::model::Implementation::new("sumo", env!("CARGO_PKG_VERSION"));
+    info.instructions = Some(
+        "Read and control a live SUMO traffic simulation. Call `describe_scenario` for signal, edge, and lane IDs. Long operations run as MCP Tasks. Subscribe to sumo://congestion to hear about congestion changes."
+            .into(),
+    );
+    info
+}
+
 #[tool_handler]
 impl ServerHandler for SumoMcp {
     fn supported_protocol_versions(
@@ -337,23 +360,7 @@ impl ServerHandler for SumoMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        let mut info = ServerConfig::default();
-        let mut capabilities = ServerCapabilities::builder()
-            .enable_tools()
-            .enable_resources()
-            .enable_resources_subscribe()
-            .build();
-        capabilities.extensions.get_or_insert_default().insert(
-            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
-            rmcp::model::JsonObject::new(),
-        );
-        info.capabilities = capabilities;
-        info.server_info = rmcp::model::Implementation::new("sumo", env!("CARGO_PKG_VERSION"));
-        info.instructions = Some(
-            "Read and control a live SUMO traffic simulation. Call `describe_scenario` for signal, edge, and lane IDs. Long operations run as MCP Tasks. Subscribe to sumo://congestion to hear about congestion changes."
-                .into(),
-        );
-        info
+        server_configuration(&super::docs::DOCUMENTS)
     }
 
     async fn call_tool(
@@ -444,17 +451,21 @@ impl ServerHandler for SumoMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         Ok(ListResourcesResult {
-            resources: vec![
-                Resource::new(STATE_URI, "traffic state")
-                    .with_mime_type("application/json")
-                    .with_description("Current typed SUMO traffic state."),
-                Resource::new(SCENARIO_URI, "scenario")
-                    .with_mime_type("application/json")
-                    .with_description("Loaded network and signal inventory."),
-                Resource::new(CONGESTION_URI, "congestion")
-                    .with_mime_type("application/json")
-                    .with_description("Subscribable congestion condition."),
-            ],
+            resources: [
+                super::docs::resources(),
+                vec![
+                    Resource::new(STATE_URI, "traffic state")
+                        .with_mime_type("application/json")
+                        .with_description("Current typed SUMO traffic state."),
+                    Resource::new(SCENARIO_URI, "scenario")
+                        .with_mime_type("application/json")
+                        .with_description("Loaded network and signal inventory."),
+                    Resource::new(CONGESTION_URI, "congestion")
+                        .with_mime_type("application/json")
+                        .with_description("Subscribable congestion condition."),
+                ],
+            ]
+            .concat(),
             next_cursor: None,
             result_type: Some(rmcp::model::ResultType::COMPLETE),
             ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
@@ -463,11 +474,28 @@ impl ServerHandler for SumoMcp {
         })
     }
 
+    async fn list_resource_templates(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::ListResourceTemplatesResult, McpError> {
+        Ok(rmcp::model::ListResourceTemplatesResult {
+            resource_templates: super::docs::templates(),
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
+            ..Default::default()
+        })
+    }
+
     async fn read_resource(
         &self,
         request: ReadResourceRequestParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        if let Some(result) = super::docs::read(&request, &context)? {
+            return Ok(result);
+        }
         let cacheable = request.request_state.is_none() && request.input_responses.is_none();
         async {
             let mut world = self.state.world.lock().await;
@@ -518,6 +546,10 @@ impl ServerHandler for SumoMcp {
 }
 
 pub(super) async fn serve() -> anyhow::Result<()> {
+    super::docs::with_admitted_documents(&super::docs::DOCUMENTS, serve_admitted).await
+}
+
+async fn serve_admitted() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-sumo-mcp", "info,veoveo_sumo_mcp=debug")?;
@@ -624,7 +656,9 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             veoveo_mcp_contract::enforce_serialized_mcp_response,
         ))
         .layer(middleware::from_fn_with_state(
-            InternalMcpAuthState { verifier },
+            InternalMcpAuthState {
+                verifier: verifier.clone(),
+            },
             authenticate_internal_mcp,
         ));
     let router = Router::new()
@@ -632,6 +666,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             public_endpoint.mount_path(),
             Router::new()
                 .route("/healthz", get(|| async { "ok" }))
+                .nest("/admin", super::docs::admin_router(verifier))
                 .nest("/mcp", mcp_router),
         )
         .layer(middleware::from_fn_with_state(allowed_hosts, validate_host))

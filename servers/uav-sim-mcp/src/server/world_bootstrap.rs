@@ -30,15 +30,15 @@ mod tests {
     use super::*;
 
     const VALID: &str = r#"{
-      "session_id":"session-alpha",
+      "sessionId":"session-alpha",
       "world":{
-        "revision_uri":"frames://world/world-alpha/revision/revision-1",
-        "spec_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "simulation_frame_uri":"frames://world/world-alpha/revision/revision-1/frame/isaac-world",
-        "georeference_origin":{
-          "latitude_degrees":40.758,
-          "longitude_degrees":-73.9855,
-          "ellipsoid_height_m":-17.0
+        "revisionUri":"frames://world/world-alpha/revision/revision-1",
+        "specSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "simulationFrameUri":"frames://world/world-alpha/revision/revision-1/frame/isaac-world",
+        "georeferenceOrigin":{
+          "latitudeDegrees":40.758,
+          "longitudeDegrees":-73.9855,
+          "ellipsoidHeightM":-17.0
         }
       }
     }"#;
@@ -76,8 +76,8 @@ mod tests {
     #[test]
     fn rejects_unknown_fields() {
         let unknown = VALID.replacen(
-            "\"session_id\":\"session-alpha\"",
-            "\"session_id\":\"session-alpha\",\"retry_seconds\":1",
+            "\"sessionId\":\"session-alpha\"",
+            "\"sessionId\":\"session-alpha\",\"retry_seconds\":1",
             1,
         );
         assert!(

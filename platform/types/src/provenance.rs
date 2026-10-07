@@ -14,7 +14,12 @@ pub enum InvocationMode {
 
 /// Provenance retained across synchronous and asynchronous execution.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "mode", deny_unknown_fields)]
+#[serde(
+    rename_all = "snake_case",
+    rename_all_fields = "snake_case",
+    tag = "mode",
+    deny_unknown_fields
+)]
 pub enum InvocationProvenance {
     Direct {
         initiator: PrincipalId,
@@ -31,7 +36,12 @@ impl<'de> Deserialize<'de> for InvocationProvenance {
         // All Serde profiles use the existing tagged map. An empty struct
         // branch closes automated admission without changing serialization.
         #[derive(Deserialize)]
-        #[serde(rename_all = "snake_case", tag = "mode", deny_unknown_fields)]
+        #[serde(
+            rename_all = "snake_case",
+            rename_all_fields = "snake_case",
+            tag = "mode",
+            deny_unknown_fields
+        )]
         enum TextWire {
             Direct {
                 initiator: PrincipalId,

@@ -79,7 +79,7 @@ fn builtin_stack(duration_s: f64) -> SensorStack {
                 application_id: "veoveo-sim-speed".into(),
                 kind: SensorKind::Scalar {
                     rate_hz: 20.0,
-                    name: "speed_mps".into(),
+                    name: "speedMps".into(),
                     wave: Wave::Sine {
                         amplitude: 12.0,
                         period_s: 15.0,

@@ -37,6 +37,25 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
         );
         let discover = gateway.rpc("server/discover", json!({})).await;
         assert!(discover.get("error").is_none(), "{discover}");
+        let prompts = gateway.rpc("prompts/list", json!({})).await;
+        assert!(prompts.get("error").is_none(), "{prompts}");
+        for (current, retired) in [
+            ("frames_frame_audit", "frames-frame-audit"),
+            ("frames_world_design", "frames-world-design"),
+            ("frames_transform_explain", "frames-transform-explain"),
+        ] {
+            assert!(prompts["result"]["prompts"].as_array().unwrap().iter().any(|p| p["name"] == current));
+            let bad = gateway.rpc("prompts/get", json!({"name":retired,"arguments":{}})).await;
+            assert!(bad.get("error").is_some(), "{bad}");
+        }
+        let prompt = gateway.rpc("prompts/get", json!({"name":"frames_world_design", "arguments":{"workflow":"inspection", "earth_anchor_hint":"launch"}})).await;
+        assert!(prompt.get("error").is_none(), "{prompt}");
+        for mixed in [false, true] {
+            let mut args = json!({"workflow":"inspection", "earthAnchorHint":"launch"});
+            if mixed { args["earth_anchor_hint"] = "launch".into(); }
+            let bad = gateway.rpc("prompts/get", json!({"name":"frames_world_design", "arguments":args})).await;
+            assert!(bad.get("error").is_some(), "{bad}");
+        }
         let mut arguments = serde_json::to_value(ConvertFrameRequest {
             target: CoordinateSpace::EcefWgs84,
             points: vec![veoveo_frames_mcp::contract::CoordinatePoint::Wgs84(
@@ -50,6 +69,26 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
         })
         .unwrap();
         let _: ConvertFrameRequest = serde_json::from_value(arguments.clone()).unwrap();
+        for (parent, current, retired) in [
+            ("", "allowApproximation", "allow_approximation"),
+            ("/points/0", "latitudeDegrees", "latitude_degrees"),
+            ("/points/0", "longitudeDegrees", "longitude_degrees"),
+            ("/points/0", "ellipsoidHeightM", "ellipsoid_height_m"),
+        ] {
+            for mixed in [false, true] {
+                let mut bad = arguments.clone();
+                let object = if parent.is_empty() { &mut bad } else { bad.pointer_mut(parent).unwrap() };
+                let object = object.as_object_mut().unwrap();
+                let value = object[current].clone();
+                if !mixed { object.remove(current); }
+                object.insert(retired.into(), value);
+                let body = gateway.rpc("tools/call", json!({"name":"convert_frame","arguments":bad})).await;
+                assert!(body.get("error").is_none(), "{parent}/{current}: {body}");
+                let result: rmcp::model::CallToolResult = serde_json::from_value(body["result"].clone()).unwrap();
+                assert_eq!(result.is_error, Some(true), "{parent}/{current}: {body}");
+            }
+        }
+
         arguments["undeclared"] = true.into();
         let body = gateway
             .rpc(

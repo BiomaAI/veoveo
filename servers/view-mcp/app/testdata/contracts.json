@@ -1,0 +1,261 @@
+{
+  "closed": {
+    "closed": true,
+    "viewId": "view-1"
+  },
+  "composition": {
+    "algorithmRevision": "veoveo.ai/view-scene-composition/v2",
+    "authority": {
+      "invocation": {
+        "membership": "custodian",
+        "output_policy": {
+          "classification": "internal",
+          "owner": {
+            "id": "operator",
+            "kind": "principal"
+          }
+        },
+        "policy_revision": "r1",
+        "provenance": {
+          "delegation_id": "capture",
+          "initiator": "operator",
+          "mode": "delegated"
+        },
+        "tenant": "tenant",
+        "work_context": "operations"
+      },
+      "principalId": "operator"
+    },
+    "baseLayer": "base",
+    "compositionDigestSha256": "4e036a30436c93f40b07594ac3ba260382e678ff039df6e79a7e5067c5f4c87f",
+    "compositionId": "composition-281b253a-55b2-5b69-8f2b-cc214e0be326",
+    "compositionUri": "view://composition/composition-281b253a-55b2-5b69-8f2b-cc214e0be326",
+    "createdAt": "2026-09-28T10:00:00Z",
+    "governedInputs": [
+      {
+        "attribution": "Fixture",
+        "digestSha256": "41cf6794ba4200b839c53531555f0f3998df4cbb01a4d5cb0b94e3ca5e23947d",
+        "inputId": "geometry",
+        "license": "Test",
+        "resourceUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471"
+      }
+    ],
+    "mapReleases": [],
+    "overlays": [
+      {
+        "geometry": {
+          "geometry": {
+            "kind": "marker",
+            "position": {
+              "kind": "wgs84",
+              "position": {
+                "ellipsoidalHeightMeters": 100.12345678912345,
+                "latitudeDegrees": 13.723645678901233,
+                "longitudeDegrees": -89.2123123123123
+              }
+            }
+          },
+          "kind": "inline"
+        },
+        "governedInputIds": [
+          "geometry"
+        ],
+        "overlayId": "marker",
+        "style": {
+          "labelHeightMeters": 12.0,
+          "lineWidthMeters": 2.0,
+          "markerSizeMeters": 8.0,
+          "strokeColor": {
+            "alpha": 1.0,
+            "blue": 1.0,
+            "green": 0.8500000238418579,
+            "red": 0.0
+          }
+        },
+        "visibility": {
+          "visible": true
+        }
+      }
+    ],
+    "requestDigestSha256": "064c687744ac30894e9005e24410c3ba9ed400aabb201155a1aa82b60418561f",
+    "revision": 1,
+    "schemaVersion": 2,
+    "styleId": "default:1"
+  },
+  "frame": {
+    "actualMaxScreenErrorPx": 4.0,
+    "attribution": {
+      "lines": [
+        "Fixture"
+      ]
+    },
+    "byteLength": 13,
+    "capturedAt": "2026-09-28T10:00:00Z",
+    "compositionDigestSha256": "4e036a30436c93f40b07594ac3ba260382e678ff039df6e79a7e5067c5f4c87f",
+    "compositionId": "composition-281b253a-55b2-5b69-8f2b-cc214e0be326",
+    "compositionRevision": 1,
+    "compositionUri": "view://composition/composition-281b253a-55b2-5b69-8f2b-cc214e0be326",
+    "detailComplete": true,
+    "frameId": "frame-1",
+    "frameUri": "view://frame/frame-1",
+    "governedInputs": [
+      {
+        "attribution": "Fixture",
+        "digestSha256": "41cf6794ba4200b839c53531555f0f3998df4cbb01a4d5cb0b94e3ca5e23947d",
+        "inputId": "geometry",
+        "license": "Test",
+        "resourceUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471"
+      }
+    ],
+    "heightPx": 480,
+    "mimeType": "image/jpeg",
+    "outputDigestSha256": "e8873af2f1f29756578867d0f90bd3dc73e653f39f7cda5603d3c012d11b4ecb",
+    "overlayTruncated": false,
+    "pendingTileCount": 0,
+    "renderedOverlayCount": 1,
+    "resolvedCamera": {
+      "orientation": {
+        "headingDegrees": 180.0,
+        "pitchDegrees": -45.0,
+        "rollDegrees": 0.0
+      },
+      "position": {
+        "ellipsoidalHeightMeters": 1000.1234567891235,
+        "latitudeDegrees": 13.723456789012346,
+        "longitudeDegrees": -89.21234567891234
+      },
+      "verticalFovDegrees": 45.0
+    },
+    "resultUri": "view://frame/frame-1",
+    "sceneLayer": "base",
+    "sceneTime": "2026-09-28T10:00:00Z",
+    "styleId": "default:1",
+    "viewId": "view-1",
+    "viewRevision": 1,
+    "visibleTileCount": 1,
+    "widthPx": 640
+  },
+  "layers": [
+    {
+      "label": "Fixture",
+      "layerId": "fixture",
+      "sourceKind": "google_photorealistic"
+    }
+  ],
+  "scene": {
+    "attribution": {
+      "lines": [
+        "Fixture"
+      ]
+    },
+    "compositionDigestSha256": "4e036a30436c93f40b07594ac3ba260382e678ff039df6e79a7e5067c5f4c87f",
+    "compositionId": "composition-281b253a-55b2-5b69-8f2b-cc214e0be326",
+    "detailComplete": true,
+    "heightPx": 480,
+    "localFromEcef": [
+      0.9999055092666215,
+      0.013354287740875105,
+      0.0032612171335614963,
+      0.0,
+      0.013746728274695844,
+      -0.9713602842512116,
+      -0.23721346007582955,
+      0.0,
+      0.0,
+      0.23723587666779958,
+      -0.9714520774704538,
+      0.0,
+      -0.0,
+      -6377935.479366491,
+      -9842.100180601934,
+      1.0
+    ],
+    "localOrigin": {
+      "ellipsoidalHeightMeters": 1000.1234567891235,
+      "latitudeDegrees": 13.723456789012346,
+      "longitudeDegrees": -89.21234567891234
+    },
+    "maxScreenErrorPx": 8.0,
+    "resolvedCamera": {
+      "orientation": {
+        "headingDegrees": 180.0,
+        "pitchDegrees": -45.0,
+        "rollDegrees": 0.0
+      },
+      "position": {
+        "ellipsoidalHeightMeters": 1000.1234567891235,
+        "latitudeDegrees": 13.723456789012346,
+        "longitudeDegrees": -89.21234567891234
+      },
+      "verticalFovDegrees": 45.0
+    },
+    "sceneLayer": "base",
+    "tiles": [
+      {
+        "byteLength": 64,
+        "ecefFromContent": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "oversize": false,
+        "tileUri": "view://tile/8b668b8994aa845107399994593d0ca831520be5257f005351a0ec13e97a39be"
+      }
+    ],
+    "truncated": false,
+    "viewId": "view-1",
+    "viewRevision": 1,
+    "widthPx": 640
+  },
+  "view": {
+    "camera": {
+      "kind": "pose",
+      "orientation": {
+        "headingDegrees": 180.0,
+        "pitchDegrees": -45.0,
+        "rollDegrees": 0.0
+      },
+      "position": {
+        "ellipsoidalHeightMeters": 1000.1234567891235,
+        "latitudeDegrees": 13.723456789012346,
+        "longitudeDegrees": -89.21234567891234
+      },
+      "verticalFovDegrees": 45.0
+    },
+    "compositionDigestSha256": "4e036a30436c93f40b07594ac3ba260382e678ff039df6e79a7e5067c5f4c87f",
+    "compositionId": "composition-281b253a-55b2-5b69-8f2b-cc214e0be326",
+    "compositionUri": "view://composition/composition-281b253a-55b2-5b69-8f2b-cc214e0be326",
+    "createdAt": "2026-09-28T10:00:00Z",
+    "resolvedCamera": {
+      "orientation": {
+        "headingDegrees": 180.0,
+        "pitchDegrees": -45.0,
+        "rollDegrees": 0.0
+      },
+      "position": {
+        "ellipsoidalHeightMeters": 1000.1234567891235,
+        "latitudeDegrees": 13.723456789012346,
+        "longitudeDegrees": -89.21234567891234
+      },
+      "verticalFovDegrees": 45.0
+    },
+    "revision": 1,
+    "sceneLayer": "base",
+    "updatedAt": "2026-09-28T10:00:00Z",
+    "viewId": "view-1",
+    "viewUri": "view://view/view-1"
+  }
+}

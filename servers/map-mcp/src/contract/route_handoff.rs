@@ -10,17 +10,19 @@ use super::{
     RouteStatus, ValidationId, Wgs84Position,
 };
 
-pub const MAP_ROUTE_HANDOFF_SCHEMA: &str = "veoveo.ai/map-route-handoff/v1";
+pub const MAP_ROUTE_HANDOFF_SCHEMA: &str = "veoveo.ai/map-route-handoff/v2";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
+#[schemars(transform = super::naming::format_tag)]
 pub enum MapRouteHandoffSchema {
-    #[serde(rename = "veoveo.ai/map-route-handoff/v1")]
-    V1,
+    #[vocabulary(rename = "veoveo.ai/map-route-handoff/v2")]
+    V2,
 }
 
 /// Construction inputs. `build` checks the relationships before a consumer can use them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct MapRouteHandoffBuilder {
     pub schema_profile: MapRouteHandoffSchema,
     pub route_uri: MapRouteUri,

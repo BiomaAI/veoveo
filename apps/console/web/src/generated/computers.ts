@@ -439,7 +439,7 @@ export interface AutomationExecutionLimits {
  */
 export interface AutomationGrantResult {
   grant: AutomationGrantView;
-  result_uri: AutomationGrantUri;
+  resultUri: AutomationGrantUri;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -656,7 +656,7 @@ export interface ExecutionResult {
   computerId: ComputerId;
   executionId: ExecutionId;
   exitCode: number;
-  result_uri: string;
+  resultUri: string;
   stderr: ExecutionOutput;
   stdout: ExecutionOutput;
 }
@@ -681,7 +681,7 @@ export interface FileTransferResult {
   bytes: number;
   computerId: ComputerId;
   direction: FileTransferDirection;
-  result_uri: string;
+  resultUri: string;
   sha256: string;
   transferId: FileTransferId;
 }
@@ -753,7 +753,7 @@ export interface LifecycleResult {
   action: Action;
   computerId: ComputerId;
   operationId: TaskId;
-  result_uri?: ComputerResultUri | null;
+  resultUri?: ComputerResultUri | null;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -771,7 +771,7 @@ export interface ComputerLimits {
 export interface MaintenanceResult {
   computerId: ComputerId;
   maintenanceId: TaskId;
-  result_uri: ComputerResultUri;
+  resultUri: ComputerResultUri;
   templateId: TemplateId;
 }
 /**

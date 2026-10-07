@@ -229,6 +229,7 @@ async fn exercise() -> Result<()> {
             .ok_or_else(|| anyhow::anyhow!("Task record"))?;
     record.status = TaskStatus::Running;
     record.result = None;
+    record.result_uri = None;
     record.result_artifact = None;
     record.completed_at = None;
     record.lease_owner = Some("terminated-worker".into());
@@ -318,8 +319,8 @@ async fn qualify_hosted(
         axum::serve(listener, router).await.unwrap();
     }));
     let profile: HostedServerConformanceProfile = serde_json::from_value(serde_json::json!({
-        "schemaVersion":"veoveo.ai/mcp-conformance-profile/v1", "profileId":"speech-native",
-        "contractRevision":"veoveo.ai/hosted-mcp/v3", "endpoint":format!("{base}/mcp"),
+        "schemaVersion":"veoveo.ai/mcp-conformance-profile/v2", "profileId":"speech-native",
+        "contractRevision":"veoveo.ai/hosted-mcp/v4", "endpoint":format!("{base}/mcp"),
         "serverSlug":"speech", "ownedResourceSchemes":["speech"],
         "http":{"requireAuthenticationRejection":true,"rejectedHost":"untrusted.invalid", "healthUrl":format!("{base}/healthz"),"readinessUrl":format!("{base}/readyz"),"docsLlmsUrl":format!("{base}/admin/docs/llms.txt")},
         "surfaces":{"tools":"required","resources":"required","resourceTemplates":"required","prompts":"required","completions":"required","tasks":"required","subscriptions":"required","requiredTools":["transcribe","start_dictation","finish_dictation","cancel_dictation"],"requiredResources":["speech://docs","speech://contract"],"requiredResourceTemplates":["speech://transcript/{task_id}","speech://dictation/{id}"],"requiredPrompts":["transcribe_recording"]}

@@ -1,15 +1,87 @@
 {
   "$defs": {
     "AgentDefinitionId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::agent_names"
+              },
+              "profile": "AgentDefinitionId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "AgentManagedInstanceId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::agent_names"
+              },
+              "profile": "AgentManagedInstanceId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "AgentModelId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::agent_names"
+              },
+              "profile": "AgentModelId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "AgentTemplateId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::agent_names"
+              },
+              "profile": "AgentTemplateId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "Authoring": {
@@ -157,6 +229,24 @@
       "additionalProperties": false,
       "properties": {
         "revision": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::digest"
+                  },
+                  "profile": "Sha256Digest",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         }
@@ -242,6 +332,24 @@
           "type": "boolean"
         },
         "draftDigest": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::digest"
+                  },
+                  "profile": "Sha256Digest",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
@@ -256,6 +364,24 @@
           "type": "string"
         },
         "publishedDigest": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::digest"
+                  },
+                  "profile": "Sha256Digest",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": [
             "string",
@@ -343,6 +469,24 @@
               "$ref": "#/$defs/AgentDefinitionId"
             },
             "digest": {
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "declaration": {
+                      "applicability": "the declared scalar identity schema",
+                      "authority": {
+                        "kind": "owner",
+                        "module": "veoveo_types::digest"
+                      },
+                      "profile": "Sha256Digest",
+                      "version": "unversioned"
+                    },
+                    "kind": "owner_identity"
+                  }
+                }
+              },
               "pattern": "^sha256:[0-9a-f]{64}$",
               "type": "string"
             },
@@ -427,6 +571,24 @@
               "$ref": "#/$defs/AgentTemplateId"
             },
             "templateRevision": {
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "declaration": {
+                      "applicability": "the declared scalar identity schema",
+                      "authority": {
+                        "kind": "owner",
+                        "module": "veoveo_types::digest"
+                      },
+                      "profile": "Sha256Digest",
+                      "version": "unversioned"
+                    },
+                    "kind": "owner_identity"
+                  }
+                }
+              },
               "pattern": "^sha256:[0-9a-f]{64}$",
               "type": "string"
             }
@@ -475,6 +637,24 @@
       "type": "string"
     },
     "GatewayToolName": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_gateway_contract::tool_name"
+              },
+              "profile": "GatewayToolName",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Gateway-scoped tool name after server namespace projection.",
       "type": "string"
     },
@@ -505,6 +685,24 @@
               "type": "string"
             },
             "revision": {
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "declaration": {
+                      "applicability": "the declared scalar identity schema",
+                      "authority": {
+                        "kind": "owner",
+                        "module": "veoveo_types::digest"
+                      },
+                      "profile": "Sha256Digest",
+                      "version": "unversioned"
+                    },
+                    "kind": "owner_identity"
+                  }
+                }
+              },
               "pattern": "^sha256:[0-9a-f]{64}$",
               "type": "string"
             }
@@ -636,6 +834,24 @@
           "type": "integer"
         },
         "activeRevision": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::digest"
+                  },
+                  "profile": "Sha256Digest",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": [
             "string",
@@ -677,6 +893,24 @@
           "type": "string"
         },
         "requestedRevision": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::digest"
+                  },
+                  "profile": "Sha256Digest",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
@@ -794,6 +1028,24 @@
           "$ref": "#/$defs/AgentModelId"
         },
         "revision": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::digest"
+                  },
+                  "profile": "Sha256Digest",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         }
@@ -805,6 +1057,24 @@
       "type": "object"
     },
     "OAuthClientId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::platform_names"
+              },
+              "profile": "OAuthClientId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Registered OAuth client id allowed to request gateway-profile tokens.",
       "minLength": 1,
       "not": {
@@ -928,6 +1198,24 @@
           "type": "string"
         },
         "revision": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::digest"
+                  },
+                  "profile": "Sha256Digest",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         }
@@ -951,6 +1239,24 @@
           "type": "array"
         },
         "digest": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::digest"
+                  },
+                  "profile": "Sha256Digest",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
@@ -989,6 +1295,24 @@
           "$ref": "#/$defs/AgentDefinitionId"
         },
         "digest": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::digest"
+                  },
+                  "profile": "Sha256Digest",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         }
@@ -1003,6 +1327,16 @@
       "type": "object"
     },
     "ResourceUri": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "resource_uri",
+            "kind": "builtin"
+          }
+        }
+      },
       "type": "string"
     },
     "RevisionPage": {
@@ -1015,6 +1349,24 @@
           "type": "array"
         },
         "next": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::digest"
+                  },
+                  "profile": "Sha256Digest",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": [
             "string",
@@ -1046,6 +1398,24 @@
       "type": "object"
     },
     "RoleId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "RoleId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Identity-provider role identifier used by gateway policy.",
       "type": "string"
     },
@@ -1072,6 +1442,16 @@
       "type": "object"
     },
     "ScopeName": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "scope_name",
+            "kind": "builtin"
+          }
+        }
+      },
       "description": "OAuth/OIDC scope value. It must not contain whitespace or control characters.",
       "type": "string"
     },
@@ -1106,6 +1486,24 @@
           "type": "array"
         },
         "revision": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::digest"
+                  },
+                  "profile": "Sha256Digest",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
@@ -1230,6 +1628,24 @@
       "additionalProperties": false,
       "properties": {
         "digest": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_types::digest"
+                  },
+                  "profile": "Sha256Digest",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
@@ -1252,6 +1668,24 @@
       "type": "object"
     },
     "WorkContextId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "WorkContextId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Tenant-local boundary that governs related work and every output it produces.",
       "type": "string"
     },

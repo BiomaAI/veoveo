@@ -53,7 +53,7 @@ pub(super) fn mission_request(key: &str) -> PrepareVehicleMissionRequest {
             &veoveo_frames_mcp::contract::FrameWorldRevisionId::parse("revision-one").unwrap(),
         ),
         map_route: MapRouteHandoffBuilder {
-            schema_profile: MapRouteHandoffSchema::V1,
+            schema_profile: MapRouteHandoffSchema::V2,
             route_uri: veoveo_map_mcp::contract::MapRouteUri::new(
                 veoveo_map_mcp::contract::RouteId::from_stable_key(b"native"),
             ),

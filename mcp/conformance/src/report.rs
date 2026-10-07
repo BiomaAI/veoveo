@@ -8,6 +8,7 @@ pub const CONFORMANCE_REPORT_SCHEMA: &str = "veoveo.ai/mcp-conformance-report/v1
 
 /// Supported conformance report schema.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[schemars(transform = report_format_naming)]
 pub enum ConformanceReportSchema {
     #[serde(rename = "veoveo.ai/mcp-conformance-report/v1")]
     V1,
@@ -20,6 +21,8 @@ pub enum CheckStatus {
     Passed,
     Failed,
     Skipped,
+    /// Required observations or traversal were unavailable.
+    Incomplete,
 }
 
 /// One stable conformance requirement result.
@@ -62,6 +65,13 @@ impl ConformanceReport {
     pub fn passed(&self) -> bool {
         self.checks
             .iter()
-            .all(|check| check.status != CheckStatus::Failed)
+            .all(|check| !matches!(check.status, CheckStatus::Failed | CheckStatus::Incomplete))
     }
+}
+
+fn report_format_naming(schema: &mut schemars::Schema) {
+    let profile = veoveo_types::ScalarNaming::owner(module_path!(), "conformance-report-format")
+        .expect("static owner naming declaration");
+    *schema = veoveo_types::scalar_schema(schema.clone(), profile)
+        .expect("owned report format is scalar");
 }

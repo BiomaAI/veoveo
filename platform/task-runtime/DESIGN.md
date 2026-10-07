@@ -52,6 +52,12 @@ owns execution and observation claims. `recovery` applies each declared restart
 profile. `types` validates durable envelopes; `mcp` and `service` project them into
 the hosted server contract. Provider SDKs and resource-specific fences belong to
 the owning domain.
+`TaskRuntime::get_for_recovery` observes physical Task presence and server ownership
+in one SQL selection. It returns absence only when the record is deleted. SQL selects
+the full snapshot only for this runtime's server; a foreign-server row fails before
+its excluded payload is decoded. This trusted lifecycle read does not change caller
+visibility or ordinary `get` semantics.
+
 `provider_transaction` composes a domain journal write with the exact shared
 observation-lease receipt in the same database transaction.
 `provider_resume` composes explicit domain recovery with a Task status transition.
@@ -409,7 +415,7 @@ together to establish the SQL selection guarantee across an installation. Prefli
 retained indexed/envelope owner and profile agreement; rejected records stay intact
 for operator review. Rolling back to a version that checks historical event authority
 does not preserve the current-owner notification guarantee. The
-[installed Stream replay](../../testing/smoke/DESIGN.md#stream-cross-replica-acceptance)
+[installed Stream replay](../../examples/bioma/acceptance/DESIGN.md#stream-cross-replica-acceptance)
 qualifies shared Task completion and result delivery through separate hosted replicas.
 
 The Python SDK exposes the same owner-query composition through
@@ -585,3 +591,41 @@ Runtime and Store use the same values, including `provider_wait`, which observes
 persisted provider intent without replaying its mutation. Store selects the
 contract's optional native adapter; browser contract consumers use its pure
 profile. Recovery execution, leases and current authority remain Runtime duties.
+
+## Startup Lease Observation
+
+`observe_startup_recovery` registers the shared native Task wake source before
+selecting this server's nonterminal Task identities and lease deadlines. It emits
+an immediate recovery report and keeps identities whose recovery has not settled.
+The SQL payload read selects only current nonterminal rows with expired or absent
+leases. Live leases, terminal rows and other servers never enter payload decoding.
+Each native wake rereads the retained rows. A timer wakes at the earliest retained
+lease deadline because elapsed time produces no database event. Renewal can move
+that deadline. Recovery transitions and subsequent domain claims still use their
+current compare-and-set guards; timer deadlines confer no execution authority.
+
+Domains establish observation before accepting work and use a fresh worker
+identity for each process lifetime. The stream covers the identities present
+at its startup baseline. It removes
+identities after handing their recovery outcome to the domain and ends when that
+set empties. It never admits freshly queued Tasks or repeatedly offers this
+process's active workers. Concurrent replicas may observe the same queued outcome;
+the domain must handle a lost claim without dispatching. Domains own immutable
+request admission, current resource validation and scheduling. `provider_wait`
+outcomes authorize observation only. Existing recovery contribution adapters and
+cancellation settlement run through the same implementation as `recover`, whose
+one-shot API is unchanged. Its SQL selection applies the same server, nonterminal
+and lease eligibility predicates before decoding. Recovery selects the transaction's causal error and
+treats a database write conflict like a rejected compare-and-set; domain contribution
+failures still propagate.
+
+Dropping the stream retires its wake receiver. Query and source-closure errors
+end it with an error for its lifetime owner to handle. The native source's existing
+reconnection contract supplies subsequent current-state reconciliation. No periodic
+recovery query runs while retained leases and native state stay unchanged.
+
+`tests/support/recovery_cases.rs` qualifies live-lease replacement startup,
+deadline resumption without restart, independent replica claims, renewal, current
+cancellation and terminal exclusion, provider observation and SQL exclusion of
+malformed payloads. The contribution harness also settles an interrupted Task
+through deferred recovery after a real lease expires.

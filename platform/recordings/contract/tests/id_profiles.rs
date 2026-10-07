@@ -3,7 +3,9 @@ use serde::{Deserialize, de::Visitor};
 use veoveo_recording_contract::{
     RecordingDatasetId, RecordingId, RecordingLayerId, RecordingProjectionId, RecordingReadGrantId,
 };
-use veoveo_types::Identity;
+use veoveo_types::{
+    Identity, NamingProfile, NamingRole, NamingSchemaContext, ScalarNaming, with_naming_profile,
+};
 fn check<I: Identity + JsonSchema + serde::Serialize + serde::de::DeserializeOwned>(name: &str)
 where
     I::Error: std::fmt::Debug,
@@ -15,10 +17,18 @@ where
     assert!(I::inline_schema());
     assert_eq!(I::schema_name(), name);
     assert_eq!(I::schema_id(), name);
-    assert_eq!(
-        serde_json::to_value(I::json_schema(&mut schemars::SchemaGenerator::default())).unwrap(),
-        serde_json::json!({"type":"string"})
-    );
+    let mut generator = schemars::SchemaGenerator::default();
+    let string_schema = String::json_schema(&mut generator);
+    let expected = with_naming_profile(
+        string_schema.clone(),
+        NamingProfile::new(NamingRole::Scalar {
+            profile: ScalarNaming::owner("veoveo_recording_contract::ids", name).unwrap(),
+        })
+        .unwrap(),
+        NamingSchemaContext::new(&string_schema),
+    )
+    .unwrap();
+    assert_eq!(I::json_schema(&mut generator), expected);
     for invalid in [
         value.to_uppercase(),
         value.replace('-', ""),

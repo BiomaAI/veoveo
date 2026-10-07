@@ -80,3 +80,13 @@ These shared operations are exported only from `veoveo_rrd`.
 ## Identity Declaration Mechanics
 
 RRD identity declarations use `Id` with RRD-owned lexical admission. Rerun entity/frame spellings keep their existing allowance for slash and `tf#` text, while geofence IDs apply their coordinate profile. These identities keep their existing String conversion and schema declarations.
+
+## Public JSON Selection Adapters
+
+The unversioned JSON wrappers around Rerun selections and spatial metadata use closed
+camelCase members and snake_case discriminants. `RrdRecordingRef` imports the
+Recording owner's `RecordingId` and Artifact owner's `ArtifactUri`; decoding admits
+those identities before a wrapper is usable. The only current wrapper construction
+consumer is the owning Rust control suite. Binary RRD, Rerun SDK field vocabulary,
+Arrow columns, encoder settings and deterministic sealed properties JSON remain
+separate profiles. Arbitrary spatial metadata is an honest open dictionary.

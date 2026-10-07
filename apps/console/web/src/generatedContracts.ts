@@ -1,4 +1,6 @@
 import { compileGeneratedSchema } from "./jsonSchema.ts";
+import agentControlSchema from "./generated/agent-control.schema.json" with { type: "json" };
+import type { AgentControlSchema } from "./generated/agent-control.ts";
 import computerSchema from "./generated/computers.schema.json" with { type: "json" };
 import consoleSchema from "./generated/console.schema.json" with { type: "json" };
 import auditSchema from "./generated/audit.schema.json" with { type: "json" };
@@ -51,4 +53,14 @@ export function parseComputer<K extends keyof ComputersApi>(
     computerParsers.set(kind, parse);
   }
   return parse(value) as ComputersApi[K];
+}
+
+const agentControlParsers = new Map<keyof AgentControlSchema, (value: unknown) => unknown>();
+export function parseAgentControl<K extends keyof AgentControlSchema>(kind: K, value: unknown): AgentControlSchema[K] {
+  let parse = agentControlParsers.get(kind);
+  if (!parse) {
+    parse = parser({ $schema: agentControlSchema.$schema, $defs: agentControlSchema.$defs, ...agentControlSchema.properties[kind] });
+    agentControlParsers.set(kind, parse);
+  }
+  return parse(value) as AgentControlSchema[K];
 }

@@ -29,8 +29,8 @@ class MathematicalTests(unittest.TestCase):
         self.assertFalse(
             _requires_barrier(
                 {
-                    "quadratic_objective": None,
-                    "quadratic_constraints": [],
+                    'quadraticObjective': None,
+                    'quadraticConstraints': [],
                 }
             )
         )
@@ -39,12 +39,12 @@ class MathematicalTests(unittest.TestCase):
         self.assertTrue(
             _requires_barrier(
                 {
-                    "quadratic_objective": {
+                    'quadraticObjective': {
                         "values": [1.0],
                         "indices": [0],
                         "offsets": [0, 1],
                     },
-                    "quadratic_constraints": [],
+                    'quadraticConstraints': [],
                 }
             )
         )
@@ -61,8 +61,8 @@ class MathematicalTests(unittest.TestCase):
         self.assertTrue(
             _requires_barrier(
                 {
-                    "quadratic_objective": None,
-                    "quadratic_constraints": [{"constraint_id": "cone"}],
+                    'quadraticObjective': None,
+                    'quadraticConstraints': [{'constraintId': "cone"}],
                 }
             )
         )

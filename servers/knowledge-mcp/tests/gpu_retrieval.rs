@@ -200,6 +200,178 @@ async fn domain_recall_and_rebuild_with_concurrent_searches() {
         .unwrap_or_else(|error| panic!("retrieval benchmark failed: {error}"));
 }
 
+/// Reproduce only initial storage against recorded inputs, without inference or
+/// retrieval measurement. Synthetic vectors never produce a qualification report.
+#[tokio::test]
+#[ignore = "CPU storage diagnostic requires VEOVEO_RETRIEVAL_INPUT captured configuration"]
+async fn initial_production_storage_control() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let input = PathBuf::from(std::env::var("VEOVEO_RETRIEVAL_INPUT").unwrap());
+        assert!(input.is_absolute());
+        assert!(std::fs::metadata(&input).unwrap().len() <= 32 * 1024 * 1024);
+        let config: Configuration = serde_json::from_slice(&std::fs::read(input).unwrap()).unwrap();
+        let source = config.corpus.validate().unwrap();
+        let caller = config.corpus.caller().unwrap();
+        let db = fixture::TestDb::with_backend(fixture::StoreBackend::RocksDb).await;
+        let lease =
+            db.a.claim_knowledge_coordinator(&caller.tenant, Default::default())
+                .await
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "storage control lease failed: {}",
+                        storage_control_error(&ServiceError::Store(error))
+                    )
+                })
+                .unwrap();
+        for registration in &config.corpus.registrations {
+            db.a.register_knowledge_collection(registration, None)
+                .await
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "storage control registration failed: {}",
+                        storage_control_error(&ServiceError::Store(error))
+                    )
+                });
+        }
+        let specification = GenerationSpec::new(
+            config.runtime.space().clone(),
+            config.query_task.as_str(),
+            config.chunking.clone(),
+            config
+                .corpus
+                .registrations
+                .iter()
+                .map(|r| (r.descriptor.collection().clone(), r.revision()))
+                .collect(),
+        )
+        .unwrap();
+        let embeddings = StorageControlEmbeddings {
+            runtime: config.runtime,
+            batches: AtomicU64::new(0),
+        };
+        let workload = async {
+            Indexer {
+                store: &db.a,
+                lease: &lease,
+                source: &source,
+                embeddings: &embeddings,
+            }
+            .build(&caller.tenant, &config.corpus.registrations, &specification)
+            .await
+        };
+        // Poll both whole futures so renewal cannot stop polling an indexing
+        // mutation that already holds the shared lease mutation lock.
+        let renewal = async {
+            let mut interval = tokio::time::interval(Duration::from_secs(10));
+            loop {
+                interval.tick().await;
+                if let Err(error) = db.a.renew_knowledge_coordinator(&lease).await {
+                    return Err::<GenerationId, _>(ServiceError::from(error));
+                }
+            }
+        };
+        let result = tokio::select! {
+            result = workload => result,
+            result = renewal => result,
+        };
+        db.a.release_knowledge_coordinator(&lease)
+            .await
+            .unwrap_or_else(|error| {
+                panic!(
+                    "storage control lease release failed: {}",
+                    storage_control_error(&ServiceError::Store(error))
+                )
+            });
+        if let Err(error) = result {
+            panic!(
+                "initial CPU storage control failed after {} synthetic batches: {}",
+                embeddings.batches.load(Ordering::Relaxed),
+                storage_control_error(&error)
+            );
+        }
+    })
+    .await
+    .expect("initial CPU storage control exceeded 180 seconds");
+}
+
+struct StorageControlEmbeddings {
+    runtime: QualifiedEmbeddingRuntime,
+    batches: AtomicU64,
+}
+impl Embeddings for StorageControlEmbeddings {
+    fn runtime(&self) -> &QualifiedEmbeddingRuntime {
+        &self.runtime
+    }
+    async fn documents(
+        &self,
+        texts: EmbeddingBatch,
+    ) -> std::result::Result<Vec<EmbeddingVector>, ServiceError> {
+        self.batches.fetch_add(1, Ordering::Relaxed);
+        let mut values = vec![0.; usize::from(self.runtime.space().dimension.get())];
+        values[0] = 1.;
+        texts
+            .texts()
+            .iter()
+            .map(|_| {
+                EmbeddingVector::new(&self.runtime, values.clone()).map_err(ServiceError::from)
+            })
+            .collect()
+    }
+    async fn queries(
+        &self,
+        _: EmbeddingTask,
+        _: EmbeddingBatch,
+    ) -> std::result::Result<Vec<EmbeddingVector>, ServiceError> {
+        panic!("CPU storage control cannot run retrieval queries")
+    }
+    async fn query(
+        &self,
+        _: EmbeddingTask,
+        _: EmbeddingText,
+    ) -> std::result::Result<EmbeddingVector, ServiceError> {
+        panic!("CPU storage control cannot run retrieval queries")
+    }
+}
+
+fn storage_control_error(error: &ServiceError) -> String {
+    use veoveo_platform_store::StoreError;
+    match error {
+        ServiceError::Store(StoreError::Knowledge(reason)) => format!("knowledge:{reason}"),
+        ServiceError::Store(StoreError::Database(error)) => {
+            let mut summary = Vec::new();
+            let mut cause = Some(error);
+            for _ in 0..8 {
+                let Some(error) = cause else {
+                    break;
+                };
+                // Only known schema fields and owner error codes can enter logs.
+                let markers = [
+                    "document",
+                    "explicitKvCacheBytes",
+                    "producer_batch",
+                    "producer_profile",
+                    "observation",
+                    "admission",
+                    "embedding",
+                    "knowledge_embedding_profile_immutable",
+                    "knowledge_embedding_qualification_immutable",
+                    "knowledge_collection_not_approved",
+                    "knowledge_member_fenced",
+                    "knowledge_coordinator_fenced",
+                ]
+                .into_iter()
+                .filter(|marker| error.message().contains(marker))
+                .collect::<Vec<_>>();
+                summary.push(format!("{} markers={markers:?}", error.kind_str()));
+                cause = error.cause();
+            }
+            summary.join(" -> ")
+        }
+        ServiceError::Store(_) => "other StoreError (details redacted)".to_owned(),
+        error => error.to_string(),
+    }
+}
+
 async fn run() -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let input = PathBuf::from(

@@ -1025,9 +1025,9 @@ pub(crate) mod tests {
         let task = veoveo_artifact_contract::ArtifactTaskId::new();
         let canonical = task.to_string();
         let mut issuance = serde_json::json!({
-            "task_id":format!("urn:uuid:{canonical}"),
-            "expires_at":Utc::now() + TimeDelta::minutes(5),
-            "max_artifact_count":1,"max_total_bytes":16
+            "taskId":format!("urn:uuid:{canonical}"),
+            "expiresAt":Utc::now() + TimeDelta::minutes(5),
+            "maxArtifactCount":1,"maxTotalBytes":16
         });
         let response = http
             .post(format!("{base}/artifact-write-capabilities"))
@@ -1038,12 +1038,12 @@ pub(crate) mod tests {
             .unwrap();
         assert_eq!(response.status(), reqwest::StatusCode::CREATED);
         let issued: serde_json::Value = response.json().await.unwrap();
-        assert_eq!(issued["task_id"], canonical);
-        let capability = issued["capability_id"].as_str().unwrap();
+        assert_eq!(issued["taskId"], canonical);
+        let capability = issued["capabilityId"].as_str().unwrap();
         let secret = issued["secret"].as_str().unwrap();
-        let mut redemption = serde_json::json!({"capability_id":capability,
-            "task_id":veoveo_artifact_contract::ArtifactTaskId::new().to_string(),
-            "idempotency_key":"alias-output", "artifact":{}});
+        let mut redemption = serde_json::json!({"capabilityId":capability,
+            "taskId":veoveo_artifact_contract::ArtifactTaskId::new().to_string(),
+            "idempotencyKey":"alias-output", "artifact":{}});
         let url = format!("{base}/artifact-write-capabilities/{capability}/redeem");
         let refused = http
             .post(&url)
@@ -1071,7 +1071,7 @@ pub(crate) mod tests {
             task.as_uuid().simple().to_string(),
             canonical.to_uppercase(),
         ] {
-            redemption["task_id"] = serde_json::json!(alias);
+            redemption["taskId"] = serde_json::json!(alias);
             let response = http
                 .post(&url)
                 .bearer_auth(secret)
@@ -1086,14 +1086,14 @@ pub(crate) mod tests {
             assert!(response.status().is_success());
             let artifact: serde_json::Value = response.json().await.unwrap();
             if let Some(id) = &artifact_id {
-                assert_eq!(&artifact["artifact_uri"], id);
+                assert_eq!(&artifact["artifactUri"], id);
             } else {
-                artifact_id = Some(artifact["artifact_uri"].clone());
+                artifact_id = Some(artifact["artifactUri"].clone());
             }
         }
         let mut bytes = *task.as_uuid().as_bytes();
         bytes[8] &= 0x3f;
-        issuance["task_id"] = serde_json::json!(uuid::Uuid::from_bytes(bytes).to_string());
+        issuance["taskId"] = serde_json::json!(uuid::Uuid::from_bytes(bytes).to_string());
         let response = http
             .post(format!("{base}/artifact-write-capabilities"))
             .bearer_auth(&caller.bearer_token)

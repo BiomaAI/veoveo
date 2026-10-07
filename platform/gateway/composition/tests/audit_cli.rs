@@ -25,11 +25,28 @@ enum Attack {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct VerificationReport {
     checkpoint: AuditCheckpoint,
     blocks: u64,
     records: u64,
     clock_findings: u64,
+}
+
+fn decode_verification_report(bytes: &[u8]) -> VerificationReport {
+    let current: serde_json::Value = serde_json::from_slice(bytes).unwrap();
+    let report = serde_json::from_slice(bytes).unwrap();
+    for keep_current in [false, true] {
+        let mut bad = current.clone();
+        let fields = bad.as_object_mut().unwrap();
+        let count = fields.get("clockFindings").unwrap().clone();
+        if !keep_current {
+            fields.remove("clockFindings");
+        }
+        fields.insert("clock_findings".to_owned(), count);
+        assert!(serde_json::from_value::<VerificationReport>(bad).is_err());
+    }
+    report
 }
 
 async fn connect(endpoint: &str, password: &SecretString) -> PlatformStore {
@@ -386,7 +403,7 @@ async fn qualify(store: &PlatformStore, password: &SecretString, attack: Attack)
             "pristine audit CLI verification failed: {}",
             diagnostic(&output, password)
         );
-        let report: VerificationReport = serde_json::from_slice(&output.stdout).unwrap();
+        let report: VerificationReport = decode_verification_report(&output.stdout);
         assert_eq!(
             (report.blocks, report.records, report.clock_findings),
             (2, 2, 0)
@@ -445,7 +462,7 @@ async fn qualify(store: &PlatformStore, password: &SecretString, attack: Attack)
         "{attack:?}: expected {expected:?}, received {error}"
     );
     if matches!(attack, Attack::BackdatedInsert) {
-        let report: VerificationReport = serde_json::from_slice(&output.stdout).unwrap();
+        let report: VerificationReport = decode_verification_report(&output.stdout);
         assert_eq!(
             (report.blocks, report.records, report.clock_findings),
             (2, 2, 1)
@@ -506,4 +523,80 @@ async fn public_cli_filters_and_exports_registered_computer_targets_without_owne
     })
     .await
     .expect("Computer target CLI acceptance exceeded 420 seconds");
+}
+
+#[cfg(all(unix, feature = "smoke"))]
+#[tokio::test]
+async fn keygen_summary_is_current_while_seed_and_public_key_bytes_agree() {
+    use std::os::unix::fs::PermissionsExt;
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase", deny_unknown_fields)]
+    struct PublicKeySummary {
+        key_id: veoveo_types::Sha256Digest,
+        public_key: String,
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let output_path = directory.path().join("seed");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_gateway"));
+    command
+        .env_clear()
+        .current_dir("/")
+        .kill_on_drop(true)
+        .args(["audit", "keygen", "--secret-out"])
+        .arg(&output_path);
+    if let Some(path) = std::env::var_os("LD_LIBRARY_PATH") {
+        command.env("LD_LIBRARY_PATH", path);
+    }
+    let output = tokio::time::timeout(Duration::from_secs(30), command.output())
+        .await
+        .expect("keygen exceeded 30 seconds")
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "keygen failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let current: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let summary: PublicKeySummary = serde_json::from_slice(&output.stdout).unwrap();
+    let encoded = zeroize::Zeroizing::new(std::fs::read(&output_path).unwrap());
+    let decoded = zeroize::Zeroizing::new(STANDARD.decode(encoded.as_slice()).unwrap());
+    assert_eq!(decoded.len(), 32, "keygen seed length changed");
+    let mut seed = zeroize::Zeroizing::new([0u8; 32]);
+    seed.copy_from_slice(decoded.as_slice());
+    let key = AuditSigningKey::from_seed(&seed);
+    assert_eq!(summary.key_id, key.key_id());
+    assert_eq!(
+        STANDARD.decode(summary.public_key).unwrap(),
+        key.public_key()
+    );
+    assert_eq!(
+        std::fs::metadata(&output_path)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+    assert!(
+        !output
+            .stdout
+            .windows(encoded.len())
+            .any(|bytes| bytes == encoded.as_slice())
+    );
+    for (name, retired) in [("keyId", "key_id"), ("publicKey", "public_key")] {
+        for keep_current in [false, true] {
+            let mut bad = current.clone();
+            let fields = bad.as_object_mut().unwrap();
+            let value = fields.get(name).unwrap().clone();
+            if !keep_current {
+                fields.remove(name);
+            }
+            fields.insert(retired.into(), value);
+            assert!(serde_json::from_value::<PublicKeySummary>(bad.clone()).is_err());
+            assert!(
+                serde_json::from_slice::<PublicKeySummary>(&serde_json::to_vec(&bad).unwrap())
+                    .is_err()
+            );
+        }
+    }
 }

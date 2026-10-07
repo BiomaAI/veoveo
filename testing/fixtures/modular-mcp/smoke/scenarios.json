@@ -1,0 +1,38 @@
+{
+  "format": "veoveo.ai/smoke-scenarios/v1",
+  "owner": "testing/fixtures/modular-mcp",
+  "scenarios": [
+    {
+      "id": "independent-modular-contract",
+      "description": "Admit the independently declared server contract without core dispatch entries.",
+      "target": {
+        "kind": "cargo_test",
+        "selection": {
+          "owner": "testing/fixtures/modular-mcp",
+          "package": "veoveo-modular-fixture-mcp",
+          "target": "contract",
+          "features": [
+            "contract"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        },
+        "case": "independent_owned_addresses_and_scope_names_round_trip",
+        "ignored": false
+      },
+      "arguments": [],
+      "prerequisites": [],
+      "requirements": {
+        "network": false,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Pure owning contract case; no service, provider or installed identity is used."
+      },
+      "deadlineSeconds": 60,
+      "cleanupSeconds": 5
+    }
+  ]
+}

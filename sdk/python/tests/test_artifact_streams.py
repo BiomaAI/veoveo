@@ -20,10 +20,10 @@ def caller():
         "bearer_token": "fixture-forwarded-identity",
         "identity": {
             "issuer": "veoveo-internal", "profile": "fixture", "server": "datasheet",
-            "jwt_id": "test", "issued_at": now, "not_before": now, "expires_at": now,
+            "jwt_id": "test", "issued_at": now, "not_before": now, "expiresAt": now,
             "actor": {"id": "alice", "kind": "user", "issuer": "https://idp.example", "subject": "alice", "tenant": "tenant"},
-            "authority": {"work_context": "operations", "tenant": "tenant", "membership": "contributor", "policy_revision": "p1",
-                "output_policy": {"owner": {"kind": "principal", "id": "alice"}, "initial_grants": [], "classification": "internal", "data_labels": []},
+            "authority": {"workContext": "operations", "tenant": "tenant", "membership": "contributor", "policyRevision": "p1",
+                "output_policy": {"owner": {"kind": "principal", "id": "alice"}, "initial_grants": [], "classification": "internal", "dataLabels": []},
                 "provenance": {"mode": "direct", "initiator": "alice"}},
         },
     })
@@ -53,9 +53,9 @@ def fixture(chunks, byte_len=None, status=200):
     artifact = str(uuid7())
     uri = f"artifact://{artifact}"
     metadata = {
-        "artifact_id": artifact, "artifact_uri": uri, "filename": "measurements.csv",
-        "byte_len": byte_len if byte_len is not None else sum(map(len, chunks.chunks)),
-        "created_at": datetime.now(timezone.utc).isoformat(), "mime_type": "text/csv",
+        "artifactId": artifact, "artifactUri": uri, "filename": "measurements.csv",
+        "byteLen": byte_len if byte_len is not None else sum(map(len, chunks.chunks)),
+        "createdAt": datetime.now(timezone.utc).isoformat(), "mimeType": "text/csv",
     }
 
     def respond(request):
@@ -222,7 +222,7 @@ async def test_actual_rust_metadata_is_bound_to_requested_occurrence_before_body
     from veoveo_mcp.contract.artifacts import ArtifactId
 
     metadata = json.loads((Path(__file__).resolve().parents[3] / "platform/artifacts/contract/tests/fixtures/metadata-output.json").read_text())
-    requested = ArtifactId(metadata["artifact_id"])
+    requested = ArtifactId(metadata["artifactId"])
     delivered = Chunks([b"x"])
     foreign = ArtifactId(str(uuid7()))
 

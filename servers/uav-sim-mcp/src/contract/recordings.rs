@@ -60,6 +60,7 @@ impl RecordingCatalog {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "RecordingStateWire", into = "RecordingStateWire")]
+#[serde(deny_unknown_fields)]
 pub struct RecordingState {
     pub recording_key: RecordingKey,
     pub catalog: RecordingCatalog,
@@ -75,6 +76,7 @@ pub struct RecordingState {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct RecordingStateWire {
     recording_key: RecordingKey,
     catalog_lifecycle: RecordingCatalogLifecycle,

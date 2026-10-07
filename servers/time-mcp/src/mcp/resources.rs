@@ -247,7 +247,7 @@ impl TimeMcp {
                     .map_err(invalid_params)?;
                 json_read(
                     uri,
-                    &json!({"zone_id": zone_id, "tzdb_release_id": engine.authority().binding().tzdb_release_id(), "current": projection.zoned.into_iter().next()}),
+                    &json!({"zoneId": zone_id, "tzdbReleaseId": engine.authority().binding().tzdb_release_id(), "current": projection.zoned.into_iter().next()}),
                 )
             }
             TimeResource::Calendar { id, version } => {
@@ -320,7 +320,11 @@ impl TimeMcp {
                     .map_err(invalid_params)?;
                 json_read(
                     uri,
-                    &json!({"time": time, "effective_policy": policy, "clock_quality": quality}),
+                    &crate::contract::ClockCurrent {
+                        time,
+                        effective_policy: policy,
+                        clock_quality: quality,
+                    },
                 )
             }
             TimeResource::AuthoritiesCurrent => {

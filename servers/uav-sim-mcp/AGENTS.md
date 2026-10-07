@@ -25,7 +25,7 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
   template must expand to its typed domain builder in the setup qualification.
 
 - Use `UavResource` and the typed `uris` constructors for resource addresses.
-  Collection cursors belong to the contract and preserve their version 1 wire profile.
+  Collection cursors belong to the contract: identity positions use revision 1, while usage positions use revision 2.
   Decode each resource once; reads and subscriptions share scopes and parent checks.
   Relative IDs fail construction and retained JSON admission. Apply the design's
   retained-data and provider preflight before a coordinated upgrade.
@@ -51,7 +51,7 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
   `interrupted_indeterminate` recovery; live simulator work is never replayed
   after an unclean interruption. Compatibility task tools are not added.
 - Map MCP owns place resolution, active operational geography, mobility profiles,
-  restrictions, routing, and `veoveo.ai/map-route-handoff/v1`. Frames MCP owns
+  restrictions, routing, and `veoveo.ai/map-route-handoff/v2`. Frames MCP owns
   immutable world revisions. This server owns principal-to-vehicle grants,
   mission admission, exclusive command leases, execution, telemetry, and its
   domain App. Do not move Map or Frames behavior into UAV code.
@@ -142,7 +142,9 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
 
 ## Contract Compliance
 
-Contract revision: 3
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met
@@ -167,12 +169,14 @@ Contract revision: 3
 - C21: met
 - C22: met
 - C23: met
+- C24: met
 - C25: met
 - C26: met
 - C27: met — Store LIVE sources with changefeed recovery invalidate durable collection and exact-resource subscriptions
 - C28: met — discovery lists roots and templates without simulator reads or dynamic record enumeration; agent-target metadata retains its declared invalidation source
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
-- C24: met
 - C31: pending — native discovery is qualified with an unreachable simulator; installed readiness qualification is pending
 - C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

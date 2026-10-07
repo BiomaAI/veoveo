@@ -125,11 +125,11 @@ fn collection_cursor_checks_both_positions_version_and_collection_identity() {
     let wire: serde_json::Value =
         serde_json::from_slice(&hex::decode(cursor.as_str()).unwrap()).unwrap();
     for (field, value) in [
-        ("version", serde_json::json!(2)),
+        ("version", serde_json::json!(1)),
         ("collection", serde_json::json!("map://sources")),
-        ("after_id", serde_json::json!(MapSourceId::new())),
-        ("after_version", serde_json::json!(0)),
-        ("after_version", serde_json::json!("100")),
+        ("afterId", serde_json::json!(MapSourceId::new())),
+        ("afterVersion", serde_json::json!(0)),
+        ("afterVersion", serde_json::json!("100")),
         ("extra", serde_json::json!(true)),
     ] {
         let mut bad = wire.clone();
@@ -178,13 +178,13 @@ fn pages_preserve_complete_profiles_and_require_numeric_order_and_consistent_con
     bad["items"].as_array_mut().unwrap().remove(99);
     assert!(serde_json::from_value::<MapMobilityProfilePage>(bad).is_err());
     let mut bad = wire.clone();
-    bad["next_cursor"] = serde_json::json!(MapMobilityProfileCursor::new(
+    bad["nextCursor"] = serde_json::json!(MapMobilityProfileCursor::new(
         MobilityProfileId::new(),
         MobilityProfileVersion::new(100).unwrap()
     ));
     assert!(serde_json::from_value::<MapMobilityProfilePage>(bad).is_err());
     let mut bad = wire;
-    bad["items"][0]["profile"]["preferred_speed"] = serde_json::json!(30);
+    bad["items"][0]["profile"]["preferredSpeed"] = serde_json::json!(30);
     assert!(serde_json::from_value::<MapMobilityProfilePage>(bad).is_err());
     assert!(
         MapMobilityProfilePage::from_lookahead(vec![])
@@ -198,7 +198,7 @@ fn pages_preserve_complete_profiles_and_require_numeric_order_and_consistent_con
 fn profile_creation_closes_request_tagged_profile_and_nested_components() {
     let profile: serde_json::Value =
         serde_json::from_str(include_str!("fixtures/mobility.json")).unwrap();
-    let wire = serde_json::json!({"profile": profile, "idempotency_key": "fixture"});
+    let wire = serde_json::json!({"profile": profile, "idempotencyKey": "fixture"});
     let schema = serde_json::to_value(schemars::schema_for!(CreateMobilityProfileRequest)).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     assert!(validator.is_valid(&wire));

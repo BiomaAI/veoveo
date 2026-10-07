@@ -37,13 +37,13 @@ fn catalog() -> GatewayCatalog {
 
 fn template() -> wire::RuntimeTemplate {
     serde_json::from_value(serde_json::json!({
-        "id":"pilot", "name":"Reviewed pilot", "tenant":"tenant-a", "work_contexts":["operations"],
-        "required_deployer_scopes":["operator:use"], "profile":"operator", "scopes":["operator:use"], "roles":["managed-pilot"], "membership":"contributor",
-        "models":["approved"], "tools":["media__describe_model"], "resource_subscriptions":[],
-        "parameters":{"vehicle":{"label":"Vehicle", "shape":{"kind":"identifier", "maxLength":40}, "environment_variable":"VEOVEO_PARAM_VEHICLE"}},
-        "workload":{"namespace":"agents", "config_map":"pilot-template", "config_digest":format!("sha256:{}", "b".repeat(64)), "image":format!("registry.test/kernel@sha256:{}", "a".repeat(64)),
-            "database_secret":"agent-store", "storage_class":"local-path", "storage_gib":2, "cpu_millis":500, "memory_mib":1024,
-            "model_secrets":[{"reference":"media_provider_api_key", "secret":"agent-model", "key":"api-key"}]}
+        "id":"pilot", "name":"Reviewed pilot", "tenant":"tenant-a", "workContexts":["operations"],
+        "requiredDeployerScopes":["operator:use"], "profile":"operator", "scopes":["operator:use"], "roles":["managed-pilot"], "membership":"contributor",
+        "models":["approved"], "tools":["media__describe_model"], "resourceSubscriptions":[],
+        "parameters":{"vehicle":{"label":"Vehicle", "shape":{"kind":"identifier", "maxLength":40}, "environmentVariable":"VEOVEO_PARAM_VEHICLE"}},
+        "workload":{"namespace":"agents", "configMap":"pilot-template", "configDigest":format!("sha256:{}", "b".repeat(64)), "image":format!("registry.test/kernel@sha256:{}", "a".repeat(64)),
+            "databaseSecret":"agent-store", "storageClass":"local-path", "storageGib":2, "cpuMillis":500, "memoryMib":1024,
+            "modelSecrets":[{"reference":"media_provider_api_key", "secret":"agent-model", "key":"api-key"}]}
     })).unwrap()
 }
 

@@ -90,7 +90,7 @@ function toolFailureText(result, name) {
 async function callToolRaw(name, args) {
   const params = { name: projectedToolName(name), arguments: args };
   const result = toolEnvelope(await bridge.request("tools/call", params));
-  if (result && (result.isError || result.is_error)) {
+  if (result && result.isError) {
     throw new Error(toolFailureText(result, name));
   }
   return result;
@@ -163,8 +163,8 @@ const m4 = (() => {
 
 /* -------------------------------------------------------------------- geo --
  * Line-for-line port of the server's geodesy.rs so the frustum gizmo matches
- * what the renderer produces. Positions are {latitude_degrees,
- * longitude_degrees, ellipsoidal_height_meters}; vectors are [x, y, z].
+ * what the renderer produces. Positions are {latitudeDegrees,
+ * longitudeDegrees, ellipsoidalHeightMeters}; vectors are [x, y, z].
  */
 const geo = (() => {
   const A = 6378137.0;
@@ -198,12 +198,12 @@ const geo = (() => {
   }
 
   function geodeticToEcef(p) {
-    const lat = p.latitude_degrees * RAD;
-    const lon = p.longitude_degrees * RAD;
+    const lat = p.latitudeDegrees * RAD;
+    const lon = p.longitudeDegrees * RAD;
     const sinLat = Math.sin(lat), cosLat = Math.cos(lat);
     const sinLon = Math.sin(lon), cosLon = Math.cos(lon);
     const n = A / Math.sqrt(1 - E2 * sinLat * sinLat);
-    const h = p.ellipsoidal_height_meters;
+    const h = p.ellipsoidalHeightMeters;
     return [(n + h) * cosLat * cosLon, (n + h) * cosLat * sinLon, (n * (1 - E2) + h) * sinLat];
   }
 
@@ -220,15 +220,15 @@ const geo = (() => {
     const sinLat = Math.sin(lat);
     const n = A / Math.sqrt(1 - E2 * sinLat * sinLat);
     return {
-      latitude_degrees: lat / RAD,
-      longitude_degrees: lon / RAD,
-      ellipsoidal_height_meters: p / Math.cos(lat) - n,
+      latitudeDegrees: lat / RAD,
+      longitudeDegrees: lon / RAD,
+      ellipsoidalHeightMeters: p / Math.cos(lat) - n,
     };
   }
 
   function enuBasis(p) {
-    const lat = p.latitude_degrees * RAD;
-    const lon = p.longitude_degrees * RAD;
+    const lat = p.latitudeDegrees * RAD;
+    const lon = p.longitudeDegrees * RAD;
     const sinLat = Math.sin(lat), cosLat = Math.cos(lat);
     const sinLon = Math.sin(lon), cosLon = Math.cos(lon);
     return {
@@ -252,13 +252,13 @@ const geo = (() => {
   }
 
   function validatePosition(p, label) {
-    if (!Number.isFinite(p.latitude_degrees) || p.latitude_degrees < -90 || p.latitude_degrees > 90) {
+    if (!Number.isFinite(p.latitudeDegrees) || p.latitudeDegrees < -90 || p.latitudeDegrees > 90) {
       throw new Error(`${label} latitude must be between -90 and 90 degrees`);
     }
-    if (!Number.isFinite(p.longitude_degrees) || p.longitude_degrees < -180 || p.longitude_degrees > 180) {
+    if (!Number.isFinite(p.longitudeDegrees) || p.longitudeDegrees < -180 || p.longitudeDegrees > 180) {
       throw new Error(`${label} longitude must be between -180 and 180 degrees`);
     }
-    if (!Number.isFinite(p.ellipsoidal_height_meters) || p.ellipsoidal_height_meters < -20000 || p.ellipsoidal_height_meters > 100000000) {
+    if (!Number.isFinite(p.ellipsoidalHeightMeters) || p.ellipsoidalHeightMeters < -20000 || p.ellipsoidalHeightMeters > 100000000) {
       throw new Error(`${label} altitude is outside the supported range`);
     }
   }
@@ -276,9 +276,9 @@ const geo = (() => {
     const horizontal = Math.hypot(local[0], local[1]);
     const heading = ((Math.atan2(local[0], local[1]) / RAD) % 360 + 360) % 360;
     return {
-      heading_degrees: heading,
-      pitch_degrees: Math.atan2(local[2], horizontal) / RAD,
-      roll_degrees: rollDegrees,
+      headingDegrees: heading,
+      pitchDegrees: Math.atan2(local[2], horizontal) / RAD,
+      rollDegrees: rollDegrees,
     };
   }
 
@@ -286,51 +286,51 @@ const geo = (() => {
   function resolveCamera(definition) {
     if (definition.kind === "pose") {
       validatePosition(definition.position, "camera");
-      validateFov(definition.vertical_fov_degrees);
+      validateFov(definition.verticalFovDegrees);
       const o = definition.orientation;
-      if (![o.heading_degrees, o.pitch_degrees, o.roll_degrees].every(Number.isFinite) ||
-          o.pitch_degrees < -90 || o.pitch_degrees > 90) {
+      if (![o.headingDegrees, o.pitchDegrees, o.rollDegrees].every(Number.isFinite) ||
+          o.pitchDegrees < -90 || o.pitchDegrees > 90) {
         throw new Error("pitch must be between -90 and 90 degrees");
       }
       return {
         position: { ...definition.position },
         orientation: { ...definition.orientation },
-        vertical_fov_degrees: definition.vertical_fov_degrees,
+        verticalFovDegrees: definition.verticalFovDegrees,
       };
     }
     if (definition.kind === "look_at") {
       validatePosition(definition.eye, "eye");
       validatePosition(definition.target, "target");
-      validateFov(definition.vertical_fov_degrees);
+      validateFov(definition.verticalFovDegrees);
       return {
         position: { ...definition.eye },
         orientation: orientationToward(definition.eye, definition.target, 0),
-        vertical_fov_degrees: definition.vertical_fov_degrees,
+        verticalFovDegrees: definition.verticalFovDegrees,
       };
     }
     if (definition.kind === "orbit_target") {
       validatePosition(definition.target, "target");
-      validateFov(definition.vertical_fov_degrees);
-      if (!Number.isFinite(definition.distance_meters) || definition.distance_meters < 0.1 || definition.distance_meters > 100000000) {
+      validateFov(definition.verticalFovDegrees);
+      if (!Number.isFinite(definition.distanceMeters) || definition.distanceMeters < 0.1 || definition.distanceMeters > 100000000) {
         throw new Error("orbit distance must be between 0.1 m and 100,000 km");
       }
-      if (!Number.isFinite(definition.elevation_degrees) || definition.elevation_degrees < -89.9 || definition.elevation_degrees > 89.9) {
+      if (!Number.isFinite(definition.elevationDegrees) || definition.elevationDegrees < -89.9 || definition.elevationDegrees > 89.9) {
         throw new Error("orbit elevation must be between -89.9 and 89.9 degrees");
       }
       const targetEcef = geodeticToEcef(definition.target);
       const { east, north, up } = enuBasis(definition.target);
-      const azimuth = definition.azimuth_degrees * RAD;
-      const elevation = definition.elevation_degrees * RAD;
-      const horizontal = definition.distance_meters * Math.cos(elevation);
+      const azimuth = definition.azimuthDegrees * RAD;
+      const elevation = definition.elevationDegrees * RAD;
+      const horizontal = definition.distanceMeters * Math.cos(elevation);
       const offset = add(
         add(scale(east, horizontal * Math.sin(azimuth)), scale(north, horizontal * Math.cos(azimuth))),
-        scale(up, definition.distance_meters * Math.sin(elevation))
+        scale(up, definition.distanceMeters * Math.sin(elevation))
       );
       const eye = ecefToGeodetic(add(targetEcef, offset));
       return {
         position: eye,
         orientation: orientationToward(eye, definition.target, 0),
-        vertical_fov_degrees: definition.vertical_fov_degrees,
+        verticalFovDegrees: definition.verticalFovDegrees,
       };
     }
     throw new Error(`unknown camera kind ${definition.kind}`);
@@ -341,9 +341,9 @@ const geo = (() => {
   function cameraWorldTransform(pose, origin) {
     const world = worldFromEcef(origin);
     const position = m4.transformPoint(world, geodeticToEcef(pose.position));
-    const h = pose.orientation.heading_degrees * RAD;
-    const p = pose.orientation.pitch_degrees * RAD;
-    const r = pose.orientation.roll_degrees * RAD;
+    const h = pose.orientation.headingDegrees * RAD;
+    const p = pose.orientation.pitchDegrees * RAD;
+    const r = pose.orientation.rollDegrees * RAD;
     const forward = normalize([Math.sin(h) * Math.cos(p), Math.sin(p), -Math.cos(h) * Math.cos(p)]);
     let right = normalizeOr(cross(forward, [0, 1, 0]), [1, 0, 0]);
     let up = normalize(cross(right, forward));
@@ -842,7 +842,7 @@ class SceneView {
       this.gizmoCamera.quaternion,
       this.gizmoCamera.scale
     );
-    this.gizmoCamera.fov = pose.vertical_fov_degrees;
+    this.gizmoCamera.fov = pose.verticalFovDegrees;
     this.gizmoCamera.aspect = aspect;
     this.gizmoCamera.near = 1;
     this.gizmoCamera.far = Math.min(Math.max(farHint || 500, 100), 30000);
@@ -898,23 +898,23 @@ class TileLoader {
   constructor(sceneView, onProgress) {
     this.sceneView = sceneView;
     this.onProgress = onProgress;
-    this.cache = new Map(); // tile_uri → { group, rtcCenter, bytes }
+    this.cache = new Map(); // tileUri → { group, rtcCenter, bytes }
     this.generation = 0;
     this.maxBytes = 96 * 1024 * 1024;
   }
 
   contentMatrix(localFromEcef, tile, rtcCenter) {
-    let matrix = m4.mul(localFromEcef, m4.fromArray(tile.ecef_from_content));
+    let matrix = m4.mul(localFromEcef, m4.fromArray(tile.ecefFromContent));
     if (rtcCenter) matrix = m4.mul(matrix, m4.translation(rtcCenter));
     return matrix;
   }
 
   async load(manifest) {
     const generation = ++this.generation;
-    const localFromEcef = m4.fromArray(manifest.local_from_ecef);
+    const localFromEcef = m4.fromArray(manifest.localFromEcef);
     const usable = manifest.tiles.filter((tile) => !tile.oversize);
     const skipped = manifest.tiles.length - usable.length;
-    const wanted = new Set(usable.map((tile) => tile.tile_uri));
+    const wanted = new Set(usable.map((tile) => tile.tileUri));
     for (const [uri, entry] of [...this.cache]) {
       if (!wanted.has(uri)) {
         this.sceneView.tiles.remove(entry.group);
@@ -924,7 +924,7 @@ class TileLoader {
     }
     const ordered = usable
       .map((tile) => {
-        const local = m4.mul(localFromEcef, m4.fromArray(tile.ecef_from_content));
+        const local = m4.mul(localFromEcef, m4.fromArray(tile.ecefFromContent));
         return { tile, distance: Math.hypot(local[12], local[13], local[14]) };
       })
       .sort((a, b) => a.distance - b.distance)
@@ -944,9 +944,9 @@ class TileLoader {
         if (this.generation !== generation) return;
         const tile = queue.shift();
         try {
-          let entry = this.cache.get(tile.tile_uri);
+          let entry = this.cache.get(tile.tileUri);
           if (!entry) {
-            const bytes = await readBlobResource(tile.tile_uri);
+            const bytes = await readBlobResource(tile.tileUri);
             if (this.generation !== generation) return;
             await nextMacrotask(); // one decode per macrotask keeps orbiting responsive
             const built = await glb.build(mod, glb.parse(bytes));
@@ -955,12 +955,12 @@ class TileLoader {
               return;
             }
             entry = { group: built.group, rtcCenter: built.rtcCenter, bytes: bytes.byteLength };
-            this.cache.set(tile.tile_uri, entry);
+            this.cache.set(tile.tileUri, entry);
             this.sceneView.tiles.add(entry.group);
           }
           entry.group.matrix.fromArray(this.contentMatrix(localFromEcef, tile, entry.rtcCenter));
         } catch (cause) {
-          failures.push(`${tile.tile_uri.slice(-12)}: ${cause.message}`);
+          failures.push(`${tile.tileUri.slice(-12)}: ${cause.message}`);
         }
         done += 1;
         report();
@@ -1050,9 +1050,9 @@ class CameraForm {
 
   position(prefix) {
     return {
-      latitude_degrees: Number(input(`${prefix}-lat`).value),
-      longitude_degrees: Number(input(`${prefix}-lon`).value),
-      ellipsoidal_height_meters: Number(input(`${prefix}-alt`).value),
+      latitudeDegrees: Number(input(`${prefix}-lat`).value),
+      longitudeDegrees: Number(input(`${prefix}-lon`).value),
+      ellipsoidalHeightMeters: Number(input(`${prefix}-alt`).value),
     };
   }
 
@@ -1063,10 +1063,10 @@ class CameraForm {
       return {
         kind: "orbit_target",
         target: this.position("target"),
-        distance_meters: Number(el("orbit-distance").value),
-        azimuth_degrees: Number(el("orbit-azimuth").value),
-        elevation_degrees: Number(el("orbit-elevation").value),
-        vertical_fov_degrees: fov,
+        distanceMeters: Number(el("orbit-distance").value),
+        azimuthDegrees: Number(el("orbit-azimuth").value),
+        elevationDegrees: Number(el("orbit-elevation").value),
+        verticalFovDegrees: fov,
       };
     }
     if (this.mode === "look_at") {
@@ -1074,57 +1074,57 @@ class CameraForm {
         kind: "look_at",
         eye: this.position("eye"),
         target: this.position("target"),
-        vertical_fov_degrees: fov,
+        verticalFovDegrees: fov,
       };
     }
     return {
       kind: "pose",
       position: this.position("eye"),
       orientation: {
-        heading_degrees: Number(el("pose-heading").value),
-        pitch_degrees: Number(el("pose-pitch").value),
-        roll_degrees: Number(el("pose-roll").value),
+        headingDegrees: Number(el("pose-heading").value),
+        pitchDegrees: Number(el("pose-pitch").value),
+        rollDegrees: Number(el("pose-roll").value),
       },
-      vertical_fov_degrees: fov,
+      verticalFovDegrees: fov,
     };
   }
 
   setTarget(position) {
-    el("target-lat").value = position.latitude_degrees.toFixed(6);
-    el("target-lon").value = position.longitude_degrees.toFixed(6);
-    el("target-alt").value = position.ellipsoidal_height_meters.toFixed(1);
+    el("target-lat").value = position.latitudeDegrees.toFixed(6);
+    el("target-lon").value = position.longitudeDegrees.toFixed(6);
+    el("target-alt").value = position.ellipsoidalHeightMeters.toFixed(1);
     this.changed();
   }
 
   setDefinition(definition) {
-    el("fov").value = String(definition.vertical_fov_degrees);
-    el("fov-slider").value = String(definition.vertical_fov_degrees);
+    el("fov").value = String(definition.verticalFovDegrees);
+    el("fov-slider").value = String(definition.verticalFovDegrees);
     if (definition.kind === "orbit_target") {
-      el("target-lat").value = String(definition.target.latitude_degrees);
-      el("target-lon").value = String(definition.target.longitude_degrees);
-      el("target-alt").value = String(definition.target.ellipsoidal_height_meters);
-      el("orbit-distance").value = String(definition.distance_meters);
-      el("orbit-distance-slider").value = String(Math.log10(Math.max(definition.distance_meters, 1)));
-      el("orbit-azimuth").value = String(definition.azimuth_degrees);
-      el("orbit-azimuth-slider").value = String(definition.azimuth_degrees);
-      el("orbit-elevation").value = String(definition.elevation_degrees);
-      el("orbit-elevation-slider").value = String(definition.elevation_degrees);
+      el("target-lat").value = String(definition.target.latitudeDegrees);
+      el("target-lon").value = String(definition.target.longitudeDegrees);
+      el("target-alt").value = String(definition.target.ellipsoidalHeightMeters);
+      el("orbit-distance").value = String(definition.distanceMeters);
+      el("orbit-distance-slider").value = String(Math.log10(Math.max(definition.distanceMeters, 1)));
+      el("orbit-azimuth").value = String(definition.azimuthDegrees);
+      el("orbit-azimuth-slider").value = String(definition.azimuthDegrees);
+      el("orbit-elevation").value = String(definition.elevationDegrees);
+      el("orbit-elevation-slider").value = String(definition.elevationDegrees);
     } else if (definition.kind === "look_at") {
-      el("eye-lat").value = String(definition.eye.latitude_degrees);
-      el("eye-lon").value = String(definition.eye.longitude_degrees);
-      el("eye-alt").value = String(definition.eye.ellipsoidal_height_meters);
-      el("target-lat").value = String(definition.target.latitude_degrees);
-      el("target-lon").value = String(definition.target.longitude_degrees);
-      el("target-alt").value = String(definition.target.ellipsoidal_height_meters);
+      el("eye-lat").value = String(definition.eye.latitudeDegrees);
+      el("eye-lon").value = String(definition.eye.longitudeDegrees);
+      el("eye-alt").value = String(definition.eye.ellipsoidalHeightMeters);
+      el("target-lat").value = String(definition.target.latitudeDegrees);
+      el("target-lon").value = String(definition.target.longitudeDegrees);
+      el("target-alt").value = String(definition.target.ellipsoidalHeightMeters);
     } else {
-      el("eye-lat").value = String(definition.position.latitude_degrees);
-      el("eye-lon").value = String(definition.position.longitude_degrees);
-      el("eye-alt").value = String(definition.position.ellipsoidal_height_meters);
-      el("pose-heading").value = String(definition.orientation.heading_degrees);
-      el("pose-heading-slider").value = String(definition.orientation.heading_degrees);
-      el("pose-pitch").value = String(definition.orientation.pitch_degrees);
-      el("pose-pitch-slider").value = String(definition.orientation.pitch_degrees);
-      el("pose-roll").value = String(definition.orientation.roll_degrees);
+      el("eye-lat").value = String(definition.position.latitudeDegrees);
+      el("eye-lon").value = String(definition.position.longitudeDegrees);
+      el("eye-alt").value = String(definition.position.ellipsoidalHeightMeters);
+      el("pose-heading").value = String(definition.orientation.headingDegrees);
+      el("pose-heading-slider").value = String(definition.orientation.headingDegrees);
+      el("pose-pitch").value = String(definition.orientation.pitchDegrees);
+      el("pose-pitch-slider").value = String(definition.orientation.pitchDegrees);
+      el("pose-roll").value = String(definition.orientation.rollDegrees);
     }
     this.setMode(definition.kind);
   }
@@ -1136,11 +1136,11 @@ class CameraForm {
 
 function capturePolicy() {
   return {
-    width_px: Number(el("cap-width").value),
-    height_px: Number(el("cap-height").value),
-    max_screen_error_px: Number(el("cap-sse").value),
-    deadline_ms: Math.round(Number(el("cap-deadline").value) * 1000),
-    deadline_behavior: el("cap-behavior").value,
+    widthPx: Number(el("cap-width").value),
+    heightPx: Number(el("cap-height").value),
+    maxScreenErrorPx: Number(el("cap-sse").value),
+    deadlineMs: Math.round(Number(el("cap-deadline").value) * 1000),
+    deadlineBehavior: el("cap-behavior").value,
     encoding: el("cap-encoding").value,
   };
 }
@@ -1149,15 +1149,15 @@ function capturePolicy() {
 /** @type {[string,unknown][]} */
 const PRESETS = [
   ["Statue of Liberty · orbit 650 m", { kind: "orbit_target",
-    target: { latitude_degrees: 40.6892, longitude_degrees: -74.0445, ellipsoidal_height_meters: 30 },
-    distance_meters: 650, azimuth_degrees: 210, elevation_degrees: 40, vertical_fov_degrees: 45 }],
+    target: { latitudeDegrees: 40.6892, longitudeDegrees: -74.0445, ellipsoidalHeightMeters: 30 },
+    distanceMeters: 650, azimuthDegrees: 210, elevationDegrees: 40, verticalFovDegrees: 45 }],
   ["Manhattan skyline · look-at", { kind: "look_at",
-    eye: { latitude_degrees: 40.6935, longitude_degrees: -74.0270, ellipsoidal_height_meters: 350 },
-    target: { latitude_degrees: 40.7075, longitude_degrees: -74.0113, ellipsoidal_height_meters: 150 },
-    vertical_fov_degrees: 55 }],
+    eye: { latitudeDegrees: 40.6935, longitudeDegrees: -74.0270, ellipsoidalHeightMeters: 350 },
+    target: { latitudeDegrees: 40.7075, longitudeDegrees: -74.0113, ellipsoidalHeightMeters: 150 },
+    verticalFovDegrees: 55 }],
   ["Golden Gate · orbit 1.2 km", { kind: "orbit_target",
-    target: { latitude_degrees: 37.8199, longitude_degrees: -122.4786, ellipsoidal_height_meters: 80 },
-    distance_meters: 1200, azimuth_degrees: 135, elevation_degrees: 25, vertical_fov_degrees: 50 }],
+    target: { latitudeDegrees: 37.8199, longitudeDegrees: -122.4786, ellipsoidalHeightMeters: 80 },
+    distanceMeters: 1200, azimuthDegrees: 135, elevationDegrees: 25, verticalFovDegrees: 50 }],
 ];
 
 const APP_TOOL_NAMES = new Set([
@@ -1221,37 +1221,37 @@ function applyInitialToolInput(params) {
   if (!args || !form) return;
   const camera = structuredArgument(args.camera);
   if (camera && typeof camera === "object") form.setDefinition(camera);
-  if (typeof args.base_layer === "string") {
+  if (typeof args.baseLayer === "string") {
     const layer = el("layer-select");
-    if ([...layer.options].some((option) => option.value === args.base_layer)) {
-      layer.value = args.base_layer;
+    if ([...layer.options].some((option) => option.value === args.baseLayer)) {
+      layer.value = args.baseLayer;
     }
   }
 }
 
 async function applyInitialToolResult(result) {
-  if (result && (result.isError || result.is_error)) {
+  if (result && result.isError) {
     showError("action-error", toolFailureText(result, "initial tool"));
     return;
   }
   const record = structuredResult(result);
   if (!record || typeof record !== "object") return;
-  if (typeof record.composition_id === "string" &&
-      typeof record.composition_uri === "string" &&
-      typeof record.base_layer === "string") {
+  if (typeof record.compositionId === "string" &&
+      typeof record.compositionUri === "string" &&
+      typeof record.baseLayer === "string") {
     app.composition = admit("composition", record);
     const layer = el("layer-select");
-    if ([...layer.options].some((option) => option.value === record.base_layer)) {
-      layer.value = record.base_layer;
+    if ([...layer.options].some((option) => option.value === record.baseLayer)) {
+      layer.value = record.baseLayer;
     }
     updateViewChip();
-    setStatus(`composition ${record.composition_id.slice(0, 8)}… ready — create a view`, false);
+    setStatus(`composition ${record.compositionId.slice(0, 8)}… ready — create a view`, false);
     return;
   }
-  if (typeof record.view_id === "string" && typeof record.view_uri === "string" &&
-      record.camera && record.resolved_camera) {
+  if (typeof record.viewId === "string" && typeof record.viewUri === "string" &&
+      record.camera && record.resolvedCamera) {
     applyViewRecord(record);
-    setStatus(`created view ${record.view_id}`, false);
+    setStatus(`created view ${record.viewId}`, false);
     await refreshScene();
   }
 }
@@ -1270,11 +1270,11 @@ function flushInitialToolData() {
 }
 
 function sceneOrigin() {
-  if (app.manifest) return app.manifest.local_origin;
+  if (app.manifest) return app.manifest.localOrigin;
   try {
     return geo.resolveCamera(form.value()).position;
   } catch {
-    return { latitude_degrees: 0, longitude_degrees: 0, ellipsoidal_height_meters: 0 };
+    return { latitudeDegrees: 0, longitudeDegrees: 0, ellipsoidalHeightMeters: 0 };
   }
 }
 
@@ -1287,10 +1287,10 @@ function updateResolvedStrip(pose, confirmed) {
   const node = el("resolved");
   node.classList.toggle("confirmed", Boolean(confirmed));
   node.textContent =
-    `${confirmed ? "server" : "local"} · lat ${pose.position.latitude_degrees.toFixed(6)}° ` +
-    `lon ${pose.position.longitude_degrees.toFixed(6)}° alt ${pose.position.ellipsoidal_height_meters.toFixed(1)} m · ` +
-    `H ${pose.orientation.heading_degrees.toFixed(1)}° P ${pose.orientation.pitch_degrees.toFixed(1)}° ` +
-    `R ${pose.orientation.roll_degrees.toFixed(1)}° · FOV ${pose.vertical_fov_degrees}°`;
+    `${confirmed ? "server" : "local"} · lat ${pose.position.latitudeDegrees.toFixed(6)}° ` +
+    `lon ${pose.position.longitudeDegrees.toFixed(6)}° alt ${pose.position.ellipsoidalHeightMeters.toFixed(1)} m · ` +
+    `H ${pose.orientation.headingDegrees.toFixed(1)}° P ${pose.orientation.pitchDegrees.toFixed(1)}° ` +
+    `R ${pose.orientation.rollDegrees.toFixed(1)}° · FOV ${pose.verticalFovDegrees}°`;
 }
 
 function updateFrustum() {
@@ -1315,7 +1315,7 @@ function updateFrustum() {
       eyeEcef[0] - targetEcef[0], eyeEcef[1] - targetEcef[1], eyeEcef[2] - targetEcef[2]
     ) * 1.6;
   } else {
-    farHint = Math.max(pose.position.ellipsoidal_height_meters * 3, 500);
+    farHint = Math.max(pose.position.ellipsoidalHeightMeters * 3, 500);
   }
   sceneView.setFrustum(pose, origin, aspect, farHint);
 }
@@ -1326,16 +1326,16 @@ function updateViewChip() {
     if (app.composition) {
       chip.textContent = "composition ready";
       chip.className = "chip ok";
-      chip.title = app.composition.composition_uri;
+      chip.title = app.composition.compositionUri;
     } else {
       chip.textContent = "no view";
       chip.className = "chip";
       chip.removeAttribute("title");
     }
   } else {
-    chip.textContent = `${app.view.view_id.slice(0, 8)}… r${app.view.revision}`;
+    chip.textContent = `${app.view.viewId.slice(0, 8)}… r${app.view.revision}`;
     chip.className = "chip ok";
-    chip.title = app.view.view_uri;
+    chip.title = app.view.viewUri;
   }
   el("btn-create").hidden = Boolean(app.view);
   el("btn-apply").hidden = !app.view;
@@ -1349,7 +1349,7 @@ function applyViewRecord(record) {
   record=admit("view",record);
   app.view = record;
   form.setDefinition(record.camera);
-  updateResolvedStrip(record.resolved_camera, true);
+  updateResolvedStrip(record.resolvedCamera, true);
   updateViewChip();
 }
 
@@ -1359,8 +1359,8 @@ async function loadLayers() {
   select.replaceChildren();
   for (const layer of app.layers) {
     const option = document.createElement("option");
-    option.value = layer.layer_id;
-    option.textContent = `${layer.label} (${layer.source_kind})`;
+    option.value = layer.layerId;
+    option.textContent = `${layer.label} (${layer.sourceKind})`;
     select.append(option);
   }
 }
@@ -1370,23 +1370,23 @@ async function createView() {
   setStatus("creating view…", true);
   try {
     const selectedLayer = el("layer-select").value;
-    const composition = app.composition && app.composition.base_layer === selectedLayer
+    const composition = app.composition && app.composition.baseLayer === selectedLayer
       ? app.composition
       : await callTool("create_scene_composition", {
-          schema_version: 1,
-          base_layer: selectedLayer,
-          map_releases: [],
-          style_id: "view-preview:1",
-          governed_inputs: [],
+          schemaVersion: 2,
+          baseLayer: selectedLayer,
+          mapReleases: [],
+          styleId: "view-preview:1",
+          governedInputs: [],
           overlays: [],
         });
     app.composition = composition;
     const record = await callTool("create_view", {
-      composition_id: composition.composition_id,
+      compositionId: composition.compositionId,
       camera,
     });
     applyViewRecord(record);
-    setStatus(`created view ${record.view_id}`, false);
+    setStatus(`created view ${record.viewId}`, false);
     await refreshScene();
   } catch (cause) {
     setStatus("idle", false);
@@ -1399,8 +1399,8 @@ async function applyCamera() {
   setStatus("applying camera…", true);
   try {
     const record = await callTool("set_camera", {
-      view_id: app.view.view_id,
-      expected_revision: app.view.revision,
+      viewId: app.view.viewId,
+      expectedRevision: app.view.revision,
       camera: form.value(),
     });
     applyViewRecord(record);
@@ -1416,7 +1416,7 @@ async function applyCamera() {
 async function resyncView() {
   if (!app.view) return;
   try {
-    const record = await readJsonResource(app.view.view_uri,"view");
+    const record = await readJsonResource(app.view.viewUri,"view");
     applyViewRecord(record);
   } catch {
     app.view = null;
@@ -1432,29 +1432,29 @@ async function refreshScene() {
   try {
     const policy = capturePolicy();
     const query = new URLSearchParams({
-      width_px: String(policy.width_px),
-      height_px: String(policy.height_px),
-      max_screen_error_px: String(policy.max_screen_error_px),
+      width_px: String(policy.widthPx),
+      height_px: String(policy.heightPx),
+      max_screen_error_px: String(policy.maxScreenErrorPx),
     });
     const manifest = await readJsonResource(
-      `view://view/${app.view.view_id}/scene?${query}`,"scene"
+      `view://view/${app.view.viewId}/scene?${query}`,"scene"
     );
-    if(manifest.composition_id!==app.view.composition_id || manifest.view_revision!==app.view.revision) throw new Error("Scene manifest differs from active view");
+    if(manifest.compositionId!==app.view.compositionId || manifest.viewRevision!==app.view.revision) throw new Error("Scene manifest differs from active view");
     app.manifest = manifest;
-    app.localFromEcef = m4.fromArray(manifest.local_from_ecef);
+    app.localFromEcef = m4.fromArray(manifest.localFromEcef);
     const attribution = el("scene-attribution");
     attribution.hidden = !manifest.attribution.lines.length;
     attribution.textContent = manifest.attribution.lines.join(" · ");
     const definition = form.value();
-    const target = cameraTargetPosition(definition) || manifest.resolved_camera.position;
+    const target = cameraTargetPosition(definition) || manifest.resolvedCamera.position;
     const targetLocal = m4.transformPoint(app.localFromEcef, geo.geodeticToEcef(target));
     let focusDistance = 800;
-    if (definition.kind === "orbit_target") focusDistance = definition.distance_meters;
+    if (definition.kind === "orbit_target") focusDistance = definition.distanceMeters;
     sceneView.focus(targetLocal, focusDistance);
     updateFrustum();
     await tileLoader.load(manifest);
     setStatus(
-      manifest.detail_complete ? "scene loaded" : "scene loaded (partial detail)",
+      manifest.detailComplete ? "scene loaded" : "scene loaded (partial detail)",
       false
     );
   } catch (cause) {
@@ -1490,9 +1490,9 @@ async function captureFrame() {
     const created = await callToolRaw(
       "capture_frame",
       {
-        view_id: app.view.view_id,
-        expected_revision: app.view.revision,
-        scene_time: new Date().toISOString(),
+        viewId: app.view.viewId,
+        expectedRevision: app.view.revision,
+        sceneTime: new Date().toISOString(),
         policy: capturePolicy(),
       }
     );
@@ -1547,7 +1547,7 @@ async function cancelCapture() {
 function applyFrameResult(result) {
   const content = Array.isArray(result.content) ? result.content : [];
   const image = content.find((entry) => entry && entry.type === "image");
-  const record = toolValue("capture_frame",structuredResult(result),{view_id:app.view?.view_id,expected_revision:app.view?.revision,composition_id:app.view?.composition_id});
+  const record = toolValue("capture_frame",structuredResult(result),{viewId:app.view?.viewId,expectedRevision:app.view?.revision,compositionId:app.view?.compositionId});
   if (image) {
     el("frame-img").src = `data:${image.mimeType || "image/jpeg"};base64,${image.data}`;
     el("frame-img").hidden = false;
@@ -1558,14 +1558,14 @@ function applyFrameResult(result) {
     meta.hidden = false;
     meta.replaceChildren();
     const rows = [
-      ["frame", record.frame_uri],
-      ["captured", record.captured_at],
-      ["size", `${record.width_px}×${record.height_px} · ${(record.byte_length / 1024).toFixed(0)} KiB ${record.mime_type}`],
-      ["revision", `r${record.view_revision}`],
-      ["tiles", `${record.visible_tile_count} visible · ${record.pending_tile_count} pending`],
-      ["detail", record.detail_complete ? "complete" : `partial (sse ${record.actual_max_screen_error_px.toFixed(1)}px)`],
-      ["pose", `lat ${record.resolved_camera.position.latitude_degrees.toFixed(6)} lon ${record.resolved_camera.position.longitude_degrees.toFixed(6)} alt ${record.resolved_camera.position.ellipsoidal_height_meters.toFixed(1)}`],
-      ["hpr", `${record.resolved_camera.orientation.heading_degrees.toFixed(1)} / ${record.resolved_camera.orientation.pitch_degrees.toFixed(1)} / ${record.resolved_camera.orientation.roll_degrees.toFixed(1)}`],
+      ["frame", record.frameUri],
+      ["captured", record.capturedAt],
+      ["size", `${record.widthPx}×${record.heightPx} · ${(record.byteLength / 1024).toFixed(0)} KiB ${record.mimeType}`],
+      ["revision", `r${record.viewRevision}`],
+      ["tiles", `${record.visibleTileCount} visible · ${record.pendingTileCount} pending`],
+      ["detail", record.detailComplete ? "complete" : `partial (sse ${record.actualMaxScreenErrorPx.toFixed(1)}px)`],
+      ["pose", `lat ${record.resolvedCamera.position.latitudeDegrees.toFixed(6)} lon ${record.resolvedCamera.position.longitudeDegrees.toFixed(6)} alt ${record.resolvedCamera.position.ellipsoidalHeightMeters.toFixed(1)}`],
+      ["hpr", `${record.resolvedCamera.orientation.headingDegrees.toFixed(1)} / ${record.resolvedCamera.orientation.pitchDegrees.toFixed(1)} / ${record.resolvedCamera.orientation.rollDegrees.toFixed(1)}`],
     ];
     for (const [key, value] of rows) {
       const dt = document.createElement("dt");
@@ -1583,7 +1583,7 @@ function applyFrameResult(result) {
 
 async function closeView(silent) {
   if (!app.view) return;
-  const request = { view_id: app.view.view_id, expected_revision: app.view.revision };
+  const request = { viewId: app.view.viewId, expectedRevision: app.view.revision };
   app.view = null;
   app.manifest = null;
   updateViewChip();
@@ -1700,10 +1700,10 @@ bridge.on("ui/resource-teardown", (_params, id) => {
         try {
           const eye = form.position("eye");
           const orientation = geo.orientationToward(eye, position, Number(el("pose-roll").value));
-          el("pose-heading").value = String(orientation.heading_degrees.toFixed(1));
-          el("pose-heading-slider").value = String(orientation.heading_degrees);
-          el("pose-pitch").value = String(orientation.pitch_degrees.toFixed(1));
-          el("pose-pitch-slider").value = String(orientation.pitch_degrees);
+          el("pose-heading").value = String(orientation.headingDegrees.toFixed(1));
+          el("pose-heading-slider").value = String(orientation.headingDegrees);
+          el("pose-pitch").value = String(orientation.pitchDegrees.toFixed(1));
+          el("pose-pitch-slider").value = String(orientation.pitchDegrees);
           form.changed();
         } catch {}
       } else {

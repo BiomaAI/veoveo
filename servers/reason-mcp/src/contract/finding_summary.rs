@@ -11,7 +11,7 @@ pub const FINDING_SUMMARY_BYTES: usize = 64 * 1024;
 const EXCERPT_BYTES: usize = 4096;
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct FindingExcerpt {
     text: String,
     truncated: bool,
@@ -36,7 +36,12 @@ impl FindingExcerpt {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum FindingContent {
     Analysis {
         task: ReasoningTask,
@@ -54,7 +59,7 @@ pub enum FindingContent {
     },
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct FindingEvent {
     pub range: IndexRange,
     pub label: FindingExcerpt,
@@ -67,7 +72,7 @@ pub struct FindingEvent {
 pub struct FindingSummary(veoveo_types::Checked<FindingSummaryWire>);
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct FindingSummaryWire {
     uri: FindingResource,
     analysis_id: AnalysisId,

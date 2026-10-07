@@ -7,6 +7,7 @@ pub const TRAVEL_MODEL_PAGE_SIZE: usize = 100;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CursorWire {
     version: u8,
     task_id: TaskId,
@@ -36,7 +37,7 @@ impl veoveo_types::CursorCodec for MapTravelModelCursorCodec {
     }
     fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
         let bytes = serde_json::to_vec(&CursorWire {
-            version: 1,
+            version: 2,
             task_id: *position,
         })
         .expect("closed owner cursor fields serialize");
@@ -49,7 +50,7 @@ impl veoveo_types::CursorCodec for MapTravelModelCursorCodec {
         let bytes = hex::decode(wire).map_err(|_| TravelModelUriError)?;
         let decoded: CursorWire =
             serde_json::from_slice(&bytes).map_err(|_| TravelModelUriError)?;
-        if decoded.version != 1 {
+        if decoded.version != 2 {
             return Err(TravelModelUriError);
         }
         let position = decoded.task_id;
@@ -153,9 +154,43 @@ impl ResourceAddress for MapTravelModelsUri {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapTravelModelPage {
     pub items: Vec<TravelModelRecord>,
     pub limit: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<MapTravelModelCursor>,
+}
+
+#[cfg(test)]
+mod naming_cut_tests {
+    use super::*;
+    #[test]
+    fn current_task_cursor_refuses_old_revision_and_field_names() {
+        let cursor = MapTravelModelCursor::new(TaskId::new()).unwrap();
+        assert_eq!(
+            MapTravelModelCursor::parse(cursor.as_str()).unwrap(),
+            cursor
+        );
+        let current: serde_json::Value =
+            serde_json::from_slice(&hex::decode(cursor.as_str()).unwrap()).unwrap();
+        assert_eq!(current["version"], 2);
+        for mixed in [false, true] {
+            let mut invalid = current.clone();
+            invalid["task_id"] = invalid["taskId"].clone();
+            if !mixed {
+                invalid.as_object_mut().unwrap().remove("taskId");
+            }
+            assert!(
+                MapTravelModelCursor::parse(hex::encode(serde_json::to_vec(&invalid).unwrap()))
+                    .is_err()
+            );
+        }
+        let mut old = current;
+        old["version"] = serde_json::json!(1);
+        assert!(
+            MapTravelModelCursor::parse(hex::encode(serde_json::to_vec(&old).unwrap())).is_err()
+        );
+    }
 }

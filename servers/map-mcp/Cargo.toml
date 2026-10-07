@@ -43,6 +43,7 @@ required-features = ["mcp"]
 schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 default = ["mcp"]
 contract = [
+    "dep:sha2",
     "dep:chrono",
     "dep:geo",
     "dep:geo-types",
@@ -145,15 +146,16 @@ uuid = { version = "=1.25.0", default-features = false, features = ["serde", "st
 veoveo-artifact-client = { path = "../../platform/artifacts/client", optional = true }
 veoveo-duckdb-runtime = { path = "../../platform/runtimes/duckdb", optional = true }
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension", optional = true }
-veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, optional = true }
 veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 
 [dev-dependencies]
+veoveo-testing-support = { path = "../../testing/support" }
 veoveo-modules = { workspace = true, features = ["runner"] }
-veoveo-mcp-contract = { workspace = true, features = ["testing"] }
+veoveo-mcp-contract = { workspace = true, features = ["runtime", "testing"] }
 veoveo-gateway-contract.workspace = true
 jsonschema.workspace = true
 veoveo-deploy-contract.workspace = true

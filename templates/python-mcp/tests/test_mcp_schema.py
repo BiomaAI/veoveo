@@ -23,11 +23,11 @@ def test_profile_product_schema_decoder_and_completion_agree():
     from veoveo_mcp.contract import ArtifactMetadata
     from veoveo_mcp.contract.artifacts import ArtifactId
     from veoveo_mcp.tasks import new_task_id, mcp_task_completion
-    from veoveo_mcp.types import ResourceUri
+    from veoveo_mcp.types import ChronoTimestamp, ResourceUri
 
     profile = DatasetProfile(row_count=1, column_count=0, columns=[], correlations=[])
     artifact_id = ArtifactId(str(new_task_id()))
-    artifact = ArtifactMetadata(artifact_id=artifact_id, byte_len=5, artifact_uri=str(uris.artifact_uri(artifact_id)), created_at=datetime.now(timezone.utc))
+    artifact = ArtifactMetadata(artifactId=artifact_id, byteLen=5, artifactUri=str(uris.artifact_uri(artifact_id)), createdAt=ChronoTimestamp.from_datetime(datetime.now(timezone.utc)))
     inline = ProfileDatasetOutput(profile=profile).model_dump(mode="json", exclude_none=True)
     product = ProfileDatasetOutput(profile=profile, artifact=artifact, result_uri=ResourceUri(artifact.artifact_uri)).model_dump(mode="json", exclude_none=True)
     schema = ProfileDatasetOutput.model_json_schema()
@@ -60,7 +60,7 @@ def test_actual_rust_artifact_metadata_survives_template_product_and_completion(
     from datasheet_mcp.contract import DatasetProfile, ProfileDatasetOutput
     from veoveo_mcp.contract import ArtifactMetadata
     from veoveo_mcp.tasks import mcp_task_completion
-    from veoveo_mcp.types import ResourceUri
+    from veoveo_mcp.types import ChronoTimestamp, ResourceUri
 
     source = Path(__file__).resolve().parents[3] / "platform/artifacts/contract/tests/fixtures/metadata-output.json"
     artifact = ArtifactMetadata.model_validate_json(source.read_bytes()).presented_under_scheme("datasheet").without_download_url()

@@ -76,7 +76,7 @@ fn server_info() -> ServerConfig {
     info.server_info = rmcp::model::Implementation::new("duckdb", env!("CARGO_PKG_VERSION"));
     info.instructions = Some(
         "Hosted DuckDB server with owner-scoped mutable databases. Workflow: `execute` \
-             with create_if_missing to create a database and tables; `ingest` (as a task) to \
+             with createIfMissing to create a database and tables; `ingest` (as a task) to \
              load data; `query` for read-only SQL with inline rows or artifact spill; `export` \
              (as a task) for parquet/csv/snapshot artifacts. Read duckdb://dbs for visible \
              databases and duckdb://db/{db_id} for a schema summary. SQL runs sandboxed: no \

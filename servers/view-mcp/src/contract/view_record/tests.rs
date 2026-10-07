@@ -7,20 +7,20 @@ fn view_decoder_rejects_disagreeing_addresses_revisions_timestamps_and_pose() {
     let value = serde_json::to_value(fixture::view()).unwrap();
     for (path, replacement) in [
         (
-            "/view_uri",
+            "/viewUri",
             json!(ViewUri::new(ViewId::parse("other").unwrap())),
         ),
         (
-            "/composition_uri",
+            "/compositionUri",
             json!(CompositionUri::new(SceneCompositionId::from_stable_key(
                 b"other"
             ))),
         ),
         ("/revision", json!(0)),
-        ("/updated_at", json!("2026-09-27T10:00:00Z")),
-        ("/resolved_camera/position/latitude_degrees", json!(80.0)),
-        ("/resolved_camera/vertical_fov_degrees", json!(50.0)),
-        ("/camera/position/latitude_degrees", json!(91.0)),
+        ("/updatedAt", json!("2026-09-27T10:00:00Z")),
+        ("/resolvedCamera/position/latitudeDegrees", json!(80.0)),
+        ("/resolvedCamera/verticalFovDegrees", json!(50.0)),
+        ("/camera/position/latitudeDegrees", json!(91.0)),
     ] {
         let mut invalid = value.clone();
         *invalid.pointer_mut(path).unwrap() = replacement;
@@ -62,7 +62,7 @@ fn every_camera_rig_round_trips_and_cannot_substitute_a_saved_pose() {
         let decoded: ViewRecord = serde_json::from_slice(&encoded).unwrap();
         assert_eq!(serde_json::to_vec(&decoded).unwrap(), encoded);
         let mut invalid = serde_json::to_value(view).unwrap();
-        invalid["resolved_camera"]["orientation"]["pitch_degrees"] = json!(20.0);
+        invalid["resolvedCamera"]["orientation"]["pitchDegrees"] = json!(20.0);
         assert!(serde_json::from_value::<ViewRecord>(invalid).is_err());
     }
 }

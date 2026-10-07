@@ -63,7 +63,7 @@ async fn stored_columns_supply_versions_with_current_body_validation() {
             serde_json::Value::Null,
         ] {
             for (record, body) in records.iter().zip(&mut bodies) {
-                body["record_version"] = malformed.clone();
+                body["recordVersion"] = malformed.clone();
                 set(&db.a, record.clone(), "canonical_json", body.to_string()).await;
             }
             assert!(catalog.source(&owner, &release.source_id).await.is_err());
@@ -77,7 +77,7 @@ async fn stored_columns_supply_versions_with_current_body_validation() {
             assert!(catalog.event(&owner, &event.event_id).await.is_err());
         }
         for (record, body) in records.iter().zip(&mut bodies) {
-            body["record_version"] = 1.into();
+            body["recordVersion"] = 1.into();
             set(&db.a, record.clone(), "canonical_json", body.to_string()).await;
             set(&db.a, record.clone(), "record_version", 0_i64).await;
         }

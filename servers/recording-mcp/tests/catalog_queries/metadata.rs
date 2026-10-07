@@ -108,7 +108,12 @@ pub(super) async fn qualify(
         .unwrap()
         .check()
         .unwrap();
-    assert!(service.seal(&sealer, recording).await.is_err());
+    assert!(
+        service
+            .seal(&sealer, &artifact_reader(&sealer), recording)
+            .await
+            .is_err()
+    );
     assert_eq!(
         RecordingRepository::new(db.a.clone())
             .recording(tenant_id, recording)
@@ -161,7 +166,12 @@ pub(super) async fn qualify(
             .unwrap()
             .is_none()
     );
-    assert!(service.seal(&sealer, recording).await.is_err());
+    assert!(
+        service
+            .seal(&sealer, &artifact_reader(&sealer), recording)
+            .await
+            .is_err()
+    );
     let after = RecordingRepository::new(db.a.clone())
         .recording(tenant_id, recording)
         .await
@@ -222,7 +232,7 @@ pub(super) async fn qualify(
         // The denied malformed record sorts first. SQL excludes it before public mapping.
         assert!(service.catalog_page(denied, None).await.is_ok());
     }
-    let manifest = ArtifactId::new();
+    let manifest = ArtifactId::from_uuid(recording.as_uuid());
     db.a.client()
         .query(include_str!(
             "../queries/catalog_queries/metadata/qualify_7.surql"
@@ -266,7 +276,12 @@ pub(super) async fn qualify(
         .unwrap()
         .check()
         .unwrap();
-    assert!(service.seal(&sealer, recording).await.is_err());
+    assert!(
+        service
+            .seal(&sealer, &artifact_reader(&sealer), recording)
+            .await
+            .is_err()
+    );
     assert!(context.exists());
     db.a.client()
         .query(include_str!(
@@ -278,14 +293,17 @@ pub(super) async fn qualify(
         .unwrap()
         .check()
         .unwrap();
-    let output = service.seal(&sealer, recording).await.unwrap();
-    assert_eq!(
-        output.manifest_artifact_uri.artifact_id().as_uuid(),
-        manifest.as_uuid()
+    // This forged public view has no publication intent. The seal receiver
+    // refuses it before checking the reserved occurrence or manifest body.
+    let error = service
+        .seal(&sealer, &artifact_reader(&sealer), recording)
+        .await
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("sealed Recording has no current publication intent"),
+        "{error}"
     );
-    assert_eq!(
-        output.layer_artifact_uris[0].artifact_id().as_uuid(),
-        occurrence.as_uuid()
-    );
-    assert!(!context.exists());
+    assert!(context.exists());
 }

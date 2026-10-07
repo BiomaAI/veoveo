@@ -143,15 +143,15 @@ mod tests {
             std::env::set_var("TEST_MANAGED_PRIVATE_KEY", "fixture-only");
         }
         let manifest: AgentManifest = serde_json::from_value(json!({
-            "agent":{"tenant":"test","id":"worker","display_name":"Worker"},
-            "model":{"base_url":"https://model.test/v1","api_key_env":"VEOVEO_MANAGED_MODEL_KEY","model":"approved"},
-            "gateway":{"url":"https://gateway.test","transport_url":"https://gateway.test","profile":"operator","client_id":"worker-client","work_context":"operations",
-                "audience":"https://gateway.test/oauth/token","resource":"https://gateway.test/mcp/operator","scopes":["operator:use"],"private_key_env":"TEST_MANAGED_PRIVATE_KEY","private_key_kid":"key"},
+            "agent":{"tenant":"test","id":"worker","displayName":"Worker"},
+            "model":{"baseUrl":"https://model.test/v1","apiKeyEnv":"VEOVEO_MANAGED_MODEL_KEY","model":"approved"},
+            "gateway":{"url":"https://gateway.test","transportUrl":"https://gateway.test","profile":"operator","clientId":"worker-client","workContext":"operations",
+                "audience":"https://gateway.test/oauth/token","resource":"https://gateway.test/mcp/operator","scopes":["operator:use"],"privateKeyEnv":"TEST_MANAGED_PRIVATE_KEY","privateKeyKid":"key"},
             "episode":{},"preamble":"Installation default"
         })).unwrap();
         let model: wire::ModelConnection = serde_json::from_value(json!({
-            "id":"approved","name":"Approved","provider":"fixture","tenant":"test","work_contexts":["operations"],"required_scopes":["operator:use"],
-            "base_url":"https://model.test/v1","model":"approved","api_key":"fixture-key",
+            "id":"approved","name":"Approved","provider":"fixture","tenant":"test","workContexts":["operations"],"requiredScopes":["operator:use"],
+            "baseUrl":"https://model.test/v1","model":"approved","apiKey":"fixture-key",
             "limits":{"maxOutputTokens":128,"maxCompletionCalls":2,"maxToolCalls":3,"deadlineSeconds":60}
         })).unwrap();
         let content: AgentContent = serde_json::from_value(json!({

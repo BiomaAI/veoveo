@@ -11,6 +11,7 @@ pub const FRAME_WORLD_PAGE_SIZE: usize = 100;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct FrameWorldPage {
     pub items: Vec<FrameWorldSummary>,
     pub limit: usize,
@@ -23,6 +24,7 @@ pub struct FrameCatalogError;
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct WireCursor {
     version: u8,
     collection: String,

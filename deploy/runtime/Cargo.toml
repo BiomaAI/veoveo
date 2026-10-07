@@ -19,4 +19,4 @@ tempfile.workspace = true
 url.workspace = true
 veoveo-deploy-contract.workspace = true
 veoveo-modules = { workspace = true, features = ["serialization"] }
-veoveo-mcp-contract.workspace = true
+veoveo-mcp-contract = { workspace = true, features = ["runtime"] }

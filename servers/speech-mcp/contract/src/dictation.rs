@@ -6,14 +6,14 @@ use serde::{Deserialize, Serialize};
 pub const MAX_CHUNK_BYTES: usize = 192_000;
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StartDictation {
     pub id: DictationSessionId,
     pub sample_rate: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DictationId {
     pub id: DictationSessionId,
 }
@@ -34,7 +34,7 @@ impl DictationStatus {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "DictationSnapshotWire")]
+#[serde(rename_all = "camelCase", try_from = "DictationSnapshotWire")]
 pub struct DictationSnapshot {
     id: DictationSessionId,
     result_uri: DictationUri,
@@ -66,7 +66,7 @@ impl DictationSnapshot {
 }
 
 #[derive(Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct DictationSnapshotWire {
     id: DictationSessionId,
     result_uri: DictationUri,
@@ -112,7 +112,7 @@ mod tests {
                 .id(),
             snapshot.id()
         );
-        wire["result_uri"] = DictationUri::new(DictationSessionId::new())
+        wire["resultUri"] = DictationUri::new(DictationSessionId::new())
             .to_string()
             .into();
         assert!(serde_json::from_value::<DictationSnapshot>(wire).is_err());

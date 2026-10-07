@@ -7,7 +7,7 @@ use veoveo_stream_mcp::contract::AnalysisResults;
 
 fn producer() -> AnalysisResults {
     serde_json::from_str(include_str!(
-        "../../../stream-mcp/testdata/replay-results-v1.json"
+        "../../../stream-mcp/testdata/replay-results-v2.json"
     ))
     .unwrap()
 }
@@ -38,7 +38,7 @@ fn stream_producer_contract_flows_into_reason_without_runtime_dependencies() {
         &serde_json::to_vec(&produced).unwrap(),
     )
     .unwrap();
-    assert_eq!(grounding.schema, GroundingSchema::V1);
+    assert_eq!(grounding.schema, GroundingSchema::V2);
     assert_eq!(grounding.source_artifact_uri, source());
     assert_eq!(
         grounding.frames.iter().map(|f| f.index).collect::<Vec<_>>(),
@@ -46,7 +46,7 @@ fn stream_producer_contract_flows_into_reason_without_runtime_dependencies() {
     );
     assert_eq!(grounded_track_ids(&grounding), [7, 8].into_iter().collect());
     let wire = serde_json::to_value(&grounding).unwrap();
-    assert_eq!(wire["schema"], "veoveo.reason-grounding/v1");
+    assert_eq!(wire["schema"], "veoveo.ai/reason-grounding/v2");
     assert!(
         wire["frames"][0]["detections"][0]
             .get("confidence")
@@ -87,7 +87,7 @@ fn grounding_rejects_other_recordings_entities_timelines_and_uncovered_ranges() 
 #[test]
 fn grounding_cannot_accept_a_partial_or_malformed_stream_document() {
     let wire = serde_json::to_value(producer()).unwrap();
-    for field in ["source_snapshot", "pipeline_id", "requested_range"] {
+    for field in ["sourceSnapshot", "pipelineId", "requestedRange"] {
         let mut invalid = wire.clone();
         invalid.as_object_mut().unwrap().remove(field);
         assert!(
@@ -102,7 +102,7 @@ fn grounding_cannot_accept_a_partial_or_malformed_stream_document() {
     for (path, value) in [
         ("/schema", json!("unsupported/v2")),
         (
-            "/source_snapshot/recording_id",
+            "/sourceSnapshot/recordingId",
             json!("01983da0-0000-7000-8000-000000000001"),
         ),
         ("/frames/1/index", json!(0)),
@@ -141,7 +141,7 @@ fn grounding_budget_is_checked_before_admitting_track_citations() {
 #[test]
 fn request_and_retained_subset_use_the_stream_owned_artifact_address() {
     let reference: GroundingReference =
-        serde_json::from_value(json!({"results_artifact_uri": source()})).unwrap();
+        serde_json::from_value(json!({"resultsArtifactUri": source()})).unwrap();
     assert_eq!(reference.results_artifact_uri, source());
     for uri in [
         "artifact://test",
@@ -149,14 +149,14 @@ fn request_and_retained_subset_use_the_stream_owned_artifact_address() {
         "reason://artifact/01983da0-0000-7000-8000-000000000001",
     ] {
         assert!(
-            serde_json::from_value::<GroundingReference>(json!({"results_artifact_uri": uri}))
+            serde_json::from_value::<GroundingReference>(json!({"resultsArtifactUri": uri}))
                 .is_err()
         );
-        assert!(serde_json::from_value::<GroundingDetections>(json!({"schema":"veoveo.reason-grounding/v1", "source_artifact_uri":uri, "frames":[]})).is_err());
+        assert!(serde_json::from_value::<GroundingDetections>(json!({"schema":"veoveo.ai/reason-grounding/v2", "sourceArtifactUri":uri, "frames":[]})).is_err());
     }
     assert!(
         serde_json::from_value::<GroundingDetections>(
-            json!({"schema":"unknown/v2", "source_artifact_uri":source(), "frames":[]})
+            json!({"schema":"unknown/v2", "sourceArtifactUri":source(), "frames":[]})
         )
         .is_err()
     );

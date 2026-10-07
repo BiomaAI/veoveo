@@ -136,6 +136,7 @@ impl InstallationWorldBinding {
 
 #[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct InstallationWorldBindingWire {
     session_id: SessionId,
     world: SimulationWorldBinding,
@@ -297,17 +298,17 @@ mod tests {
             binding
         );
         for (pointer, invalid) in [
-            ("/world/spec_sha256", serde_json::json!("A".repeat(64))),
+            ("/world/specSha256", serde_json::json!("A".repeat(64))),
             (
-                "/world/simulation_frame_uri",
+                "/world/simulationFrameUri",
                 serde_json::json!("frames://world/other/revision/revision-1/frame/isaac-world"),
             ),
             (
-                "/world/georeference_origin/latitude_degrees",
+                "/world/georeferenceOrigin/latitudeDegrees",
                 serde_json::json!(91),
             ),
             (
-                "/world/georeference_origin/ellipsoid_height_m",
+                "/world/georeferenceOrigin/ellipsoidHeightM",
                 serde_json::json!(100_001),
             ),
         ] {
@@ -322,7 +323,7 @@ mod tests {
         unknown["retry"] = serde_json::json!(true);
         assert!(serde_json::from_value::<InstallationWorldBinding>(unknown).is_err());
         let mut invalid_world = serde_json::to_value(world).unwrap();
-        invalid_world["spec_sha256"] = serde_json::json!("");
+        invalid_world["specSha256"] = serde_json::json!("");
         assert!(serde_json::from_value::<SimulationWorldBinding>(invalid_world).is_err());
     }
 }

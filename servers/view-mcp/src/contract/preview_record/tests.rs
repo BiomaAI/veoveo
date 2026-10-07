@@ -97,7 +97,7 @@ fn truncated_or_oversize_preview_reports_partial_detail() {
     assert!(scene(vec![tile(None); SCENE_MAX_TILES + 1], false, true).is_err());
     assert!(scene(vec![tile(None)], false, true).is_err());
     let mut wire = serde_json::to_value(truncated).unwrap();
-    wire["detail_complete"] = json!(true);
+    wire["detailComplete"] = json!(true);
     assert!(serde_json::from_value::<PreviewSceneRecord>(wire).is_err());
 }
 
@@ -105,11 +105,11 @@ fn truncated_or_oversize_preview_reports_partial_detail() {
 fn preview_decoding_rejects_camera_origin_transform_and_policy_disagreement() {
     let valid = serde_json::to_value(scene(vec![tile(Some(64))], true, false).unwrap()).unwrap();
     for (field, value) in [
-        ("view_revision", json!(0)),
-        ("width_px", json!(0)),
-        ("height_px", json!(0)),
-        ("max_screen_error_px", json!(0.1)),
-        ("max_screen_error_px", json!(300)),
+        ("viewRevision", json!(0)),
+        ("widthPx", json!(0)),
+        ("heightPx", json!(0)),
+        ("maxScreenErrorPx", json!(0.1)),
+        ("maxScreenErrorPx", json!(300)),
         ("truncated", json!(true)),
     ] {
         let mut wire = valid.clone();
@@ -120,13 +120,13 @@ fn preview_decoding_rejects_camera_origin_transform_and_policy_disagreement() {
         );
     }
     let mut wire = valid.clone();
-    wire["local_origin"]["latitude_degrees"] = json!(0);
+    wire["localOrigin"]["latitudeDegrees"] = json!(0);
     assert!(serde_json::from_value::<PreviewSceneRecord>(wire).is_err());
     let mut wire = valid.clone();
-    wire["local_from_ecef"][12] = json!(wire["local_from_ecef"][12].as_f64().unwrap() + 1.0);
+    wire["localFromEcef"][12] = json!(wire["localFromEcef"][12].as_f64().unwrap() + 1.0);
     assert!(serde_json::from_value::<PreviewSceneRecord>(wire).is_err());
     let mut wire = valid;
-    wire["local_from_ecef"][0] = json!(2);
+    wire["localFromEcef"][0] = json!(2);
     assert!(serde_json::from_value::<PreviewSceneRecord>(wire).is_err());
 }
 
@@ -134,13 +134,13 @@ fn preview_decoding_rejects_camera_origin_transform_and_policy_disagreement() {
 fn preview_transform_admission_allows_only_small_numeric_differences() {
     let valid = serde_json::to_value(scene(vec![tile(Some(64))], true, false).unwrap()).unwrap();
     let mut rounded = valid.clone();
-    rounded["local_from_ecef"][0] = json!(rounded["local_from_ecef"][0].as_f64().unwrap() + 1e-13);
-    rounded["local_from_ecef"][13] = json!(rounded["local_from_ecef"][13].as_f64().unwrap() + 1e-5);
+    rounded["localFromEcef"][0] = json!(rounded["localFromEcef"][0].as_f64().unwrap() + 1e-13);
+    rounded["localFromEcef"][13] = json!(rounded["localFromEcef"][13].as_f64().unwrap() + 1e-5);
     assert!(serde_json::from_value::<PreviewSceneRecord>(rounded).is_ok());
     for (index, error) in [(0, 1e-10), (13, 1e-3)] {
         let mut wire = valid.clone();
-        wire["local_from_ecef"][index] =
-            json!(wire["local_from_ecef"][index].as_f64().unwrap() + error);
+        wire["localFromEcef"][index] =
+            json!(wire["localFromEcef"][index].as_f64().unwrap() + error);
         assert!(serde_json::from_value::<PreviewSceneRecord>(wire).is_err());
     }
 }

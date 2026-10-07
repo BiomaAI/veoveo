@@ -63,7 +63,7 @@ impl HttpFixture {
             .parse()
             .unwrap();
         let router = Router::new()
-            .route("/v1/operations", post(provider))
+            .route("/v2/operations", post(provider))
             .with_state(state.clone());
         let server = tokio::spawn(async move {
             axum::serve(listener, router).await.unwrap();
@@ -129,9 +129,9 @@ async fn provider_operation(
     }
     let mut output = serde_json::to_value(result).unwrap();
     let object = output.as_object_mut().unwrap();
-    object.remove("recording_uris");
+    object.remove("recordingUris");
     object.insert(
-        "recording_keys".into(),
+        "recordingKeys".into(),
         match state.reply {
             Reply::MissingRecording => serde_json::json!(["missing-native-recording"]),
             Reply::InvalidRecordingKey => serde_json::json!(["invalid/producer/key"]),
@@ -146,13 +146,13 @@ async fn provider_operation(
             .into_response(),
         Reply::Redirect => (
             StatusCode::TEMPORARY_REDIRECT,
-            [(axum::http::header::LOCATION, "/v1/operations")],
+            [(axum::http::header::LOCATION, "/v2/operations")],
             "mutation redirect is unsupported",
         )
             .into_response(),
         Reply::Malformed => (StatusCode::OK, "{invalid-json").into_response(),
         Reply::WrongKind => Json(serde_json::json!({"result": "capture_dataset", "output": {
-            "session_id": request.session_id, "elapsed_seconds": 1.0, "recording_keys": []
+            "sessionId": request.session_id, "elapsedSeconds": 1.0, "recordingKeys": []
         }}))
         .into_response(),
         _ => {

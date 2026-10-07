@@ -15,8 +15,8 @@ use crate::contract::{
 };
 use crate::grounding::grounded_track_ids;
 
-pub const RUNNER_REQUEST_SCHEMA: &str = "veoveo.reason-runner-request/v3";
-pub const RUNNER_RESPONSE_SCHEMA: &str = "veoveo.reason-runner-response/v1";
+pub const RUNNER_REQUEST_SCHEMA: &str = "veoveo.ai/reason-runner-request/v4";
+pub const RUNNER_RESPONSE_SCHEMA: &str = "veoveo.ai/reason-runner-response/v2";
 use crate::contract::REASONING_RESULTS_SCHEMA;
 
 use crate::contract::{
@@ -248,8 +248,9 @@ impl ReasonExecutor {
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct RunnerRequest {
+    #[schemars(schema_with = "runner_request_format_schema")]
     schema: String,
     task_id: AnalysisId,
     input_mp4: PathBuf,
@@ -274,7 +275,7 @@ struct RunnerRequest {
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct RunnerPipeline {
     pipeline_id: PipelineId,
     prompt_template_path: PathBuf,
@@ -283,7 +284,7 @@ struct RunnerPipeline {
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct RunnerModel {
     model_id: ModelId,
     model_path: PathBuf,
@@ -294,8 +295,9 @@ struct RunnerModel {
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct RunnerResponse {
+    #[schemars(schema_with = "runner_response_format_schema")]
     schema: String,
     answer: ReasoningAnswer,
     observed_frames: u64,
@@ -507,7 +509,7 @@ mod tests {
         let runner = workspace.path().join("runner.sh");
         let captured = workspace.path().join("captured-request.json");
         let script = format!(
-            "#!/bin/sh\nset -eu\ntest \"$1\" = --request-json\ntest \"$3\" = --response-json\ncp \"$2\" '{}'\nprintf '%s' '{{\"schema\":\"{}\",\"answer\":{{\"kind\":\"description\",\"text\":\"a quiet road\"}},\"observed_frames\":3,\"elapsed_ms\":2}}' > \"$4\"\n",
+            "#!/bin/sh\nset -eu\ntest \"$1\" = --request-json\ntest \"$3\" = --response-json\ncp \"$2\" '{}'\nprintf '%s' '{{\"schema\":\"{}\",\"answer\":{{\"kind\":\"description\",\"text\":\"a quiet road\"}},\"observedFrames\":3,\"elapsedMs\":2}}' > \"$4\"\n",
             captured.display(),
             RUNNER_RESPONSE_SCHEMA,
         );
@@ -547,15 +549,15 @@ mod tests {
         assert_eq!(results.confidence_basis, ConfidenceBasis::ModelReported);
         let request: serde_json::Value =
             serde_json::from_slice(&std::fs::read(&captured).unwrap()).unwrap();
-        assert_eq!(request["decode_start_index"], 100);
-        assert_eq!(request["requested_range"]["start"], 120);
+        assert_eq!(request["decodeStartIndex"], 100);
+        assert_eq!(request["requestedRange"]["start"], 120);
         assert_eq!(request["pipeline"]["observation"]["width"], 640);
-        assert_eq!(request["pipeline"]["observation"]["maximum_frames"], 6);
+        assert_eq!(request["pipeline"]["observation"]["maximumFrames"], 6);
         assert_eq!(request["model"]["engine"]["kind"], "vllm");
-        assert_eq!(request["model"]["engine"]["gpu_memory_utilization"], 0.7);
-        assert_eq!(request["model"]["engine"]["max_model_len"], 8_192);
+        assert_eq!(request["model"]["engine"]["gpuMemoryUtilization"], 0.7);
+        assert_eq!(request["model"]["engine"]["maxModelLen"], 8_192);
         assert_eq!(request["decode"]["mode"], "greedy");
-        assert_eq!(request["max_response_bytes"], 1_000_000);
+        assert_eq!(request["maxResponseBytes"], 1_000_000);
         std::fs::remove_file(&captured).unwrap();
         let mut wrong_video = video.clone().into_builder();
         wrong_video.recording_uri = "recording://recordings/01983da0-0000-7000-8000-000000000099"
@@ -624,8 +626,8 @@ mod tests {
             "schema": RUNNER_RESPONSE_SCHEMA,
             "answer": {"kind": "events", "events": [{
                 "range": {"start": 0, "end": 1}, "label": "event",
-                "description": "observed", "track_ids": [1]
-            }]}, "observed_frames": 1, "elapsed_ms": 0
+                "description": "observed", "trackIds": [1]
+            }]}, "observedFrames": 1, "elapsedMs": 0
         });
         assert!(serde_json::from_value::<RunnerResponse>(response.clone()).is_ok());
         for pointer in ["", "/answer", "/answer/events/0", "/answer/events/0/range"] {
@@ -642,9 +644,9 @@ mod tests {
             );
         }
         for pointer in [
-            "/observed_frames",
-            "/elapsed_ms",
-            "/answer/events/0/track_ids/0",
+            "/observedFrames",
+            "/elapsedMs",
+            "/answer/events/0/trackIds/0",
         ] {
             let mut changed = response.clone();
             *changed.pointer_mut(pointer).unwrap() = (-1).into();
@@ -657,4 +659,19 @@ mod tests {
         changed["answer"]["events"][0]["range"]["end"] = serde_json::json!(u64::MAX);
         assert!(serde_json::from_value::<RunnerResponse>(changed).is_err());
     }
+}
+
+fn runner_request_format_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    veoveo_types::scalar_schema(
+        schemars::json_schema!({"type":"string", "const": RUNNER_REQUEST_SCHEMA}),
+        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
+    )
+    .expect("declared Reason format naming profile")
+}
+fn runner_response_format_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    veoveo_types::scalar_schema(
+        schemars::json_schema!({"type":"string", "const": RUNNER_RESPONSE_SCHEMA}),
+        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
+    )
+    .expect("declared Reason format naming profile")
 }

@@ -1,10 +1,12 @@
 use super::{MediaReads, bind_owner};
-use crate::contract::{MEDIA_USAGE_PAGE_SIZE, MediaTaskUsageUri, MediaUsageCursor, MediaUsagePage};
+use crate::contract::{
+    MEDIA_USAGE_PAGE_SIZE, MediaTaskUsageUri, MediaUsageCursor, MediaUsageMetadata, MediaUsagePage,
+};
 use crate::storage::MediaUsageKind;
 use chrono::{DateTime, Utc};
 use surrealdb::types::SurrealValue;
 use veoveo_mcp_contract::{UsageKind, UsageRecord};
-use veoveo_platform_store::{OpenObject, RecordId, RecordIdKey, task_record_id};
+use veoveo_platform_store::{RecordId, RecordIdKey, task_record_id};
 use veoveo_task_runtime::TaskOwner;
 use veoveo_types::TaskId;
 
@@ -18,7 +20,7 @@ struct UsageRow {
     unit: Option<String>,
     amount: Option<f64>,
     currency: Option<String>,
-    metadata: OpenObject,
+    metadata: MediaUsageMetadata,
     recorded_at: DateTime<Utc>,
 }
 
@@ -81,12 +83,14 @@ impl MediaReads<'_> {
         let rows: Vec<UsageRow> = response.take(0)?;
         rows.into_iter()
             .map(|row| {
+                row.kind.require_metadata(&row.metadata)?;
                 // A provider ID becomes text only in the shared usage wire model.
                 let provider_job_id = row
                     .provider_job_id
                     .map(crate::contract::MediaPredictionId::new)
                     .transpose()?
                     .map(String::from);
+                let metadata = serde_json::to_value(row.metadata)?;
                 Ok(UsageRecord {
                     task_id: uri.task_id().to_string(),
                     provider_job_id,
@@ -101,9 +105,7 @@ impl MediaReads<'_> {
                     amount: row.amount,
                     currency: row.currency,
                     recorded_at: row.recorded_at,
-                    metadata: serde_json::Value::Object(
-                        row.metadata.into_map().into_iter().collect(),
-                    ),
+                    metadata,
                 })
             })
             .collect()

@@ -40,27 +40,46 @@
       ]
     },
     "AcquisitionId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "AcquisitionId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "AcquisitionJob": {
+      "additionalProperties": false,
       "properties": {
-        "acquisition_id": {
+        "acquisitionId": {
           "$ref": "#/$defs/AcquisitionId"
         },
-        "created_at": {
+        "createdAt": {
           "format": "date-time",
           "type": "string"
         },
-        "created_by": {
+        "createdBy": {
           "type": "string"
         },
-        "diagnostics_uri": {
+        "diagnosticsUri": {
           "type": [
             "string",
             "null"
           ]
         },
-        "expected_source_digest_sha256": {
+        "expectedSourceDigestSha256": {
           "type": [
             "string",
             "null"
@@ -69,7 +88,7 @@
         "progress": {
           "$ref": "#/$defs/AcquisitionProgress"
         },
-        "raw_artifact_uri": {
+        "rawArtifactUri": {
           "anyOf": [
             {
               "$ref": "#/$defs/ArtifactUri"
@@ -79,18 +98,18 @@
             }
           ]
         },
-        "record_version": {
+        "recordVersion": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "requested_coverage": {
+        "requestedCoverage": {
           "$ref": "#/$defs/Wgs84BoundingBox"
         },
-        "source_id": {
+        "sourceId": {
           "$ref": "#/$defs/MapSourceId"
         },
-        "staged_release_id": {
+        "stagedReleaseId": {
           "anyOf": [
             {
               "$ref": "#/$defs/DatasetReleaseId"
@@ -103,21 +122,21 @@
         "status": {
           "$ref": "#/$defs/AcquisitionStatus"
         },
-        "updated_at": {
+        "updatedAt": {
           "format": "date-time",
           "type": "string"
         }
       },
       "required": [
-        "acquisition_id",
-        "source_id",
-        "requested_coverage",
+        "acquisitionId",
+        "sourceId",
+        "requestedCoverage",
         "status",
         "progress",
-        "created_by",
-        "created_at",
-        "updated_at",
-        "record_version"
+        "createdBy",
+        "createdAt",
+        "updatedAt",
+        "recordVersion"
       ],
       "type": "object"
     },
@@ -145,8 +164,9 @@
       "type": "string"
     },
     "AcquisitionProgress": {
+      "additionalProperties": false,
       "properties": {
-        "completed_units": {
+        "completedUnits": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -157,7 +177,7 @@
         "phase": {
           "$ref": "#/$defs/AcquisitionPhase"
         },
-        "total_units": {
+        "totalUnits": {
           "format": "uint64",
           "minimum": 0,
           "type": [
@@ -168,7 +188,7 @@
       },
       "required": [
         "phase",
-        "completed_units",
+        "completedUnits",
         "message"
       ],
       "type": "object"
@@ -185,6 +205,7 @@
       "type": "string"
     },
     "ActiveDatasetRelease": {
+      "additionalProperties": false,
       "properties": {
         "pointer": {
           "$ref": "#/$defs/ActiveReleasePointer"
@@ -200,15 +221,16 @@
       "type": "object"
     },
     "ActiveReleasePointer": {
+      "additionalProperties": false,
       "properties": {
-        "activated_at": {
+        "activatedAt": {
           "format": "date-time",
           "type": "string"
         },
-        "dataset_id": {
+        "datasetId": {
           "$ref": "#/$defs/MapDatasetId"
         },
-        "previous_release_id": {
+        "previousReleaseId": {
           "anyOf": [
             {
               "$ref": "#/$defs/DatasetReleaseId"
@@ -218,58 +240,58 @@
             }
           ]
         },
-        "record_version": {
+        "recordVersion": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "release_id": {
+        "releaseId": {
           "$ref": "#/$defs/DatasetReleaseId"
         }
       },
       "required": [
-        "dataset_id",
-        "release_id",
-        "record_version",
-        "activated_at"
+        "datasetId",
+        "releaseId",
+        "recordVersion",
+        "activatedAt"
       ],
       "type": "object"
     },
     "AircraftPerformance": {
       "additionalProperties": false,
       "properties": {
-        "cruise_speed": {
+        "cruiseSpeed": {
           "format": "double",
           "type": "number"
         },
-        "maximum_range": {
+        "maximumRange": {
           "format": "double",
           "type": "number"
         },
-        "maximum_speed": {
+        "maximumSpeed": {
           "format": "double",
           "type": "number"
         },
-        "minimum_reserve": {
+        "minimumReserve": {
           "format": "double",
           "type": "number"
         },
-        "payload_capacity": {
+        "payloadCapacity": {
           "format": "double",
           "type": "number"
         },
-        "service_ceiling": {
+        "serviceCeiling": {
           "format": "double",
           "type": "number"
         }
       },
       "required": [
-        "maximum_speed",
-        "cruise_speed",
-        "service_ceiling",
-        "maximum_range",
-        "payload_capacity",
-        "minimum_reserve"
+        "maximumSpeed",
+        "cruiseSpeed",
+        "serviceCeiling",
+        "maximumRange",
+        "payloadCapacity",
+        "minimumReserve"
       ],
       "type": "object"
     },
@@ -292,6 +314,7 @@
       "type": "string"
     },
     "CommitFeatureChangesOutput": {
+      "additionalProperties": false,
       "properties": {
         "changeset": {
           "$ref": "#/$defs/FeatureChangeSet"
@@ -302,21 +325,21 @@
           },
           "type": "array"
         },
-        "projection_state": {
+        "projectionState": {
           "$ref": "#/$defs/ProjectionState"
         }
       },
       "required": [
         "changeset",
         "features",
-        "projection_state"
+        "projectionState"
       ],
       "type": "object"
     },
     "CompositionLayer": {
       "additionalProperties": false,
       "properties": {
-        "layer_id": {
+        "layerId": {
           "$ref": "#/$defs/FeatureLayerId"
         },
         "opacity": {
@@ -324,10 +347,10 @@
           "format": "double",
           "type": "number"
         },
-        "publication_id": {
+        "publicationId": {
           "$ref": "#/$defs/LayerPublicationId"
         },
-        "style_revision_id": {
+        "styleRevisionId": {
           "anyOf": [
             {
               "$ref": "#/$defs/StyleRevisionId"
@@ -343,15 +366,15 @@
         }
       },
       "required": [
-        "layer_id",
-        "publication_id"
+        "layerId",
+        "publicationId"
       ],
       "type": "object"
     },
     "CompositionView": {
       "additionalProperties": false,
       "properties": {
-        "bearing_deg": {
+        "bearingDeg": {
           "default": 0.0,
           "format": "double",
           "type": "number"
@@ -359,7 +382,7 @@
         "center": {
           "$ref": "#/$defs/Wgs84Position"
         },
-        "pitch_deg": {
+        "pitchDeg": {
           "default": 0.0,
           "format": "double",
           "type": "number"
@@ -376,6 +399,24 @@
       "type": "object"
     },
     "DataLabelId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "DataLabelId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
       "type": "string"
     },
@@ -385,98 +426,99 @@
         "attribution": {
           "type": "string"
         },
-        "derivatives_allowed": {
+        "derivativesAllowed": {
           "type": "boolean"
         },
-        "expires_at": {
+        "expiresAt": {
           "format": "date-time",
           "type": [
             "string",
             "null"
           ]
         },
-        "license_id": {
+        "licenseId": {
           "type": "string"
         },
-        "offline_bundle_allowed": {
+        "offlineBundleAllowed": {
           "type": "boolean"
         },
-        "redistribution_allowed": {
+        "redistributionAllowed": {
           "type": "boolean"
         },
-        "source_terms_uri": {
+        "sourceTermsUri": {
           "$ref": "#/$defs/HttpsUrl"
         }
       },
       "required": [
-        "license_id",
-        "source_terms_uri",
+        "licenseId",
+        "sourceTermsUri",
         "attribution",
-        "redistribution_allowed",
-        "derivatives_allowed",
-        "offline_bundle_allowed"
+        "redistributionAllowed",
+        "derivativesAllowed",
+        "offlineBundleAllowed"
       ],
       "type": "object"
     },
     "DatasetRelease": {
+      "additionalProperties": false,
       "properties": {
-        "acquired_at": {
+        "acquiredAt": {
           "format": "date-time",
           "type": "string"
         },
         "coverage": {
           "$ref": "#/$defs/Wgs84BoundingBox"
         },
-        "dataset_id": {
+        "datasetId": {
           "$ref": "#/$defs/MapDatasetId"
         },
         "license": {
           "$ref": "#/$defs/DatasetLicense"
         },
-        "normalization_pipeline_version": {
+        "normalizationPipelineVersion": {
           "type": "string"
         },
-        "normalized_artifact_uris": {
+        "normalizedArtifactUris": {
           "items": {
             "$ref": "#/$defs/ArtifactUri"
           },
           "type": "array"
         },
-        "quality_report_uri": {
+        "qualityReportUri": {
           "$ref": "#/$defs/ArtifactUri"
         },
-        "raw_artifact_uri": {
+        "rawArtifactUri": {
           "$ref": "#/$defs/ArtifactUri"
         },
-        "record_version": {
+        "recordVersion": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "release_id": {
+        "releaseId": {
           "$ref": "#/$defs/DatasetReleaseId"
         },
-        "routing_build_version": {
+        "routingBuildVersion": {
           "type": [
             "string",
             "null"
           ]
         },
-        "schema_version": {
+        "schemaVersion": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "source_digest_sha256": {
+        "sourceDigestSha256": {
           "type": "string"
         },
-        "source_id": {
+        "sourceId": {
           "$ref": "#/$defs/MapSourceId"
         },
         "state": {
           "$ref": "#/$defs/DatasetReleaseState"
         },
-        "supersedes_release_id": {
+        "supersedesReleaseId": {
           "anyOf": [
             {
               "$ref": "#/$defs/DatasetReleaseId"
@@ -486,47 +528,65 @@
             }
           ]
         },
-        "updated_at": {
+        "updatedAt": {
           "format": "date-time",
           "type": "string"
         },
-        "valid_from": {
+        "validFrom": {
           "format": "date-time",
           "type": "string"
         },
-        "valid_until": {
+        "validUntil": {
           "format": "date-time",
           "type": [
             "string",
             "null"
           ]
         },
-        "version_label": {
+        "versionLabel": {
           "type": "string"
         }
       },
       "required": [
-        "release_id",
-        "dataset_id",
-        "source_id",
-        "version_label",
-        "source_digest_sha256",
+        "releaseId",
+        "datasetId",
+        "sourceId",
+        "versionLabel",
+        "sourceDigestSha256",
         "coverage",
-        "acquired_at",
-        "valid_from",
-        "schema_version",
-        "normalization_pipeline_version",
+        "acquiredAt",
+        "validFrom",
+        "schemaVersion",
+        "normalizationPipelineVersion",
         "license",
-        "raw_artifact_uri",
-        "normalized_artifact_uris",
-        "quality_report_uri",
+        "rawArtifactUri",
+        "normalizedArtifactUris",
+        "qualityReportUri",
         "state",
-        "record_version",
-        "updated_at"
+        "recordVersion",
+        "updatedAt"
       ],
       "type": "object"
     },
     "DatasetReleaseId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "DatasetReleaseId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "DatasetReleaseState": {
@@ -539,27 +599,45 @@
       "type": "string"
     },
     "DelegationId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "DelegationId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Auditable identity of authority delegated by an initiator to another actor.",
       "type": "string"
     },
     "EnergyProfile": {
       "additionalProperties": false,
       "properties": {
-        "battery_capacity": {
+        "batteryCapacity": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "liquid_fuel_capacity": {
+        "liquidFuelCapacity": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "minimum_reserve": {
+        "minimumReserve": {
           "format": "double",
           "type": "number"
         },
@@ -569,7 +647,7 @@
       },
       "required": [
         "source",
-        "minimum_reserve"
+        "minimumReserve"
       ],
       "type": "object"
     },
@@ -591,67 +669,86 @@
       "type": "string"
     },
     "FeatureChangeSet": {
+      "additionalProperties": false,
       "properties": {
-        "actor_id": {
+        "actorId": {
           "$ref": "#/$defs/PrincipalId"
         },
-        "base_layer_revision": {
+        "baseLayerRevision": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "changeset_id": {
+        "changesetId": {
           "$ref": "#/$defs/FeatureChangeSetId"
         },
-        "commit_sequence": {
+        "commitSequence": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "created_at": {
+        "createdAt": {
           "format": "date-time",
           "type": "string"
         },
-        "feature_ids": {
+        "featureIds": {
           "items": {
             "$ref": "#/$defs/MapFeatureId"
           },
           "type": "array"
         },
-        "idempotency_key": {
+        "idempotencyKey": {
           "type": "string"
         },
-        "layer_id": {
+        "layerId": {
           "$ref": "#/$defs/FeatureLayerId"
         },
-        "request_digest_sha256": {
+        "requestDigestSha256": {
           "type": "string"
         },
-        "resulting_layer_revision": {
+        "resultingLayerRevision": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "work_context": {
+        "workContext": {
           "$ref": "#/$defs/WorkContextId"
         }
       },
       "required": [
-        "changeset_id",
-        "layer_id",
-        "base_layer_revision",
-        "resulting_layer_revision",
-        "feature_ids",
-        "idempotency_key",
-        "request_digest_sha256",
-        "actor_id",
-        "work_context",
-        "commit_sequence",
-        "created_at"
+        "changesetId",
+        "layerId",
+        "baseLayerRevision",
+        "resultingLayerRevision",
+        "featureIds",
+        "idempotencyKey",
+        "requestDigestSha256",
+        "actorId",
+        "workContext",
+        "commitSequence",
+        "createdAt"
       ],
       "type": "object"
     },
     "FeatureChangeSetId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "FeatureChangeSetId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "FeatureContentClass": {
@@ -673,6 +770,24 @@
               "$ref": "#/$defs/GeoJsonPosition"
             },
             "type": {
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "declaration": {
+                      "applicability": "only this standard scalar vocabulary",
+                      "authority": {
+                        "document": "https://www.rfc-editor.org/rfc/rfc7946",
+                        "kind": "standard"
+                      },
+                      "profile": "GeoJSON type names",
+                      "version": "RFC 7946"
+                    },
+                    "kind": "standard"
+                  }
+                }
+              },
               "const": "Point",
               "type": "string"
             }
@@ -693,6 +808,24 @@
               "type": "array"
             },
             "type": {
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "declaration": {
+                      "applicability": "only this standard scalar vocabulary",
+                      "authority": {
+                        "document": "https://www.rfc-editor.org/rfc/rfc7946",
+                        "kind": "standard"
+                      },
+                      "profile": "GeoJSON type names",
+                      "version": "RFC 7946"
+                    },
+                    "kind": "standard"
+                  }
+                }
+              },
               "const": "MultiPoint",
               "type": "string"
             }
@@ -713,6 +846,24 @@
               "type": "array"
             },
             "type": {
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "declaration": {
+                      "applicability": "only this standard scalar vocabulary",
+                      "authority": {
+                        "document": "https://www.rfc-editor.org/rfc/rfc7946",
+                        "kind": "standard"
+                      },
+                      "profile": "GeoJSON type names",
+                      "version": "RFC 7946"
+                    },
+                    "kind": "standard"
+                  }
+                }
+              },
               "const": "LineString",
               "type": "string"
             }
@@ -736,6 +887,24 @@
               "type": "array"
             },
             "type": {
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "declaration": {
+                      "applicability": "only this standard scalar vocabulary",
+                      "authority": {
+                        "document": "https://www.rfc-editor.org/rfc/rfc7946",
+                        "kind": "standard"
+                      },
+                      "profile": "GeoJSON type names",
+                      "version": "RFC 7946"
+                    },
+                    "kind": "standard"
+                  }
+                }
+              },
               "const": "MultiLineString",
               "type": "string"
             }
@@ -759,6 +928,24 @@
               "type": "array"
             },
             "type": {
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "declaration": {
+                      "applicability": "only this standard scalar vocabulary",
+                      "authority": {
+                        "document": "https://www.rfc-editor.org/rfc/rfc7946",
+                        "kind": "standard"
+                      },
+                      "profile": "GeoJSON type names",
+                      "version": "RFC 7946"
+                    },
+                    "kind": "standard"
+                  }
+                }
+              },
               "const": "Polygon",
               "type": "string"
             }
@@ -785,6 +972,24 @@
               "type": "array"
             },
             "type": {
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "declaration": {
+                      "applicability": "only this standard scalar vocabulary",
+                      "authority": {
+                        "document": "https://www.rfc-editor.org/rfc/rfc7946",
+                        "kind": "standard"
+                      },
+                      "profile": "GeoJSON type names",
+                      "version": "RFC 7946"
+                    },
+                    "kind": "standard"
+                  }
+                }
+              },
               "const": "MultiPolygon",
               "type": "string"
             }
@@ -798,6 +1003,24 @@
       ]
     },
     "FeatureGeometryType": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "only this standard scalar vocabulary",
+              "authority": {
+                "document": "https://www.rfc-editor.org/rfc/rfc7946",
+                "kind": "standard"
+              },
+              "profile": "GeoJSON type names",
+              "version": "RFC 7946"
+            },
+            "kind": "standard"
+          }
+        }
+      },
       "enum": [
         "Point",
         "MultiPoint",
@@ -809,8 +1032,9 @@
       "type": "string"
     },
     "FeatureLayer": {
+      "additionalProperties": false,
       "properties": {
-        "archived_at": {
+        "archivedAt": {
           "format": "date-time",
           "type": [
             "string",
@@ -827,17 +1051,17 @@
             }
           ]
         },
-        "content_class": {
+        "contentClass": {
           "$ref": "#/$defs/FeatureContentClass"
         },
-        "created_at": {
+        "createdAt": {
           "format": "date-time",
           "type": "string"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/$defs/PrincipalId"
         },
-        "data_labels": {
+        "dataLabels": {
           "items": {
             "$ref": "#/$defs/DataLabelId"
           },
@@ -850,7 +1074,7 @@
             "null"
           ]
         },
-        "layer_id": {
+        "layerId": {
           "$ref": "#/$defs/FeatureLayerId"
         },
         "owner": {
@@ -877,37 +1101,56 @@
         "title": {
           "type": "string"
         },
-        "updated_at": {
+        "updatedAt": {
           "format": "date-time",
           "type": "string"
         },
-        "work_context": {
+        "workContext": {
           "$ref": "#/$defs/WorkContextId"
         }
       },
       "required": [
-        "layer_id",
+        "layerId",
         "title",
-        "content_class",
+        "contentClass",
         "schema",
         "revision",
         "owner",
-        "created_by",
-        "work_context",
-        "created_at",
-        "updated_at"
+        "createdBy",
+        "workContext",
+        "createdAt",
+        "updatedAt"
       ],
       "type": "object"
     },
     "FeatureLayerId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "FeatureLayerId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "FeatureProvenance": {
+      "additionalProperties": false,
       "properties": {
-        "actor_id": {
+        "actorId": {
           "$ref": "#/$defs/PrincipalId"
         },
-        "delegation_id": {
+        "delegationId": {
           "anyOf": [
             {
               "$ref": "#/$defs/DelegationId"
@@ -917,7 +1160,7 @@
             }
           ]
         },
-        "initiator_id": {
+        "initiatorId": {
           "anyOf": [
             {
               "$ref": "#/$defs/PrincipalId"
@@ -927,41 +1170,52 @@
             }
           ]
         },
-        "invocation_mode": {
+        "invocationMode": {
           "$ref": "#/$defs/InvocationMode"
         },
-        "policy_revision": {
+        "policyRevision": {
           "$ref": "#/$defs/PolicyVersion"
         },
-        "work_context": {
+        "workContext": {
           "$ref": "#/$defs/WorkContextId"
         }
       },
       "required": [
-        "actor_id",
-        "work_context",
-        "policy_revision",
-        "invocation_mode"
+        "actorId",
+        "workContext",
+        "policyRevision",
+        "invocationMode"
       ],
       "type": "object"
     },
     "FeatureResourceReference": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "resource_uri",
+            "kind": "builtin"
+          }
+        }
+      },
       "type": "string"
     },
     "FeatureSchemaRevision": {
+      "additionalProperties": false,
       "properties": {
-        "created_at": {
+        "createdAt": {
           "format": "date-time",
           "type": "string"
         },
-        "digest_sha256": {
+        "digestSha256": {
           "type": "string"
         },
-        "layer_id": {
+        "layerId": {
           "$ref": "#/$defs/FeatureLayerId"
         },
         "schema": true,
-        "schema_revision_id": {
+        "schemaRevisionId": {
           "$ref": "#/$defs/FeatureSchemaRevisionId"
         },
         "version": {
@@ -971,16 +1225,34 @@
         }
       },
       "required": [
-        "schema_revision_id",
-        "layer_id",
+        "schemaRevisionId",
+        "layerId",
         "version",
-        "digest_sha256",
+        "digestSha256",
         "schema",
-        "created_at"
+        "createdAt"
       ],
       "type": "object"
     },
     "FeatureSchemaRevisionId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "FeatureSchemaRevisionId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "FeatureTime": {
@@ -1002,6 +1274,7 @@
       "type": "object"
     },
     "FeatureValidationFinding": {
+      "additionalProperties": false,
       "properties": {
         "code": {
           "type": "string"
@@ -1009,14 +1282,14 @@
         "message": {
           "type": "string"
         },
-        "mutation_index": {
+        "mutationIndex": {
           "format": "uint",
           "minimum": 0,
           "type": "integer"
         }
       },
       "required": [
-        "mutation_index",
+        "mutationIndex",
         "code",
         "message"
       ],
@@ -1034,7 +1307,7 @@
     "FixedWingProfile": {
       "additionalProperties": false,
       "properties": {
-        "airspace_permissions": {
+        "airspacePermissions": {
           "items": {
             "type": "string"
           },
@@ -1050,18 +1323,18 @@
         "energy": {
           "$ref": "#/$defs/EnergyProfile"
         },
-        "maximum_takeoff_mass": {
+        "maximumTakeoffMass": {
           "format": "double",
           "type": "number"
         },
         "metadata": {
           "$ref": "#/$defs/MobilityProfileMetadata"
         },
-        "minimum_runway_length": {
+        "minimumRunwayLength": {
           "format": "double",
           "type": "number"
         },
-        "navigation_capabilities": {
+        "navigationCapabilities": {
           "items": {
             "type": "string"
           },
@@ -1080,14 +1353,32 @@
         "planning",
         "class",
         "dimensions",
-        "maximum_takeoff_mass",
+        "maximumTakeoffMass",
         "performance",
         "energy",
-        "minimum_runway_length"
+        "minimumRunwayLength"
       ],
       "type": "object"
     },
     "GeoJsonFeatureType": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "only this standard scalar vocabulary",
+              "authority": {
+                "document": "https://www.rfc-editor.org/rfc/rfc7946",
+                "kind": "standard"
+              },
+              "profile": "GeoJSON type names",
+              "version": "RFC 7946"
+            },
+            "kind": "standard"
+          }
+        }
+      },
       "enum": [
         "Feature"
       ],
@@ -1102,6 +1393,7 @@
       "type": "array"
     },
     "GeoPackageExtension": {
+      "additionalProperties": false,
       "properties": {
         "column": {
           "type": [
@@ -1133,8 +1425,9 @@
       "type": "object"
     },
     "GeoPackageFeatureTable": {
+      "additionalProperties": false,
       "properties": {
-        "crs_name": {
+        "crsName": {
           "type": [
             "string",
             "null"
@@ -1143,7 +1436,7 @@
         "description": {
           "type": "string"
         },
-        "extent_wgs84": {
+        "extentWgs84": {
           "anyOf": [
             {
               "$ref": "#/$defs/Wgs84BoundingBox"
@@ -1153,7 +1446,7 @@
             }
           ]
         },
-        "feature_count": {
+        "featureCount": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -1164,19 +1457,19 @@
           },
           "type": "array"
         },
-        "geometry_column": {
+        "geometryColumn": {
           "type": "string"
         },
-        "geometry_type": {
+        "geometryType": {
           "type": "string"
         },
-        "has_spatial_index": {
+        "hasSpatialIndex": {
           "type": "boolean"
         },
         "identifier": {
           "type": "string"
         },
-        "srs_id": {
+        "srsId": {
           "format": "int64",
           "type": "integer"
         },
@@ -1188,18 +1481,19 @@
         "table",
         "identifier",
         "description",
-        "geometry_column",
-        "geometry_type",
-        "srs_id",
-        "feature_count",
+        "geometryColumn",
+        "geometryType",
+        "srsId",
+        "featureCount",
         "fields",
-        "has_spatial_index"
+        "hasSpatialIndex"
       ],
       "type": "object"
     },
     "GeoPackageField": {
+      "additionalProperties": false,
       "properties": {
-        "field_type": {
+        "fieldType": {
           "$ref": "#/$defs/GeoPackageFieldType"
         },
         "name": {
@@ -1211,7 +1505,7 @@
       },
       "required": [
         "name",
-        "field_type",
+        "fieldType",
         "nullable"
       ],
       "type": "object"
@@ -1231,6 +1525,7 @@
       "type": "string"
     },
     "GeoPackageFinding": {
+      "additionalProperties": false,
       "properties": {
         "code": {
           "type": "string"
@@ -1263,8 +1558,9 @@
       "type": "string"
     },
     "GeoPackageManifest": {
+      "additionalProperties": false,
       "properties": {
-        "application_id": {
+        "applicationId": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -1275,7 +1571,7 @@
           },
           "type": "array"
         },
-        "feature_tables": {
+        "featureTables": {
           "items": {
             "$ref": "#/$defs/GeoPackageFeatureTable"
           },
@@ -1287,7 +1583,7 @@
           },
           "type": "array"
         },
-        "user_version": {
+        "userVersion": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -1298,15 +1594,33 @@
       },
       "required": [
         "version",
-        "application_id",
-        "user_version",
-        "feature_tables",
+        "applicationId",
+        "userVersion",
+        "featureTables",
         "extensions",
         "findings"
       ],
       "type": "object"
     },
     "GroupId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "GroupId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Identity-provider group identifier used by gateway policy.",
       "type": "string"
     },
@@ -1319,30 +1633,30 @@
     "HumanMobilityProfile": {
       "additionalProperties": false,
       "properties": {
-        "accessibility_requirements": {
+        "accessibilityRequirements": {
           "items": {
             "type": "string"
           },
           "type": "array",
           "uniqueItems": true
         },
-        "carried_load": {
+        "carriedLoad": {
           "format": "double",
           "type": "number"
         },
-        "maximum_continuous_duration": {
+        "maximumContinuousDuration": {
           "format": "double",
           "type": "number"
         },
-        "maximum_slope": {
+        "maximumSlope": {
           "format": "double",
           "type": "number"
         },
-        "maximum_speed": {
+        "maximumSpeed": {
           "format": "double",
           "type": "number"
         },
-        "maximum_step": {
+        "maximumStep": {
           "format": "double",
           "type": "number"
         },
@@ -1355,15 +1669,15 @@
         "planning": {
           "$ref": "#/$defs/MobilityPlanningEnvelope"
         },
-        "preferred_speed": {
+        "preferredSpeed": {
           "format": "double",
           "type": "number"
         },
-        "stairs_allowed": {
+        "stairsAllowed": {
           "default": false,
           "type": "boolean"
         },
-        "unpaved_allowed": {
+        "unpavedAllowed": {
           "default": false,
           "type": "boolean"
         }
@@ -1372,12 +1686,12 @@
         "metadata",
         "planning",
         "mode",
-        "preferred_speed",
-        "maximum_speed",
-        "carried_load",
-        "maximum_slope",
-        "maximum_step",
-        "maximum_continuous_duration"
+        "preferredSpeed",
+        "maximumSpeed",
+        "carriedLoad",
+        "maximumSlope",
+        "maximumStep",
+        "maximumContinuousDuration"
       ],
       "type": "object"
     },
@@ -1392,16 +1706,17 @@
       "type": "string"
     },
     "InspectGeoPackageOutput": {
+      "additionalProperties": false,
       "properties": {
         "manifest": {
           "$ref": "#/$defs/GeoPackageManifest"
         },
-        "source_artifact_uri": {
+        "sourceArtifactUri": {
           "$ref": "#/$defs/ArtifactUri"
         }
       },
       "required": [
-        "source_artifact_uri",
+        "sourceArtifactUri",
         "manifest"
       ],
       "type": "object"
@@ -1419,37 +1734,38 @@
       "type": "string"
     },
     "LayerPublication": {
+      "additionalProperties": false,
       "properties": {
-        "artifact_uris": {
+        "artifactUris": {
           "items": {
             "$ref": "#/$defs/ArtifactUri"
           },
           "type": "array"
         },
-        "layer_id": {
+        "layerId": {
           "$ref": "#/$defs/FeatureLayerId"
         },
-        "layer_revision": {
+        "layerRevision": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "publication_id": {
+        "publicationId": {
           "$ref": "#/$defs/LayerPublicationId"
         },
-        "published_at": {
+        "publishedAt": {
           "format": "date-time",
           "type": "string"
         },
-        "published_by": {
+        "publishedBy": {
           "$ref": "#/$defs/PrincipalId"
         },
-        "schema_version": {
+        "schemaVersion": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "style_revision_id": {
+        "styleRevisionId": {
           "anyOf": [
             {
               "$ref": "#/$defs/StyleRevisionId"
@@ -1465,22 +1781,40 @@
             "null"
           ]
         },
-        "work_context": {
+        "workContext": {
           "$ref": "#/$defs/WorkContextId"
         }
       },
       "required": [
-        "publication_id",
-        "layer_id",
-        "layer_revision",
-        "schema_version",
-        "published_by",
-        "work_context",
-        "published_at"
+        "publicationId",
+        "layerId",
+        "layerRevision",
+        "schemaVersion",
+        "publishedBy",
+        "workContext",
+        "publishedAt"
       ],
       "type": "object"
     },
     "LayerPublicationId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "LayerPublicationId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "LayerStyle": {
@@ -1497,8 +1831,9 @@
       "type": "object"
     },
     "MapComposition": {
+      "additionalProperties": false,
       "properties": {
-        "archived_at": {
+        "archivedAt": {
           "format": "date-time",
           "type": [
             "string",
@@ -1515,20 +1850,20 @@
             }
           ]
         },
-        "composition_id": {
+        "compositionId": {
           "$ref": "#/$defs/MapCompositionId"
         },
-        "created_at": {
+        "createdAt": {
           "format": "date-time",
           "type": "string"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/$defs/PrincipalId"
         },
         "current": {
           "$ref": "#/$defs/MapCompositionRevision"
         },
-        "data_labels": {
+        "dataLabels": {
           "items": {
             "$ref": "#/$defs/DataLabelId"
           },
@@ -1541,42 +1876,61 @@
         "title": {
           "type": "string"
         },
-        "updated_at": {
+        "updatedAt": {
           "format": "date-time",
           "type": "string"
         },
-        "work_context": {
+        "workContext": {
           "$ref": "#/$defs/WorkContextId"
         }
       },
       "required": [
-        "composition_id",
+        "compositionId",
         "title",
         "current",
         "owner",
-        "created_by",
-        "work_context",
-        "created_at",
-        "updated_at"
+        "createdBy",
+        "workContext",
+        "createdAt",
+        "updatedAt"
       ],
       "type": "object"
     },
     "MapCompositionId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "MapCompositionId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "MapCompositionRevision": {
+      "additionalProperties": false,
       "properties": {
-        "composition_id": {
+        "compositionId": {
           "$ref": "#/$defs/MapCompositionId"
         },
-        "composition_revision_id": {
+        "compositionRevisionId": {
           "$ref": "#/$defs/MapCompositionRevisionId"
         },
-        "created_at": {
+        "createdAt": {
           "format": "date-time",
           "type": "string"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/$defs/PrincipalId"
         },
         "layers": {
@@ -1595,20 +1949,56 @@
         }
       },
       "required": [
-        "composition_revision_id",
-        "composition_id",
+        "compositionRevisionId",
+        "compositionId",
         "revision",
         "layers",
         "view",
-        "created_by",
-        "created_at"
+        "createdBy",
+        "createdAt"
       ],
       "type": "object"
     },
     "MapCompositionRevisionId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "MapCompositionRevisionId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "MapDatasetId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "MapDatasetId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "MapFamily": {
@@ -1624,6 +2014,7 @@
       "type": "string"
     },
     "MapFeature": {
+      "additionalProperties": false,
       "description": "A map feature in a feature layer. Its core fields are valid GeoJSON, and\nits time and feature-type members use JSON-FG vocabulary.",
       "properties": {
         "conformsTo": {
@@ -1632,26 +2023,26 @@
           },
           "type": "array"
         },
-        "created_at": {
+        "createdAt": {
           "format": "date-time",
           "type": "string"
         },
         "deleted": {
           "type": "boolean"
         },
-        "evidence_resources": {
+        "evidenceResources": {
           "items": {
             "$ref": "#/$defs/FeatureResourceReference"
           },
           "type": "array"
         },
-        "featureType": {
-          "type": "string"
-        },
-        "feature_revision": {
+        "featureRevision": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
+        },
+        "featureType": {
+          "type": "string"
         },
         "geometry": {
           "$ref": "#/$defs/FeatureGeometry"
@@ -1659,10 +2050,10 @@
         "id": {
           "$ref": "#/$defs/MapFeatureId"
         },
-        "layer_id": {
+        "layerId": {
           "$ref": "#/$defs/FeatureLayerId"
         },
-        "layer_revision": {
+        "layerRevision": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -1675,13 +2066,13 @@
         "provenance": {
           "$ref": "#/$defs/FeatureProvenance"
         },
-        "related_resources": {
+        "relatedResources": {
           "items": {
             "$ref": "#/$defs/FeatureResourceReference"
           },
           "type": "array"
         },
-        "schema_version": {
+        "schemaVersion": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -1712,17 +2103,35 @@
         "id",
         "geometry",
         "featureType",
-        "layer_id",
-        "feature_revision",
-        "layer_revision",
-        "schema_version",
+        "layerId",
+        "featureRevision",
+        "layerRevision",
+        "schemaVersion",
         "deleted",
         "provenance",
-        "created_at"
+        "createdAt"
       ],
       "type": "object"
     },
     "MapFeatureId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "MapFeatureId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "MapMetadataCursor": {
@@ -1730,6 +2139,7 @@
       "type": "string"
     },
     "MapMetadataPage": {
+      "additionalProperties": false,
       "properties": {
         "items": {
           "items": {
@@ -1742,7 +2152,7 @@
           "minimum": 0,
           "type": "integer"
         },
-        "next_cursor": {
+        "nextCursor": {
           "anyOf": [
             {
               "$ref": "#/$defs/MapMetadataCursor"
@@ -1756,11 +2166,12 @@
       "required": [
         "items",
         "limit",
-        "next_cursor"
+        "nextCursor"
       ],
       "type": "object"
     },
     "MapMetadataPage2": {
+      "additionalProperties": false,
       "properties": {
         "items": {
           "items": {
@@ -1773,7 +2184,7 @@
           "minimum": 0,
           "type": "integer"
         },
-        "next_cursor": {
+        "nextCursor": {
           "anyOf": [
             {
               "$ref": "#/$defs/MapMetadataCursor"
@@ -1787,11 +2198,12 @@
       "required": [
         "items",
         "limit",
-        "next_cursor"
+        "nextCursor"
       ],
       "type": "object"
     },
     "MapMetadataPage3": {
+      "additionalProperties": false,
       "properties": {
         "items": {
           "items": {
@@ -1804,7 +2216,7 @@
           "minimum": 0,
           "type": "integer"
         },
-        "next_cursor": {
+        "nextCursor": {
           "anyOf": [
             {
               "$ref": "#/$defs/MapMetadataCursor"
@@ -1818,7 +2230,7 @@
       "required": [
         "items",
         "limit",
-        "next_cursor"
+        "nextCursor"
       ],
       "type": "object"
     },
@@ -1838,7 +2250,7 @@
           "minimum": 100,
           "type": "integer"
         },
-        "next_cursor": {
+        "nextCursor": {
           "type": [
             "string",
             "null"
@@ -1848,11 +2260,29 @@
       "required": [
         "items",
         "limit",
-        "next_cursor"
+        "nextCursor"
       ],
       "type": "object"
     },
     "MapSourceId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "MapSourceId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "MapSourcePage": {
@@ -1871,7 +2301,7 @@
           "minimum": 100,
           "type": "integer"
         },
-        "next_cursor": {
+        "nextCursor": {
           "type": [
             "string",
             "null"
@@ -1881,23 +2311,24 @@
       "required": [
         "items",
         "limit",
-        "next_cursor"
+        "nextCursor"
       ],
       "type": "object"
     },
     "MapStyleRevision": {
+      "additionalProperties": false,
       "properties": {
-        "created_at": {
+        "createdAt": {
           "format": "date-time",
           "type": "string"
         },
-        "layer_id": {
+        "layerId": {
           "$ref": "#/$defs/FeatureLayerId"
         },
         "style": {
           "$ref": "#/$defs/LayerStyle"
         },
-        "style_revision_id": {
+        "styleRevisionId": {
           "$ref": "#/$defs/StyleRevisionId"
         },
         "version": {
@@ -1907,11 +2338,11 @@
         }
       },
       "required": [
-        "style_revision_id",
-        "layer_id",
+        "styleRevisionId",
+        "layerId",
         "version",
         "style",
-        "created_at"
+        "createdAt"
       ],
       "type": "object"
     },
@@ -1919,31 +2350,33 @@
       "$ref": "#/$defs/MapTaskProductWire"
     },
     "MapTaskProductWire": {
+      "additionalProperties": false,
       "properties": {
         "changeset": {
           "$ref": "#/$defs/FeatureChangeSet"
         },
-        "imported_feature_count": {
+        "importedFeatureCount": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "projection_state": {
+        "projectionState": {
           "$ref": "#/$defs/ProjectionState"
         },
-        "result_uri": {
+        "resultUri": {
           "$ref": "#/$defs/ResourceUri"
         }
       },
       "required": [
-        "result_uri",
-        "imported_feature_count",
+        "resultUri",
+        "importedFeatureCount",
         "changeset",
-        "projection_state"
+        "projectionState"
       ],
       "type": "object"
     },
     "MapWorkspaceAccess": {
+      "additionalProperties": false,
       "description": "Caller-specific capabilities for the single Map MCP workspace App.\n\nThe App reads this resource before rendering controls. Tool and resource\nhandlers remain the authorization boundary; these booleans only let the\nview present the surface the current caller can actually use.",
       "properties": {
         "administration": {
@@ -1952,39 +2385,40 @@
         "basemap": {
           "$ref": "#/$defs/MapWorkspaceBasemap"
         },
-        "dataset_read": {
+        "datasetRead": {
           "type": "boolean"
         },
-        "feature_publish": {
+        "featurePublish": {
           "type": "boolean"
         },
-        "feature_read": {
+        "featureRead": {
           "type": "boolean"
         },
-        "feature_write": {
+        "featureWrite": {
           "type": "boolean"
         }
       },
       "required": [
         "administration",
-        "dataset_read",
-        "feature_read",
-        "feature_write",
-        "feature_publish",
+        "datasetRead",
+        "featureRead",
+        "featureWrite",
+        "featurePublish",
         "basemap"
       ],
       "type": "object"
     },
     "MapWorkspaceBasemap": {
+      "additionalProperties": false,
       "description": "Presentation-safe MapLibre Style basemap configuration owned by Map MCP.\n\nThe style URLs are returned to the sandboxed App and therefore must not\ncontain credentials. The supported profile keeps both styles and every\nstyle dependency on the same origin, which the App resource declares\nthrough MCP Apps CSP metadata.",
       "properties": {
-        "dark_style_url": {
+        "darkStyleUrl": {
           "type": "string"
         },
         "id": {
           "type": "string"
         },
-        "light_style_url": {
+        "lightStyleUrl": {
           "type": "string"
         },
         "title": {
@@ -1994,91 +2428,91 @@
       "required": [
         "id",
         "title",
-        "light_style_url",
-        "dark_style_url"
+        "lightStyleUrl",
+        "darkStyleUrl"
       ],
       "type": "object"
     },
     "MobilityPlanningEnvelope": {
       "additionalProperties": false,
       "properties": {
-        "allowed_restriction_kinds": {
+        "allowedRestrictionKinds": {
           "items": {
             "$ref": "#/$defs/RestrictionKind"
           },
           "type": "array",
           "uniqueItems": true
         },
-        "allowed_terrain_classes": {
+        "allowedTerrainClasses": {
           "items": {
             "type": "string"
           },
           "type": "array",
           "uniqueItems": true
         },
-        "lateral_clearance": {
+        "lateralClearance": {
           "format": "double",
           "type": "number"
         },
-        "maximum_climb_angle": {
+        "maximumClimbAngle": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "maximum_descent_angle": {
+        "maximumDescentAngle": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "maximum_range": {
+        "maximumRange": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "maximum_route_points": {
+        "maximumRoutePoints": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
-        "maximum_segment_length": {
+        "maximumSegmentLength": {
           "format": "double",
           "type": "number"
         },
-        "minimum_speed": {
+        "minimumSpeed": {
           "format": "double",
           "type": "number"
         },
-        "minimum_turn_radius": {
+        "minimumTurnRadius": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "operating_ceiling": {
+        "operatingCeiling": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "vertical_clearance": {
+        "verticalClearance": {
           "format": "double",
           "type": "number"
         }
       },
       "required": [
-        "minimum_speed",
-        "vertical_clearance",
-        "lateral_clearance",
-        "maximum_route_points",
-        "maximum_segment_length"
+        "minimumSpeed",
+        "verticalClearance",
+        "lateralClearance",
+        "maximumRoutePoints",
+        "maximumSegmentLength"
       ],
       "type": "object"
     },
@@ -2240,6 +2674,24 @@
       ]
     },
     "MobilityProfileId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "MobilityProfileId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "MobilityProfileMetadata": {
@@ -2255,14 +2707,14 @@
         "name": {
           "type": "string"
         },
-        "profile_id": {
+        "profileId": {
           "$ref": "#/$defs/MobilityProfileId"
         },
-        "valid_from": {
+        "validFrom": {
           "format": "date-time",
           "type": "string"
         },
-        "valid_until": {
+        "validUntil": {
           "format": "date-time",
           "type": [
             "string",
@@ -2274,10 +2726,10 @@
         }
       },
       "required": [
-        "profile_id",
+        "profileId",
         "name",
         "version",
-        "valid_from"
+        "validFrom"
       ],
       "type": "object"
     },
@@ -2302,7 +2754,7 @@
     "OffRoadVehicleProfile": {
       "additionalProperties": false,
       "properties": {
-        "allowed_surface_classes": {
+        "allowedSurfaceClasses": {
           "items": {
             "type": "string"
           },
@@ -2318,35 +2770,35 @@
         "energy": {
           "$ref": "#/$defs/EnergyProfile"
         },
-        "gross_mass": {
+        "grossMass": {
           "format": "double",
           "type": "number"
         },
-        "ground_clearance": {
+        "groundClearance": {
           "format": "double",
           "type": "number"
         },
-        "ground_pressure": {
+        "groundPressure": {
           "format": "double",
           "type": "number"
         },
-        "maximum_cross_slope": {
+        "maximumCrossSlope": {
           "format": "double",
           "type": "number"
         },
-        "maximum_gap": {
+        "maximumGap": {
           "format": "double",
           "type": "number"
         },
-        "maximum_slope": {
+        "maximumSlope": {
           "format": "double",
           "type": "number"
         },
-        "maximum_step": {
+        "maximumStep": {
           "format": "double",
           "type": "number"
         },
-        "maximum_water_depth": {
+        "maximumWaterDepth": {
           "format": "double",
           "type": "number"
         },
@@ -2365,16 +2817,16 @@
         "planning",
         "class",
         "dimensions",
-        "gross_mass",
+        "grossMass",
         "performance",
         "energy",
-        "maximum_slope",
-        "maximum_cross_slope",
-        "maximum_step",
-        "maximum_gap",
-        "maximum_water_depth",
-        "ground_clearance",
-        "ground_pressure"
+        "maximumSlope",
+        "maximumCrossSlope",
+        "maximumStep",
+        "maximumGap",
+        "maximumWaterDepth",
+        "groundClearance",
+        "groundPressure"
       ],
       "type": "object"
     },
@@ -2392,7 +2844,7 @@
           "minimum": 0,
           "type": "integer"
         },
-        "next_cursor": {
+        "nextCursor": {
           "type": [
             "string",
             "null"
@@ -2402,15 +2854,51 @@
       "required": [
         "items",
         "limit",
-        "next_cursor"
+        "nextCursor"
       ],
       "type": "object"
     },
     "PolicyVersion": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "PolicyVersion",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Immutable policy version identifier emitted with decisions and audit records.",
       "type": "string"
     },
     "PrincipalId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "PrincipalId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Stable authenticated user or service-principal identity.",
       "type": "string"
     },
@@ -2422,6 +2910,7 @@
       "type": "string"
     },
     "QueryFeaturesOutput": {
+      "additionalProperties": false,
       "properties": {
         "features": {
           "items": {
@@ -2429,29 +2918,30 @@
           },
           "type": "array"
         },
-        "layer_id": {
+        "layerId": {
           "$ref": "#/$defs/FeatureLayerId"
         },
-        "next_cursor": {
+        "nextCursor": {
           "type": [
             "string",
             "null"
           ]
         },
-        "projection_sequence": {
+        "projectionSequence": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         }
       },
       "required": [
-        "layer_id",
+        "layerId",
         "features",
-        "projection_sequence"
+        "projectionSequence"
       ],
       "type": "object"
     },
     "QuerySourceFeaturesOutput": {
+      "additionalProperties": false,
       "properties": {
         "features": {
           "items": {
@@ -2459,22 +2949,23 @@
           },
           "type": "array"
         },
-        "next_cursor": {
+        "nextCursor": {
           "type": [
             "string",
             "null"
           ]
         },
-        "query_digest_sha256": {
+        "queryDigestSha256": {
+          "pattern": "^[0-9a-f]{64}$",
           "type": "string"
         },
-        "release_id": {
+        "releaseId": {
           "$ref": "#/$defs/DatasetReleaseId"
         }
       },
       "required": [
-        "release_id",
-        "query_digest_sha256",
+        "releaseId",
+        "queryDigestSha256",
         "features"
       ],
       "type": "object"
@@ -2497,7 +2988,7 @@
         "dimensions": {
           "$ref": "#/$defs/VehicleDimensions"
         },
-        "electrification_systems": {
+        "electrificationSystems": {
           "items": {
             "type": "string"
           },
@@ -2511,18 +3002,18 @@
           "format": "double",
           "type": "number"
         },
-        "gross_mass": {
+        "grossMass": {
           "format": "double",
           "type": "number"
         },
-        "maximum_axle_load": {
+        "maximumAxleLoad": {
           "format": "double",
           "type": "number"
         },
         "metadata": {
           "$ref": "#/$defs/MobilityProfileMetadata"
         },
-        "operator_permissions": {
+        "operatorPermissions": {
           "items": {
             "type": "string"
           },
@@ -2535,11 +3026,11 @@
         "planning": {
           "$ref": "#/$defs/MobilityPlanningEnvelope"
         },
-        "schedule_required": {
+        "scheduleRequired": {
           "default": false,
           "type": "boolean"
         },
-        "train_length": {
+        "trainLength": {
           "format": "double",
           "type": "number"
         }
@@ -2549,28 +3040,28 @@
         "planning",
         "class",
         "dimensions",
-        "gross_mass",
+        "grossMass",
         "performance",
         "energy",
         "gauge",
-        "train_length",
-        "maximum_axle_load"
+        "trainLength",
+        "maximumAxleLoad"
       ],
       "type": "object"
     },
     "RegisteredSource": {
       "additionalProperties": false,
       "properties": {
-        "acquisition_model": {
+        "acquisitionModel": {
           "$ref": "#/$defs/AcquisitionModel"
         },
-        "adapter_kind": {
+        "adapterKind": {
           "$ref": "#/$defs/SourceAdapterKind"
         },
         "authority": {
           "$ref": "#/$defs/AuthorityClass"
         },
-        "created_at": {
+        "createdAt": {
           "format": "date-time",
           "type": "string"
         },
@@ -2584,13 +3075,13 @@
             }
           ]
         },
-        "dataset_id": {
+        "datasetId": {
           "$ref": "#/$defs/MapDatasetId"
         },
         "enabled": {
           "type": "boolean"
         },
-        "expected_media_types": {
+        "expectedMediaTypes": {
           "items": {
             "type": "string"
           },
@@ -2603,19 +3094,19 @@
         "location": {
           "$ref": "#/$defs/SourceLocation"
         },
-        "map_families": {
+        "mapFamilies": {
           "items": {
             "$ref": "#/$defs/MapFamily"
           },
           "type": "array",
           "uniqueItems": true
         },
-        "maximum_download_bytes": {
+        "maximumDownloadBytes": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "maximum_elapsed_seconds": {
+        "maximumElapsedSeconds": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -2623,49 +3114,50 @@
         "name": {
           "type": "string"
         },
-        "publisher_key_refs": {
+        "publisherKeyRefs": {
           "items": {
             "$ref": "#/$defs/SecretReference"
           },
           "type": "array",
           "uniqueItems": true
         },
-        "record_version": {
+        "recordVersion": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "source_id": {
+        "sourceId": {
           "$ref": "#/$defs/MapSourceId"
         },
-        "updated_at": {
+        "updatedAt": {
           "format": "date-time",
           "type": "string"
         }
       },
       "required": [
-        "source_id",
-        "dataset_id",
+        "sourceId",
+        "datasetId",
         "name",
-        "adapter_kind",
+        "adapterKind",
         "authority",
-        "acquisition_model",
-        "map_families",
+        "acquisitionModel",
+        "mapFamilies",
         "location",
-        "expected_media_types",
-        "maximum_download_bytes",
-        "maximum_elapsed_seconds",
+        "expectedMediaTypes",
+        "maximumDownloadBytes",
+        "maximumElapsedSeconds",
         "license",
         "enabled",
-        "record_version",
-        "created_at",
-        "updated_at"
+        "recordVersion",
+        "createdAt",
+        "updatedAt"
       ],
       "type": "object"
     },
     "ReleaseMutationResponse": {
+      "additionalProperties": false,
       "properties": {
-        "invalidated_route_count": {
+        "invalidatedRouteCount": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -2676,7 +3168,7 @@
       },
       "required": [
         "release",
-        "invalidated_route_count"
+        "invalidatedRouteCount"
       ],
       "type": "object"
     },
@@ -2694,7 +3186,7 @@
           "minimum": 0,
           "type": "integer"
         },
-        "next_cursor": {
+        "nextCursor": {
           "type": [
             "string",
             "null"
@@ -2704,11 +3196,21 @@
       "required": [
         "items",
         "limit",
-        "next_cursor"
+        "nextCursor"
       ],
       "type": "object"
     },
     "ResourceUri": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "resource_uri",
+            "kind": "builtin"
+          }
+        }
+      },
       "type": "string"
     },
     "RestrictionKind": {
@@ -2744,7 +3246,7 @@
     "RoadVehicleProfile": {
       "additionalProperties": false,
       "properties": {
-        "axle_count": {
+        "axleCount": {
           "format": "uint16",
           "maximum": 65535,
           "minimum": 0,
@@ -2756,7 +3258,7 @@
         "dimensions": {
           "$ref": "#/$defs/VehicleDimensions"
         },
-        "emissions_class": {
+        "emissionsClass": {
           "type": [
             "string",
             "null"
@@ -2765,15 +3267,15 @@
         "energy": {
           "$ref": "#/$defs/EnergyProfile"
         },
-        "gross_mass": {
+        "grossMass": {
           "format": "double",
           "type": "number"
         },
-        "hazardous_cargo": {
+        "hazardousCargo": {
           "default": false,
           "type": "boolean"
         },
-        "maximum_axle_load": {
+        "maximumAxleLoad": {
           "format": "double",
           "type": "number"
         },
@@ -2786,7 +3288,7 @@
         "planning": {
           "$ref": "#/$defs/MobilityPlanningEnvelope"
         },
-        "unpaved_allowed": {
+        "unpavedAllowed": {
           "default": false,
           "type": "boolean"
         }
@@ -2796,11 +3298,11 @@
         "planning",
         "class",
         "dimensions",
-        "gross_mass",
+        "grossMass",
         "performance",
         "energy",
-        "axle_count",
-        "maximum_axle_load"
+        "axleCount",
+        "maximumAxleLoad"
       ],
       "type": "object"
     },
@@ -2815,7 +3317,7 @@
     "RotorcraftProfile": {
       "additionalProperties": false,
       "properties": {
-        "airspace_permissions": {
+        "airspacePermissions": {
           "items": {
             "type": "string"
           },
@@ -2831,14 +3333,14 @@
         "energy": {
           "$ref": "#/$defs/EnergyProfile"
         },
-        "maximum_takeoff_mass": {
+        "maximumTakeoffMass": {
           "format": "double",
           "type": "number"
         },
         "metadata": {
           "$ref": "#/$defs/MobilityProfileMetadata"
         },
-        "navigation_capabilities": {
+        "navigationCapabilities": {
           "items": {
             "type": "string"
           },
@@ -2851,7 +3353,7 @@
         "planning": {
           "$ref": "#/$defs/MobilityPlanningEnvelope"
         },
-        "rotor_diameter": {
+        "rotorDiameter": {
           "format": "double",
           "type": "number"
         }
@@ -2861,10 +3363,10 @@
         "planning",
         "class",
         "dimensions",
-        "maximum_takeoff_mass",
+        "maximumTakeoffMass",
         "performance",
         "energy",
-        "rotor_diameter"
+        "rotorDiameter"
       ],
       "type": "object"
     },
@@ -2894,34 +3396,34 @@
               "const": "bearer",
               "type": "string"
             },
-            "secret_ref": {
+            "secretRef": {
               "$ref": "#/$defs/SecretReference"
             }
           },
           "required": [
             "kind",
-            "secret_ref"
+            "secretRef"
           ],
           "type": "object"
         },
         {
           "additionalProperties": false,
           "properties": {
-            "header_name": {
+            "headerName": {
               "$ref": "#/$defs/SourceHeaderName"
             },
             "kind": {
               "const": "header",
               "type": "string"
             },
-            "secret_ref": {
+            "secretRef": {
               "$ref": "#/$defs/SecretReference"
             }
           },
           "required": [
             "kind",
-            "secret_ref",
-            "header_name"
+            "secretRef",
+            "headerName"
           ],
           "type": "object"
         }
@@ -2937,72 +3439,74 @@
       "type": "string"
     },
     "SourceFeature": {
+      "additionalProperties": false,
       "properties": {
-        "acquired_at": {
+        "acquiredAt": {
           "format": "date-time",
           "type": "string"
         },
-        "feature_id": {
+        "featureId": {
           "$ref": "#/$defs/SourceFeatureId"
         },
         "geometry": {
           "$ref": "#/$defs/FeatureGeometry"
         },
-        "geometry_digest_sha256": {
+        "geometryDigestSha256": {
           "type": "string"
         },
         "license": {
           "$ref": "#/$defs/DatasetLicense"
         },
-        "normalized_tags": {
+        "normalizedTags": {
           "additionalProperties": true,
           "description": "Source-owned properties are deliberately open-ended. Map preserves\nevery normalized key and value rather than projecting an allowlist.",
           "type": "object"
         },
-        "operating_area_ids": {
+        "operatingAreaIds": {
           "items": {
             "type": "string"
           },
           "type": "array",
           "uniqueItems": true
         },
-        "original_names": {
+        "originalNames": {
           "additionalProperties": {
             "type": "string"
           },
           "type": "object"
         },
-        "original_references": {
+        "originalReferences": {
           "items": {
             "type": "string"
           },
           "type": "array",
           "uniqueItems": true
         },
-        "release_id": {
+        "releaseId": {
           "$ref": "#/$defs/DatasetReleaseId"
         },
         "representation": {
           "$ref": "#/$defs/SourceFeatureRepresentation"
         },
-        "schema_version": {
+        "schemaVersion": {
           "format": "uint64",
-          "minimum": 0,
+          "maximum": 2,
+          "minimum": 2,
           "type": "integer"
         },
-        "source_digest_sha256": {
+        "sourceDigestSha256": {
           "type": "string"
         },
-        "source_element_id": {
+        "sourceElementId": {
           "type": "string"
         },
-        "source_element_type": {
+        "sourceElementType": {
           "$ref": "#/$defs/SourceElementType"
         },
-        "source_element_version": {
+        "sourceElementVersion": {
           "type": "string"
         },
-        "source_geometry_path": {
+        "sourceGeometryPath": {
           "description": "Zero-based traversal path from the source element's root geometry to\nthis simple or multi-geometry. The root geometry uses an\nempty path. Relation GeometryCollections produce one feature per leaf.",
           "items": {
             "format": "uint32",
@@ -3011,32 +3515,51 @@
           },
           "type": "array"
         },
-        "source_id": {
+        "sourceId": {
           "$ref": "#/$defs/MapSourceId"
         }
       },
       "required": [
-        "schema_version",
-        "feature_id",
-        "source_id",
-        "release_id",
-        "source_element_type",
-        "source_element_id",
-        "source_element_version",
+        "schemaVersion",
+        "featureId",
+        "sourceId",
+        "releaseId",
+        "sourceElementType",
+        "sourceElementId",
+        "sourceElementVersion",
         "representation",
         "geometry",
-        "geometry_digest_sha256",
-        "normalized_tags",
-        "source_digest_sha256",
+        "geometryDigestSha256",
+        "normalizedTags",
+        "sourceDigestSha256",
         "license",
-        "acquired_at"
+        "acquiredAt"
       ],
       "type": "object"
     },
     "SourceFeatureId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "SourceFeatureId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "SourceFeatureMatch": {
+      "additionalProperties": false,
       "properties": {
         "distance": {
           "format": "double",
@@ -3074,7 +3597,7 @@
         {
           "additionalProperties": false,
           "properties": {
-            "allowed_redirect_hosts": {
+            "allowedRedirectHosts": {
               "items": {
                 "$ref": "#/$defs/SourceHost"
               },
@@ -3102,17 +3625,17 @@
               "const": "osm_replication",
               "type": "string"
             },
-            "replication_endpoint": {
+            "replicationEndpoint": {
               "$ref": "#/$defs/HttpsUrl"
             },
-            "snapshot_endpoint": {
+            "snapshotEndpoint": {
               "$ref": "#/$defs/HttpsUrl"
             }
           },
           "required": [
             "kind",
-            "snapshot_endpoint",
-            "replication_endpoint"
+            "snapshotEndpoint",
+            "replicationEndpoint"
           ],
           "type": "object"
         },
@@ -3123,17 +3646,17 @@
               "const": "mounted_exchange_set",
               "type": "string"
             },
-            "mount_id": {
+            "mountId": {
               "$ref": "#/$defs/SourceMountId"
             },
-            "relative_path": {
+            "relativePath": {
               "$ref": "#/$defs/MountRelativePath"
             }
           },
           "required": [
             "kind",
-            "mount_id",
-            "relative_path"
+            "mountId",
+            "relativePath"
           ],
           "type": "object"
         }
@@ -3145,20 +3668,20 @@
     "SourceSummary": {
       "additionalProperties": false,
       "properties": {
-        "acquisition_model": {
+        "acquisitionModel": {
           "$ref": "#/$defs/AcquisitionModel"
         },
-        "adapter_kind": {
+        "adapterKind": {
           "$ref": "#/$defs/SourceAdapterKind"
         },
         "authority": {
           "$ref": "#/$defs/AuthorityClass"
         },
-        "created_at": {
+        "createdAt": {
           "format": "date-time",
           "type": "string"
         },
-        "dataset_id": {
+        "datasetId": {
           "$ref": "#/$defs/MapDatasetId"
         },
         "enabled": {
@@ -3167,7 +3690,7 @@
         "license": {
           "$ref": "#/$defs/DatasetLicense"
         },
-        "map_families": {
+        "mapFamilies": {
           "items": {
             "$ref": "#/$defs/MapFamily"
           },
@@ -3180,68 +3703,86 @@
           "minLength": 1,
           "type": "string"
         },
-        "record_version": {
+        "recordVersion": {
           "format": "uint64",
           "minimum": 1,
           "type": "integer"
         },
-        "source_id": {
+        "sourceId": {
           "$ref": "#/$defs/MapSourceId"
         },
-        "updated_at": {
+        "updatedAt": {
           "format": "date-time",
           "type": "string"
         }
       },
       "required": [
-        "source_id",
-        "dataset_id",
+        "sourceId",
+        "datasetId",
         "name",
-        "adapter_kind",
+        "adapterKind",
         "authority",
-        "acquisition_model",
-        "map_families",
+        "acquisitionModel",
+        "mapFamilies",
         "license",
         "enabled",
-        "record_version",
-        "created_at",
-        "updated_at"
+        "recordVersion",
+        "createdAt",
+        "updatedAt"
       ],
       "type": "object"
     },
     "StyleRevisionId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_map_mcp::contract::ids"
+              },
+              "profile": "StyleRevisionId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "StyleRule": {
       "additionalProperties": false,
       "properties": {
-        "circle_color": {
+        "circleColor": {
           "type": [
             "string",
             "null"
           ]
         },
-        "circle_radius_px": {
+        "circleRadiusPx": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "fill_color": {
+        "fillColor": {
           "type": [
             "string",
             "null"
           ]
         },
-        "fill_opacity": {
+        "fillOpacity": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "geometry_type": {
+        "geometryType": {
           "anyOf": [
             {
               "$ref": "#/$defs/FeatureGeometryType"
@@ -3251,33 +3792,33 @@
             }
           ]
         },
-        "label_property": {
+        "labelProperty": {
           "type": [
             "string",
             "null"
           ]
         },
-        "line_color": {
+        "lineColor": {
           "type": [
             "string",
             "null"
           ]
         },
-        "line_width_px": {
+        "lineWidthPx": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "maximum_zoom": {
+        "maximumZoom": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "minimum_zoom": {
+        "minimumZoom": {
           "format": "double",
           "type": [
             "number",
@@ -3312,29 +3853,29 @@
         "energy": {
           "$ref": "#/$defs/EnergyProfile"
         },
-        "maximum_operating_depth": {
+        "maximumOperatingDepth": {
           "format": "double",
           "type": "number"
         },
-        "maximum_submerged_duration": {
+        "maximumSubmergedDuration": {
           "format": "double",
           "type": "number"
         },
         "metadata": {
           "$ref": "#/$defs/MobilityProfileMetadata"
         },
-        "minimum_bathymetric_clearance": {
+        "minimumBathymetricClearance": {
           "format": "double",
           "type": "number"
         },
-        "minimum_operating_depth": {
+        "minimumOperatingDepth": {
           "format": "double",
           "type": "number"
         },
         "performance": {
           "$ref": "#/$defs/VehiclePerformance"
         },
-        "periodic_surfacing_required": {
+        "periodicSurfacingRequired": {
           "default": false,
           "type": "boolean"
         },
@@ -3350,10 +3891,10 @@
         "displacement",
         "performance",
         "energy",
-        "minimum_operating_depth",
-        "maximum_operating_depth",
-        "minimum_bathymetric_clearance",
-        "maximum_submerged_duration"
+        "minimumOperatingDepth",
+        "maximumOperatingDepth",
+        "minimumBathymetricClearance",
+        "maximumSubmergedDuration"
       ],
       "type": "object"
     },
@@ -3372,11 +3913,11 @@
     "SurfaceVesselProfile": {
       "additionalProperties": false,
       "properties": {
-        "air_draft": {
+        "airDraft": {
           "format": "double",
           "type": "number"
         },
-        "berth_requirements": {
+        "berthRequirements": {
           "items": {
             "type": "string"
           },
@@ -3403,7 +3944,7 @@
         "metadata": {
           "$ref": "#/$defs/MobilityProfileMetadata"
         },
-        "minimum_under_keel_clearance": {
+        "minimumUnderKeelClearance": {
           "format": "double",
           "type": "number"
         },
@@ -3423,8 +3964,8 @@
         "performance",
         "energy",
         "draft",
-        "air_draft",
-        "minimum_under_keel_clearance"
+        "airDraft",
+        "minimumUnderKeelClearance"
       ],
       "type": "object"
     },
@@ -3439,14 +3980,14 @@
     "UasProfile": {
       "additionalProperties": false,
       "properties": {
-        "airspace_permissions": {
+        "airspacePermissions": {
           "items": {
             "type": "string"
           },
           "type": "array",
           "uniqueItems": true
         },
-        "beyond_visual_line_of_sight": {
+        "beyondVisualLineOfSight": {
           "default": false,
           "type": "boolean"
         },
@@ -3459,14 +4000,14 @@
         "energy": {
           "$ref": "#/$defs/EnergyProfile"
         },
-        "maximum_takeoff_mass": {
+        "maximumTakeoffMass": {
           "format": "double",
           "type": "number"
         },
         "metadata": {
           "$ref": "#/$defs/MobilityProfileMetadata"
         },
-        "navigation_capabilities": {
+        "navigationCapabilities": {
           "items": {
             "type": "string"
           },
@@ -3485,15 +4026,16 @@
         "planning",
         "class",
         "dimensions",
-        "maximum_takeoff_mass",
+        "maximumTakeoffMass",
         "performance",
         "energy"
       ],
       "type": "object"
     },
     "ValidateFeatureChangesOutput": {
+      "additionalProperties": false,
       "properties": {
-        "expected_layer_revision": {
+        "expectedLayerRevision": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -3504,7 +4046,7 @@
           },
           "type": "array"
         },
-        "layer_id": {
+        "layerId": {
           "$ref": "#/$defs/FeatureLayerId"
         },
         "valid": {
@@ -3513,8 +4055,8 @@
       },
       "required": [
         "valid",
-        "layer_id",
-        "expected_layer_revision",
+        "layerId",
+        "expectedLayerRevision",
         "findings"
       ],
       "type": "object"
@@ -3545,22 +4087,22 @@
     "VehiclePerformance": {
       "additionalProperties": false,
       "properties": {
-        "maximum_range": {
+        "maximumRange": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "maximum_speed": {
+        "maximumSpeed": {
           "format": "double",
           "type": "number"
         },
-        "nominal_speed": {
+        "nominalSpeed": {
           "format": "double",
           "type": "number"
         },
-        "payload_capacity": {
+        "payloadCapacity": {
           "format": "double",
           "type": [
             "number",
@@ -3569,8 +4111,8 @@
         }
       },
       "required": [
-        "maximum_speed",
-        "nominal_speed"
+        "maximumSpeed",
+        "nominalSpeed"
       ],
       "type": "object"
     },
@@ -3605,34 +4147,53 @@
     "Wgs84Position": {
       "additionalProperties": false,
       "properties": {
-        "ellipsoidal_height_m": {
+        "ellipsoidalHeightM": {
           "format": "double",
           "type": [
             "number",
             "null"
           ]
         },
-        "latitude_deg": {
+        "latitudeDeg": {
           "format": "double",
           "type": "number"
         },
-        "longitude_deg": {
+        "longitudeDeg": {
           "format": "double",
           "type": "number"
         }
       },
       "required": [
-        "longitude_deg",
-        "latitude_deg"
+        "longitudeDeg",
+        "latitudeDeg"
       ],
       "type": "object"
     },
     "WorkContextId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "WorkContextId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Tenant-local boundary that governs related work and every output it produces.",
       "type": "string"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
   "properties": {
     "acquisition": {
       "$ref": "#/$defs/AcquisitionJob"
@@ -3640,7 +4201,7 @@
     "acquisitions": {
       "$ref": "#/$defs/OwnedPage"
     },
-    "active_releases": {
+    "activeReleases": {
       "items": {
         "$ref": "#/$defs/ActiveDatasetRelease"
       },
@@ -3691,7 +4252,7 @@
     "source": {
       "$ref": "#/$defs/RegisteredSource"
     },
-    "source_features": {
+    "sourceFeatures": {
       "$ref": "#/$defs/QuerySourceFeaturesOutput"
     },
     "sources": {
@@ -3716,10 +4277,10 @@
     "datasets",
     "profiles",
     "acquisitions",
-    "active_releases",
+    "activeReleases",
     "style",
     "features",
-    "source_features",
+    "sourceFeatures",
     "layer",
     "validated",
     "committed",

@@ -6,6 +6,7 @@
 |---|---|
 | JSON | Identifiers and resource references serialize as strings; deserialization applies their constructors. Access subjects use `kind` and `id`; invocation provenance uses `mode` with the required attribution fields. |
 | JSON Schema 2020-12 | Schemars emits string schemas for identifiers and tagged unions for subjects and provenance; runtime validators apply the lexical rules below |
+| Chrono 0.4.45 UTC JSON timestamps | `ChronoUtcTimestampSchema` declares padded Gregorian timestamps with signed extended years, leap seconds and standard numeric offsets as a string pattern. Runtime Chrono and owner checks admit calendars, range and relationships. |
 | [OAuth 2.0 scope tokens, RFC 6749 section 3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3) | `Vocabulary` with the `scope` hook declarations follow the scope-token grammar. Dynamic `ScopeName` preserves the broader repository profile of nonempty text without whitespace or controls. Neither type establishes a grant. |
 | Resource scheme syntax | A lowercase ASCII initial letter followed by lowercase ASCII letters, digits, `+`, `-` or `.`; concrete references use the RFC 3986 profile below, and templates use `ResourceTemplateUri` |
 | [WHATWG URL Standard](https://url.spec.whatwg.org/) | Concrete hierarchical address components use [`url` 2.5.8](https://docs.rs/url/2.5.8/url/). The profile rejects parser violations and normalization, requires an unescaped authority, and excludes credentials, ports, fragments, and unexpanded templates. This is a Veoveo resource profile, not support for every URI scheme. |
@@ -20,6 +21,12 @@
 | Registered action names | `ActionName` admits 1–128 ASCII bytes with the same lexical rules as Task operation names. Action registration binds an owner's closed vocabulary to one registry; the name alone cannot establish that binding. |
 | SHA-256 provenance strings | `Sha256Digest` serializes as `sha256:` followed by 64 lowercase hexadecimal digits. Explicit `sha256_hex` Serde adapters serve fields whose owner declares bare lowercase hex. The type validates supplied digests and performs no hashing. |
 | Native Task UUIDs, RFC 9562 | `TaskId` generates UUIDv7 and preserves the UUID parser and Serde profile from `uuid` 1.25.0; parsing does not establish a version, Task existence, or authority |
+
+## Timestamp Schema Carrier
+
+`src/chrono_timestamp.rs` exports `ChronoUtcTimestampSchema` for fields whose runtime type stays `chrono::DateTime<Utc>`. The inline carrier emits a string pattern instead of generic JSON Schema date-time, because Chrono emits signed years outside that format. It admits padded date/time components, `T` or `t`, `Z` or `z`, standard numeric offsets and fractional digits. Chrono truncates input fractions after nine digits and preserves its leap-second encoding in UTC serialization. The lexical schema does not establish a valid calendar, the supported UTC range or chronology between fields; actual Chrono decoding and owner checks do that.
+
+A required timestamp uses `#[schemars(with = "ChronoUtcTimestampSchema")]`. An optional timestamp uses `Option<ChronoUtcTimestampSchema>`, allowing Schemars to preserve the field's null and omission policy. The carrier has no storage, constructor, Serde implementation or global DateTime override. Owners select it explicitly, leaving frozen/native profiles and other timestamp contracts untouched. Artifact public timestamps and Recording playback use the same declaration. The Python Artifact scalar qualifies the emitted padded form and standard offsets with at most nine fractional digits; broader aliases require their own producer/receiver qualification.
 
 ## Schema Naming Profiles
 
@@ -75,6 +82,16 @@ schema identities. Ordinary `Vocabulary` values keep implicit snake_case naming;
 exceptional owner vocabularies use the public decorator at their actual schema
 emitter. The maintained tests compare complete constraint graphs after admitting
 and removing only the naming metadata, and exercise independent owner callbacks.
+
+## Signed Identity And Native Authority Encoding
+
+`AccessSubject`, `InvocationProvenance`, `WorkContextOutputPolicy` and
+`InvocationAuthority` keep their snake_case identity and internal signed-claim
+representation. Configuration uses its own camelCase output-policy adapter;
+Artifact provenance maps invocation attribution into its public camelCase fields.
+These projections do not rename retained native records or JWT claims.
+Resource selector object fields use camelCase and their controlled kinds use
+snake_case; resource URI text keeps its admitted profile.
 
 ## Ownership And Dependencies
 

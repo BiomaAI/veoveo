@@ -40,7 +40,7 @@ use run_evidence::parse_publication_index_digests;
 pub(crate) use run_evidence::{EvidenceRun, evidence_run};
 pub(crate) use selection::{Selection, SelectionKind};
 
-const PLAN_SCHEMA: &str = "veoveo.ai/image-build-plan/v2";
+const PLAN_SCHEMA: &str = "veoveo.ai/image-build-plan/v3";
 const MODE_LABEL: &str = "ai.veoveo.build.mode";
 const PACKAGE_LABEL: &str = "ai.veoveo.build.package";
 const BINARIES_LABEL: &str = "ai.veoveo.build.binaries";
@@ -105,15 +105,13 @@ struct RustBuildUnit {
     auxiliary: Vec<AuxiliaryArtifact>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, veoveo_types::Vocabulary)]
 enum BuildMode {
     RustShared,
     RustStandalone,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, veoveo_types::Vocabulary)]
 enum BuilderFamily {
     RustTrixieV1,
     RustTrixieBrowserV1,
@@ -171,8 +169,7 @@ impl BuilderFamily {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, veoveo_types::Vocabulary)]
 enum AuxiliaryArtifact {
     Libduckdb,
     DuckdbSpatial,
@@ -562,8 +559,7 @@ pub(crate) fn prepare_with_builder(
     })
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub(crate) enum OutputMode {
     Load,
     Staged,

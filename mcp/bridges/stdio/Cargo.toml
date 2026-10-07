@@ -16,4 +16,4 @@ rmcp = { workspace = true, features = ["server", "client", "transport-child-proc
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tracing.workspace = true
-veoveo-mcp-contract.workspace = true
+veoveo-mcp-contract = { workspace = true, features = ["runtime"] }

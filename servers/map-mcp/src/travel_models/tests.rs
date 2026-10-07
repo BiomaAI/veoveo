@@ -60,7 +60,7 @@ fn retained_input_preserves_default_spelling_and_rejects_native_values() {
     );
     let explicit = serde_json::json!({"kind":"build_travel_model", "request":request});
     let mut omitted = explicit.clone();
-    for name in ["cost_metric", "time_model", "prioritize_bidirectional"] {
+    for name in ["costMetric", "timeModel", "prioritizeBidirectional"] {
         omitted["request"]["input"]
             .as_object_mut()
             .unwrap()
@@ -377,7 +377,7 @@ fn durable_request(
     crate::task_lookup::DurableTravelModelRequest {
         input: serde_json::from_value(input_cases[0]["arguments"].clone()).unwrap(),
         identity, travel_model_id: model, created_at:now,
-        artifact_write_capability: serde_json::from_value(serde_json::json!({"capability_id":uuid::Uuid::now_v7().to_string(),"secret":"inert_fixture_capability_not_issued_000000000000","task_id":id.to_string(),"expires_at":now+chrono::TimeDelta::hours(1)})).unwrap(),
+        artifact_write_capability: serde_json::from_value(serde_json::json!({"capabilityId":uuid::Uuid::now_v7().to_string(),"secret":"inert_fixture_capability_not_issued_000000000000","taskId":id.to_string(),"expiresAt":now+chrono::TimeDelta::hours(1)})).unwrap(),
     }
 }
 fn travel_record(
@@ -447,7 +447,7 @@ async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> Tas
         let uri = veoveo_types::ResourceAddress::to_uri(&record.travel_model_uri).unwrap();
         let product = crate::contract::MapTaskProduct::new(record).unwrap();
         let mut wrong = serde_json::to_value(&product).unwrap();
-        wrong["result_uri"] = serde_json::json!(crate::contract::MapTravelModelUri::new(
+        wrong["resultUri"] = serde_json::json!(crate::contract::MapTravelModelUri::new(
             self::key(999).parse().unwrap()
         ));
         assert!(

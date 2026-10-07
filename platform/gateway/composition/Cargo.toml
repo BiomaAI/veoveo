@@ -8,6 +8,20 @@ name = "gateway"
 path = "src/bin/gateway.rs"
 
 [dependencies]
+scraper = { workspace = true, optional = true }
+rcgen = { workspace = true, optional = true }
+veoveo-deploy-contract = {workspace = true, optional = true}
+tempfile = {workspace = true, optional = true}
+bytes = { workspace = true, optional = true }
+duckdb = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
+veoveo-testing-support = { path="../../../testing/support", optional=true, features=[] }
+veoveo-duckdb-runtime = { path="../../runtimes/duckdb", optional=true, features=["smoke"] }
+axum-server = { workspace = true, optional = true }
+jsonschema = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
+veoveo-mcp-apps-extension = { optional = true, path = "../../../mcp/apps-extension" }
+veoveo-mcp-conformance = { path = "../../../mcp/conformance", optional = true }
 veoveo-console-bff = { workspace = true, default-features = false, features = ["contract"] }
 veoveo-reason-mcp = { path = "../../../servers/reason-mcp", default-features = false, features = ["schema"] }
 veoveo-stream-mcp = { path = "../../../servers/stream-mcp", default-features = false, features = ["schema"] }
@@ -61,7 +75,7 @@ vaultrs.workspace = true
 veoveo-agent-runtime = { path = "../../../agents/runtime", features = ["schema", "gateway"] }
 veoveo-artifact-client = { path = "../../artifacts/client" }
 veoveo-computers-contract = { path = "../../computers/contract" }
-veoveo-mcp-contract.workspace = true
+veoveo-mcp-contract = { workspace = true, features = ["runtime"] }
 veoveo-platform-store = { path = "../../store", features = ["schema"] }
 veoveo-policy = { path = "../../policy" }
 veoveo-recording-mcp = { path = "../../../servers/recording-mcp", default-features = false, features = ["contract", "schema", "gateway"] }
@@ -81,3 +95,16 @@ veoveo-optimization-mcp = { path = "../../../servers/optimization-mcp", default-
 veoveo-modules = { workspace = true, features = ["runner"] }
 base64.workspace = true
 rcgen.workspace = true
+
+[[bin]]
+name = "gateway-smoke-support"
+path = "src/smoke/gateway_smoke_support.rs"
+required-features = ["smoke"]
+
+[features]
+smoke = ["veoveo-media-mcp/contract", "veoveo-frames-mcp/contract", "reqwest/cookies", "dep:scraper","dep:rcgen","dep:veoveo-deploy-contract","dep:tempfile","dep:bytes","dep:duckdb","dep:image","dep:veoveo-testing-support","dep:veoveo-duckdb-runtime","dep:axum-server",  "dep:jsonschema", "dep:schemars", "dep:veoveo-mcp-apps-extension", "dep:veoveo-mcp-conformance"]
+
+[[bin]]
+name="gateway-smoke"
+path="src/smoke/gateway_smoke.rs"
+required-features=["smoke"]

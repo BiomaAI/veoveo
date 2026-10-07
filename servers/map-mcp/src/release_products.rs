@@ -202,6 +202,7 @@ fn ingest_directory(
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct RasterMetadataSidecar {
     schema_version: u64,
     source_file: String,

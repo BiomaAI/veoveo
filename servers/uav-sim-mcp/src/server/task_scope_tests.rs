@@ -17,13 +17,13 @@ use tokio::sync::Mutex;
 fn request(tool: &str) -> CallToolRequestParams {
     let arguments = match tool {
         "run_scenario" => {
-            serde_json::json!({"session_id":"native-session", "duration_seconds":1.0})
+            serde_json::json!({"sessionId":"native-session", "durationSeconds":1.0})
         }
         "capture_dataset" => {
-            serde_json::json!({"session_id":"native-session", "duration_seconds":1.0, "sensors":["test-sensor"]})
+            serde_json::json!({"sessionId":"native-session", "durationSeconds":1.0, "sensors":["test-sensor"]})
         }
         "execute_vehicle_mission_plan" => {
-            serde_json::json!({"plan_id":"absent-plan", "expected_revision":1})
+            serde_json::json!({"planId":"absent-plan", "expectedRevision":1})
         }
         _ => unreachable!(),
     };

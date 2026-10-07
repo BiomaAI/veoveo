@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use veoveo_gateway_contract::SecretPurpose;
 
 fn template() -> RuntimeTemplate {
-    serde_json::from_str(r#"{"id":"pilot","name":"Reviewed pilot","tenant":"tenant-a","work_contexts":["operations"],"required_deployer_scopes":["operator:use"],"profile":"operator","scopes":["operator:use"],"roles":["managed-pilot"],"membership":"contributor","models":["approved"],"tools":["media__describe_model"],"resource_subscriptions":[],"parameters":{"vehicle":{"label":"Vehicle","shape":{"kind":"identifier","maxLength":40},"environment_variable":"VEOVEO_PARAM_VEHICLE"}},"workload":{"namespace":"agents","config_map":"pilot-template","config_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","image":"registry.test/kernel@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","database_secret":"agent-store","storage_class":"local-path","storage_gib":2,"cpu_millis":500,"memory_mib":1024,"model_secrets":[{"reference":"media_provider_api_key","secret":"agent-model","key":"api-key"}]}}"#).unwrap()
+    serde_json::from_str(r#"{"id":"pilot","name":"Reviewed pilot","tenant":"tenant-a","workContexts":["operations"],"requiredDeployerScopes":["operator:use"],"profile":"operator","scopes":["operator:use"],"roles":["managed-pilot"],"membership":"contributor","models":["approved"],"tools":["media__describe_model"],"resourceSubscriptions":[],"parameters":{"vehicle":{"label":"Vehicle","shape":{"kind":"identifier","maxLength":40},"environmentVariable":"VEOVEO_PARAM_VEHICLE"}},"workload":{"namespace":"agents","configMap":"pilot-template","configDigest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","image":"registry.test/kernel@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","databaseSecret":"agent-store","storageClass":"local-path","storageGib":2,"cpuMillis":500,"memoryMib":1024,"modelSecrets":[{"reference":"media_provider_api_key","secret":"agent-model","key":"api-key"}]}}"#).unwrap()
 }
 fn facts() -> InstallationFacts {
     InstallationFacts::new(
@@ -112,4 +112,47 @@ fn caller_facts_keep_tenant_scope_and_context_requirements() {
         },
         &"operations".parse().unwrap()
     ));
+}
+
+#[test]
+fn template_wire_refuses_retired_nested_names_without_closing_parameter_dictionaries() {
+    let typed = template();
+    typed.validate(&facts()).unwrap();
+    let current = serde_json::to_value(typed).unwrap();
+    for (parent, key, old) in [
+        ("", "workContexts", "work_contexts"),
+        ("", "requiredDeployerScopes", "required_deployer_scopes"),
+        ("", "resourceSubscriptions", "resource_subscriptions"),
+        (
+            "/parameters/vehicle",
+            "environmentVariable",
+            "environment_variable",
+        ),
+        ("/parameters/vehicle/shape", "maxLength", "max_length"),
+        ("/workload", "configMap", "config_map"),
+        ("/workload", "configDigest", "config_digest"),
+        ("/workload", "databaseSecret", "database_secret"),
+        ("/workload", "storageClass", "storage_class"),
+        ("/workload", "storageGib", "storage_gib"),
+        ("/workload", "cpuMillis", "cpu_millis"),
+        ("/workload", "memoryMib", "memory_mib"),
+        ("/workload", "modelSecrets", "model_secrets"),
+    ] {
+        for keep in [false, true] {
+            let mut bad = current.clone();
+            let object = bad.pointer_mut(parent).unwrap().as_object_mut().unwrap();
+            object.insert(old.into(), object[key].clone());
+            if !keep {
+                object.remove(key);
+            }
+            assert!(
+                serde_json::from_value::<RuntimeTemplate>(bad.clone()).is_err(),
+                "{parent}/{old} mixed={keep}"
+            );
+            assert!(
+                serde_json::from_slice::<RuntimeTemplate>(&serde_json::to_vec(&bad).unwrap())
+                    .is_err()
+            );
+        }
+    }
 }

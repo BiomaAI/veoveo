@@ -9,6 +9,16 @@
 | [Knowledge-source extension](../../../../mcp/knowledge-extension/DESIGN.md) | typed source observations; the Store imports its contract feature without MCP runtime |
 | RFC 9562 / SHA-256 | generation identity and checked specification/approval fingerprints |
 
+The `native_approval` adapter converts admitted public approvals to the indexed native `authoritative_for`, `data_labels` and `catalog-only` representation. Registration writes, catalog selection and completion bind this same native value. Hydration compares it with the current public registration document before returning a usable registration. Owner migration declarations and SQL columns keep their existing bytes.
+
+Observation storage uses the Knowledge-source extension's six `ReadPolicy` variants
+with their snake_case wire tags. The member field and each generation's chunk field
+admit the same closed observation shape. Unknown tags and mixed policy objects fail
+before storage. The owner appends member-schema corrections to its migration lane;
+generation creation applies the current chunk schema. These definitions change no
+source access decision: the typed admission adapter and SQL predicates enforce the
+recorded tenant, Work Context, subjects and profile before ranking limits.
+
 ## Tables And Ownership
 
 The version-zero Knowledge owner lane defines `knowledge_collection`, `knowledge_generation`,

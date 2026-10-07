@@ -10,17 +10,17 @@ fn snapshot_admission_checks_view_parent_layer_and_digest() {
     let valid = ViewCaptureSnapshot::new(fixture::view(), resolved::resolved()).unwrap();
     let wire = serde_json::to_value(valid).unwrap();
     for (path, replacement) in [
-        ("/view/scene_layer", json!("other")),
+        ("/view/sceneLayer", json!("other")),
         (
-            "/composition/record/created_at",
+            "/composition/record/createdAt",
             json!("2026-09-29T10:00:00Z"),
         ),
         (
-            "/view/composition_digest_sha256",
+            "/view/compositionDigestSha256",
             json!(Sha256Digest::from_bytes(b"other")),
         ),
         (
-            "/composition/resolved_overlays/0/overlay/style/marker_size_meters",
+            "/composition/resolvedOverlays/0/overlay/style/markerSizeMeters",
             json!(200.0),
         ),
     ] {
@@ -33,8 +33,8 @@ fn snapshot_admission_checks_view_parent_layer_and_digest() {
     }
     let mut invalid = wire;
     let id = SceneCompositionId::from_stable_key(b"other");
-    invalid["view"]["composition_id"] = json!(id);
-    invalid["view"]["composition_uri"] = json!(CompositionUri::new(id));
+    invalid["view"]["compositionId"] = json!(id);
+    invalid["view"]["compositionUri"] = json!(CompositionUri::new(id));
     assert!(serde_json::from_value::<ViewCaptureSnapshot>(invalid).is_err());
 }
 

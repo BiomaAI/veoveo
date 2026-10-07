@@ -1,0 +1,1367 @@
+use super::*;
+use veoveo_agent_runtime::contract::control::{AgentConversationEntryState, AgentConversationRole};
+use veoveo_agent_runtime::{AgentControl, AgentControlTarget, OperatorMessageDraft};
+pub(crate) async fn agent_kernel_detach_resume(
+    conformance: &Path,
+    media: &Path,
+    gateway: &Path,
+    control_plane: &Path,
+    artifact_service: &Path,
+    agent: &Path,
+) -> Result<()> {
+    assert_executable(conformance)?;
+    assert_executable(media)?;
+    assert_executable(gateway)?;
+    assert_executable(artifact_service)?;
+    assert_executable(agent)?;
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    // The smoke control plane pins its media upstream to 18801, so this
+    // scenario shares gateway_task_run's port block and must never run
+    // concurrently with it (the suite is sequential).
+    let provider_port = 18830u16;
+    let media_port = 18801u16;
+    let gateway_port = 18832u16;
+    let llm_port = 18833u16;
+    let media_base = format!("http://127.0.0.1:{media_port}");
+    let gateway_base = format!("http://127.0.0.1:{gateway_port}");
+    let provider_base = format!("http://127.0.0.1:{provider_port}");
+
+    let provider_ready = tmpdir.join("provider.ready");
+    let llm_ready = tmpdir.join("llm.ready");
+    let agent_data_dir = tmpdir.join("agent");
+    let ledger_path = agent_data_dir.join("memory.duckdb");
+
+    let mut provider = spawn_fake_media_provider(
+        provider_port,
+        &provider_ready,
+        &tmpdir.join("provider.log"),
+        Some(4000),
+    )?;
+    wait_for_file_and_http(&provider_ready, &format!("{provider_base}/api/v3/models")).await?;
+
+    let mut llm = ChildGuard::spawn(
+        &veoveo_testing_support::artifacts::executable("veoveo-agent-kernel", "agent-smoke")?,
+        [
+            "fake-openai-llm".into(),
+            "--port".into(),
+            llm_port.to_string().into(),
+            "--ready-file".into(),
+            llm_ready.as_os_str().to_os_string(),
+        ],
+        [],
+        &tmpdir.join("llm.log"),
+    )
+    .map(ChildGuard::with_owner_scope)?;
+    wait_for_file(&llm_ready).await?;
+
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
+    let mut media_child = spawn_media_memory_smoke(
+        media,
+        media_port,
+        &media_base,
+        &plane.platform,
+        &provider_base,
+        &plane.url,
+        &tmpdir.join("media.log"),
+    )?;
+    wait_for_http(&format!("{media_base}/media/healthz")).await?;
+
+    let auth_private_key = run_checked(
+        &veoveo_testing_support::artifacts::executable(
+            "veoveo-gateway-composition",
+            "gateway-smoke-support",
+        )?,
+        ["gateway-private-key-der-b64".into()],
+        [],
+    )?;
+    let auth_private_key = auth_private_key.trim().to_string();
+    let platform_store = &plane.platform;
+    bootstrap_gateway_platform_store(gateway, control_plane, platform_store).await?;
+    let mut gateway_child = ChildGuard::spawn(
+        gateway,
+        gateway_serve_args(gateway_port, platform_store),
+        [
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
+            (
+                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ],
+        &tmpdir.join("gateway.log"),
+    )?;
+    wait_for_http(&format!("{gateway_base}/healthz")).await?;
+    assert_ready_profiles(&gateway_base, fixture_profile_count(control_plane)?).await?;
+
+    let migrations_dir = tmpdir.join("migrations");
+    fs::create_dir_all(&migrations_dir)?;
+    fs::write(
+        migrations_dir.join("0001_domain.sql"),
+        "CREATE TABLE IF NOT EXISTS notes (note TEXT NOT NULL, source TEXT);\n",
+    )?;
+
+    let manifest_path = tmpdir.join("agent-manifest.json");
+    fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "agent": { "tenant": "tenant-a", "id": "smoke-agent", "displayName": "Smoke Agent" },
+            "model": {
+                "baseUrl": format!("http://127.0.0.1:{llm_port}/v1"),
+                "apiKeyEnv": "SMOKE_LLM_API_KEY",
+                "model": "fake/kimi"
+            },
+            "gateway": {
+                "url": PUBLIC_BASE_URL,
+                "transportUrl": gateway_base,
+                "profile": "operator",
+                "clientId": "operator-service",
+                "workContext": "operations",
+                "audience": format!("{PUBLIC_BASE_URL}/oauth/token"),
+                "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
+                "scopes": ["operator:use"],
+                "privateKeyEnv": "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                "privateKeyKid": "test-key"
+            },
+            "episode": {
+                "maxTurns": 6,
+                "taskDeadlineS": 120
+            },
+            "memory": {
+                "memoryWriteTables": ["notes"]
+            },
+            "context": {
+                "sections": [{
+                    "name": "Recent episodes",
+                    "priority": 1,
+                    "sql": "SELECT seq, summary FROM agent_memory.episode_log ORDER BY seq DESC LIMIT 5"
+                }]
+            },
+            "migrationsDir": "migrations",
+            "preamble": "You operate hosted tools through a gateway. Follow instructions exactly."
+        }))?,
+    )?;
+    let agent_envs = || {
+        let mut env = platform_store.runtime_env();
+        env.extend([
+            ("SMOKE_LLM_API_KEY", "fake".into()),
+            (
+                "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ]);
+        env
+    };
+
+    // Phase 1: one episode dispatches the media task and halts; the
+    // descriptor survives only in the ledger.
+    let phase_one = run_checked(
+        agent,
+        [
+            "run".into(),
+            "--manifest".into(),
+            manifest_path.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            agent_data_dir.as_os_str().to_os_string(),
+            "--prompt".into(),
+            "Generate one smoke image with the media tools.".into(),
+            "--halt-after-episode".into(),
+        ],
+        agent_envs(),
+    )?;
+    contains(&phase_one, "task detached")?;
+    contains(&phase_one, "media__run")?;
+    contains(&phase_one, "memory_query")?;
+    contains(&phase_one, "halt-after-episode set")?;
+
+    {
+        let ledger = duckdb::Connection::open(&ledger_path)?;
+        let (state, descriptor_complete, tool_name): (String, bool, String) = ledger.query_row(
+            "SELECT state, descriptor_complete, tool_name FROM kernel.task_ledger",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        if state != "pending" || !descriptor_complete || tool_name != "media__run" {
+            bail!(
+                "phase 1 ledger had ({state}, {descriptor_complete}, {tool_name}), \
+                 expected a complete pending media__run descriptor"
+            );
+        }
+        let episodes: i64 =
+            ledger.query_row("SELECT COUNT(*) FROM agent_memory.episode_log", [], |row| {
+                row.get(0)
+            })?;
+        if episodes != 1 {
+            bail!("phase 1 recorded {episodes} episodes, expected 1");
+        }
+    }
+
+    // Phase 2: a fresh process resumes the task from the ledger alone.
+    let agent_log = tmpdir.join("agent-resume.log");
+    let mut agent_child = ChildGuard::spawn(
+        agent,
+        [
+            "run".into(),
+            "--manifest".into(),
+            manifest_path.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            agent_data_dir.as_os_str().to_os_string(),
+        ],
+        agent_envs(),
+        &agent_log,
+    )?;
+    wait_for_log_substring(&agent_log, "task result consumed", 240).await?;
+    agent_child.stop_checked().await?;
+
+    {
+        let ledger = duckdb::Connection::open(&ledger_path)?;
+        let (state, consumed): (String, Option<String>) = ledger.query_row(
+            "SELECT state, consumed_by_episode FROM kernel.task_ledger",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        if state != "resolved" || consumed.is_none() {
+            bail!("resume left the task ({state}, consumed: {consumed:?})");
+        }
+        let (episodes, completed): (i64, i64) = ledger.query_row(
+            "SELECT COUNT(*), COUNT(*) FILTER (outcome = 'completed') FROM agent_memory.episode_log",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        if episodes != 2 || completed != 2 {
+            bail!("expected 2 completed episodes, found {completed}/{episodes}");
+        }
+        let final_output: String = ledger.query_row(
+            "SELECT final_output FROM agent_memory.episode_log ORDER BY seq DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )?;
+        if !final_output.contains("OBJECTIVE COMPLETE") {
+            bail!("wake episode did not complete the objective: {final_output}");
+        }
+        let notes: i64 = ledger.query_row("SELECT COUNT(*) FROM notes", [], |row| row.get(0))?;
+        if notes != 1 {
+            bail!("memory_write recorded {notes} notes, expected 1");
+        }
+        let summaries: i64 = ledger.query_row(
+            "SELECT COUNT(*) FROM agent_memory.episode_log WHERE summary IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )?;
+        if summaries != 2 {
+            bail!("expected 2 episode summaries, found {summaries}");
+        }
+    }
+
+    // The episodic plane must be readable after an unclean stop: the live
+    // segment has no footer and no clean shutdown, and still decodes.
+    let timeline = run_checked(
+        agent,
+        [
+            "timeline".into(),
+            "--data-dir".into(),
+            agent_data_dir.as_os_str().to_os_string(),
+            "--entities".into(),
+            "/agent/**".into(),
+            "--max-rows".into(),
+            "200".into(),
+        ],
+        [],
+    )?;
+    contains(&timeline, "media__run")?;
+    contains(&timeline, "/agent/tasks/")?;
+
+    gateway_child.stop_checked().await?;
+    media_child.stop_checked().await?;
+    provider.stop_checked().await?;
+    llm.stop_checked().await?;
+    cleanup.remove_on_drop();
+    println!("agent kernel detach/resume smoke ok");
+    Ok(())
+}
+
+pub(crate) async fn agent_kernel_scheduler(
+    conformance: &Path,
+    media: &Path,
+    gateway: &Path,
+    control_plane: &Path,
+    artifact_service: &Path,
+    agent: &Path,
+) -> Result<()> {
+    assert_executable(conformance)?;
+    assert_executable(media)?;
+    assert_executable(gateway)?;
+    assert_executable(artifact_service)?;
+    assert_executable(agent)?;
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    let provider_port = 18840u16;
+    let media_port = 18801u16;
+    let gateway_port = 18842u16;
+    let llm_port = 18843u16;
+    let media_base = format!("http://127.0.0.1:{media_port}");
+    let gateway_base = format!("http://127.0.0.1:{gateway_port}");
+    let provider_base = format!("http://127.0.0.1:{provider_port}");
+
+    let provider_ready = tmpdir.join("provider.ready");
+    let llm_ready = tmpdir.join("llm.ready");
+
+    let mut provider = spawn_fake_media_provider(
+        provider_port,
+        &provider_ready,
+        &tmpdir.join("provider.log"),
+        Some(4000),
+    )?;
+    wait_for_file_and_http(&provider_ready, &format!("{provider_base}/api/v3/models")).await?;
+    let mut llm = ChildGuard::spawn(
+        &veoveo_testing_support::artifacts::executable("veoveo-agent-kernel", "agent-smoke")?,
+        [
+            "fake-openai-llm".into(),
+            "--port".into(),
+            llm_port.to_string().into(),
+            "--ready-file".into(),
+            llm_ready.as_os_str().to_os_string(),
+        ],
+        [],
+        &tmpdir.join("llm.log"),
+    )
+    .map(ChildGuard::with_owner_scope)?;
+    wait_for_file(&llm_ready).await?;
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
+    let mut media_child = spawn_media_memory_smoke(
+        media,
+        media_port,
+        &media_base,
+        &plane.platform,
+        &provider_base,
+        &plane.url,
+        &tmpdir.join("media.log"),
+    )?;
+    wait_for_http(&format!("{media_base}/media/healthz")).await?;
+    let auth_private_key = run_checked(
+        &veoveo_testing_support::artifacts::executable(
+            "veoveo-gateway-composition",
+            "gateway-smoke-support",
+        )?,
+        ["gateway-private-key-der-b64".into()],
+        [],
+    )?;
+    let auth_private_key = auth_private_key.trim().to_string();
+    let platform_store = &plane.platform;
+    bootstrap_gateway_platform_store(gateway, control_plane, platform_store).await?;
+    let gateway_log = tmpdir.join("gateway.log");
+    let mut gateway_child = ChildGuard::spawn(
+        gateway,
+        gateway_serve_args(gateway_port, platform_store),
+        [
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
+            (
+                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ],
+        &gateway_log,
+    )?;
+    wait_for_http(&format!("{gateway_base}/healthz")).await?;
+    assert_ready_profiles(&gateway_base, fixture_profile_count(control_plane)?).await?;
+
+    let write_manifest = |name: &str, extra: serde_json::Value| -> Result<std::path::PathBuf> {
+        let mut manifest = serde_json::json!({
+            "agent": { "tenant": "tenant-a", "id": "smoke-scheduler", "displayName": "Scheduler Smoke Agent" },
+            "model": {
+                "baseUrl": format!("http://127.0.0.1:{llm_port}/v1"),
+                "apiKeyEnv": "SMOKE_LLM_API_KEY",
+                "model": "fake/kimi"
+            },
+            "gateway": {
+                "url": PUBLIC_BASE_URL,
+                "transportUrl": gateway_base,
+                "profile": "operator",
+                "clientId": "operator-service",
+                "workContext": "operations",
+                "audience": format!("{PUBLIC_BASE_URL}/oauth/token"),
+                "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
+                "scopes": ["operator:use"],
+                "privateKeyEnv": "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                "privateKeyKid": "test-key",
+                "tokenRefreshFraction": 0.00001
+            },
+            "episode": { "maxTurns": 6, "taskDeadlineS": 60 },
+            "schedule": { "heartbeatIntervalS": 2, "wakeCoalesceWindowMs": 100 },
+            "preamble": "You operate hosted tools through a gateway. Follow instructions exactly."
+        });
+        if let (serde_json::Value::Object(base), serde_json::Value::Object(extra)) =
+            (&mut manifest, extra)
+        {
+            base.extend(extra);
+        }
+        let path = tmpdir.join(name);
+        fs::write(&path, serde_json::to_vec_pretty(&manifest)?)?;
+        Ok(path)
+    };
+    let agent_envs = || {
+        let mut env = platform_store.runtime_env();
+        env.extend([
+            ("SMOKE_LLM_API_KEY", "fake".into()),
+            (
+                "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ]);
+        env
+    };
+
+    // Fail-closed boot: an unknown manifest field must refuse to start.
+    let invalid_manifest = tmpdir.join("invalid-manifest.json");
+    fs::write(
+        &invalid_manifest,
+        serde_json::to_vec_pretty(&serde_json::json!({ "surprise": true }))?,
+    )?;
+    let invalid = run_raw(
+        agent,
+        [
+            "run".into(),
+            "--manifest".into(),
+            invalid_manifest.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            tmpdir.join("invalid-data").as_os_str().to_os_string(),
+        ],
+        agent_envs(),
+    )?;
+    if invalid.status.success() {
+        bail!("agent accepted an invalid manifest");
+    }
+
+    // Budget breach: the first model completion is over the per-episode cap.
+    let budget_manifest = write_manifest(
+        "budget-manifest.json",
+        serde_json::json!({
+            "budgets": { "perEpisode": { "maxCompletionCalls": 0 } }
+        }),
+    )?;
+    let budget_data_dir = tmpdir.join("budget-data");
+    run_checked(
+        agent,
+        [
+            "run".into(),
+            "--manifest".into(),
+            budget_manifest.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            budget_data_dir.as_os_str().to_os_string(),
+            "--prompt".into(),
+            "Count your episodes".into(),
+            "--halt-after-episode".into(),
+        ],
+        agent_envs(),
+    )?;
+    {
+        let ledger = duckdb::Connection::open(budget_data_dir.join("memory.duckdb"))?;
+        let outcome: String = ledger.query_row(
+            "SELECT outcome FROM agent_memory.episode_log ORDER BY seq DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )?;
+        if outcome != "budget_terminated" {
+            bail!("budget episode outcome was `{outcome}`");
+        }
+    }
+
+    // The scheduler proper: idle heartbeats do not call the LLM; operator asks do.
+    let scheduler_manifest = write_manifest("scheduler-manifest.json", serde_json::json!({}))?;
+    let scheduler_data_dir = tmpdir.join("scheduler-data");
+    let agent_log = tmpdir.join("agent-scheduler.log");
+    let mut agent_child = ChildGuard::spawn(
+        agent,
+        [
+            "run".into(),
+            "--manifest".into(),
+            scheduler_manifest.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            scheduler_data_dir.as_os_str().to_os_string(),
+        ],
+        agent_envs(),
+        &agent_log,
+    )?;
+    wait_for_log_substring(
+        &agent_log,
+        "idle heartbeat acknowledged without LLM episode",
+        120,
+    )
+    .await?;
+
+    // Credentials and listeners must renew before any model work is requested.
+    wait_for_log_occurrences(&agent_log, "gateway connection rotated", 3, 30).await?;
+    if fs::read_to_string(&agent_log)?.contains("\"message\":\"episode started\"") {
+        bail!("idle credential renewal unexpectedly started a model episode");
+    }
+
+    let control_store = veoveo_platform_store::PlatformStore::connect(
+        veoveo_platform_store::StoreConfig::builder(
+            &platform_store.endpoint,
+            &platform_store.namespace,
+            &platform_store.database,
+            veoveo_platform_store::StoreCredentials::database(
+                SURREAL_RUNTIME_USER,
+                SURREAL_RUNTIME_PASSWORD,
+            ),
+        )
+        .build()?,
+    )
+    .await?;
+    let control = AgentControl::new(control_store)?;
+    let target = AgentControlTarget {
+        tenant_key: "tenant-a".to_owned(),
+        work_context_key: "operations".parse()?,
+        agent_key: "smoke-scheduler".to_owned(),
+    };
+    let request_id = uuid::Uuid::now_v7();
+    let receipt = control
+        .send_operator_message(
+            &target,
+            OperatorMessageDraft {
+                request_id,
+                message: "Count your episodes".to_owned(),
+                actor_id: "https://idp.example.test#scheduler-smoke".parse()?,
+            },
+        )
+        .await?;
+    if receipt.wake_id.as_uuid() != request_id {
+        bail!("operator control returned the wrong durable wake id");
+    }
+    wait_for_log_substring(&agent_log, "\"wake_note\":\"operator_message\"", 120).await?;
+    wait_for_log_occurrences(&agent_log, "\"message\":\"episode completed\"", 1, 120).await?;
+
+    let second_request_id = uuid::Uuid::now_v7();
+    let second_receipt = control
+        .send_operator_message(
+            &target,
+            OperatorMessageDraft {
+                request_id: second_request_id,
+                message: "Count your episodes again".to_owned(),
+                actor_id: "https://idp.example.test#scheduler-smoke".parse()?,
+            },
+        )
+        .await?;
+    if second_receipt.wake_id.as_uuid() != second_request_id {
+        bail!("second operator control returned the wrong durable wake id");
+    }
+
+    // Operator requests still complete after idle make-before-break replacements.
+    wait_for_log_occurrences(&agent_log, "\"message\":\"episode completed\"", 2, 120).await?;
+    wait_for_log_occurrences(&agent_log, "gateway connection rotated", 3, 120).await?;
+    agent_child.stop_checked().await?;
+    let agent_output = fs::read_to_string(&agent_log)?;
+    // Rig also logs replacement during a valid, generation-fenced listChanged
+    // refresh. Successful dispatch and durable results qualify rotation below.
+    if agent_output.contains("Failed to send query results to channel") {
+        bail!("scheduler rotation soak lost a query response channel");
+    }
+    let gateway_output = fs::read_to_string(&gateway_log)?;
+    if gateway_output.contains("failed to send pending response during drain") {
+        bail!("gateway rotation soak reported an intentional closed drain as an error");
+    }
+    {
+        let ledger = duckdb::Connection::open(scheduler_data_dir.join("memory.duckdb"))?;
+        let heartbeat_episodes: i64 = ledger.query_row(
+            "SELECT COUNT(*) FROM agent_memory.episode_log WHERE wake_note LIKE '%heartbeat%'",
+            [],
+            |row| row.get(0),
+        )?;
+        if heartbeat_episodes != 0 {
+            bail!("idle heartbeat unexpectedly ran {heartbeat_episodes} LLM episodes");
+        }
+        let operator_output: String = ledger.query_row(
+            "SELECT final_output FROM agent_memory.episode_log WHERE wake_note LIKE '%operator%'
+             ORDER BY seq DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )?;
+        if !operator_output.contains("EPISODES COUNTED") {
+            bail!("operator episode output was `{operator_output}`");
+        }
+    }
+    let conversation = control.conversation(&target).await?;
+    let request_ids = [request_id, second_request_id];
+    let operator_completed = request_ids.iter().all(|request_id| {
+        conversation.entries.iter().any(|entry| {
+            entry.role == AgentConversationRole::Operator
+                && entry.request_id == Some(*request_id)
+                && entry.state == AgentConversationEntryState::Completed
+        })
+    });
+    let agent_replied = request_ids.iter().all(|request_id| {
+        conversation.entries.iter().any(|entry| {
+            entry.role == AgentConversationRole::Agent
+                && entry.in_reply_to_request_ids.contains(request_id)
+                && entry.content.contains("EPISODES COUNTED")
+        })
+    });
+    if !operator_completed || !agent_replied {
+        bail!("durable operator conversation did not reach a completed reply");
+    }
+
+    gateway_child.stop_checked().await?;
+    media_child.stop_checked().await?;
+    provider.stop_checked().await?;
+    llm.stop_checked().await?;
+    cleanup.remove_on_drop();
+    println!("agent kernel scheduler smoke ok");
+    Ok(())
+}
+
+pub(crate) async fn agent_pilot_mission(
+    conformance: &Path,
+    frames: &Path,
+    optimization: &Path,
+    gateway: &Path,
+    control_plane: &Path,
+    artifact_service: &Path,
+    agent: &Path,
+) -> Result<()> {
+    for bin in [
+        conformance,
+        frames,
+        optimization,
+        gateway,
+        artifact_service,
+        agent,
+    ] {
+        assert_executable(bin)?;
+    }
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    let frames_port = 18850u16;
+    let optimization_port = 18851u16;
+    let gateway_port = 18852u16;
+    let llm_port = 18853u16;
+    let frames_base = format!("http://127.0.0.1:{frames_port}");
+    let optimization_base = format!("http://127.0.0.1:{optimization_port}");
+    let gateway_base = format!("http://127.0.0.1:{gateway_port}");
+
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
+    let mut frames_child = spawn_frames_smoke(
+        frames,
+        frames_port,
+        &frames_base,
+        &plane.url,
+        &plane.platform,
+        &tmpdir.join("frames.log"),
+    )?;
+    let cuopt = spawn_cuopt_executor_smoke(&tmpdir.join("cuopt-runtime"))?;
+    let mut optimization_child = spawn_optimization_smoke(&OptimizationSmokeConfig {
+        optimization,
+        port: optimization_port,
+        public_base_url: &optimization_base,
+        workspace: &tmpdir.join("optimization-workspace"),
+        executor_socket: &cuopt.socket,
+        artifact_service_url: &plane.url,
+        platform: &plane.platform,
+        log: &tmpdir.join("optimization.log"),
+    })?;
+    wait_for_http(&format!("{frames_base}/frames/healthz")).await?;
+    wait_for_http(&format!("{optimization_base}/optimization/readyz")).await?;
+
+    let otlp_port = 18854u16;
+    let otlp_ready = tmpdir.join("otlp.ready");
+    let otlp_hits = tmpdir.join("otlp.hits");
+    let mut otlp = ChildGuard::spawn(
+        &veoveo_testing_support::artifacts::executable(
+            "veoveo-gateway-composition",
+            "gateway-smoke-support",
+        )?,
+        [
+            "otlp-http-sink".into(),
+            "--port".into(),
+            otlp_port.to_string().into(),
+            "--ready-file".into(),
+            otlp_ready.as_os_str().to_os_string(),
+            "--hits-file".into(),
+            otlp_hits.as_os_str().to_os_string(),
+        ],
+        [],
+        &tmpdir.join("otlp.log"),
+    )
+    .map(ChildGuard::with_owner_scope)?;
+    wait_for_file(&otlp_ready).await?;
+
+    let llm_ready = tmpdir.join("llm.ready");
+    let mut llm = ChildGuard::spawn(
+        &veoveo_testing_support::artifacts::executable("veoveo-agent-kernel", "agent-smoke")?,
+        [
+            "fake-openai-llm".into(),
+            "--port".into(),
+            llm_port.to_string().into(),
+            "--ready-file".into(),
+            llm_ready.as_os_str().to_os_string(),
+        ],
+        [],
+        &tmpdir.join("llm.log"),
+    )
+    .map(ChildGuard::with_owner_scope)?;
+    wait_for_file(&llm_ready).await?;
+
+    let generated_control_plane = tmpdir.join("gateway.pilot.json");
+    run_checked(
+        &veoveo_testing_support::artifacts::executable(
+            "veoveo-gateway-composition",
+            "gateway-smoke-support",
+        )?,
+        [
+            "gateway-pilot-smoke-control-plane".into(),
+            "--base".into(),
+            control_plane.as_os_str().to_os_string(),
+            "--output".into(),
+            generated_control_plane.as_os_str().to_os_string(),
+            "--frames-upstream-url".into(),
+            format!("{frames_base}/frames/mcp").into(),
+            "--optimization-upstream-url".into(),
+            format!("{optimization_base}/optimization/mcp").into(),
+        ],
+        [],
+    )?;
+    let auth_private_key = run_checked(
+        &veoveo_testing_support::artifacts::executable(
+            "veoveo-gateway-composition",
+            "gateway-smoke-support",
+        )?,
+        ["gateway-private-key-der-b64".into()],
+        [],
+    )?;
+    let auth_private_key = auth_private_key.trim().to_string();
+    let platform_store = &plane.platform;
+    bootstrap_gateway_platform_store(gateway, &generated_control_plane, platform_store).await?;
+    let gateway_log = tmpdir.join("gateway.log");
+    let mut gateway_child = ChildGuard::spawn(
+        gateway,
+        gateway_serve_args(gateway_port, platform_store),
+        [
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
+            (
+                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ],
+        &gateway_log,
+    )?;
+    wait_for_http(&format!("{gateway_base}/healthz")).await?;
+    assert_ready_profiles(
+        &gateway_base,
+        fixture_profile_count(&generated_control_plane)?,
+    )
+    .await?;
+
+    // The pilot's real domain migrations, applied verbatim.
+    let migrations_dir =
+        fs::canonicalize("showcase/uav-sim/deploy/helm/files/agent-template/migrations")?;
+    let manifest_path = tmpdir.join("pilot-manifest.json");
+    fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "agent": { "tenant": "tenant-a", "id": "pilot-smoke", "displayName": "Pilot Smoke Agent" },
+            "model": {
+                "baseUrl": format!("http://127.0.0.1:{llm_port}/v1"),
+                "apiKeyEnv": "SMOKE_LLM_API_KEY",
+                "model": "fake/kimi"
+            },
+            "gateway": {
+                "url": PUBLIC_BASE_URL,
+                "transportUrl": gateway_base,
+                "profile": "operator",
+                "clientId": "operator-service",
+                "workContext": "operations",
+                "audience": format!("{PUBLIC_BASE_URL}/oauth/token"),
+                "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
+                "scopes": ["operator:use"],
+                "privateKeyEnv": "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                "privateKeyKid": "test-key",
+                "tokenRefreshFraction": 0.00001
+            },
+            "resourceSubscriptions": [{ "uri": "optimization://solutions" }],
+            "episode": { "maxTurns": 8, "taskDeadlineS": 120 },
+            "schedule": { "heartbeatIntervalS": 30, "wakeCoalesceWindowMs": 100 },
+            "memory": {
+                "memoryWriteTables": ["mission_intents", "resource_bookmarks"]
+            },
+            "context": {
+                "sections": [{
+                    "name": "Open mission intents",
+                    "priority": 1,
+                    "sql": "SELECT mission_key, operator_request, state FROM mission_intents WHERE state = 'received' ORDER BY updated_at DESC LIMIT 20"
+                }]
+            },
+            "migrationsDir": migrations_dir,
+            "preamble": "You are the Pilot. Follow instructions exactly."
+        }))?,
+    )?;
+
+    let agent_data_dir = tmpdir.join("pilot-data");
+    let agent_log = tmpdir.join("pilot.log");
+    let mut agent_env = platform_store.runtime_env();
+    agent_env.extend([
+        ("SMOKE_LLM_API_KEY", "fake".into()),
+        (
+            "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+            auth_private_key.clone().into(),
+        ),
+        ("OTEL_SERVICE_NAME", "veoveo-pilot-smoke".into()),
+        (
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            format!("http://127.0.0.1:{otlp_port}").into(),
+        ),
+    ]);
+    let mut agent_child = ChildGuard::spawn(
+        agent,
+        [
+            "run".into(),
+            "--manifest".into(),
+            manifest_path.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            agent_data_dir.as_os_str().to_os_string(),
+            "--prompt".into(),
+            "Add target alpha at 37.7749,-122.4194 and plan the visit.".into(),
+        ],
+        agent_env,
+        &agent_log,
+    )?;
+    wait_for_task_result_episode(&agent_log).await?;
+    wait_for_log_occurrences(&agent_log, "gateway connection rotated", 3, 120).await?;
+    agent_child.stop_checked().await?;
+
+    let agent_output = fs::read_to_string(&agent_log)?;
+    if agent_output.matches("gateway connection rotated").count() < 3 {
+        bail!("pilot smoke did not rotate its short-lived gateway connection");
+    }
+    // Rig also logs replacement during a valid, generation-fenced listChanged
+    // refresh. Successful dispatch and durable results qualify rotation below.
+    if agent_output.contains("Failed to send query results to channel") {
+        bail!("pilot credential-rotation soak lost a query response channel");
+    }
+    let gateway_output = fs::read_to_string(&gateway_log)?;
+    if gateway_output.contains("failed to send pending response during drain") {
+        bail!("gateway credential-rotation soak reported a closed drain channel as an error");
+    }
+
+    {
+        let ledger = duckdb::Connection::open(agent_data_dir.join("memory.duckdb"))?;
+        let intents: i64 =
+            ledger.query_row("SELECT COUNT(*) FROM mission_intents", [], |row| row.get(0))?;
+        let bookmarks: i64 =
+            ledger.query_row("SELECT COUNT(*) FROM resource_bookmarks", [], |row| {
+                row.get(0)
+            })?;
+        if intents != 1 || bookmarks != 1 {
+            bail!("pilot memory had {intents} intents / {bookmarks} bookmarks, expected 1/1");
+        }
+        let planned: i64 = ledger.query_row(
+            "SELECT COUNT(*) FROM agent_memory.episode_log WHERE final_output LIKE '%MISSION PLANNED%'",
+            [],
+            |row| row.get(0),
+        )?;
+        if planned < 1 {
+            bail!("no episode declared the mission planned");
+        }
+    }
+    {
+        use veoveo_agent_runtime::persistence::{
+            AgentTaskRecord, AgentTaskWatchState, WakeKind, WakePayload, WakeRecord,
+        };
+        use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
+
+        let store = PlatformStore::connect(
+            StoreConfig::builder(
+                &platform_store.endpoint,
+                &platform_store.namespace,
+                &platform_store.database,
+                StoreCredentials::database(SURREAL_RUNTIME_USER, SURREAL_RUNTIME_PASSWORD),
+            )
+            .build()?,
+        )
+        .await?;
+        let mut response = store
+            .client()
+            .query(include_str!(
+                "../queries/agent_kernel/select_from_agent_task_where.surql"
+            ))
+            .bind(("tool", "optimization__solve_milp"))
+            .await?
+            .check()?;
+        let tasks: Vec<AgentTaskRecord> = response.take(0)?;
+        let [task] = tasks.as_slice() else {
+            bail!(
+                "expected one optimization task in the platform store, found {}",
+                tasks.len()
+            );
+        };
+        if task.state != AgentTaskWatchState::Resolved || task.consumed_by_episode.is_none() {
+            bail!(
+                "optimization task was ({:?}, consumed: {:?})",
+                task.state,
+                task.consumed_by_episode
+            );
+        }
+
+        let mut response = store
+            .client()
+            .query(include_str!(
+                "../queries/agent_kernel/select_from_wake_where.surql"
+            ))
+            .await?
+            .check()?;
+        let wakes: Vec<WakeRecord> = response.take(0)?;
+        if !wakes.iter().any(|wake| {
+            wake.kind == WakeKind::ResourceChanged
+                && matches!(&wake.payload, WakePayload::ResourceChanged { uri } if uri.as_str() == "optimization://solutions")
+        }) {
+            bail!(
+                "optimization resource update did not survive credential rotation as a durable wake"
+            );
+        }
+    }
+
+    // The decision log shows the whole choreography.
+    let timeline = run_checked(
+        agent,
+        [
+            "timeline".into(),
+            "--data-dir".into(),
+            agent_data_dir.as_os_str().to_os_string(),
+            "--entities".into(),
+            "/agent/**".into(),
+            "--max-rows".into(),
+            "300".into(),
+        ],
+        [],
+    )?;
+    contains(&timeline, "frames__convert_frame")?;
+    contains(&timeline, "optimization__solve_milp")?;
+
+    // Replay rebuilds domain truth from the decision log alone.
+    let replay = run_checked(
+        agent,
+        [
+            "replay".into(),
+            "--manifest".into(),
+            manifest_path.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            agent_data_dir.as_os_str().to_os_string(),
+        ],
+        [
+            ("SMOKE_LLM_API_KEY", "fake".into()),
+            (
+                "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ],
+    )?;
+    contains(&replay, "\"applied\":2")?;
+    {
+        let replayed = duckdb::Connection::open(agent_data_dir.join("memory.replayed.duckdb"))?;
+        let (intents, bookmarks): (i64, i64) = replayed.query_row(
+            "SELECT (SELECT COUNT(*) FROM mission_intents), (SELECT COUNT(*) FROM resource_bookmarks)",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        if intents != 1 || bookmarks != 1 {
+            bail!("replay rebuilt {intents} intents / {bookmarks} bookmarks, expected 1/1");
+        }
+    }
+
+    // Telemetry left the building: the agent exported logs or traces.
+    wait_for_file_contains(&otlp_hits, "logs ", "traces ").await?;
+
+    gateway_child.stop_checked().await?;
+    frames_child.stop_checked().await?;
+    optimization_child.stop_checked().await?;
+    llm.stop_checked().await?;
+    otlp.stop_checked().await?;
+    cleanup.remove_on_drop();
+    println!("agent pilot mission smoke ok");
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn agent_sleep_wake(
+    conformance: &Path,
+    media: &Path,
+    gateway: &Path,
+    control_plane: &Path,
+    artifact_service: &Path,
+    agent: &Path,
+    live: bool,
+) -> Result<()> {
+    for bin in [conformance, media, gateway, artifact_service, agent] {
+        assert_executable(bin)?;
+    }
+    const TASK_DELAY_MS: u64 = 15_000;
+    const SLEEP_FLOOR_S: f64 = 8.0;
+    const WAKE_CEILING_S: f64 = TASK_DELAY_MS as f64 / 1000.0 + 10.0;
+
+    let live_model = if live {
+        let account = env::var("CLOUDFLARE_ACCOUNT_ID").map_err(|_| {
+            anyhow!(
+                "live mode requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in the environment"
+            )
+        })?;
+        env::var("CLOUDFLARE_API_TOKEN")
+            .map_err(|_| anyhow!("live mode requires CLOUDFLARE_API_TOKEN in the environment"))?;
+        let model =
+            env::var("AGENT_LIVE_MODEL").unwrap_or_else(|_| "@cf/moonshotai/kimi-k2.6".to_string());
+        println!("live model: {model}");
+        Some((
+            format!("https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1"),
+            "CLOUDFLARE_API_TOKEN".to_string(),
+            model,
+        ))
+    } else {
+        None
+    };
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    let provider_port = 18860u16;
+    let media_port = 18801u16;
+    let gateway_port = 18862u16;
+    let llm_port = 18863u16;
+    let media_base = format!("http://127.0.0.1:{media_port}");
+    let gateway_base = format!("http://127.0.0.1:{gateway_port}");
+    let provider_base = format!("http://127.0.0.1:{provider_port}");
+
+    let provider_ready = tmpdir.join("provider.ready");
+    let mut provider = spawn_fake_media_provider(
+        provider_port,
+        &provider_ready,
+        &tmpdir.join("provider.log"),
+        Some(TASK_DELAY_MS),
+    )?;
+    wait_for_file_and_http(&provider_ready, &format!("{provider_base}/api/v3/models")).await?;
+
+    let mut llm = None;
+    if live_model.is_none() {
+        let llm_ready = tmpdir.join("llm.ready");
+        llm = Some(
+            ChildGuard::spawn(
+                &veoveo_testing_support::artifacts::executable(
+                    "veoveo-agent-kernel",
+                    "agent-smoke",
+                )?,
+                [
+                    "fake-openai-llm".into(),
+                    "--port".into(),
+                    llm_port.to_string().into(),
+                    "--ready-file".into(),
+                    llm_ready.as_os_str().to_os_string(),
+                ],
+                [],
+                &tmpdir.join("llm.log"),
+            )
+            .map(ChildGuard::with_owner_scope)?,
+        );
+        wait_for_file(&llm_ready).await?;
+    }
+
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
+    let mut media_child = spawn_media_memory_smoke(
+        media,
+        media_port,
+        &media_base,
+        &plane.platform,
+        &provider_base,
+        &plane.url,
+        &tmpdir.join("media.log"),
+    )?;
+    wait_for_http(&format!("{media_base}/media/healthz")).await?;
+    let auth_private_key = run_checked(
+        &veoveo_testing_support::artifacts::executable(
+            "veoveo-gateway-composition",
+            "gateway-smoke-support",
+        )?,
+        ["gateway-private-key-der-b64".into()],
+        [],
+    )?;
+    let auth_private_key = auth_private_key.trim().to_string();
+    let platform_store = &plane.platform;
+    bootstrap_gateway_platform_store(gateway, control_plane, platform_store).await?;
+    let mut gateway_child = ChildGuard::spawn(
+        gateway,
+        gateway_serve_args(gateway_port, platform_store),
+        [
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
+            (
+                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ],
+        &tmpdir.join("gateway.log"),
+    )?;
+    wait_for_http(&format!("{gateway_base}/healthz")).await?;
+    assert_ready_profiles(&gateway_base, fixture_profile_count(control_plane)?).await?;
+
+    let (model_base_url, api_key_env, model) = live_model.clone().unwrap_or((
+        format!("http://127.0.0.1:{llm_port}/v1"),
+        "SMOKE_LLM_API_KEY".to_string(),
+        "fake/kimi".to_string(),
+    ));
+    let manifest_path = tmpdir.join("sleep-wake-manifest.json");
+    fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "agent": { "tenant": "tenant-a", "id": "sleep-wake", "displayName": "Sleep/Wake Agent" },
+            "model": {
+                "baseUrl": model_base_url,
+                "apiKeyEnv": api_key_env,
+                "model": model,
+                "temperature": 0.0
+            },
+            "gateway": {
+                "url": PUBLIC_BASE_URL,
+                "transportUrl": gateway_base,
+                "profile": "operator",
+                "clientId": "operator-service",
+                "workContext": "operations",
+                "audience": format!("{PUBLIC_BASE_URL}/oauth/token"),
+                "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
+                "scopes": ["operator:use"],
+                "privateKeyEnv": "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                "privateKeyKid": "test-key"
+            },
+            "episode": {
+                "maxTurns": 8,
+                "taskDeadlineS": 120
+            },
+            "schedule": { "heartbeatIntervalS": 600, "wakeCoalesceWindowMs": 250 },
+            "budgets": { "perEpisode": { "maxCompletionCalls": 12, "maxToolCalls": 8 } },
+            "preamble": "You operate hosted tools through an MCP gateway. Long-running tools \
+                         are dispatched as background tasks: dispatch them, then END YOUR TURN \
+                         immediately — you will be woken with the result. Never wait, never \
+                         poll, never re-dispatch a task you already started. When an episode \
+                         starts with a background task result, acknowledge it in one short \
+                         sentence that contains the word DELIVERED, then stop."
+        }))?,
+    )?;
+
+    let boot_prompt = if live {
+        // The real model gets explicit, bounded instructions.
+        "Generate exactly one image by calling the media__run tool once, with arguments \
+         {\"model\": \"fake/image\", \"input\": {\"prompt\": \"sleep wake live\"}}. After the \
+         tool call is dispatched as a background task, say WAITING FOR BACKGROUND TASKS and \
+         stop."
+    } else {
+        "Generate one smoke image with the media tools."
+    };
+
+    let agent_data_dir = tmpdir.join("agent-data");
+    let agent_log = tmpdir.join("agent.log");
+    let mut agent_child = ChildGuard::spawn(
+        agent,
+        [
+            "run".into(),
+            "--manifest".into(),
+            manifest_path.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            agent_data_dir.as_os_str().to_os_string(),
+            "--prompt".into(),
+            boot_prompt.into(),
+        ],
+        [
+            ("SMOKE_LLM_API_KEY", "fake".into()),
+            (
+                "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ],
+        &agent_log,
+    )?;
+
+    // The whole life in one process: dispatch, sleep, push wake, consume.
+    wait_for_log_substring(&agent_log, "task detached", 240).await?;
+    println!("task detached; the agent is now asleep on the long task");
+    wait_for_log_substring(&agent_log, "task result consumed", 320).await?;
+    agent_child.stop_checked().await?;
+
+    let log = fs::read_to_string(&agent_log)?;
+    if log.matches("agent booting").count() != 1 {
+        bail!("expected exactly one agent boot; the sleep/wake must be one process");
+    }
+    contains(&log, "task status notification received")?;
+
+    {
+        let ledger = duckdb::Connection::open(agent_data_dir.join("memory.duckdb"))?;
+        let episodes: i64 =
+            ledger.query_row("SELECT COUNT(*) FROM agent_memory.episode_log", [], |row| {
+                row.get(0)
+            })?;
+        if episodes != 2 {
+            bail!("expected exactly 2 episodes (dispatch + wake), found {episodes}");
+        }
+        let (task_state, consumed): (String, Option<String>) = ledger.query_row(
+            "SELECT state, consumed_by_episode FROM kernel.task_ledger",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        if task_state != "resolved" || consumed.is_none() {
+            bail!("task ended ({task_state}, consumed: {consumed:?})");
+        }
+        // Slept: a real gap between the dispatch episode ending and the wake
+        // episode starting. Woke promptly: the gap is bounded near the task
+        // duration — unreachable for the 60s poll or the 600s heartbeat.
+        let (sleep_gap_s, dispatch_s, wake_s): (f64, f64, f64) = ledger.query_row(
+            "WITH ordered AS (SELECT seq, started_at, finished_at FROM agent_memory.episode_log)
+             SELECT
+                 epoch(o2.started_at) - epoch(o1.finished_at),
+                 epoch(o1.finished_at) - epoch(o1.started_at),
+                 epoch(o2.finished_at) - epoch(o2.started_at)
+             FROM ordered o1, ordered o2 WHERE o1.seq = 1 AND o2.seq = 2",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        println!(
+            "dispatch episode {dispatch_s:.1}s, slept {sleep_gap_s:.1}s, wake episode {wake_s:.1}s"
+        );
+        if sleep_gap_s < SLEEP_FLOOR_S {
+            bail!(
+                "agent only slept {sleep_gap_s:.1}s; the task should have held it >= {SLEEP_FLOOR_S}s"
+            );
+        }
+        if sleep_gap_s > WAKE_CEILING_S {
+            bail!(
+                "agent slept {sleep_gap_s:.1}s (> {WAKE_CEILING_S}s): the wake was not prompt, \
+                 so it came from polling, not the push path"
+            );
+        }
+        if live {
+            let delivered: i64 = ledger.query_row(
+                "SELECT COUNT(*) FROM agent_memory.episode_log WHERE final_output LIKE '%DELIVERED%'",
+                [],
+                |row| row.get(0),
+            )?;
+            if delivered < 1 {
+                let outputs = ledger
+                    .prepare("SELECT seq, final_output FROM agent_memory.episode_log ORDER BY seq")?
+                    .query_map([], |row| {
+                        Ok(format!(
+                            "  episode {}: {}",
+                            row.get::<_, i64>(0)?,
+                            row.get::<_, String>(1)?
+                        ))
+                    })?
+                    .collect::<Result<Vec<_>, _>>()?
+                    .join("\n");
+                bail!("live model never acknowledged DELIVERED; outputs:\n{outputs}");
+            }
+        }
+    }
+
+    gateway_child.stop_checked().await?;
+    media_child.stop_checked().await?;
+    provider.stop_checked().await?;
+    if let Some(mut llm) = llm {
+        llm.stop_checked().await?;
+    }
+    cleanup.remove_on_drop();
+    println!(
+        "agent sleep/wake smoke ok ({})",
+        if live { "live model" } else { "scripted model" }
+    );
+    Ok(())
+}
+
+async fn wait_for_task_result_episode(file: &Path) -> Result<()> {
+    #[derive(serde::Deserialize)]
+    struct Event {
+        message: String,
+        episode_id: Option<uuid::Uuid>,
+        wake_note: Option<String>,
+    }
+    for _ in 0..240 {
+        let mut result_episodes = std::collections::HashSet::new();
+        let contents = fs::read_to_string(file).unwrap_or_default();
+        for event in contents
+            .lines()
+            .filter_map(|line| serde_json::from_str::<Event>(line).ok())
+        {
+            let Some(id) = event.episode_id else {
+                continue;
+            };
+            if event.message == "episode started"
+                && event
+                    .wake_note
+                    .as_deref()
+                    .is_some_and(|note| note.split('+').any(|kind| kind == "task_result"))
+            {
+                result_episodes.insert(id);
+            }
+            if event.message == "episode completed" && result_episodes.contains(&id) {
+                return Ok(());
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    bail!("no completed Task-result episode in {}", file.display())
+}
+
+async fn wait_for_log_substring(file: &Path, needle: &str, attempts: u32) -> Result<()> {
+    for _ in 0..attempts {
+        if fs::read_to_string(file)
+            .map(|contents| contents.contains(needle))
+            .unwrap_or(false)
+        {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    let contents = fs::read_to_string(file).unwrap_or_default();
+    bail!(
+        "timed out waiting for `{needle}` in {}\ncontents:\n{contents}",
+        file.display()
+    );
+}
+
+async fn wait_for_log_occurrences(
+    file: &Path,
+    needle: &str,
+    expected: usize,
+    attempts: u32,
+) -> Result<()> {
+    for _ in 0..attempts {
+        let contents = fs::read_to_string(file).unwrap_or_default();
+        if contents.matches(needle).count() >= expected {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    let contents = fs::read_to_string(file).unwrap_or_default();
+    bail!(
+        "timed out waiting for {expected} occurrences of `{needle}` in {}\ncontents:\n{contents}",
+        file.display()
+    )
+}

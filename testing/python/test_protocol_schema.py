@@ -16,6 +16,34 @@ class SchemaComparisonTests(unittest.TestCase):
         with self.assertRaises(SchemaMismatch):
             self.compatible(producer, consumer)
 
+    def test_naming_annotation_does_not_change_instance_admission(self):
+        marker = {"revision": 1, "role": {"kind": "scalar", "profile": {
+            "kind": "builtin", "grammar": "scope_token"}}}
+        scalar = {"type": "string", "enum": ["owner:read"], "minLength": 1}
+        annotated = {**scalar, "ai.veoveo/naming-profile": marker}
+        self.compatible(obj(annotated), obj(scalar))
+        self.compatible(obj(scalar), obj(annotated))
+        referenced = obj({"$ref": "#/$defs/Scope", "ai.veoveo/naming-profile": marker})
+        referenced["$defs"] = {"Scope": annotated}
+        self.compatible(referenced, obj(scalar))
+        self.rejects(obj({**annotated, "enum": ["owner:read", "owner:write"]}), obj(scalar))
+        self.rejects(obj({**annotated, "minLength": 0}), obj({"type": "string", "minLength": 1}))
+        self.rejects(obj(annotated, required=False), obj(scalar))
+        sibling = obj(annotated)
+        sibling["properties"]["other"] = {"type": "integer"}
+        changed = copy.deepcopy(sibling)
+        changed["properties"]["other"] = {"type": "string"}
+        self.rejects(changed, sibling)
+        dictionary = {"type": "object", "additionalProperties": obj(scalar),
+                      "ai.veoveo/naming-profile": {"revision": 1, "role": {
+                          "kind": "dictionary", "keySchema": {"type": "string"}}}}
+        self.compatible(dictionary, copy.deepcopy(dictionary))
+        changed = copy.deepcopy(dictionary)
+        changed["additionalProperties"] = obj({"type": "integer"})
+        self.rejects(changed, dictionary)
+        for keyword in ("ai.veoveo/unknown-profile", "x-ignore", "unknownAssertion"):
+            self.rejects(obj({**annotated, keyword: True}), obj(scalar))
+
     def test_nullable_representations(self):
         listed = {"type": ["integer", "null"], "minimum": 0, "maximum": 255}
         union = {"anyOf": [{"type": "integer", "format": "uint8"}, {"type": "null"}]}

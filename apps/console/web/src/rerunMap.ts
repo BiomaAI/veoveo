@@ -126,7 +126,7 @@ async function validateMapboxAccessToken(fetcher: typeof fetch, accessToken: str
 
 export function mapProviderCompatibilityError(
   installationProvider: "openStreetMap" | "mapbox",
-  blueprintProvider: "none" | "openStreetMap" | "mapbox" | "mixed" | undefined,
+  blueprintProvider: "none" | "open_street_map" | "mapbox" | "mixed" | undefined,
 ): string | undefined {
   if (blueprintProvider === "mixed") {
     return "The producer Blueprint mixes map-provider families; every map view must use the installation-selected provider.";

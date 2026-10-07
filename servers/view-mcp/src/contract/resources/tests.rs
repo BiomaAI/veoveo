@@ -196,19 +196,19 @@ fn typed_record_addresses_keep_the_public_string_schema() {
     for (schema, fields) in [
         (
             serde_json::to_value(schemars::schema_for!(super::super::ViewRecord)).unwrap(),
-            vec!["view_uri", "composition_uri"],
+            vec!["viewUri", "compositionUri"],
         ),
         (
             serde_json::to_value(schemars::schema_for!(super::super::FrameRecord)).unwrap(),
-            vec!["frame_uri", "composition_uri"],
+            vec!["frameUri", "compositionUri"],
         ),
         (
             serde_json::to_value(schemars::schema_for!(super::super::SceneComposition)).unwrap(),
-            vec!["composition_uri"],
+            vec!["compositionUri"],
         ),
         (
             serde_json::to_value(schemars::schema_for!(super::super::SceneTileRecord)).unwrap(),
-            vec!["tile_uri"],
+            vec!["tileUri"],
         ),
     ] {
         for field in fields {

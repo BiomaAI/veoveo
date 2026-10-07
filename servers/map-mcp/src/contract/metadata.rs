@@ -34,7 +34,12 @@ impl Error for MapMetadataError {}
 /// MapMetadataRequest::Layers { after: Some(LayerPublicationId::new()) };
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 pub enum MapMetadataRequest {
     Layers {
         after: Option<FeatureLayerId>,
@@ -176,6 +181,7 @@ impl ResourceAddress for MapMetadataRequest {
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CursorEnvelope {
     version: u8,
     request: MapMetadataRequest,
@@ -254,6 +260,8 @@ impl MapMetadataCursor {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 #[schemars(transform = super::app_pages::require_cursor_presence)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapMetadataPage<T> {
     pub items: Vec<T>,
     pub limit: usize,

@@ -11,7 +11,7 @@ use veoveo_types::Sha256Digest;
 use veoveo_types::sha256_hex;
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct SealRecordingRequest {
     pub recording_id: RecordingId,
 }
@@ -24,7 +24,7 @@ pub struct SealRecordingRequest {
 /// }
 /// ```
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 #[schemars(rename = "SealRecordingOutput")]
 pub struct SealRecordingOutputBuilder {
     pub recording_id: RecordingId,
@@ -63,15 +63,16 @@ impl std::ops::Deref for SealRecordingOutput {
     }
 }
 
-pub const RECORDING_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-manifest/v9";
+pub const RECORDING_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-manifest/v10";
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
+#[schemars(transform = crate::format_tag_role)]
 pub enum RecordingManifestSchema {
-    #[serde(rename = "veoveo.ai/recording-manifest/v9")]
-    V9,
+    #[serde(rename = "veoveo.ai/recording-manifest/v10")]
+    V10,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 #[schemars(rename = "RecordingManifest")]
 pub struct RecordingManifestBuilder {
     pub schema: RecordingManifestSchema,
@@ -80,7 +81,7 @@ pub struct RecordingManifestBuilder {
     pub catalog_revision: String,
     pub layers: Vec<ManifestLayer>,
     pub blueprint: Option<ManifestBlueprint>,
-    #[schemars(with = "String")]
+    #[schemars(with = "String", extend("format" = "date-time"))]
     pub sealed_at: DateTime<Utc>,
 }
 impl RecordingManifestBuilder {
@@ -126,7 +127,7 @@ impl std::ops::Deref for RecordingManifest {
 
 /// Blueprint facts checked with their enclosing manifest.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct ManifestBlueprint {
     pub blueprint_id: String,
     pub revision: NonZeroU64,
@@ -136,4 +137,51 @@ pub struct ManifestBlueprint {
     #[schemars(with = "String", regex(pattern = "^[0-9a-f]{64}$"))]
     pub sha256: Sha256Digest,
     pub artifact_uri: ArtifactUri,
+}
+
+/// Existing public-edge bound shared by manifest receivers.
+pub const MAX_RECORDING_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
+
+impl RecordingManifest {
+    /// Bind supplied immutable facts; current authorization belongs to the service.
+    pub fn validate_selection(
+        &self,
+        dataset: crate::RecordingDatasetId,
+        recording: crate::RecordingId,
+        layers: &[ManifestLayer],
+        blueprint: Option<&ManifestBlueprint>,
+    ) -> Result<(), RecordingContractError> {
+        let layer_agrees = |(actual, selected): (&ManifestLayer, &ManifestLayer)| {
+            actual.layer_id == selected.layer_id
+                && actual.layer_name == selected.layer_name
+                && actual.kind == selected.kind
+                && actual.ordinal == selected.ordinal
+                && actual.byte_len == selected.byte_len
+                && actual.sha256 == selected.sha256
+                && actual.artifact_uri.artifact_id() == selected.artifact_uri.artifact_id()
+                && actual.rrd_version == selected.rrd_version
+                && actual.schema_digest == selected.schema_digest
+        };
+        let blueprint_agrees = match (self.blueprint.as_ref(), blueprint) {
+            (None, None) => true,
+            (Some(actual), Some(selected)) => {
+                actual.blueprint_id == selected.blueprint_id
+                    && actual.revision == selected.revision
+                    && actual.byte_len == selected.byte_len
+                    && actual.message_count == selected.message_count
+                    && actual.sha256 == selected.sha256
+                    && actual.artifact_uri.artifact_id() == selected.artifact_uri.artifact_id()
+            }
+            _ => false,
+        };
+        if self.dataset_id != dataset
+            || self.recording_segment_id != recording
+            || self.layers.len() != layers.len()
+            || !self.layers.iter().zip(layers).all(layer_agrees)
+            || !blueprint_agrees
+        {
+            return Err(RecordingContractError::Seal);
+        }
+        Ok(())
+    }
 }

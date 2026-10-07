@@ -22,13 +22,13 @@ async fn main() -> anyhow::Result<()> {
 
     let config = Config::from_env().context("loading configuration")?;
 
-    let object_store = config
-        .object_store
-        .build()
-        .context("building object store")?;
     let platform_store = PlatformStore::connect(config.platform_store.clone())
         .await
         .context("connecting platform store")?;
+    let object_store = config
+        .startup
+        .prepare_object_store(&platform_store, &config.object_store)
+        .await?;
     let uploads = matches!(config.object_store, ObjectStoreConfig::S3 { .. })
         .then(|| UploadService::new(platform_store.clone(), object_store.clone()));
     let repository = SurrealArtifactRepository::new(platform_store);

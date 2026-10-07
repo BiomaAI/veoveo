@@ -16,8 +16,9 @@
 Workspace composes this same queue and panel. Its trusted entrypoint selects the
 Workspace HTTP, CSRF and login boundary through `browserApp.ts`; no transport chooses
 authority from a pathname, caller header or upload descriptor. Workspace metadata
-adds its application name to the version-1 storage scope. Existing Console scopes
-retain their current key. A shared origin is not isolation from same-origin scripts.
+adds its application name to the version-2 storage scope. The `veoveo.uploads.v2:`
+key stores camelCase owner descriptors and receipts; the queue never restores v1
+descriptors. A shared origin is not isolation from same-origin scripts.
 The panel receives its inert background selector from its host and runs in a portal
 beside that background. A file-details dialog temporarily replaces the upload panel,
 which prevents competing keyboard focus traps.
@@ -26,7 +27,7 @@ The application shell owns `UploadQueue`. Closing its panel or navigating to ano
 Console page does not destroy the queue. A scope change disposes the old queue,
 aborts local work, and drops file handles. The new scope reads only its own saved
 descriptors. Upload responses use the generated artifact-transfer schema bundle from the shared
-Rust contract. Browser validation also rejects counters that JavaScript cannot represent
+Rust contract. The shared browser `ChronoTimestamp` admits the calendar and UTC range of receipt `createdAt`, session `createdAt` and `expiresAt`, and nested receipt timestamps before queue state or receipt callbacks change. It preserves the original timestamp text, nanoseconds, signed years and leap seconds. Saved receipts use the same admission before queue restoration. Browser validation also rejects counters that JavaScript cannot represent
 without losing precision. File-selection descriptors require a known byte length, and
 queue phases and persisted selection metadata use local browser models.
 Restored metadata is validated before an authenticated status request;

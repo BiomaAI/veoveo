@@ -41,6 +41,7 @@ pub enum MobilityFamily {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct MobilityProfileMetadata {
     pub profile_id: MobilityProfileId,
     pub name: String,
@@ -75,6 +76,7 @@ impl MobilityProfileMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct VehicleDimensions {
     pub length: Meters,
     pub width: Meters,
@@ -83,6 +85,7 @@ pub struct VehicleDimensions {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct MobilityPlanningEnvelope {
     pub minimum_speed: MetersPerSecond,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -149,6 +152,7 @@ pub enum EnergySource {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct EnergyProfile {
     pub source: EnergySource,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -160,6 +164,7 @@ pub struct EnergyProfile {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct VehiclePerformance {
     pub maximum_speed: MetersPerSecond,
     pub nominal_speed: MetersPerSecond,
@@ -181,6 +186,7 @@ pub enum HumanMovementMode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct HumanMobilityProfile {
     pub metadata: MobilityProfileMetadata,
     pub planning: MobilityPlanningEnvelope,
@@ -214,6 +220,7 @@ pub enum RoadVehicleClass {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RoadVehicleProfile {
     pub metadata: MobilityProfileMetadata,
     pub planning: MobilityPlanningEnvelope,
@@ -244,6 +251,7 @@ pub enum OffRoadLocomotionClass {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct OffRoadVehicleProfile {
     pub metadata: MobilityProfileMetadata,
     pub planning: MobilityPlanningEnvelope,
@@ -274,6 +282,7 @@ pub enum RailVehicleClass {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RailVehicleProfile {
     pub metadata: MobilityProfileMetadata,
     pub planning: MobilityPlanningEnvelope,
@@ -307,6 +316,7 @@ pub enum SurfaceVesselClass {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SurfaceVesselProfile {
     pub metadata: MobilityProfileMetadata,
     pub planning: MobilityPlanningEnvelope,
@@ -333,6 +343,7 @@ pub enum SubsurfaceVesselClass {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SubsurfaceVesselProfile {
     pub metadata: MobilityProfileMetadata,
     pub planning: MobilityPlanningEnvelope,
@@ -351,6 +362,7 @@ pub struct SubsurfaceVesselProfile {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct AircraftPerformance {
     pub maximum_speed: MetersPerSecond,
     pub cruise_speed: MetersPerSecond,
@@ -371,6 +383,7 @@ pub enum FixedWingClass {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct FixedWingProfile {
     pub metadata: MobilityProfileMetadata,
     pub planning: MobilityPlanningEnvelope,
@@ -396,6 +409,7 @@ pub enum RotorcraftClass {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RotorcraftProfile {
     pub metadata: MobilityProfileMetadata,
     pub planning: MobilityPlanningEnvelope,
@@ -421,6 +435,7 @@ pub enum UasClass {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct UasProfile {
     pub metadata: MobilityProfileMetadata,
     pub planning: MobilityPlanningEnvelope,
@@ -438,7 +453,12 @@ pub struct UasProfile {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "family", content = "profile", rename_all = "snake_case")]
+#[serde(
+    tag = "family",
+    content = "profile",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum MobilityProfile {
     Human(HumanMobilityProfile),

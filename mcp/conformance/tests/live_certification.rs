@@ -17,9 +17,7 @@ use veoveo_mcp_conformance::{
 };
 use veoveo_mcp_contract::docs::{ContractDeclaration, DOC_ID_AGENTS, DOC_ID_DESIGN, ServerDocs};
 
-const FIXTURE_MANUAL: &str = "# Domain\n\n## Purpose\n\nConformance fixture.\n\n\
-## Invariants\n\nNone.\n\n## Build And Test\n\ncargo test\n\n\
-## Contract Compliance\n\n- C18: met\n- C19: met\n- C20: met\n- C21: met\n";
+const FIXTURE_MANUAL: &str = include_str!("../../contract/testdata/compliance-domain.md");
 
 static FIXTURE_DOCS: LazyLock<ServerDocs> = LazyLock::new(|| {
     ServerDocs::new("domain")
@@ -29,12 +27,53 @@ static FIXTURE_DOCS: LazyLock<ServerDocs> = LazyLock::new(|| {
             "Domain design",
             "# Domain design\n\nFixture.",
         )
+        .with_profile_json(include_str!(
+            "../../contract/testdata/compliance-domain.json"
+        ))
+        .unwrap()
 });
 static FIXTURE_DECLARATION: LazyLock<ContractDeclaration> =
     LazyLock::new(|| ContractDeclaration::from_docs(&FIXTURE_DOCS));
 
 #[derive(Clone)]
-struct DomainFixture;
+struct DomainFixture(std::sync::Arc<std::sync::atomic::AtomicU8>);
+
+impl DomainFixture {
+    fn degradation(
+        &self,
+        last: bool,
+        surface: veoveo_gateway_contract::GatewayDiscoverySurface,
+    ) -> Option<rmcp::model::MetaObject> {
+        use veoveo_mcp_contract::GatewayDiscoveryMetadata;
+        let mode = self.0.load(std::sync::atomic::Ordering::SeqCst);
+        let selected = match mode {
+            4 => !last,
+            5 => last,
+            6 => true,
+            _ => false,
+        };
+        if selected {
+            return veoveo_gateway_contract::GatewayDiscoveryDegradation::new([
+                veoveo_gateway_contract::GatewayDiscoveryFailure {
+                    server: veoveo_types::ServerSlug::parse("unavailable").unwrap(),
+                    surface,
+                    code: if last {
+                        veoveo_gateway_contract::GatewayDiscoveryFailureCode::DiscoveryPending
+                    } else {
+                        veoveo_gateway_contract::GatewayDiscoveryFailureCode::UpstreamUnavailable
+                    },
+                },
+            ])
+            .into_meta();
+        }
+        if mode == 7 {
+            let mut meta = rmcp::model::MetaObject::new();
+            meta.insert(veoveo_gateway_contract::GATEWAY_DISCOVERY_DEGRADATION_META_KEY.into(), serde_json::json!({"failures":[{"server":"unavailable","surface":"tools","code":"invented"}]}));
+            return Some(meta);
+        }
+        None
+    }
+}
 
 impl ServerHandler for DomainFixture {
     fn get_info(&self) -> ServerConfig {
@@ -43,6 +82,12 @@ impl ServerHandler for DomainFixture {
             .enable_tools()
             .enable_resources()
             .build();
+        if self.0.load(std::sync::atomic::Ordering::SeqCst) == 3 {
+            info.capabilities.extensions.get_or_insert_default().insert(
+                veoveo_mcp_contract::docs::knowledge_extension::EXTENSION_ID.into(),
+                JsonObject::new(),
+            );
+        }
         info.server_info = Implementation::new("domain", "1.0.0");
         info
     }
@@ -61,17 +106,24 @@ impl ServerHandler for DomainFixture {
         }))
         .unwrap();
         let last = request.and_then(|request| request.cursor).is_some();
+        let mut tool = Tool::new(
+            if last { "inspect" } else { "first_page" },
+            "Inspect one value.",
+            schema,
+        );
+        tool.output_schema = Some(std::sync::Arc::new(serde_json::from_value(
+            serde_json::json!({"type":"object","properties":{"value":{"type":"string"}},"additionalProperties":false})
+        ).unwrap()));
         Ok(ListToolsResult {
-            tools: vec![Tool::new(
-                if last { "inspect" } else { "first_page" },
-                "Inspect one value.",
-                schema,
-            )],
+            tools: vec![tool],
             next_cursor: (!last).then(|| "tools-last".to_owned()),
             result_type: Some(rmcp::model::ResultType::COMPLETE),
             ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
             cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
+            meta: self.degradation(
+                last,
+                veoveo_gateway_contract::GatewayDiscoverySurface::Tools,
+            ),
         })
     }
 
@@ -95,7 +147,10 @@ impl ServerHandler for DomainFixture {
             result_type: Some(rmcp::model::ResultType::COMPLETE),
             ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
             cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
+            meta: self.degradation(
+                last,
+                veoveo_gateway_contract::GatewayDiscoverySurface::Resources,
+            ),
         })
     }
 
@@ -121,8 +176,17 @@ impl ServerHandler for DomainFixture {
             return Ok(ReadResourceResult::new(vec![ResourceContents::text(doc.body, uri)]).into());
         }
         if uri == "domain://contract" {
-            let text =
-                serde_json::to_string(&*FIXTURE_DECLARATION).expect("declaration serializes");
+            let mut value = serde_json::to_value(&*FIXTURE_DECLARATION).unwrap();
+            match self.0.load(std::sync::atomic::Ordering::SeqCst) {
+                1 => {
+                    value["compliance"].as_array_mut().unwrap().pop();
+                }
+                2 => {
+                    value["compliance"][31]["status"] = serde_json::json!("pending");
+                }
+                _ => {}
+            }
+            let text = serde_json::to_string(&value).expect("declaration serializes");
             return Ok(ReadResourceResult::new(vec![ResourceContents::text(text, uri)]).into());
         }
         Err(rmcp::ErrorData::invalid_params("unknown resource", None))
@@ -131,11 +195,13 @@ impl ServerHandler for DomainFixture {
 
 #[tokio::test]
 async fn certifies_a_domain_without_linking_its_implementation() -> anyhow::Result<()> {
+    let mode = std::sync::Arc::new(std::sync::atomic::AtomicU8::new(0));
+    let factory_mode = mode.clone();
     let service: StreamableHttpService<
         DomainFixture,
         rmcp::transport::streamable_http_server::session::never::NeverSessionManager,
     > = StreamableHttpService::new(
-        || Ok(DomainFixture),
+        move || Ok(DomainFixture(factory_mode.clone())),
         veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config(),
     );
@@ -183,9 +249,9 @@ async fn certifies_a_domain_without_linking_its_implementation() -> anyhow::Resu
         );
 
     let profile = HostedServerConformanceProfile {
-        schema_version: HostedServerProfileSchema::V1,
+        schema_version: HostedServerProfileSchema::V2,
         profile_id: "anonymous-extension".to_owned(),
-        contract_revision: "veoveo.ai/hosted-mcp/v3".to_owned(),
+        contract_revision: "veoveo.ai/hosted-mcp/v4".to_owned(),
         endpoint: format!("http://{address}/domain/mcp"),
         server_slug: "domain".to_owned(),
         owned_resource_schemes: BTreeSet::from(["domain".to_owned()]),
@@ -238,6 +304,42 @@ async fn certifies_a_domain_without_linking_its_implementation() -> anyhow::Resu
         Some("domain")
     );
 
+    for (variant, failed_check) in [
+        (1, "VV-MCP-CONTRACT-001"),
+        (2, "VV-MCP-CONTRACT-003"),
+        (3, "VV-MCP-CONTRACT-003"),
+    ] {
+        mode.store(variant, std::sync::atomic::Ordering::SeqCst);
+        let rejected =
+            run_hosted_server_conformance(&profile, &ConformanceCredentials::bearer("test-token"))
+                .await?;
+        assert!(!rejected.passed());
+        assert!(
+            rejected
+                .checks
+                .iter()
+                .any(|check| check.requirement_id == failed_check
+                    && check.status == veoveo_mcp_conformance::CheckStatus::Failed),
+            "{:#?}",
+            rejected.checks
+        );
+    }
+    for variant in [4, 5, 6, 7] {
+        mode.store(variant, std::sync::atomic::Ordering::SeqCst);
+        let report =
+            run_hosted_server_conformance(&profile, &ConformanceCredentials::bearer("test-token"))
+                .await?;
+        assert!(!report.passed());
+        assert!(
+            report
+                .checks
+                .iter()
+                .any(|check| check.requirement_id == "VV-MCP-NAMING-001"
+                    && check.status == veoveo_mcp_conformance::CheckStatus::Incomplete),
+            "degraded or malformed page mode {variant}: {:#?}",
+            report.checks
+        );
+    }
     server.abort();
     Ok(())
 }

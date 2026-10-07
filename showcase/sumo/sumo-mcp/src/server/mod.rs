@@ -1,5 +1,6 @@
 mod auth;
 mod config;
+mod docs;
 mod host;
 mod ownership;
 mod service;

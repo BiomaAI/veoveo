@@ -1,0 +1,28 @@
+[package]
+name = "veoveo-testing-support"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+veoveo-deploy-contract.workspace = true
+veoveo-mcp-conformance = { path = "../../mcp/conformance" }
+anyhow.workspace = true
+veoveo-types.workspace = true
+veoveo-gateway-contract.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+sha2.workspace = true
+hex.workspace = true
+nix = { workspace = true, default-features = false, features = ["process", "signal"] }
+tokio = { workspace = true, features = ["signal", "time", "rt", "sync", "process", "io-util"] }
+rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest", "reqwest-tls-no-provider"] }
+reqwest = { workspace = true, features = ["rustls-no-provider"] }
+url.workspace = true
+rustls.workspace = true
+base64.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

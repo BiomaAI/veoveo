@@ -80,6 +80,9 @@ pub(super) fn task(
     value: &WorkspaceOperation,
     task: DetailedTask,
 ) -> Result<wire::OperationView, StatusCode> {
+    value
+        .check_task_identity(&task.task.task_id)
+        .map_err(|_| StatusCode::BAD_GATEWAY)?;
     let mut view = stored(value)?;
     view.task = Some(wire::TaskView {
         id: task.task.task_id,

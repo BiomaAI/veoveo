@@ -170,6 +170,12 @@ export type InvocationMode = "direct" | "delegated" | "automated";
 export type PolicyVersion = string;
 /**
  * This interface was referenced by `ConsoleApi`'s JSON-Schema
+ * via the `definition` "RecordingArtifactProvenanceKind".
+ */
+export type RecordingArtifactProvenanceKind =
+  "recording_layer" | "recording_blueprint" | "recording_manifest";
+/**
+ * This interface was referenced by `ConsoleApi`'s JSON-Schema
  * via the `definition` "ArtifactReleaseState".
  */
 export type ArtifactReleaseState = "private" | "releasable" | "released";
@@ -255,7 +261,7 @@ export type RecordingState = "live" | "ready" | "sealing" | "sealed" | "interrup
  * This interface was referenced by `ConsoleApi`'s JSON-Schema
  * via the `definition` "ResetReason".
  */
-export type ResetReason = "cursor-out-of-range" | "seed-failed" | "replay-failed";
+export type ResetReason = "cursor_out_of_range" | "seed_failed" | "replay_failed";
 /**
  * This interface was referenced by `ConsoleApi`'s JSON-Schema
  * via the `definition` "ServerEvent".
@@ -455,7 +461,7 @@ export interface ArtifactGovernanceSummary {
  * via the `definition` "ArtifactRecordingSummary".
  */
 export interface ArtifactRecordingSummary {
-  kind: string;
+  kind: RecordingArtifactProvenanceKind;
   layerId?: string | null;
   ordinal?: number | null;
   recordingId: string;

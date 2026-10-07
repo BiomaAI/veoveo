@@ -32,6 +32,8 @@ pub enum FacilityKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct SourceLineage {
     pub release_id: DatasetReleaseId,
     pub source_feature_id: super::SourceFeatureId,
@@ -42,6 +44,8 @@ pub struct SourceLineage {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapLocation {
     pub location_id: LocationId,
     pub name: String,
@@ -52,6 +56,8 @@ pub struct MapLocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapBoundary {
     pub boundary_id: super::MapBoundaryId,
     pub name: String,
@@ -61,12 +67,16 @@ pub struct MapBoundary {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct OperatingInterval {
     pub opens_at: DateTime<Utc>,
     pub closes_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct Facility {
     pub facility_id: FacilityId,
     pub name: String,
@@ -113,7 +123,11 @@ pub enum RestrictionEffectKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum RestrictionLimit {
     MaximumHeight { value: Meters },
@@ -129,6 +143,7 @@ pub enum RestrictionLimit {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RestrictionEffect {
     pub kind: RestrictionEffectKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -139,6 +154,7 @@ pub struct RestrictionEffect {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct VerticalBand {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lower_m: Option<f64>,
@@ -159,6 +175,7 @@ pub enum VerticalReference {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "Restriction")]
+#[serde(rename_all = "camelCase")]
 pub struct RestrictionValue {
     pub restriction_id: RestrictionId,
     pub kind: RestrictionKind,
@@ -180,7 +197,11 @@ pub struct RestrictionValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum RouteEndpoint {
     Position { position: Wgs84Position },
@@ -201,6 +222,7 @@ pub enum RouteObjectiveKind {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ObjectiveWeights {
     pub duration: Ratio,
     pub distance: Ratio,
@@ -211,6 +233,7 @@ pub struct ObjectiveWeights {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteObjective {
     pub kind: RouteObjectiveKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -219,6 +242,7 @@ pub struct RouteObjective {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteConstraints {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_areas: Vec<Wgs84Polygon>,
@@ -236,6 +260,7 @@ pub struct RouteConstraints {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteDataPolicy {
     #[serde(default)]
     pub allow_planning_advisory: bool,
@@ -247,6 +272,7 @@ pub struct RouteDataPolicy {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteRequest {
     pub mobility_profile_id: MobilityProfileId,
     pub mobility_profile_version: crate::contract::MobilityProfileVersion,
@@ -273,6 +299,7 @@ pub enum RouteStatus {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteCost {
     pub distance: Meters,
     pub duration: Seconds,
@@ -287,6 +314,7 @@ pub struct RouteCost {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteInstruction {
     pub sequence: u32,
     pub position: Wgs84Position,
@@ -297,6 +325,7 @@ pub struct RouteInstruction {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteLeg {
     pub sequence: u32,
     pub map_family: MapFamily,
@@ -311,6 +340,7 @@ pub struct RouteLeg {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteProvenance {
     pub base_release_ids: BTreeSet<DatasetReleaseId>,
     pub operational_snapshot_id: OperationalSnapshotId,
@@ -320,6 +350,7 @@ pub struct RouteProvenance {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteAlternative {
     pub rank: u16,
     pub legs: Vec<RouteLeg>,
@@ -329,6 +360,7 @@ pub struct RouteAlternative {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "RoutePlan")]
+#[serde(rename_all = "camelCase")]
 pub struct RoutePlanValue {
     pub route_id: RouteId,
     pub route_uri: super::MapRouteUri,
@@ -355,6 +387,7 @@ pub struct RoutePlanValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteMatrixRequest {
     pub mobility_profile_id: MobilityProfileId,
     pub mobility_profile_version: crate::contract::MobilityProfileVersion,
@@ -367,6 +400,8 @@ pub struct RouteMatrixRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct RouteMatrixCell {
     pub origin_index: u32,
     pub destination_index: u32,
@@ -376,6 +411,8 @@ pub struct RouteMatrixCell {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct RouteMatrix {
     pub matrix_id: RouteMatrixId,
     pub cells: Vec<RouteMatrixCell>,
@@ -384,7 +421,11 @@ pub struct RouteMatrix {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum ReachableBudget {
     Duration { value: Seconds },
@@ -393,6 +434,7 @@ pub enum ReachableBudget {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ReachableAreaRequest {
     pub mobility_profile_id: MobilityProfileId,
     pub mobility_profile_version: crate::contract::MobilityProfileVersion,
@@ -406,6 +448,8 @@ pub struct ReachableAreaRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ReachableArea {
     pub reachable_area_id: super::ReachableAreaId,
     pub mobility_profile_id: MobilityProfileId,
@@ -419,6 +463,8 @@ pub struct ReachableArea {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct OperationalSnapshot {
     pub snapshot_id: OperationalSnapshotId,
     pub captured_at: DateTime<Utc>,
@@ -429,6 +475,8 @@ pub struct OperationalSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct Geofence {
     pub geofence_id: MapGeofenceId,
     pub area: Wgs84Polygon,

@@ -23,7 +23,7 @@ mod tests {
         let now = "2026-10-04T00:00:00Z".parse().unwrap();
         let route = MapRouteUri::new(RouteId::new());
         let handoff = MapRouteHandoffBuilder {
-            schema_profile: MapRouteHandoffSchema::V1,
+            schema_profile: MapRouteHandoffSchema::V2,
             route_uri: route.clone(),
             route_digest_sha256: veoveo_types::Sha256Digest::from_bytes([1; 32]),
             route_status: RouteStatus::Validated,
@@ -122,7 +122,7 @@ mod tests {
                     .contains(&collection.scope().into())
             );
         }
-        for collection in FindingCollection::ALL {
+        for collection in FindingCollection::ALL.iter().copied() {
             assert!(collection.descriptor().required_scopes().is_empty());
         }
     }

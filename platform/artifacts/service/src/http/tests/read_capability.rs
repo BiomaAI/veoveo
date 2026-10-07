@@ -76,7 +76,7 @@ async fn task_read_http_authority_is_read_only_bound_revocable_and_streamed() {
             cap.capability_id,
             metadata.artifact_id()
         ))
-        .query(&[("task_id", wrong_task.to_string())])
+        .query(&[("taskId", wrong_task.to_string())])
         .bearer_auth(cap.secret.expose_secret())
         .send()
         .await

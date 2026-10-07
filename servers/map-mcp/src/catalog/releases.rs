@@ -17,8 +17,11 @@ const SELECT_ACTIVE: &str = include_str!("../queries/catalog/releases/releases/s
 #[derive(Deserialize)]
 struct ActiveReleaseRow {
     pointer_id: String,
-    #[serde(flatten)]
-    pointer: ActiveReleasePointer,
+    dataset_id: MapDatasetId,
+    release_id: DatasetReleaseId,
+    previous_release_id: Option<DatasetReleaseId>,
+    record_version: u64,
+    activated_at: chrono::DateTime<chrono::Utc>,
     source_id: MapSourceId,
     release_version: u64,
     version_label: String,
@@ -30,14 +33,21 @@ struct ActiveReleaseRow {
 
 impl ActiveReleaseRow {
     fn checked(self, scope: &MapAccessContext) -> Result<ActiveDatasetRelease> {
+        let pointer = ActiveReleasePointer {
+            dataset_id: self.dataset_id,
+            release_id: self.release_id,
+            previous_release_id: self.previous_release_id,
+            record_version: self.record_version,
+            activated_at: self.activated_at,
+        };
         let release: DatasetRelease = decode(&self.canonical_json, "active dataset release")?;
         release.validate()?;
         ensure!(
-            self.pointer.record_version > 0
+            pointer.record_version > 0
                 && self.pointer_id
-                    == format!("{}:{}", scope.identity.tenant_id, self.pointer.dataset_id)
-                && release.release_id == self.pointer.release_id
-                && release.dataset_id == self.pointer.dataset_id
+                    == format!("{}:{}", scope.identity.tenant_id, pointer.dataset_id)
+                && release.release_id == pointer.release_id
+                && release.dataset_id == pointer.dataset_id
                 && release.source_id == self.source_id
                 && release.state == DatasetReleaseState::Active
                 && release.record_version == self.release_version
@@ -47,10 +57,7 @@ impl ActiveReleaseRow {
                 && release.valid_until == self.valid_until,
             "active release document disagrees with selected pointer or metadata"
         );
-        Ok(ActiveDatasetRelease {
-            pointer: self.pointer,
-            release,
-        })
+        Ok(ActiveDatasetRelease { pointer, release })
     }
 }
 
@@ -414,15 +421,26 @@ mod tests {
             assert_eq!(page.releases[0].release, next);
             assert_eq!(page.releases[0].pointer.previous_release_id.as_ref(), Some(&previous.release_id));
             assert_eq!(page.releases[0].pointer.record_version, 2);
+            let pointer_wire = serde_json::to_value(&page.releases[0].pointer).unwrap();
+            for (current, retired) in [("datasetId", "dataset_id"), ("releaseId", "release_id"), ("previousReleaseId", "previous_release_id"), ("recordVersion", "record_version"), ("activatedAt", "activated_at")] {
+                for mixed in [false, true] {
+                    let mut bad = pointer_wire.clone();
+                    let value = bad[current].clone();
+                    if !mixed { bad.as_object_mut().unwrap().remove(current); }
+                    bad[retired] = value;
+                    assert!(serde_json::from_value::<ActiveReleasePointer>(bad).is_err(), "{retired} mixed={mixed}");
+                }
+            }
+
 
             // An admitted document must agree with the metadata that SQL selected.
-            for field in ["release_id", "dataset_id", "source_id", "record_version", "state"] {
+            for field in ["releaseId", "datasetId", "sourceId", "recordVersion", "state"] {
                 let mut body = serde_json::to_value(&next).unwrap();
                 body[field] = match field {
-                    "release_id" => serde_json::json!(previous.release_id),
-                    "dataset_id" => serde_json::json!(key("dataset", 9000)),
-                    "source_id" => serde_json::json!(key("source", 9000)),
-                    "record_version" => serde_json::json!(99),
+                    "releaseId" => serde_json::json!(previous.release_id),
+                    "datasetId" => serde_json::json!(key("dataset", 9000)),
+                    "sourceId" => serde_json::json!(key("source", 9000)),
+                    "recordVersion" => serde_json::json!(99),
                     "state" => serde_json::json!("staged"),
                     _ => unreachable!(),
                 };

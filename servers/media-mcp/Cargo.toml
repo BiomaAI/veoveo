@@ -37,6 +37,25 @@ name = "surreal_integration"
 required-features = ["mcp"]
 
 [features]
+smoke = [
+    "dep:hmac",
+    "dep:veoveo-testing-support",
+    "contract",
+    "dep:anyhow",
+    "dep:axum",
+    "dep:clap",
+    "dep:reqwest",
+    "dep:rmcp",
+    "dep:rustls",
+    "dep:tokio",
+    "dep:veoveo-mcp-contract",
+    "veoveo-mcp-contract/runtime",
+    "dep:veoveo-gateway-contract",
+    "dep:jsonwebtoken",
+    "dep:url",
+    "dep:veoveo-mcp-conformance",
+    "dep:veoveo-artifact-service",
+]
 schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 default = ["mcp"]
 contract = [
@@ -85,6 +104,12 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-testing-support = { path = "../../testing/support", optional = true }
+veoveo-artifact-service = { path = "../../platform/artifacts/service", default-features = false, features = ["smoke"], optional = true }
+veoveo-gateway-contract = { workspace = true, optional = true }
+jsonwebtoken = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+veoveo-mcp-conformance = { path = "../../mcp/conformance", optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 thiserror = { workspace = true, optional = true }
 # Matches the qualified Store driver and installed 3.3.0 query profile.
@@ -122,7 +147,13 @@ veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 jsonschema.workspace = true
 veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-mcp-contract = { workspace = true, features = ["testing"] }
 tower = { workspace = true, features = ["util"] }
+
+[[bin]]
+name = "media-smoke"
+path = "src/smoke/media_smoke.rs"
+required-features = ["smoke"]

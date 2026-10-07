@@ -114,6 +114,7 @@ impl ResolvedSceneComposition {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct ResolvedSceneCompositionWire {
     record: SceneComposition,
     resolved_overlays: Vec<ResolvedSceneOverlay>,

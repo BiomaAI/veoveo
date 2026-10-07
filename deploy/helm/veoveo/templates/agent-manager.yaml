@@ -70,7 +70,7 @@ roleRef:
   name: veoveo-agent-manager
 ---
 {{- $modulePlan := include "veoveo.modulePlan" . | fromJson -}}
-{{- $config := dict "database_credential_revision" $modulePlan.credentialRevision "namespace" $namespace "gateway_url" (printf "%s/" (trimSuffix "/" .Values.global.publicBaseUrl)) "gateway_transport_url" (printf "http://mcp-gateway.%s.svc:8788/" .Release.Namespace) "store_endpoint" (printf "ws://surrealdb.%s.svc:8000" .Release.Namespace) "store_namespace" .Values.surrealdb.namespace "store_database" .Values.surrealdb.database "templates" .Values.gateway.agents.templates "models" .Values.gateway.agents.models }}
+{{- $config := dict "databaseCredentialRevision" $modulePlan.credentialRevision "namespace" $namespace "gatewayUrl" (printf "%s/" (trimSuffix "/" .Values.global.publicBaseUrl)) "gatewayTransportUrl" (printf "http://mcp-gateway.%s.svc:8788/" .Release.Namespace) "storeEndpoint" (printf "ws://surrealdb.%s.svc:8000" .Release.Namespace) "storeNamespace" .Values.surrealdb.namespace "storeDatabase" .Values.surrealdb.database "templates" .Values.gateway.agents.templates "models" .Values.gateway.agents.models }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

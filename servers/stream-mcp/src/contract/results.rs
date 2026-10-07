@@ -7,9 +7,10 @@ use serde::{Deserialize, Serialize};
 use super::{AnalysisResultsBuilder, DetectionBuilder};
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[schemars(transform = format_tag_schema)]
 pub enum StreamResultsSchema {
-    #[serde(rename = "veoveo.stream-results/v1")]
-    V1,
+    #[serde(rename = "veoveo.ai/stream-results/v2")]
+    V2,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -48,7 +49,7 @@ impl veoveo_types::Check for AnalysisResultsBuilder {
     /// Check the relationships expressible in a published replay document.
     /// The producer separately checks bounds against its private input dimensions.
     fn check(&self) -> Result<(), StreamResultsError> {
-        let StreamResultsSchema::V1 = self.schema;
+        let StreamResultsSchema::V2 = self.schema;
         veoveo_recording_video::contract::RecordingVideoSelectionBuilder {
             recording_uri: self.recording_uri.clone(),
             entity_path: self.entity_path.clone(),
@@ -110,4 +111,12 @@ impl veoveo_types::Check for DetectionBuilder {
         }
         Ok(())
     }
+}
+
+pub(super) fn format_tag_schema(schema: &mut schemars::Schema) {
+    *schema = veoveo_types::scalar_schema(
+        schema.clone(),
+        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
+    )
+    .expect("Stream format tag profile");
 }

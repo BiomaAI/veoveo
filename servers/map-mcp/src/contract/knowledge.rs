@@ -10,7 +10,7 @@ use veoveo_types::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "snake_case")]
 pub enum MapKnowledgeCollection {
     Layers,
     Features,
@@ -69,7 +69,12 @@ impl MapKnowledgeCollection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 pub enum MapKnowledgeMember {
     Layer {
         layer: FeatureLayerId,
@@ -195,6 +200,7 @@ pub struct MapKnowledgeAddressError;
 pub struct MapKnowledgeCursor(MapKnowledgeMember);
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CursorWire {
     version: u8,
     after: MapKnowledgeMember,

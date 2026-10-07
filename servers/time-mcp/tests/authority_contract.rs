@@ -6,7 +6,7 @@ fn reference(name: &str, kind: AuthorityDatasetKind) -> TimeAuthorityReference {
     TimeAuthorityReference::new(
         TimeAuthorityReleaseUri::bootstrap(&AuthorityReleaseId::parse(name).unwrap()),
         kind,
-        TimeAuthoritySource::Bootstrap,
+        TimeAuthoritySource::Bootstrap {},
         Sha256Digest::from_hex("a".repeat(64)).unwrap(),
         "2026b".into(),
     )
@@ -16,7 +16,7 @@ fn reference(name: &str, kind: AuthorityDatasetKind) -> TimeAuthorityReference {
 #[test]
 fn reference_construction_preserves_wire_fields_and_derives_identity() {
     for source in [
-        TimeAuthoritySource::Bootstrap,
+        TimeAuthoritySource::Bootstrap {},
         TimeAuthoritySource::Acquisition {
             source_id: TimeSourceId::parse("time-source-fixture").unwrap(),
             acquisition_id: TimeAcquisitionId::parse("time-acquisition-fixture").unwrap(),
@@ -24,7 +24,7 @@ fn reference_construction_preserves_wire_fields_and_derives_identity() {
     ] {
         let id = AuthorityReleaseId::parse("time-release-2026b:published").unwrap();
         let uri = match source {
-            TimeAuthoritySource::Bootstrap => TimeAuthorityReleaseUri::bootstrap(&id),
+            TimeAuthoritySource::Bootstrap {} => TimeAuthorityReleaseUri::bootstrap(&id),
             _ => TimeAuthorityReleaseUri::new(&id),
         };
         let reference = TimeAuthorityReference::new(
@@ -35,8 +35,8 @@ fn reference_construction_preserves_wire_fields_and_derives_identity() {
             " 2026b ".into(),
         )
         .unwrap();
-        let wire = json!({"release_uri":uri, "release_id":id, "dataset_kind":"tzdb", "source":source,
-            "source_digest":format!("sha256:{}", "a".repeat(64)), "version_label":" 2026b "});
+        let wire = json!({"releaseUri":uri, "releaseId":id, "datasetKind":"tzdb", "source":source,
+            "sourceDigest":format!("sha256:{}", "a".repeat(64)), "versionLabel":" 2026b "});
         assert_eq!(serde_json::to_value(&reference).unwrap(), wire);
         assert_eq!(
             serde_json::from_value::<TimeAuthorityReference>(wire).unwrap(),
@@ -66,7 +66,7 @@ fn reference_decoder_rejects_conflicting_identity_and_blank_labels() {
     let value = reference("time-release-fixture", AuthorityDatasetKind::Tzdb);
     let original = serde_json::to_value(&value).unwrap();
     let mut wrong = original.clone();
-    wrong["release_id"] = "time-release-sensitive-payload".into();
+    wrong["releaseId"] = "time-release-sensitive-payload".into();
     let error = serde_json::from_value::<TimeAuthorityReference>(wrong)
         .unwrap_err()
         .to_string();
@@ -84,7 +84,7 @@ fn reference_decoder_rejects_conflicting_identity_and_blank_labels() {
             Err(TimeAuthorityError::BlankVersionLabel)
         );
         let mut wire = original.clone();
-        wire["version_label"] = label.into();
+        wire["versionLabel"] = label.into();
         assert!(serde_json::from_value::<TimeAuthorityReference>(wire).is_err());
     }
     for field in [
@@ -107,7 +107,7 @@ fn reference_decoder_rejects_conflicting_identity_and_blank_labels() {
     assert!(serde_json::from_value::<TimeAuthorityReference>(extra).is_err());
     let schema = serde_json::to_value(schemars::schema_for!(TimeAuthorityReference)).unwrap();
     assert_eq!(schema["additionalProperties"], false);
-    assert_eq!(schema["properties"]["version_label"]["minLength"], 1);
+    assert_eq!(schema["properties"]["versionLabel"]["minLength"], 1);
 }
 
 #[test]
@@ -119,7 +119,7 @@ fn effective_pair_checks_roles_and_derives_the_instant_binding() {
     assert_eq!(pair.leap_seconds(), &leaps);
     assert_eq!(pair.binding().tzdb_release_id(), tzdb.release_id());
     assert_eq!(pair.binding().leap_seconds_release_id(), leaps.release_id());
-    let wire = json!({"tzdb":tzdb, "leap_seconds":leaps});
+    let wire = json!({"tzdb":tzdb, "leapSeconds":leaps});
     assert_eq!(serde_json::to_value(&pair).unwrap(), wire);
     assert_eq!(
         serde_json::from_value::<EffectiveTimeAuthority>(wire).unwrap(),
@@ -140,18 +140,18 @@ fn effective_pair_checks_roles_and_derives_the_instant_binding() {
         );
         assert!(
             serde_json::from_value::<EffectiveTimeAuthority>(
-                json!({"tzdb":first,"leap_seconds":second})
+                json!({"tzdb":first,"leapSeconds":second})
             )
             .is_err()
         );
     }
     let schema = serde_json::to_value(schemars::schema_for!(EffectiveTimeAuthority)).unwrap();
     assert_eq!(
-        schema["properties"]["tzdb"]["allOf"][1]["properties"]["dataset_kind"]["const"],
+        schema["properties"]["tzdb"]["allOf"][1]["properties"]["datasetKind"]["const"],
         "tzdb"
     );
     assert_eq!(
-        schema["properties"]["leap_seconds"]["allOf"][1]["properties"]["dataset_kind"]["const"],
+        schema["properties"]["leapSeconds"]["allOf"][1]["properties"]["datasetKind"]["const"],
         "leap_seconds"
     );
     assert_eq!(schema["additionalProperties"], false);
@@ -164,11 +164,11 @@ fn instant_bindings_reject_one_identity_assigned_to_both_families() {
         AuthorityBinding::new(id.clone(), id.clone()),
         Err(TimeAuthorityError::DuplicateRelease)
     );
-    let wire = json!({"tzdb_release_id":id,"leap_seconds_release_id":id});
+    let wire = json!({"tzdbReleaseId":id,"leapSecondsReleaseId":id});
     assert!(serde_json::from_value::<AuthorityBinding>(wire.clone()).is_err());
     assert!(
-        serde_json::from_value::<TimeInstant>(json!({"tai_seconds_since_1970":0,
-        "nanosecond":0,"uncertainty_nanoseconds":0,"authority":wire}))
+        serde_json::from_value::<TimeInstant>(json!({"taiSecondsSince1970":0,
+        "nanosecond":0,"uncertaintyNanoseconds":0,"authority":wire}))
         .is_err()
     );
 }
@@ -177,7 +177,7 @@ fn instant_bindings_reject_one_identity_assigned_to_both_families() {
 fn deterministic_outputs_require_the_effective_authority_contract() {
     let resolve = serde_json::to_value(schemars::schema_for!(ResolveTimeOutput)).unwrap();
     let convert = serde_json::to_value(schemars::schema_for!(ConvertTimeOutput)).unwrap();
-    assert!(resolve["properties"]["effective_authority"].is_object());
+    assert!(resolve["properties"]["effectiveAuthority"].is_object());
     assert!(convert["properties"]["canonical"].is_object());
 }
 
@@ -210,10 +210,10 @@ fn resolution() -> ResolveTimeOutput {
 fn resolved_output_preserves_flat_wire_schema_and_read_only_metadata() {
     let output = resolution();
     let expected = json!({
-        "instant": output.instant(), "effective_authority": output.effective_authority(),
-        "utc_rfc3339":"1972-01-01T00:00:00Z", "utc_is_leap_second":false,
-        "military_dtg":"010000ZJAN72", "unix_seconds":63_072_000,
-        "gps_week":null, "gps_seconds_of_week":null, "julian_day_tai":2_441_317.500_115_740_6,
+        "instant": output.instant(), "effectiveAuthority": output.effective_authority(),
+        "utcRfc3339":"1972-01-01T00:00:00Z", "utcIsLeapSecond":false,
+        "militaryDtg":"010000ZJAN72", "unixSeconds":63_072_000,
+        "gpsWeek":null, "gpsSecondsOfWeek":null, "julianDayTai":2_441_317.500_115_740_6,
     });
     assert_eq!(serde_json::to_value(&output).unwrap(), expected);
     assert_eq!(
@@ -309,7 +309,7 @@ fn bootstrap_and_acquired_source_locations_cannot_be_interchanged() {
     for (uri, source) in [
         (
             TimeAuthorityReleaseUri::new(&id),
-            TimeAuthoritySource::Bootstrap,
+            TimeAuthoritySource::Bootstrap {},
         ),
         (
             TimeAuthorityReleaseUri::bootstrap(&id),

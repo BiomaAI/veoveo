@@ -43,7 +43,7 @@ fn geodetic_names_preserve_the_existing_admission_profile() {
 fn transform_inputs_reject_unknown_keys_at_request_and_position() {
     use veoveo_map_mcp::contract::TransformCrsRequest;
     let wire = serde_json::json!({
-        "source_crs": "EPSG:4326", "target_crs": "EPSG:3857",
+        "sourceCrs": "EPSG:4326", "targetCrs": "EPSG:3857",
         "positions": [{"crs": "EPSG:4326", "x": -89.2, "y": 13.7}]
     });
     let schema = serde_json::to_value(schemars::schema_for!(TransformCrsRequest)).unwrap();

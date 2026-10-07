@@ -6,7 +6,7 @@ use veoveo_optimization_mcp::contract::{
 use veoveo_types::{ResourceAddress, TaskId};
 
 #[test]
-fn collection_positions_preserve_version_one_wire_bytes() {
+fn collection_positions_publish_current_version_two_wire_bytes() {
     let task: TaskId = "0195dabe-7777-7abc-8def-000000000001".parse().unwrap();
     for collection in [
         OptimizationCollection::Problems,
@@ -17,7 +17,7 @@ fn collection_positions_preserve_version_one_wire_bytes() {
             OptimizationIndexCursor::new(collection, "2026-09-28T00:00:00Z".parse().unwrap(), task)
                 .unwrap();
         let old_wire = format!(
-            r#"{{"version":1,"collection":{},"created_at":"2026-09-28T00:00:00Z","task_id":"{task}"}}"#,
+            r#"{{"version":2,"collection":{},"createdAt":"2026-09-28T00:00:00Z","taskId":"{task}"}}"#,
             serde_json::to_string(&collection).unwrap()
         );
         assert_eq!(cursor.as_str(), URL_SAFE_NO_PAD.encode(old_wire));
@@ -72,12 +72,12 @@ fn collections_reject_ambiguous_addresses_and_invalid_native_positions() {
             "accepted {value}"
         );
     }
-    let valid = json!({"version":1,"collection":"runs","created_at":"2026-09-28T00:00:00Z","task_id":"0195dabe-7777-7abc-8def-000000000001"});
+    let valid = json!({"version":2,"collection":"runs","createdAt":"2026-09-28T00:00:00Z","taskId":"0195dabe-7777-7abc-8def-000000000001"});
     for (field, value) in [
-        ("version", json!(2)),
+        ("version", json!(1)),
         ("collection", json!("unknown")),
-        ("task_id", json!("0195dabe-7777-4abc-8def-000000000001")),
-        ("task_id", json!("0195dabe-7777-7abc-0def-000000000001")),
+        ("taskId", json!("0195dabe-7777-4abc-8def-000000000001")),
+        ("taskId", json!("0195dabe-7777-7abc-0def-000000000001")),
         ("extra", json!(true)),
     ] {
         let mut bad = valid.clone();
@@ -90,4 +90,47 @@ fn collections_reject_ambiguous_addresses_and_invalid_native_positions() {
         );
     }
     assert!(OptimizationIndexCursor::parse("x".repeat(1025)).is_err());
+}
+
+#[test]
+fn current_cursor_refuses_retired_replacement_and_mixed_members() {
+    let current = json!({"version":2,"collection":"runs","createdAt":"2026-09-28T00:00:00Z","taskId":"0195dabe-7777-7abc-8def-000000000001"});
+    assert!(
+        OptimizationIndexCursor::parse(
+            URL_SAFE_NO_PAD.encode(serde_json::to_vec(&current).unwrap())
+        )
+        .is_ok()
+    );
+    for mixed in [false, true] {
+        let mut bad = current.clone();
+        let object = bad.as_object_mut().unwrap();
+        let value = if mixed {
+            object["createdAt"].clone()
+        } else {
+            object.remove("createdAt").unwrap()
+        };
+        object.insert("created_at".into(), value);
+        assert!(
+            OptimizationIndexCursor::parse(
+                URL_SAFE_NO_PAD.encode(serde_json::to_vec(&bad).unwrap())
+            )
+            .is_err()
+        );
+    }
+    for mixed in [false, true] {
+        let mut bad = current.clone();
+        let object = bad.as_object_mut().unwrap();
+        let value = if mixed {
+            object["taskId"].clone()
+        } else {
+            object.remove("taskId").unwrap()
+        };
+        object.insert("task_id".into(), value);
+        assert!(
+            OptimizationIndexCursor::parse(
+                URL_SAFE_NO_PAD.encode(serde_json::to_vec(&bad).unwrap())
+            )
+            .is_err()
+        );
+    }
 }

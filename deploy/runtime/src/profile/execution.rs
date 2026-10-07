@@ -175,8 +175,8 @@ mod tests {
                     "image":{"repository":NVIDIA_DRA_IMAGE_REPOSITORY,"tag":format!("v{NVIDIA_DRA_VERSION}"),
                         "digest":NVIDIA_DRA_IMAGE_DIGEST,"platformDigests":{"linux/amd64":NVIDIA_DRA_IMAGE_AMD64_DIGEST,"linux/arm64":NVIDIA_DRA_IMAGE_ARM64_DIGEST}},
                     "nvidiaDriverRoot":"/", "eligibleNodeSelector":{"kubernetes.io/hostname":"test-gpu"},
-                    "conflictingDevicePluginRemoval":{"mode":"require-absent"},
-                    "maturityAcceptance":"technology-preview", "timeoutSeconds":300
+                    "conflictingDevicePluginRemoval":{"mode":"require_absent"},
+                    "maturityAcceptance":"technology_preview", "timeoutSeconds":300
                 }
             }, "samePhysicalDeviceGroups":[], "differentPhysicalDeviceGroups":[]
         })).unwrap();

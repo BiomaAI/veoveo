@@ -28,7 +28,7 @@ impl EmbedRequest {
     }
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EmbedResponse {
     pub space: EmbeddingSpace,
     pub vectors: Vec<EmbeddingVector>,

@@ -10,6 +10,8 @@
 | `ai.veoveo/knowledge-source` | collection descriptors and source observations from the extension's protocol-independent contract feature |
 | [Embedding contract](../../runtimes/embedding/contract/DESIGN.md) | complete embedding-space identity and normalized vectors |
 
+Public approvals use `authoritativeFor` and `dataLabels`; the closed approval vocabulary is `catalog_only` or `index`. Registration fingerprints hash the compact serialization of the complete admitted current registration fields. A fresh registration and generation use that current fingerprint. Store owns the separate native approval representation.
+
 ## Ownership
 
 The knowledge service and Store share catalog and indexing types through this crate.
@@ -29,7 +31,7 @@ separately checks the active control revision, allowing unrelated installation e
 to preserve cached chunks and generation identity.
 Approval authorizes indexing by the service; it grants no caller permission to read.
 
-`KnowledgeCollectionApproval` names the collection, its `index` or `catalog-only`
+`KnowledgeCollectionApproval` names the collection, its `index` or `catalog_only`
 mode, 1–64 steward groups, up to 64 authoritative subjects and up to 64 allowed data
 labels. `KnowledgeSubject` checks a nonempty printable topic of at most 256 UTF-8
 bytes. An empty label set permits unlabelled records only. Registration validates

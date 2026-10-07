@@ -194,22 +194,22 @@ fn schemas_preserve_the_published_contract() {
 fn public_ids_and_commands_admit_the_existing_wire_profile() {
     for value in ["alpha", "Upper_123", "with.dot", "with-dash"] {
         let request: SessionRequest =
-            serde_json::from_value(serde_json::json!({"session_id":value})).unwrap();
+            serde_json::from_value(serde_json::json!({"sessionId":value})).unwrap();
         assert_eq!(request.session_id.as_str(), value);
         assert_eq!(
             serde_json::to_value(&request).unwrap(),
-            serde_json::json!({"session_id":value})
+            serde_json::json!({"sessionId":value})
         );
     }
     for value in [String::new(), "a/b".into(), "é".into(), "x".repeat(129)] {
         assert!(
-            serde_json::from_value::<SessionRequest>(serde_json::json!({"session_id":value}))
+            serde_json::from_value::<SessionRequest>(serde_json::json!({"sessionId":value}))
                 .is_err()
         );
         assert!(serde_json::from_value::<VehicleId>(serde_json::json!(value)).is_err());
     }
     let operation: DurableOperation = serde_json::from_value(serde_json::json!({
-        "operation":"capture_dataset", "input":{"session_id":"alpha", "duration_seconds":2.0, "sensors":["down-camera"]}
+        "operation":"capture_dataset", "input":{"sessionId":"alpha", "durationSeconds":2.0, "sensors":["down-camera"]}
     })).unwrap();
     assert_eq!(operation.task_type().as_str(), "capture_dataset");
 }
@@ -249,4 +249,126 @@ fn contract_consumers_validate_live_product_geometry_and_secrets() {
     let token = LiveViewAccessToken::parse("a".repeat(32)).unwrap();
     assert_eq!(format!("{token:?}"), "LiveViewAccessToken(<redacted>)");
     assert_eq!(token.expose_for_stream(), "a".repeat(32));
+}
+
+#[path = "../../../testing/fixtures/tool_inputs.rs"]
+mod input_fixture;
+
+#[test]
+fn current_tool_roots_refuse_replacement_and_mixed_retired_members() {
+    fn admitted(tool: &str, value: serde_json::Value) -> bool {
+        match tool {
+            "grant_vehicle_control" => {
+                serde_json::from_value::<GrantVehicleControlRequest>(value).is_ok()
+            }
+            "get_simulation_state" => serde_json::from_value::<SessionRequest>(value).is_ok(),
+            "configure_world" => serde_json::from_value::<ConfigureWorldRequest>(value).is_ok(),
+            "prepare_vehicle_mission" => {
+                serde_json::from_value::<PrepareVehicleMissionRequest>(value).is_ok()
+            }
+            _ => panic!("unexpected UAV controlled-input tool"),
+        }
+    }
+    let cases =
+        input_fixture::ToolInputCase::load(include_bytes!("../testdata/controlled-inputs.json"));
+    assert_eq!(cases.len(), 23);
+    let mut controls = 0;
+    for case in cases {
+        assert!(
+            admitted(&case.tool, case.arguments.clone()),
+            "{} current input",
+            case.branch
+        );
+        for (name, value) in case.arguments.as_object().unwrap() {
+            let retired: String = name
+                .chars()
+                .flat_map(|c| {
+                    if c.is_ascii_uppercase() {
+                        vec!['_', c.to_ascii_lowercase()]
+                    } else {
+                        vec![c]
+                    }
+                })
+                .collect();
+            if retired == *name {
+                continue;
+            }
+            for mixed in [false, true] {
+                let mut bad = case.arguments.clone();
+                let fields = bad.as_object_mut().unwrap();
+                if !mixed {
+                    fields.remove(name);
+                }
+                fields.insert(retired.clone(), value.clone());
+                assert!(
+                    !admitted(&case.tool, bad),
+                    "{} {name} mixed={mixed}",
+                    case.branch
+                );
+                controls += 1;
+            }
+        }
+    }
+    assert!(controls > 40);
+}
+
+#[test]
+fn private_nested_current_wire_refuses_retired_and_mixed_members() {
+    fn check<T: serde::Serialize + serde::de::DeserializeOwned>(
+        value: T,
+        members: &[(&str, &str)],
+    ) {
+        let current = serde_json::to_value(value).unwrap();
+        assert!(serde_json::from_value::<T>(current.clone()).is_ok());
+        for (canonical, retired) in members {
+            assert!(current.get(*canonical).is_some());
+            assert!(current.get(*retired).is_none());
+            for mixed in [false, true] {
+                let mut bad = current.clone();
+                let fields = bad.as_object_mut().unwrap();
+                let value = fields.get(*canonical).unwrap().clone();
+                if !mixed {
+                    fields.remove(*canonical);
+                }
+                fields.insert((*retired).into(), value);
+                assert!(
+                    serde_json::from_value::<T>(bad.clone()).is_err(),
+                    "{canonical} mixed={mixed}"
+                );
+                assert!(
+                    serde_json::from_str::<T>(&bad.to_string()).is_err(),
+                    "JSON {canonical} mixed={mixed}"
+                );
+            }
+        }
+    }
+    check(
+        MissionWaypoint {
+            position: Wgs84Position {
+                latitude_degrees: 0.0,
+                longitude_degrees: 0.0,
+                ellipsoid_height_m: 0.0,
+            },
+            speed_mps: 1.0,
+            hold_seconds: 0.0,
+        },
+        &[("speedMps", "speed_mps"), ("holdSeconds", "hold_seconds")],
+    );
+    check(
+        EnuVector {
+            east_m: 1.0,
+            north_m: 2.0,
+            up_m: 3.0,
+        },
+        &[("eastM", "east_m"), ("northM", "north_m"), ("upM", "up_m")],
+    );
+    check(
+        TileFailureState {
+            code: TileFailureCode::TransportFailed,
+            load_type: TileLoadType::TileContent,
+            http_status: 503,
+            generation: 1,
+        },
+        &[("loadType", "load_type"), ("httpStatus", "http_status")],
+    );
 }

@@ -1,15 +1,20 @@
 //! Public current-format recovery over real RRD files and an isolated HTTP publisher.
 use super::*;
+#[path = "seal_recovery/intent.rs"]
+mod intent;
+#[path = "seal_recovery/race.rs"]
+mod race;
 use axum::{
     Json, Router,
     body::Bytes,
-    extract::State,
+    extract::{Path as HttpPath, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
-    routing::post,
+    routing::{get, post},
 };
 use sha2::{Digest as _, Sha256};
 use std::{
+    collections::BTreeMap,
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -30,8 +35,15 @@ struct PublisherState {
     store: PlatformStore,
     identity: PlatformIdentity,
     authority: veoveo_platform_store::InvocationAuthorityRecord,
+    caller_authority: veoveo_types::InvocationAuthority,
     refuse: Arc<AtomicBool>,
     requests: Arc<Mutex<Vec<StreamArtifactRequest>>>,
+    objects: Arc<Mutex<BTreeMap<String, (ArtifactMetadata, Vec<u8>)>>>,
+    revoke_read: Arc<AtomicBool>,
+    refuse_manifest: Arc<AtomicBool>,
+    lose_manifest_reply: Arc<AtomicBool>,
+    corrupt_manifest_reply: Arc<AtomicBool>,
+    manifest_attempts: Arc<Mutex<Vec<(StreamArtifactRequest, Vec<u8>)>>>,
 }
 struct HttpFixture {
     task: tokio::task::JoinHandle<()>,
@@ -49,7 +61,9 @@ impl HttpFixture {
         let origin =
             url::Url::parse(&format!("http://{}/", listener.local_addr().unwrap())).unwrap();
         let app = Router::new().route("/oauth/token", post(|| async { Json(serde_json::json!({"access_token":"isolated-recording-fixture","token_type":"Bearer","expires_in":300})) }))
-            .route("/recordings/recovery/layers", post(publish)).with_state(state.clone());
+            .route("/recordings/recovery/layers", post(publish))
+            .route("/artifacts/{id}/meta", get(read_metadata))
+            .route("/artifacts/{id}/download", get(read_body)).with_state(state.clone());
         let task = tokio::spawn(async move {
             axum::serve(listener, app).await.unwrap();
         });
@@ -101,7 +115,18 @@ async fn publish(
     )
     .unwrap();
     state.requests.lock().unwrap().push(request.clone());
-    if state.refuse.load(Ordering::SeqCst) {
+    let manifest = request.artifact.mime_type.as_deref()
+        == Some("application/vnd.veoveo.recording-manifest+json");
+    if manifest {
+        state
+            .manifest_attempts
+            .lock()
+            .unwrap()
+            .push((request.clone(), bytes.to_vec()));
+    }
+    if state.refuse.load(Ordering::SeqCst)
+        || (manifest && state.refuse_manifest.load(Ordering::SeqCst))
+    {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             "definitively refused before persistence",
@@ -114,18 +139,80 @@ async fn publish(
         request.expected_sha256.as_str()
     );
     persist(&state, &request).await;
-    Json(ArtifactMetadata {
+    let mut metadata = ArtifactMetadata {
         byte_len: request.expected_byte_len,
         artifact_uri: request.artifact_id.plane_uri(),
-        mime_type: request.artifact.mime_type,
-        filename: request.artifact.filename,
+        mime_type: request.artifact.mime_type.clone(),
+        filename: request.artifact.filename.clone(),
         download_url: None,
         created_at: Utc::now(),
         release_state: Default::default(),
-        compliance: Default::default(),
+        compliance: veoveo_artifact_contract::ComplianceMetadata {
+            classification: request.artifact.classification.clone(),
+            data_labels: request.artifact.data_labels.clone(),
+            retention_expires_at: request.artifact.retention_expires_at,
+            tenant_id: Some(veoveo_types::TenantId::parse(&state.identity.tenant_key).unwrap()),
+            owner: Some(state.caller_authority.output_policy.owner.clone()),
+            work_context: Some(state.caller_authority.work_context.clone()),
+            provenance: Some(veoveo_artifact_contract::ArtifactProvenance::new(
+                veoveo_types::PrincipalId::parse(&state.identity.principal_key).unwrap(),
+                state.caller_authority.provenance.clone(),
+                state.caller_authority.policy_revision.clone(),
+            )),
+        },
         metadata: request.artifact.metadata,
-    })
-    .into_response()
+    };
+    state.objects.lock().unwrap().insert(
+        request.artifact_id.to_string(),
+        (metadata.clone(), bytes.to_vec()),
+    );
+    if manifest && state.lose_manifest_reply.load(Ordering::SeqCst) {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "fixture interrupted after confirmed publication",
+        )
+            .into_response();
+    }
+    if manifest && state.corrupt_manifest_reply.load(Ordering::SeqCst) {
+        metadata.compliance.classification =
+            Some(veoveo_types::DataLabelId::parse("wrong-classification").unwrap());
+    }
+    Json(metadata).into_response()
+}
+fn authorized_read(state: &PublisherState, headers: &HeaderMap) -> bool {
+    !state.revoke_read.load(Ordering::SeqCst)
+        && headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+            == Some("Bearer recording-fixture")
+}
+async fn read_metadata(
+    State(state): State<PublisherState>,
+    HttpPath(id): HttpPath<String>,
+    headers: HeaderMap,
+) -> axum::response::Response {
+    if !authorized_read(&state, &headers) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let objects = state.objects.lock().unwrap();
+    match objects.get(&id) {
+        Some((metadata, _)) => Json(metadata.clone()).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+async fn read_body(
+    State(state): State<PublisherState>,
+    HttpPath(id): HttpPath<String>,
+    headers: HeaderMap,
+) -> axum::response::Response {
+    if !authorized_read(&state, &headers) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let objects = state.objects.lock().unwrap();
+    match objects.get(&id) {
+        Some((_, bytes)) => bytes.clone().into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 async fn persist(state: &PublisherState, request: &StreamArtifactRequest) {
     let id = veoveo_platform_store::ArtifactId::from_uuid(request.artifact_id.as_uuid());
@@ -294,12 +381,76 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
         store: db.a.clone(),
         identity: principal.clone(),
         authority: veoveo_recording_hub::invocation_authority_record(&caller.authority),
+        caller_authority: caller.authority.clone(),
         refuse: Arc::new(AtomicBool::new(true)),
         requests: Arc::new(Mutex::new(Vec::new())),
+        objects: Arc::new(Mutex::new(BTreeMap::new())),
+        revoke_read: Arc::new(AtomicBool::new(false)),
+        refuse_manifest: Arc::new(AtomicBool::new(false)),
+        lose_manifest_reply: Arc::new(AtomicBool::new(false)),
+        corrupt_manifest_reply: Arc::new(AtomicBool::new(false)),
+        manifest_attempts: Arc::new(Mutex::new(Vec::new())),
     };
     let http = HttpFixture::new(spool.path(), state.clone()).await;
-    let first = recording(&state, &caller, dataset_id, spool.path(), "staged-recovery").await;
-    let service = http.service(db.b.clone(), spool.path(), cache.path());
+    let (first, restarted) = Box::pin(qualify_staged_properties_recovery(
+        db,
+        &state,
+        &http,
+        &caller,
+        dataset_id,
+        spool.path(),
+        cache.path(),
+    ))
+    .await;
+    Box::pin(intent::qualify(
+        db,
+        &state,
+        &http,
+        &caller,
+        dataset_id,
+        spool.path(),
+        cache.path(),
+    ))
+    .await;
+
+    Box::pin(race::qualify(
+        db,
+        &state,
+        &http,
+        &caller,
+        dataset_id,
+        spool.path(),
+        cache.path(),
+    ))
+    .await;
+
+    Box::pin(qualify_writing_properties_recovery(
+        db,
+        &state,
+        &http,
+        &caller,
+        dataset_id,
+        spool.path(),
+        cache.path(),
+        first,
+        restarted,
+    ))
+    .await;
+}
+
+async fn qualify_staged_properties_recovery(
+    db: &fixture::TestDb,
+    state: &PublisherState,
+    http: &HttpFixture,
+    caller: &GatewayInternalIdentity,
+    dataset_id: RecordingDatasetId,
+    spool: &Path,
+    cache: &Path,
+) -> (RecordingId, RecordingService) {
+    let principal = &state.identity;
+    let repo = RecordingRepository::new(db.a.clone());
+    let first = recording(&state, &caller, dataset_id, spool, "staged-recovery").await;
+    let service = http.service(db.b.clone(), spool, cache);
     let source = repo
         .recording_layers(principal.tenant_id, first, 8)
         .await
@@ -325,7 +476,12 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
             .recording_layers(principal.tenant_id, first, 8)
             .await
             .unwrap();
-        assert!(service.seal(&caller, first).await.is_err());
+        assert!(
+            service
+                .seal(&caller, &artifact_reader(&caller), first)
+                .await
+                .is_err()
+        );
         assert_eq!(
             before,
             repo.recording_layers(principal.tenant_id, first, 8)
@@ -351,12 +507,24 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
         .unwrap()
         .check()
         .unwrap();
-    let error = service.seal(&caller, first).await.unwrap_err();
+    let error = service
+        .seal(&caller, &artifact_reader(&caller), first)
+        .await
+        .unwrap_err();
     assert!(
         error.to_string().contains("503"),
         "unexpected seal refusal: {error}"
     );
     drop(service);
+    db.a.client()
+        .query(include_str!(
+            "../queries/catalog_queries/seal_recovery/source_epoch.surql"
+        ))
+        .bind(("recording", first.record_id()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     let first_record = repo
         .recording(principal.tenant_id, first)
         .await
@@ -369,14 +537,74 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
         .unwrap()
         .unwrap();
     assert_eq!(properties.state, RecordingLayerState::Staged);
+    let preparation = properties.properties_preparation.clone().unwrap();
+    assert_eq!(
+        properties.end_time,
+        Some(
+            chrono::DateTime::parse_from_rfc3339(&preparation.body.sealed_at)
+                .unwrap()
+                .with_timezone(&Utc)
+        )
+    );
+    assert!(preparation.body.source_revision < first_record.revision);
+    for version in [0, 2] {
+        let mut value = serde_json::to_value(&preparation).unwrap();
+        value["version"] = serde_json::json!(version);
+        assert!(<veoveo_recording_store::RecordingPropertiesPreparation as surrealdb::types::SurrealValue>::from_value(
+            veoveo_platform_store::native_json_into_value(value)).is_err());
+    }
+
+    let count = state.requests.lock().unwrap().len();
+    db.a.client()
+        .query(include_str!(
+            "../queries/catalog_queries/seal_recovery/properties_snapshot_digest.surql"
+        ))
+        .bind(("layer", properties.id.clone()))
+        .bind(("digest", "f".repeat(64)))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let error = http
+        .service(db.b.clone(), spool, cache)
+        .seal(&caller, &artifact_reader(&caller), first)
+        .await
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("properties preparation differs from selected immutable source facts"),
+        "{error}"
+    );
+    assert_eq!(count, state.requests.lock().unwrap().len());
+    assert_eq!(
+        first_record,
+        repo.recording(principal.tenant_id, first)
+            .await
+            .unwrap()
+            .unwrap()
+    );
+    db.a.client()
+        .query(include_str!(
+            "../queries/catalog_queries/seal_recovery/properties_snapshot_digest.surql"
+        ))
+        .bind(("layer", properties.id.clone()))
+        .bind((
+            "digest",
+            preparation.body.immutable_manifest_digest.hex().to_owned(),
+        ))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     let first_request = state.requests.lock().unwrap()[0].clone();
     assert_eq!(
         first_request.artifact_id.as_uuid(),
         record_uuid(&properties.id, "recording_layer").unwrap()
     );
-    let path = cache.path().join(properties.staging_path.as_ref().unwrap());
+    let path = cache.join(properties.staging_path.as_ref().unwrap());
     let original = std::fs::read(&path).unwrap();
-    let restarted = http.service(db.b.clone(), spool.path(), cache.path());
+    let restarted = http.service(db.b.clone(), spool, cache);
     // Both byte and schema-admitted native-stage contradictions fail locally;
     // no new publication, row rewrite or occurrence allocation follows.
     for corrupt_stage in [false, true] {
@@ -403,7 +631,12 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
             .await
             .unwrap()
             .unwrap();
-        assert!(restarted.seal(&caller, first).await.is_err());
+        assert!(
+            restarted
+                .seal(&caller, &artifact_reader(&caller), first)
+                .await
+                .is_err()
+        );
         assert_eq!(state.requests.lock().unwrap().len(), 1);
         assert_eq!(
             before,
@@ -484,7 +717,12 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
             .await
             .unwrap()
             .unwrap();
-        assert!(restarted.seal(&caller, first).await.is_err());
+        assert!(
+            restarted
+                .seal(&caller, &artifact_reader(&caller), first)
+                .await
+                .is_err()
+        );
         assert!(!path.exists());
         assert_eq!(
             std::fs::read_dir(path.parent().unwrap()).unwrap().count(),
@@ -522,7 +760,12 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
         .unwrap();
     // A valid missing file is rebuilt deterministically, then the definitive HTTP
     // refusal keeps the same stage and reserved occurrence for the next retry.
-    assert!(restarted.seal(&caller, first).await.is_err());
+    assert!(
+        restarted
+            .seal(&caller, &artifact_reader(&caller), first)
+            .await
+            .is_err()
+    );
     assert_eq!(std::fs::read(&path).unwrap(), original);
     assert_eq!(
         properties,
@@ -573,7 +816,12 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
             .await
             .unwrap()
             .unwrap();
-        assert!(restarted.seal(&caller, first).await.is_err());
+        assert!(
+            restarted
+                .seal(&caller, &artifact_reader(&caller), first)
+                .await
+                .is_err()
+        );
         assert_eq!(
             before,
             repo.recording_layer_by_name(principal.tenant_id, first, "properties")
@@ -607,10 +855,18 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
         .actor
         .scopes
         .insert(RecordingScope::Seal.name().clone());
-    assert!(restarted.seal(&foreign, first).await.is_err());
+    assert!(
+        restarted
+            .seal(&foreign, &artifact_reader(&foreign), first)
+            .await
+            .is_err()
+    );
     assert_eq!(state.requests.lock().unwrap().len(), 2);
     state.refuse.store(false, Ordering::SeqCst);
-    restarted.seal(&caller, first).await.unwrap();
+    restarted
+        .seal(&caller, &artifact_reader(&caller), first)
+        .await
+        .unwrap();
     {
         let requests = state.requests.lock().unwrap();
         assert_eq!(
@@ -628,16 +884,25 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
         RecordingState::Sealed
     );
 
+    (first, restarted)
+}
+
+async fn qualify_writing_properties_recovery(
+    db: &fixture::TestDb,
+    state: &PublisherState,
+    http: &HttpFixture,
+    caller: &GatewayInternalIdentity,
+    dataset_id: RecordingDatasetId,
+    spool: &Path,
+    cache: &Path,
+    first: RecordingId,
+    restarted: RecordingService,
+) {
+    let principal = &state.identity;
+    let repo = RecordingRepository::new(db.a.clone());
     // A fixture-owned transactional fault interrupts the actual public producer
     // after writing the file but before staging. No manual row manufacture.
-    let writing = recording(
-        &state,
-        &caller,
-        dataset_id,
-        spool.path(),
-        "writing-recovery",
-    )
-    .await;
+    let writing = recording(&state, &caller, dataset_id, spool, "writing-recovery").await;
     db.a.client()
         .query(include_str!(
             "../queries/catalog_queries/seal_recovery/refuse_stage.surql"
@@ -646,11 +911,25 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
         .unwrap()
         .check()
         .unwrap();
-    assert!(restarted.seal(&caller, writing).await.is_err());
+    assert!(
+        restarted
+            .seal(&caller, &artifact_reader(&caller), writing)
+            .await
+            .is_err()
+    );
     db.a.client()
         .query(include_str!(
             "../queries/catalog_queries/seal_recovery/remove_refusal.surql"
         ))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    db.a.client()
+        .query(include_str!(
+            "../queries/catalog_queries/seal_recovery/source_epoch.surql"
+        ))
+        .bind(("recording", writing.record_id()))
         .await
         .unwrap()
         .check()
@@ -667,12 +946,20 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
         .unwrap();
     assert_eq!(row.state, RecordingState::Sealing);
     assert_eq!(layer.state, RecordingLayerState::Writing);
-    let path = cache.path().join(layer.staging_path.as_ref().unwrap());
+    let original_preparation = layer.properties_preparation.clone().unwrap();
+    assert!(original_preparation.body.source_revision < row.revision);
+
+    let path = cache.join(layer.staging_path.as_ref().unwrap());
     let original = std::fs::read(&path).unwrap();
     let count = state.requests.lock().unwrap().len();
     std::fs::write(&path, b"wrong Writing bytes").unwrap();
-    let resumed = http.service(db.b.clone(), spool.path(), cache.path());
-    assert!(resumed.seal(&caller, writing).await.is_err());
+    let resumed = http.service(db.b.clone(), spool, cache);
+    assert!(
+        resumed
+            .seal(&caller, &artifact_reader(&caller), writing)
+            .await
+            .is_err()
+    );
     assert_eq!(std::fs::read(&path).unwrap(), b"wrong Writing bytes");
     assert_eq!(
         repo.recording(principal.tenant_id, writing)
@@ -690,7 +977,10 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
     );
     assert_eq!(state.requests.lock().unwrap().len(), count);
     std::fs::write(&path, &original).unwrap();
-    resumed.seal(&caller, writing).await.unwrap();
+    resumed
+        .seal(&caller, &artifact_reader(&caller), writing)
+        .await
+        .unwrap();
     {
         let requests = state.requests.lock().unwrap();
         assert_eq!(
@@ -702,6 +992,247 @@ pub(super) async fn qualify(db: &fixture::TestDb) {
             Sha256Digest::from_bytes(Sha256::digest(&original).into()).hex()
         );
     }
+    // Repeated sealing reads the stored public body under a fresh caller. Refusal
+    // and contradictory bytes preserve the sealed row and issue no publication.
+    let sealed = repo
+        .recording(principal.tenant_id, writing)
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(
+        sealed.sealed_at,
+        Some(
+            chrono::DateTime::parse_from_rfc3339(&original_preparation.body.sealed_at)
+                .unwrap()
+                .with_timezone(&Utc)
+        )
+    );
+    let publications = state.requests.lock().unwrap().len();
+    let context = spool
+        .join("recovery")
+        .join(format!(".recording-{writing}.static-context"));
+    std::fs::create_dir_all(context.parent().unwrap()).unwrap();
+    std::fs::write(&context, b"owned cleanup sentinel").unwrap();
+    resumed
+        .seal(&caller, &artifact_reader(&caller), writing)
+        .await
+        .unwrap();
+    assert!(!context.exists());
+    std::fs::write(&context, b"owned cleanup sentinel").unwrap();
+    state.revoke_read.store(true, Ordering::SeqCst);
+    let denied = resumed
+        .seal(&caller, &artifact_reader(&caller), writing)
+        .await
+        .unwrap_err();
+    assert!(context.exists());
+    assert!(
+        denied.to_string().contains("denied or unavailable"),
+        "{denied}"
+    );
+    state.revoke_read.store(false, Ordering::SeqCst);
+    let manifest_id = writing.to_string();
+    let original_manifest = state.objects.lock().unwrap()[&manifest_id].clone();
+    for field in [
+        "classification",
+        "labels",
+        "retention",
+        "filename",
+        "mime",
+        "tenant",
+        "context",
+        "owner",
+        "producer",
+    ] {
+        let mut changed = original_manifest.0.clone();
+        match field {
+            "classification" => {
+                changed.compliance.classification = Some(DataLabelId::parse("wrong").unwrap())
+            }
+            "labels" => {
+                changed
+                    .compliance
+                    .data_labels
+                    .insert(DataLabelId::parse("wrong").unwrap());
+            }
+            "retention" => {
+                changed.compliance.retention_expires_at = Some(Utc::now() + TimeDelta::hours(1))
+            }
+            "filename" => changed.filename = Some("wrong.recording-v10.json".into()),
+            "mime" => changed.mime_type = Some("application/json".into()),
+            "tenant" => changed.compliance.tenant_id = Some(TenantId::parse("wrong").unwrap()),
+            "context" => {
+                changed.compliance.work_context = Some(WorkContextId::parse("wrong").unwrap())
+            }
+            "owner" => {
+                changed.compliance.owner = Some(AccessSubject::Principal(
+                    PrincipalId::parse("wrong").unwrap(),
+                ))
+            }
+            _ => {
+                changed.compliance.provenance.as_mut().unwrap().producer =
+                    PrincipalId::parse("wrong").unwrap()
+            }
+        }
+        state
+            .objects
+            .lock()
+            .unwrap()
+            .insert(manifest_id.clone(), (changed, original_manifest.1.clone()));
+        let error = resumed
+            .seal(&caller, &artifact_reader(&caller), writing)
+            .await
+            .unwrap_err();
+        assert!(
+            error.to_string().contains("metadata differs")
+                || error
+                    .to_string()
+                    .contains("explicit publication descriptor")
+                || error
+                    .to_string()
+                    .contains("selected native Artifact occurrence"),
+            "{field}: {error}"
+        );
+        assert_eq!(
+            sealed,
+            repo.recording(principal.tenant_id, writing)
+                .await
+                .unwrap()
+                .unwrap()
+        );
+        assert!(context.exists());
+        assert_eq!(publications, state.requests.lock().unwrap().len());
+    }
+    state
+        .objects
+        .lock()
+        .unwrap()
+        .insert(manifest_id.clone(), original_manifest.clone());
+    for mode in ["retired", "mixed", "context"] {
+        let mut value: serde_json::Value = serde_json::from_slice(&original_manifest.1).unwrap();
+        match mode {
+            "retired" => value["schema"] = serde_json::json!("veoveo.ai/recording-manifest/v9"),
+            "mixed" => value["recording_segment_id"] = value["recordingSegmentId"].clone(),
+            _ => value["recordingSegmentId"] = serde_json::json!(first.to_string()),
+        }
+        // Immutable native digest is checked before any body vocabulary is trusted.
+        state
+            .objects
+            .lock()
+            .unwrap()
+            .get_mut(&manifest_id)
+            .unwrap()
+            .1 = serde_json::to_vec_pretty(&value).unwrap();
+        let error = resumed
+            .seal(&caller, &artifact_reader(&caller), writing)
+            .await
+            .unwrap_err();
+        assert!(
+            error.to_string().contains("length differs")
+                || error.to_string().contains("immutable digest")
+                || error.to_string().contains("selected length"),
+            "{mode}: {error}"
+        );
+        assert_eq!(
+            sealed,
+            repo.recording(principal.tenant_id, writing)
+                .await
+                .unwrap()
+                .unwrap()
+        );
+        assert_eq!(publications, state.requests.lock().unwrap().len());
+    }
+    // Corrupting both remote bytes and native Artifact declarations cannot replace
+    // the independently persisted Recording publication intent.
+    let occurrence = veoveo_platform_store::ArtifactId::from_uuid(writing.as_uuid());
+    let aggregate = db.a.artifact_aggregate(occurrence).await.unwrap().unwrap();
+    for (mode, diagnostic) in [
+        ("retired", "immutable publication intent"),
+        ("mixed", "immutable publication intent"),
+        ("context", "immutable publication intent"),
+    ] {
+        let mut value: serde_json::Value = serde_json::from_slice(&original_manifest.1).unwrap();
+        match mode {
+            "retired" => value["schema"] = serde_json::json!("veoveo.ai/recording-manifest/v9"),
+            "mixed" => value["recording_segment_id"] = value["recordingSegmentId"].clone(),
+            _ => {
+                *value.pointer_mut("/recordingSegmentId").unwrap() =
+                    serde_json::json!(first.to_string())
+            }
+        }
+        let body = serde_json::to_vec_pretty(&value).unwrap();
+        let digest = Sha256Digest::from_bytes(Sha256::digest(&body).into())
+            .hex()
+            .to_owned();
+        let mut metadata = original_manifest.0.clone();
+        metadata.byte_len = body.len() as u64;
+        *metadata.metadata.pointer_mut("/provenance/sha256").unwrap() = serde_json::json!(digest);
+        let native_metadata: BTreeMap<String, serde_json::Value> =
+            serde_json::from_value(metadata.metadata.clone()).unwrap();
+        db.a.client()
+            .query(include_str!(
+                "../queries/catalog_queries/seal_recovery/manifest_facts.surql"
+            ))
+            .bind(("blob", aggregate.blob.id.clone()))
+            .bind(("occurrence", aggregate.occurrence.id.clone()))
+            .bind(("bytes", body.len() as i64))
+            .bind(("digest", digest))
+            .bind(("metadata", native_metadata))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        state
+            .objects
+            .lock()
+            .unwrap()
+            .insert(manifest_id.clone(), (metadata, body));
+        let error = resumed
+            .seal(&caller, &artifact_reader(&caller), writing)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains(diagnostic), "{mode}: {error}");
+        assert_eq!(
+            sealed,
+            repo.recording(principal.tenant_id, writing)
+                .await
+                .unwrap()
+                .unwrap()
+        );
+        assert_eq!(publications, state.requests.lock().unwrap().len());
+    }
+    db.a.client()
+        .query(include_str!(
+            "../queries/catalog_queries/seal_recovery/manifest_facts.surql"
+        ))
+        .bind(("blob", aggregate.blob.id.clone()))
+        .bind(("occurrence", aggregate.occurrence.id.clone()))
+        .bind(("bytes", aggregate.blob.byte_len))
+        .bind(("digest", aggregate.blob.sha256))
+        .bind((
+            "metadata",
+            original_manifest
+                .0
+                .metadata
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect::<BTreeMap<_, _>>(),
+        ))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    state
+        .objects
+        .lock()
+        .unwrap()
+        .insert(manifest_id, original_manifest);
+    resumed
+        .seal(&caller, &artifact_reader(&caller), writing)
+        .await
+        .unwrap();
     assert_eq!(
         repo.recording(principal.tenant_id, writing)
             .await

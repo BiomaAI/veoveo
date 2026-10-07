@@ -7,14 +7,17 @@ Artifact transport and development commands.
 
 ## Standards And Protocols
 
+Controlled SDK JSON objects require Pydantic 2.13 or newer and admit only their current field aliases. A shared preflight derives permitted keys from the owning model fields before either Python-object or JSON decoding; metadata values keep their open provider shape.
+
 | Standard or protocol | Supported profile |
 |---|---|
 | MCP `2026-07-28`, Python SDK `mcp==2.0.0` | Hosted stateless Streamable HTTP, Discover, resource descriptors and request-scoped subscriptions; the [hosted contract](../../mcp/contract/DESIGN.md) defines the required surface |
-| JSON Schema 2020-12 | Complete tool schemas through `schema.py`; Pydantic validates wire models |
+| JSON Schema 2020-12 | Complete tool schemas through `schema.py`; Pydantic validates wire models. Shared Artifact and Usage objects admit camelCase keys through explicit aliases and preserve Python attribute names; ordinary controlled values use snake_case. Signed identity and native Task records retain their declared snake_case format. |
 | RFC 3986, [rfc3986 2.0.0](https://pypi.org/project/rfc3986/2.0.0/) | Concrete hierarchical URI syntax with input spelling preserved; owner resource components reject credentials, ports, fragments, malformed UTF-8 and repeated query names |
 | RFC 6570, [uri-template 1.3.0](https://pypi.org/project/uri-template/1.3.0/) | ASCII resource templates with a fixed scheme; component builders use simple, reserved, path and query expansion. Library-specific defaults, array notation and variable aliases are rejected. Partial expansion is not used |
 | RFC 6749 scope-token | Closed owner scope enums; external `ScopeName` values follow Veoveo's printable identifier profile |
-| RFC 3339 | Task compare-and-set timestamp strings preserve up to nine fractional digits |
+| Chrono 0.4.45 DateTime JSON | Artifact timestamp strings preserve the original wire, nanoseconds, leap encoding and signed Gregorian years -262143..262142; The qualified profile uses padded date/time fields and standard numeric offsets. SDK schema declares the extended string syntax without generic date-time format. |
+| RFC 3339 | Task compare-and-set timestamp strings preserve up to nine fractional digits; their native driver profile stays separate from Artifact Chrono strings |
 | RFC 9562 UUIDv7 | Task identities and nominal Artifact identities at wire admission |
 | `ai.veoveo/knowledge-source` | Embedded document collections, content digests, negotiated observations and conditional reads |
 
@@ -40,6 +43,14 @@ The builder rejects duplicate query names before expansion can collapse them.
 `CheckedText` lets an owner define additional nominal identities with shared
 Pydantic integration. `contract.artifacts.ArtifactId` uses it for canonical UUIDv7
 spelling. Wider identity models and runtime contracts keep their owning modules.
+
+## Artifact Timestamp Values
+
+`timestamp.ChronoTimestamp`, exported by `veoveo_mcp.types`, stores an immutable checked wire string. Its admission uses the standard library's proleptic Gregorian calendar, checks local calendar components and the UTC Chrono range, and keeps the leap second as a preceding whole second with nanoseconds at or above one billion. The qualified profile permits at most nine fractional digits, padded components, `T` and `Z` or a standard numeric offset. Broader relaxed Rust parsing is outside this SDK profile until producer/receiver qualification establishes it. Explicit `same_instant` comparison uses full nanosecond precision. Values have no lexical ordering.
+
+All six Artifact creation, retention and capability-expiry fields use this scalar. Python-object, JSON and TypeAdapter admission run the same checks, including when handed a nominal instance. Artifact copy helpers re-admit updates and wire emission preserves the timestamp token. Repository clock callers construct values with `from_datetime`, which requires an aware datetime. `as_datetime_exact` refuses leap seconds, unrepresentable years and sub-microsecond precision. `as_datetime_lossy_microseconds` explicitly drops sub-microsecond digits but still refuses leap seconds and unrepresentable years. Neither conversion changes the stored wire.
+
+Rust Artifact timestamp schemas explicitly select the foundational `ChronoUtcTimestampSchema` lexical carrier, which admits signed and extended years emitted by Chrono. Actual producer/schema/browser controls qualify that receiving path separately from SDK scalar decoding. Native Task timestamp/CAS records, JWT timestamps and Knowledge grant fields keep their declared profiles.
 
 ## Checked MCP Setup
 
@@ -171,7 +182,32 @@ fractional spellings compare by exact seconds and nanoseconds. The private field
 are not added to the public snapshot. Driver rows must carry both tokens; missing
 or invalid tokens fail decoding.
 
+## Packaged Compliance Profiles
+
+Rust's requirement catalog supplies the revision-2 identities and wording. Hosted
+contract revision 4 remains separate. Owners author a complete `contract-compliance.json`;
+`ComplianceProfile` validates every entry against the generated catalog and stores an
+immutable ordered value. Required explanations preserve their admitted bytes.
+Blankness uses the actual Rust whitespace characters exported in the catalog. Conditional
+applicability is checked against discovery; the shared document setup declares its
+knowledge-source collection and rejects an absent-extension declaration.
+
+`_compliance.py` uses only the Python standard library. Runtime loading and the isolated
+Hatch hook reuse its admission and deterministic marked-section renderer. The hook loads
+the module directly without importing the SDK or its dependencies. It packages original
+manual/design bytes, the owner profile and Rust-generated catalog/schema exports with
+SHA-256 digests. Installed loading reads these package artifacts without repository access,
+checks all digests and compares the manual section with the admitted profile. It does
+not reconstruct declarations from Markdown or replace served bytes. Source loading requires
+an explicit owner root and the same profile agreement. A stale section, unsupported
+revision, missing entry or altered artifact fails startup.
+
 ## Artifact And Usage Value Admission
+
+Upload receipts carry distinct nominal upload and occurrence UUIDv7 identities,
+complete owner fields, a matching plane URI, an unsigned 64-bit byte count and a
+fixed lowercase SHA-256 digest. The SDK refuses retired or mixed field names
+before an installed receipt consumer opens the Artifact plane.
 
 Artifact metadata admits canonical UUIDv7 identities, matching neutral or domain
 presentation addresses, unsigned 64-bit byte lengths and the Artifact owner's

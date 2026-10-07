@@ -9,6 +9,8 @@ use veoveo_types::{ResourceAddress, ResourceUri};
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
 #[serde(try_from = "String", into = "String")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeAuthorityReleaseUri {
     wire: String,
     release_id: AuthorityReleaseId,

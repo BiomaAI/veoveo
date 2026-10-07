@@ -8,9 +8,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
-PROTOCOL = "veoveo.speech-worker/v1"
-MODEL = "moondream/parakeet-ultra"
-REVISION = "510e6f5a1c4619f39c72b083c091476935734e65"
+PROTOCOL = "veoveo.ai/speech-worker/v2"
 MAX_FRAME_BYTES = 192_000
 MAX_TEXT_BYTES = 512 * 1024
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -45,13 +43,13 @@ class ProbeRequest(_Wire):
 class FileRequest(_Wire):
     operation: Literal["file"]
     path: str
-    max_duration_seconds: Annotated[int, Field(ge=0, le=2**32 - 1)]
+    maxDurationSeconds: Annotated[int, Field(ge=0, le=2**32 - 1)]
 
 
 class LiveRequest(_Wire):
     operation: Literal["live"]
-    sample_rate: Annotated[int, Field(ge=0, le=2**32 - 1)]
-    max_duration_seconds: Annotated[int, Field(ge=0, le=2**32 - 1)]
+    sampleRate: Annotated[int, Field(ge=0, le=2**32 - 1)]
+    maxDurationSeconds: Annotated[int, Field(ge=0, le=2**32 - 1)]
 
 
 RequestWire = Annotated[ProbeRequest | FileRequest | LiveRequest, Field(discriminator="operation")]
@@ -73,7 +71,7 @@ class Segment(_Wire):
 
 class Transcript(_Wire):
     text: str
-    duration_seconds: float
+    durationSeconds: float
     segments: list[Segment]
 
 
@@ -122,29 +120,24 @@ class Request:
 
     @classmethod
     def parse(cls, line: bytes, work: Path) -> Request:
-        value = validate_wire(REQUEST_ADAPTER, line, encoded=True).model_dump()
-        if not isinstance(value, dict):
-            raise ValueError("invalid request")
-        operation = value.get("operation")
-        if operation == "probe" and set(value) == {"operation"}:
-            return cls(operation)
-        if operation == "file" and set(value) == {"operation", "path", "max_duration_seconds"}:
-            duration = integer(value["max_duration_seconds"], 1, 7200)
-            if not isinstance(value["path"], str):
-                raise ValueError("invalid path")
-            path = Path(value["path"]).resolve(strict=True)
+        value = validate_wire(REQUEST_ADAPTER, line, encoded=True)
+        if isinstance(value, ProbeRequest):
+            return cls(value.operation)
+        if isinstance(value, FileRequest):
+            duration = integer(value.maxDurationSeconds, 1, 7200)
+            path = Path(value.path).resolve(strict=True)
             if not path.is_relative_to(work) or not path.is_file():
                 raise ValueError("source outside private workspace")
             if not 0 < path.stat().st_size <= 2 * 1024**3:
                 raise ValueError("source size exceeds limit")
-            return cls(operation, path=path, max_duration_seconds=duration)
-        if operation == "live" and set(value) == {"operation", "sample_rate", "max_duration_seconds"}:
-            return cls(operation, sample_rate=integer(value["sample_rate"], 8000, 48000),
-                       max_duration_seconds=integer(value["max_duration_seconds"], 1, 120))
+            return cls(value.operation, path=path, max_duration_seconds=duration)
+        if isinstance(value, LiveRequest):
+            return cls(value.operation, sample_rate=integer(value.sampleRate, 8000, 48000),
+                       max_duration_seconds=integer(value.maxDurationSeconds, 1, 120))
         raise ValueError("invalid operation")
 
 
-def transcript(value: dict[str, object], duration_limit: int) -> dict[str, object]:
+def provider_transcript(value: dict[str, object], duration_limit: int) -> dict[str, object]:
     """Project provider output into the domain shape; never copy diagnostic fields."""
     duration = number(value["duration_seconds"])
     if duration > duration_limit + 0.1:
@@ -163,7 +156,7 @@ def transcript(value: dict[str, object], duration_limit: int) -> dict[str, objec
                        "end": number(segment["end"]), "words": [
                            {"word": text(word["word"]), "start": number(word["start"]),
                             "end": number(word["end"])} for word in words]})
-    return {"text": text(value["text"]), "duration_seconds": duration, "segments": output}
+    return Transcript(text=text(value["text"]), durationSeconds=duration, segments=output).model_dump(by_alias=True)
 
 
 def encode(value: dict[str, object]) -> bytes:

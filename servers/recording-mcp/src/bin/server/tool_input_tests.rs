@@ -49,7 +49,7 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
         );
         let discover = gateway.rpc("server/discover", json!({})).await;
         assert!(discover.get("error").is_none(), "{discover}");
-        let mut arguments = json!({"recording_id":"01983da0-0000-7000-8000-000000000000"});
+        let mut arguments = json!({"recordingId":"01983da0-0000-7000-8000-000000000000"});
         let _: veoveo_recording_mcp::contract::SealRecordingRequest =
             serde_json::from_value(arguments.clone()).unwrap();
         arguments["undeclared"] = true.into();
@@ -69,6 +69,34 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
                 .unwrap()
                 .contains("undeclared")
         );
+        for mode in ["replacement", "mixed", "conflicting"] {
+            let mut arguments = json!({"recordingId":"01983da0-0000-7000-8000-000000000000"});
+            arguments["recording_id"] = if mode == "conflicting" {
+                json!("retired-conflict")
+            } else {
+                arguments["recordingId"].clone()
+            };
+            if mode == "replacement" {
+                arguments.as_object_mut().unwrap().remove("recordingId");
+            }
+            let body = gateway
+                .rpc(
+                    "tools/call",
+                    json!({"name":"seal_recording","arguments":arguments}),
+                )
+                .await;
+            assert!(body.get("error").is_none(), "{mode}: {body}");
+            assert_eq!(body["result"]["resultType"], "complete", "{mode}: {body}");
+            let result: rmcp::model::CallToolResult =
+                serde_json::from_value(body["result"].clone()).unwrap();
+            assert_eq!(result.is_error, Some(true));
+            assert!(
+                serde_json::to_string(&result.content)
+                    .unwrap()
+                    .contains("recording_id"),
+                "{mode}: {body}"
+            );
+        }
         let tasks =
             veoveo_task_runtime::TaskRuntime::new(db.a.clone(), "recording", "strict-input");
         let cases = input_fixture::ToolInputCase::load(include_bytes!(

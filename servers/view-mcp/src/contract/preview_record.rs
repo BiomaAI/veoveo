@@ -9,6 +9,7 @@ use glam::DMat4;
 /// fn corrupt(tile: &mut SceneTileRecord) { tile.oversize = false; }
 /// ```
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(try_from = "SceneTileRecordWire")]
 pub struct SceneTileRecord(veoveo_types::Checked<SceneTileRecordWire>);
 
@@ -73,6 +74,7 @@ impl Serialize for SceneTileRecord {
 /// fn corrupt(scene: &mut PreviewSceneRecord) { scene.view_revision = 0; }
 /// ```
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(try_from = "PreviewSceneRecordWire")]
 pub struct PreviewSceneRecord(veoveo_types::Checked<PreviewSceneRecordWire>);
 impl PreviewSceneRecord {
@@ -247,6 +249,7 @@ impl PreviewSceneRecord {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SceneTileRecordWire {
     tile_uri: TileUri,
     /// Column-major, meters (matches glam `to_cols_array` and three.js
@@ -260,6 +263,7 @@ struct SceneTileRecordWire {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PreviewSceneRecordWire {
     view_id: ViewId,
     view_revision: u64,

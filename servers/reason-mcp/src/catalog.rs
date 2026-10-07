@@ -10,14 +10,14 @@ use crate::contract::{
 };
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct CatalogDocument {
     models: Vec<ModelConfig>,
     pipelines: Vec<PipelineConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct ModelConfig {
     pub id: ModelId,
     pub title: String,
@@ -32,7 +32,12 @@ pub struct ModelConfig {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum EngineConfig {
     Vllm {
         #[schemars(range(min = 0.1, max = 1.0))]
@@ -43,7 +48,7 @@ pub enum EngineConfig {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PipelineConfig {
     pub id: PipelineId,
     pub title: String,
@@ -56,7 +61,7 @@ pub struct PipelineConfig {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, serde::Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct ObservationConfig {
     pub width: u32,
     pub height: u32,

@@ -9,13 +9,16 @@ journals use synchronized writes and atomic publication on the same filesystem.
 `veoveo.ai/recording-journal-quarantine/v1` is an internal JSON recovery receipt,
 owned by Hub; it is not a producer protocol or an accepted recording batch.
 The `sensor-sim --stack` manifest is Hub-owned JSON for deterministic ingest fixtures.
+`veoveo.ai/recording-ingest-diagnostics/v2` identifies Hub's flattened camelCase
+JSON counters. Authenticated ingest uses the `2026-09-23` protobuf profile in its
+`v1` package and media type; internal ingest routes use version 1.
 
 ## Sensor Manifests
 
 The stack loader rejects unknown fields in the root, each sensor variant, coordinates,
 track patterns and waves before it creates a runtime or generator. A private tagged
 wire enum admits each complete flat sensor object; serialization preserves that flat
-shape. Required fields must be present, while omitted or null `duration_s` selects
+shape. Required fields must be present, while omitted or null `durationS` selects
 an unbounded run. Sensor IDs pass the same nonempty ASCII path-component validation
 through both construction and decoding. Loader errors identify the manifest path.
 
@@ -49,6 +52,12 @@ finishes the footer, synchronizes the file, and publishes it by rename. The arch
 test reopens the footer and checks that compaction reduced chunk count. Live playback
 uses the separate `LIVE` profile to keep updates responsive.
 
+The native `h264_video_extracts_across_restart_segment_boundary` control checks
+retained encoded samples across segment restart, decoder-reentrant keyframe selection
+and MP4 sample tables, including a six-second gap. It performs no video decoding.
+Mandatory NVDEC with hardware-surface validation and headed hardware playback require
+separate GPU qualification; both gates are pending.
+
 ## Terminal Journal Recovery
 
 Startup replays accepted duplicate batches even when their stream is finished.
@@ -71,3 +80,12 @@ The filesystem boundary tests cover interrupted publication, byte and receipt
 conflicts, symlink rejection, accepted duplicate selection and terminal cutoff
 selection. The installed recovery must also verify the exact bytes against the
 receipt and the unchanged durable stream checkpoint.
+
+## JSON Adapter Profiles
+
+Spooler configuration and flat sensor manifests use closed camelCase members.
+Track and wave discriminants use snake_case. Sensor reports use the same controlled
+member profile; these unversioned development JSON models admit one spelling.
+Producer Rerun application names, encoded protobuf/RRD batches and native synchronized
+forwarder/Hub recovery records keep their profiles. A renamed config member refuses
+before the stack loader constructs a runtime or emits a sample.

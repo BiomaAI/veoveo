@@ -29,10 +29,11 @@ impl std::fmt::Display for KnowledgeError {
 }
 impl std::error::Error for KnowledgeError {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum CollectionApproval {
+    #[vocabulary(rename = "catalog_only")]
     CatalogOnly,
+    #[vocabulary(rename = "index")]
     Index,
 }
 

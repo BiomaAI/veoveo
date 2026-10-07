@@ -2,21 +2,21 @@
   "agent": {
     "tenant": "${VEOVEO_AGENT_TENANT}",
     "id": "${VEOVEO_AGENT_ID}",
-    "display_name": "${VEOVEO_AGENT_NAME}"
+    "displayName": "${VEOVEO_AGENT_NAME}"
   },
   "model": {
-    "base_url": "${VEOVEO_AGENT_MODEL_URL}",
-    "api_key_env": "VEOVEO_MANAGED_MODEL_KEY",
+    "baseUrl": "${VEOVEO_AGENT_MODEL_URL}",
+    "apiKeyEnv": "VEOVEO_MANAGED_MODEL_KEY",
     "model": "${VEOVEO_AGENT_MODEL_ID}",
     "temperature": 0.1,
-    "max_output_tokens": 4096
+    "maxOutputTokens": 4096
   },
   "gateway": {
     "url": "${VEOVEO_GATEWAY_URL}",
-    "transport_url": "${VEOVEO_GATEWAY_TRANSPORT_URL}",
+    "transportUrl": "${VEOVEO_GATEWAY_TRANSPORT_URL}",
     "profile": "${VEOVEO_AGENT_PROFILE}",
-    "client_id": "${VEOVEO_AGENT_CLIENT_ID}",
-    "work_context": "${VEOVEO_AGENT_WORK_CONTEXT}",
+    "clientId": "${VEOVEO_AGENT_CLIENT_ID}",
+    "workContext": "${VEOVEO_AGENT_WORK_CONTEXT}",
     "audience": "${VEOVEO_GATEWAY_AUDIENCE}",
     "resource": "${VEOVEO_GATEWAY_RESOURCE}",
     "scopes": [
@@ -26,22 +26,22 @@
       "time:read",
       "uav-sim:control"
     ],
-    "private_key_env": "VEOVEO_MANAGED_PRIVATE_KEY",
-    "private_key_kid": "${VEOVEO_AGENT_KEY_ID}"
+    "privateKeyEnv": "VEOVEO_MANAGED_PRIVATE_KEY",
+    "privateKeyKid": "${VEOVEO_AGENT_KEY_ID}"
   },
   "episode": {
-    "max_turns": 16,
-    "request_timeout_s": 300,
-    "task_deadline_s": 900
+    "maxTurns": 16,
+    "requestTimeoutS": 300,
+    "taskDeadlineS": 900
   },
   "memory": {
-    "memory_write_tables": [
+    "memoryWriteTables": [
       "mission_intents",
       "resource_bookmarks"
     ]
   },
   "context": {
-    "max_context_tokens": 24000,
+    "maxContextTokens": 24000,
     "sections": [
       {
         "name": "Simulation session; current control grants select the vehicle",
@@ -66,19 +66,19 @@
     ]
   },
   "budgets": {
-    "per_episode": {
-      "max_completion_calls": 32,
-      "max_tool_calls": 24
+    "perEpisode": {
+      "maxCompletionCalls": 32,
+      "maxToolCalls": 24
     },
-    "hourly_max_episodes": 120
+    "hourlyMaxEpisodes": 120
   },
   "schedule": {
-    "heartbeat_interval_s": 300,
-    "min_wake_interval_s": 2,
-    "wake_coalesce_window_ms": 250,
-    "input_grace_s": 30
+    "heartbeatIntervalS": 300,
+    "minWakeIntervalS": 2,
+    "wakeCoalesceWindowMs": 250,
+    "inputGraceS": 30
   },
-  "resource_subscriptions": [],
-  "migrations_dir": "migrations",
+  "resourceSubscriptions": [],
+  "migrationsDir": "migrations",
   "preamble": "Execute the admitted managed-agent revision under current gateway and domain authority."
 }

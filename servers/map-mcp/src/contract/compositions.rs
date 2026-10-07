@@ -23,6 +23,8 @@ pub enum LayerProductFormat {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "LayerProduct")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct LayerProductValue {
     pub product_id: LayerProductId,
     pub publication_id: LayerPublicationId,
@@ -41,6 +43,7 @@ pub struct LayerProductValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompositionView {
     pub center: Wgs84Position,
     pub zoom: f64,
@@ -68,6 +71,7 @@ impl CompositionView {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompositionLayer {
     pub layer_id: FeatureLayerId,
     pub publication_id: LayerPublicationId,
@@ -89,6 +93,8 @@ fn default_opacity() -> f64 {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "MapCompositionRevision")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapCompositionRevisionValue {
     pub composition_revision_id: MapCompositionRevisionId,
     pub composition_id: MapCompositionId,
@@ -101,6 +107,8 @@ pub struct MapCompositionRevisionValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "MapComposition")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapCompositionValue {
     pub composition_id: MapCompositionId,
     pub title: String,
@@ -120,6 +128,7 @@ pub struct MapCompositionValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateMapCompositionRequest {
     pub title: String,
     pub layers: Vec<CompositionLayer>,
@@ -128,6 +137,7 @@ pub struct CreateMapCompositionRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateMapCompositionRequest {
     pub composition_id: MapCompositionId,
     pub expected_revision: u64,
@@ -139,6 +149,7 @@ pub struct UpdateMapCompositionRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ArchiveMapCompositionRequest {
     pub composition_id: MapCompositionId,
     pub expected_revision: u64,

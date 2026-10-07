@@ -24,6 +24,7 @@ impl UnresolvedRecordingKey {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct AdapterScenarioResult {
     session_id: SessionId,
     elapsed_seconds: f64,
@@ -34,6 +35,7 @@ pub(super) struct AdapterScenarioResult {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct AdapterMissionResult {
     mission_id: MissionId,
     lifecycle: MissionLifecycle,
@@ -45,6 +47,7 @@ pub(super) struct AdapterMissionResult {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct AdapterCaptureDatasetResult {
     session_id: SessionId,
     elapsed_seconds: f64,

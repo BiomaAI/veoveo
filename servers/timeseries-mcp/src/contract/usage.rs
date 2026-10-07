@@ -19,6 +19,7 @@ fn task_identity(id: TaskId) -> Result<TaskId, TimeseriesUsageError> {
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CursorWire {
     version: u8,
     task_id: TaskId,
@@ -42,7 +43,7 @@ impl veoveo_types::CursorCodec for TimeseriesUsageCursorCodec {
     }
     fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
         let bytes = serde_json::to_vec(&CursorWire {
-            version: 1,
+            version: 2,
             task_id: *position,
         })
         .expect("closed owner cursor fields serialize");
@@ -57,7 +58,7 @@ impl veoveo_types::CursorCodec for TimeseriesUsageCursorCodec {
             .map_err(|_| TimeseriesUsageError)?;
         let decoded: CursorWire =
             serde_json::from_slice(&bytes).map_err(|_| TimeseriesUsageError)?;
-        if decoded.version != 1 {
+        if decoded.version != 2 {
             return Err(TimeseriesUsageError);
         }
         let position = decoded.task_id;
@@ -136,12 +137,15 @@ impl ResourceFieldCodec<TaskId> for UsageTaskCodec {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "EntryWire", into = "EntryWire")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeseriesUsageEntry {
     usage_uri: TimeseriesTaskUsageUri,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct EntryWire {
     task_id: TaskId,
     usage_uri: TimeseriesTaskUsageUri,
@@ -190,6 +194,8 @@ impl From<TimeseriesUsageEntry> for EntryWire {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "PageWire", into = "PageWire")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeseriesUsagePage {
     usage: Vec<TimeseriesUsageEntry>,
     next_cursor: Option<TimeseriesUsageCursor>,
@@ -197,6 +203,7 @@ pub struct TimeseriesUsagePage {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct PageWire {
     #[schemars(length(max = 100))]
     usage: Vec<TimeseriesUsageEntry>,

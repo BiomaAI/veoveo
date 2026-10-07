@@ -18,7 +18,7 @@ import sys
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MAX_FEATURES = 10_000
 MAX_TABLES = 256
 MAX_FIELDS_PER_TABLE = 512
@@ -70,7 +70,7 @@ def _absolute_file(value: Any, field: str) -> Path:
 
 
 def _absolute_output_directory(value: Any) -> Path:
-    path = Path(_bounded_string(value, "output_dir", 4_096))
+    path = Path(_bounded_string(value, "outputDir", 4_096))
     if not path.is_absolute() or path.is_symlink():
         raise ContractError("output_dir must be an absolute non-symlink directory")
     path.mkdir(parents=False, exist_ok=True)
@@ -93,11 +93,39 @@ def _optional_identifier(command: dict[str, Any], field: str) -> str | None:
 
 
 def _validate_command(command: Any) -> dict[str, Any]:
-    if not isinstance(command, dict) or command.get("schema_version") != SCHEMA_VERSION:
+    if (not isinstance(command, dict) or type(command.get("schemaVersion")) is not int
+            or command.get("schemaVersion") != SCHEMA_VERSION):
         raise ContractError("unsupported feature-package command schema")
     operation = command.get("operation")
-    if operation not in {"inspect", "decode", "encode"}:
+    if not isinstance(operation, str) or operation not in {"inspect", "decode", "encode"}:
         raise ContractError("operation must be inspect, decode, or encode")
+    required = {"schemaVersion", "operation", "sourcePath"}
+    optional: set[str] = set()
+    if operation in {"decode", "encode"}:
+        required |= {"outputDir", "maximumOutputBytes", "table"}
+    if operation == "decode":
+        required |= {"maximumFeatures", "defaultSemanticType"}
+        optional = {"identityColumn", "semanticTypeColumn", "titleColumn",
+                    "validFromColumn", "validUntilColumn"}
+    if command.keys() - (required | optional):
+        raise ContractError("feature-package command contains an unsupported field")
+    if required - command.keys():
+        raise ContractError("feature-package command is missing a required field")
+    # Admit the complete controlled command before output directory creation or GDAL.
+    source = Path(_bounded_string(command["sourcePath"], "sourcePath", 4_096))
+    if not source.is_absolute():
+        raise ContractError("sourcePath must be absolute")
+    if operation in {"decode", "encode"}:
+        output = Path(_bounded_string(command["outputDir"], "outputDir", 4_096))
+        if not output.is_absolute():
+            raise ContractError("outputDir must be absolute")
+        _positive_integer(command["maximumOutputBytes"], "maximumOutputBytes")
+        _identifier(command["table"], "table")
+    if operation == "decode":
+        _positive_integer(command["maximumFeatures"], "maximumFeatures", MAX_FEATURES)
+        _bounded_string(command["defaultSemanticType"], "defaultSemanticType", 256)
+        for field in optional:
+            _optional_identifier(command, field)
     return command
 
 
@@ -287,7 +315,7 @@ def inspect(path: Path) -> dict[str, Any]:
             fields.append(
                 {
                     "name": _identifier(field.GetName(), "field name"),
-                    "field_type": _field_type(field, ogr),
+                    "fieldType": _field_type(field, ogr),
                     "nullable": bool(field.IsNullable()),
                 }
             )
@@ -304,14 +332,14 @@ def inspect(path: Path) -> dict[str, Any]:
                 "table": _identifier(layer.GetName(), "table name"),
                 "identifier": identifier,
                 "description": description,
-                "geometry_column": _identifier(geometry_column, "geometry column"),
-                "geometry_type": geometry_type,
-                "srs_id": srs_id,
-                "crs_name": crs_name,
-                "feature_count": feature_count,
-                "extent_wgs84": _wgs84_extent(layer),
+                "geometryColumn": _identifier(geometry_column, "geometry column"),
+                "geometryType": geometry_type,
+                "srsId": srs_id,
+                "crsName": crs_name,
+                "featureCount": feature_count,
+                "extentWgs84": _wgs84_extent(layer),
                 "fields": fields,
-                "has_spatial_index": (layer.GetName(), geometry_column) in spatial_indexes,
+                "hasSpatialIndex": (layer.GetName(), geometry_column) in spatial_indexes,
             }
         )
     application_id, user_version, version = _sqlite_header(path)
@@ -336,9 +364,9 @@ def inspect(path: Path) -> dict[str, Any]:
         )
     return {
         "version": version,
-        "application_id": application_id,
-        "user_version": user_version,
-        "feature_tables": feature_tables,
+        "applicationId": application_id,
+        "userVersion": user_version,
+        "featureTables": feature_tables,
         "extensions": _extensions(path),
         "findings": findings,
     }
@@ -399,18 +427,18 @@ def _decoded_properties(feature: dict[str, Any], mapped: set[str], definition: A
 
 
 def decode(command: dict[str, Any]) -> dict[str, Any]:
-    source_path = _absolute_file(command.get("source_path"), "source_path")
-    output_dir = _absolute_output_directory(command.get("output_dir"))
-    maximum_output_bytes = _positive_integer(command.get("maximum_output_bytes"), "maximum_output_bytes")
-    maximum_features = _positive_integer(command.get("maximum_features"), "maximum_features", MAX_FEATURES)
+    source_path = _absolute_file(command.get("sourcePath"), "sourcePath")
+    output_dir = _absolute_output_directory(command.get("outputDir"))
+    maximum_output_bytes = _positive_integer(command.get("maximumOutputBytes"), "maximumOutputBytes")
+    maximum_features = _positive_integer(command.get("maximumFeatures"), "maximumFeatures", MAX_FEATURES)
     table = _identifier(command.get("table"), "table")
-    default_semantic_type = _bounded_string(command.get("default_semantic_type"), "default_semantic_type", 256)
+    default_semantic_type = _bounded_string(command.get("defaultSemanticType"), "defaultSemanticType", 256)
     mappings = {
-        "identity": _optional_identifier(command, "identity_column"),
-        "semantic": _optional_identifier(command, "semantic_type_column"),
-        "title": _optional_identifier(command, "title_column"),
-        "valid_from": _optional_identifier(command, "valid_from_column"),
-        "valid_until": _optional_identifier(command, "valid_until_column"),
+        "identity": _optional_identifier(command, "identityColumn"),
+        "semantic": _optional_identifier(command, "semanticTypeColumn"),
+        "title": _optional_identifier(command, "titleColumn"),
+        "valid_from": _optional_identifier(command, "validFromColumn"),
+        "valid_until": _optional_identifier(command, "validUntilColumn"),
     }
     valid, diagnostic = _validate_geopackage(source_path)
     if not valid:
@@ -495,13 +523,13 @@ def decode(command: dict[str, Any]) -> dict[str, Any]:
         path.unlink(missing_ok=True)
         raise
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schemaVersion": SCHEMA_VERSION,
         "path": str(path),
         "filename": "features.geojsons",
-        "mime_type": "application/geo+json-seq",
-        "feature_count": count,
-        "byte_count": byte_count,
-        "digest_sha256": digest.hexdigest(),
+        "mimeType": "application/geo+json-seq",
+        "featureCount": count,
+        "byteCount": byte_count,
+        "digestSha256": digest.hexdigest(),
     }
 
 
@@ -589,9 +617,9 @@ def _set_field(target: Any, name: str, value: Any, kind: str) -> None:
 
 
 def encode(command: dict[str, Any]) -> dict[str, Any]:
-    source_path = _absolute_file(command.get("source_path"), "source_path")
-    output_dir = _absolute_output_directory(command.get("output_dir"))
-    maximum_output_bytes = _positive_integer(command.get("maximum_output_bytes"), "maximum_output_bytes")
+    source_path = _absolute_file(command.get("sourcePath"), "sourcePath")
+    output_dir = _absolute_output_directory(command.get("outputDir"))
+    maximum_output_bytes = _positive_integer(command.get("maximumOutputBytes"), "maximumOutputBytes")
     table = _identifier(command.get("table"), "table")
     schema = _property_schema(source_path, maximum_output_bytes)
     gdal, ogr, osr = _osgeo()
@@ -659,13 +687,13 @@ def encode(command: dict[str, Any]) -> dict[str, Any]:
             for block in iter(lambda: source.read(1024 * 1024), b""):
                 digest.update(block)
         return {
-            "schema_version": SCHEMA_VERSION,
+            "schemaVersion": SCHEMA_VERSION,
             "path": str(output_path),
             "filename": "layer.gpkg",
-            "mime_type": "application/geopackage+sqlite3",
-            "feature_count": feature_count,
-            "byte_count": size,
-            "digest_sha256": digest.hexdigest(),
+            "mimeType": "application/geopackage+sqlite3",
+            "featureCount": feature_count,
+            "byteCount": size,
+            "digestSha256": digest.hexdigest(),
         }
     except Exception:
         dataset = None
@@ -677,8 +705,8 @@ def execute(command: Any) -> dict[str, Any]:
     command = _validate_command(command)
     operation = command["operation"]
     if operation == "inspect":
-        manifest = inspect(_absolute_file(command.get("source_path"), "source_path"))
-        return {"schema_version": SCHEMA_VERSION, "manifest": manifest}
+        manifest = inspect(_absolute_file(command.get("sourcePath"), "sourcePath"))
+        return {"schemaVersion": SCHEMA_VERSION, "manifest": manifest}
     if operation == "decode":
         return decode(command)
     return encode(command)

@@ -179,7 +179,7 @@ mod tests {
             .prepare(ArtifactPut::new(vec![1, 2, 3]), origin())
             .unwrap();
         assert_eq!(output.compliance.data_labels, identity.actor.data_labels);
-        assert!(output.metadata.get("task_id").is_none());
+        assert!(output.metadata.get("taskId").is_none());
         assert_eq!(
             serde_json::from_value::<DuckDbArtifactOrigin>(output.metadata).unwrap(),
             origin()

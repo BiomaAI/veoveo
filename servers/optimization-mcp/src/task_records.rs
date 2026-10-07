@@ -14,6 +14,7 @@ use veoveo_artifact_contract::IssuedArtifactWriteCapability;
 use veoveo_types::TaskTypeDefinition;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SolveTaskCommon {
     pub problem_id: ProblemId,
     pub run_id: RunId,
@@ -25,6 +26,7 @@ pub struct SolveTaskCommon {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PreparedVerifyTask {
     pub input: VerifySolutionRequest,
     pub solution: OptimizationSolution,
@@ -34,7 +36,12 @@ pub struct PreparedVerifyTask {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum OptimizationTaskRequest {
     OptimizeRoutes {
         common: SolveTaskCommon,

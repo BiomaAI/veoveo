@@ -5,10 +5,41 @@
     "type": "object",
     "properties": {
       "protocol": {
-        "type": "string"
+        "type": "string",
+        "enum": [
+          "veoveo.ai/cuopt-executor/v2"
+        ],
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "builtin",
+              "grammar": "format_tag"
+            }
+          }
+        }
       },
-      "run_id": {
-        "type": "string"
+      "runId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_optimization_mcp::contract::common"
+                },
+                "profile": "RunId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "profile": {
         "anyOf": [
@@ -27,7 +58,7 @@
     "additionalProperties": false,
     "required": [
       "protocol",
-      "run_id",
+      "runId",
       "operation"
     ],
     "$defs": {
@@ -58,7 +89,7 @@
       "RoutingSolverSettings": {
         "type": "object",
         "properties": {
-          "time_limit_seconds": {
+          "timeLimitSeconds": {
             "type": "number",
             "format": "double",
             "minimum": 0.0
@@ -70,14 +101,14 @@
         },
         "additionalProperties": false,
         "required": [
-          "time_limit_seconds",
+          "timeLimitSeconds",
           "verbose"
         ]
       },
       "ConvexSolverSettings": {
         "type": "object",
         "properties": {
-          "time_limit_seconds": {
+          "timeLimitSeconds": {
             "type": "number",
             "format": "double",
             "minimum": 0.0
@@ -85,7 +116,7 @@
           "method": {
             "$ref": "#/$defs/ConvexMethod"
           },
-          "optimality_tolerance": {
+          "optimalityTolerance": {
             "type": "number",
             "format": "double",
             "minimum": 0.0
@@ -96,9 +127,9 @@
         },
         "additionalProperties": false,
         "required": [
-          "time_limit_seconds",
+          "timeLimitSeconds",
           "method",
-          "optimality_tolerance",
+          "optimalityTolerance",
           "presolve"
         ]
       },
@@ -112,22 +143,22 @@
       "MilpSolverSettings": {
         "type": "object",
         "properties": {
-          "time_limit_seconds": {
+          "timeLimitSeconds": {
             "type": "number",
             "format": "double",
             "minimum": 0.0
           },
-          "relative_gap": {
+          "relativeGap": {
             "type": "number",
             "format": "double",
             "minimum": 0.0
           },
-          "absolute_gap": {
+          "absoluteGap": {
             "type": "number",
             "format": "double",
             "minimum": 0.0
           },
-          "integrality_tolerance": {
+          "integralityTolerance": {
             "type": "number",
             "format": "double",
             "minimum": 0.0
@@ -135,18 +166,18 @@
           "presolve": {
             "type": "boolean"
           },
-          "retain_incumbents": {
+          "retainIncumbents": {
             "type": "boolean"
           }
         },
         "additionalProperties": false,
         "required": [
-          "time_limit_seconds",
-          "relative_gap",
-          "absolute_gap",
-          "integrality_tolerance",
+          "timeLimitSeconds",
+          "relativeGap",
+          "absoluteGap",
+          "integralityTolerance",
           "presolve",
-          "retain_incumbents"
+          "retainIncumbents"
         ]
       },
       "ExecutorOperation": {
@@ -167,8 +198,26 @@
           {
             "type": "object",
             "properties": {
-              "target_run_id": {
-                "type": "string"
+              "targetRunId": {
+                "type": "string",
+                "ai.veoveo/naming-profile": {
+                  "revision": 1,
+                  "role": {
+                    "kind": "scalar",
+                    "profile": {
+                      "kind": "owner_identity",
+                      "declaration": {
+                        "authority": {
+                          "kind": "owner",
+                          "module": "veoveo_optimization_mcp::contract::common"
+                        },
+                        "profile": "RunId",
+                        "version": "unversioned",
+                        "applicability": "the declared scalar identity schema"
+                      }
+                    }
+                  }
+                }
               },
               "operation": {
                 "type": "string",
@@ -178,7 +227,7 @@
             "additionalProperties": false,
             "required": [
               "operation",
-              "target_run_id"
+              "targetRunId"
             ]
           },
           {
@@ -245,7 +294,7 @@
               "family": {
                 "$ref": "#/$defs/ExecutorModelFamily"
               },
-              "staged_path": {
+              "stagedPath": {
                 "type": "string"
               },
               "operation": {
@@ -257,7 +306,7 @@
             "required": [
               "operation",
               "family",
-              "staged_path"
+              "stagedPath"
             ]
           }
         ]
@@ -265,10 +314,28 @@
       "CompiledRoutingProblem": {
         "type": "object",
         "properties": {
-          "location_ids": {
+          "locationIds": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "kind": "owner_identity",
+                    "declaration": {
+                      "authority": {
+                        "kind": "owner",
+                        "module": "veoveo_optimization_mcp::contract::common"
+                      },
+                      "profile": "LocationId",
+                      "version": "unversioned",
+                      "applicability": "the declared scalar identity schema"
+                    }
+                  }
+                }
+              }
             }
           },
           "nodes": {
@@ -283,37 +350,37 @@
               "$ref": "#/$defs/CompiledVehicle"
             }
           },
-          "vehicle_type_ids": {
+          "vehicleTypeIds": {
             "type": "array",
             "items": {
               "type": "string"
             }
           },
-          "cost_matrices": {
+          "costMatrices": {
             "type": "array",
             "items": {
               "$ref": "#/$defs/CompiledDenseMatrix"
             }
           },
-          "transit_time_matrices": {
+          "transitTimeMatrices": {
             "type": "array",
             "items": {
               "$ref": "#/$defs/CompiledDenseMatrix"
             }
           },
-          "capacity_dimensions": {
+          "capacityDimensions": {
             "type": "array",
             "items": {
               "$ref": "#/$defs/CompiledCapacityDimension"
             }
           },
-          "pickup_delivery_pairs": {
+          "pickupDeliveryPairs": {
             "type": "array",
             "items": {
               "$ref": "#/$defs/CompiledPickupDeliveryPair"
             }
           },
-          "order_vehicle_matches": {
+          "orderVehicleMatches": {
             "type": "array",
             "items": {
               "$ref": "#/$defs/CompiledOrderVehicleMatch"
@@ -325,12 +392,12 @@
               "$ref": "#/$defs/CompiledRouteObjective"
             }
           },
-          "minimum_vehicles": {
+          "minimumVehicles": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
           },
-          "initial_solution": {
+          "initialSolution": {
             "anyOf": [
               {
                 "$ref": "#/$defs/CompiledInitialRoutingSolution"
@@ -343,25 +410,61 @@
         },
         "additionalProperties": false,
         "required": [
-          "location_ids",
+          "locationIds",
           "nodes",
           "vehicles",
-          "vehicle_type_ids",
-          "cost_matrices",
+          "vehicleTypeIds",
+          "costMatrices",
           "objectives",
-          "minimum_vehicles"
+          "minimumVehicles"
         ]
       },
       "CompiledRouteNode": {
         "type": "object",
         "properties": {
-          "order_id": {
-            "type": "string"
+          "orderId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_optimization_mcp::contract::common"
+                    },
+                    "profile": "OrderId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "location_id": {
-            "type": "string"
+          "locationId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_optimization_mcp::contract::common"
+                    },
+                    "profile": "LocationId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "location_index": {
+          "locationIndex": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -369,7 +472,7 @@
           "kind": {
             "$ref": "#/$defs/RouteNodeKind"
           },
-          "service_duration": {
+          "serviceDuration": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -391,11 +494,11 @@
         },
         "additionalProperties": false,
         "required": [
-          "order_id",
-          "location_id",
-          "location_index",
+          "orderId",
+          "locationId",
+          "locationIndex",
           "kind",
-          "service_duration",
+          "serviceDuration",
           "earliest",
           "latest",
           "prize"
@@ -414,21 +517,39 @@
       "CompiledVehicle": {
         "type": "object",
         "properties": {
-          "vehicle_id": {
-            "type": "string"
+          "vehicleId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_optimization_mcp::contract::common"
+                    },
+                    "profile": "VehicleId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "vehicle_type": {
+          "vehicleType": {
             "type": "integer",
             "format": "uint8",
             "minimum": 0,
             "maximum": 255
           },
-          "start_location": {
+          "startLocation": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
           },
-          "end_location": {
+          "endLocation": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -443,28 +564,28 @@
             "format": "uint32",
             "minimum": 0
           },
-          "fixed_cost": {
+          "fixedCost": {
             "type": "number",
             "format": "float"
           },
-          "maximum_cost": {
+          "maximumCost": {
             "type": [
               "number",
               "null"
             ],
             "format": "float"
           },
-          "maximum_time": {
+          "maximumTime": {
             "type": [
               "number",
               "null"
             ],
             "format": "float"
           },
-          "omit_first_trip": {
+          "omitFirstTrip": {
             "type": "boolean"
           },
-          "omit_last_trip": {
+          "omitLastTrip": {
             "type": "boolean"
           },
           "breaks": {
@@ -476,15 +597,15 @@
         },
         "additionalProperties": false,
         "required": [
-          "vehicle_id",
-          "vehicle_type",
-          "start_location",
-          "end_location",
+          "vehicleId",
+          "vehicleType",
+          "startLocation",
+          "endLocation",
           "earliest",
           "latest",
-          "fixed_cost",
-          "omit_first_trip",
-          "omit_last_trip"
+          "fixedCost",
+          "omitFirstTrip",
+          "omitLastTrip"
         ]
       },
       "CompiledVehicleBreak": {
@@ -505,7 +626,7 @@
             "format": "uint32",
             "minimum": 0
           },
-          "allowed_locations": {
+          "allowedLocations": {
             "type": "array",
             "items": {
               "type": "integer",
@@ -524,7 +645,7 @@
       "CompiledDenseMatrix": {
         "type": "object",
         "properties": {
-          "vehicle_type": {
+          "vehicleType": {
             "type": "integer",
             "format": "uint8",
             "minimum": 0,
@@ -542,7 +663,7 @@
               "format": "float"
             }
           },
-          "unavailable_cells": {
+          "unavailableCells": {
             "type": "array",
             "items": {
               "type": "integer",
@@ -553,7 +674,7 @@
         },
         "additionalProperties": false,
         "required": [
-          "vehicle_type",
+          "vehicleType",
           "dimension",
           "values"
         ]
@@ -561,8 +682,26 @@
       "CompiledCapacityDimension": {
         "type": "object",
         "properties": {
-          "dimension_id": {
-            "type": "string"
+          "dimensionId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_optimization_mcp::contract::common"
+                    },
+                    "profile": "CapacityDimensionId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
           "demand": {
             "type": "array",
@@ -582,7 +721,7 @@
         },
         "additionalProperties": false,
         "required": [
-          "dimension_id",
+          "dimensionId",
           "demand",
           "capacity"
         ]
@@ -590,12 +729,12 @@
       "CompiledPickupDeliveryPair": {
         "type": "object",
         "properties": {
-          "pickup_node": {
+          "pickupNode": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
           },
-          "delivery_node": {
+          "deliveryNode": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -603,8 +742,8 @@
         },
         "additionalProperties": false,
         "required": [
-          "pickup_node",
-          "delivery_node"
+          "pickupNode",
+          "deliveryNode"
         ]
       },
       "CompiledOrderVehicleMatch": {
@@ -661,7 +800,7 @@
       "CompiledInitialRoutingSolution": {
         "type": "object",
         "properties": {
-          "vehicle_indices": {
+          "vehicleIndices": {
             "type": "array",
             "items": {
               "type": "integer",
@@ -669,7 +808,7 @@
               "minimum": 0
             }
           },
-          "route_nodes": {
+          "routeNodes": {
             "type": "array",
             "items": {
               "type": "integer",
@@ -677,13 +816,13 @@
               "minimum": 0
             }
           },
-          "node_kinds": {
+          "nodeKinds": {
             "type": "array",
             "items": {
               "$ref": "#/$defs/CompiledInitialRouteNodeKind"
             }
           },
-          "solution_offsets": {
+          "solutionOffsets": {
             "type": "array",
             "items": {
               "type": "integer",
@@ -694,10 +833,10 @@
         },
         "additionalProperties": false,
         "required": [
-          "vehicle_indices",
-          "route_nodes",
-          "node_kinds",
-          "solution_offsets"
+          "vehicleIndices",
+          "routeNodes",
+          "nodeKinds",
+          "solutionOffsets"
         ]
       },
       "CompiledInitialRouteNodeKind": {
@@ -712,8 +851,26 @@
       "CompiledRouteCase": {
         "type": "object",
         "properties": {
-          "case_id": {
-            "type": "string"
+          "caseId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_optimization_mcp::contract::common"
+                    },
+                    "profile": "RouteCaseId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
           "problem": {
             "$ref": "#/$defs/CompiledRoutingProblem"
@@ -721,7 +878,7 @@
         },
         "additionalProperties": false,
         "required": [
-          "case_id",
+          "caseId",
           "problem"
         ]
       },
@@ -735,19 +892,37 @@
       "CompiledMathematicalModel": {
         "type": "object",
         "properties": {
-          "variable_ids": {
+          "variableIds": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "kind": "owner_identity",
+                    "declaration": {
+                      "authority": {
+                        "kind": "owner",
+                        "module": "veoveo_optimization_mcp::contract::common"
+                      },
+                      "profile": "VariableId",
+                      "version": "unversioned",
+                      "applicability": "the declared scalar identity schema"
+                    }
+                  }
+                }
+              }
             }
           },
-          "variable_kinds": {
+          "variableKinds": {
             "type": "array",
             "items": {
               "$ref": "#/$defs/VariableKind"
             }
           },
-          "variable_lower_bounds": {
+          "variableLowerBounds": {
             "type": "array",
             "items": {
               "type": [
@@ -757,7 +932,7 @@
               "format": "double"
             }
           },
-          "variable_upper_bounds": {
+          "variableUpperBounds": {
             "type": "array",
             "items": {
               "type": [
@@ -767,30 +942,48 @@
               "format": "double"
             }
           },
-          "objective_direction": {
+          "objectiveDirection": {
             "$ref": "#/$defs/ObjectiveDirection"
           },
-          "objective_offset": {
+          "objectiveOffset": {
             "type": "number",
             "format": "double"
           },
-          "objective_coefficients": {
+          "objectiveCoefficients": {
             "type": "array",
             "items": {
               "type": "number",
               "format": "double"
             }
           },
-          "constraint_ids": {
+          "constraintIds": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "kind": "owner_identity",
+                    "declaration": {
+                      "authority": {
+                        "kind": "owner",
+                        "module": "veoveo_optimization_mcp::contract::common"
+                      },
+                      "profile": "ConstraintId",
+                      "version": "unversioned",
+                      "applicability": "the declared scalar identity schema"
+                    }
+                  }
+                }
+              }
             }
           },
-          "constraint_matrix": {
+          "constraintMatrix": {
             "$ref": "#/$defs/CsrMatrix"
           },
-          "constraint_lower_bounds": {
+          "constraintLowerBounds": {
             "type": "array",
             "items": {
               "type": [
@@ -800,7 +993,7 @@
               "format": "double"
             }
           },
-          "constraint_upper_bounds": {
+          "constraintUpperBounds": {
             "type": "array",
             "items": {
               "type": [
@@ -810,7 +1003,7 @@
               "format": "double"
             }
           },
-          "quadratic_objective": {
+          "quadraticObjective": {
             "anyOf": [
               {
                 "$ref": "#/$defs/CsrMatrix"
@@ -820,13 +1013,13 @@
               }
             ]
           },
-          "quadratic_constraints": {
+          "quadraticConstraints": {
             "type": "array",
             "items": {
               "$ref": "#/$defs/CompiledQuadraticConstraint"
             }
           },
-          "initial_primal_solution": {
+          "initialPrimalSolution": {
             "type": [
               "array",
               "null"
@@ -836,7 +1029,7 @@
               "format": "double"
             }
           },
-          "initial_dual_solution": {
+          "initialDualSolution": {
             "type": [
               "array",
               "null"
@@ -849,17 +1042,17 @@
         },
         "additionalProperties": false,
         "required": [
-          "variable_ids",
-          "variable_kinds",
-          "variable_lower_bounds",
-          "variable_upper_bounds",
-          "objective_direction",
-          "objective_offset",
-          "objective_coefficients",
-          "constraint_ids",
-          "constraint_matrix",
-          "constraint_lower_bounds",
-          "constraint_upper_bounds"
+          "variableIds",
+          "variableKinds",
+          "variableLowerBounds",
+          "variableUpperBounds",
+          "objectiveDirection",
+          "objectiveOffset",
+          "objectiveCoefficients",
+          "constraintIds",
+          "constraintMatrix",
+          "constraintLowerBounds",
+          "constraintUpperBounds"
         ]
       },
       "VariableKind": {
@@ -926,10 +1119,28 @@
       "CompiledQuadraticConstraint": {
         "type": "object",
         "properties": {
-          "constraint_id": {
-            "type": "string"
+          "constraintId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_optimization_mcp::contract::common"
+                    },
+                    "profile": "ConstraintId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "linear_indices": {
+          "linearIndices": {
             "type": "array",
             "items": {
               "type": "integer",
@@ -937,7 +1148,7 @@
               "minimum": 0
             }
           },
-          "linear_values": {
+          "linearValues": {
             "type": "array",
             "items": {
               "type": "number",
@@ -977,9 +1188,9 @@
         },
         "additionalProperties": false,
         "required": [
-          "constraint_id",
-          "linear_indices",
-          "linear_values",
+          "constraintId",
+          "linearIndices",
+          "linearValues",
           "rows",
           "columns",
           "values",
@@ -1002,10 +1213,41 @@
     "type": "object",
     "properties": {
       "protocol": {
-        "type": "string"
+        "type": "string",
+        "enum": [
+          "veoveo.ai/cuopt-executor/v2"
+        ],
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "builtin",
+              "grammar": "format_tag"
+            }
+          }
+        }
       },
-      "run_id": {
-        "type": "string"
+      "runId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_optimization_mcp::contract::common"
+                },
+                "profile": "RunId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       },
       "result": {
         "$ref": "#/$defs/ExecutorResult"
@@ -1014,7 +1256,7 @@
     "additionalProperties": false,
     "required": [
       "protocol",
-      "run_id",
+      "runId",
       "result"
     ],
     "$defs": {
@@ -1116,30 +1358,30 @@
           "ready": {
             "type": "boolean"
           },
-          "cuopt_version": {
+          "cuoptVersion": {
             "type": "string"
           },
-          "cuda_runtime_version": {
+          "cudaRuntimeVersion": {
             "type": "string"
           },
-          "gpu_name": {
+          "gpuName": {
             "type": "string"
           },
-          "gpu_uuid": {
+          "gpuUuid": {
             "type": "string"
           },
-          "compute_capability": {
+          "computeCapability": {
             "type": "string"
           }
         },
         "additionalProperties": false,
         "required": [
           "ready",
-          "cuopt_version",
-          "cuda_runtime_version",
-          "gpu_name",
-          "gpu_uuid",
-          "compute_capability"
+          "cuoptVersion",
+          "cudaRuntimeVersion",
+          "gpuName",
+          "gpuUuid",
+          "computeCapability"
         ]
       },
       "ExecutorRoutingSolution": {
@@ -1155,7 +1397,7 @@
             "type": "number",
             "format": "double"
           },
-          "objective_components": {
+          "objectiveComponents": {
             "type": "object",
             "properties": {
               "cost": {
@@ -1185,7 +1427,7 @@
             },
             "additionalProperties": false
           },
-          "vehicles_used": {
+          "vehiclesUsed": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -1196,7 +1438,7 @@
               "$ref": "#/$defs/ExecutorVehicleRoute"
             }
           },
-          "undeliverable_nodes": {
+          "undeliverableNodes": {
             "type": "array",
             "items": {
               "type": "integer",
@@ -1204,7 +1446,7 @@
               "minimum": 0
             }
           },
-          "solve_seconds": {
+          "solveSeconds": {
             "type": "number",
             "format": "double",
             "minimum": 0.0
@@ -1215,9 +1457,9 @@
           "status",
           "message",
           "objective",
-          "objective_components",
-          "vehicles_used",
-          "solve_seconds"
+          "objectiveComponents",
+          "vehiclesUsed",
+          "solveSeconds"
         ]
       },
       "ExecutorRoutingStatus": {
@@ -1333,8 +1575,26 @@
       "ExecutorRouteCaseSolution": {
         "type": "object",
         "properties": {
-          "case_id": {
-            "type": "string"
+          "caseId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_optimization_mcp::contract::common"
+                    },
+                    "profile": "RouteCaseId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
           "solution": {
             "$ref": "#/$defs/ExecutorRoutingSolution"
@@ -1342,7 +1602,7 @@
         },
         "additionalProperties": false,
         "required": [
-          "case_id",
+          "caseId",
           "solution"
         ]
       },
@@ -1355,42 +1615,42 @@
           "status": {
             "$ref": "#/$defs/ExecutorModelStatus"
           },
-          "primal_solution": {
+          "primalSolution": {
             "type": "array",
             "items": {
               "type": "number",
               "format": "double"
             }
           },
-          "dual_solution": {
+          "dualSolution": {
             "type": "array",
             "items": {
               "type": "number",
               "format": "double"
             }
           },
-          "primal_objective": {
+          "primalObjective": {
             "type": [
               "number",
               "null"
             ],
             "format": "double"
           },
-          "dual_objective": {
+          "dualObjective": {
             "type": [
               "number",
               "null"
             ],
             "format": "double"
           },
-          "best_bound": {
+          "bestBound": {
             "type": [
               "number",
               "null"
             ],
             "format": "double"
           },
-          "relative_gap": {
+          "relativeGap": {
             "type": [
               "number",
               "null"
@@ -1398,7 +1658,7 @@
             "format": "double",
             "minimum": 0.0
           },
-          "primal_residual": {
+          "primalResidual": {
             "type": [
               "number",
               "null"
@@ -1406,7 +1666,7 @@
             "format": "double",
             "minimum": 0.0
           },
-          "dual_residual": {
+          "dualResidual": {
             "type": [
               "number",
               "null"
@@ -1436,7 +1696,7 @@
               "$ref": "#/$defs/ExecutorIncumbent"
             }
           },
-          "solve_seconds": {
+          "solveSeconds": {
             "type": "number",
             "format": "double",
             "minimum": 0.0
@@ -1446,7 +1706,7 @@
         "required": [
           "family",
           "status",
-          "solve_seconds"
+          "solveSeconds"
         ]
       },
       "ProblemFamily": {
@@ -1497,7 +1757,7 @@
             "type": "number",
             "format": "double"
           },
-          "found_at_seconds": {
+          "foundAtSeconds": {
             "type": "number",
             "format": "double",
             "minimum": 0.0
@@ -1509,7 +1769,7 @@
           "values",
           "objective",
           "bound",
-          "found_at_seconds"
+          "foundAtSeconds"
         ]
       },
       "ExecutorError": {
@@ -1557,29 +1817,101 @@
           "message": {
             "type": "string"
           },
-          "variable_id": {
+          "variableId": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_optimization_mcp::contract::common"
+                    },
+                    "profile": "VariableId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "constraint_id": {
+          "constraintId": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_optimization_mcp::contract::common"
+                    },
+                    "profile": "ConstraintId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "order_id": {
+          "orderId": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_optimization_mcp::contract::common"
+                    },
+                    "profile": "OrderId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "vehicle_id": {
+          "vehicleId": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_optimization_mcp::contract::common"
+                    },
+                    "profile": "VehicleId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           }
         },
         "additionalProperties": false,

@@ -64,8 +64,8 @@ fn capture_derives_identity_parent_and_byte_metadata() {
     );
     assert_eq!(record.mime_type(), "image/jpeg");
     let wire = serde_json::to_value(record).unwrap();
-    assert_eq!(wire["mime_type"], "image/jpeg");
-    assert_eq!(wire["result_uri"], wire["frame_uri"]);
+    assert_eq!(wire["mimeType"], "image/jpeg");
+    assert_eq!(wire["resultUri"], wire["frameUri"]);
     assert!(wire.get("encoding").is_none());
     let decoded: FrameRecord = serde_json::from_value(wire.clone()).unwrap();
     assert_eq!(serde_json::to_value(decoded).unwrap(), wire);
@@ -124,22 +124,22 @@ fn capture_requires_matching_parent_time_encoding_and_nonempty_bytes() {
 fn frame_decoding_rejects_inconsistent_identity_shape_and_detail() {
     let valid = serde_json::to_value(frame().record()).unwrap();
     for (field, value) in [
-        ("frame_uri", json!("view://frame/other")),
-        ("result_uri", json!("view://frame/other")),
+        ("frameUri", json!("view://frame/other")),
+        ("resultUri", json!("view://frame/other")),
         (
-            "composition_uri",
+            "compositionUri",
             json!(CompositionUri::new(SceneCompositionId::from_stable_key(
                 b"other"
             ))),
         ),
-        ("view_revision", json!(0)),
-        ("composition_revision", json!(2)),
-        ("width_px", json!(0)),
-        ("height_px", json!(0)),
-        ("byte_length", json!(0)),
-        ("mime_type", json!("image/webp")),
-        ("actual_max_screen_error_px", json!(-1.0)),
-        ("pending_tile_count", json!(1)),
+        ("viewRevision", json!(0)),
+        ("compositionRevision", json!(2)),
+        ("widthPx", json!(0)),
+        ("heightPx", json!(0)),
+        ("byteLength", json!(0)),
+        ("mimeType", json!("image/webp")),
+        ("actualMaxScreenErrorPx", json!(-1.0)),
+        ("pendingTileCount", json!(1)),
     ] {
         let mut wire = valid.clone();
         wire[field] = value;
@@ -149,14 +149,14 @@ fn frame_decoding_rejects_inconsistent_identity_shape_and_detail() {
         );
     }
     let mut wire = valid.clone();
-    wire["resolved_camera"]["position"]["latitude_degrees"] = json!(91);
+    wire["resolvedCamera"]["position"]["latitudeDegrees"] = json!(91);
     assert!(serde_json::from_value::<FrameRecord>(wire).is_err());
     let mut wire = valid.clone();
-    wire["governed_inputs"][0]["license"] = json!("");
+    wire["governedInputs"][0]["license"] = json!("");
     assert!(serde_json::from_value::<FrameRecord>(wire).is_err());
     let mut wire = valid;
-    let input = wire["governed_inputs"][0].clone();
-    wire["governed_inputs"].as_array_mut().unwrap().push(input);
+    let input = wire["governedInputs"][0].clone();
+    wire["governedInputs"].as_array_mut().unwrap().push(input);
     assert!(serde_json::from_value::<FrameRecord>(wire).is_err());
 }
 
@@ -186,7 +186,7 @@ fn capture_encoding_and_wire_schema_share_the_closed_media_profile() {
         .finish(now(), report(), encoding, vec![1])
         .unwrap();
         let wire = serde_json::to_value(output.record()).unwrap();
-        assert_eq!(wire["mime_type"], encoding.mime_type());
+        assert_eq!(wire["mimeType"], encoding.mime_type());
         assert_eq!(
             serde_json::from_value::<FrameRecord>(wire)
                 .unwrap()
@@ -196,7 +196,7 @@ fn capture_encoding_and_wire_schema_share_the_closed_media_profile() {
     }
     let schema = serde_json::to_value(schemars::schema_for!(FrameRecord)).unwrap();
     assert_eq!(
-        schema["properties"]["mime_type"]["enum"],
+        schema["properties"]["mimeType"]["enum"],
         json!(["image/png", "image/jpeg"])
     );
 }

@@ -116,7 +116,7 @@ fn core_control_planes_use_exact_list_change_capabilities() {
                 .as_object()
                 .expect("capability object");
             if capabilities
-                .get("resources_list_changed")
+                .get("resourcesListChanged")
                 .and_then(Value::as_bool)
                 == Some(true)
             {
@@ -145,15 +145,15 @@ fn installation_configuration_rejects_unknown_core_and_registered_section_fields
     for pointer in [
         "",
         "/branding",
-        "/identity_providers/0",
-        "/identity_providers/0/jwks",
-        "/identity_providers/0/claim_mapping",
-        "/identity_providers/0/claim_mapping/tenant",
-        "/authorization_servers/0",
+        "/identityProviders/0",
+        "/identityProviders/0/jwks",
+        "/identityProviders/0/claimMapping",
+        "/identityProviders/0/claimMapping/tenant",
+        "/authorizationServers/0",
         "/servers/0",
         "/servers/0/upstream",
         "/servers/0/capabilities",
-        "/servers/0/owned_routes/0",
+        "/servers/0/ownedRoutes/0",
         "/profiles/0",
         "/profiles/0/servers/0",
         "/profiles/0/servers/0/tools",
@@ -161,13 +161,13 @@ fn installation_configuration_rejects_unknown_core_and_registered_section_fields
         "/tenants/0",
         "/policies/0",
         "/policies/0/rules/0",
-        "/data_labels/0",
-        "/work_contexts/0",
-        "/work_contexts/0/output_policy",
-        "/work_contexts/0/output_policy/initial_grants/0",
-        "/work_contexts/0/memberships/0",
-        "/oauth_clients/0",
-        "/oidc_clients/0",
+        "/dataLabels/0",
+        "/workContexts/0",
+        "/workContexts/0/outputPolicy",
+        "/workContexts/0/outputPolicy/initialGrants/0",
+        "/workContexts/0/memberships/0",
+        "/oauthClients/0",
+        "/oidcClients/0",
         "/secrets/0",
         "/secrets/0/owner",
         "/recording_ingest_resources/0",
@@ -224,10 +224,32 @@ fn installation_metadata_and_claim_dictionaries_remain_extensible() {
         serde_json::from_slice(&fs::read("../../examples/bioma/gateway.json").unwrap()).unwrap();
     fixture["metadata"]["installation_note"] = serde_json::json!({"custom_field": true});
     fixture["servers"][0]["metadata"]["custom_field"] = Value::Bool(true);
-    fixture["identity_providers"][0]["claim_mapping"]["tenant"]["values"]["installation-defined-claim"] =
+    fixture["identityProviders"][0]["claimMapping"]["tenant"]["values"]["installation-defined-claim"] =
         Value::String("bioma".into());
     serde_json::from_value::<GatewayControlPlane>(fixture)
         .unwrap()
         .validate(&catalog_registry::registry())
         .unwrap();
+}
+
+#[test]
+fn bioma_control_plane_revision_binds_admitted_serialization() {
+    use sha2::{Digest, Sha256};
+    let control: GatewayControlPlane =
+        serde_json::from_slice(&fs::read("../../examples/bioma/gateway.json").unwrap()).unwrap();
+    control.validate(&catalog_registry::registry()).unwrap();
+    let digest = hex::encode(Sha256::digest(serde_json::to_vec(&control).unwrap()));
+    if std::env::var_os("VEOVEO_CAPTURE_BIOMA_CONTROL_PLANE_DIGEST").is_some() {
+        println!("BIOMA_CONTROL_PLANE_SHA256={digest}");
+    } else {
+        let values = fs::read_to_string("../../examples/bioma/values.yaml").unwrap();
+        let configured = values
+            .lines()
+            .find_map(|line| line.trim().strip_prefix("controlPlaneRevision: "))
+            .unwrap();
+        assert_eq!(
+            configured, digest,
+            "installation revision must hash admitted compact JSON, not author-file bytes"
+        );
+    }
 }

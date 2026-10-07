@@ -10,7 +10,7 @@
     "value": {
       "header": true,
       "delimiter": "\t",
-      "timestamp_format": "%Y-%m-%d",
+      "timestampFormat": "%Y-%m-%d",
       "extra": {
         "nullstr": [
           "",
@@ -105,7 +105,7 @@
     "accepted": false,
     "value": {
       "extra": {
-        "timestamp_format": true
+        "timestampFormat": true
       }
     }
   },
@@ -281,7 +281,7 @@
     "schema": "DuckDbReadOptions",
     "accepted": false,
     "value": {
-      "timestamp_format": "%Y\u0000"
+      "timestampFormat": "%Y\u0000"
     }
   },
   {
@@ -308,8 +308,8 @@
       "attach": [
         "other"
       ],
-      "row_limit": 10,
-      "timeout_ms": 200
+      "rowLimit": 10,
+      "timeoutMs": 200
     }
   },
   {
@@ -334,7 +334,7 @@
         "mode": "artifact",
         "format": "parquet"
       },
-      "row_limit": null
+      "rowLimit": null
     }
   },
   {
@@ -355,7 +355,7 @@
     "value": {
       "db": "metrics",
       "sql": "SELECT 1",
-      "row_limit": 0
+      "rowLimit": 0
     }
   },
   {
@@ -364,7 +364,7 @@
     "value": {
       "db": "metrics",
       "sql": "SELECT 1",
-      "timeout_ms": 0
+      "timeoutMs": 0
     }
   },
   {
@@ -373,7 +373,7 @@
     "value": {
       "db": "metrics",
       "sql": "SELECT 1",
-      "row_limit": -1
+      "rowLimit": -1
     }
   },
   {
@@ -386,7 +386,7 @@
         "mode": "artifact",
         "format": "parquet"
       },
-      "row_limit": 1
+      "rowLimit": 1
     }
   },
   {
@@ -468,8 +468,8 @@
     "value": {
       "db": "metrics",
       "sql": "SELECT 1",
-      "create_if_missing": true,
-      "timeout_ms": 1
+      "createIfMissing": true,
+      "timeoutMs": 1
     }
   },
   {
@@ -478,7 +478,7 @@
     "value": {
       "db": "metrics",
       "sql": "SELECT 1",
-      "timeout_ms": 0
+      "timeoutMs": 0
     }
   },
   {

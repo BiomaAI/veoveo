@@ -9,14 +9,14 @@ use super::projection::request_builder;
 
 pub(super) fn wire(request: &CreateRecordingProjectionRequest) -> Value {
     json!({
-        "schema": RECORDING_PROJECTION_HANDLE_SCHEMA, "projection_id": RecordingProjectionId::new(),
-        "dataset_id": request.dataset_id, "recording_id": request.recording_id,
-        "result": {"catalog_revision": "catalog-1", "query_digest": "a".repeat(64),
-            "timeline": request.query.timeline, "sample_grid": request.query.sampling.sample_grid(),
-            "units": request.units, "coordinate_frame_refs": request.coordinate_frame_refs,
-            "omitted_sample_count": 1, "row_count": 1, "arrow_schema_sha256": "b".repeat(64),
-            "byte_len": 100, "payload_sha256": "c".repeat(64)},
-        "expires_at": "2026-09-29T12:00:00Z"
+        "schema": RECORDING_PROJECTION_HANDLE_SCHEMA, "projectionId": RecordingProjectionId::new(),
+        "datasetId": request.dataset_id, "recordingId": request.recording_id,
+        "result": {"catalogRevision": "catalog-1", "queryDigest": "a".repeat(64),
+            "timeline": request.query.timeline, "sampleGrid": request.query.sampling.sample_grid(),
+            "units": request.units, "coordinateFrameRefs": request.coordinate_frame_refs,
+            "omittedSampleCount": 1, "rowCount": 1, "arrowSchemaSha256": "b".repeat(64),
+            "byteLen": 100, "payloadSha256": "c".repeat(64)},
+        "expiresAt": "2026-09-29T12:00:00Z"
     })
 }
 
@@ -26,7 +26,7 @@ fn result_builder_and_decoder_keep_typed_integrity_and_the_wire_profile() {
     let wire = wire(&request);
     let builder: RecordingProjectionHandleBuilder = serde_json::from_value(wire.clone()).unwrap();
     let handle = builder.build_for(&request).unwrap();
-    assert_eq!(handle.schema, RecordingProjectionHandleSchema::V1);
+    assert_eq!(handle.schema, RecordingProjectionHandleSchema::V2);
     assert_eq!(handle.result.query_digest.hex(), "a".repeat(64));
     assert_eq!(handle.result.byte_len.get(), 100);
     assert_eq!(serde_json::to_value(&handle).unwrap(), wire);
@@ -38,10 +38,10 @@ fn result_builder_and_decoder_keep_typed_integrity_and_the_wire_profile() {
     let result = &schema["$defs"]["RecordingProjectionResultMetadata"];
     assert_eq!(result["additionalProperties"], false);
     assert_eq!(
-        result["properties"]["payload_sha256"]["pattern"],
+        result["properties"]["payloadSha256"]["pattern"],
         "^[0-9a-f]{64}$"
     );
-    assert_eq!(result["properties"]["byte_len"]["minimum"], 1);
+    assert_eq!(result["properties"]["byteLen"]["minimum"], 1);
 }
 
 #[test]
@@ -49,25 +49,22 @@ fn result_decode_rejects_invalid_counts_integrity_shapes_and_metadata() {
     let request = request_builder().build().unwrap();
     let wire = wire(&request);
     for (field, value) in [
-        ("catalog_revision", json!("")),
+        ("catalogRevision", json!("")),
         ("timeline", json!("private\nname")),
-        ("byte_len", json!(0)),
-        ("byte_len", json!(MAX_PROJECTION_BYTES + 1)),
-        ("row_count", json!(10_001)),
-        ("row_count", json!(0)),
-        ("omitted_sample_count", json!(u64::MAX)),
-        ("sample_grid", json!([])),
-        ("sample_grid", json!([2, 2])),
-        ("sample_grid", json!([4, 2])),
-        ("sample_grid", json!([i64::MIN, 2])),
-        ("query_digest", json!("a".repeat(63))),
-        ("arrow_schema_sha256", json!("B".repeat(64))),
-        (
-            "payload_sha256",
-            json!(format!("sha256:{}", "c".repeat(64))),
-        ),
+        ("byteLen", json!(0)),
+        ("byteLen", json!(MAX_PROJECTION_BYTES + 1)),
+        ("rowCount", json!(10_001)),
+        ("rowCount", json!(0)),
+        ("omittedSampleCount", json!(u64::MAX)),
+        ("sampleGrid", json!([])),
+        ("sampleGrid", json!([2, 2])),
+        ("sampleGrid", json!([4, 2])),
+        ("sampleGrid", json!([i64::MIN, 2])),
+        ("queryDigest", json!("a".repeat(63))),
+        ("arrowSchemaSha256", json!("B".repeat(64))),
+        ("payloadSha256", json!(format!("sha256:{}", "c".repeat(64)))),
         ("units", json!({"component": ""})),
-        ("coordinate_frame_refs", json!(vec!["frame"; 65])),
+        ("coordinateFrameRefs", json!(vec!["frame"; 65])),
         ("extra", json!(true)),
     ] {
         let mut invalid = wire.clone();
@@ -78,8 +75,8 @@ fn result_decode_rejects_invalid_counts_integrity_shapes_and_metadata() {
         );
     }
     for (field, value) in [
-        ("schema", json!("veoveo.ai/recording-projection-handle/v2")),
-        ("expires_at", json!("not-a-timestamp")),
+        ("schema", json!("veoveo.ai/recording-projection-handle/v1")),
+        ("expiresAt", json!("not-a-timestamp")),
         ("extra", json!(true)),
     ] {
         let mut invalid = wire.clone();
@@ -87,9 +84,9 @@ fn result_decode_rejects_invalid_counts_integrity_shapes_and_metadata() {
         assert!(serde_json::from_value::<RecordingProjectionHandle>(invalid).is_err());
     }
     let mut empty_range = wire;
-    empty_range["result"]["sample_grid"] = json!([]);
-    empty_range["result"]["omitted_sample_count"] = json!(0);
-    empty_range["result"]["row_count"] = json!(0);
+    empty_range["result"]["sampleGrid"] = json!([]);
+    empty_range["result"]["omittedSampleCount"] = json!(0);
+    empty_range["result"]["rowCount"] = json!(0);
     assert!(serde_json::from_value::<RecordingProjectionHandle>(empty_range).is_ok());
 }
 
@@ -98,16 +95,16 @@ fn result_agreement_rejects_wrong_parents_selection_metadata_and_request_limits(
     let request = request_builder().build().unwrap();
     let original = wire(&request);
     for (pointer, value) in [
-        ("/dataset_id", json!(RecordingDatasetId::new())),
-        ("/recording_id", json!(RecordingId::new())),
+        ("/datasetId", json!(RecordingDatasetId::new())),
+        ("/recordingId", json!(RecordingId::new())),
         ("/result/timeline", json!("other")),
-        ("/result/sample_grid", json!([1, 3])),
+        ("/result/sampleGrid", json!([1, 3])),
         ("/result/units", json!({"Scalars:scalars": "seconds"})),
         (
-            "/result/coordinate_frame_refs",
+            "/result/coordinateFrameRefs",
             json!([super::frames::frame(1)]),
         ),
-        ("/result/byte_len", json!(1025)),
+        ("/result/byteLen", json!(1025)),
     ] {
         let mut mismatched = original.clone();
         *mismatched.pointer_mut(pointer).unwrap() = value;
@@ -117,20 +114,20 @@ fn result_agreement_rejects_wrong_parents_selection_metadata_and_request_limits(
         assert!(builder.build_for(&request).is_err(), "{pointer}");
     }
     let mut limited = serde_json::to_value(&request).unwrap();
-    limited["maximum_rows"] = json!(1);
+    limited["maximumRows"] = json!(1);
     let limited = serde_json::from_value::<CreateRecordingProjectionRequest>(limited).unwrap();
     let mut two_rows = original;
-    two_rows["result"]["row_count"] = json!(2);
-    two_rows["result"]["omitted_sample_count"] = json!(0);
+    two_rows["result"]["rowCount"] = json!(2);
+    two_rows["result"]["omittedSampleCount"] = json!(0);
     let handle = serde_json::from_value::<RecordingProjectionHandle>(two_rows).unwrap();
     assert!(handle.validate_request(&limited).is_err());
 
     let mut range = serde_json::to_value(&request).unwrap();
     range["sampling"] = json!({"kind": "range", "start": 0, "end": 2});
-    range["maximum_samples"] = json!(1);
+    range["maximumSamples"] = json!(1);
     let range = serde_json::from_value::<CreateRecordingProjectionRequest>(range).unwrap();
     let mut result = serde_json::to_value(handle).unwrap();
-    result["result"]["sample_grid"] = json!([]);
+    result["result"]["sampleGrid"] = json!([]);
     let result = serde_json::from_value::<RecordingProjectionHandle>(result).unwrap();
     assert!(result.validate_request(&range).is_err());
 }

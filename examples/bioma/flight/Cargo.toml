@@ -1,0 +1,51 @@
+[package]
+name = "veoveo-flight-smoke"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "flight-smoke"
+path = "src/main.rs"
+required-features = ["smoke"]
+
+[dependencies]
+veoveo-gateway-catalog.workspace = true
+veoveo-gateway-contract.workspace = true
+veoveo-deploy-contract.workspace = true
+veoveo-recording-contract.workspace = true
+veoveo-artifact-contract.workspace = true
+veoveo-reason-mcp = { path = "../../../servers/reason-mcp", default-features = false, features = ["contract"] }
+veoveo-types.workspace = true
+veoveo-stream-mcp = { path = "../../../servers/stream-mcp", default-features = false, features = ["contract"] }
+veoveo-uav-sim-mcp = { path = "../../../servers/uav-sim-mcp", default-features = false, features = ["contract"] }
+veoveo-map-mcp = { path = "../../../servers/map-mcp", default-features = false, features = ["contract"] }
+veoveo-frames-mcp = { path = "../../../servers/frames-mcp", default-features = false, features = ["contract"] }
+anyhow.workspace = true
+base64.workspace = true
+chrono.workspace = true
+clap.workspace = true
+futures.workspace = true
+hex.workspace = true
+image.workspace = true
+reqwest = { workspace = true, features = ["json", "rustls-no-provider"] }
+rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest", "reqwest-tls-no-provider"] }
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-tungstenite.workspace = true
+url.workspace = true
+uuid.workspace = true
+veoveo-mcp-contract = { workspace = true, features = ["configuration"] }
+
+veoveo-browser-smoke = { path = "../../../testing/browser-smoke" }
+veoveo-testing-support = { path = "../../../testing/support" }
+
+[features]
+default = []
+smoke = []
+
+[dev-dependencies]
+axum.workspace = true
+rmcp = { workspace = true, features = ["server", "transport-streamable-http-server"] }

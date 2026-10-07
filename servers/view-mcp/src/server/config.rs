@@ -22,8 +22,6 @@ pub(super) struct Args {
     /// Base URL of the shared artifact-plane service.
     #[arg(long, default_value = "http://artifact-service:8790")]
     pub artifact_service_url: String,
-    #[arg(long, env = "VIEW_REQUIRE_NVIDIA", default_value_t = true, action = clap::ArgAction::Set)]
-    pub require_nvidia: bool,
     #[arg(long, default_value_t = 2_147_483_648)]
     pub raw_cache_bytes: u64,
     #[arg(long, default_value_t = 4_294_967_296)]
@@ -178,7 +176,6 @@ impl Args {
 
     pub fn renderer_config(&self) -> RendererConfig {
         RendererConfig {
-            require_nvidia: self.require_nvidia,
             gpu_cache_bytes: self.gpu_cache_bytes,
             jpeg_quality: self.jpeg_quality,
         }

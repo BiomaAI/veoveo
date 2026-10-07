@@ -9,6 +9,7 @@ use rmcp::{
 };
 use serde_json::json;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use veoveo_mcp_contract::GatewayDiscoveryMetadata;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskInputRequest, TaskOwner, TaskRuntime};
 use veoveo_types::TaskId;
 
@@ -67,7 +68,7 @@ impl ServerHandler for Domain {
             ),
         ]);
         if let Some(server) = self.degraded_server.lock().unwrap().clone() {
-            result.meta = veoveo_mcp_contract::GatewayDiscoveryDegradation::new([
+            result.meta = veoveo_gateway_contract::GatewayDiscoveryDegradation::new([
                 veoveo_gateway_contract::GatewayDiscoveryFailure {
                     server,
                     surface: veoveo_gateway_contract::GatewayDiscoverySurface::Tools,

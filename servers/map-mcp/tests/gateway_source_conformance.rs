@@ -7,16 +7,13 @@ use veoveo_mcp_conformance::{knowledge_probes::*, *};
 
 #[path = "support/source_authoring.rs"]
 mod authoring;
-#[path = "../../../testing/installed/knowledge.rs"]
-mod installed;
+use veoveo_testing_support::installed::knowledge as installed;
 #[path = "support/source_publications.rs"]
 mod publications;
 #[path = "support/source_releases.rs"]
 mod releases;
-#[path = "../../../testing/installed/restart.rs"]
-mod restart;
-#[path = "../../../testing/installed/tools.rs"]
-mod tools;
+use veoveo_testing_support::installed::restart;
+use veoveo_testing_support::installed::tools;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

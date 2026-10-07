@@ -95,10 +95,10 @@ fn generated_configuration_is_admitted_and_der_key_signs_gateway_assertion() {
         vec!["fixture-managed"]
     );
     let manifest: Value = serde_json::from_str(&configuration.data["manifest.json"]).unwrap();
-    assert_eq!(manifest["resource_subscriptions"], json!([]));
-    assert_eq!(manifest["model"]["base_url"], "${VEOVEO_AGENT_MODEL_URL}");
-    assert_eq!(manifest["model"]["api_key_env"], "VEOVEO_MANAGED_MODEL_KEY");
-    assert_eq!(manifest["schedule"]["heartbeat_interval_s"], 3600);
+    assert_eq!(manifest["resourceSubscriptions"], json!([]));
+    assert_eq!(manifest["model"]["baseUrl"], "${VEOVEO_AGENT_MODEL_URL}");
+    assert_eq!(manifest["model"]["apiKeyEnv"], "VEOVEO_MANAGED_MODEL_KEY");
+    assert_eq!(manifest["schedule"]["heartbeatIntervalS"], 3600);
 
     // Admission must depend on real registered secret/context facts.
     let mut missing_secret = configuration.plane.clone();

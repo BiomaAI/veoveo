@@ -36,6 +36,7 @@ impl ModelView {
 }
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct ModelViewWire {
     id: ModelId,
     uri: ModelUri,
@@ -112,6 +113,7 @@ impl PipelineView {
 }
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct PipelineViewWire {
     id: PipelineId,
     uri: PipelineUri,

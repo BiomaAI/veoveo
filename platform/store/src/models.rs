@@ -636,6 +636,8 @@ pub struct ArtifactWriteRedemptionRecord {
     pub task: RecordId,
     pub task_id: String,
     pub idempotency_key: String,
+    #[surreal(wrap)]
+    pub request_format: veoveo_artifact_contract::ArtifactWriteRequestFormat,
     pub request_hash: String,
     pub byte_len: i64,
     pub artifact: RecordId,

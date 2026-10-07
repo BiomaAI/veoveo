@@ -8,9 +8,9 @@
 | JSON | Serde identity strings, metadata, capability issuance/redemption values, mutable access-request progress and transfer descriptors/results. Owner admission checks intrinsic identities and progress relationships; producer metadata stays open. |
 | JSON Schema 2020-12 | Schemars schemas for identity, metadata, compliance, provenance, release/grant/control values, capabilities, progress, upload policy/limits and transfer notifications. Provenance has mode-specific required attribution; the transfer bundle selects the actual owner declarations. |
 | SHA-256 | `UploadSha256` admits exactly 64 lowercase hexadecimal characters with no prefix. Streaming descriptors and transfer receipts use this bare digest representation; services own hashing, byte-integrity settlement and hash preimages. |
-| Artifact upload and notification declarations | Upload JSON preserves snake_case keys and closed state/error vocabularies. Contentless notifications carry `op: "changed"`, canonical `upload_id` and one of six emitted states. Policy, multipart layout, receipts, byte/count limits and header names are pure declarations; notification consumers perform a currently authorized status read. |
+| Artifact upload and notification declarations | Upload JSON uses camelCase keys and closed state/error vocabularies. Contentless notifications carry `op: "changed"`, canonical `uploadId` and one of six emitted states. Policy, multipart layout, receipts, byte/count limits and header names are pure declarations; notification consumers perform a currently authorized status read. |
 | HTTP and authenticated Artifact service adapters | The [Artifact service](../service/DESIGN.md#standards-and-protocols) owns routes, streaming, credential verification, current policy and provider transport. This library supplies their wire values and limits without implementing HTTP or authentication. |
-| RFC 3339 timestamps | Chrono 0.4.45 date/time values with Serde support; this crate excludes Chrono's clock feature |
+| Chrono 0.4.45 UTC JSON timestamps | Runtime date/time values keep Chrono Serde and exclude its clock feature. The foundational `ChronoUtcTimestampSchema` declares the padded lexical profile with signed extended years, leap seconds, fractions and standard offsets instead of generic date-time. Calendar/range and owner relationships are admitted by actual decoding. |
 | Veoveo Artifact addresses | Neutral `artifact://{id}` occurrences and server presentations such as `media://artifact/{id}` |
 | [Veoveo concrete resource profile](../../types/DESIGN.md#concrete-resource-components) | URL 2.5.8 parses components and builds addresses; Artifact addresses exclude escapes, queries, fragments, credentials, ports, templates, and additional path segments |
 
@@ -58,6 +58,10 @@ its persisted and public fields keep their Artifact-specific identity.
 and emits the lowercase hyphenated identity. A content hash never identifies an
 occurrence. `ArtifactIdError` describes the required version without echoing input.
 
+Public timestamp fields select the shared schema-only carrier explicitly, including the private wires that emit metadata and snapshot schemas. Optional fields select `Option<ChronoUtcTimestampSchema>` and keep their actual omission/null policy. This changes schema admission without changing Rust DateTime storage, serialized bytes, version tags or relationship checks. The existing owner harness serializes creation and retention from twelve typed UTC producer cases, admits those values through their full schemas and decoders, and checks timestamp locations across grants, capabilities, access requests, controls, snapshots and transfer values. Calendar-invalid values still fail actual Chrono decoding even where the lexical schema can match them.
+
+The SDK's immutable timestamp token preserves Artifact wire precision and offers explicit datetime conversion under its [own design](../../../sdk/python/DESIGN.md#artifact-timestamp-values). Its qualified ingress uses emitted padded components, uppercase T/Z or standard numeric offsets, at most nine fractional digits and checked Gregorian/UTC bounds. Schema syntax alone does not authorize a read, settle an operation or establish a timestamp's source.
+
 `ArtifactMetadata` carries the occurrence, byte count, MIME and filename presentation,
 creation time, release state, compliance, and open producer metadata. Its compliance
 model uses specific foundational identity and label types. `ArtifactProvenance::new`
@@ -79,11 +83,11 @@ occurrence; it never directs the Artifact client to fetch from that URI's host.
 The server's scheme and metadata confer no permission to read the occurrence.
 
 `ArtifactMetadata::artifact_id()` derives the occurrence from its typed `artifact_uri`.
-Serialization emits the public `artifact_id` field, and decoding verifies that it
+Serialization emits the public `artifactId` field, and decoding verifies that it
 agrees with the URI. Internally there is one identity source. The HTTP client and
 service resolution interfaces require `ArtifactUri`; strings enter at HTTP and JSON
 decoding. `TryFrom<Uuid>` checks version and variant when a driver provides a UUID.
-Optional `download_url` typing and remaining access/service contracts are work in the
+Optional `downloadUrl` typing and remaining access/service contracts are work in the
 [consolidated plan](../../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 
 ## Metadata Snapshots
@@ -119,17 +123,17 @@ the parsed URI before constructing the model.
 
 ## Attribution Wire Profile
 
-Artifact JSON carries `producer`, `invocation_mode`, `initiator`, `delegation_id` and
-`policy_revision` as flat fields. A private wire type maps those fields to the
+Artifact JSON uses camelCase keys and snake_case mode values. It carries `producer`, `invocationMode`, `initiator`, `delegationId` and
+`policyRevision` as flat fields. A private wire type maps those fields to the
 foundational invocation enum. Authorization uses the service's verified invocation authority.
 
 | Mode | Required attribution | Other attribution fields |
 |---|---|---|
-| `direct` | `initiator` | `delegation_id` must be omitted or null |
-| `delegated` | `initiator`, `delegation_id` | Both identities must be non-null |
-| `automated` | None | `initiator` and `delegation_id` must be omitted or null |
+| `direct` | `initiator` | `delegationId` must be omitted or null |
+| `delegated` | `initiator`, `delegationId` | Both identities must be non-null |
+| `automated` | None | `initiator` and `delegationId` must be omitted or null |
 
-Serialization omits absent fields. Decoding ignores unknown extra JSON fields. The
+Serialization omits absent fields. Decoding rejects unknown extra JSON fields. The
 private wire type uses an optional uninhabited type for inapplicable identities,
 which rejects values including empty objects. Contradictory attribution and incomplete
 delegated or direct claims fail decoding. External producers supply the identities
@@ -201,3 +205,15 @@ capability/redemption rows before these writers and readers run. It tightens wri
 Task admission to the owner's RFC variant and canonical persisted spelling.
 Unsupported old or corrupt retained bindings fail closed. No historical reader,
 read normalization, SQL alias fallback or overlapping writer profile is supported.
+
+## Write Request Receipt Format
+
+`ArtifactWriteRequestFormat::V2` identifies the camelCase write-request preimage.
+The Artifact service hashes its spelling, NUL, the bare blob SHA-256, NUL and the
+serialized request. Store retains the required typed marker in `request_format`;
+its append-only Artifact lane version one adds admission without a default or
+backfill. All reservation readbacks decode the marker before replay or rebind.
+Missing and unsupported markers fail while preserving quota and occurrence fences.
+Valid current pending requests keep atomic changed-content rebind. The installation
+must drain old operations and recreate retained request state; no historical reader
+or mixed-writer recovery is supported.

@@ -1,0 +1,1 @@
+RETURN [(SELECT * FROM platform_module_lane ORDER BY id), (SELECT * FROM platform_module_migration ORDER BY id), (SELECT * FROM platform_module_installation ORDER BY id), (SELECT * FROM frame_world ORDER BY id), (SELECT * FROM frame_world_revision ORDER BY id), (SELECT * FROM coordinate_operation ORDER BY id), (SELECT * FROM task ORDER BY id)];

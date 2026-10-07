@@ -4,7 +4,7 @@
  * This interface was referenced by `PlaybackManifest`'s JSON-Schema
  * via the `definition` "PlaybackMapProvider".
  */
-export type PlaybackMapProvider = "none" | "openStreetMap" | "mapbox" | "mixed";
+export type PlaybackMapProvider = "none" | "open_street_map" | "mapbox" | "mixed";
 /**
  * This interface was referenced by `PlaybackManifest`'s JSON-Schema
  * via the `definition` "PlaybackLiveTransport".
@@ -14,7 +14,7 @@ export type PlaybackLiveTransport = "rerun_rrd_channel_v2";
  * This interface was referenced by `PlaybackManifest`'s JSON-Schema
  * via the `definition` "PlaybackManifestSchema".
  */
-export type PlaybackManifestSchema = "veoveo.ai/recording-playback/v10";
+export type PlaybackManifestSchema = "veoveo.ai/recording-playback/v11";
 /**
  * This interface was referenced by `PlaybackManifest`'s JSON-Schema
  * via the `definition` "RecordingState".
@@ -32,17 +32,23 @@ export type RecordingState = "live" | "ready" | "sealing" | "sealed" | "interrup
  */
 export interface PlaybackManifest {
   access: PlaybackAccess;
-  application_id: string;
+  applicationId: string;
   archive?: PlaybackArchive | null;
   blueprint?: PlaybackBlueprint | null;
-  catalog_revision: string;
-  dataset_id: string;
-  ended_at?: string | null;
+  catalogRevision: string;
+  datasetId: string;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  endedAt?: string | null;
   live?: PlaybackLiveReceiver | null;
-  recording_key: string;
-  recording_segment_id: string;
+  recordingKey: string;
+  recordingSegmentId: string;
   schema: PlaybackManifestSchema;
-  started_at: string;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  startedAt: string;
   state: RecordingState;
 }
 /**
@@ -50,22 +56,25 @@ export interface PlaybackManifest {
  * via the `definition` "PlaybackAccess".
  */
 export interface PlaybackAccess {
-  expires_at: string;
-  grant_id: string;
-  redap_token: string;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  expiresAt: string;
+  grantId: string;
+  redapToken: string;
 }
 /**
  * This interface was referenced by `PlaybackManifest`'s JSON-Schema
  * via the `definition` "PlaybackArchive".
  */
 export interface PlaybackArchive {
-  byte_len: number;
-  catalog_revision: string;
-  dataset_id: string;
-  layer_count: number;
-  optimization_profile: string;
-  recording_segment_id: string;
-  rrd_version: string;
+  byteLen: number;
+  catalogRevision: string;
+  datasetId: string;
+  layerCount: number;
+  optimizationProfile: string;
+  recordingSegmentId: string;
+  rrdVersion: string;
   uri: string;
 }
 /**
@@ -73,9 +82,9 @@ export interface PlaybackArchive {
  * via the `definition` "PlaybackBlueprint".
  */
 export interface PlaybackBlueprint {
-  blueprint_id: string;
-  byte_len: number;
-  map_provider: PlaybackMapProvider;
+  blueprintId: string;
+  byteLen: number;
+  mapProvider: PlaybackMapProvider;
   revision: number;
   sha256: string;
 }
@@ -86,7 +95,7 @@ export interface PlaybackBlueprint {
  * via the `definition` "PlaybackLiveReceiver".
  */
 export interface PlaybackLiveReceiver {
-  history_seconds: number;
+  historySeconds: number;
   transport: PlaybackLiveTransport;
-  video_preroll_seconds: number;
+  videoPrerollSeconds: number;
 }

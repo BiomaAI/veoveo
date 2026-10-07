@@ -62,7 +62,7 @@ pub async fn certify(driver: &Driver) {
     let address = driver.server.lock().await.as_ref().unwrap().address;
     let base = format!("http://{address}/reason");
     let profile = HostedServerConformanceProfile {
-        schema_version: HostedServerProfileSchema::V1,
+        schema_version: HostedServerProfileSchema::V2,
         profile_id: "reason-native-findings".into(),
         contract_revision: HOSTED_MCP_CONTRACT_REVISION.into(),
         endpoint: format!("{base}/mcp"),
@@ -96,15 +96,16 @@ pub async fn certify(driver: &Driver) {
                 .map(|c| c.member_template().to_owned())
                 .collect(),
             required_prompts: [
-                "reason-analyze-recording".into(),
-                "reason-answer-question".into(),
+                "reason_analyze_recording".into(),
+                "reason_answer_question".into(),
             ]
             .into(),
         },
     };
     let probes = KnowledgeProbes {
         changes: FindingCollection::ALL
-            .into_iter()
+            .iter()
+            .copied()
             .map(|collection| {
                 KnowledgeChangeProbe::update(
                     collection.descriptor().collection().clone(),

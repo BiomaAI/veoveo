@@ -45,8 +45,8 @@ fn malformed_digests_fail_at_request_decoding_without_echoing_input() {
         "PRIVATE_INVALID_DIGEST".into(),
     ] {
         assert!(AuthoritySourceDigest::parse(&input).is_err());
-        let request = json!({"source_id":"time-source-fixture",
-            "expected_source_digest_sha256":input, "idempotency_key":"fixture"});
+        let request = json!({"sourceId":"time-source-fixture",
+            "expectedSourceDigestSha256":input, "idempotencyKey":"fixture"});
         let error = serde_json::from_value::<CreateAcquisitionRequest>(request).unwrap_err();
         assert!(!error.to_string().contains("PRIVATE_INVALID_DIGEST"));
     }
@@ -74,7 +74,7 @@ fn acquisition_requests_keep_optional_digest_fields_and_bare_hex() {
         .unwrap();
         let wire = serde_json::to_value(&request).unwrap();
         assert_eq!(
-            wire["expected_source_digest_sha256"],
+            wire["expectedSourceDigestSha256"],
             json!(digest.as_ref().map(|d| d.as_hex()))
         );
         assert_eq!(

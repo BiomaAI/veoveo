@@ -42,7 +42,7 @@ impl RecordingProjectionSampling {
 
 /// Complete selection inputs. RRD separately parses names with the pinned Rerun grammar.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 #[schemars(rename = "RecordingProjectionQuery")]
 pub struct RecordingProjectionQueryBuilder {
     #[schemars(length(min = 1, max = 64))]

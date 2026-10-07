@@ -1,5 +1,5 @@
 {
-  "identity_providers": [
+  "identityProviders": [
     {
       "id": "enterprise",
       "issuer": "https://idp.example.com",
@@ -7,13 +7,13 @@
         "source": "file",
         "path": "configs/jwks.smoke.json"
       },
-      "authorization_endpoint": "https://idp.example.com/oauth2/authorize",
-      "token_endpoint": "https://idp.example.com/oauth2/token",
-      "enterprise_managed_authorization_endpoint": "https://idp.example.com/oauth2/id-jag",
+      "authorizationEndpoint": "https://idp.example.com/oauth2/authorize",
+      "tokenEndpoint": "https://idp.example.com/oauth2/token",
+      "enterpriseManagedAuthorizationEndpoint": "https://idp.example.com/oauth2/id-jag",
       "metadata": {}
     }
   ],
-  "authorization_servers": [
+  "authorizationServers": [
     {
       "id": "veoveo",
       "issuer": "https://veoveo.example/oauth",
@@ -21,35 +21,35 @@
         "source": "file",
         "path": "configs/jwks.smoke.json"
       },
-      "access_token_key_id": "test-key",
-      "access_token_signing_key": "veoveo_access_token_private_key",
-      "identity_provider": "enterprise",
-      "authorization_endpoint": "https://veoveo.example/oauth/authorize",
-      "token_endpoint": "https://veoveo.example/oauth/token",
+      "accessTokenKeyId": "test-key",
+      "accessTokenSigningKey": "veoveo_access_token_private_key",
+      "identityProvider": "enterprise",
+      "authorizationEndpoint": "https://veoveo.example/oauth/authorize",
+      "tokenEndpoint": "https://veoveo.example/oauth/token",
       "metadata": {}
     }
   ],
   "servers": [
     {
       "slug": "media",
-      "uri_scheme": "media",
-      "mount_path": "/media",
-      "mcp_path": "/media/mcp",
+      "uriScheme": "media",
+      "mountPath": "/media",
+      "mcpPath": "/media/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://127.0.0.1:18801/media/mcp",
-        "health_url": "http://127.0.0.1:18801/media/readyz",
+        "healthUrl": "http://127.0.0.1:18801/media/readyz",
         "security": "loopback_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true
+        "resourcesListChanged": true
       },
       "tools": [
         "artifact",
@@ -57,7 +57,7 @@
         "models",
         "run"
       ],
-      "compatibility_helpers": [
+      "compatibilityHelpers": [
         "artifact",
         "model_schema",
         "models"
@@ -68,10 +68,10 @@
         "media-video-generate",
         "media-task-review"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
-      "owned_routes": [
+      "ownedRoutes": [
         {
           "path": "/media/webhooks",
           "purpose": "webhook"
@@ -87,16 +87,16 @@
   "profiles": [
     {
       "id": "operator",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.example/mcp/operator",
-      "policy_version": "2026-07-02",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://veoveo.example/mcp/operator",
+      "policyVersion": "2026-07-02",
+      "authModes": [
         "enterprise_managed_authorization",
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "servers": [
@@ -131,16 +131,16 @@
     },
     {
       "id": "admin",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.example/mcp/admin",
-      "policy_version": "2026-07-02",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://veoveo.example/mcp/admin",
+      "policyVersion": "2026-07-02",
+      "authModes": [
         "enterprise_managed_authorization",
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use",
         "admin:manage"
       ],
@@ -176,14 +176,14 @@
     },
     {
       "id": "workspace",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.example/mcp/workspace",
-      "policy_version": "2026-07-02",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://veoveo.example/mcp/workspace",
+      "policyVersion": "2026-07-02",
+      "authModes": [
         "oidc_authorization_code_pkce"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "servers": [
@@ -222,52 +222,52 @@
   "recording_ingest_resources": [
     {
       "id": "recording-ingest",
-      "protected_resource": "https://veoveo.example/ingest/recordings",
-      "authorization_server": "veoveo",
-      "policy_version": "2026-07-02",
       "upstream": {
         "url": "http://recording-hub:9878",
-        "health_url": "http://recording-hub:9878/healthz",
+        "healthUrl": "http://recording-hub:9878/healthz",
         "security": "cluster_internal_http"
       },
-      "maximum_batch_bytes": 8388608,
-      "required_scopes": [
-        "recording:ingest"
-      ],
+      "maximumBatchBytes": 8388608,
       "producers": [
         {
           "id": "smoke-recording-producer",
-          "oauth_client": "smoke-recording-producer",
+          "oauthClient": "smoke-recording-producer",
           "tenant": "tenant-a",
           "dataset": "smoke-recordings",
-          "allowed_application_ids": [
+          "allowedApplicationIds": [
             "smoke-sensor"
           ],
-          "single_recording_application_ids": [
+          "singleRecordingApplicationIds": [
             "smoke-sensor"
           ],
           "classification": "unclassified",
           "labels": [],
           "quotas": {
-            "maximum_concurrent_streams": 4,
-            "maximum_batches_per_minute": 600,
-            "maximum_bytes_per_day": 10737418240,
-            "maximum_stream_bytes": 2147483648
+            "maximumConcurrentStreams": 4,
+            "maximumBatchesPerMinute": 600,
+            "maximumBytesPerDay": 10737418240,
+            "maximumStreamBytes": 2147483648
           },
           "blueprints": {
             "enabled": true,
-            "maximum_bytes": 2097152,
-            "maximum_messages": 10000,
-            "maximum_revisions": 32
+            "maximumBytes": 2097152,
+            "maximumMessages": 10000,
+            "maximumRevisions": 32
           },
           "retention": {
-            "open_stream_days": 7
+            "openStreamDays": 7
           },
           "enabled": true,
           "metadata": {}
         }
       ],
-      "metadata": {}
+      "metadata": {},
+      "protectedResource": "https://veoveo.example/ingest/recordings",
+      "authorizationServer": "veoveo",
+      "policyVersion": "2026-07-02",
+      "requiredScopes": [
+        "recording:ingest"
+      ]
     }
   ],
   "policies": [
@@ -306,7 +306,7 @@
             "models",
             "run"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "media"
           ],
           "prompts": [
@@ -315,7 +315,7 @@
             "media-video-generate",
             "media-task-review"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -351,7 +351,7 @@
             "models",
             "run"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "media"
           ],
           "prompts": [
@@ -360,7 +360,7 @@
             "media-video-generate",
             "media-task-review"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -375,7 +375,7 @@
           "profiles": [
             "admin"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "admin:manage"
           ],
           "metadata": {}
@@ -392,7 +392,7 @@
             "operator",
             "workspace"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -408,7 +408,7 @@
           "profiles": [
             "admin"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -423,16 +423,16 @@
             "recording_blueprint_publish",
             "recording_stream_finish"
           ],
-          "protected_resources": [
+          "protectedResources": [
             "https://veoveo.example/ingest/recordings"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.example/oauth#smoke-recording-producer"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "tenant-a"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "recording:ingest"
           ],
           "metadata": {}
@@ -441,7 +441,7 @@
       "metadata": {}
     }
   ],
-  "data_labels": [
+  "dataLabels": [
     {
       "id": "cui",
       "title": "Controlled Unclassified Information",
@@ -468,18 +468,18 @@
       "metadata": {}
     }
   ],
-  "work_contexts": [
+  "workContexts": [
     {
       "id": "operations",
       "tenant": "tenant-a",
       "title": "Operations",
-      "policy_revision": "2026-07-02",
-      "output_policy": {
+      "policyRevision": "2026-07-02",
+      "outputPolicy": {
         "owner": {
           "kind": "group",
           "id": "operations"
         },
-        "initial_grants": [
+        "initialGrants": [
           {
             "subject": {
               "kind": "group",
@@ -492,7 +492,7 @@
       "memberships": [
         {
           "level": "owner",
-          "oauth_clients": [
+          "oauthClients": [
             "admin-console",
             "admin-delegated",
             "admin-service"
@@ -503,7 +503,7 @@
           "principals": [
             "https://veoveo.local/services#recording-hub"
           ],
-          "oauth_clients": [
+          "oauthClients": [
             "operator-local-public",
             "operator-delegated",
             "operator-hosted-public",
@@ -514,38 +514,38 @@
         },
         {
           "level": "contributor",
-          "oauth_clients": [
+          "oauthClients": [
             "workspace"
           ]
         }
       ]
     }
   ],
-  "oauth_clients": [
+  "oauthClients": [
     {
       "id": "operator-local-public",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "direct",
-      "display_name": "Veoveo Operator Local Client",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "direct",
+      "displayName": "Veoveo Operator Local Client",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.example/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "authorization_code_pkce",
         "refresh_token"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use"
       ],
       "metadata": {
         "client_boundary": "local_public"
       },
-      "redirect_uris": [
+      "redirectUris": [
         "http://localhost:6274/oauth/callback",
         "http://localhost:6274/oauth/callback/debug",
         "http://127.0.0.1:6274/oauth/callback",
@@ -558,24 +558,24 @@
     },
     {
       "id": "operator-delegated",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "delegated",
-      "display_name": "Operator Delegated Client",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "delegated",
+      "displayName": "Operator Delegated Client",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.example/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "enterprise_managed_authorization"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "redirect_uris": [
+      "redirectUris": [
         "http://localhost:8789/oauth/callback"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use"
       ],
       "metadata": {
@@ -584,64 +584,64 @@
     },
     {
       "id": "operator-hosted-public",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "direct",
-      "display_name": "Veoveo Operator Hosted Client",
-      "client_surface": "tools_compat",
-      "allowed_compatibility_helpers": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "direct",
+      "displayName": "Veoveo Operator Hosted Client",
+      "clientSurface": "tools_compat",
+      "allowedCompatibilityHelpers": [
         "media.artifact",
         "media.model_schema",
         "media.models"
       ],
-      "direct_task_call_adapter": true,
-      "allowed_resources": [
+      "directTaskCallAdapter": true,
+      "allowedResources": [
         "https://veoveo.example/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "authorization_code_pkce",
         "refresh_token"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use"
       ],
       "metadata": {
         "client_boundary": "hosted_public"
       },
-      "redirect_uris": [
+      "redirectUris": [
         "https://claude.ai/api/mcp/auth_callback",
         "https://chatgpt.com/connector/oauth/gJtUJETZMrHO"
       ]
     },
     {
       "id": "operator-hosted-delegated",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "delegated",
-      "display_name": "Hosted Operator Delegated Client",
-      "client_surface": "tools_compat",
-      "allowed_compatibility_helpers": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "delegated",
+      "displayName": "Hosted Operator Delegated Client",
+      "clientSurface": "tools_compat",
+      "allowedCompatibilityHelpers": [
         "media.artifact",
         "media.model_schema",
         "media.models"
       ],
-      "direct_task_call_adapter": true,
-      "allowed_resources": [
+      "directTaskCallAdapter": true,
+      "allowedResources": [
         "https://veoveo.example/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "enterprise_managed_authorization"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "redirect_uris": [
+      "redirectUris": [
         "https://claude.ai/api/mcp/auth_callback"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use"
       ],
       "metadata": {
@@ -650,52 +650,52 @@
     },
     {
       "id": "admin-console",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "direct",
-      "display_name": "Veoveo Admin Console",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "direct",
+      "displayName": "Veoveo Admin Console",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.example/mcp/admin"
       ],
-      "grant_types": [
+      "grantTypes": [
         "authorization_code_pkce",
         "refresh_token"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use",
         "admin:manage"
       ],
       "metadata": {
         "client_boundary": "admin_console"
       },
-      "redirect_uris": [
+      "redirectUris": [
         "https://veoveo.example/admin/callback"
       ]
     },
     {
       "id": "admin-delegated",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "delegated",
-      "display_name": "Administration Delegated Client",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "delegated",
+      "displayName": "Administration Delegated Client",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.example/mcp/admin"
       ],
-      "grant_types": [
+      "grantTypes": [
         "enterprise_managed_authorization"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "redirect_uris": [
+      "redirectUris": [
         "https://veoveo.example/admin/callback"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use",
         "admin:manage"
       ],
@@ -705,21 +705,21 @@
     },
     {
       "id": "operator-service",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Veoveo Operator Service",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Veoveo Operator Service",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.example/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use"
       ],
       "metadata": {
@@ -733,21 +733,21 @@
     },
     {
       "id": "admin-service",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Veoveo Admin Service",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Veoveo Admin Service",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.example/mcp/admin"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use",
         "admin:manage"
       ],
@@ -762,21 +762,21 @@
     },
     {
       "id": "smoke-recording-producer",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Smoke Recording Producer",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Smoke Recording Producer",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.example/ingest/recordings"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "recording:ingest"
       ],
       "metadata": {
@@ -790,47 +790,47 @@
     },
     {
       "id": "workspace",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "direct",
-      "display_name": "Veoveo Workspace",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "direct",
+      "displayName": "Veoveo Workspace",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.example/mcp/workspace"
       ],
-      "grant_types": [
+      "grantTypes": [
         "authorization_code_pkce",
         "refresh_token"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "artifact:upload",
         "operator:use"
       ],
       "metadata": {
         "client_boundary": "workspace"
       },
-      "redirect_uris": [
+      "redirectUris": [
         "https://veoveo.example/admin/callback"
       ]
     }
   ],
-  "oidc_clients": [
+  "oidcClients": [
     {
       "id": "enterprise",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "allowed_resources": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "allowedResources": [
         "https://veoveo.example/mcp/operator",
         "https://veoveo.example/mcp/admin",
         "https://veoveo.example/mcp/workspace"
       ],
-      "client_id": "veoveo",
-      "redirect_uri": "https://veoveo.example/oauth/callback",
-      "auth_method": "client_secret_post",
-      "credential_secret": "enterprise_oidc_client_secret",
+      "clientId": "veoveo",
+      "redirectUri": "https://veoveo.example/oauth/callback",
+      "authMethod": "client_secret_post",
+      "credentialSecret": "enterprise_oidc_client_secret",
       "scopes": [
         "openid",
         "profile",

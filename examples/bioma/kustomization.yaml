@@ -14,6 +14,7 @@ configMapGenerator:
       disableNameSuffixHash: true
     files:
       - indexing.json=knowledge/indexing.json
+      - embedding-runtime.json=knowledge/embedding-runtime.json
   - name: bioma-otel-collector
     namespace: veoveo
     options:

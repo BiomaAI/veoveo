@@ -15,7 +15,7 @@ use crate::{
         ReachableAreaId, ReachableAreaRequest, Restriction, RestrictionEffectKind, RouteEndpoint,
         RouteId, RouteMatrix, RouteMatrixCell, RouteMatrixId, RouteMatrixRequest, RouteObjective,
         RouteObjectiveKind, RoutePlan, RouteProvenance, RouteRequest, RouteStatus, RouteValidation,
-        TRAVEL_MODEL_ARTIFACT_VERSION, TravelCostMetric, TravelModelArtifact, TravelModelMatrix,
+        TravelCostMetric, TravelModelArtifact, TravelModelMatrix,
         TravelModelProfileProvenance, ValidateRouteRequest, ValidationId, Wgs84BoundingBox,
         Wgs84Position,
     },
@@ -396,7 +396,7 @@ impl RouteService {
         }
         Ok((
             TravelModelArtifact {
-                version: TRAVEL_MODEL_ARTIFACT_VERSION.to_owned(),
+                version: crate::contract::TravelModelArtifactVersion::V2,
                 map_resource_uri: Some(resource_uri),
                 model: OptimizationTravelModel {
                     location_ids: request
@@ -611,7 +611,7 @@ impl RouteService {
             bail!("route handoff path must contain 2..=10000 distinct consecutive positions");
         }
         Ok(MapRouteHandoffBuilder {
-            schema_profile: MapRouteHandoffSchema::V1,
+            schema_profile: MapRouteHandoffSchema::V2,
             route_uri: route.route_uri.clone(),
             route_digest_sha256,
             route_status: route.status,

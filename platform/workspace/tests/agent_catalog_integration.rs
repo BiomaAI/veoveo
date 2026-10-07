@@ -337,6 +337,52 @@ async fn offline_chat_import_preserves_identity_and_qualifies_exact_restore() {
     let exported = serde_json::to_vec(&plan).unwrap();
     let recovered: Vec<AgentChatImport> = serde_json::from_slice(&exported).unwrap();
     assert_eq!(plan, recovered);
+    let exported_value = serde_json::to_value(&plan).unwrap();
+    assert_eq!(
+        exported_value[0]["before"],
+        serde_json::to_value(&before[0]).unwrap(),
+        "native record profile unchanged"
+    );
+    assert!(
+        exported_value[0]["before"]
+            .get("definition_digest")
+            .is_some()
+    );
+    for keep in [false, true] {
+        let mut bad = exported_value.clone();
+        let object = bad[0].as_object_mut().unwrap();
+        object.insert("target_digest".into(), object["targetDigest"].clone());
+        if !keep {
+            object.remove("targetDigest");
+        }
+        assert!(serde_json::from_value::<Vec<AgentChatImport>>(bad.clone()).is_err());
+        assert!(
+            serde_json::from_slice::<Vec<AgentChatImport>>(&serde_json::to_vec(&bad).unwrap())
+                .is_err()
+        );
+    }
+    let mapping_value = serde_json::to_value(&mapping).unwrap();
+    for (key, old) in [
+        ("sourceDigests", "source_digests"),
+        ("targetDigest", "target_digest"),
+    ] {
+        for keep in [false, true] {
+            let mut bad = mapping_value.clone();
+            let object = bad.as_object_mut().unwrap();
+            object.insert(old.into(), object[key].clone());
+            if !keep {
+                object.remove(key);
+            }
+            assert!(serde_json::from_value::<AgentChatImportMapping>(bad.clone()).is_err());
+            assert!(
+                serde_json::from_slice::<AgentChatImportMapping>(
+                    &serde_json::to_vec(&bad).unwrap()
+                )
+                .is_err()
+            );
+        }
+    }
+
     for _ in 0..2 {
         assert_eq!(
             WorkspaceRepository::new(db.a.clone())

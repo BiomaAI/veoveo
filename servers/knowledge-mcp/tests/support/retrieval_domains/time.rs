@@ -116,7 +116,7 @@ pub(super) fn authorities(builder: &mut Builder) -> Result<()> {
                 TimeAuthorityReleaseUri::new(&release_id)
             };
             let source = if bootstrap {
-                TimeAuthoritySource::Bootstrap
+                TimeAuthoritySource::Bootstrap {}
             } else {
                 TimeAuthoritySource::Acquisition {
                     source_id: id(format!("time-source-fixture-{key}"))?,
@@ -154,6 +154,60 @@ pub(super) fn authorities(builder: &mut Builder) -> Result<()> {
                 },
                 [member],
             )?;
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn time_corpus_hashes_current_owner_bytes_and_access_policy() -> Result<()> {
+    let scenarios: Vec<Scenario> =
+        serde_json::from_str(include_str!("../../../evaluation/scenarios.json"))?;
+    let mut builder = Builder::default();
+    add(&mut builder, &scenarios[0], 0)?;
+    assert_eq!(builder.members.len(), 3);
+    for member in &builder.members {
+        let wire: serde_json::Value = serde_json::from_str(&member.text)?;
+        let (current, retired, roundtrip) = if wire.get("calendarId").is_some() {
+            let owner: OperationalCalendar = serde_json::from_str(&member.text)?;
+            ("calendarId", "calendar_id", serde_json::to_string(&owner)?)
+        } else if wire.get("epochId").is_some() {
+            let owner: MissionEpoch = serde_json::from_str(&member.text)?;
+            ("epochId", "epoch_id", serde_json::to_string(&owner)?)
+        } else {
+            let owner: TemporalEvent = serde_json::from_str(&member.text)?;
+            ("eventId", "event_id", serde_json::to_string(&owner)?)
+        };
+        assert_eq!(roundtrip, member.text);
+        assert_eq!(
+            member.observation.content_sha256(),
+            &content_digest(&roundtrip)
+        );
+        let revision = content_digest(&serde_json::to_string(&(
+            &member.text,
+            member.observation.access(),
+        ))?);
+        assert_eq!(
+            member.observation.revision().to_string(),
+            revision.to_string()
+        );
+        for mixed in [false, true] {
+            let mut old = wire.clone();
+            let value = old[current].clone();
+            if !mixed {
+                old.as_object_mut().unwrap().remove(current);
+            }
+            old[retired] = value;
+            let refused = match current {
+                "calendarId" => serde_json::from_value::<OperationalCalendar>(old.clone()).is_err(),
+                "epochId" => serde_json::from_value::<MissionEpoch>(old.clone()).is_err(),
+                _ => serde_json::from_value::<TemporalEvent>(old.clone()).is_err(),
+            };
+            assert!(refused, "{current} mixed={mixed}");
+            assert_ne!(
+                content_digest(&serde_json::to_string(&old)?),
+                *member.observation.content_sha256()
+            );
         }
     }
     Ok(())

@@ -1,0 +1,147 @@
+{
+  "server": "recording",
+  "compliance": [
+    {
+      "id": "C01",
+      "status": "met"
+    },
+    {
+      "id": "C02",
+      "status": "met"
+    },
+    {
+      "id": "C03",
+      "status": "met"
+    },
+    {
+      "id": "C04",
+      "status": "met",
+      "note": "catalog reads return 100-item cursor pages; SQL filters visibility and completion matches before limits"
+    },
+    {
+      "id": "C05",
+      "status": "met"
+    },
+    {
+      "id": "C06",
+      "status": "met"
+    },
+    {
+      "id": "C07",
+      "status": "met"
+    },
+    {
+      "id": "C08",
+      "status": "met"
+    },
+    {
+      "id": "C09",
+      "status": "met"
+    },
+    {
+      "id": "C10",
+      "status": "met"
+    },
+    {
+      "id": "C11",
+      "status": "met"
+    },
+    {
+      "id": "C12",
+      "status": "met"
+    },
+    {
+      "id": "C13",
+      "status": "met"
+    },
+    {
+      "id": "C14",
+      "status": "met"
+    },
+    {
+      "id": "C15",
+      "status": "met"
+    },
+    {
+      "id": "C16",
+      "status": "met"
+    },
+    {
+      "id": "C17",
+      "status": "met",
+      "note": "reference, local and catalog-fixture registrations declare revision 3 and static discovery"
+    },
+    {
+      "id": "C18",
+      "status": "met"
+    },
+    {
+      "id": "C19",
+      "status": "met"
+    },
+    {
+      "id": "C20",
+      "status": "met"
+    },
+    {
+      "id": "C21",
+      "status": "met"
+    },
+    {
+      "id": "C22",
+      "status": "met"
+    },
+    {
+      "id": "C23",
+      "status": "met"
+    },
+    {
+      "id": "C24",
+      "status": "met"
+    },
+    {
+      "id": "C25",
+      "status": "met"
+    },
+    {
+      "id": "C26",
+      "status": "met"
+    },
+    {
+      "id": "C27",
+      "status": "met",
+      "note": "authenticated catalog subscriptions and visibility-checked recording/layer subscriptions share the Store LIVE source"
+    },
+    {
+      "id": "C28",
+      "status": "met",
+      "note": "discovery contains static roots and templates; mutations invalidate contents, and the workbench reads one catalog page at a time"
+    },
+    {
+      "id": "C29",
+      "status": "met"
+    },
+    {
+      "id": "C30",
+      "status": "met",
+      "note": "the endpoint is connection-stateless and derives no durable or domain authority from an MCP transport session"
+    },
+    {
+      "id": "C31",
+      "status": "pending",
+      "note": "installed Discover and list readiness qualification is pending"
+    },
+    {
+      "id": "C32",
+      "status": "pending",
+      "note": "shared typed docs support is wired; K01–K08 qualification is in progress"
+    },
+    {
+      "id": "C33",
+      "status": "pending",
+      "note": "Owner naming producers, consumers and installed qualification are pending."
+    }
+  ],
+  "contractRevision": 4,
+  "catalogRevision": 2
+}

@@ -67,10 +67,45 @@ fn embedded_documents_carry_the_crate_manual_and_design() {
         assert!(SERVER_DOCS.doc(id).is_some(), "missing Map document {id}");
     }
     for document in SERVER_DOCS.iter() {
-        // Leave space for the observation and the kernel's provenance line.
+        use rmcp::model::{
+            ClientCapabilities, ReadResourceRequestParams, ReadResourceResponse, RequestMetaObject,
+            ResourceContents,
+        };
+        use veoveo_mcp_knowledge_extension::{self as knowledge, DocumentId};
+
+        let scheme = veoveo_types::ResourceScheme::parse("map").unwrap();
+        let uri = knowledge::docs::member_uri(&scheme, &DocumentId::parse(document.id).unwrap());
+        let mut meta = RequestMetaObject::default();
+        let mut capabilities = ClientCapabilities::default();
+        capabilities
+            .extensions
+            .get_or_insert_default()
+            .insert(knowledge::EXTENSION_ID.into(), Default::default());
+        meta.set_client_capabilities(capabilities);
+        let response = SERVER_DOCS
+            .read_authorized_knowledge(
+                &scheme,
+                &ReadResourceRequestParams::new(uri.as_str()),
+                &meta,
+            )
+            .unwrap()
+            .unwrap();
+        let ReadResourceResponse::Complete(result) = response else {
+            panic!("document read must complete");
+        };
+        let observation = knowledge::client::validate_read(&result, &uri, None)
+            .unwrap()
+            .expect("negotiated document observation");
+        assert_eq!(observation.content_sha256(), &document.digest);
+        let [ResourceContents::TextResourceContents { text, .. }] = result.contents.as_slice()
+        else {
+            panic!("document read must return one text item");
+        };
+        assert_eq!(text, document.body);
+        // Knowledge caps source text; Kernel accounts for model-read provenance separately.
         assert!(
-            document.body.len() + 1024 <= 64 * 1024,
-            "Map document {} exceeds the knowledge item budget",
+            text.len() <= 64 * 1024,
+            "Map document {} exceeds the knowledge source text budget",
             document.id
         );
     }
@@ -79,13 +114,13 @@ fn embedded_documents_carry_the_crate_manual_and_design() {
 #[test]
 fn contract_declaration_resolves_from_the_embedded_manual() {
     let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
-    assert_eq!(declaration.server, "map");
-    assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+    assert_eq!(declaration.server().as_str(), "map");
+    assert_eq!(declaration.contract_revision(), CONTRACT_REVISION);
     for id in ["C17", "C18", "C19", "C20", "C21"] {
         let item = declaration
-            .compliance
+            .compliance()
             .iter()
-            .find(|item| item.id == id)
+            .find(|item| item.id.as_str() == id)
             .expect("declared checklist item");
         assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
     }

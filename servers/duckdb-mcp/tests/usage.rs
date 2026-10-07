@@ -12,11 +12,11 @@ use veoveo_types::TaskId;
 
 fn owner(principal: &str, labels: &[&str]) -> TaskOwner {
     serde_json::from_value(serde_json::json!({
-        "principal_key":principal,"principal_kind":"service","issuer":"https://usage.test",
-        "subject":principal,"profile":"operator","tenant_key":"tenant-a","data_labels":labels,
-        "authority":{"work_context":"query","tenant":"tenant-a",
-            "membership":"contributor","policy_revision":"test-1",
-            "output_policy":{"owner":{"kind":"principal","id":principal}},
+        "principalKey":principal,"principalKind":"service","issuer":"https://usage.test",
+        "subject":principal,"profile":"operator","tenantKey":"tenant-a","dataLabels":labels,
+        "authority":{"workContext":"query","tenant":"tenant-a",
+            "membership":"contributor","policyRevision":"test-1",
+            "outputPolicy":{"owner":{"kind":"principal","id":principal}},
             "provenance":{"mode":"automated"}}
     }))
     .unwrap()

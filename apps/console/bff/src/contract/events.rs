@@ -87,11 +87,8 @@ impl ConsoleRowEvent {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum ResetReason {
-    #[vocabulary(rename = "cursor-out-of-range")]
     CursorOutOfRange,
-    #[vocabulary(rename = "seed-failed")]
     SeedFailed,
-    #[vocabulary(rename = "replay-failed")]
     ReplayFailed,
 }
 
@@ -180,7 +177,7 @@ mod tests {
 
     #[test]
     fn reset_reasons_are_closed() {
-        for reason in ["cursor-out-of-range", "seed-failed", "replay-failed"] {
+        for reason in ["cursor_out_of_range", "seed_failed", "replay_failed"] {
             let event =
                 serde_json::from_value::<ResetEvent>(serde_json::json!({"reason":reason})).unwrap();
             assert_eq!(
@@ -193,7 +190,7 @@ mod tests {
         );
         assert!(
             serde_json::from_value::<ResetEvent>(
-                serde_json::json!({"reason":"seed-failed","op":"changed"})
+                serde_json::json!({"reason":"seed_failed","op":"changed"})
             )
             .is_err()
         );

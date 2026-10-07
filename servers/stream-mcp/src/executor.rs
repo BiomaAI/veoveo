@@ -15,8 +15,8 @@ use crate::contract::{
     VideoTimelineKind,
 };
 
-pub const RUNNER_REQUEST_SCHEMA: &str = "veoveo.stream-recording-runner-request/v1";
-pub const RUNNER_RESPONSE_SCHEMA: &str = "veoveo.stream-recording-runner-response/v1";
+pub const RUNNER_REQUEST_SCHEMA: &str = "veoveo.ai/stream-recording-runner-request/v2";
+pub const RUNNER_RESPONSE_SCHEMA: &str = "veoveo.ai/stream-recording-runner-response/v2";
 
 #[derive(Clone, Debug)]
 pub struct StreamExecutor {
@@ -175,7 +175,7 @@ impl StreamExecutor {
             &response,
         )?;
         let results = crate::contract::AnalysisResultsBuilder {
-            schema: StreamResultsSchema::V1,
+            schema: StreamResultsSchema::V2,
             pipeline_id: analysis.pipeline.id.clone(),
             model_id: analysis.model.id.clone(),
             recording_uri: analysis.video.recording_uri.clone(),
@@ -236,7 +236,7 @@ impl StreamExecutor {
 }
 
 #[derive(Clone, Debug, Serialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RunnerRequest {
     schema: String,
     task_id: RunId,
@@ -255,7 +255,7 @@ struct RunnerRequest {
 }
 
 #[derive(Clone, Debug, Serialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RunnerPipeline {
     pipeline_id: PipelineId,
     graph: GStreamerGraphConfig,
@@ -263,7 +263,8 @@ struct RunnerPipeline {
 }
 
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "kind", rename = "perception", deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(tag = "kind", rename = "perception")]
 struct RunnerPerceptionProfile {
     operation: crate::contract::PerceptionOperation,
     inference_config_path: PathBuf,
@@ -280,7 +281,7 @@ impl From<PerceptionProfile<'_>> for RunnerPerceptionProfile {
     }
 }
 #[derive(Clone, Debug, Serialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RunnerTracker {
     config_path: PathBuf,
     width: u32,
@@ -298,7 +299,7 @@ impl From<&TrackerConfig> for RunnerTracker {
 }
 
 #[derive(Clone, Debug, Serialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RunnerModel {
     model_id: ModelId,
     model_path: PathBuf,
@@ -306,7 +307,7 @@ struct RunnerModel {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RunnerResponse {
     schema: String,
     frames: Vec<FrameDetections>,
@@ -382,7 +383,7 @@ mod tests {
         let runner = workspace.path().join("runner.sh");
         let captured = workspace.path().join("captured-request.json");
         let script = format!(
-            "#!/bin/sh\nset -eu\ntest \"$1\" = --request-json\ntest \"$3\" = --response-json\ncp \"$2\" '{}'\nprintf '%s' '{{\"schema\":\"{}\",\"frames\":[{{\"index\":120,\"detections\":[]}}],\"processed_frames\":1,\"elapsed_ms\":2}}' > \"$4\"\n",
+            "#!/bin/sh\nset -eu\ntest \"$1\" = --request-json\ntest \"$3\" = --response-json\ncp \"$2\" '{}'\nprintf '%s' '{{\"schema\":\"{}\",\"frames\":[{{\"index\":120,\"detections\":[]}}],\"processedFrames\":1,\"elapsedMs\":2}}' > \"$4\"\n",
             captured.display(),
             RUNNER_RESPONSE_SCHEMA,
         );
@@ -468,18 +469,18 @@ mod tests {
         assert_eq!(results.source_snapshot, source_snapshot);
         let request: serde_json::Value =
             serde_json::from_slice(&std::fs::read(&captured).unwrap()).unwrap();
-        assert_eq!(request["decode_start_index"], 100);
-        assert_eq!(request["input_width"], 32);
-        assert_eq!(request["input_height"], 32);
-        assert_eq!(request["requested_range"]["start"], 120);
-        assert_eq!(request["max_response_bytes"], 1_000_000);
+        assert_eq!(request["decodeStartIndex"], 100);
+        assert_eq!(request["inputWidth"], 32);
+        assert_eq!(request["inputHeight"], 32);
+        assert_eq!(request["requestedRange"]["start"], 120);
+        assert_eq!(request["maxResponseBytes"], 1_000_000);
         assert_eq!(request["pipeline"]["profile"]["kind"], "perception");
         assert_eq!(
             request["pipeline"]["profile"]["operation"],
             "object_detection"
         );
         assert_eq!(
-            request["pipeline"]["profile"]["inference_config_path"],
+            request["pipeline"]["profile"]["inferenceConfigPath"],
             "/etc/stream/detect.txt"
         );
         std::fs::remove_file(&captured).unwrap();
@@ -514,3 +515,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "executor_parser_tests.rs"]
+mod parser_tests;

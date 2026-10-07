@@ -14,6 +14,8 @@ The `schema` feature exposes the internal Rust module declaration contract from
 qualified SurrealDB 3.3.0 profile through the
 [Workspace persistence implementation](src/persistence/DESIGN.md).
 
+Workspace public bodies use closed camelCase members and snake_case controlled vocabularies. Native database projections keep SQL field names. A retained operation admits an observed Task only when its Task phase and recorded task identity agree, before projecting the response. Participant import envelopes and mapping entries use camelCase; their before snapshot is the native WorkspaceAgent record export, with its typed record identities and receipt checks.
+
 ## Application Contracts
 
 The [`contract`](src/contract/mod.rs) module owns chat, invitation, participation,

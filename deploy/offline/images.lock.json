@@ -1,7 +1,7 @@
 {
-  "schema_version": 1,
-  "bundle_version": "0.1.0",
-  "external_images": [
+  "schemaVersion": 2,
+  "bundleVersion": "0.1.0",
+  "externalImages": [
     {
       "ref": "surrealdb/surrealdb:v3.3.0",
       "source": "surrealdb/surrealdb@sha256:681c6c22c287421b5c7d99e0fde79b6e0d32c36c1ddeaab2762a1661cb04cd20"
@@ -19,37 +19,118 @@
       "source": "otel/opentelemetry-collector@sha256:b6d2b9a85b1029d05b5ad913150c1f014eed4ae99be81a1813ca5ade4a191913"
     },
     {
-      "ref": "vllm/vllm-openai:v0.30.0",
-      "source": "vllm/vllm-openai@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90"
+      "ref": "vllm/vllm-openai:v0.31.0",
+      "source": "vllm/vllm-openai@sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3"
     }
   ],
-  "veoveo_images": [
-    {"ref": "veoveo/agent-manager:0.1.0", "dockerfile": "agents/manager/Dockerfile"},
-    {"ref": "veoveo/agent-kernel:0.1.0", "dockerfile": "agents/kernel/Dockerfile"},
-    {"ref": "veoveo/artifact-mcp:0.1.0", "dockerfile": "servers/artifact-mcp/Dockerfile"},
-    {"ref": "veoveo/artifact-service:0.1.0", "dockerfile": "platform/artifacts/service/Dockerfile"},
-    {"ref": "veoveo/chart-mcp:0.1.0", "dockerfile": "servers/chart-mcp/Dockerfile"},
-    {"ref": "veoveo/console-bff:0.1.0", "dockerfile": "apps/console/bff/Dockerfile"},
-    {"ref": "veoveo/cuopt-executor:0.1.0", "dockerfile": "servers/optimization-mcp/executor/Dockerfile"},
-    {"ref": "veoveo/frames-mcp:0.1.0", "dockerfile": "servers/frames-mcp/Dockerfile"},
-    {"ref": "veoveo/knowledge-mcp:0.1.0", "dockerfile": "servers/knowledge-mcp/Dockerfile"},
-    {"ref": "veoveo/duckdb-mcp:0.1.0", "dockerfile": "servers/duckdb-mcp/Dockerfile"},
-    {"ref": "veoveo/mcp-conformance:0.1.0", "dockerfile": "mcp/conformance/Dockerfile"},
-    {"ref": "veoveo/mcp-gateway:0.1.0", "dockerfile": "platform/gateway/composition/Dockerfile"},
-    {"ref": "veoveo/mcp-legacy-bridge:0.1.0", "dockerfile": "mcp/bridges/legacy/Dockerfile"},
-    {"ref": "veoveo/mcp-stdio-bridge:0.1.0", "dockerfile": "mcp/bridges/stdio/Dockerfile"},
-    {"ref": "veoveo/media-mcp:0.1.0", "dockerfile": "servers/media-mcp/Dockerfile"},
-    {"ref": "veoveo/map-mcp:0.1.0", "dockerfile": "servers/map-mcp/Dockerfile"},
-    {"ref": "veoveo/optimization-mcp:0.1.0", "dockerfile": "servers/optimization-mcp/Dockerfile"},
-    {"ref": "veoveo/stream-mcp:0.1.0", "dockerfile": "servers/stream-mcp/Dockerfile"},
-    {"ref": "veoveo/recording-forwarder:0.1.0", "dockerfile": "platform/recordings/forwarder/Dockerfile"},
-    {"ref": "veoveo/recording-hub:0.1.0", "dockerfile": "platform/recordings/hub/Dockerfile"},
-    {"ref": "veoveo/recording-mcp:0.1.0", "dockerfile": "servers/recording-mcp/Dockerfile"},
-    {"ref": "veoveo/simulation-runtime:2026.08.0", "dockerfile": "platform/runtimes/simulation/Dockerfile"},
-    {"ref": "veoveo/time-mcp:0.1.0", "dockerfile": "servers/time-mcp/Dockerfile"},
-    {"ref": "veoveo/timeseries-mcp:0.1.0", "dockerfile": "servers/timeseries-mcp/Dockerfile"},
-    {"ref": "veoveo/uav-sim-mcp:0.1.0", "dockerfile": "servers/uav-sim-mcp/Dockerfile"},
-    {"ref": "veoveo/uav-sim-runtime:6.0.1", "dockerfile": "showcase/uav-sim/runtime/Dockerfile"},
-    {"ref": "veoveo/view-mcp:0.1.0", "dockerfile": "servers/view-mcp/Dockerfile"}
+  "veoveoImages": [
+    {
+      "ref": "veoveo/agent-manager:0.1.0",
+      "dockerfile": "agents/manager/Dockerfile"
+    },
+    {
+      "ref": "veoveo/agent-kernel:0.1.0",
+      "dockerfile": "agents/kernel/Dockerfile"
+    },
+    {
+      "ref": "veoveo/artifact-mcp:0.1.0",
+      "dockerfile": "servers/artifact-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/artifact-service:0.1.0",
+      "dockerfile": "platform/artifacts/service/Dockerfile"
+    },
+    {
+      "ref": "veoveo/chart-mcp:0.1.0",
+      "dockerfile": "servers/chart-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/console-bff:0.1.0",
+      "dockerfile": "apps/console/bff/Dockerfile"
+    },
+    {
+      "ref": "veoveo/cuopt-executor:0.1.0",
+      "dockerfile": "servers/optimization-mcp/executor/Dockerfile"
+    },
+    {
+      "ref": "veoveo/frames-mcp:0.1.0",
+      "dockerfile": "servers/frames-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/knowledge-mcp:0.1.0",
+      "dockerfile": "servers/knowledge-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/duckdb-mcp:0.1.0",
+      "dockerfile": "servers/duckdb-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/mcp-conformance:0.1.0",
+      "dockerfile": "mcp/conformance/Dockerfile"
+    },
+    {
+      "ref": "veoveo/mcp-gateway:0.1.0",
+      "dockerfile": "platform/gateway/composition/Dockerfile"
+    },
+    {
+      "ref": "veoveo/mcp-legacy-bridge:0.1.0",
+      "dockerfile": "mcp/bridges/legacy/Dockerfile"
+    },
+    {
+      "ref": "veoveo/mcp-stdio-bridge:0.1.0",
+      "dockerfile": "mcp/bridges/stdio/Dockerfile"
+    },
+    {
+      "ref": "veoveo/media-mcp:0.1.0",
+      "dockerfile": "servers/media-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/map-mcp:0.1.0",
+      "dockerfile": "servers/map-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/optimization-mcp:0.1.0",
+      "dockerfile": "servers/optimization-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/stream-mcp:0.1.0",
+      "dockerfile": "servers/stream-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/recording-forwarder:0.1.0",
+      "dockerfile": "platform/recordings/forwarder/Dockerfile"
+    },
+    {
+      "ref": "veoveo/recording-hub:0.1.0",
+      "dockerfile": "platform/recordings/hub/Dockerfile"
+    },
+    {
+      "ref": "veoveo/recording-mcp:0.1.0",
+      "dockerfile": "servers/recording-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/simulation-runtime:2026.08.0",
+      "dockerfile": "platform/runtimes/simulation/Dockerfile"
+    },
+    {
+      "ref": "veoveo/time-mcp:0.1.0",
+      "dockerfile": "servers/time-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/timeseries-mcp:0.1.0",
+      "dockerfile": "servers/timeseries-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/uav-sim-mcp:0.1.0",
+      "dockerfile": "servers/uav-sim-mcp/Dockerfile"
+    },
+    {
+      "ref": "veoveo/uav-sim-runtime:6.0.1",
+      "dockerfile": "showcase/uav-sim/runtime/Dockerfile"
+    },
+    {
+      "ref": "veoveo/view-mcp:0.1.0",
+      "dockerfile": "servers/view-mcp/Dockerfile"
+    }
   ]
 }

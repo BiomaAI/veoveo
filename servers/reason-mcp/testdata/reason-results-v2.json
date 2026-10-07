@@ -1,0 +1,64 @@
+{
+  "schema": "veoveo.ai/reason-results/v2",
+  "pipelineId": "traffic-events",
+  "modelId": "world-model",
+  "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+  "entityPath": "/camera/front",
+  "timeline": "sensor_time",
+  "timelineKind": "duration_nanoseconds",
+  "requestedRange": {
+    "start": 10,
+    "end": 20
+  },
+  "sourceSnapshot": {
+    "recordingId": "01983da0-0000-7000-8000-000000000000",
+    "datasetId": "01983da0-0000-7000-8000-000000000001",
+    "capturedAt": "2026-09-28T00:00:00Z",
+    "sources": [
+      {
+        "layerId": "01983da0-0000-7000-8000-000000000002",
+        "layerName": "archive",
+        "layerOrdinal": 1,
+        "kind": "committed_layer",
+        "byteLen": 128,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "layerId": "01983da0-0000-7000-8000-000000000003",
+        "layerName": "camera/front",
+        "kind": "live_ingest_part",
+        "partSequence": 7,
+        "byteLen": 64,
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ]
+  },
+  "task": {
+    "kind": "detect_events",
+    "prompt": "Vehicles entering the intersection"
+  },
+  "answer": {
+    "kind": "events",
+    "events": [
+      {
+        "range": {
+          "start": 10,
+          "end": 20
+        },
+        "label": "entry",
+        "description": "Vehicle enters.",
+        "trackIds": [
+          7
+        ]
+      }
+    ]
+  },
+  "observedFrames": 10,
+  "elapsedMs": 10,
+  "promptRevision": "traffic-v1",
+  "modelDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "decode": {
+    "mode": "greedy"
+  },
+  "confidenceBasis": "model_reported"
+}

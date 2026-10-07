@@ -3,13 +3,13 @@
     "branch": "ScenePosition.wgs84",
     "tool": "create_scene_composition",
     "arguments": {
-      "schema_version": 1,
-      "base_layer": "fixture-layer",
-      "style_id": "fixture-style",
+      "schemaVersion": 2,
+      "baseLayer": "fixture-layer",
+      "styleId": "fixture-style",
       "overlays": [
         {
-          "overlay_id": "overlay-1",
-          "governed_input_ids": [],
+          "overlayId": "overlay-1",
+          "governedInputIds": [],
           "geometry": {
             "kind": "inline",
             "geometry": {
@@ -17,15 +17,15 @@
               "position": {
                 "kind": "wgs84",
                 "position": {
-                  "longitude_degrees": 0.0,
-                  "latitude_degrees": 0.0,
-                  "ellipsoidal_height_meters": 0.0
+                  "longitudeDegrees": 0.0,
+                  "latitudeDegrees": 0.0,
+                  "ellipsoidalHeightMeters": 0.0
                 }
               }
             }
           },
           "style": {
-            "stroke_color": {
+            "strokeColor": {
               "red": 0.0,
               "green": 0.85,
               "blue": 1.0,
@@ -38,12 +38,12 @@
     },
     "tag": "/overlays/0/geometry/geometry/position/kind",
     "required": [
-      "/base_layer",
+      "/baseLayer",
       "/overlays/0/geometry/geometry/position/kind",
       "/overlays/0/geometry/geometry/position/position"
     ],
     "defaults": {
-      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/style/lineWidthMeters": 2.0,
       "/overlays/0/visibility/visible": true
     },
     "open_objects": []
@@ -52,20 +52,20 @@
     "branch": "ScenePosition.local_meters",
     "tool": "create_scene_composition",
     "arguments": {
-      "schema_version": 1,
-      "base_layer": "fixture-layer",
-      "style_id": "fixture-style",
+      "schemaVersion": 2,
+      "baseLayer": "fixture-layer",
+      "styleId": "fixture-style",
       "overlays": [
         {
-          "overlay_id": "overlay-1",
-          "governed_input_ids": [],
+          "overlayId": "overlay-1",
+          "governedInputIds": [],
           "geometry": {
             "kind": "inline",
             "geometry": {
               "kind": "marker",
               "position": {
                 "kind": "local_meters",
-                "xyz_meters": [
+                "xyzMeters": [
                   0.0,
                   0.0,
                   0.0
@@ -74,7 +74,7 @@
             }
           },
           "style": {
-            "stroke_color": {
+            "strokeColor": {
               "red": 0.0,
               "green": 0.85,
               "blue": 1.0,
@@ -87,12 +87,12 @@
     },
     "tag": "/overlays/0/geometry/geometry/position/kind",
     "required": [
-      "/base_layer",
+      "/baseLayer",
       "/overlays/0/geometry/geometry/position/kind",
-      "/overlays/0/geometry/geometry/position/xyz_meters"
+      "/overlays/0/geometry/geometry/position/xyzMeters"
     ],
     "defaults": {
-      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/style/lineWidthMeters": 2.0,
       "/overlays/0/visibility/visible": true
     },
     "open_objects": []
@@ -101,13 +101,13 @@
     "branch": "SceneOverlayGeometry.marker",
     "tool": "create_scene_composition",
     "arguments": {
-      "schema_version": 1,
-      "base_layer": "fixture-layer",
-      "style_id": "fixture-style",
+      "schemaVersion": 2,
+      "baseLayer": "fixture-layer",
+      "styleId": "fixture-style",
       "overlays": [
         {
-          "overlay_id": "overlay-1",
-          "governed_input_ids": [],
+          "overlayId": "overlay-1",
+          "governedInputIds": [],
           "geometry": {
             "kind": "inline",
             "geometry": {
@@ -115,15 +115,15 @@
               "position": {
                 "kind": "wgs84",
                 "position": {
-                  "longitude_degrees": 0.0,
-                  "latitude_degrees": 0.0,
-                  "ellipsoidal_height_meters": 0.0
+                  "longitudeDegrees": 0.0,
+                  "latitudeDegrees": 0.0,
+                  "ellipsoidalHeightMeters": 0.0
                 }
               }
             }
           },
           "style": {
-            "stroke_color": {
+            "strokeColor": {
               "red": 0.0,
               "green": 0.85,
               "blue": 1.0,
@@ -136,12 +136,12 @@
     },
     "tag": "/overlays/0/geometry/geometry/kind",
     "required": [
-      "/base_layer",
+      "/baseLayer",
       "/overlays/0/geometry/geometry/kind",
       "/overlays/0/geometry/geometry/position"
     ],
     "defaults": {
-      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/style/lineWidthMeters": 2.0,
       "/overlays/0/visibility/visible": true
     },
     "open_objects": []
@@ -150,13 +150,13 @@
     "branch": "SceneOverlayGeometry.polyline",
     "tool": "create_scene_composition",
     "arguments": {
-      "schema_version": 1,
-      "base_layer": "fixture-layer",
-      "style_id": "fixture-style",
+      "schemaVersion": 2,
+      "baseLayer": "fixture-layer",
+      "styleId": "fixture-style",
       "overlays": [
         {
-          "overlay_id": "overlay-1",
-          "governed_input_ids": [],
+          "overlayId": "overlay-1",
+          "governedInputIds": [],
           "geometry": {
             "kind": "inline",
             "geometry": {
@@ -165,24 +165,24 @@
                 {
                   "kind": "wgs84",
                   "position": {
-                    "longitude_degrees": 0.0,
-                    "latitude_degrees": 0.0,
-                    "ellipsoidal_height_meters": 0.0
+                    "longitudeDegrees": 0.0,
+                    "latitudeDegrees": 0.0,
+                    "ellipsoidalHeightMeters": 0.0
                   }
                 },
                 {
                   "kind": "wgs84",
                   "position": {
-                    "longitude_degrees": 0.0,
-                    "latitude_degrees": 0.0,
-                    "ellipsoidal_height_meters": 0.0
+                    "longitudeDegrees": 0.0,
+                    "latitudeDegrees": 0.0,
+                    "ellipsoidalHeightMeters": 0.0
                   }
                 }
               ]
             }
           },
           "style": {
-            "stroke_color": {
+            "strokeColor": {
               "red": 0.0,
               "green": 0.85,
               "blue": 1.0,
@@ -195,12 +195,12 @@
     },
     "tag": "/overlays/0/geometry/geometry/kind",
     "required": [
-      "/base_layer",
+      "/baseLayer",
       "/overlays/0/geometry/geometry/kind",
       "/overlays/0/geometry/geometry/positions"
     ],
     "defaults": {
-      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/style/lineWidthMeters": 2.0,
       "/overlays/0/visibility/visible": true,
       "/overlays/0/geometry/geometry/closed": false
     },
@@ -210,13 +210,13 @@
     "branch": "SceneOverlayGeometry.polygon",
     "tool": "create_scene_composition",
     "arguments": {
-      "schema_version": 1,
-      "base_layer": "fixture-layer",
-      "style_id": "fixture-style",
+      "schemaVersion": 2,
+      "baseLayer": "fixture-layer",
+      "styleId": "fixture-style",
       "overlays": [
         {
-          "overlay_id": "overlay-1",
-          "governed_input_ids": [],
+          "overlayId": "overlay-1",
+          "governedInputIds": [],
           "geometry": {
             "kind": "inline",
             "geometry": {
@@ -225,29 +225,29 @@
                 {
                   "kind": "wgs84",
                   "position": {
-                    "longitude_degrees": 0.0,
-                    "latitude_degrees": 0.0,
-                    "ellipsoidal_height_meters": 0.0
+                    "longitudeDegrees": 0.0,
+                    "latitudeDegrees": 0.0,
+                    "ellipsoidalHeightMeters": 0.0
                   }
                 },
                 {
                   "kind": "wgs84",
                   "position": {
-                    "longitude_degrees": 0.0,
-                    "latitude_degrees": 0.0,
-                    "ellipsoidal_height_meters": 0.0
+                    "longitudeDegrees": 0.0,
+                    "latitudeDegrees": 0.0,
+                    "ellipsoidalHeightMeters": 0.0
                   }
                 },
                 {
                   "kind": "wgs84",
                   "position": {
-                    "longitude_degrees": 0.0,
-                    "latitude_degrees": 0.0,
-                    "ellipsoidal_height_meters": 0.0
+                    "longitudeDegrees": 0.0,
+                    "latitudeDegrees": 0.0,
+                    "ellipsoidalHeightMeters": 0.0
                   }
                 }
               ],
-              "triangle_indices": [
+              "triangleIndices": [
                 0,
                 1,
                 2
@@ -255,7 +255,7 @@
             }
           },
           "style": {
-            "stroke_color": {
+            "strokeColor": {
               "red": 0.0,
               "green": 0.85,
               "blue": 1.0,
@@ -268,13 +268,13 @@
     },
     "tag": "/overlays/0/geometry/geometry/kind",
     "required": [
-      "/base_layer",
+      "/baseLayer",
       "/overlays/0/geometry/geometry/kind",
       "/overlays/0/geometry/geometry/positions",
-      "/overlays/0/geometry/geometry/triangle_indices"
+      "/overlays/0/geometry/geometry/triangleIndices"
     ],
     "defaults": {
-      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/style/lineWidthMeters": 2.0,
       "/overlays/0/visibility/visible": true
     },
     "open_objects": []
@@ -283,13 +283,13 @@
     "branch": "SceneOverlayGeometry.oriented_mesh_instance",
     "tool": "create_scene_composition",
     "arguments": {
-      "schema_version": 1,
-      "base_layer": "fixture-layer",
-      "style_id": "fixture-style",
+      "schemaVersion": 2,
+      "baseLayer": "fixture-layer",
+      "styleId": "fixture-style",
       "overlays": [
         {
-          "overlay_id": "overlay-1",
-          "governed_input_ids": [],
+          "overlayId": "overlay-1",
+          "governedInputIds": [],
           "geometry": {
             "kind": "inline",
             "geometry": {
@@ -297,26 +297,26 @@
               "position": {
                 "kind": "wgs84",
                 "position": {
-                  "longitude_degrees": 0.0,
-                  "latitude_degrees": 0.0,
-                  "ellipsoidal_height_meters": 0.0
+                  "longitudeDegrees": 0.0,
+                  "latitudeDegrees": 0.0,
+                  "ellipsoidalHeightMeters": 0.0
                 }
               },
               "orientation": {
-                "heading_degrees": 0.0,
-                "pitch_degrees": 0.0,
-                "roll_degrees": 0.0
+                "headingDegrees": 0.0,
+                "pitchDegrees": 0.0,
+                "rollDegrees": 0.0
               },
               "scale": [
                 1.0,
                 1.0,
                 1.0
               ],
-              "mesh_input_id": "mesh-1"
+              "meshInputId": "mesh-1"
             }
           },
           "style": {
-            "stroke_color": {
+            "strokeColor": {
               "red": 0.0,
               "green": 0.85,
               "blue": 1.0,
@@ -329,15 +329,15 @@
     },
     "tag": "/overlays/0/geometry/geometry/kind",
     "required": [
-      "/base_layer",
+      "/baseLayer",
       "/overlays/0/geometry/geometry/kind",
       "/overlays/0/geometry/geometry/position",
       "/overlays/0/geometry/geometry/orientation",
       "/overlays/0/geometry/geometry/scale",
-      "/overlays/0/geometry/geometry/mesh_input_id"
+      "/overlays/0/geometry/geometry/meshInputId"
     ],
     "defaults": {
-      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/style/lineWidthMeters": 2.0,
       "/overlays/0/visibility/visible": true
     },
     "open_objects": []
@@ -346,13 +346,13 @@
     "branch": "SceneOverlayGeometry.label",
     "tool": "create_scene_composition",
     "arguments": {
-      "schema_version": 1,
-      "base_layer": "fixture-layer",
-      "style_id": "fixture-style",
+      "schemaVersion": 2,
+      "baseLayer": "fixture-layer",
+      "styleId": "fixture-style",
       "overlays": [
         {
-          "overlay_id": "overlay-1",
-          "governed_input_ids": [],
+          "overlayId": "overlay-1",
+          "governedInputIds": [],
           "geometry": {
             "kind": "inline",
             "geometry": {
@@ -360,16 +360,16 @@
               "position": {
                 "kind": "wgs84",
                 "position": {
-                  "longitude_degrees": 0.0,
-                  "latitude_degrees": 0.0,
-                  "ellipsoidal_height_meters": 0.0
+                  "longitudeDegrees": 0.0,
+                  "latitudeDegrees": 0.0,
+                  "ellipsoidalHeightMeters": 0.0
                 }
               },
               "text": "Fixture"
             }
           },
           "style": {
-            "stroke_color": {
+            "strokeColor": {
               "red": 0.0,
               "green": 0.85,
               "blue": 1.0,
@@ -382,13 +382,13 @@
     },
     "tag": "/overlays/0/geometry/geometry/kind",
     "required": [
-      "/base_layer",
+      "/baseLayer",
       "/overlays/0/geometry/geometry/kind",
       "/overlays/0/geometry/geometry/position",
       "/overlays/0/geometry/geometry/text"
     ],
     "defaults": {
-      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/style/lineWidthMeters": 2.0,
       "/overlays/0/visibility/visible": true
     },
     "open_objects": []
@@ -397,13 +397,13 @@
     "branch": "SceneOverlayGeometrySource.inline",
     "tool": "create_scene_composition",
     "arguments": {
-      "schema_version": 1,
-      "base_layer": "fixture-layer",
-      "style_id": "fixture-style",
+      "schemaVersion": 2,
+      "baseLayer": "fixture-layer",
+      "styleId": "fixture-style",
       "overlays": [
         {
-          "overlay_id": "overlay-1",
-          "governed_input_ids": [],
+          "overlayId": "overlay-1",
+          "governedInputIds": [],
           "geometry": {
             "kind": "inline",
             "geometry": {
@@ -411,15 +411,15 @@
               "position": {
                 "kind": "wgs84",
                 "position": {
-                  "longitude_degrees": 0.0,
-                  "latitude_degrees": 0.0,
-                  "ellipsoidal_height_meters": 0.0
+                  "longitudeDegrees": 0.0,
+                  "latitudeDegrees": 0.0,
+                  "ellipsoidalHeightMeters": 0.0
                 }
               }
             }
           },
           "style": {
-            "stroke_color": {
+            "strokeColor": {
               "red": 0.0,
               "green": 0.85,
               "blue": 1.0,
@@ -432,12 +432,12 @@
     },
     "tag": "/overlays/0/geometry/kind",
     "required": [
-      "/base_layer",
+      "/baseLayer",
       "/overlays/0/geometry/kind",
       "/overlays/0/geometry/geometry"
     ],
     "defaults": {
-      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/style/lineWidthMeters": 2.0,
       "/overlays/0/visibility/visible": true
     },
     "open_objects": []
@@ -446,19 +446,19 @@
     "branch": "SceneOverlayGeometrySource.artifact",
     "tool": "create_scene_composition",
     "arguments": {
-      "schema_version": 1,
-      "base_layer": "fixture-layer",
-      "style_id": "fixture-style",
+      "schemaVersion": 2,
+      "baseLayer": "fixture-layer",
+      "styleId": "fixture-style",
       "overlays": [
         {
-          "overlay_id": "overlay-1",
-          "governed_input_ids": [],
+          "overlayId": "overlay-1",
+          "governedInputIds": [],
           "geometry": {
             "kind": "artifact",
-            "input_id": "geometry-1"
+            "inputId": "geometry-1"
           },
           "style": {
-            "stroke_color": {
+            "strokeColor": {
               "red": 0.0,
               "green": 0.85,
               "blue": 1.0,
@@ -471,12 +471,12 @@
     },
     "tag": "/overlays/0/geometry/kind",
     "required": [
-      "/base_layer",
+      "/baseLayer",
       "/overlays/0/geometry/kind",
-      "/overlays/0/geometry/input_id"
+      "/overlays/0/geometry/inputId"
     ],
     "defaults": {
-      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/style/lineWidthMeters": 2.0,
       "/overlays/0/visibility/visible": true
     },
     "open_objects": []
@@ -485,27 +485,27 @@
     "branch": "CameraDefinition.pose",
     "tool": "set_camera",
     "arguments": {
-      "view_id": "view-fixture",
-      "expected_revision": 1,
+      "viewId": "view-fixture",
+      "expectedRevision": 1,
       "camera": {
         "kind": "pose",
         "position": {
-          "longitude_degrees": 0,
-          "latitude_degrees": 0,
-          "ellipsoidal_height_meters": 100
+          "longitudeDegrees": 0,
+          "latitudeDegrees": 0,
+          "ellipsoidalHeightMeters": 100
         },
         "orientation": {
-          "heading_degrees": 0,
-          "pitch_degrees": -45,
-          "roll_degrees": 0
+          "headingDegrees": 0,
+          "pitchDegrees": -45,
+          "rollDegrees": 0
         },
-        "vertical_fov_degrees": 60
+        "verticalFovDegrees": 60
       }
     },
     "tag": "/camera/kind",
     "required": [
-      "/view_id",
-      "/expected_revision",
+      "/viewId",
+      "/expectedRevision",
       "/camera/position"
     ],
     "defaults": {},
@@ -515,27 +515,27 @@
     "branch": "CameraDefinition.look_at",
     "tool": "set_camera",
     "arguments": {
-      "view_id": "view-fixture",
-      "expected_revision": 1,
+      "viewId": "view-fixture",
+      "expectedRevision": 1,
       "camera": {
         "kind": "look_at",
         "eye": {
-          "longitude_degrees": 0,
-          "latitude_degrees": 0,
-          "ellipsoidal_height_meters": 100
+          "longitudeDegrees": 0,
+          "latitudeDegrees": 0,
+          "ellipsoidalHeightMeters": 100
         },
         "target": {
-          "longitude_degrees": 0,
-          "latitude_degrees": 0,
-          "ellipsoidal_height_meters": 0
+          "longitudeDegrees": 0,
+          "latitudeDegrees": 0,
+          "ellipsoidalHeightMeters": 0
         },
-        "vertical_fov_degrees": 60
+        "verticalFovDegrees": 60
       }
     },
     "tag": "/camera/kind",
     "required": [
-      "/view_id",
-      "/expected_revision",
+      "/viewId",
+      "/expectedRevision",
       "/camera/eye"
     ],
     "defaults": {},
@@ -545,25 +545,25 @@
     "branch": "CameraDefinition.orbit_target",
     "tool": "set_camera",
     "arguments": {
-      "view_id": "view-fixture",
-      "expected_revision": 1,
+      "viewId": "view-fixture",
+      "expectedRevision": 1,
       "camera": {
         "kind": "orbit_target",
         "target": {
-          "longitude_degrees": 0,
-          "latitude_degrees": 0,
-          "ellipsoidal_height_meters": 100
+          "longitudeDegrees": 0,
+          "latitudeDegrees": 0,
+          "ellipsoidalHeightMeters": 100
         },
-        "distance_meters": 100,
-        "azimuth_degrees": 0,
-        "elevation_degrees": 45,
-        "vertical_fov_degrees": 60
+        "distanceMeters": 100,
+        "azimuthDegrees": 0,
+        "elevationDegrees": 45,
+        "verticalFovDegrees": 60
       }
     },
     "tag": "/camera/kind",
     "required": [
-      "/view_id",
-      "/expected_revision",
+      "/viewId",
+      "/expectedRevision",
       "/camera/target"
     ],
     "defaults": {},
@@ -573,20 +573,20 @@
     "branch": "DeadlineBehavior.return_best_available",
     "tool": "capture_frame",
     "arguments": {
-      "view_id": "view-fixture",
-      "expected_revision": 1,
-      "scene_time": "2026-01-01T00:00:00Z",
+      "viewId": "view-fixture",
+      "expectedRevision": 1,
+      "sceneTime": "2026-01-01T00:00:00Z",
       "policy": {
-        "width_px": 64,
-        "height_px": 64,
-        "max_screen_error_px": 2,
-        "deadline_ms": 1000,
-        "deadline_behavior": "return_best_available"
+        "widthPx": 64,
+        "heightPx": 64,
+        "maxScreenErrorPx": 2,
+        "deadlineMs": 1000,
+        "deadlineBehavior": "return_best_available"
       }
     },
     "tag": "/policy/deadline_behavior",
     "required": [
-      "/policy/width_px"
+      "/policy/widthPx"
     ],
     "defaults": {},
     "open_objects": []
@@ -595,20 +595,20 @@
     "branch": "DeadlineBehavior.fail",
     "tool": "capture_frame",
     "arguments": {
-      "view_id": "view-fixture",
-      "expected_revision": 1,
-      "scene_time": "2026-01-01T00:00:00Z",
+      "viewId": "view-fixture",
+      "expectedRevision": 1,
+      "sceneTime": "2026-01-01T00:00:00Z",
       "policy": {
-        "width_px": 64,
-        "height_px": 64,
-        "max_screen_error_px": 2,
-        "deadline_ms": 1000,
-        "deadline_behavior": "fail"
+        "widthPx": 64,
+        "heightPx": 64,
+        "maxScreenErrorPx": 2,
+        "deadlineMs": 1000,
+        "deadlineBehavior": "fail"
       }
     },
     "tag": "/policy/deadline_behavior",
     "required": [
-      "/policy/width_px"
+      "/policy/widthPx"
     ],
     "defaults": {},
     "open_objects": []
@@ -617,20 +617,20 @@
     "branch": "FrameEncoding.png",
     "tool": "capture_frame",
     "arguments": {
-      "view_id": "view-fixture",
-      "expected_revision": 1,
-      "scene_time": "2026-01-01T00:00:00Z",
+      "viewId": "view-fixture",
+      "expectedRevision": 1,
+      "sceneTime": "2026-01-01T00:00:00Z",
       "policy": {
-        "width_px": 64,
-        "height_px": 64,
-        "max_screen_error_px": 2,
-        "deadline_ms": 1000,
+        "widthPx": 64,
+        "heightPx": 64,
+        "maxScreenErrorPx": 2,
+        "deadlineMs": 1000,
         "encoding": "png"
       }
     },
     "tag": "/policy/encoding",
     "required": [
-      "/policy/deadline_ms"
+      "/policy/deadlineMs"
     ],
     "defaults": {},
     "open_objects": []
@@ -639,20 +639,20 @@
     "branch": "FrameEncoding.jpeg",
     "tool": "capture_frame",
     "arguments": {
-      "view_id": "view-fixture",
-      "expected_revision": 1,
-      "scene_time": "2026-01-01T00:00:00Z",
+      "viewId": "view-fixture",
+      "expectedRevision": 1,
+      "sceneTime": "2026-01-01T00:00:00Z",
       "policy": {
-        "width_px": 64,
-        "height_px": 64,
-        "max_screen_error_px": 2,
-        "deadline_ms": 1000,
+        "widthPx": 64,
+        "heightPx": 64,
+        "maxScreenErrorPx": 2,
+        "deadlineMs": 1000,
         "encoding": "jpeg"
       }
     },
     "tag": "/policy/encoding",
     "required": [
-      "/policy/deadline_ms"
+      "/policy/deadlineMs"
     ],
     "defaults": {},
     "open_objects": []

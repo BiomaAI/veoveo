@@ -22,9 +22,9 @@ impl RecordingPrompt {
 
     fn name(self) -> &'static str {
         match self {
-            Self::Inspect => "recording-inspect",
-            Self::Project => "recording-project",
-            Self::Seal => "recording-seal",
+            Self::Inspect => "recording_inspect",
+            Self::Project => "recording_project",
+            Self::Seal => "recording_seal",
         }
     }
 
@@ -57,6 +57,7 @@ impl RecordingPrompt {
 
     pub(super) fn render(self, arguments: Option<JsonObject>) -> Result<GetPromptResult, McpError> {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Args {
             dataset_id: Option<String>,
             recording_id: RecordingId,
@@ -73,7 +74,7 @@ impl RecordingPrompt {
                 uris::layers_uri(args.recording_id)
             ),
             Self::Project => format!(
-                "Call create_recording_projection with dataset_id {}, recording_id {}, timeline {}, exact entity path {}, exact component identifier {}, explicit sampling, fixed row/byte/deadline bounds, and a fresh idempotency key. Consume the returned Arrow stream through the authorized host path and summarize only the projected result metadata.",
+                "Call create_recording_projection with datasetId {}, recordingId {}, timeline {}, exact entity path {}, exact component identifier {}, explicit sampling, fixed row/byte/deadline bounds, and a fresh idempotency key. Consume the returned Arrow stream through the authorized host path and summarize only the projected result metadata.",
                 args.dataset_id.as_deref().unwrap_or("<dataset UUIDv7>"),
                 args.recording_id,
                 args.timeline.as_deref().unwrap_or("tick"),

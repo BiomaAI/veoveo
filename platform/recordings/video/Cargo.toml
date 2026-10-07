@@ -46,7 +46,7 @@ serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["rt"], optional = true }
-veoveo-mcp-contract = { workspace = true, default-features = false, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, default-features = false, optional = true }
 veoveo-platform-store = { workspace = true, optional = true }
 veoveo-rrd = { workspace = true, optional = true }
 veoveo-recording-reader = { workspace = true, optional = true }

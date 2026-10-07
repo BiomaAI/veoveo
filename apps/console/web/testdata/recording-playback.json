@@ -1,0 +1,69 @@
+{
+  "live": {
+    "schema": "veoveo.ai/recording-playback/v11",
+    "datasetId": "019fa000-0000-7000-8000-000000000002",
+    "recordingSegmentId": "019fa000-0000-7000-8000-000000000001",
+    "applicationId": "fixture",
+    "recordingKey": "rollover",
+    "state": "live",
+    "startedAt": "2026-10-03T00:00:00Z",
+    "endedAt": null,
+    "catalogRevision": "r1",
+    "access": {
+      "grantId": "019fa000-0000-7000-8000-000000000003",
+      "redapToken": "fixture-0",
+      "expiresAt": "2099-10-03T00:00:00Z"
+    },
+    "archive": null,
+    "live": {
+      "historySeconds": 1,
+      "videoPrerollSeconds": 2,
+      "transport": "rerun_rrd_channel_v2"
+    },
+    "blueprint": null
+  },
+  "sealed": {
+    "schema": "veoveo.ai/recording-playback/v11",
+    "datasetId": "019fa000-0000-7000-8000-000000000002",
+    "recordingSegmentId": "019fa000-0000-7000-8000-000000000001",
+    "applicationId": "fixture",
+    "recordingKey": "rollover",
+    "state": "sealed",
+    "startedAt": "2026-10-03T00:00:00Z",
+    "endedAt": "2026-10-03T00:01:00Z",
+    "catalogRevision": "r4",
+    "access": {
+      "grantId": "019fa000-0000-7000-8000-000000000003",
+      "redapToken": "fixture-0",
+      "expiresAt": "2099-10-03T00:00:00Z"
+    },
+    "archive": {
+      "uri": "rerun://archive.example:443/dataset/019FA000000070008000000000000002?segment_id=019fa000-0000-7000-8000-000000000001",
+      "datasetId": "019fa000-0000-7000-8000-000000000002",
+      "recordingSegmentId": "019fa000-0000-7000-8000-000000000001",
+      "catalogRevision": "r4",
+      "rrdVersion": "0.38.1",
+      "optimizationProfile": "object-store",
+      "byteLen": 256,
+      "layerCount": 2
+    },
+    "live": null,
+    "blueprint": null
+  },
+  "archiveRefusals": [
+    "rerun://archive.example:443/dataset/019FA000000070008000000000000004?segment_id=019fa000-0000-7000-8000-000000000001",
+    "rerun://archive.example:443/dataset/019FA000000070008000000000000002?segment_id=019fa000-0000-7000-8000-000000000004",
+    "rerun://archive.example:443/dataset/019FA000000070008000000000000002?segment_id=019fa000-0000-7000-8000-000000000001&segment_id=019fa000-0000-7000-8000-000000000001",
+    "rerun://archive.example:443/dataset/019FA000000070008000000000000002?segment_id=019fa000-0000-7000-8000-000000000001&extra=1",
+    "rerun://archive.example:443/dataset/019FA000000070008000000000000002?%73egment_id=019fa000-0000-7000-8000-000000000001",
+    "rerun://archive.example:443/dataset/019FA000000070008000000000000002?segment_id=%3019fa000-0000-7000-8000-000000000001",
+    "rerun://archive.example:443/%64ataset/019FA000000070008000000000000002?segment_id=019fa000-0000-7000-8000-000000000001",
+    "rerun://archive.example:0/dataset/019FA000000070008000000000000002?segment_id=019fa000-0000-7000-8000-000000000001",
+    "rerun://0.0.0.0:443/dataset/019FA000000070008000000000000002?segment_id=019fa000-0000-7000-8000-000000000001",
+    "rerun://[::]:443/dataset/019FA000000070008000000000000002?segment_id=019fa000-0000-7000-8000-000000000001",
+    "rerun://localhost:443/dataset/019FA000000070008000000000000002?segment_id=019fa000-0000-7000-8000-000000000001",
+    "rerun://127.0.0.1:443/dataset/019FA000000070008000000000000002?segment_id=019fa000-0000-7000-8000-000000000001",
+    "rerun://[::1]:443/dataset/019FA000000070008000000000000002?segment_id=019fa000-0000-7000-8000-000000000001",
+    "rerun+http://localhost:80/dataset/019FA000000070008000000000000002?segment_id=019fa000-0000-7000-8000-000000000001"
+  ]
+}

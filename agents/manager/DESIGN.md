@@ -7,6 +7,8 @@ credential renewal, stop, archive and revocation. The
 
 ## Standards And Protocols
 
+Manager JSON configuration uses closed camelCase members and the Agent owner's typed model and runtime-template declarations. Kubernetes resource and environment names keep the Kubernetes and workload profiles.
+
 The manager uses Kubernetes `apps/v1` Deployments and `core/v1` Secrets, PVCs,
 ConfigMaps and Pods through typed HTTPS JSON requests. Native watches carry
 resource versions and reconnect through a fresh inventory after watch loss.
@@ -26,7 +28,7 @@ reqwest 0.13.5, verified against its upstream release catalog on the same date.
 
 ## Database Credential Revision
 
-Configuration carries a checked, nonsecret `database_credential_revision`. The
+Configuration carries a checked, nonsecret `databaseCredentialRevision`. The
 composer records it on managed pod templates. Reconciliation compares this owned
 annotation without changing agent identity, instance generation or retained PVCs.
 A stale Ready workload is retired through existing UID and ownership checks. The

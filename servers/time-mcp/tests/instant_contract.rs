@@ -48,8 +48,8 @@ fn subsecond_schema_and_numeric_admission_agree() {
 
 #[test]
 fn instant_and_expression_wires_keep_numeric_fractions_and_zero_defaults() {
-    let mut instant = json!({"tai_seconds_since_1970":-1, "nanosecond":999_999_999,
-        "uncertainty_nanoseconds":u64::MAX, "authority":authority()});
+    let mut instant = json!({"taiSecondsSince1970":-1, "nanosecond":999_999_999,
+        "uncertaintyNanoseconds":u64::MAX, "authority":authority()});
     let decoded: TimeInstant = serde_json::from_value(instant.clone()).unwrap();
     assert_eq!(decoded.total_nanoseconds(), -1);
     assert_eq!(serde_json::to_value(decoded).unwrap(), instant);
@@ -122,7 +122,7 @@ fn checked_authority_wire_and_instant_reject_unknown_fields() {
     let mut extra = binding.clone();
     extra["undeclared"] = json!(true);
     assert!(serde_json::from_value::<AuthorityBinding>(extra).is_err());
-    let input = json!({"tai_seconds_since_1970":0,"nanosecond":0,"uncertainty_nanoseconds":0,"authority":binding});
+    let input = json!({"taiSecondsSince1970":0,"nanosecond":0,"uncertaintyNanoseconds":0,"authority":binding});
     assert!(serde_json::from_value::<TimeInstant>(input.clone()).is_ok());
     for path in ["", "/authority"] {
         let mut extra = input.clone();

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.ai/deployment/v8",
+  "schemaVersion": "veoveo.ai/deployment/v9",
   "name": "domain-selection",
   "registry": {
     "pushAddress": "registry.example.internal:5002",
@@ -44,10 +44,10 @@
     "installationPreset": "custom",
     "components": [
       "gateway",
-      "platform-store",
-      "object-store",
-      "artifact-service",
-      "recording-data-plane"
+      "platform_store",
+      "object_store",
+      "artifact_service",
+      "recording_data_plane"
     ],
     "mcpServers": [
       "artifact",

@@ -6,7 +6,12 @@ use veoveo_artifact_contract::{IssuedArtifactReadCapability, IssuedArtifactWrite
 use veoveo_task_runtime::RecoveryClass;
 use veoveo_types::TaskTypeDefinition;
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "operation",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum StreamTaskInput {
     RunRecording(RunRecordingRequest),
 }
@@ -38,7 +43,7 @@ impl StreamTaskInput {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DurableStreamRequest {
     pub input: StreamTaskInput,
     pub artifact_write_capability: IssuedArtifactWriteCapability,

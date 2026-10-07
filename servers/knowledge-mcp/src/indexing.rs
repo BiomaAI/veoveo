@@ -22,17 +22,19 @@ use veoveo_mcp_contract::JwtId;
 use veoveo_platform_store::{PlatformStore, PlatformTable, ResourceInvalidation};
 use veoveo_types::TenantId;
 
-#[derive(Clone, Copy, Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum SigningAlgorithm {
+    #[vocabulary(rename = "rs256")]
     Rs256,
+    #[vocabulary(rename = "es256")]
     Es256,
+    #[vocabulary(rename = "ed_dsa")]
     EdDsa,
 }
 
 /// Credential files are read for each new connection, including scheduled rotation.
 #[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct IndexingConfig {
     pub tenant: TenantId,
     pub client_id: OAuthClientId,
@@ -244,5 +246,46 @@ impl<E: Embeddings> IndexingService<'_, E> {
             .close_with_timeout(Duration::from_secs(5))
             .await;
         result
+    }
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::IndexingConfig;
+
+    #[test]
+    fn indexing_configuration_refuses_retired_and_mixed_members_before_credentials() {
+        let current: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../examples/bioma/knowledge/indexing.json"
+        ))
+        .unwrap();
+        serde_json::from_value::<IndexingConfig>(current.clone()).unwrap();
+        for (canonical, retired) in [
+            ("clientId", "client_id"),
+            ("keyId", "key_id"),
+            ("signingAlgorithm", "signing_algorithm"),
+            ("privateKeyFile", "private_key_file"),
+            ("trustedCaFile", "trusted_ca_file"),
+            ("chunkSettings", "chunk_settings"),
+            ("queryTask", "query_task"),
+        ] {
+            for mixed in [false, true] {
+                let mut bad = current.clone();
+                let value = if mixed {
+                    bad[canonical].clone()
+                } else {
+                    bad.as_object_mut().unwrap().remove(canonical).unwrap()
+                };
+                bad[retired] = value;
+                assert!(
+                    serde_json::from_value::<IndexingConfig>(bad.clone()).is_err(),
+                    "{retired} mixed={mixed}"
+                );
+                assert!(
+                    serde_json::from_slice::<IndexingConfig>(&serde_json::to_vec(&bad).unwrap())
+                        .is_err()
+                );
+            }
+        }
     }
 }

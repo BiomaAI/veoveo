@@ -143,16 +143,9 @@ leap second assumptions.
 
 ## Contract Compliance
 
-Contract revision: 3
-
-The library exposes the contract feature and owns its typed scopes, resource variants,
-and collection cursors. Every resource route uses the shared URI builder and parser.
-The MCP feature associates those types through `McpServerContract`; hosted startup,
-discovery and scope membership consume its checked setup.
-The runtime owns typed persistence inputs, the stored UUID key profile and checked
-catalog body decoding, clock-policy admission and checked version updates. Broader
-DTO typing and installed qualification remain work in the
-[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met
@@ -177,12 +170,14 @@ DTO typing and installed qualification remain work in the
 - C21: met
 - C22: met
 - C23: met
+- C24: met
 - C25: met
 - C26: met
 - C27: met
 - C28: met — static discovery advertises no list-change capability; Store observations invalidate resource contents
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
-- C24: met
 - C31: pending — installed Discover and list readiness qualification is pending
 - C32: pending — typed docs and five domain collections are implemented; source-policy, provenance, URI and paging checks pass natively; installed K01–K08 qualification and event change/restart probes remain open
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

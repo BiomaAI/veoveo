@@ -13,6 +13,7 @@ pub enum UsageKind {
 
 /// One normalized usage event for a provider-backed task.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UsageRecord {
     pub task_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -36,6 +37,7 @@ pub struct UsageRecord {
 
 /// Resource body for `{scheme}://usage/task/{task_id}`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UsageReport {
     pub task_id: String,
     pub usage_uri: String,

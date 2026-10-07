@@ -154,8 +154,7 @@ pub struct ChatSnapshot {
     pub messages: Vec<Message>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum InvitationState {
     Pending,
     Accepted,
@@ -225,8 +224,7 @@ pub struct ChatSettings {
 }
 
 /// Human-message response policy. Agent output never triggers participation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum ParticipationMode {
     OnRequest,
     Default,
@@ -279,8 +277,7 @@ pub struct ChatAgent {
     pub active: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum RunState {
     Queued,
     Running,
@@ -290,8 +287,7 @@ pub enum RunState {
     Failed,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum RunFailure {
     Capacity,
     ModelUnavailable,
@@ -301,8 +297,7 @@ pub enum RunFailure {
     WorkerLost,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum RunPhase {
     Preparing,
     Responding,

@@ -503,12 +503,12 @@ fn session_summary(state: &SimulationState) -> crate::contract::SessionSummary {
 
 pub(super) fn world_view(state: &SimulationState) -> serde_json::Value {
     json!({
-        "session_id": state.session_id,
-        "simulation_time_s": state.simulation_time_s,
-        "physics_step": state.physics_step,
+        "sessionId": state.session_id,
+        "simulationTimeS": state.simulation_time_s,
+        "physicsStep": state.physics_step,
         "timing": state.timing,
         "world": state.world,
-        "updated_at": state.updated_at,
+        "updatedAt": state.updated_at,
     })
 }
 

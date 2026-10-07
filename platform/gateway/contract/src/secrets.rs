@@ -6,7 +6,7 @@ use serde_json::Value;
 use veoveo_types::{GatewayProfileId, ServerSlug, TenantId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SecretReference {
     pub id: SecretReferenceId,
     pub source: SecretSource,

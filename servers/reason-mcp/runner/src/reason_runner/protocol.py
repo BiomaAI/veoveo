@@ -6,8 +6,8 @@ from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-REQUEST_SCHEMA = "veoveo.reason-runner-request/v3"
-RESPONSE_SCHEMA = "veoveo.reason-runner-response/v1"
+REQUEST_SCHEMA = "veoveo.ai/reason-runner-request/v4"
+RESPONSE_SCHEMA = "veoveo.ai/reason-runner-response/v2"
 
 
 I64 = Annotated[int, Field(ge=-(2**63), le=2**63 - 1)]
@@ -18,7 +18,17 @@ PositiveU64 = Annotated[int, Field(ge=1, le=2**64 - 1)]
 
 
 class _Model(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", strict=True, allow_inf_nan=False, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(validate_by_alias=True, validate_by_name=False, hide_input_in_errors=True, extra="forbid", strict=True, allow_inf_nan=False, json_schema_serialization_defaults_required=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def admit_declared_fields(cls, value):
+        # Pydantic's JSON path can otherwise hide mixed alias/name inputs.
+        if isinstance(value, dict):
+            admitted = {field.alias or name for name, field in cls.model_fields.items()}
+            if value.keys() - admitted:
+                raise ValueError("undeclared Reason protocol field")
+        return value
 
 
 class IndexRange(_Model):
@@ -37,29 +47,29 @@ class IndexRange(_Model):
 class Observation(_Model):
     width: U32
     height: U32
-    maximum_frames: int = Field(ge=1, le=1_024)
+    maximumFrames: int = Field(ge=1, le=1_024)
 
 
 class RunnerPipeline(_Model):
-    pipeline_id: str
-    prompt_template_path: str
-    prompt_revision: str
+    pipelineId: str
+    promptTemplatePath: str
+    promptRevision: str
     observation: Observation
 
 
 class VllmEngine(_Model):
     kind: Literal["vllm"]
-    gpu_memory_utilization: float = Field(ge=0.1, le=1.0)
-    max_model_len: int = Field(ge=1_024, le=1_048_576)
+    gpuMemoryUtilization: float = Field(ge=0.1, le=1.0)
+    maxModelLen: int = Field(ge=1_024, le=1_048_576)
 
 
 class RunnerModel(_Model):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", strict=True, allow_inf_nan=False, json_schema_serialization_defaults_required=True, protected_namespaces=())
+    model_config = ConfigDict(validate_by_alias=True, validate_by_name=False, hide_input_in_errors=True, extra="forbid", strict=True, allow_inf_nan=False, json_schema_serialization_defaults_required=True, protected_namespaces=())
 
-    model_id: str
-    model_path: str
+    modelId: str
+    modelPath: str
     format: Literal["local_checkpoint"]
-    model_digest: str | None = None
+    modelDigest: str | None = None
     engine: VllmEngine
 
 
@@ -85,7 +95,7 @@ ReasoningTask = Annotated[
 
 class GroundingDetection(_Model):
     label: str
-    track_id: U64 | None = None
+    trackId: U64 | None = None
 
 
 class GroundingFrame(_Model):
@@ -94,16 +104,16 @@ class GroundingFrame(_Model):
 
 
 class GroundingDetections(_Model):
-    schema_: Literal["veoveo.reason-grounding/v1"] = Field(alias="schema")
-    source_artifact_uri: str
+    schema_: Literal["veoveo.ai/reason-grounding/v2"] = Field(alias="schema")
+    sourceArtifactUri: str
     frames: list[GroundingFrame]
 
     def track_ids(self) -> set[int]:
         return {
-            detection.track_id
+            detection.trackId
             for frame in self.frames
             for detection in frame.detections
-            if detection.track_id is not None
+            if detection.trackId is not None
         }
 
 
@@ -114,7 +124,7 @@ class GreedyDecode(_Model):
 class SampledDecode(_Model):
     mode: Literal["sampled"]
     temperature: float
-    top_p: float
+    topP: float
     seed: U64
 
 
@@ -122,36 +132,36 @@ DecodePolicy = Annotated[Union[GreedyDecode, SampledDecode], Field(discriminator
 
 
 class ObservationSampling(_Model):
-    max_frames: U32
+    maxFrames: U32
 
 
 class RunnerRequest(_Model):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", strict=True, allow_inf_nan=False, json_schema_serialization_defaults_required=True, protected_namespaces=())
+    model_config = ConfigDict(validate_by_alias=True, validate_by_name=False, hide_input_in_errors=True, extra="forbid", strict=True, allow_inf_nan=False, json_schema_serialization_defaults_required=True, protected_namespaces=())
 
-    schema_: str = Field(alias="schema")
-    task_id: str
-    input_mp4: str
-    input_width: U16
-    input_height: U16
-    response_json: str
+    schema_: Literal["veoveo.ai/reason-runner-request/v4"] = Field(alias="schema")
+    taskId: str
+    inputMp4: str
+    inputWidth: U16
+    inputHeight: U16
+    responseJson: str
     pipeline: RunnerPipeline
     model: RunnerModel
     task: ReasoningTask
     grounding: GroundingDetections | None = None
-    requested_range: IndexRange
-    decode_start_index: I64
+    requestedRange: IndexRange
+    decodeStartIndex: I64
     sampling: ObservationSampling
     decode: DecodePolicy
-    max_events: PositiveU64
-    max_answer_bytes: PositiveU64
-    max_response_bytes: PositiveU64
+    maxEvents: PositiveU64
+    maxAnswerBytes: PositiveU64
+    maxResponseBytes: PositiveU64
 
 
 class ReasonedEvent(_Model):
     range: IndexRange
     label: str
     description: str
-    track_ids: list[U64] = Field(default_factory=list)
+    trackIds: list[U64] = Field(default_factory=list)
 
 
 class DescriptionAnswer(_Model):
@@ -175,20 +185,17 @@ ReasoningAnswer = Annotated[
 
 
 class RunnerResponse(_Model):
-    schema_: str = Field(alias="schema", default=RESPONSE_SCHEMA)
+    schema_: Literal["veoveo.ai/reason-runner-response/v2"] = Field(alias="schema", default=RESPONSE_SCHEMA)
     answer: ReasoningAnswer
-    observed_frames: U64
-    elapsed_ms: U64
+    observedFrames: U64
+    elapsedMs: U64
 
     def to_json(self) -> str:
         return self.model_dump_json(by_alias=True)
 
 
 def parse_request(raw: bytes) -> RunnerRequest:
-    request = RunnerRequest.model_validate_json(raw)
-    if request.schema_ != REQUEST_SCHEMA:
-        raise ValueError(f"unsupported runner request schema `{request.schema_}`")
-    return request
+    return RunnerRequest.model_validate_json(raw)
 
 
 def answer_kind_for(task: ReasoningTask) -> str:

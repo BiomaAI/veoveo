@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
-from .contracts import validation_diagnostic
+from .contracts import validation_diagnostic, WireModel
 
 
 class WorldConfigurationError(ValueError):
@@ -72,29 +72,29 @@ def _frame_address(value: str, *, frame: bool) -> tuple[str, ...]:
         raise WorldConfigurationError("invalid Frames world address") from error
 
 
-class GeoreferenceOriginWire(BaseModel):
+class GeoreferenceOriginWire(WireModel):
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True)
-    latitude_degrees: float
-    longitude_degrees: float
-    ellipsoid_height_m: float
+    latitudeDegrees: float
+    longitudeDegrees: float
+    ellipsoidHeightM: float
 
 
-class SimulationWorldBindingWire(BaseModel):
+class SimulationWorldBindingWire(WireModel):
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True)
-    revision_uri: str
-    spec_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    simulation_frame_uri: str
-    georeference_origin: GeoreferenceOriginWire
+    revisionUri: str
+    specSha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    simulationFrameUri: str
+    georeferenceOrigin: GeoreferenceOriginWire
 
     @model_validator(mode="after")
     def admitted_binding(self):
-        WorldConfiguration.from_request({"session_id": "portable", "world": self.model_dump()}, "portable")
+        WorldConfiguration.from_request({'sessionId': "portable", "world": self.model_dump()}, "portable")
         return self
 
 
-class ConfigureWorldWire(BaseModel):
+class ConfigureWorldWire(WireModel):
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True)
-    session_id: str
+    sessionId: str
     world: SimulationWorldBindingWire
 
 
@@ -106,9 +106,9 @@ class GeoreferenceOrigin:
 
     def as_dict(self) -> dict[str, float]:
         return {
-            "latitude_degrees": self.latitude_degrees,
-            "longitude_degrees": self.longitude_degrees,
-            "ellipsoid_height_m": self.ellipsoid_height_m,
+            "latitudeDegrees": self.latitude_degrees,
+            "longitudeDegrees": self.longitude_degrees,
+            "ellipsoidHeightM": self.ellipsoid_height_m,
         }
 
 
@@ -134,44 +134,44 @@ class WorldConfiguration:
         cls, payload: Any, expected_session_id: str
     ) -> "WorldConfiguration":
         request = _object(payload, "world configuration")
-        _exact_fields(request, {"session_id", "world"}, "world configuration")
-        if request["session_id"] != expected_session_id:
+        _exact_fields(request, {'sessionId', "world"}, "world configuration")
+        if request['sessionId'] != expected_session_id:
             raise WorldConfigurationError(
-                f"unknown simulation session {request['session_id']!r}"
+                f"unknown simulation session {request['sessionId']!r}"
             )
         world = _object(request["world"], "world")
         _exact_fields(
             world,
             {
-                "revision_uri",
-                "spec_sha256",
-                "simulation_frame_uri",
-                "georeference_origin",
+                'revisionUri',
+                'specSha256',
+                'simulationFrameUri',
+                'georeferenceOrigin',
             },
             "world",
         )
-        revision_uri = _string(world["revision_uri"], "revision_uri")
+        revision_uri = _string(world['revisionUri'], 'revisionUri')
         revision = _frame_address(revision_uri, frame=False)
-        simulation_frame_uri = _string(world["simulation_frame_uri"], "simulation_frame_uri")
+        simulation_frame_uri = _string(world['simulationFrameUri'], 'simulationFrameUri')
         simulation_frame = _frame_address(simulation_frame_uri, frame=True)
         if simulation_frame[:4] != revision:
             raise WorldConfigurationError("simulation_frame_uri must identify a frame in revision_uri")
-        spec_sha256 = _string(world["spec_sha256"], "spec_sha256", 64)
+        spec_sha256 = _string(world['specSha256'], 'specSha256', 64)
         if len(spec_sha256) != 64 or any(
             character not in "0123456789abcdef" for character in spec_sha256
         ):
             raise WorldConfigurationError(
                 "spec_sha256 must be a lowercase SHA-256 digest"
             )
-        origin = _object(world["georeference_origin"], "georeference_origin")
+        origin = _object(world['georeferenceOrigin'], 'georeferenceOrigin')
         _exact_fields(
             origin,
             {
-                "latitude_degrees",
-                "longitude_degrees",
-                "ellipsoid_height_m",
+                "latitudeDegrees",
+                "longitudeDegrees",
+                "ellipsoidHeightM",
             },
-            "georeference_origin",
+            'georeferenceOrigin',
         )
         return cls(
             revision_uri=revision_uri,
@@ -179,20 +179,20 @@ class WorldConfiguration:
             simulation_frame_uri=simulation_frame_uri,
             georeference_origin=GeoreferenceOrigin(
                 latitude_degrees=_number(
-                    origin["latitude_degrees"],
-                    "latitude_degrees",
+                    origin["latitudeDegrees"],
+                    "latitudeDegrees",
                     -90.0,
                     90.0,
                 ),
                 longitude_degrees=_number(
-                    origin["longitude_degrees"],
-                    "longitude_degrees",
+                    origin["longitudeDegrees"],
+                    "longitudeDegrees",
                     -180.0,
                     180.0,
                 ),
                 ellipsoid_height_m=_number(
-                    origin["ellipsoid_height_m"],
-                    "ellipsoid_height_m",
+                    origin["ellipsoidHeightM"],
+                    "ellipsoidHeightM",
                     -1_000.0,
                     100_000.0,
                 ),
@@ -201,10 +201,10 @@ class WorldConfiguration:
 
     def as_dict(self) -> dict[str, object]:
         return {
-            "revision_uri": self.revision_uri,
-            "spec_sha256": self.spec_sha256,
-            "simulation_frame_uri": self.simulation_frame_uri,
-            "georeference_origin": self.georeference_origin.as_dict(),
+            'revisionUri': self.revision_uri,
+            'specSha256': self.spec_sha256,
+            'simulationFrameUri': self.simulation_frame_uri,
+            'georeferenceOrigin': self.georeference_origin.as_dict(),
         }
 
 

@@ -433,9 +433,9 @@ impl AuthoringService {
                 idempotency_key: request.idempotency_key.clone(),
                 request_digest_sha256: request_digest_sha256.clone(),
                 changeset_canonical_json: serde_json::to_string(&serde_json::json!({
-                    "changeset_id": changeset_id,
-                    "layer_id": request.layer_id,
-                    "request_digest_sha256": request_digest_sha256,
+                    "changesetId": changeset_id,
+                    "layerId": request.layer_id,
+                    "requestDigestSha256": request_digest_sha256,
                 }))?,
                 revisions,
             })

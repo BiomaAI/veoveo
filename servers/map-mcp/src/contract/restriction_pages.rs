@@ -6,6 +6,7 @@ pub const RESTRICTION_PAGE_SIZE: usize = 100;
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CursorWire {
     version: u8,
     collection: String,
@@ -74,6 +75,8 @@ impl MapRestrictionCursor {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "PageWire", into = "PageWire")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapRestrictionPage {
     items: Vec<RestrictionSummary>,
     next_cursor: Option<MapRestrictionCursor>,
@@ -81,6 +84,7 @@ pub struct MapRestrictionPage {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct PageWire {
     #[schemars(length(max = 100))]
     items: Vec<RestrictionSummary>,

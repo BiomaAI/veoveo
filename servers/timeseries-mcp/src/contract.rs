@@ -17,6 +17,8 @@ mod request;
 pub use request::*;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeseriesSeriesSummary {
     pub series_id: String,
     pub observed_rows: u64,
@@ -25,6 +27,8 @@ pub struct TimeseriesSeriesSummary {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "TimeseriesForecastSummary")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeseriesForecastSummaryBuilder {
     pub method: TimeseriesForecastMethod,
     pub horizon: TimeseriesForecastHorizon,
@@ -34,6 +38,8 @@ pub struct TimeseriesForecastSummaryBuilder {
 
 /// One observed point in a bounded chart preview.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeseriesPreviewObservation {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub event_time: Option<String>,
@@ -42,6 +48,8 @@ pub struct TimeseriesPreviewObservation {
 
 /// One forecast step in a bounded chart preview.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeseriesPreviewForecastPoint {
     pub step: u32,
     pub mean: f64,
@@ -52,6 +60,8 @@ pub struct TimeseriesPreviewForecastPoint {
 /// Downsampled chartable series shipped in structured output so app views
 /// can render without re-reading the RRD artifact.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeseriesSeriesPreview {
     pub series_id: String,
     #[schemars(length(max = MAX_PREVIEW_POINTS))]
@@ -62,6 +72,8 @@ pub struct TimeseriesSeriesPreview {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "TimeseriesForecastOutput")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeseriesForecastOutputBuilder {
     pub result_uri: TimeseriesArtifactUri,
     pub forecast: TimeseriesForecastSummary,
@@ -158,6 +170,6 @@ mod terminal_contract_tests {
         let schema = serde_json::to_value(schemars::schema_for!(TimeseriesForecastOutput)).unwrap();
         let properties = schema["properties"].as_object().unwrap();
 
-        assert!(properties.contains_key("result_uri"));
+        assert!(properties.contains_key("resultUri"));
     }
 }

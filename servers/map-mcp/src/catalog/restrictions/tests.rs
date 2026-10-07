@@ -182,7 +182,7 @@ async fn pages_and_completion_apply_tenant_before_limits_and_recheck_continuatio
             serde_json::from_value::<MapRestrictionPage>(wire.clone()).unwrap(),
             first
         );
-        wire["next_cursor"] = serde_json::json!(MapRestrictionCursor::new(id(1098)));
+        wire["nextCursor"] = serde_json::json!(MapRestrictionCursor::new(id(1098)));
         assert!(serde_json::from_value::<MapRestrictionPage>(wire).is_err());
         let mut items = first.items().to_vec();
         items.swap(0, 1);

@@ -16,6 +16,7 @@ pub struct LiveSessionDetails {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(try_from = "LiveSessionViewWire", into = "LiveSessionViewWire")]
 pub struct LiveSessionView {
     session: SessionId,
@@ -70,6 +71,7 @@ impl LiveSessionView {
     }
 }
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct LiveSessionViewWire {
     session_id: SessionId,
     session_uri: SessionUri,

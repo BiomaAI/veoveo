@@ -8,14 +8,14 @@ pub(crate) fn fixture_catalog() -> GatewayCatalog {
         .as_array_mut()
         .unwrap()
         .push(json!({"id":"test","title":"Test","metadata":{}}));
-    value["work_contexts"].as_array_mut().unwrap().push(json!({
-        "id":"shared", "tenant":"test", "title":"Shared", "policy_revision":"2026-07-02",
-        "output_policy":{"owner":{"kind":"group","id":"collaborators"}},
+    value["workContexts"].as_array_mut().unwrap().push(json!({
+        "id":"shared", "tenant":"test", "title":"Shared", "policyRevision":"2026-07-02",
+        "outputPolicy":{"owner":{"kind":"group","id":"collaborators"}},
         "memberships":[{"level":"contributor","groups":["collaborators"]}]
     }));
     value["policies"][0]["rules"].as_array_mut().unwrap().push(json!({
         "id":"agent-authoring-fixture", "effect":"allow", "profiles":["operator"],
-        "required_scopes":["operator:use"],
+        "requiredScopes":["operator:use"],
         "actions":["agent_definitions_read","agent_definitions_read_content","agent_definitions_create",
             "agent_definitions_edit","agent_definitions_publish","agent_definitions_use",
             "agent_definitions_control","agent_definitions_archive","agent_definitions_transfer",

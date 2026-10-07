@@ -43,8 +43,7 @@ impl RetainedFilePath {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum FileTransferDirection {
     Import,
     Export,
@@ -107,8 +106,7 @@ pub struct TransferFileInput {
     pub limits: FileTransferLimits,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum FileTransferStage {
     Queued,
     Dispatched,
@@ -123,7 +121,6 @@ pub enum FileTransferStage {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FileTransferResult {
-    #[serde(rename = "result_uri")]
     #[schemars(
         with = "String",
         regex(
@@ -189,7 +186,6 @@ impl FileTransferResult {
 #[derive(Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct FileTransferResultWire {
-    #[serde(rename = "result_uri")]
     #[schemars(
         with = "String",
         regex(

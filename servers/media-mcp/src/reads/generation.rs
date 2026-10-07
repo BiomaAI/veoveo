@@ -89,7 +89,7 @@ fn decode(row: ResultRow) -> anyhow::Result<MediaGenerationResult> {
         is_error: Option<bool>,
     }
     let envelope: GenerationEnvelope = serde_json::from_value(value).map_err(|_| {
-        anyhow::anyhow!("stored Media generation result does not satisfy the current contract")
+        anyhow::anyhow!("stored Media generation result requires veoveo.ai/media-generation/v2; drain writers and upgrade Media and consumers together")
     })?;
     anyhow::ensure!(
         envelope.is_error != Some(true),

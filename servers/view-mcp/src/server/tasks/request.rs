@@ -7,6 +7,7 @@ use veoveo_task_runtime::TaskOwner;
 use veoveo_types::PrincipalId;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(try_from = "RequestWire")]
 pub(super) struct ViewCaptureTaskRequest {
     request: CaptureFrameRequest,
@@ -48,6 +49,7 @@ impl ViewCaptureTaskRequest {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RequestWire {
     request: CaptureFrameRequest,
     view_snapshot: ViewCaptureSnapshot,

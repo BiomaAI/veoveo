@@ -221,10 +221,10 @@ export function useCreateShareLink() {
         activeLinks: artifact.activeLinks + 1,
         shareLinks: [
           {
-            id: created.link_id,
+            id: created.linkId,
             permission: "read" as const,
-            expiresAt: created.expires_at,
-            maxDownloads: created.max_downloads ?? undefined,
+            expiresAt: created.expiresAt,
+            maxDownloads: created.maxDownloads ?? undefined,
             downloadCount: 0,
             createdAt: new Date().toISOString(),
             active: true,

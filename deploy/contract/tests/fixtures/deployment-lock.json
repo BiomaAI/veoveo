@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.ai/deployment-lock/v8",
+  "schemaVersion": "veoveo.ai/deployment-lock/v9",
   "profile": "synthetic-contract-fixture",
   "profileRevision": "dddddddddddddddddddddddddddddddddddddddd",
   "registry": {
@@ -83,7 +83,7 @@
         ],
         "targets": [
           {
-            "kind": "manifest-set",
+            "kind": "manifest_set",
             "name": "installation-namespace"
           }
         ],
@@ -101,12 +101,12 @@
       "units": [
         {
           "target": {
-            "kind": "manifest-set",
+            "kind": "manifest_set",
             "name": "installation-namespace"
           },
           "inputs": [],
-          "digest": "sha256:727becb84425ec71b83174ab8518d82ff63b230e52441b48753e22cbe2e9c7e2",
-          "contentDigest": "sha256:73e5b80c3bafb95377a90c0a23d986e20617d04b88e98b31199ee30220a994c1",
+          "digest": "sha256:55f5759dafe4e6872fe7e6abce557cee66d2b35d7bb1aa90d3e706955119eec9",
+          "contentDigest": "sha256:a95e982b6f49ed29e651749a1d149c5569c7faf9ad554c3f58918249dd703960",
           "objects": [
             {
               "identity": {
@@ -143,7 +143,7 @@
         ],
         "targets": [
           {
-            "kind": "helm-release",
+            "kind": "helm_release",
             "namespace": "veoveo",
             "name": "platform"
           }
@@ -197,7 +197,7 @@
       "units": [
         {
           "target": {
-            "kind": "helm-release",
+            "kind": "helm_release",
             "namespace": "veoveo",
             "name": "platform"
           },
@@ -235,8 +235,8 @@
               "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
             }
           ],
-          "digest": "sha256:f6668c983f9f3848276834118fc57fa68cb545c890c2750e570690bf76432a1d",
-          "contentDigest": "sha256:3ded8edd94122ecc57ef2f7eaa3eef4a4d4ffaad28542fdf8c1e537543f01eab",
+          "digest": "sha256:6e44752722d781a36c8e9c40447dc0caf0790f7c9b0bda345fdae1eaec9d54d5",
+          "contentDigest": "sha256:f63764c38ecd7b9935301103e0e86991a641a79d1f6b8ff3a240a14c41c31790",
           "objects": [
             {
               "identity": {
@@ -273,7 +273,7 @@
         ],
         "targets": [
           {
-            "kind": "helm-release",
+            "kind": "helm_release",
             "namespace": "veoveo",
             "name": "extension"
           }
@@ -316,7 +316,7 @@
       "units": [
         {
           "target": {
-            "kind": "helm-release",
+            "kind": "helm_release",
             "namespace": "veoveo",
             "name": "extension"
           },
@@ -343,8 +343,8 @@
               "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
             }
           ],
-          "digest": "sha256:5c0c5da5e1b818d5bdaf886c1fbc9101eb881892687c64c567d9c2089fab9892",
-          "contentDigest": "sha256:e25e620fe1510dd8ac9b8e3b8f83fda70957e3cb01300665e3935dfd0ce553c5",
+          "digest": "sha256:5b8facf67e93eb5fabab1c4e0e855190d44af8cbdd423235c63fda4fe6028049",
+          "contentDigest": "sha256:5581368fb01fc928bd96027bc4769d10cc54874a82444c0436dc51b2e178f502",
           "objects": [
             {
               "identity": {
@@ -363,7 +363,7 @@
   "platform": {
     "computerCapacity": "unconfigured",
     "components": [
-      "platform-store"
+      "platform_store"
     ],
     "mcpServers": [],
     "artifactAudiences": [],

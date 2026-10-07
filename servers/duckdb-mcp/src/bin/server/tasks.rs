@@ -38,7 +38,12 @@ const TASK_LEASE_HEARTBEAT: Duration = Duration::from_secs(40);
 const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "operation", content = "request", rename_all = "snake_case")]
+#[serde(
+    tag = "operation",
+    content = "request",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 pub(super) enum TaskArgs {
     Query(DuckDbQueryRequest),
     Execute(DuckDbExecuteRequest),
@@ -47,6 +52,8 @@ pub(super) enum TaskArgs {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 struct DuckdbTaskRequest {
     args: TaskArgs,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -551,3 +551,237 @@ fn sumo_chart_metadata_preserves_pod_templates() {
     assert_eq!(pod_templates(&renders[0]).len(), 2);
     assert!(changed_pods(&renders[0], &renders[1]).is_empty());
 }
+
+#[test]
+fn helm_evidence_enrichment_admits_only_current_selected_release() {
+    use super::{HelmArtifact, HelmRelease, OciPublication, write_evidence};
+    let directory = tempfile::tempdir().unwrap();
+    let mut release = HelmRelease {
+        output: directory.path().to_owned(),
+        artifacts: vec![HelmArtifact {
+            name: "veoveo",
+            archive: directory.path().join("veoveo-1.2.3.tgz"),
+            filename: "veoveo-1.2.3.tgz".to_owned(),
+            sha256: veoveo_deploy_contract::ArtifactDigest::parse(&format!(
+                "sha256:{}",
+                "a".repeat(64)
+            ))
+            .unwrap(),
+            oci: None,
+        }],
+    };
+    write_evidence(&release, "1.2.3", "selected-source", "v4.3.0").unwrap();
+    let target = directory.path().join("release-evidence.json");
+    let original = std::fs::read(&target).unwrap();
+    release.artifacts[0].oci = Some(OciPublication {
+        coordinate: veoveo_deploy_contract::ArtifactCoordinate::new(
+            "oci://registry.test/charts/veoveo:1.2.3",
+        )
+        .unwrap(),
+        digest: format!("sha256:{}", "b".repeat(64)),
+    });
+    let current: serde_json::Value = serde_json::from_slice(&original).unwrap();
+    for (path, old) in [
+        ("/schemaVersion", "schema_version"),
+        ("/sourceRevision", "source_revision"),
+        ("/artifacts/0/mediaType", "media_type"),
+    ] {
+        for mixed in [false, true] {
+            let mut bad = current.clone();
+            let (parent, field) = path.rsplit_once('/').unwrap();
+            let object = bad.pointer_mut(parent).unwrap().as_object_mut().unwrap();
+            let value = object[field].clone();
+            if !mixed {
+                object.remove(field);
+            }
+            object.insert(old.to_owned(), value);
+            let bytes = serde_json::to_vec(&bad).unwrap();
+            std::fs::write(&target, &bytes).unwrap();
+            assert!(write_evidence(&release, "1.2.3", "selected-source", "v4.3.0").is_err());
+            assert_eq!(std::fs::read(&target).unwrap(), bytes);
+        }
+    }
+    for (path, value) in [
+        (
+            "/schemaVersion",
+            serde_json::json!("veoveo.ai/helm-chart-release-evidence/v0"),
+        ),
+        ("/sourceRevision", serde_json::json!("foreign-source")),
+        ("/version", serde_json::json!("9.9.9")),
+        (
+            "/artifacts/0/sha256",
+            serde_json::json!(format!("sha256:{}", "c".repeat(64))),
+        ),
+        ("/artifacts/0/sha256", serde_json::json!("c".repeat(64))),
+        (
+            "/artifacts/0/sha256",
+            serde_json::json!(format!("sha256:{}", "C".repeat(64))),
+        ),
+        ("/artifacts/0/sha256", serde_json::json!("sha256:bad")),
+        (
+            "/artifacts/0/filename",
+            serde_json::json!("foreign-1.2.3.tgz"),
+        ),
+    ] {
+        let mut bad = current.clone();
+        *bad.pointer_mut(path).unwrap() = value;
+        let bytes = serde_json::to_vec(&bad).unwrap();
+        std::fs::write(&target, &bytes).unwrap();
+        assert!(write_evidence(&release, "1.2.3", "selected-source", "v4.3.0").is_err());
+        assert_eq!(std::fs::read(&target).unwrap(), bytes);
+    }
+    std::fs::write(&target, &original).unwrap();
+    write_evidence(&release, "1.2.3", "selected-source", "v4.3.0").unwrap();
+    let enriched: super::HelmReleaseEvidence =
+        serde_json::from_slice(&std::fs::read(&target).unwrap()).unwrap();
+    assert_eq!(
+        enriched.artifacts[0].oci.as_ref().unwrap(),
+        release.artifacts[0].oci.as_ref().unwrap()
+    );
+    let settled = std::fs::read(&target).unwrap();
+    write_evidence(&release, "1.2.3", "selected-source", "v4.3.0").unwrap();
+    release.artifacts[0].oci.as_mut().unwrap().digest = format!("sha256:{}", "d".repeat(64));
+    assert!(write_evidence(&release, "1.2.3", "selected-source", "v4.3.0").is_err());
+    assert_eq!(std::fs::read(&target).unwrap(), settled);
+}
+
+#[test]
+fn helm_push_preflight_refuses_before_helm_effects() {
+    use super::{HelmArtifact, HelmRelease, push, sha256_file, write_evidence};
+    const CHILD: &str = "VEOVEO_HELM_PREFLIGHT_CASE";
+    if let Ok(case) = std::env::var(CHILD) {
+        let directory = Path::new(&case);
+        let mut release = HelmRelease {
+            output: directory.to_owned(),
+            artifacts: vec![HelmArtifact {
+                name: "veoveo",
+                archive: directory.join("veoveo-1.2.3.tgz"),
+                filename: "veoveo-1.2.3.tgz".to_owned(),
+                sha256: veoveo_deploy_contract::ArtifactDigest::parse(
+                    &std::env::var("VEOVEO_HELM_PREFLIGHT_SELECTED_DIGEST").unwrap(),
+                )
+                .unwrap(),
+                oci: None,
+            }],
+        };
+        let result = push(
+            &mut release,
+            "registry.test/charts",
+            false,
+            "1.2.3",
+            "selected-source",
+        );
+        let expected = std::env::var("VEOVEO_HELM_PREFLIGHT_ALLOWED").unwrap() == "yes";
+        assert_eq!(result.is_ok(), expected, "{result:?}");
+        assert_eq!(directory.join("effects").exists(), expected);
+        return;
+    }
+    for mutation in [
+        "current",
+        "wrong_chart",
+        "wrong_version",
+        "noncanonical",
+        "retired",
+        "foreign_source",
+        "mixed",
+        "bare_digest",
+        "invalid_digest",
+        "changed_archive",
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let archive = directory.path().join("veoveo-1.2.3.tgz");
+        std::fs::write(&archive, b"selected archive").unwrap();
+        let release = HelmRelease {
+            output: directory.path().to_owned(),
+            artifacts: vec![HelmArtifact {
+                name: "veoveo",
+                filename: "veoveo-1.2.3.tgz".to_owned(),
+                sha256: sha256_file(&archive).unwrap(),
+                archive,
+                oci: None,
+            }],
+        };
+        write_evidence(&release, "1.2.3", "selected-source", "v4.3.0").unwrap();
+        let target = directory.path().join("release-evidence.json");
+        let mut evidence: Value = serde_json::from_slice(&std::fs::read(&target).unwrap()).unwrap();
+        assert_eq!(
+            evidence["artifacts"][0]["sha256"],
+            serde_json::to_value(sha256_file(&release.artifacts[0].archive).unwrap()).unwrap()
+        );
+        assert!(
+            evidence["artifacts"][0]["sha256"]
+                .as_str()
+                .unwrap()
+                .starts_with("sha256:")
+        );
+        match mutation {
+            "wrong_chart" | "wrong_version" | "noncanonical" => {
+                let coordinate = match mutation {
+                    "wrong_chart" => "oci://registry.test/charts/uav-sim:1.2.3",
+                    "wrong_version" => "oci://registry.test/charts/veoveo:9.9.9",
+                    _ => "oci://registry.test/charts/%76eoveo:1.2.3",
+                };
+                evidence["artifacts"][0]["oci"] = serde_json::json!({"coordinate": coordinate, "digest": format!("sha256:{}", "b".repeat(64))});
+            }
+            "retired" => {
+                evidence["schemaVersion"] =
+                    serde_json::json!("veoveo.ai/helm-chart-release-evidence/v0")
+            }
+            "foreign_source" => evidence["sourceRevision"] = serde_json::json!("foreign-source"),
+            "mixed" => evidence["source_revision"] = evidence["sourceRevision"].clone(),
+            "bare_digest" => evidence["artifacts"][0]["sha256"] = serde_json::json!("a".repeat(64)),
+            "invalid_digest" => {
+                evidence["artifacts"][0]["sha256"] = serde_json::json!("sha256:bad")
+            }
+            "changed_archive" => {
+                std::fs::write(
+                    directory.path().join("veoveo-1.2.3.tgz"),
+                    b"changed archive",
+                )
+                .unwrap();
+            }
+            _ => {}
+        }
+        std::fs::write(&target, serde_json::to_vec(&evidence).unwrap()).unwrap();
+        let before = std::fs::read(&target).unwrap();
+        let driver = directory.path().join("helm");
+        std::fs::write(&driver, format!("#!/bin/sh\nprintf '%s\\n' \"$1\" >> '{}'\nif [ \"$1\" = version ]; then printf 'v4.3.0\\n'; else printf 'Digest: sha256:{}\\n'; fi\n", directory.path().join("effects").display(), "b".repeat(64))).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&driver, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let status = Command::new("timeout")
+            .args(["10s"])
+            .arg(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "commands::helm::rollout_tests::helm_push_preflight_refuses_before_helm_effects",
+                "--nocapture",
+            ])
+            .env(CHILD, directory.path())
+            .env(
+                "VEOVEO_HELM_PREFLIGHT_SELECTED_DIGEST",
+                release.artifacts[0].sha256.as_str(),
+            )
+            .env(
+                "VEOVEO_HELM_PREFLIGHT_ALLOWED",
+                if mutation == "current" { "yes" } else { "no" },
+            )
+            .env(
+                "PATH",
+                std::env::join_paths(std::iter::once(directory.path().to_owned()).chain(
+                    std::env::split_paths(
+                        &std::env::var_os("PATH").expect("GNU timeout prerequisite PATH"),
+                    ),
+                ))
+                .unwrap(),
+            )
+            .status()
+            .unwrap();
+        assert!(status.success(), "preflight case {mutation}: {status}");
+        if mutation != "current" {
+            assert_eq!(std::fs::read(&target).unwrap(), before);
+        }
+    }
+}

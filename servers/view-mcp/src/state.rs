@@ -120,6 +120,7 @@ struct InternalComposition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ResourceOwner {
     pub principal_id: PrincipalId,
     pub work_context: WorkContextId,
@@ -716,17 +717,15 @@ impl ViewService {
             .try_into()
             .map_err(|_| FrameRecordError::Detail)?;
         tiles.extend(overlay_tiles);
-        let rendered = self
-            .renderer
-            .capture(RenderFrameRequest {
-                camera: resolved.clone(),
-                local_origin: resolved.position,
-                width_px: policy.width_px,
-                height_px: policy.height_px,
-                encoding: policy.encoding,
-                tiles,
-            })
-            .await?;
+        let request = RenderFrameRequest {
+            camera: resolved.clone(),
+            local_origin: resolved.position,
+            width_px: policy.width_px,
+            height_px: policy.height_px,
+            encoding: policy.encoding,
+            tiles,
+        };
+        let rendered = render_until_cancelled(&self.renderer, request, &combined).await?;
         if combined.is_cancelled() {
             return Err(ServiceError::Cancelled);
         }
@@ -1217,6 +1216,20 @@ pub enum ServiceError {
     Decode(#[from] crate::decode::DecodeError),
     #[error(transparent)]
     Renderer(#[from] RendererError),
+}
+
+/// Cancelling the service await closes the queued oneshot. The renderer retains
+/// any already-dispatched native storage until it witnesses GPU completion.
+pub(crate) async fn render_until_cancelled(
+    renderer: &RendererHandle,
+    request: RenderFrameRequest,
+    cancellation: &CancellationToken,
+) -> Result<crate::renderer::RenderedImage, ServiceError> {
+    tokio::select! {
+        biased;
+        () = cancellation.cancelled() => Err(ServiceError::Cancelled),
+        result = renderer.capture(request) => Ok(result?),
+    }
 }
 
 #[cfg(test)]

@@ -17,7 +17,7 @@ pub fn normalized_model_filter(value: Option<String>) -> Option<String> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModelPosition {
     version: u8,
     collection: String,
@@ -34,7 +34,7 @@ impl CursorCodec for ModelCursorCodec {
     type Position = ModelPosition;
     type Error = ModelCatalogError;
     fn check(&self, p: &ModelPosition) -> Result<(), Self::Error> {
-        if p.version != 1
+        if p.version != 2
             || p.collection != MediaModelIndexUri::ROOT
             || !(1..=100).contains(&p.limit)
             || p.query != normalized_model_filter(p.query.clone())
@@ -231,7 +231,7 @@ pub fn model_catalog_page(
         .collect::<Result<_, _>>()?;
     let next_cursor = if remaining.next().is_some() {
         let position = ModelPosition {
-            version: 1,
+            version: 2,
             collection: MediaModelIndexUri::ROOT.into(),
             query: query.clone(),
             model_type: model_type.clone(),

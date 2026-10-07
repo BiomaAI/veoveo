@@ -11,7 +11,8 @@ use rmcp::{
 };
 use veoveo_mcp_conformance::{
     ConformanceCredentials, HostedServerConformanceProfile, HostedServerProfileSchema,
-    HttpBoundaryProfile, SurfaceExpectation, SurfaceProfile, run_hosted_server_conformance,
+    HttpBoundaryProfile, SurfaceExpectation, SurfaceProfile,
+    run_hosted_server_conformance_with_evidence,
 };
 use veoveo_modular_fixture_mcp::{
     contract::{ObservatoryResource, ObservatoryScope, Reading, ReadingId},
@@ -107,7 +108,7 @@ async fn qualify() -> anyhow::Result<()> {
     })));
     let endpoint = format!("http://{address}/observatory/mcp");
     let profile = HostedServerConformanceProfile {
-        schema_version: HostedServerProfileSchema::V1,
+        schema_version: HostedServerProfileSchema::V2,
         profile_id: "modular-fixture".into(),
         contract_revision: veoveo_mcp_contract::HOSTED_MCP_CONTRACT_REVISION.into(),
         endpoint: endpoint.clone(),
@@ -136,11 +137,6 @@ async fn qualify() -> anyhow::Result<()> {
             required_prompts: BTreeSet::new(),
         },
     };
-    let report =
-        run_hosted_server_conformance(&profile, &ConformanceCredentials::bearer("fixture-read"))
-            .await?;
-    println!("{}", serde_json::to_string(&report)?);
-    assert!(report.passed(), "{:#?}", report.checks);
     // The same source checks run through a combined endpoint without pretending
     // that its implementation identity is the selected source's identity.
     for route in [
@@ -184,16 +180,10 @@ async fn qualify() -> anyhow::Result<()> {
         "an absent source cannot pass on an empty selection"
     );
     check_source_cli(&endpoint).await?;
-    for id in ["K01", "K02", "K03", "K04", "K05", "K06"] {
-        assert!(
-            report.checks.iter().any(|check| check.requirement_id == id
-                && check.status == veoveo_mcp_conformance::CheckStatus::Passed),
-            "missing {id}"
-        );
-    }
 
     let resource = ObservatoryResource::Reading(ReadingId::new("sensor-a")?).to_uri()?;
     let mut document_revision = None;
+    let mut observed_reading = None;
     for (token, allowed) in [("fixture-read", true), ("fixture-unrelated", false)] {
         let client = ()
             .serve_with_lifecycle(
@@ -248,13 +238,15 @@ async fn qualify() -> anyhow::Result<()> {
                     _ => None,
                 })
                 .expect("typed reading contents");
+            let reading = serde_json::from_str::<Reading>(text)?;
             assert_eq!(
-                serde_json::from_str::<Reading>(text)?,
+                reading,
                 Reading {
                     id: ReadingId::new("sensor-a")?,
                     value: 7
                 }
             );
+            observed_reading = Some(reading);
             let missing = ObservatoryResource::Reading(ReadingId::new("missing")?).to_uri()?;
             expect_mcp_error(
                 client
@@ -277,6 +269,45 @@ async fn qualify() -> anyhow::Result<()> {
         }
         client.cancel().await?;
     }
+    let label = veoveo_types::NamingLabel::new("observatory-reading")?;
+    let bodies = [
+        veoveo_mcp_conformance::OwnerSchemaEvidence::generated::<Reading>(label.clone()).observe(
+            veoveo_mcp_conformance::SchemaObservation::from_serializable(
+                &observed_reading.expect("successful authenticated reading"),
+            )?,
+        ),
+    ];
+    let evidence = veoveo_mcp_conformance::NamingEvidence {
+        required_observations: vec![label],
+        bodies: &bodies,
+        ..Default::default()
+    };
+    let report = run_hosted_server_conformance_with_evidence(
+        &profile,
+        &ConformanceCredentials::bearer("fixture-read"),
+        &Default::default(),
+        &evidence,
+    )
+    .await?;
+    println!("{}", serde_json::to_string(&report)?);
+    assert!(report.passed(), "{:#?}", report.checks);
+    let naming = report
+        .checks
+        .iter()
+        .find(|c| c.requirement_id == "VV-MCP-NAMING-001")
+        .unwrap();
+    assert_eq!(
+        naming.evidence.as_ref().unwrap()["outcome"],
+        "review_required"
+    );
+    for id in ["K01", "K02", "K03", "K04", "K05", "K06"] {
+        assert!(
+            report.checks.iter().any(|check| check.requirement_id == id
+                && check.status == veoveo_mcp_conformance::CheckStatus::Passed),
+            "missing {id}"
+        );
+    }
+
     server.stop().await;
     assert!(
         tokio::net::TcpStream::connect(address).await.is_err(),

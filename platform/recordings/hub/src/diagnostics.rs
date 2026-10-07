@@ -8,7 +8,7 @@ use std::{
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
-pub const RECORDING_INGEST_DIAGNOSTICS_SCHEMA: &str = "veoveo.ai/recording-ingest-diagnostics/v1";
+pub const RECORDING_INGEST_DIAGNOSTICS_SCHEMA: &str = "veoveo.ai/recording-ingest-diagnostics/v2";
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -177,6 +177,25 @@ mod tests {
         assert_eq!(observed.diagnostics.duplicate_batches_total, 1);
         assert_eq!(observed.diagnostics.materialization_backlog_batches, 1);
         assert_eq!(observed.diagnostics.materialization_backlog_bytes, 1_024);
+        let wire = serde_json::to_value(&observed).unwrap();
+        assert_eq!(
+            wire,
+            serde_json::json!({
+                "schemaVersion": "veoveo.ai/recording-ingest-diagnostics/v2",
+                "acceptedBatchesTotal": 1,
+                "acceptedMessagesTotal": 11,
+                "acceptedBytesTotal": 1_024,
+                "duplicateBatchesTotal": 1,
+                "materializationBacklogBatches": 1,
+                "materializationBacklogBytes": 1_024,
+                "reservedSpoolBytes": 0,
+                "spoolHeadroomRejectionsTotal": 0,
+                "availableSpoolBytes": 0,
+                "minimumFreeSpoolBytes": 0,
+                "lastSuccessAt": null,
+            })
+        );
+        assert!(wire.as_object().unwrap().keys().all(|key| !key.contains('_')));
 
         let reservation = diagnostics.reserve_spool(4_096, 1_000_000, 100_000);
         assert_eq!(

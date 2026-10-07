@@ -27,7 +27,7 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
                 source_url: "https://example.com/leap-seconds.list".to_owned(),
                 expected_content_type: "text/plain".to_owned(),
                 enabled: true,
-                canonical_json: serde_json::json!({"source_id": source_key}).to_string(),
+                canonical_json: serde_json::json!({"sourceId": source_key}).to_string(),
             })
             .await
             .unwrap();

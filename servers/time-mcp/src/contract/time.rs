@@ -27,6 +27,7 @@ pub enum TimeScale {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "CivilTime")]
+#[serde(rename_all = "camelCase")]
 pub struct CivilTimeValue {
     pub local_datetime: String,
     pub zone_id: String,
@@ -36,7 +37,11 @@ pub struct CivilTimeValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "format", rename_all = "snake_case")]
+#[serde(
+    tag = "format",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "TimeExpression")]
 pub enum TimeExpressionValue {
@@ -79,6 +84,7 @@ pub enum TimeExpressionValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ResolveTimeRequest {
     pub expression: TimeExpression,
     #[serde(default)]
@@ -87,6 +93,7 @@ pub struct ResolveTimeRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ConvertTimeRequest {
     pub instant: TimeInstant,
     #[serde(default)]
@@ -96,6 +103,8 @@ pub struct ConvertTimeRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ZonedRepresentation {
     pub zone_id: String,
     pub rfc9557: String,
@@ -103,6 +112,8 @@ pub struct ZonedRepresentation {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "ScaleRepresentation")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ScaleRepresentationValue {
     pub scale: TimeScale,
     pub seconds: f64,
@@ -110,6 +121,8 @@ pub struct ScaleRepresentationValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ConvertTimeOutput {
     pub canonical: ResolveTimeOutput,
     pub zoned: Vec<ZonedRepresentation>,
@@ -118,6 +131,8 @@ pub struct ConvertTimeOutput {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "ClockQuality")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ClockQualityValue {
     pub synchronized: bool,
     pub estimated_offset_nanoseconds: i64,
@@ -131,6 +146,8 @@ pub struct ClockQualityValue {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "ClockAssessment")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ClockAssessmentValue {
     pub quality: ClockQuality,
     pub policy: ClockQualityPolicy,
@@ -140,6 +157,7 @@ pub struct ClockAssessmentValue {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct AssessClockRequest {
     pub policy: Option<ClockQualityPolicy>,
 }
@@ -391,4 +409,13 @@ impl veoveo_types::Check for ClockAssessmentValue {
         }
         Ok(())
     }
+}
+
+/// Measured clock quality and policy alongside the resolved current instant.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClockCurrent {
+    pub time: ResolveTimeOutput,
+    pub effective_policy: ClockQualityPolicy,
+    pub clock_quality: ClockQuality,
 }

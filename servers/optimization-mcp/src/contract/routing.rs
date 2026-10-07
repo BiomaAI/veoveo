@@ -15,6 +15,7 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteLocation {
     pub location_id: LocationId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -25,6 +26,7 @@ pub struct RouteLocation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteStop {
     pub location_id: LocationId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -34,8 +36,12 @@ pub struct RouteStop {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-#[serde(deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum RouteOrderKind {
     Service {
         stop: RouteStop,
@@ -55,6 +61,7 @@ pub enum RouteServicePolicy {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteOrder {
     pub order_id: OrderId,
     pub order: RouteOrderKind,
@@ -69,6 +76,7 @@ pub struct RouteOrder {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct VehicleBreak {
     pub time_window: TimeWindow,
     pub duration: u32,
@@ -78,6 +86,7 @@ pub struct VehicleBreak {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteVehicle {
     pub vehicle_id: VehicleId,
     pub vehicle_type_id: VehicleTypeId,
@@ -103,6 +112,7 @@ pub struct RouteVehicle {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteFleet {
     pub vehicles: Vec<RouteVehicle>,
     #[serde(default)]
@@ -113,6 +123,7 @@ pub struct RouteFleet {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct DenseTravelMatrix {
     pub vehicle_type_id: VehicleTypeId,
     pub dimension: u32,
@@ -158,6 +169,7 @@ impl DenseTravelMatrix {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct InlineTravelModel {
     pub location_ids: Vec<LocationId>,
     pub cost_matrices: Vec<DenseTravelMatrix>,
@@ -166,16 +178,12 @@ pub struct InlineTravelModel {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct TravelModelArtifact {
-    pub version: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub map_resource_uri: Option<MapTravelModelUri>,
-    pub model: InlineTravelModel,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "source", rename_all = "snake_case")]
-#[serde(deny_unknown_fields)]
+#[serde(
+    tag = "source",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum TravelModelSource {
     MapResource {
         uri: MapTravelModelUri,
@@ -204,6 +212,7 @@ pub enum RouteObjectiveMetric {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteObjective {
     pub metric: RouteObjectiveMetric,
     pub weight: NonNegativeF64,
@@ -212,7 +221,9 @@ pub struct RouteObjective {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "RoutingProblem")]
+#[serde(rename_all = "camelCase")]
 pub struct RoutingProblemValue {
+    #[schemars(schema_with = "super::naming::routing_version")]
     pub version: String,
     pub time_basis: TimeBasis,
     pub locations: Vec<RouteLocation>,
@@ -488,8 +499,12 @@ fn validate_order_stops(
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "source", rename_all = "snake_case")]
-#[serde(deny_unknown_fields)]
+#[serde(
+    tag = "source",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum RoutingProblemSource {
     Inline { problem: RoutingProblem },
     Resource { uri: OptimizationProblemUri },
@@ -498,6 +513,7 @@ pub enum RoutingProblemSource {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteOutputPolicy {
     #[serde(default)]
     pub include_route_table_artifact: bool,
@@ -505,6 +521,7 @@ pub struct RouteOutputPolicy {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct OptimizeRoutesRequest {
     pub problem: RoutingProblemSource,
     pub policy: SolverPolicyRef,
@@ -516,6 +533,7 @@ pub struct OptimizeRoutesRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteScenario {
     pub case_id: RouteCaseId,
     pub problem: RoutingProblemSource,
@@ -526,6 +544,7 @@ pub struct RouteScenario {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "OptimizeRouteScenariosRequest")]
+#[serde(rename_all = "camelCase")]
 pub struct OptimizeRouteScenariosRequestValue {
     pub cases: Vec<RouteScenario>,
     pub policy: SolverPolicyRef,
@@ -760,16 +779,16 @@ mod tests {
         );
         for path in [
             "",
-            "/time_basis",
+            "/timeBasis",
             "/locations/0",
             "/orders/0",
             "/orders/0/order",
             "/orders/0/order/stop",
             "/fleet",
             "/fleet/vehicles/0",
-            "/travel_model",
-            "/travel_model/model",
-            "/travel_model/model/cost_matrices/0",
+            "/travelModel",
+            "/travelModel/model",
+            "/travelModel/model/costMatrices/0",
             "/objectives/0",
         ] {
             let mut extra = wire.clone();
@@ -784,7 +803,7 @@ mod tests {
                 "{path}"
             );
         }
-        let stop = serde_json::json!({"location_id":"a"});
+        let stop = serde_json::json!({"locationId":"a"});
         for mut value in [
             serde_json::json!({"kind":"service","stop":stop}),
             serde_json::json!({"kind":"pickup_delivery","pickup":stop,"delivery":stop}),

@@ -465,7 +465,7 @@ mod admission_tests {
                     name: "non-provider serializer fixture".into(),
                     version: "fixture".into(),
                     container_digest: "fixture".into(),
-                    executor_protocol: "fixture".into(),
+                    executor_protocol: crate::contract::EXECUTOR_PROTOCOL_VERSION.into(),
                     gpu_name: None,
                     gpu_uuid: None,
                     compute_capability: None,
@@ -510,10 +510,8 @@ mod admission_tests {
                 }
                 _ => {
                     draft.detail = SolutionDetail::Convex {
-                        quality: serde_json::from_value(
-                            serde_json::json!({"proven_optimal":false}),
-                        )
-                        .unwrap(),
+                        quality: serde_json::from_value(serde_json::json!({"provenOptimal":false}))
+                            .unwrap(),
                         variables: vec![],
                         constraints: vec![],
                     }
@@ -527,17 +525,17 @@ mod admission_tests {
     }
 
     #[test]
-    fn produced_solution_preserves_original_hash_preimage_and_rejects_modified_identity_or_digest()
-    {
+    fn produced_solution_preserves_current_ordered_hash_preimage_and_rejects_modified_identity_or_digest()
+     {
         let solution = produced_solution();
         let serialized = serde_json::to_string(&solution).unwrap();
-        let old_preimage = serialized.replacen(
-            &format!("\"digest_sha256\":\"{}\"", solution.digest_sha256.as_str()),
-            "\"digest_sha256\":\"\"",
+        let current_preimage = serialized.replacen(
+            &format!("\"digestSha256\":\"{}\"", solution.digest_sha256.as_str()),
+            "\"digestSha256\":\"\"",
             1,
         );
         assert_eq!(
-            hex::encode(Sha256::digest(old_preimage.as_bytes())),
+            hex::encode(Sha256::digest(current_preimage.as_bytes())),
             solution.digest_sha256.as_str()
         );
         assert_eq!(
@@ -561,6 +559,39 @@ mod admission_tests {
             );
             assert!(draft.build().is_err());
         }
+        for (path, key, retired) in [
+            ("", "solutionId", "solution_id"),
+            ("", "solutionUri", "solution_uri"),
+            ("", "runId", "run_id"),
+            ("", "problemUri", "problem_uri"),
+            ("", "digestSha256", "digest_sha256"),
+            ("", "createdAt", "created_at"),
+            ("/engine", "executorProtocol", "executor_protocol"),
+            ("/authority", "principalId", "principal_id"),
+            ("/authority", "policyRevision", "policy_revision"),
+        ] {
+            for mixed in [false, true] {
+                let mut wire = serde_json::to_value(&solution).unwrap();
+                let object = wire.pointer_mut(path).unwrap().as_object_mut().unwrap();
+                let value = if mixed {
+                    object[key].clone()
+                } else {
+                    object.remove(key).unwrap()
+                };
+                object.insert(retired.into(), value);
+                assert!(
+                    serde_json::from_value::<OptimizationSolution>(wire).is_err(),
+                    "{path}/{key}, mixed={mixed}"
+                );
+            }
+        }
+        let mut retired = crate::contract::OptimizationSolutionValue::from(solution.clone());
+        retired.engine.executor_protocol = "veoveo.ai/cuopt-executor/v1".into();
+        retired.digest_sha256 = crate::contract::solution_digest(&retired).unwrap();
+        assert!(
+            retired.build().is_err(),
+            "a recomputed hash cannot admit a retired protocol"
+        );
         let mut report =
             crate::contract::VerificationReportValue::from(solution.verification.clone());
         report.verified = false;

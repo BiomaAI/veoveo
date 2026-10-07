@@ -31,7 +31,7 @@ pub struct FrameId(String);
 pub struct LayerId(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Wgs84Position3d {
     pub latitude_degrees: f64,
     pub longitude_degrees: f64,
@@ -58,7 +58,7 @@ impl Wgs84Position3d {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct HeadingPitchRoll {
     pub heading_degrees: f64,
     pub pitch_degrees: f64,
@@ -79,7 +79,7 @@ impl HeadingPitchRoll {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GeodeticCameraPose {
     pub position: Wgs84Position3d,
     pub orientation: HeadingPitchRoll,
@@ -96,7 +96,7 @@ impl GeodeticCameraPose {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LookAtCamera {
     pub eye: Wgs84Position3d,
     pub target: Wgs84Position3d,
@@ -104,7 +104,7 @@ pub struct LookAtCamera {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OrbitTargetCamera {
     pub target: Wgs84Position3d,
     pub distance_meters: f64,
@@ -114,8 +114,12 @@ pub struct OrbitTargetCamera {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-#[serde(deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum CameraDefinition {
     Pose(GeodeticCameraPose),
     LookAt(LookAtCamera),
@@ -176,7 +180,7 @@ pub enum FrameEncoding {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CapturePolicy {
     pub width_px: u32,
     pub height_px: u32,
@@ -232,6 +236,7 @@ impl CapturePolicy {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PreviewScenePolicy {
     pub width_px: u32,
     pub height_px: u32,
@@ -282,19 +287,20 @@ pub struct CaptureLimits {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AttributionSet {
     pub lines: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateViewRequest {
     pub composition_id: SceneCompositionId,
     pub camera: CameraDefinition,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SetCameraRequest {
     pub view_id: ViewId,
     pub expected_revision: u64,
@@ -302,7 +308,7 @@ pub struct SetCameraRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CaptureFrameRequest {
     pub view_id: ViewId,
     pub expected_revision: u64,
@@ -311,13 +317,14 @@ pub struct CaptureFrameRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CloseViewRequest {
     pub view_id: ViewId,
     pub expected_revision: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CloseViewResult {
     pub view_id: ViewId,
     pub closed: bool,
@@ -397,24 +404,24 @@ mod tests {
         json!({
             "kind": "orbit_target",
             "target": {
-                "latitude_degrees": 37.8199,
-                "longitude_degrees": -122.4783,
-                "ellipsoidal_height_meters": 80.0
+                "latitudeDegrees": 37.8199,
+                "longitudeDegrees": -122.4783,
+                "ellipsoidalHeightMeters": 80.0
             },
-            "distance_meters": 1_200.0,
-            "azimuth_degrees": 135.0,
-            "elevation_degrees": 35.0,
-            "vertical_fov_degrees": 55.0
+            "distanceMeters": 1_200.0,
+            "azimuthDegrees": 135.0,
+            "elevationDegrees": 35.0,
+            "verticalFovDegrees": 55.0
         })
     }
 
     fn capture_policy() -> Value {
         json!({
-            "width_px": 1_280,
-            "height_px": 720,
-            "max_screen_error_px": 4.0,
-            "deadline_ms": 30_000,
-            "deadline_behavior": "return_best_available",
+            "widthPx": 1_280,
+            "heightPx": 720,
+            "maxScreenErrorPx": 4.0,
+            "deadlineMs": 30_000,
+            "deadlineBehavior": "return_best_available",
             "encoding": "jpeg"
         })
     }
@@ -463,7 +470,7 @@ mod tests {
     #[test]
     fn structured_arguments_validate_against_enabled_schema_profiles() {
         let create = json!({
-            "composition_id": SceneCompositionId::from_stable_key(b"schema-test"),
+            "compositionId": SceneCompositionId::from_stable_key(b"schema-test"),
             "camera": orbit_camera()
         });
         for schema in input_schemas::<CreateViewRequest>() {
@@ -471,9 +478,9 @@ mod tests {
         }
 
         let capture = json!({
-            "view_id": "view-1",
-            "expected_revision": 1,
-            "scene_time": "2026-07-26T12:00:00Z",
+            "viewId": "view-1",
+            "expectedRevision": 1,
+            "sceneTime": "2026-07-26T12:00:00Z",
             "policy": capture_policy()
         });
         for schema in input_schemas::<CaptureFrameRequest>() {
@@ -483,7 +490,7 @@ mod tests {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LayerSummary {
     pub layer_id: LayerId,
     pub label: String,

@@ -11,7 +11,7 @@ pub(super) struct SharedWake {
 }
 
 #[derive(Clone, Copy, Default)]
-pub(super) struct WakeGeneration {
+pub(crate) struct WakeGeneration {
     pub(super) cursor: ChangefeedCursor,
     pub(super) connections: u64,
 }
@@ -80,7 +80,7 @@ impl SharedWake {
 }
 
 impl TaskRuntime {
-    pub(super) async fn task_wake(&self) -> Result<watch::Receiver<WakeGeneration>, TaskError> {
+    pub(crate) async fn task_wake(&self) -> Result<watch::Receiver<WakeGeneration>, TaskError> {
         self.subscription_wake
             .subscribe(self.store.clone(), &self.server, &self.worker_id)
             .await

@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(crate) use veoveo_console_bff::contract::installation::*;
 
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
 use veoveo_agent_runtime::persistence::{AgentRecord, WakeRecord};
 use veoveo_artifact_contract::{ArtifactId, Grant};
 use veoveo_mcp_contract::{
@@ -133,19 +132,28 @@ impl ArtifactAccessContext {
     }
 }
 
-#[derive(Deserialize)]
-struct ArtifactProvenanceEnvelope {
-    provenance: ArtifactProvenance,
-}
-
-#[derive(Deserialize)]
-struct ArtifactProvenance {
-    kind: String,
-    recording_id: veoveo_recording_contract::RecordingId,
-    #[serde(default)]
-    layer_id: Option<veoveo_recording_contract::RecordingLayerId>,
-    #[serde(default)]
-    ordinal: Option<i64>,
+fn recording_artifact_summary(metadata: serde_json::Value) -> Option<ArtifactRecordingSummary> {
+    use veoveo_recording_contract::{RecordingArtifactMetadata, RecordingArtifactProvenance};
+    let metadata: RecordingArtifactMetadata = serde_json::from_value(metadata).ok()?;
+    let kind = metadata.provenance.kind();
+    let (recording_id, layer_id) = match metadata.provenance {
+        RecordingArtifactProvenance::RecordingLayer {
+            recording_id,
+            layer_id,
+            ..
+        } => (recording_id, Some(layer_id)),
+        RecordingArtifactProvenance::RecordingBlueprint { recording_id, .. } => {
+            (recording_id, None)
+        }
+        RecordingArtifactProvenance::RecordingManifest { recording_id, .. } => (recording_id, None),
+    };
+    Some(ArtifactRecordingSummary {
+        recording_id,
+        kind,
+        layer_id,
+        // The owner metadata does not attest a layer ordinal.
+        ordinal: None,
+    })
 }
 
 pub(crate) fn task_summary(
@@ -226,22 +234,14 @@ pub(crate) fn artifact_summary(
 ) -> anyhow::Result<ArtifactSummary> {
     let byte_length = browser_byte_length(byte_length)?;
     let effective_access = effective_artifact_access(&artifact, &grants, access)?;
-    let recording =
-        serde_json::from_value::<ArtifactProvenanceEnvelope>(serde_json::Value::Object(
-            artifact
-                .metadata
-                .as_map()
-                .iter()
-                .map(|(key, value)| (key.clone(), value.clone()))
-                .collect(),
-        ))
-        .ok()
-        .map(|value| ArtifactRecordingSummary {
-            recording_id: value.provenance.recording_id,
-            kind: value.provenance.kind,
-            layer_id: value.provenance.layer_id,
-            ordinal: value.provenance.ordinal,
-        });
+    let recording = recording_artifact_summary(serde_json::Value::Object(
+        artifact
+            .metadata
+            .as_map()
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect(),
+    ));
     Ok(ArtifactSummary {
         id: ArtifactId::parse(record_key(&artifact.id)?)?,
         filename: artifact.filename.unwrap_or_else(|| "artifact".to_owned()),
@@ -658,6 +658,61 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn recording_projection_requires_complete_current_owner_metadata() {
+        use veoveo_recording_contract::{
+            RecordingArtifactMetadata, RecordingArtifactProvenance, RecordingDatasetId,
+            RecordingId, RecordingLayerId, RecordingLayerKind,
+        };
+        let recording_id = RecordingId::new();
+        let layer_id = RecordingLayerId::new();
+        let produced = serde_json::to_value(RecordingArtifactMetadata {
+            provenance: RecordingArtifactProvenance::RecordingLayer {
+                layer_kind: RecordingLayerKind::Capture,
+                dataset_id: RecordingDatasetId::new(),
+                recording_id,
+                layer_id,
+                sha256: veoveo_types::Sha256Digest::from_bytes([7; 32]),
+            },
+        })
+        .unwrap();
+        let projected = recording_artifact_summary(produced.clone()).unwrap();
+        assert_eq!(projected.recording_id, recording_id);
+        assert_eq!(projected.layer_id, Some(layer_id));
+        assert_eq!(
+            projected.kind,
+            veoveo_recording_contract::RecordingArtifactProvenanceKind::RecordingLayer
+        );
+        assert!(projected.ordinal.is_none());
+        for keep_current in [false, true] {
+            for (current, retired) in [
+                ("recordingId", "recording_id"),
+                ("layerId", "layer_id"),
+                ("datasetId", "dataset_id"),
+                ("layerKind", "layer_kind"),
+            ] {
+                let mut bad = produced.clone();
+                let fields = bad["provenance"].as_object_mut().unwrap();
+                let value = fields.get(current).unwrap().clone();
+                if !keep_current {
+                    fields.remove(current);
+                }
+                fields.insert(retired.to_owned(), value);
+                assert!(
+                    recording_artifact_summary(bad).is_none(),
+                    "retired {retired}"
+                );
+            }
+        }
+        let mut malformed = produced;
+        malformed["provenance"]["sha256"] = "invalid".into();
+        assert!(recording_artifact_summary(malformed).is_none());
+        assert!(
+            recording_artifact_summary(serde_json::json!({"provider": {"anything":true}}))
+                .is_none()
+        );
+    }
 
     #[test]
     fn upload_events_require_the_exact_actor_tenant_and_context() {

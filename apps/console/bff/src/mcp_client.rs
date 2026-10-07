@@ -2,6 +2,7 @@
 use veoveo_gateway_contract::{
     GatewayDiscoveryFailure, GatewayDiscoveryFailureCode, GatewayDiscoverySurface,
 };
+use veoveo_mcp_contract::GatewayDiscoveryMetadata;
 mod resources;
 pub(crate) use resources::{ResourceCapacity, ResourceSubscriptionError};
 use resources::{ResourceListener, ResourceSubscriptions};
@@ -31,7 +32,7 @@ use rmcp::{
 use sha2::{Digest, Sha256};
 use tokio::sync::{Mutex, broadcast, oneshot, watch};
 use uuid::Uuid;
-use veoveo_mcp_contract::GatewayDiscoveryDegradation;
+use veoveo_gateway_contract::GatewayDiscoveryDegradation;
 
 use crate::{config::Config, outbound_http::OutboundTrust};
 

@@ -52,7 +52,7 @@ impl std::fmt::Display for DatasetName {
 
 /// Route a producer application id (by prefix) to a dataset.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct DatasetRoute {
     pub dataset: DatasetName,
     /// Longest matching prefix wins. An empty prefix is the catch-all.
@@ -63,7 +63,7 @@ pub struct DatasetRoute {
 pub const QUARANTINE_DATASET: &str = "quarantine";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct SpoolerConfig {
     /// gRPC ingest bind address (the embedded proxy).
     pub bind: SocketAddr,

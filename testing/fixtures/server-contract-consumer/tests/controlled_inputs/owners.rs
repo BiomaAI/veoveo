@@ -549,7 +549,7 @@ fn optimization_controlled_input_branches_are_admitted_and_closed() {
             "RouteObjectiveMetric.route_service_time_variance",
             "RouteObjectiveMetric.prize",
             "RouteObjectiveMetric.vehicle_fixed_cost",
-            "ArtifactModelFormat.optimization_json_v1",
+            "ArtifactModelFormat.optimization_json_v2",
         ],
     );
     // Admit the whole positive corpus before exercising every schema/default/negative control.
@@ -864,7 +864,7 @@ fn uav_sim_controlled_input_branches_are_admitted_and_closed() {
             "FrameAxisDirection.down",
             "FrameAxisDirection.forward",
             "FrameAxisDirection.back",
-            "MapRouteHandoffSchema.veoveo.ai/map-route-handoff/v1",
+            "MapRouteHandoffSchema.veoveo.ai/map-route-handoff/v2",
             "RouteStatus.validated",
             "RouteStatus.planning_advisory",
         ],

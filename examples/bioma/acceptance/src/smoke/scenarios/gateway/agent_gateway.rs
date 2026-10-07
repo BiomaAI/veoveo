@@ -1,0 +1,194 @@
+use super::*;
+pub(crate) async fn agent_gateway(
+    conformance: &Path,
+    duckdb: &Path,
+    gateway: &Path,
+    control_plane: &Path,
+    artifact_service: &Path,
+) -> Result<()> {
+    assert_executable(conformance)?;
+    assert_executable(duckdb)?;
+    assert_executable(gateway)?;
+    assert_executable(artifact_service)?;
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    let duckdb_port = 18820u16;
+    let gateway_port = 18821u16;
+    let duckdb_base = format!("http://127.0.0.1:{duckdb_port}");
+    let gateway_base = format!("http://127.0.0.1:{gateway_port}");
+    let generated_control_plane = tmpdir.join("gateway.agent.json");
+    let duckdb_data_dir = tmpdir.join("duckdb");
+    let duckdb_log = tmpdir.join("duckdb.log");
+    let gateway_log = tmpdir.join("gateway.log");
+    let spatial_extension = provision_duckdb_spatial_extension().await?;
+
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
+    let mut duckdb_child = spawn_duckdb_smoke(
+        duckdb,
+        &spatial_extension,
+        duckdb_port,
+        &duckdb_base,
+        &duckdb_data_dir,
+        &plane.url,
+        &plane.platform,
+        &duckdb_log,
+    )?;
+    wait_for_http(&format!("{duckdb_base}/duckdb/healthz")).await?;
+
+    run_checked(
+        &veoveo_testing_support::artifacts::executable(
+            "veoveo-gateway-composition",
+            "gateway-smoke-support",
+        )?,
+        [
+            "gateway-agent-smoke-control-plane".into(),
+            "--base".into(),
+            control_plane.as_os_str().to_os_string(),
+            "--output".into(),
+            generated_control_plane.as_os_str().to_os_string(),
+            "--duckdb-upstream-url".into(),
+            format!("{duckdb_base}/duckdb/mcp").into(),
+        ],
+        [],
+    )?;
+    let validation = run_checked(
+        gateway,
+        [
+            "validate".into(),
+            "--control-plane".into(),
+            generated_control_plane.as_os_str().to_os_string(),
+        ],
+        [],
+    )?;
+    contains(&validation, "ok: 1 server(s)")?;
+
+    let auth_private_key = run_checked(
+        &veoveo_testing_support::artifacts::executable(
+            "veoveo-gateway-composition",
+            "gateway-smoke-support",
+        )?,
+        ["gateway-private-key-der-b64".into()],
+        [],
+    )?;
+    bootstrap_gateway_platform_store(gateway, &generated_control_plane, &plane.platform).await?;
+    let mut gateway_child = ChildGuard::spawn(
+        gateway,
+        gateway_serve_args(gateway_port, &plane.platform),
+        [
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
+            (
+                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                auth_private_key.trim().into(),
+            ),
+        ],
+        &gateway_log,
+    )?;
+    wait_for_http(&format!("{gateway_base}/healthz")).await?;
+    assert_ready_profiles(
+        &gateway_base,
+        fixture_profile_count(&generated_control_plane)?,
+    )
+    .await?;
+
+    let token_a =
+        gateway_token_for_profile(&gateway_base, "operator", &["--scope", "operator:use"])?;
+    let token_a = token_a.trim();
+    let session_a = connect_mcp_client(&format!("{gateway_base}/mcp/operator"), token_a).await?;
+
+    // Task support is negotiated once through the official extension. Tool
+    // definitions no longer carry per-tool draft task annotations.
+    let tools = session_a.list_tools(Default::default()).await?;
+    for tool_name in ["duckdb__query", "duckdb__execute", "duckdb__export"] {
+        if !tools
+            .tools
+            .iter()
+            .any(|tool| tool.name.as_ref() == tool_name)
+        {
+            bail!("gateway did not list {tool_name}: {tools:?}");
+        }
+    }
+
+    // (1) Task-augmented call on a task-OPTIONAL tool.
+    let created = call_tool_as_task(
+        &session_a,
+        "duckdb__execute",
+        serde_json::json!({
+            "db": "agent_smoke",
+            "sql": "CREATE TABLE facts AS SELECT 42 AS answer",
+            "create_if_missing": true
+        }),
+    )
+    .await?;
+    println!(
+        "optional-tool task {} created (status {:?})",
+        created.task_id, created.status
+    );
+    let completed = await_task_terminal(&session_a, &created.task_id).await?;
+    if completed.status() != rmcp::model::TaskStatus::Completed {
+        bail!(
+            "task-augmented duckdb__execute ended {:?}: {:?}",
+            completed.status(),
+            completed.task.status_message
+        );
+    }
+    let payload = task_payload(&session_a, &created.task_id).await?;
+    if payload.is_error == Some(true) {
+        bail!("task-augmented duckdb__execute payload was an error: {payload:?}");
+    }
+
+    // (2) Session continuity for the kernel's token-rotation design: create a
+    // task on session A, close the session, and drive the task to its result
+    // from session B under a fresh token for the same principal.
+    let continuity = call_tool_as_task(
+        &session_a,
+        "duckdb__query",
+        serde_json::json!({
+            "db": "agent_smoke",
+            "sql": "SELECT answer FROM facts"
+        }),
+    )
+    .await?;
+    session_a.cancel().await?;
+
+    let token_b =
+        gateway_token_for_profile(&gateway_base, "operator", &["--scope", "operator:use"])?;
+    let token_b = token_b.trim();
+    if token_a == token_b {
+        bail!("expected a fresh token for session B");
+    }
+    let session_b = connect_mcp_client(&format!("{gateway_base}/mcp/operator"), token_b).await?;
+    let completed = await_task_terminal(&session_b, &continuity.task_id).await?;
+    if completed.status() != rmcp::model::TaskStatus::Completed {
+        bail!(
+            "cross-session duckdb__query ended {:?}: {:?}",
+            completed.status(),
+            completed.task.status_message
+        );
+    }
+    let payload = task_payload(&session_b, &continuity.task_id).await?;
+    if payload.is_error == Some(true) {
+        bail!("cross-session task payload was an error: {payload:?}");
+    }
+    let structured = payload
+        .structured_content
+        .clone()
+        .ok_or_else(|| anyhow!("cross-session task payload had no structured content"))?;
+    if !structured.to_string().contains("42") {
+        bail!("cross-session query result did not contain the expected row: {structured}");
+    }
+    session_b.cancel().await?;
+
+    gateway_child.stop_checked().await?;
+    duckdb_child.stop_checked().await?;
+    cleanup.remove_on_drop();
+    println!("agent gateway smoke ok");
+    Ok(())
+}

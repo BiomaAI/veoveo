@@ -1,694 +1,491 @@
+//! Dispatch discovered owner targets. No server/scenario vocabulary is compiled here.
+use crate::{
+    context::RepositoryContext,
+    discovery::{cargo, features, smoke as discovery},
+};
+use anyhow::{Context, Result, ensure};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::{
-    env,
-    ffi::{OsStr, OsString},
-    path::PathBuf,
-    process::{Command, Stdio},
+    collections::{BTreeMap, BTreeSet},
+    ffi::OsString,
+    path::{Path, PathBuf},
+    process::Command,
+};
+use veoveo_testing_support::{
+    artifacts::{
+        ArtifactEntry, ArtifactFormat, ArtifactManifest, CompilerContext, NativeTargetKind,
+        ObservedCompilerArtifact, RuntimeLibrary, configure_runtime,
+    },
+    descriptor::{CargoSelection, HarnessTarget, Preparation, ScenarioId},
 };
 
-use anyhow::{Context, Result, bail};
-
-use crate::{context::RepositoryContext, process};
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct CargoBinary {
-    package: &'static str,
-    binary: &'static str,
-}
-
-const SMOKE: CargoBinary = CargoBinary {
-    package: "veoveo-smoke",
-    binary: "smoke",
-};
-const DEPLOYMENT_SMOKE: CargoBinary = CargoBinary {
-    package: "veoveo-deployment-smoke",
-    binary: "deployment-smoke",
-};
-const BROWSER_SMOKE: CargoBinary = CargoBinary {
-    package: "veoveo-browser-smoke",
-    binary: "browser-smoke",
-};
-const FLIGHT_SMOKE: CargoBinary = CargoBinary {
-    package: "veoveo-flight-smoke",
-    binary: "flight-smoke",
-};
-const CONFORMANCE: CargoBinary = CargoBinary {
-    package: "veoveo-mcp-conformance",
-    binary: "conformance",
-};
-const GATEWAY: CargoBinary = CargoBinary {
-    package: "veoveo-gateway-composition",
-    binary: "gateway",
-};
-const MEDIA: CargoBinary = CargoBinary {
-    package: "veoveo-media-mcp",
-    binary: "media-mcp",
-};
-const ARTIFACT_SERVICE: CargoBinary = CargoBinary {
-    package: "veoveo-artifact-service",
-    binary: "artifact-service",
-};
-const FRAMES: CargoBinary = CargoBinary {
-    package: "veoveo-frames-mcp",
-    binary: "frames-mcp",
-};
-const RECORDING_SPOOLER: CargoBinary = CargoBinary {
-    package: "veoveo-recording-hub",
-    binary: "spooler",
-};
-const RECORDING_FORWARDER: CargoBinary = CargoBinary {
-    package: "veoveo-recording-forwarder",
-    binary: "recording-forwarder",
-};
-const DUCKDB: CargoBinary = CargoBinary {
-    package: "veoveo-duckdb-mcp",
-    binary: "duckdb-mcp",
-};
-const OPTIMIZATION: CargoBinary = CargoBinary {
-    package: "veoveo-optimization-mcp",
-    binary: "optimization-mcp",
-};
-const AGENT: CargoBinary = CargoBinary {
-    package: "veoveo-agent-kernel",
-    binary: "agent",
-};
-
-pub(crate) fn run(repository: &RepositoryContext, arguments: &[OsString]) -> Result<()> {
-    let dispatcher = dispatcher_binary(arguments)?;
-    let build_arguments = cargo_build_arguments(arguments)?;
-    process::cargo_status(&build_arguments, Some(repository.root()))?;
-    let target = env::var_os("CARGO_TARGET_DIR")
+pub(crate) fn run(context: &RepositoryContext, arguments: &[OsString]) -> Result<()> {
+    let repository = context.root();
+    let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| repository.root().join("target"));
-    let target = if target.is_absolute() {
-        target
-    } else {
-        repository.root().join(target)
+        .unwrap_or_else(|| repository.join("target"));
+    // Source inventory/help never execute an owner or unbounded Cargo operation.
+    let mut budget = crate::discovery::budget::Budget::new(&target, 30, 5)?;
+    let scenarios = discovery::discover(repository, &budget)?;
+    let Some(name) = arguments.first().and_then(|s| s.to_str()) else {
+        let result = list(&scenarios);
+        budget.completed();
+        return result;
     };
-    let dependencies = target.join("debug/deps");
-    let executable = target.join("debug").join(dispatcher.binary);
-    let mut command = Command::new(&executable);
-    command
-        .args(arguments)
-        .current_dir(repository.root())
-        .stdin(Stdio::null())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
-    prepend_library_path(&mut command, "LD_LIBRARY_PATH", &dependencies)?;
-    prepend_library_path(&mut command, "DYLD_LIBRARY_PATH", &dependencies)?;
-    let status = command
-        .status()
-        .with_context(|| format!("running typed smoke harness {}", executable.display()))?;
-    if !status.success() {
-        bail!("typed smoke harness failed with {status}");
+    if matches!(name, "--help" | "-h" | "list") {
+        let result = list(&scenarios);
+        budget.completed();
+        return result;
     }
-    Ok(())
-}
-
-fn cargo_build_arguments(arguments: &[OsString]) -> Result<Vec<&'static str>> {
-    let dispatcher = dispatcher_binary(arguments)?;
-    let mut binaries = vec![dispatcher];
-    if !requests_help(arguments) && dispatcher == FLIGHT_SMOKE {
-        binaries.push(CONFORMANCE);
-    } else if !requests_help(arguments) && dispatcher == BROWSER_SMOKE {
-        if !matches!(
-            arguments.first().and_then(|argument| argument.to_str()),
-            Some(
-                "map-workspace-browser-verify"
-                    | "map-workspace-live-browser-verify"
-                    | "console-apps-browser-verify"
-                    | "console-artifact-upload-verify"
-                    | "console-artifact-upload-resume"
-                    | "console-artifact-upload-ux-verify"
-                    | "uav-app-hosts-browser-verify"
-                    | "uav-agent-instruction-browser-verify"
-            )
-        ) {
-            binaries.push(CONFORMANCE);
+    let id = ScenarioId::parse(name)?;
+    let selected = scenarios
+        .get(&id)
+        .context("unknown discovered smoke scenario")?;
+    let scenario = &selected.descriptor.scenarios[selected.index];
+    let help = arguments[1..].iter().any(|a| a == "--help" || a == "-h");
+    if help {
+        println!("{}: {}", scenario.id, scenario.description);
+        println!("target: {}", serde_json::to_string(&scenario.target)?);
+        println!(
+            "requirements: {}",
+            serde_json::to_string(&scenario.requirements)?
+        );
+        println!(
+            "execution budget: {}s; local cleanup budget: {}s",
+            scenario.deadline_seconds, scenario.cleanup_seconds
+        );
+        budget.completed();
+        return Ok(());
+    }
+    budget.select(scenario.deadline_seconds, scenario.cleanup_seconds)?;
+    if matches!(
+        scenario.target,
+        HarnessTarget::CargoTest { .. }
+            | HarnessTarget::Pytest { .. }
+            | HarnessTarget::NodeTest { .. }
+    ) {
+        veoveo_testing_support::framework::admit_exact_arguments(&scenario.arguments)?;
+        let user = arguments[1..]
+            .iter()
+            .map(|a| {
+                a.to_str()
+                    .context("non-UTF8 framework argv")
+                    .map(str::to_owned)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        veoveo_testing_support::framework::admit_exact_arguments(&user)?;
+    }
+    let metadata = cargo::inventory(repository, &budget)?;
+    let mut roots = Vec::new();
+    for prerequisite in &scenario.prerequisites {
+        match prerequisite {
+            Preparation::CargoBinary { selection } => roots.push((selection.clone(), false)),
+            Preparation::CargoTest { selection } => roots.push((selection.clone(), true)),
+            _ => {}
         }
-    } else if !requests_help(arguments) && dispatcher == SMOKE {
-        let scenario = arguments
-            .first()
-            .context("smoke scenario is required")?
-            .to_str()
-            .context("smoke scenario is not valid UTF-8")?;
-        if !matches!(
-            scenario,
-            "stream-gpu" | "reason-gpu" | "stream-compiler-startup" | "recording-fixture-finish"
-        ) {
-            binaries.push(CONFORMANCE);
-        }
-        for binary in scenario_binaries(scenario)? {
-            if !binaries.contains(binary) {
-                binaries.push(*binary);
+    }
+    match &scenario.target {
+        HarnessTarget::CargoBinary { selection } => roots.push((selection.clone(), false)),
+        HarnessTarget::CargoTest { selection, .. } => roots.push((selection.clone(), true)),
+        _ => {}
+    }
+    for (selection, test) in &roots {
+        discovery::admit_cargo(
+            repository,
+            &metadata,
+            selection,
+            if *test { "test" } else { "bin" },
+        )?;
+    }
+    // Resolve and admit every selection/candidate union before any build/install prerequisite.
+    let groups = features::plan(repository, &metadata, &budget, roots)?;
+    let mut targets = BTreeMap::new();
+    let mut manifest = ArtifactManifest {
+        format: ArtifactFormat::V1,
+        repository: repository.canonicalize()?,
+        target_root: metadata.target_directory.clone(),
+        entries: Vec::new(),
+    };
+    for group in &groups {
+        prepare_group(
+            &budget,
+            repository,
+            &metadata,
+            group,
+            &mut targets,
+            &mut manifest,
+        )?;
+    }
+    manifest.target_root = metadata.target_directory.canonicalize()?;
+    manifest.admit(repository)?;
+    if !help {
+        for prerequisite in &scenario.prerequisites {
+            match prerequisite {
+                Preparation::CargoBinary { .. } | Preparation::CargoTest { .. } => {}
+                Preparation::UvSync {
+                    owner,
+                    extras,
+                    groups,
+                } => {
+                    let command = crate::discovery::languages::python_sync_command(
+                        repository, owner, extras, groups,
+                    )?;
+                    budget.output(command)?;
+                }
+                Preparation::NpmCi { owner } => {
+                    let mut command = Command::new("npm");
+                    command.arg("ci").current_dir(repository.join(owner));
+                    budget.output(command)?;
+                }
             }
         }
     }
-
-    let mut build_arguments = vec!["build", "--locked"];
-    for binary in binaries {
-        build_arguments.extend(["--package", binary.package, "--bin", binary.binary]);
-    }
-    Ok(build_arguments)
-}
-
-fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
-    if requests_help(arguments) && arguments.is_empty() {
-        return Ok(SMOKE);
-    }
-    let scenario = arguments
-        .first()
-        .context("smoke scenario is required")?
-        .to_str()
-        .context("smoke scenario is not valid UTF-8")?;
-    if matches!(
-        scenario,
-        "helm-config"
-            | "profile-validate"
-            | "profile-registry-up"
-            | "profile-cluster-up"
-            | "profile-cluster-stop"
-            | "profile-cluster-delete"
-            | "profile-up"
-            | "profile-gpu-verify"
-            | "profile-down"
-            | "gitops-converge"
-            | "gitops-cancel-verify"
-            | "component-scope-verify"
-            | "module-installation-verify"
-    ) {
-        Ok(DEPLOYMENT_SMOKE)
-    } else if matches!(
-        scenario,
-        "map-workspace-browser-verify"
-            | "map-workspace-live-browser-verify"
-            | "console-apps-browser-verify"
-            | "console-artifact-upload-verify"
-            | "console-artifact-upload-resume"
-            | "console-artifact-upload-ux-verify"
-            | "uav-app-hosts-browser-verify"
-            | "uav-agent-instruction-browser-verify"
-            | "uav-showcase-browser-verify"
-            | "uav-showcase-live-restart-verify"
-            | "uav-recording-browser-verify"
-            | "uav-recording-archive-browser-verify"
-    ) {
-        Ok(BROWSER_SMOKE)
-    } else if matches!(
-        scenario,
-        "uav-world-publish"
-            | "uav-route-verify"
-            | "uav-stream-verify"
-            | "uav-recording-verify"
-            | "uav-domain-verify"
-            | "uav-showcase-up"
-            | "uav-showcase-verify"
-    ) {
-        Ok(FLIGHT_SMOKE)
-    } else {
-        Ok(SMOKE)
-    }
-}
-
-fn requests_help(arguments: &[OsString]) -> bool {
-    arguments
-        .iter()
-        .any(|argument| argument == OsStr::new("--help") || argument == OsStr::new("-h"))
-}
-
-fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
-    let binaries = match scenario {
-        "gateway-suite" => &[
-            CONFORMANCE,
-            GATEWAY,
-            RECORDING_SPOOLER,
-            MEDIA,
-            ARTIFACT_SERVICE,
-        ][..],
-        "gateway-platform-store" | "gateway-vault-secrets" => &[GATEWAY],
-        "contract-schemas"
-        | "sumo-verify"
-        | "uav-world-publish"
-        | "uav-route-verify"
-        | "uav-stream-verify"
-        | "uav-recording-verify"
-        | "uav-domain-verify"
-        | "uav-showcase-up"
-        | "uav-showcase-verify" => &[CONFORMANCE],
-        "otel"
-        | "gateway-http"
-        | "gateway-keycloak"
-        | "gateway-two-servers"
-        | "gateway-console-stream"
-        | "gateway-chart-projection" => &[CONFORMANCE, GATEWAY],
-        "media-mcp-auth" | "media-task-run" => &[CONFORMANCE, MEDIA, ARTIFACT_SERVICE],
-        "frames-mcp" => &[CONFORMANCE, FRAMES, ARTIFACT_SERVICE],
-        "map-mcp" | "datasheet-mcp" => &[CONFORMANCE, ARTIFACT_SERVICE],
-        "recording-ingest" => &[CONFORMANCE, GATEWAY, RECORDING_SPOOLER],
-        "gateway-authenticated" | "gateway-task-run" => {
-            &[CONFORMANCE, MEDIA, GATEWAY, ARTIFACT_SERVICE]
+    let directory = budget.path();
+    let framework_report = directory.join("framework.json");
+    let framework_stdout = directory.join("framework.stdout");
+    let mut framework_selection = None;
+    let mut command = match &scenario.target {
+        HarnessTarget::CargoBinary { selection } | HarnessTarget::CargoTest { selection, .. } => {
+            let test = matches!(&scenario.target, HarnessTarget::CargoTest { .. });
+            let entry = manifest.selected(
+                selection,
+                if test {
+                    NativeTargetKind::Test
+                } else {
+                    NativeTargetKind::Binary
+                },
+            )?;
+            let mut command = Command::new(&entry.executable);
+            configure_runtime(&mut command, entry)?;
+            if let HarnessTarget::CargoTest { case, ignored, .. } = &scenario.target {
+                exact_rust_case(&budget, entry, case)?;
+                command.args([case, "--exact", "--show-output", "--format", "pretty"]);
+                command.stdout(std::fs::File::create(&framework_stdout)?);
+                framework_selection = Some((
+                    veoveo_testing_support::framework::Framework::Libtest,
+                    case.clone(),
+                ));
+                if *ignored {
+                    command.arg("--ignored");
+                }
+            }
+            command
         }
-        "agent-kernel" | "agent-sleep-wake" | "agent-kernel-scheduler" => {
-            &[CONFORMANCE, MEDIA, GATEWAY, ARTIFACT_SERVICE, AGENT]
+        HarnessTarget::PythonModule { module } => {
+            let mut c = Command::new("uv");
+            c.args(["run", "--locked", "--no-sync", "python", "-m", module]);
+            c
         }
-        "agent-pilot" => &[
-            CONFORMANCE,
-            FRAMES,
-            OPTIMIZATION,
-            GATEWAY,
-            ARTIFACT_SERVICE,
-            AGENT,
-        ],
-        "agent-gateway" => &[CONFORMANCE, DUCKDB, GATEWAY, ARTIFACT_SERVICE],
-        "stream-gpu" | "reason-gpu" => &[RECORDING_FORWARDER],
-        "stream-compiler-startup" | "recording-fixture-finish" => &[],
-        "installation-verify" | "artifact-upload-consumers" | "recording-catalog-sdk" => {
-            &[CONFORMANCE]
+        HarnessTarget::Pytest { file, case } => {
+            let node_id = format!("{}::{case}", file.display());
+            framework_selection = Some((
+                veoveo_testing_support::framework::Framework::Pytest,
+                node_id.clone(),
+            ));
+            let mut c = Command::new("uv");
+            c.args(["run", "--locked", "--no-sync", "python"])
+                .arg(repository.join("testing/support/framework/run_pytest.py"))
+                .arg(node_id)
+                .arg(&framework_report);
+            c
         }
-        "helm-config"
-        | "profile-validate"
-        | "profile-registry-up"
-        | "profile-cluster-up"
-        | "profile-cluster-stop"
-        | "profile-cluster-delete"
-        | "profile-up"
-        | "profile-gpu-verify"
-        | "profile-down"
-        | "gitops-converge"
-        | "gitops-cancel-verify"
-        | "component-scope-verify"
-        | "module-installation-verify"
-        | "gpu-allocation-verify"
-        | "surreal-integration"
-        | "view-mcp"
-        | "view-google-live"
-        | "sumo-push"
-        | "simulation-certify"
-        | "help" => &[],
-        unknown => bail!(
-            "unknown smoke scenario `{unknown}`; run `cargo xtask smoke help` to list scenarios"
-        ),
+        HarnessTarget::NodeModule { file } => {
+            let mut c = Command::new("node");
+            c.arg(file);
+            c
+        }
+        HarnessTarget::NodeTest { file, case } => {
+            framework_selection = Some((
+                veoveo_testing_support::framework::Framework::Node,
+                case.clone(),
+            ));
+            let mut c = Command::new("node");
+            c.arg(repository.join("testing/support/framework/node.mjs"))
+                .arg(file)
+                .arg(case)
+                .arg(&framework_report);
+            c
+        }
     };
-    Ok(binaries)
-}
+    manifest.target_root = metadata.target_directory.canonicalize()?;
+    manifest.admit(repository)?;
+    let file = directory.join("artifacts.json");
+    std::fs::write(&file, serde_json::to_vec(&manifest)?)?;
+    let groups = directory.join("groups");
 
-fn prepend_library_path(command: &mut Command, key: &str, path: &std::path::Path) -> Result<()> {
-    let mut paths = vec![path.to_path_buf()];
-    if let Some(existing) = env::var_os(key) {
-        paths.extend(env::split_paths(&existing));
+    command
+        .current_dir(match &scenario.target {
+            HarnessTarget::CargoBinary { .. } | HarnessTarget::CargoTest { .. } => {
+                repository.to_owned()
+            }
+            _ => repository.join(
+                scenario
+                    .execution_owner
+                    .as_ref()
+                    .map(|declaration| declaration.owner.as_path())
+                    .unwrap_or(selected.descriptor.owner.as_path()),
+            ),
+        })
+        .env("VEOVEO_SMOKE_ARTIFACTS", &file)
+        .env("VEOVEO_SMOKE_LOCAL_GROUPS", &groups);
+    crate::process::remove_parent_cargo_package_environment(&mut command);
+    command.args(&scenario.arguments).args(&arguments[1..]);
+    if help {
+        ensure!(budget.finish(command)?.success(), "owner help failed");
+        budget.completed();
+        return Ok(());
     }
-    command.env(
-        key,
-        env::join_paths(paths).with_context(|| format!("constructing {key}"))?,
+    let status = budget.finish(command);
+    let completion = (|| -> Result<()> {
+        let status = status?;
+        if let Some((framework, case)) = framework_selection {
+            let outcome = match framework {
+                veoveo_testing_support::framework::Framework::Libtest => {
+                    veoveo_testing_support::framework::libtest_summary(
+                        &std::fs::read(&framework_stdout)?,
+                        &case,
+                    )?
+                }
+                _ => veoveo_testing_support::framework::FrameworkOutcome::read(
+                    &framework_report,
+                    framework,
+                    &case,
+                )?,
+            };
+            if framework == veoveo_testing_support::framework::Framework::Libtest {
+                std::fs::write(&framework_report, serde_json::to_vec(&outcome)?)?;
+            }
+        }
+        ensure!(
+            status.success(),
+            "selected owner harness failed; consult its own result"
+        );
+        Ok(())
+    })();
+    if let Err(error) = completion {
+        let retained = directory.to_owned();
+        budget.retain();
+        return Err(error.context(format!(
+            "owner cleanup/results retained at {}",
+            retained.display()
+        )));
+    }
+    budget.completed();
+    Ok(())
+}
+fn list(scenarios: &BTreeMap<ScenarioId, discovery::DiscoveredScenario>) -> Result<()> {
+    for (id, owner) in scenarios {
+        let s = &owner.descriptor.scenarios[owner.index];
+        println!(
+            "{id}: {} ({})",
+            s.description,
+            owner.descriptor.owner.display()
+        );
+    }
+    Ok(())
+}
+fn prepare_group(
+    budget: &crate::discovery::budget::Budget,
+    repository: &Path,
+    metadata: &cargo::CargoMetadata,
+    group: &features::BuildGroup,
+    selected: &mut BTreeMap<(String, String, NativeTargetKind), CargoSelection>,
+    manifest: &mut ArtifactManifest,
+) -> Result<()> {
+    let test = group.roots[0].1;
+    let mut args = vec![
+        if test { "test" } else { "build" }.to_string(),
+        "--locked".into(),
+        "--offline".into(),
+        "--message-format=json-render-diagnostics".into(),
+    ];
+    args.extend(features::root_arguments(metadata, &group.roots));
+    if test {
+        args.push("--no-run".into());
+    }
+    let mut names = BTreeSet::new();
+    for (selection, _) in &group.roots {
+        if names.insert(&selection.target) {
+            args.extend([
+                if test { "--test" } else { "--bin" }.into(),
+                selection.target.clone(),
+            ]);
+        }
+    }
+    let mut command = Command::new("cargo");
+    command.args(args).current_dir(repository);
+    crate::process::remove_parent_cargo_package_environment(&mut command);
+    let output = budget.output(command)?;
+    for (selection, test) in &group.roots {
+        let test = *test;
+        let kind = if test {
+            NativeTargetKind::Test
+        } else {
+            NativeTargetKind::Binary
+        };
+        let identity = (
+            selection.package.to_string(),
+            selection.target.clone(),
+            kind,
+        );
+        let package = metadata
+            .packages
+            .iter()
+            .find(|p| p.name == selection.package.as_str())
+            .context("selected Cargo package disappeared")?;
+        let mut compiler_graph = Vec::new();
+        let mut linked_directories = BTreeSet::new();
+        let mut executable = None;
+        let mut libraries = BTreeSet::new();
+        for line in output
+            .stdout
+            .split(|b| *b == b'\n')
+            .filter(|l| !l.is_empty())
+        {
+            let value: Value = serde_json::from_slice(line)?;
+            if value["reason"] == "build-script-executed" {
+                for path in value["linked_paths"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                {
+                    let path = path.strip_prefix("native=").unwrap_or(path);
+                    let path = PathBuf::from(path);
+                    if path.is_dir()
+                        && path
+                            .canonicalize()?
+                            .starts_with(metadata.target_directory.canonicalize()?)
+                    {
+                        linked_directories.insert(path);
+                    }
+                }
+            }
+            if value["reason"] == "compiler-artifact" {
+                let feature_set: BTreeSet<String> =
+                    serde_json::from_value(value["features"].clone())?;
+                let package_id = value["package_id"]
+                    .as_str()
+                    .context("Cargo package id absent")?;
+                let kinds: Vec<String> = serde_json::from_value(value["target"]["kind"].clone())?;
+                let context = if kinds.iter().any(|k| k == "custom-build") {
+                    CompilerContext::BuildScript
+                } else if kinds.iter().any(|k| k == "proc-macro")
+                    || !group
+                        .target_features
+                        .get(package_id)
+                        .is_some_and(|sets| sets.contains(&feature_set))
+                {
+                    CompilerContext::Host
+                } else if kinds.iter().any(|k| k == "bin" || k == "test") {
+                    CompilerContext::Target
+                } else {
+                    CompilerContext::NativeShared
+                };
+                compiler_graph.push(ObservedCompilerArtifact {
+                    context,
+                    package_id: value["package_id"]
+                        .as_str()
+                        .context("Cargo artifact package identity missing")?
+                        .to_owned(),
+                    target: value["target"]["name"]
+                        .as_str()
+                        .context("Cargo target identity missing")?
+                        .to_owned(),
+                    kinds: serde_json::from_value(value["target"]["kind"].clone())?,
+                    features: serde_json::from_value(value["features"].clone())?,
+                });
+                if value["package_id"] == package.id
+                    && value["target"]["name"] == selection.target
+                    && value["target"]["kind"]
+                        .as_array()
+                        .is_some_and(|k| k.iter().any(|k| k == if test { "test" } else { "bin" }))
+                {
+                    if let Some(path) = value["executable"].as_str() {
+                        ensure!(executable.is_none(), "ambiguous observed executable");
+                        executable = Some(PathBuf::from(path));
+                    }
+                }
+                if let Some(files) = value["filenames"].as_array() {
+                    for path in files.iter().filter_map(Value::as_str) {
+                        if path.ends_with(".so")
+                            || path.ends_with(".dylib")
+                            || path.ends_with(".dll")
+                        {
+                            libraries.insert(PathBuf::from(path));
+                        }
+                    }
+                }
+            }
+        }
+        for directory in linked_directories {
+            for file in std::fs::read_dir(directory)? {
+                let path = file?.path();
+                if path.is_file()
+                    && path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(|name| {
+                            name.ends_with(".so")
+                                || name.contains(".so.")
+                                || name.ends_with(".dylib")
+                                || name.ends_with(".dll")
+                        })
+                {
+                    libraries.insert(path);
+                }
+            }
+        }
+        let runtime_libraries = libraries
+            .into_iter()
+            .map(|path| {
+                let sha256 = veoveo_types::Sha256Digest::from_bytes(
+                    Sha256::digest(std::fs::read(&path)?).into(),
+                );
+                Ok(RuntimeLibrary { path, sha256 })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let executable = executable.context("Cargo emitted no selected executable")?;
+        let sha256 = veoveo_types::Sha256Digest::from_bytes(
+            Sha256::digest(std::fs::read(&executable)?).into(),
+        );
+        manifest.entries.push(ArtifactEntry {
+            target_kind: kind,
+            selection: selection.clone(),
+            package_id: package.id.clone(),
+            executable,
+            sha256,
+            runtime_libraries,
+            compiler_graph,
+            effective_features: group.effective.clone(),
+            target_features: group.target_features.clone(),
+        });
+        selected.insert(identity, selection.clone());
+    }
+    Ok(())
+}
+fn exact_rust_case(
+    budget: &crate::discovery::budget::Budget,
+    entry: &ArtifactEntry,
+    case: &str,
+) -> Result<()> {
+    let mut command = Command::new(&entry.executable);
+    configure_runtime(&mut command, entry)?;
+    command.args(["--list", "--format", "terse"]);
+    let output = budget.output(command)?;
+    let listing = std::str::from_utf8(&output.stdout)?;
+    ensure!(
+        listing
+            .lines()
+            .filter(|line| *line == format!("{case}: test"))
+            .count()
+            == 1,
+        "exact Rust test is missing or duplicated"
     );
     Ok(())
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn module_lifecycle_dispatches_only_its_own_harness() {
-        let args = [OsString::from("module-installation-verify")];
-        assert_eq!(dispatcher_binary(&args).unwrap(), DEPLOYMENT_SMOKE);
-        assert_eq!(
-            cargo_build_arguments(&args).unwrap(),
-            vec![
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-deployment-smoke",
-                "--bin",
-                "deployment-smoke"
-            ]
-        );
-    }
-
-    #[test]
-    fn flight_scenarios_build_only_the_focused_client_and_conformance() {
-        for scenario in [
-            "uav-world-publish",
-            "uav-route-verify",
-            "uav-stream-verify",
-            "uav-recording-verify",
-            "uav-domain-verify",
-            "uav-showcase-up",
-            "uav-showcase-verify",
-        ] {
-            assert_eq!(dispatcher_binary(&[scenario.into()]).unwrap(), FLIGHT_SMOKE);
-            assert_eq!(
-                cargo_build_arguments(&[scenario.into()]).unwrap(),
-                [
-                    "build",
-                    "--locked",
-                    "--package",
-                    "veoveo-flight-smoke",
-                    "--bin",
-                    "flight-smoke",
-                    "--package",
-                    "veoveo-mcp-conformance",
-                    "--bin",
-                    "conformance",
-                ]
-            );
-            assert_eq!(
-                cargo_build_arguments(&[scenario.into(), "--help".into()]).unwrap(),
-                [
-                    "build",
-                    "--locked",
-                    "--package",
-                    "veoveo-flight-smoke",
-                    "--bin",
-                    "flight-smoke"
-                ]
-            );
-        }
-    }
-
-    #[test]
-    fn gpu_video_scenarios_build_only_their_used_binaries() {
-        for scenario in ["stream-gpu", "reason-gpu"] {
-            assert_eq!(
-                cargo_build_arguments(&[scenario.into()]).unwrap(),
-                [
-                    "build",
-                    "--locked",
-                    "--package",
-                    "veoveo-smoke",
-                    "--bin",
-                    "smoke",
-                    "--package",
-                    "veoveo-recording-forwarder",
-                    "--bin",
-                    "recording-forwarder",
-                ]
-            );
-        }
-        assert_eq!(
-            cargo_build_arguments(&["stream-compiler-startup".into()]).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-smoke",
-                "--bin",
-                "smoke",
-            ]
-        );
-    }
-
-    #[test]
-    fn smoke_arguments_remain_lossless_os_strings() {
-        let arguments = [
-            OsString::from("uav-showcase-verify"),
-            OsString::from("--installation"),
-            OsString::from("installation/target.json"),
-        ];
-        let forwarded = arguments
-            .iter()
-            .map(OsString::as_os_str)
-            .collect::<Vec<_>>();
-        assert_eq!(
-            forwarded,
-            vec![
-                OsStr::new("uav-showcase-verify"),
-                OsStr::new("--installation"),
-                OsStr::new("installation/target.json")
-            ]
-        );
-    }
-
-    #[test]
-    fn clean_checkout_build_plan_covers_scenario_binaries() {
-        assert_eq!(
-            scenario_binaries("recording-ingest").unwrap(),
-            &[CONFORMANCE, GATEWAY, RECORDING_SPOOLER]
-        );
-        assert_eq!(
-            scenario_binaries("agent-gateway").unwrap(),
-            &[CONFORMANCE, DUCKDB, GATEWAY, ARTIFACT_SERVICE]
-        );
-        assert_eq!(
-            scenario_binaries("uav-showcase-up").unwrap(),
-            &[CONFORMANCE]
-        );
-        assert_eq!(
-            scenario_binaries("datasheet-mcp").unwrap(),
-            &[CONFORMANCE, ARTIFACT_SERVICE]
-        );
-        assert_eq!(scenario_binaries("profile-up").unwrap(), &[]);
-        assert_eq!(scenario_binaries("gpu-allocation-verify").unwrap(), &[]);
-        assert!(scenario_binaries("unmapped-scenario").is_err());
-    }
-
-    #[test]
-    fn profile_commands_build_only_the_focused_deployment_harness() {
-        let arguments = [OsString::from("profile-up")];
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-deployment-smoke",
-                "--bin",
-                "deployment-smoke",
-            ]
-        );
-    }
-
-    #[test]
-    fn gitops_convergence_builds_only_the_focused_deployment_harness() {
-        let arguments = [OsString::from("gitops-converge")];
-        assert_eq!(dispatcher_binary(&arguments).unwrap(), DEPLOYMENT_SMOKE);
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-deployment-smoke",
-                "--bin",
-                "deployment-smoke",
-            ]
-        );
-    }
-
-    #[test]
-    fn gitops_cancellation_uses_the_focused_harness() {
-        let arguments = [OsString::from("gitops-cancel-verify")];
-        assert_eq!(dispatcher_binary(&arguments).unwrap(), DEPLOYMENT_SMOKE);
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            cargo_build_arguments(&[OsString::from("gitops-converge")]).unwrap()
-        );
-    }
-
-    #[test]
-    fn component_scope_uses_only_the_focused_harness() {
-        let arguments = [OsString::from("component-scope-verify")];
-        assert_eq!(dispatcher_binary(&arguments).unwrap(), DEPLOYMENT_SMOKE);
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            cargo_build_arguments(&[OsString::from("profile-up")]).unwrap()
-        );
-    }
-
-    #[test]
-    fn repeated_browser_acceptance_builds_only_its_focused_harness() {
-        let arguments = [OsString::from("uav-showcase-browser-verify")];
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-browser-smoke",
-                "--bin",
-                "browser-smoke",
-                "--package",
-                "veoveo-mcp-conformance",
-                "--bin",
-                "conformance",
-            ]
-        );
-    }
-
-    #[test]
-    fn app_agent_instruction_builds_only_the_focused_browser_harness() {
-        let arguments = [OsString::from("uav-agent-instruction-browser-verify")];
-        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-browser-smoke",
-                "--bin",
-                "browser-smoke",
-            ]
-        );
-    }
-
-    #[test]
-    fn app_host_acceptance_builds_only_the_focused_browser_harness() {
-        let arguments = [OsString::from("uav-app-hosts-browser-verify")];
-        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-browser-smoke",
-                "--bin",
-                "browser-smoke",
-            ]
-        );
-    }
-
-    #[test]
-    fn complete_app_catalog_acceptance_builds_only_the_focused_browser_harness() {
-        let arguments = [OsString::from("console-apps-browser-verify")];
-        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-browser-smoke",
-                "--bin",
-                "browser-smoke",
-            ]
-        );
-    }
-
-    #[test]
-    fn map_workspace_acceptance_builds_only_the_focused_browser_harness() {
-        let arguments = [OsString::from("map-workspace-browser-verify")];
-        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-browser-smoke",
-                "--bin",
-                "browser-smoke",
-            ]
-        );
-    }
-
-    #[test]
-    fn live_map_workspace_acceptance_builds_only_the_focused_browser_harness() {
-        let arguments = [OsString::from("map-workspace-live-browser-verify")];
-        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-browser-smoke",
-                "--bin",
-                "browser-smoke",
-            ]
-        );
-    }
-
-    #[test]
-    fn recording_browser_acceptance_uses_the_focused_harness() {
-        let arguments = [OsString::from("uav-recording-browser-verify")];
-        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
-    }
-
-    #[test]
-    fn recording_archive_browser_acceptance_uses_the_focused_harness() {
-        let arguments = [OsString::from("uav-recording-archive-browser-verify")];
-        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
-    }
-
-    #[test]
-    fn live_restart_acceptance_uses_the_focused_harness() {
-        let arguments = [OsString::from("uav-showcase-live-restart-verify")];
-        assert_eq!(dispatcher_binary(&arguments).unwrap(), BROWSER_SMOKE);
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-browser-smoke",
-                "--bin",
-                "browser-smoke",
-                "--package",
-                "veoveo-mcp-conformance",
-                "--bin",
-                "conformance",
-            ]
-        );
-    }
-
-    #[test]
-    fn one_cargo_invocation_builds_smoke_and_exact_prerequisites() {
-        let arguments = [OsString::from("recording-ingest")];
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-smoke",
-                "--bin",
-                "smoke",
-                "--package",
-                "veoveo-mcp-conformance",
-                "--bin",
-                "conformance",
-                "--package",
-                "veoveo-gateway-composition",
-                "--bin",
-                "gateway",
-                "--package",
-                "veoveo-recording-hub",
-                "--bin",
-                "spooler",
-            ]
-        );
-    }
-
-    #[test]
-    fn help_builds_only_the_dispatcher() {
-        let arguments = [OsString::from("agent-gateway"), OsString::from("--help")];
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-smoke",
-                "--bin",
-                "smoke",
-            ]
-        );
-    }
-
-    #[test]
-    fn helm_configuration_uses_only_the_focused_deployment_harness() {
-        let arguments = [OsString::from("helm-config")];
-        assert_eq!(
-            cargo_build_arguments(&arguments).unwrap(),
-            [
-                "build",
-                "--locked",
-                "--package",
-                "veoveo-deployment-smoke",
-                "--bin",
-                "deployment-smoke",
-            ]
-        );
-    }
-}
+#[path = "smoke/tests.rs"]
+mod tests;

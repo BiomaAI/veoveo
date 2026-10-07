@@ -33,7 +33,7 @@ fn usage_builders_preserve_native_task_identity_and_wire_shape() {
     assert_eq!(entry.usage_uri(), &usage);
     assert_eq!(
         serde_json::to_value(&entry).unwrap(),
-        json!({"task_id": task_id, "usage_uri": usage})
+        json!({"taskId": task_id, "usageUri": usage})
     );
     let cursor = OptimizationUsageCursor::new(task_id).unwrap();
     assert_eq!(
@@ -62,10 +62,10 @@ fn usage_admission_rejects_invalid_envelopes_and_address_aliases() {
     let id = task(7);
     let cursor = OptimizationUsageCursor::new(id).unwrap();
     for envelope in [
-        json!({"version":2,"task_id":id}),
-        json!({"version":1,"after":id}),
-        json!({"version":1,"task_id":"not-a-task"}),
-        json!({"version":1,"task_id":id,"extra":true}),
+        json!({"version":1,"taskId":id}),
+        json!({"version":2,"after":id}),
+        json!({"version":2,"taskId":"not-a-task"}),
+        json!({"version":2,"taskId":id,"extra":true}),
     ] {
         assert!(
             OptimizationUsageCursor::parse(
@@ -154,7 +154,7 @@ fn usage_pages_and_entries_reject_inconsistent_construction_and_decoding() {
         assert!(OptimizationUsagePage::from_task_ids(ids, next).is_err());
     }
     let mut wrong_entry = encoded["usage"][0].clone();
-    wrong_entry["task_id"] = json!(task(9));
+    wrong_entry["taskId"] = json!(task(9));
     assert!(serde_json::from_value::<OptimizationUsageEntry>(wrong_entry).is_err());
     let mut wrong_page = encoded;
     wrong_page["limit"] = json!(200);
@@ -162,10 +162,10 @@ fn usage_pages_and_entries_reject_inconsistent_construction_and_decoding() {
 }
 
 #[test]
-fn usage_preserves_published_cursor_envelope_and_page_fields() {
+fn usage_publishes_current_cursor_envelope_and_page_fields() {
     let id = task(7);
-    // Existing version 1 cursor bytes remain valid, including field order.
-    let published = URL_SAFE_NO_PAD.encode(format!(r#"{{"version":1,"task_id":"{id}"}}"#));
+    // The current revision fixes field order and refuses retired envelopes.
+    let published = URL_SAFE_NO_PAD.encode(format!(r#"{{"version":2,"taskId":"{id}"}}"#));
     let cursor = OptimizationUsageCursor::new(id).unwrap();
     assert_eq!(cursor.as_str(), published);
     assert_eq!(OptimizationUsageCursor::parse(published).unwrap(), cursor);
@@ -173,7 +173,7 @@ fn usage_preserves_published_cursor_envelope_and_page_fields() {
     assert_eq!(
         serde_json::to_value(page).unwrap(),
         json!({
-            "usage": [{"task_id": id, "usage_uri": OptimizationTaskUsageUri::new(id).unwrap()}],
+            "usage": [{"taskId": id, "usageUri": OptimizationTaskUsageUri::new(id).unwrap()}],
             "limit": 100
         })
     );
@@ -181,4 +181,31 @@ fn usage_preserves_published_cursor_envelope_and_page_fields() {
     assert_eq!(schema["properties"]["usage"]["maxItems"], 100);
     assert_eq!(schema["properties"]["limit"]["minimum"], 100);
     assert_eq!(schema["properties"]["limit"]["maximum"], 100);
+}
+
+#[test]
+fn current_cursor_refuses_retired_replacement_and_mixed_members() {
+    let current = json!({"version":2,"taskId":task(7)});
+    assert!(
+        OptimizationUsageCursor::parse(
+            URL_SAFE_NO_PAD.encode(serde_json::to_vec(&current).unwrap())
+        )
+        .is_ok()
+    );
+    for mixed in [false, true] {
+        let mut bad = current.clone();
+        let object = bad.as_object_mut().unwrap();
+        let value = if mixed {
+            object["taskId"].clone()
+        } else {
+            object.remove("taskId").unwrap()
+        };
+        object.insert("task_id".into(), value);
+        assert!(
+            OptimizationUsageCursor::parse(
+                URL_SAFE_NO_PAD.encode(serde_json::to_vec(&bad).unwrap())
+            )
+            .is_err()
+        );
+    }
 }

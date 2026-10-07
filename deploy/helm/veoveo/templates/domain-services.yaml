@@ -24,6 +24,7 @@
 {{- range $service := $serviceDefinitions }}
 {{- if has (get $serverIds $service.name) $selectedServers }}
 {{- $gpuWorkload := get $gpuWorkloads $service.name | default "" -}}
+{{- $usesModulePlan := or (eq $service.name "optimization-mcp") (eq $service.name "frames-mcp") -}}
 {{- $sourceMount := get $.Values.domainServiceSourceMounts $service.name | default dict -}}
 {{- $sourceExchangeClaim := get $sourceMount "exchangeClaim" | default $service.sourceExchangeClaim -}}
 {{- $sourceSecretName := get $sourceMount "secretName" | default $service.sourceSecretName -}}
@@ -97,7 +98,8 @@ spec:
         {{- include "veoveo.selectorLabels" $ | nindent 8 }}
         app.kubernetes.io/component: {{ $service.name }}
       annotations:
-        {{- if eq $service.name "optimization-mcp" }}
+        {{- if $usesModulePlan }}
+        veoveo.ai/installation-generation: {{ (include "veoveo.modulePlan" $ | fromJson).generation | quote }}
         checksum/module-plan: {{ $.Values.moduleInstallation.planJson | sha256sum | quote }}
         {{- end }}
         {{- include "veoveo.podAnnotations" $ | nindent 8 }}
@@ -136,7 +138,7 @@ spec:
             - /etc/veoveo/bootstrap/catalog.json
             {{- end }}
           env:
-            {{- if eq $service.name "optimization-mcp" }}
+            {{- if $usesModulePlan }}
             {{- include "veoveo.modulePlanEnv" $ | nindent 12 }}
             {{- end }}
             {{- if or (not (hasKey $service "platformStore")) $service.platformStore }}
@@ -241,7 +243,7 @@ spec:
             {{- toYaml $serviceResources | nindent 12 }}
             {{- end }}
           volumeMounts:
-            {{- if eq $service.name "optimization-mcp" }}
+            {{- if $usesModulePlan }}
             - name: module-plan
               mountPath: /etc/veoveo/modules
               readOnly: true
@@ -317,7 +319,7 @@ spec:
           {{- end }}
         {{- end }}
       volumes:
-        {{- if eq $service.name "optimization-mcp" }}
+        {{- if $usesModulePlan }}
         - name: module-plan
           configMap:
             name: {{ include "veoveo.modulePlanName" $ }}

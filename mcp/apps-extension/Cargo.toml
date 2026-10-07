@@ -11,5 +11,5 @@ veoveo-gateway-contract.workspace = true
 rmcp = { workspace = true, features = ["schemars"] }
 serde.workspace = true
 serde_json.workspace = true
-veoveo-mcp-contract = { path = "../contract", default-features = false }
+veoveo-types.workspace = true
 schemars.workspace = true

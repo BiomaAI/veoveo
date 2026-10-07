@@ -19,7 +19,7 @@ const MAX_TIMELINE_OUTPUT_BYTES: usize = 16 * 1024;
 const MAX_TIMELINE_CELL_BYTES: usize = 4 * 1024;
 
 #[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TimelineQuery {
     /// Entity path filter expression, e.g. `/agent/**` (Rerun filter syntax).
     #[serde(default = "default_entity_filter")]

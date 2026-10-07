@@ -18,6 +18,7 @@ use crate::{
 pub const DEFAULT_MAX_PREPARED_PROBLEM_BYTES: u64 = 256 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PreparedRouteCase {
     pub case_id: RouteCaseId,
     pub problem: RoutingProblem,
@@ -25,7 +26,12 @@ pub struct PreparedRouteCase {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "family", rename_all = "snake_case")]
+#[serde(
+    tag = "family",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum PreparedProblem {
     Routing {
         resource: OptimizationProblemResource,
@@ -60,6 +66,7 @@ impl PreparedProblem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PreparedProblemRef {
     pub path: String,
     pub digest_sha256: veoveo_artifact_contract::UploadSha256,
@@ -287,6 +294,53 @@ mod tests {
                 .await
                 .is_err()
         );
+        let current: serde_json::Value = serde_json::from_slice(&before).unwrap();
+        for (path, key, retired) in [
+            ("/resource/record", "problemId", "problem_id"),
+            ("/resource/record", "schemaVersion", "schema_version"),
+            ("/resource/record", "digestSha256", "digest_sha256"),
+            ("/compiled", "variableIds", "variable_ids"),
+        ] {
+            for mixed in [false, true] {
+                let mut invalid = current.clone();
+                let object = invalid.pointer_mut(path).unwrap().as_object_mut().unwrap();
+                let value = if mixed {
+                    object[key].clone()
+                } else {
+                    object.remove(key).unwrap()
+                };
+                object.insert(retired.into(), value);
+                let bytes = serde_json::to_vec(&invalid).unwrap();
+                tokio::fs::write(&reference.path, &bytes).await.unwrap();
+                let mut current_reference = reference.clone();
+                current_reference.bytes = bytes.len() as u64;
+                current_reference.digest_sha256 = veoveo_artifact_contract::UploadSha256::parse(
+                    hex::encode(Sha256::digest(&bytes)),
+                )
+                .unwrap();
+                assert!(
+                    store.load(&current_reference).await.is_err(),
+                    "{path}/{key}, mixed={mixed}"
+                );
+                assert_eq!(
+                    tokio::fs::read(&reference.path).await.unwrap(),
+                    bytes,
+                    "receiver must not repair input"
+                );
+            }
+        }
+        for mixed in [false, true] {
+            let mut wire = serde_json::to_value(&reference).unwrap();
+            let object = wire.as_object_mut().unwrap();
+            let value = if mixed {
+                object["digestSha256"].clone()
+            } else {
+                object.remove("digestSha256").unwrap()
+            };
+            object.insert("digest_sha256".into(), value);
+            assert!(serde_json::from_value::<PreparedProblemRef>(wire).is_err());
+        }
+        tokio::fs::write(&reference.path, &before).await.unwrap();
         assert_eq!(tokio::fs::read(&reference.path).await.unwrap(), before);
     }
 

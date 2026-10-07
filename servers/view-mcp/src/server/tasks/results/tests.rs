@@ -103,28 +103,28 @@ async fn malformed_selected_completions_fail_before_public_projection() {
         let valid = completed(&request);
         let marker = "PRIVATE_CAPTURE_PAYLOAD";
         for (path, replacement) in [
-            ("/structuredContent/view_id", json!("other-view")),
-            ("/structuredContent/view_revision", json!(2)),
+            ("/structuredContent/viewId", json!("other-view")),
+            ("/structuredContent/viewRevision", json!(2)),
             (
-                "/structuredContent/composition_digest_sha256",
+                "/structuredContent/compositionDigestSha256",
                 json!(crate::contract::Sha256Digest::from_bytes(b"other")),
             ),
-            ("/structuredContent/scene_layer", json!("other-layer")),
-            ("/structuredContent/style_id", json!("other-style")),
-            ("/structuredContent/governed_inputs", json!([])),
-            ("/structuredContent/width_px", json!(128)),
-            ("/structuredContent/height_px", json!(128)),
+            ("/structuredContent/sceneLayer", json!("other-layer")),
+            ("/structuredContent/styleId", json!("other-style")),
+            ("/structuredContent/governedInputs", json!([])),
+            ("/structuredContent/widthPx", json!(128)),
+            ("/structuredContent/heightPx", json!(128)),
             (
-                "/structuredContent/scene_time",
+                "/structuredContent/sceneTime",
                 json!("2026-09-28T09:00:00Z"),
             ),
             (
-                "/structuredContent/resolved_camera/position/latitude_degrees",
+                "/structuredContent/resolvedCamera/position/latitudeDegrees",
                 json!(0),
             ),
-            ("/structuredContent/byte_length", json!(1)),
+            ("/structuredContent/byteLength", json!(1)),
             (
-                "/structuredContent/output_digest_sha256",
+                "/structuredContent/outputDigestSha256",
                 json!(crate::contract::Sha256Digest::from_bytes(b"other")),
             ),
             ("/structuredContent/attribution/lines", json!([])),
@@ -155,6 +155,31 @@ async fn malformed_selected_completions_fail_before_public_projection() {
             assert!(
                 stream.updates.next().await.unwrap().is_err(),
                 "accepted {path} on baseline"
+            );
+        }
+        for (case, metadata) in
+            crate::contract::test_support::retired_field_cases(&valid["structuredContent"])
+        {
+            let mut result = valid.clone();
+            result["structuredContent"] = metadata;
+            let id = create(&writer, &caller, &request).await;
+            finish(&writer, id, result).await;
+            let error = get_task(&reader, &caller, GetTaskParams::new(id.to_string()))
+                .await
+                .unwrap_err();
+            assert!(
+                error
+                    .message
+                    .starts_with("invalid stored View capture result:"),
+                "{case}: {error}"
+            );
+            assert!(!error.message.contains(marker));
+            let mut stream = subscribe_tasks(&reader, &caller, vec![id.to_string()])
+                .await
+                .unwrap();
+            assert!(
+                stream.updates.next().await.unwrap().is_err(),
+                "baseline admitted {case}"
             );
         }
         // A self-consistent foreign snapshot still cannot borrow this Task's owner.

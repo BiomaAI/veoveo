@@ -1,0 +1,173 @@
+{
+  "catalogRevision": 2,
+  "contractRevision": 4,
+  "noteWhitespace": "\t\n\u000b\f\r                  　",
+  "requirements": [
+    {
+      "id": "C01",
+      "level": "must",
+      "text": "Each capability uses the canonical MCP surface for its need per the Protocol Surface table."
+    },
+    {
+      "id": "C02",
+      "level": "must",
+      "text": "Every tool declares input and output JSON Schemas; an addressable terminal product has one top-level canonical `resultUri`, while a no-product task omits it."
+    },
+    {
+      "id": "C03",
+      "level": "must",
+      "text": "Durable operations are task-augmented tools on the shared task runtime."
+    },
+    {
+      "id": "C04",
+      "level": "must",
+      "text": "Addressable state is exposed as resources or resource templates under the server's canonical scheme; growing collections use bounded domain-owned pages and exact reads do not scan the full collection."
+    },
+    {
+      "id": "C05",
+      "level": "must",
+      "text": "The server is not flattened to a tool-only convenience surface."
+    },
+    {
+      "id": "C06",
+      "level": "must",
+      "text": "Compatibility helpers are additive projections reusing canonical models, policy, audit, tasks, and URIs."
+    },
+    {
+      "id": "C07",
+      "level": "must",
+      "text": "Tool input schemas use the supported JSON Schema 2020-12 profile, close controlled argument objects, and pass the shared document and reference-expansion bounds."
+    },
+    {
+      "id": "C08",
+      "level": "must",
+      "text": "Schemas are generated through ordinary rmcp/Schemars or official SDK/Pydantic machinery."
+    },
+    {
+      "id": "C09",
+      "level": "must",
+      "text": "Controlled shapes use strong domain types; raw JSON only at open boundaries."
+    },
+    {
+      "id": "C10",
+      "level": "must",
+      "text": "Shared mechanics, including the final 8 MiB serialized JSON response cap, come from `veoveo_mcp_contract`, not reimplementation."
+    },
+    {
+      "id": "C11",
+      "level": "must",
+      "text": "Artifact and recording operations use the forwarded internal identity; durable Artifact reads may use the service's explicitly issued bounded task-read capability."
+    },
+    {
+      "id": "C12",
+      "level": "must",
+      "text": "Administrative HTTP exists only under the canonical mount."
+    },
+    {
+      "id": "C13",
+      "level": "must",
+      "text": "No private control database."
+    },
+    {
+      "id": "C14",
+      "level": "must",
+      "text": "No private byte route."
+    },
+    {
+      "id": "C15",
+      "level": "must",
+      "text": "The server ships as an OCI image with a versioned Helm chart."
+    },
+    {
+      "id": "C16",
+      "level": "must",
+      "text": "The gateway entry is registered in the typed control plane with routes, capabilities, and policy."
+    },
+    {
+      "id": "C17",
+      "level": "must",
+      "text": "The registration and crate documents state the contract revision."
+    },
+    {
+      "id": "C18",
+      "level": "must",
+      "text": "Docs resources are served under `{scheme}://docs`."
+    },
+    {
+      "id": "C19",
+      "level": "must",
+      "text": "The contract declaration resource is served at `{scheme}://contract`."
+    },
+    {
+      "id": "C20",
+      "level": "must",
+      "text": "The admin mount serves `docs/llms.txt` and document bodies."
+    },
+    {
+      "id": "C21",
+      "level": "must",
+      "text": "Served documents are embedded at build time from the crate."
+    },
+    {
+      "id": "C22",
+      "level": "must",
+      "text": "`DESIGN.md` exists beside the crate and pins the domain profile."
+    },
+    {
+      "id": "C23",
+      "level": "must",
+      "text": "`AGENTS.md` exists beside the crate with the required sections."
+    },
+    {
+      "id": "C24",
+      "level": "must",
+      "text": "The crate is named `*-mcp`."
+    },
+    {
+      "id": "C25",
+      "level": "must",
+      "text": "Every network endpoint uses Streamable HTTP; stdio exists only inside a local bridge that owns its child."
+    },
+    {
+      "id": "C26",
+      "level": "must",
+      "text": "Streamable HTTP is stateless, requires final per-request protocol metadata, returns JSON terminal responses, and rejects session, reconnect, DELETE, and replay surfaces."
+    },
+    {
+      "id": "C27",
+      "level": "must",
+      "text": "`subscriptions/listen` uses an authorized accepted filter, a request-scoped sink, bounded backpressure, and a shared restart-safe event source; legacy subscribe and unsubscribe are absent."
+    },
+    {
+      "id": "C28",
+      "level": "must",
+      "text": "Tool, prompt, and resource list-change capabilities are declared independently and match emitted notifications."
+    },
+    {
+      "id": "C29",
+      "level": "must",
+      "text": "Ordinary hosted servers and the gateway tolerate load-balanced replica changes; singleton workloads name the real exclusive state or GPU owner."
+    },
+    {
+      "id": "C30",
+      "level": "must",
+      "text": "Requests with equivalent upstream transport security share one catalog-revision-scoped HTTP connection pool and TLS trust store without sharing request authority."
+    },
+    {
+      "id": "C31",
+      "level": "must",
+      "text": "Readiness calls Discover and required list methods, compares the observed surface with installation allow/require policy, and fails closed on mismatch."
+    },
+    {
+      "id": "C32",
+      "level": "must_when_adopted",
+      "text": "A server that declares `ai.veoveo/knowledge-source` publishes its `{slug}.docs` collection and satisfies K01–K10 for every declared collection under the [knowledge extension](../knowledge-extension/DESIGN.md). A server that does not declare the extension marks C32 not applicable.",
+      "applicability": "knowledge_source"
+    },
+    {
+      "id": "C33",
+      "level": "must",
+      "text": "Discovery identifiers, controlled DTO fields and values, adopted extension metadata and selected owner schema evidence satisfy the naming classes; narrow owner, JWT, frozen and external declarations require source review."
+    }
+  ]
+}

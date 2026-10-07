@@ -42,37 +42,50 @@ pub(super) fn current_output(id: TaskId) -> Value {
     let mut value: Value =
         serde_json::from_str(include_str!("../../../testdata/run-output.json")).unwrap();
     let id = RunId::try_from(id).unwrap();
-    value["run_uri"] = serde_json::to_value(veoveo_stream_mcp::contract::RunUri::new(id)).unwrap();
-    value["result_uri"] =
+    value["runUri"] = serde_json::to_value(veoveo_stream_mcp::contract::RunUri::new(id)).unwrap();
+    value["resultUri"] =
         serde_json::to_value(veoveo_stream_mcp::contract::RunResultsUri::new(id)).unwrap();
-    value["results_artifact"]["metadata"]["provenance"]["run_id"] = id.to_string().into();
-    value["annotations_artifact"]["metadata"]["provenance"]["run_id"] = id.to_string().into();
+    value["resultsArtifact"]["metadata"]["provenance"]["runId"] = id.to_string().into();
+    value["annotationsArtifact"]["metadata"]["provenance"]["runId"] = id.to_string().into();
     value
 }
 
 pub(super) async fn create(runtime: &TaskRuntime, owner: TaskOwner, id: TaskId) {
     // These capabilities are inert fixture values. No Artifact or GPU service
     // participates in control-plane result-delivery qualification.
-    let capability = json!({
-        "capability_id": "01983da0-0000-7000-8000-000000000004",
-        "secret": "inert_fixture_capability_not_issued_0000",
-        "task_id": id.to_string(),
-        "expires_at": "2030-01-01T00:00:00Z"
-    });
-    let request = json!({
-        "input": {
+    let capability_id = "01983da0-0000-7000-8000-000000000004";
+    let secret = "inert_fixture_capability_not_issued_0000";
+    let expires_at = "2030-01-01T00:00:00Z".parse().unwrap();
+    let task_id = veoveo_artifact_contract::ArtifactTaskId::parse(id.to_string()).unwrap();
+    let request = super::tasks::DurableStreamRequest {
+        input: serde_json::from_value::<super::tasks::StreamTaskInput>(json!({
             "operation": "run_recording",
             "video": {
-                "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000001",
-                "entity_path": "/camera/front", "timeline": "sensor_time",
+                "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+                "entityPath": "/camera/front", "timeline": "sensor_time",
                 "range": {"start": 10, "end": 20}
             },
-            "pipeline_id": "traffic"
+            "pipelineId": "traffic"
+        }))
+        .unwrap(),
+        artifact_write_capability: veoveo_artifact_contract::IssuedArtifactWriteCapability {
+            capability_id: veoveo_artifact_contract::ArtifactWriteCapabilityId::parse(
+                capability_id,
+            )
+            .unwrap(),
+            secret: veoveo_artifact_contract::ArtifactWriteCapabilitySecret::new(secret).unwrap(),
+            task_id,
+            expires_at,
         },
-        "artifact_write_capability": capability,
-        "artifact_read_capability": capability
-    });
-    serde_json::from_value::<super::tasks::DurableStreamRequest>(request.clone()).unwrap();
+        artifact_read_capability: veoveo_artifact_contract::IssuedArtifactReadCapability {
+            capability_id: veoveo_artifact_contract::ArtifactReadCapabilityId::parse(capability_id)
+                .unwrap(),
+            secret: veoveo_artifact_contract::ArtifactReadCapabilitySecret::new(secret).unwrap(),
+            task_id,
+            expires_at,
+        },
+    };
+    let request = serde_json::to_value(request).unwrap();
     runtime
         .create(CreateTask {
             task_id: id,

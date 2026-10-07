@@ -1,0 +1,168 @@
+{
+  "profile": "helm-wiring-fixture",
+  "managerData": {
+    "manager.json": "{\"databaseCredentialRevision\":\"fixture-1\",\"gatewayTransportUrl\":\"http://mcp-gateway.manager-wiring.svc:8788/\",\"gatewayUrl\":\"https://veoveo.bioma.ai/\",\"models\":[{\"apiKey\":\"agent_model_api_key\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/cd9522254303bfb3d2322a0d9b82764f/ai/v1\",\"id\":\"daily-assistant\",\"limits\":{\"deadlineSeconds\":120,\"maxCompletionCalls\":4,\"maxOutputTokens\":4096,\"maxToolCalls\":8},\"model\":\"@cf/moonshotai/kimi-k2.6\",\"name\":\"Daily assistant model\",\"provider\":\"Cloudflare Workers AI\",\"requiredScopes\":[\"operator:use\"],\"tenant\":\"bioma\",\"workContexts\":[\"operations\"]},{\"apiKey\":\"agent_model_api_key\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/cd9522254303bfb3d2322a0d9b82764f/ai/v1\",\"id\":\"pilot-model\",\"limits\":{\"deadlineSeconds\":600,\"maxCompletionCalls\":16,\"maxOutputTokens\":4096,\"maxToolCalls\":24},\"model\":\"@cf/moonshotai/kimi-k2.6\",\"name\":\"Pilot reasoning model\",\"provider\":\"Cloudflare Workers AI\",\"requiredScopes\":[\"operator:use\"],\"tenant\":\"bioma\",\"workContexts\":[\"operations\"]}],\"namespace\":\"veoveo-agents\",\"storeDatabase\":\"platform\",\"storeEndpoint\":\"ws://surrealdb.manager-wiring.svc:8000\",\"storeNamespace\":\"veoveo\",\"templates\":[{\"id\":\"uav-pilot\",\"membership\":\"contributor\",\"models\":[\"pilot-model\"],\"name\":\"UAV Pilot\",\"parameters\":{\"session\":{\"environmentVariable\":\"VEOVEO_PARAM_SESSION\",\"label\":\"Simulation session\",\"shape\":{\"kind\":\"choice\",\"values\":[\"uav-showcase\"]}}},\"profile\":\"agent\",\"requiredDeployerScopes\":[\"operator:use\"],\"resourceSubscriptions\":[\"uav-sim://control-grants\",\"uav-sim://mission-plans\"],\"roles\":[\"uav-pilot\"],\"scopes\":[\"map:dataset:read\",\"map:route\",\"operator:use\",\"time:read\",\"uav-sim:control\"],\"tenant\":\"bioma\",\"tools\":[\"map__inspect_location\",\"map__inspect_position\",\"map__list_active_dataset_releases\",\"map__prepare_route_handoff\",\"map__query_source_features\",\"map__route\",\"map__search_locations\",\"map__validate_route\",\"time__assess_clock\",\"time__convert_time\",\"time__resolve_time\",\"uav-sim__arm_vehicle\",\"uav-sim__execute_vehicle_mission_plan\",\"uav-sim__get_simulation_state\",\"uav-sim__land_vehicle\",\"uav-sim__list_active_vehicle_control_grants\",\"uav-sim__prepare_vehicle_mission\",\"uav-sim__takeoff_vehicle\"],\"workContexts\":[\"operations\"],\"workload\":{\"configDigest\":\"sha256:01b19f5aa87bd953be64f55f6c9acd91b6ec9439d3106d0f4547924ad15fa9f0\",\"configMap\":\"uav-pilot-01b19f5aa87b\",\"cpuMillis\":1000,\"databaseSecret\":\"veoveo-surreal-runtime\",\"image\":\"k3d-veoveo-registry.localhost:5000/veoveo/agent-kernel@sha256:cb7f0899430845d7d4f631d5475d44407536ca0f965ec5a7c8ceafdd336a1d37\",\"memoryMib\":1024,\"modelSecrets\":[{\"key\":\"api-key\",\"reference\":\"agent_model_api_key\",\"secret\":\"veoveo-workspace-models\"}],\"namespace\":\"veoveo-agents\",\"storageClass\":\"local-path\",\"storageGib\":2}}]}"
+  },
+  "templateData": {
+    "0001_mission_state.sql": "-- Agent-owned orchestration memory. Geographic work remains in Map MCP.\nCREATE TABLE IF NOT EXISTS mission_intents (\n    mission_key TEXT PRIMARY KEY,\n    operator_request TEXT NOT NULL,\n    state TEXT NOT NULL DEFAULT 'received',\n    map_route_uri TEXT,\n    map_route_digest_sha256 TEXT,\n    uav_plan_uri TEXT,\n    created_at TIMESTAMP DEFAULT now(),\n    updated_at TIMESTAMP DEFAULT now()\n);\n\nCREATE TABLE IF NOT EXISTS resource_bookmarks (\n    name TEXT PRIMARY KEY,\n    uri TEXT NOT NULL,\n    revision TEXT,\n    digest_sha256 TEXT,\n    updated_at TIMESTAMP DEFAULT now()\n);\n",
+    "manifest.json": "{\n  \"agent\": {\n    \"tenant\": \"${VEOVEO_AGENT_TENANT}\",\n    \"id\": \"${VEOVEO_AGENT_ID}\",\n    \"displayName\": \"${VEOVEO_AGENT_NAME}\"\n  },\n  \"model\": {\n    \"baseUrl\": \"${VEOVEO_AGENT_MODEL_URL}\",\n    \"apiKeyEnv\": \"VEOVEO_MANAGED_MODEL_KEY\",\n    \"model\": \"${VEOVEO_AGENT_MODEL_ID}\",\n    \"temperature\": 0.1,\n    \"maxOutputTokens\": 4096\n  },\n  \"gateway\": {\n    \"url\": \"${VEOVEO_GATEWAY_URL}\",\n    \"transportUrl\": \"${VEOVEO_GATEWAY_TRANSPORT_URL}\",\n    \"profile\": \"${VEOVEO_AGENT_PROFILE}\",\n    \"clientId\": \"${VEOVEO_AGENT_CLIENT_ID}\",\n    \"workContext\": \"${VEOVEO_AGENT_WORK_CONTEXT}\",\n    \"audience\": \"${VEOVEO_GATEWAY_AUDIENCE}\",\n    \"resource\": \"${VEOVEO_GATEWAY_RESOURCE}\",\n    \"scopes\": [\n      \"map:dataset:read\",\n      \"map:route\",\n      \"operator:use\",\n      \"time:read\",\n      \"uav-sim:control\"\n    ],\n    \"privateKeyEnv\": \"VEOVEO_MANAGED_PRIVATE_KEY\",\n    \"privateKeyKid\": \"${VEOVEO_AGENT_KEY_ID}\"\n  },\n  \"episode\": {\n    \"maxTurns\": 16,\n    \"requestTimeoutS\": 300,\n    \"taskDeadlineS\": 900\n  },\n  \"memory\": {\n    \"memoryWriteTables\": [\n      \"mission_intents\",\n      \"resource_bookmarks\"\n    ]\n  },\n  \"context\": {\n    \"maxContextTokens\": 24000,\n    \"sections\": [\n      {\n        \"name\": \"Simulation session; current control grants select the vehicle\",\n        \"priority\": 0,\n        \"sql\": \"SELECT '${VEOVEO_PARAM_SESSION}' AS requested_session\"\n      },\n      {\n        \"name\": \"Open mission intents\",\n        \"priority\": 1,\n        \"sql\": \"SELECT mission_key, operator_request, state, map_route_uri, map_route_digest_sha256, uav_plan_uri, updated_at FROM mission_intents WHERE state NOT IN ('completed', 'cancelled', 'failed') ORDER BY updated_at DESC LIMIT 12\"\n      },\n      {\n        \"name\": \"Canonical resources\",\n        \"priority\": 2,\n        \"sql\": \"SELECT name, uri, revision, digest_sha256, updated_at FROM resource_bookmarks ORDER BY name LIMIT 20\"\n      },\n      {\n        \"name\": \"Recent episodes\",\n        \"priority\": 3,\n        \"sql\": \"SELECT seq, summary FROM agent_memory.episode_log ORDER BY seq DESC LIMIT 8\"\n      }\n    ]\n  },\n  \"budgets\": {\n    \"perEpisode\": {\n      \"maxCompletionCalls\": 32,\n      \"maxToolCalls\": 24\n    },\n    \"hourlyMaxEpisodes\": 120\n  },\n  \"schedule\": {\n    \"heartbeatIntervalS\": 300,\n    \"minWakeIntervalS\": 2,\n    \"wakeCoalesceWindowMs\": 250,\n    \"inputGraceS\": 30\n  },\n  \"resourceSubscriptions\": [],\n  \"migrationsDir\": \"migrations\",\n  \"preamble\": \"Execute the admitted managed-agent revision under current gateway and domain authority.\"\n}\n"
+  },
+  "configRevision": "sha256:037b21aaa99257ed211e51e8ea2477aff0649a79374a87503c5ed7377837a2bf",
+  "template": {
+    "id": "uav-pilot",
+    "name": "UAV Pilot",
+    "tenant": "bioma",
+    "workContexts": [
+      "operations"
+    ],
+    "requiredDeployerScopes": [
+      "operator:use"
+    ],
+    "profile": "agent",
+    "scopes": [
+      "map:dataset:read",
+      "map:route",
+      "operator:use",
+      "time:read",
+      "uav-sim:control"
+    ],
+    "roles": [
+      "uav-pilot"
+    ],
+    "membership": "contributor",
+    "models": [
+      "pilot-model"
+    ],
+    "tools": [
+      "map__inspect_location",
+      "map__inspect_position",
+      "map__list_active_dataset_releases",
+      "map__prepare_route_handoff",
+      "map__query_source_features",
+      "map__route",
+      "map__search_locations",
+      "map__validate_route",
+      "time__assess_clock",
+      "time__convert_time",
+      "time__resolve_time",
+      "uav-sim__arm_vehicle",
+      "uav-sim__execute_vehicle_mission_plan",
+      "uav-sim__get_simulation_state",
+      "uav-sim__land_vehicle",
+      "uav-sim__list_active_vehicle_control_grants",
+      "uav-sim__prepare_vehicle_mission",
+      "uav-sim__takeoff_vehicle"
+    ],
+    "resourceSubscriptions": [
+      "uav-sim://control-grants",
+      "uav-sim://mission-plans"
+    ],
+    "parameters": {
+      "session": {
+        "label": "Simulation session",
+        "shape": {
+          "kind": "choice",
+          "values": [
+            "uav-showcase"
+          ]
+        },
+        "environmentVariable": "VEOVEO_PARAM_SESSION"
+      }
+    },
+    "workload": {
+      "namespace": "veoveo-agents",
+      "configMap": "uav-pilot-037b21aaa992",
+      "configDigest": "sha256:037b21aaa99257ed211e51e8ea2477aff0649a79374a87503c5ed7377837a2bf",
+      "image": "k3d-veoveo-registry.localhost:5000/veoveo/agent-kernel@sha256:cb7f0899430845d7d4f631d5475d44407536ca0f965ec5a7c8ceafdd336a1d37",
+      "databaseSecret": "veoveo-surreal-runtime",
+      "storageClass": "local-path",
+      "storageGib": 2,
+      "cpuMillis": 1000,
+      "memoryMib": 1024,
+      "modelSecrets": [
+        {
+          "reference": "agent_model_api_key",
+          "secret": "veoveo-workspace-models",
+          "key": "api-key"
+        }
+      ]
+    }
+  },
+  "templateRevision": "sha256:a6a615de23b01123266e3450edea667099a8ede297746289d1e8360e5cb8ebb2",
+  "models": [
+    {
+      "value": {
+        "id": "daily-assistant",
+        "name": "Daily assistant model",
+        "provider": "Cloudflare Workers AI",
+        "tenant": "bioma",
+        "workContexts": [
+          "operations"
+        ],
+        "requiredScopes": [
+          "operator:use"
+        ],
+        "baseUrl": "https://api.cloudflare.com/client/v4/accounts/cd9522254303bfb3d2322a0d9b82764f/ai/v1",
+        "model": "@cf/moonshotai/kimi-k2.6",
+        "apiKey": "agent_model_api_key",
+        "limits": {
+          "maxOutputTokens": 4096,
+          "maxCompletionCalls": 4,
+          "maxToolCalls": 8,
+          "deadlineSeconds": 120
+        }
+      },
+      "revision": "sha256:307139ccca5842658c47f49ab7c9156865b1a330db7d7fb1ab4cc656e636f6e3"
+    },
+    {
+      "value": {
+        "id": "pilot-model",
+        "name": "Pilot reasoning model",
+        "provider": "Cloudflare Workers AI",
+        "tenant": "bioma",
+        "workContexts": [
+          "operations"
+        ],
+        "requiredScopes": [
+          "operator:use"
+        ],
+        "baseUrl": "https://api.cloudflare.com/client/v4/accounts/cd9522254303bfb3d2322a0d9b82764f/ai/v1",
+        "model": "@cf/moonshotai/kimi-k2.6",
+        "apiKey": "agent_model_api_key",
+        "limits": {
+          "maxOutputTokens": 4096,
+          "maxCompletionCalls": 16,
+          "maxToolCalls": 24,
+          "deadlineSeconds": 600
+        }
+      },
+      "revision": "sha256:168a44b3878b461de1f2ee4e42c9b44fb174b14e2bf03dad91e7426c1fcdaa5d"
+    }
+  ],
+  "nativeContent": {
+    "model": {
+      "id": "approved",
+      "revision": "c949aa799ee54c22265ad95d719c53e4924ff96b3c8c0c3d9f7fca8b19157cc6"
+    },
+    "instructions": "PRIVATE_AUTHORED_INSTRUCTIONS",
+    "tools": [
+      "time__resolve_time"
+    ],
+    "budgets": {
+      "max_output_tokens": 64,
+      "max_completion_calls": 1,
+      "max_tool_calls": 2,
+      "deadline_seconds": 30
+    },
+    "execution": {
+      "kind": "managed",
+      "template": "pilot",
+      "template_revision": "e95535bf0316f206b07413fb440085d1bb4ba0618630251f122ca4d210d3302f",
+      "parameters": {
+        "vehicle": "vehicle-one"
+      },
+      "resource_subscriptions": []
+    }
+  },
+  "nativeContentRevision": "393c33672800f4c52902c5180a8e6f5ae0023ef152a61246696261485d9acdf7"
+}

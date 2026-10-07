@@ -47,7 +47,7 @@ pub fn extract_grounding(
     );
     let document = document.into_builder();
     Ok(GroundingDetections {
-        schema: GroundingSchema::V1,
+        schema: GroundingSchema::V2,
         source_artifact_uri: source_artifact_uri.clone(),
         frames: document
             .frames

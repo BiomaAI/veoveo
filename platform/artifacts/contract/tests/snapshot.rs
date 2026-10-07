@@ -6,19 +6,19 @@ fn snapshot_admits_complete_access_state_and_rejects_cross_record_or_transfer_da
     let id = ArtifactId::new();
     let wire = json!({
         "metadata": {
-            "artifact_id": id,
-            "artifact_uri": id.plane_uri(),
-            "byte_len": 3,
-            "created_at": "2026-10-01T00:00:00Z",
+            "artifactId": id,
+            "artifactUri": id.plane_uri(),
+            "byteLen": 3,
+            "createdAt": "2026-10-01T00:00:00Z",
             "compliance": {
-                "tenant_id": "acme",
+                "tenantId": "acme",
                 "owner": {"kind":"principal", "id":"alice"},
-                "work_context": "mission",
-                "provenance": {"producer":"alice", "invocation_mode":"direct", "initiator":"alice", "policy_revision":"r1"}
+                "workContext": "mission",
+                "provenance": {"producer":"alice", "invocationMode":"direct", "initiator":"alice", "policyRevision":"r1"}
             }
         },
-        "read_grants": [{"subject":{"kind":"principal","id":"alice"}}],
-        "metadata_updated_at":"2026-10-01T00:00:00Z"
+        "readGrants": [{"subject":{"kind":"principal","id":"alice"}}],
+        "metadataUpdatedAt":"2026-10-01T00:00:00Z"
     });
     let snapshot: ArtifactMetadataSnapshot = serde_json::from_value(wire.clone()).unwrap();
     let output = serde_json::to_value(&snapshot).unwrap();
@@ -34,10 +34,10 @@ fn snapshot_admits_complete_access_state_and_rejects_cross_record_or_transfer_da
     );
     for (path, value) in [
         ("/metadata/compliance/owner", json!(null)),
-        ("/metadata/compliance/tenant_id", json!(null)),
-        ("/metadata/compliance/work_context", json!(null)),
+        ("/metadata/compliance/tenantId", json!(null)),
+        ("/metadata/compliance/workContext", json!(null)),
         ("/metadata/compliance/provenance", json!(null)),
-        ("/metadata_updated_at", json!("2026-09-30T00:00:00Z")),
+        ("/metadataUpdatedAt", json!("2026-09-30T00:00:00Z")),
     ] {
         let mut invalid = wire.clone();
         *invalid.pointer_mut(path).unwrap() = value;
@@ -47,13 +47,13 @@ fn snapshot_admits_complete_access_state_and_rejects_cross_record_or_transfer_da
         );
     }
     let mut invalid = wire.clone();
-    invalid["metadata"]["download_url"] = json!("https://example.test/download");
+    invalid["metadata"]["downloadUrl"] = json!("https://example.test/download");
     assert!(serde_json::from_value::<ArtifactMetadataSnapshot>(invalid).is_err());
     let mut invalid = wire.clone();
-    invalid["read_grants"]
+    invalid["readGrants"]
         .as_array_mut()
         .unwrap()
-        .push(wire["read_grants"][0].clone());
+        .push(wire["readGrants"][0].clone());
     assert!(serde_json::from_value::<ArtifactMetadataSnapshot>(invalid).is_err());
     let grant: Grant = serde_json::from_value(json!({
         "artifact":id, "subject":{"kind":"principal","id":"alice"}, "level":"admin", "tenant":"acme"
@@ -87,7 +87,7 @@ fn snapshot_admits_complete_access_state_and_rejects_cross_record_or_transfer_da
         .is_err()
     );
     assert!(
-        serde_json::to_value(snapshot).unwrap()["read_grants"][0]
+        serde_json::to_value(snapshot).unwrap()["readGrants"][0]
             .get("level")
             .is_none()
     );

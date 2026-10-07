@@ -12,8 +12,10 @@ import uuid
 from typing import Annotated, Any, Literal
 from enum import Enum
 
-from pydantic import AwareDatetime, AfterValidator, BaseModel, ConfigDict, Field, model_validator
-from veoveo_mcp.types import CheckedText, ResourceUri, ResourceScheme, ResourceUriBuilder, UriAuthority, UriSegment
+from pydantic.alias_generators import to_camel
+from .wire import CurrentWireModel
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+from veoveo_mcp.types import CheckedText, ChronoTimestamp, ResourceUri, ResourceScheme, ResourceUriBuilder, UriAuthority, UriSegment
 
 
 def _uuid_v7_str(value: str) -> str:
@@ -28,6 +30,13 @@ class ArtifactId(CheckedText):
     def _validate(cls, value: str) -> None:
         if _uuid_v7_str(value) != value:
             raise ValueError("artifact identifiers require canonical UUIDv7 spelling")
+
+
+class ArtifactUploadId(CheckedText):
+    @classmethod
+    def _validate(cls, value: str) -> None:
+        if _uuid_v7_str(value) != value:
+            raise ValueError("Artifact upload identifiers require canonical UUIDv7 spelling")
 
 
 class ArtifactTaskId(CheckedText):
@@ -112,8 +121,8 @@ from .identity import (
 )
 
 
-class ArtifactProvenance(BaseModel):
-    model_config = ConfigDict(frozen=True)
+class ArtifactProvenance(CurrentWireModel):
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=False, serialize_by_alias=True, extra="forbid", frozen=True)
 
     producer: PrincipalId
     invocation_mode: Literal["direct", "delegated", "automated"]
@@ -135,10 +144,10 @@ class ArtifactProvenance(BaseModel):
 
 
     def model_copy(self, *, update=None, deep=False):
-        return type(self).model_validate({**self.model_dump(), **(update or {})})
+        return type(self).model_validate({**self.model_dump(), **{to_camel(key): value for key, value in (update or {}).items()}})
 
-class ComplianceMetadata(BaseModel):
-    model_config = ConfigDict(extra="allow", frozen=True)
+class ComplianceMetadata(CurrentWireModel):
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=False, serialize_by_alias=True, extra="forbid", frozen=True)
 
     classification: DataLabelId | None = None
     tenant_id: TenantId | None = None
@@ -146,14 +155,14 @@ class ComplianceMetadata(BaseModel):
     work_context: WorkContextId | None = None
     provenance: ArtifactProvenance | None = None
     data_labels: frozenset[DataLabelId] = Field(default_factory=frozenset)
-    retention_expires_at: AwareDatetime | None = None
+    retention_expires_at: ChronoTimestamp | None = None
 
     def model_copy(self, *, update=None, deep=False):
-        return type(self).model_validate({**self.model_dump(), **(update or {})})
+        return type(self).model_validate({**self.model_dump(), **{to_camel(key): value for key, value in (update or {}).items()}})
 
 
-class ArtifactMetadata(BaseModel):
-    model_config = ConfigDict(extra="allow", frozen=True)
+class ArtifactMetadata(CurrentWireModel):
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=False, serialize_by_alias=True, extra="forbid", frozen=True)
 
     artifact_id: ArtifactId
     byte_len: int = Field(strict=True, ge=0, le=2**64 - 1)
@@ -161,7 +170,7 @@ class ArtifactMetadata(BaseModel):
     filename: str | None = None
     artifact_uri: ArtifactUri
     download_url: str | None = None
-    created_at: AwareDatetime
+    created_at: ChronoTimestamp
     release_state: ArtifactReleaseState = ArtifactReleaseState.PRIVATE
     compliance: ComplianceMetadata = Field(default_factory=ComplianceMetadata)
     metadata: Any = None
@@ -174,7 +183,7 @@ class ArtifactMetadata(BaseModel):
 
     def model_copy(self, *, update=None, deep=False):
         # Pydantic's standard copy bypasses admission of updates.
-        return type(self).model_validate({**self.model_dump(), **(update or {})})
+        return type(self).model_validate({**self.model_dump(), **{to_camel(key): value for key, value in (update or {}).items()}})
 
     def without_download_url(self) -> "ArtifactMetadata":
         return self.model_copy(update={"download_url": None})
@@ -186,6 +195,29 @@ class ArtifactMetadata(BaseModel):
         return self.model_copy(update={"artifact_uri": uri})
 
 
+class ArtifactUploadReceipt(CurrentWireModel):
+    """Complete current Artifact owner upload receipt."""
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=False, serialize_by_alias=True, extra="forbid", frozen=True)
+
+    upload_id: ArtifactUploadId
+    artifact_id: ArtifactId
+    artifact_uri: ArtifactUri
+    sha256: str = Field(strict=True, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    byte_len: int = Field(strict=True, ge=0, le=2**64 - 1)
+    mime_type: str = Field(strict=True)
+    filename: str = Field(strict=True)
+    created_at: ChronoTimestamp
+
+    @model_validator(mode="after")
+    def _admit(self):
+        if not self.artifact_uri.is_plane or self.artifact_uri.artifact_id != self.artifact_id:
+            raise ValueError("upload receipt identifies a different plane occurrence")
+        return self
+
+    def model_copy(self, *, update=None, deep=False):
+        return type(self).model_validate({**self.model_dump(), **{to_camel(key): value for key, value in (update or {}).items()}})
+
+
 class ArtifactObject(BaseModel):
     metadata: ArtifactMetadata
     bytes_: bytes = Field(alias="bytes")
@@ -193,46 +225,56 @@ class ArtifactObject(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
-class PutArtifactRequest(BaseModel):
+class PutArtifactRequest(CurrentWireModel):
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=False, serialize_by_alias=True, extra="forbid")
+
     mime_type: str | None = None
     filename: str | None = None
     classification: DataLabelId | None = None
     data_labels: set[DataLabelId] = Field(default_factory=set)
-    retention_expires_at: AwareDatetime | None = None
+    retention_expires_at: ChronoTimestamp | None = None
     metadata: Any = None
 
     def wire(self) -> dict[str, Any]:
         value: dict[str, Any] = {}
         if self.mime_type is not None:
-            value["mime_type"] = self.mime_type
+            value["mimeType"] = self.mime_type
         if self.filename is not None:
             value["filename"] = self.filename
         if self.classification is not None:
             value["classification"] = self.classification
         if self.data_labels:
-            value["data_labels"] = sorted(self.data_labels)
+            value["dataLabels"] = sorted(self.data_labels)
         if self.retention_expires_at is not None:
-            value["retention_expires_at"] = self.retention_expires_at.isoformat()
+            value["retentionExpiresAt"] = ChronoTimestamp(str(self.retention_expires_at)).wire
         if self.metadata is not None:
             value["metadata"] = self.metadata
         return value
 
+    def model_copy(self, *, update=None, deep=False):
+        return type(self).model_validate({**self.model_dump(), **{to_camel(key): value for key, value in (update or {}).items()}})
 
-class IssueArtifactWriteCapabilityRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+
+class IssueArtifactWriteCapabilityRequest(CurrentWireModel):
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=False, serialize_by_alias=True, extra="forbid")
 
     task_id: ArtifactTaskId
-    expires_at: AwareDatetime
+    expires_at: ChronoTimestamp
     max_artifact_count: int = Field(strict=True, gt=0, le=2**32 - 1)
     max_total_bytes: int = Field(strict=True, gt=0, le=2**64 - 1)
     required_data_labels: frozenset[DataLabelId] = Field(default_factory=frozenset, max_length=256)
 
+    def model_copy(self, *, update=None, deep=False):
+        return type(self).model_validate({**self.model_dump(), **{to_camel(key): value for key, value in (update or {}).items()}})
 
-class IssuedArtifactWriteCapability(BaseModel):
+
+class IssuedArtifactWriteCapability(CurrentWireModel):
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=False, serialize_by_alias=True, extra="forbid")
+
     capability_id: ArtifactWriteCapabilityId
     secret: ArtifactWriteCapabilitySecret
     task_id: ArtifactTaskId
-    expires_at: AwareDatetime
+    expires_at: ChronoTimestamp
 
     def __repr__(self) -> str:  # never leak the secret
         return (
@@ -240,8 +282,13 @@ class IssuedArtifactWriteCapability(BaseModel):
             f"task_id={self.task_id!r}, secret=<redacted>)"
         )
 
+    def model_copy(self, *, update=None, deep=False):
+        return type(self).model_validate({**self.model_dump(), **{to_camel(key): value for key, value in (update or {}).items()}})
 
-class RedeemArtifactWriteCapabilityRequest(BaseModel):
+
+class RedeemArtifactWriteCapabilityRequest(CurrentWireModel):
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=False, serialize_by_alias=True, extra="forbid")
+
     capability_id: ArtifactWriteCapabilityId
     task_id: ArtifactTaskId
     idempotency_key: ArtifactWriteIdempotencyKey
@@ -249,8 +296,8 @@ class RedeemArtifactWriteCapabilityRequest(BaseModel):
 
     def wire(self) -> dict[str, Any]:
         return {
-            "capability_id": self.capability_id,
-            "task_id": self.task_id,
-            "idempotency_key": self.idempotency_key,
+            "capabilityId": self.capability_id,
+            "taskId": self.task_id,
+            "idempotencyKey": self.idempotency_key,
             "artifact": self.artifact.wire(),
         }

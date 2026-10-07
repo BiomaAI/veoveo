@@ -67,6 +67,7 @@ impl JsonSchema for TimeseriesForecastHorizon {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TimeseriesTableMapping {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub time_column: Option<DuckDbColumnName>,
@@ -173,7 +174,12 @@ impl JsonSchema for TimeseriesFilterValues {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "op",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 pub enum TimeseriesFilterPredicate {
     Eq {
         column: DuckDbColumnName,
@@ -206,6 +212,7 @@ pub struct TimeseriesRowFilter(veoveo_types::Checked<FilterWire>);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct FilterWire {
     #[serde(default)]
     combination: TimeseriesFilterCombination,
@@ -288,6 +295,7 @@ pub enum TimeseriesForecastMethod {
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TimeseriesForecastRequest {
     pub source: DuckDbTabularSource,
     pub mapping: TimeseriesTableMapping,

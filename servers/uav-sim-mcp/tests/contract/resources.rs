@@ -70,7 +70,7 @@ fn every_declared_resource_round_trips_through_the_public_contract() {
 }
 
 #[test]
-fn cursor_v1_bytes_and_positions_are_preserved() {
+fn cursor_current_bytes_preserve_id_positions_and_version_usage() {
     let mission = UavMissionCursor::new(MissionId::parse("m").unwrap()).unwrap();
     let plan = UavPlanCursor::new(MissionPlanId::parse("p").unwrap()).unwrap();
     let grant = UavGrantCursor::new(None, ControlGrantId::parse("g").unwrap()).unwrap();
@@ -100,7 +100,7 @@ fn cursor_v1_bytes_and_positions_are_preserved() {
         ),
         (
             usage.as_str(),
-            r#"{"version":1,"collection":"uav-sim://usage","position":{"created_at":"2026-09-28T12:00:00Z","task_id":"0195e2ec-54a1-7000-8000-000000000001"}}"#,
+            r#"{"version":2,"collection":"uav-sim://usage","position":{"createdAt":"2026-09-28T12:00:00Z","taskId":"0195e2ec-54a1-7000-8000-000000000001"}}"#,
         ),
     ] {
         assert_eq!(cursor, hex_json(expected));
@@ -200,10 +200,27 @@ fn cursor_admission_rejects_invalid_versions_shapes_ids_and_size() {
     }
     for task in ["0195e2ec-54a1-4000-8000-000000000001", "not-a-task"] {
         let json = format!(
-            r#"{{"version":1,"collection":"uav-sim://usage","position":{{"created_at":"2026-09-28T12:00:00Z","task_id":"{task}"}}}}"#
+            r#"{{"version":2,"collection":"uav-sim://usage","position":{{"createdAt":"2026-09-28T12:00:00Z","taskId":"{task}"}}}}"#
         );
         assert!(UavUsageCursor::parse(hex_json(&json)).is_err());
         assert!(UavResource::parse(&format!("uav-sim://usage/task/{task}")).is_err());
+    }
+    let current = serde_json::json!({"version":2,"collection":"uav-sim://usage","position":{"createdAt":"2026-09-28T12:00:00Z","taskId":"0195e2ec-54a1-7000-8000-000000000001"}});
+    assert!(UavUsageCursor::parse(hex_json(&current.to_string())).is_ok());
+    let mut retired_version = current.clone();
+    retired_version["version"] = 1.into();
+    assert!(UavUsageCursor::parse(hex_json(&retired_version.to_string())).is_err());
+    for (canonical, retired) in [("createdAt", "created_at"), ("taskId", "task_id")] {
+        for mixed in [false, true] {
+            let mut bad = current.clone();
+            let position = bad["position"].as_object_mut().unwrap();
+            let value = position[canonical].clone();
+            if !mixed {
+                position.remove(canonical);
+            }
+            position.insert(retired.into(), value);
+            assert!(UavUsageCursor::parse(hex_json(&bad.to_string())).is_err());
+        }
     }
     let task = "0195e2ec-54a1-4000-8000-000000000001".parse().unwrap();
     assert!(uris::usage_task(task).is_err());
@@ -283,11 +300,11 @@ fn relative_identifiers_are_rejected_at_construction_and_retained_json_admission
         LiveStreamProductId::parse(value)
     });
     assert!(
-        serde_json::from_value::<SessionRequest>(serde_json::json!({"session_id":".."})).is_err()
+        serde_json::from_value::<SessionRequest>(serde_json::json!({"sessionId":".."})).is_err()
     );
     assert!(
         serde_json::from_value::<OpenLiveViewRequest>(serde_json::json!({
-            "session_id":"s", "camera_id":"..", "viewer_instance_id":"viewer"
+            "sessionId":"s", "cameraId":"..", "viewerInstanceId":"viewer"
         }))
         .is_err()
     );

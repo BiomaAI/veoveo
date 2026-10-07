@@ -6,14 +6,62 @@
 |---|---|
 | Model Context Protocol | negotiated Streamable HTTP protocol plus the hosted-server requirements selected by a typed profile |
 | JSON-RPC 2.0 | MCP request and response envelopes |
+| Owner-generated JSON Schema Draft7 | guarded local definitions/ref and legacy dependencies/tuple subset; published MCP schemas retain their normative 2020-12 obligation |
 | JSON Schema 2020-12 | bounded tool input schemas with same-document references and composition, plus generated profile/report schemas |
 | OAuth 2.0 protected-resource metadata | unauthenticated Bearer rejection checks selected by the profile |
 | OAuth 2.0 client credentials / RFC 7523 | RS256 private-key client assertions with explicit installation key identity; redirects are rejected |
-| `veoveo.ai/mcp-conformance-profile/v1` | domain-neutral declaration of applicable hosted-server checks |
+| `veoveo.ai/mcp-conformance-profile/v2` | domain-neutral declaration of applicable hosted-server checks |
 | `veoveo.ai/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
-| `veoveo.ai/hosted-mcp/v3` | Veoveo hosted-server contract revision for MCP `2026-07-28` |
+| `veoveo.ai/hosted-mcp/v4` | Veoveo hosted-server contract revision for MCP `2026-07-28` |
 | `ai.veoveo/knowledge-source` | typed collection declarations, enumeration, observations and conditional member reads; [extension rules](../knowledge-extension/DESIGN.md#server-rules) |
 | `veoveo.ai/live-view/v4` | optional provider-neutral authoritative cameras, typed camera regions in shared encoded products, actor/browser authorization, Annex B H.264 WebSocket fanout, and redaction profile layered on a domain-owned simulation server |
+
+## Naming Inspection
+
+C33 inspects published tool input and output schema graphs using the same per-document
+structural limits as C07. One inspection permits 32 MiB of schemas and observed
+values, 500,000 traversal steps and 4,096 roots within thirty seconds. Local references
+use the maintained JSON Schema registry; inspection never retrieves a remote schema.
+Recursive data models preserve naming context through memoized visits. A reference
+cycle that makes no instance progress fails inspection. Exemptions belong to the
+annotated subtree; references and composition branches cannot exempt their siblings.
+Dictionary uses validate visible property and dependency names against the captured
+key schema, while mapped values keep their own naming context. Definitions are checked
+in each actual use context; unused definitions receive an unclassified inspection.
+Controlled object constants and dependency keys are inspected as instance fields.
+Examples and defaults remain annotations. A focused literal-association module
+uses maintained validators with the original document dialect and local registry.
+It selects successful alternatives, active conditionals and dependencies, matching
+property patterns and element constraints. Maintained evaluation output identifies
+which locations receive unevaluated-property or unevaluated-item constraints.
+Predicate and content schemas do not grant positive payload exemptions or trigger
+string decoding. A constant with no valid schema association is refused.
+
+The inspector admits default or declared JSON Schema 2020-12 and the owner-generated Draft7 subset. Other drafts and nested dialect declarations fail before validator preparation. The Draft7 subset admits guarded definitions/references, schema and
+name dependencies, tuple items and additional items under that declared dialect.
+Legacy applicators in a 2020-12 document, and modern applicators in a Draft7 document,
+require a consistent owner schema profile and are refused before reference preparation.
+Both dialects apply the same child reference, nested-identity and naming inspection;
+C07 continues to require closure separately.
+
+Owners may supply generated schemas and deliberately safe serialized observations
+through an in-memory API for nonadvertised bodies. Reports expose locations and counts,
+not observed bodies. Selection, discovery identifiers and metadata, and each observed
+node consume the original aggregate budget. One cached validator checks each owner's
+observations, with deadline checks before and after validation. The hosted runner
+shares its thirty-second discovery deadline across paged surfaces. Typed gateway
+degradation on any page makes the complete selection unavailable, including when
+other descriptors survive. Source-only declarations establish no remote observation. A missing selected observation
+or an empty schema selection returns `Incomplete`. Successful C33 inspection records
+`Mixed` coverage and `ReviewRequired`; source declarations cannot settle that review.
+Gateway tool names use the typed server/local projection; prompts stay unqualified.
+JWT, frozen, external and owner-specific declarations still require source review;
+remote inspection validates their structure and the built-in grammar it can establish.
+
+Adopted Apps and Knowledge metadata is decoded and inspected with the actual owning
+DTO schemas. This includes capability declarations, template collection declarations,
+search tool declarations and projected App dependencies. Other vendor metadata keeps
+its open vocabulary while consuming the same traversal and byte limits.
 
 ## Boundary
 
@@ -42,9 +90,10 @@ The test supplies a profile to this same hosted runner, then checks typed readin
 access and scope denial separately. A 60-second deadline and owned loopback listener
 bound the test. It uses synthetic credentials and requires no cluster or GPU.
 
-Repository checks discover hosted servers under `servers/*-mcp` and include the
-Python server template. Each manual declares C01–C32; a pending item states its
-qualification gap. C18–C21 must be met for every hosted server.
+Repository checks read complete checked profiles for the discovered Rust, Python and
+Node servers, both server templates, SUMO and independent fixtures. Each generated
+manual section agrees with that profile. Hosted certification requires C18–C21 met;
+other pending declarations state their qualification gaps.
 
 Tool input schemas retain the ordinary SDK representation. Conformance permits
 same-document `$ref` references and composition, and rejects external and dynamic
@@ -68,7 +117,7 @@ A profile names the expected implementation slug, selected contract revision, al
 resource URI schemes, HTTP boundary checks, and required, optional, or forbidden MCP
 surfaces. Each profile lists its required tool, resource, template, and prompt
 identities; the conformance client has no compiled registry of them. A hosted-server certificate selects
-exactly `veoveo.ai/hosted-mcp/v3`: resources are required, and the profile must name
+exactly `veoveo.ai/hosted-mcp/v4`: resources are required, and the profile must name
 the administrative `llms.txt` URL. Unauthenticated Bearer rejection is required for
 the MCP endpoint. C18–C21 cannot be disabled by a profile.
 
@@ -218,7 +267,10 @@ Certification reads the live contract declaration and binds it to the selection 
 observation. The selected revision must equal the conformance client's supported
 revision. The declaration's numeric revision must be the numeric member of that
 revision, and its server must match both the expected slug and discovered implementation.
-The declaration must mark C18–C21 met. Discover and the MCP lists supply the observed
+The complete declaration must match catalog revision 2 and mark C18–C21 met. Unknown
+IDs, duplicate entries and omissions fail admission. Discover checks C32 applicability
+in both directions: extension presence forbids `not_applicable`, and absence requires
+it. Discover and the MCP lists supply the observed
 capabilities. The client follows the relative document links published in `llms.txt`;
 it does not synthesize document URLs from parsed identifiers.
 
@@ -252,3 +304,23 @@ The thin `certify` binary is copied into the digest-addressed
 `veoveo/mcp-conformance` OCI image. The image contains no server implementation and
 runs as uid 10001. Installation operators mirror it into their private registry or
 offline bundle and execute it against extension endpoints.
+
+## Requirement Verification Coverage
+
+`src/requirements.rs` maps the closed catalog IDs to existing VV-MCP and K-series
+checks. Coverage revision 2 evolves separately from catalog revision 2. The generated
+`catalog/coverage.json` records runtime, review and mixed verification modes. A missing
+or skipped required check produces an incomplete outcome; a failed check produces
+failure. Review and mixed requirements require review even when their runtime checks
+pass. C12 HTTP probes do not prove all private surfaces are authorized; C31 catalog
+probes do not prove installation readiness policy. Both require review after their
+selected runtime checks pass. Owner declarations do not supply results. K09 and K10 remain explicit coverage
+gaps until the runner implements their checks.
+
+## Declaration And Runtime Selection
+
+The declaration profile contains foundational identities, checked catalog/profile and embedded document models. The positive runtime feature enables hosting, signing, security services and transport mechanics; defaults preserve the ordinary runtime surface. Generic conformance accepts bearer credentials outside serialized profiles and does not issue runtime identities. Owner smoke features select domain utilities and fixture dependencies at their actual component.
+
+## Certification Delivery
+
+The `conformance` and `certify` binaries accept an out-of-band bearer token. Their normal and build dependency graphs contain protocol declarations and shared client mechanics. Domain schemas, installation registries, signing fixtures and provider operations compile with their owning delivery targets. `conformance schemas` writes the two certification schemas; the Gateway composition's `gateway-smoke-support contract-schemas` command writes the complete installation schema set with its existing filenames.

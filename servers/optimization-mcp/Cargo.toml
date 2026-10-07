@@ -123,12 +123,12 @@ tracing = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
 veoveo-artifact-client = { path = "../../platform/artifacts/client", optional = true }
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension", optional = true }
-veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, optional = true }
 veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
-veoveo-mcp-contract = { workspace = true, features = ["testing"] }
+veoveo-mcp-contract = { workspace = true, features = ["runtime", "testing"] }
 veoveo-platform-store = { path = "../../platform/store", features = ["schema"] }
 veoveo-modules = { workspace = true, features = ["runner"] }
 # Qualified RFC 6570 expansion, matching the foundation's exact 0.7.14 pin.

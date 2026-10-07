@@ -1,5 +1,8 @@
 //! Owner-local acceptance for the Bioma enterprise composition.
 
+#[cfg(feature = "smoke")]
+pub mod reports;
+
 #[cfg(test)]
 mod tests {
     use std::{fs, path::PathBuf};
@@ -44,12 +47,12 @@ mod tests {
             .validate(&veoveo_gateway_catalog::registry().expect("catalog declarations"))
             .expect("valid Bioma control plane");
 
-        let identity = &bioma["identity_providers"][0];
+        let identity = &bioma["identityProviders"][0];
         let tenant_id = "e0ee3c6a-4f58-4f66-8de4-253226eeed5f";
-        assert_eq!(identity["claim_mapping"]["subject"], "oid");
-        assert_eq!(identity["claim_mapping"]["tenant"]["claim"], "tid");
+        assert_eq!(identity["claimMapping"]["subject"], "oid");
+        assert_eq!(identity["claimMapping"]["tenant"]["claim"], "tid");
         assert_eq!(
-            identity["claim_mapping"]["tenant"]["values"][tenant_id],
+            identity["claimMapping"]["tenant"]["values"][tenant_id],
             "bioma"
         );
         assert_eq!(
@@ -57,7 +60,7 @@ mod tests {
             format!("https://login.microsoftonline.com/{tenant_id}/v2.0")
         );
         assert_eq!(
-            bioma["oidc_clients"][0]["redirect_uri"],
+            bioma["oidcClients"][0]["redirectUri"],
             "https://veoveo.bioma.ai/oauth/callback"
         );
 
@@ -84,7 +87,7 @@ mod tests {
             resources
         };
         assert_eq!(ingest_surface(&bioma), ingest_surface(&local));
-        assert_eq!(bioma["data_labels"], local["data_labels"]);
+        assert_eq!(bioma["dataLabels"], local["dataLabels"]);
         let secrets = bioma["secrets"].as_array().unwrap();
         let workspace_secret = secrets
             .iter()
@@ -198,9 +201,9 @@ mod tests {
             .iter()
             .find(|server| server["slug"] == "uav-sim")
             .expect("Bioma registers the UAV server");
-        assert_eq!(uav["resource_projection"], "server_owned");
+        assert_eq!(uav["resourceProjection"], "server_owned");
         assert_eq!(
-            uav["referenced_resource_schemes"],
+            uav["referencedResourceSchemes"],
             serde_json::json!(["frames", "map", "recording"])
         );
     }
@@ -272,7 +275,7 @@ mod tests {
                 .as_object()
                 .expect("capability object");
             if capabilities
-                .get("resources_list_changed")
+                .get("resourcesListChanged")
                 .and_then(Value::as_bool)
                 == Some(true)
             {

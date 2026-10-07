@@ -60,8 +60,9 @@ pub use layers::{
     RecordingLayerState,
 };
 pub use sealing::{
-    ManifestBlueprint, RECORDING_MANIFEST_SCHEMA, RecordingManifest, RecordingManifestBuilder,
-    RecordingManifestSchema, SealRecordingOutput, SealRecordingOutputBuilder, SealRecordingRequest,
+    MAX_RECORDING_MANIFEST_BYTES, ManifestBlueprint, RECORDING_MANIFEST_SCHEMA, RecordingManifest,
+    RecordingManifestBuilder, RecordingManifestSchema, SealRecordingOutput,
+    SealRecordingOutputBuilder, SealRecordingRequest,
 };
 pub use views::{RecordingCatalogPage, RecordingView, RecordingViewBuilder};
 
@@ -70,3 +71,25 @@ pub mod policy;
 
 mod properties;
 pub use properties::{RecordingProperties, RecordingPropertiesBuilder};
+
+fn format_tag_role(schema: &mut schemars::Schema) {
+    *schema = veoveo_types::scalar_schema(
+        schema.clone(),
+        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
+    )
+    .expect("Recording format tag naming profile");
+}
+
+mod publication;
+pub use publication::{
+    RecordingArtifactMetadata, RecordingArtifactProvenance, RecordingArtifactProvenanceKind,
+    RecordingCaptureMetadata, RecordingOriginMetadata, RecordingPublisherContext,
+};
+
+fn projection_units_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    let schema = <std::collections::BTreeMap<String, String> as schemars::JsonSchema>::json_schema(
+        generator,
+    );
+    veoveo_types::dictionary_schema::<String>(generator, schema)
+        .expect("selected Rerun component identifier dictionary")
+}

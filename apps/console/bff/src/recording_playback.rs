@@ -344,62 +344,209 @@ mod tests {
         validated_manifest_bytes,
     };
 
+    #[test]
+    fn playback_browser_fixture_comes_from_current_owner_builders() {
+        use veoveo_recording_mcp::contract::{
+            PlaybackAccess, PlaybackArchive, PlaybackLiveReceiver, PlaybackLiveTransport,
+            PlaybackManifestBuilder, PlaybackManifestSchema, RecordingReadGrantId, RecordingState,
+        };
+        let dataset = RecordingDatasetId::parse("019fa000-0000-7000-8000-000000000002").unwrap();
+        let recording = RecordingId::parse("019fa000-0000-7000-8000-000000000001").unwrap();
+        let origin = RecordingRedapOrigin::from_http("https://archive.example").unwrap();
+        let live = PlaybackManifestBuilder {
+            schema: PlaybackManifestSchema::V11,
+            dataset_id: dataset,
+            recording_segment_id: recording,
+            application_id: "fixture".into(),
+            recording_key: "rollover".into(),
+            state: RecordingState::Live,
+            started_at: "2026-10-03T00:00:00Z".parse().unwrap(),
+            ended_at: None,
+            catalog_revision: "r1".into(),
+            access: PlaybackAccess {
+                grant_id: RecordingReadGrantId::parse("019fa000-0000-7000-8000-000000000003")
+                    .unwrap(),
+                redap_token: "fixture-0".into(),
+                expires_at: "2099-10-03T00:00:00Z".parse().unwrap(),
+            },
+            archive: None,
+            live: Some(PlaybackLiveReceiver {
+                history_seconds: 1,
+                video_preroll_seconds: 2,
+                transport: PlaybackLiveTransport::RerunRrdChannelV2,
+            }),
+            blueprint: None,
+        };
+        let mut sealed = live.clone();
+        sealed.state = RecordingState::Sealed;
+        sealed.live = None;
+        sealed.ended_at = Some("2026-10-03T00:01:00Z".parse().unwrap());
+        sealed.catalog_revision = "r4".into();
+        sealed.archive = Some(PlaybackArchive {
+            uri: PlaybackArchiveUri::new(&origin, dataset, recording),
+            dataset_id: dataset,
+            recording_segment_id: recording,
+            catalog_revision: sealed.catalog_revision.clone(),
+            rrd_version: "0.38.1".into(),
+            optimization_profile: "object-store".into(),
+            byte_len: 256,
+            layer_count: 2,
+        });
+        let sealed = sealed.build().unwrap();
+        let base = sealed.archive.as_ref().unwrap().uri.as_str();
+        let mut refused = Vec::new();
+        for change in [
+            "dataset",
+            "recording",
+            "duplicate",
+            "unsupported",
+            "escaped_key",
+            "escaped_value",
+            "encoded_path",
+            "port_zero",
+            "unspecified_v4",
+            "unspecified_v6",
+            "loopback_domain",
+            "loopback_v4",
+            "loopback_v6",
+            "loopback_http",
+        ] {
+            let mut uri = url::Url::parse(base).unwrap();
+            match change {
+                "dataset" => uri.set_path("/dataset/019FA000000070008000000000000004"),
+                "recording" => {
+                    uri.query_pairs_mut()
+                        .clear()
+                        .append_pair("segment_id", "019fa000-0000-7000-8000-000000000004");
+                }
+                "duplicate" => {
+                    uri.query_pairs_mut()
+                        .append_pair("segment_id", &recording.to_string());
+                }
+                "unsupported" => {
+                    uri.query_pairs_mut().append_pair("extra", "1");
+                }
+                "escaped_key" => {
+                    let query = uri.query().unwrap().replace("segment_id", "%73egment_id");
+                    uri.set_query(Some(&query));
+                }
+                "escaped_value" => {
+                    let query = uri.query().unwrap().replacen("=0", "=%30", 1);
+                    uri.set_query(Some(&query));
+                }
+                "encoded_path" => uri.set_path(&uri.path().replace("dataset", "%64ataset")),
+                "port_zero" => {
+                    uri.set_port(Some(0)).unwrap();
+                }
+                "unspecified_v4" => {
+                    uri.set_host(Some("0.0.0.0")).unwrap();
+                }
+                "unspecified_v6" => {
+                    uri.set_host(Some("[::]")).unwrap();
+                }
+                "loopback_domain" => {
+                    uri.set_host(Some("localhost")).unwrap();
+                    uri.set_port(Some(443)).unwrap();
+                }
+                "loopback_v4" => {
+                    uri.set_host(Some("127.0.0.1")).unwrap();
+                    uri.set_port(Some(443)).unwrap();
+                }
+                "loopback_v6" => {
+                    uri.set_host(Some("[::1]")).unwrap();
+                    uri.set_port(Some(443)).unwrap();
+                }
+                _ => {
+                    uri.set_scheme("rerun+http").unwrap();
+                    uri.set_host(Some("localhost")).unwrap();
+                    uri.set_port(Some(80)).unwrap();
+                }
+            }
+            let mut receiver = serde_json::to_value(&sealed).unwrap();
+            *receiver.pointer_mut("/archive/uri").unwrap() = json!(uri.as_str());
+            assert!(
+                validated_manifest_bytes(&serde_json::to_vec(&receiver).unwrap(), recording)
+                    .is_err(),
+                "{change}"
+            );
+            refused.push(uri.to_string());
+        }
+        let produced =
+            json!({"live": live.build().unwrap(), "sealed": sealed, "archiveRefusals": refused});
+        for value in [produced["live"].clone(), produced["sealed"].clone()] {
+            validated_manifest_bytes(&serde_json::to_vec(&value).unwrap(), recording).unwrap();
+        }
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../web/testdata/recording-playback.json");
+        if std::env::var_os("UPDATE_RECORDING_APP_FIXTURES").is_some() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(
+                &path,
+                format!("{}\n", serde_json::to_string_pretty(&produced).unwrap()),
+            )
+            .unwrap();
+        }
+        let captured: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        assert_eq!(produced, captured);
+    }
+
     fn manifest_value(recording_id: RecordingId) -> serde_json::Value {
         let dataset_id = RecordingDatasetId::new();
         let origin = RecordingRedapOrigin::from_http("https://veoveo.example").unwrap();
         json!({
             "schema": PLAYBACK_MANIFEST_SCHEMA,
-            "dataset_id": dataset_id,
-            "recording_segment_id": recording_id,
-            "application_id": "veoveo-uav-sim",
-            "recording_key": "inspection-flight",
+            "datasetId": dataset_id,
+            "recordingSegmentId": recording_id,
+            "applicationId": "veoveo-uav-sim",
+            "recordingKey": "inspection-flight",
             "state": "sealed",
-            "started_at": "2026-07-28T20:00:00Z",
-            "ended_at": null,
-            "catalog_revision": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "startedAt": "2026-07-28T20:00:00Z",
+            "endedAt": null,
+            "catalogRevision": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             "access": {
-                "grant_id": uuid::Uuid::now_v7(),
-                "redap_token": "scoped-token",
-                "expires_at": "2026-07-28T20:05:00Z"
+                "grantId": uuid::Uuid::now_v7(),
+                "redapToken": "scoped-token",
+                "expiresAt": "2026-07-28T20:05:00Z"
             },
             "archive": {
                 "uri": PlaybackArchiveUri::new(&origin, dataset_id, recording_id),
-                "dataset_id": dataset_id,
-                "recording_segment_id": recording_id,
-                "catalog_revision": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-                "rrd_version": "0.38.1",
-                "optimization_profile": "object-store",
-                "byte_len": 42,
-                "layer_count": 1
+                "datasetId": dataset_id,
+                "recordingSegmentId": recording_id,
+                "catalogRevision": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "rrdVersion": "0.38.1",
+                "optimizationProfile": "object-store",
+                "byteLen": 42,
+                "layerCount": 1
             },
             "live": null,
             "blueprint": {
-                "blueprint_id": "producer-default",
+                "blueprintId": "producer-default",
                 "revision": 3,
                 "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-                "byte_len": 512,
-                "map_provider": "mapbox"
+                "byteLen": 512,
+                "mapProvider": "mapbox"
             }
         })
     }
 
     #[test]
-    fn manifest_v10_is_canonicalized_after_identity_validation() {
+    fn manifest_v11_is_canonicalized_after_identity_validation() {
         let recording_id = RecordingId::new();
         let mut manifest = manifest_value(recording_id);
         manifest["state"] = json!("live");
         manifest["archive"] = serde_json::Value::Null;
         manifest["live"] = json!({
-            "history_seconds": 1,
-            "video_preroll_seconds": 2,
+            "historySeconds": 1,
+            "videoPrerollSeconds": 2,
             "transport": "rerun_rrd_channel_v2"
         });
         let body = serde_json::to_vec(&manifest).unwrap();
         let validated = validated_manifest_bytes(&body, recording_id).unwrap();
         let decoded: serde_json::Value = serde_json::from_slice(&validated).unwrap();
         assert_eq!(decoded["schema"], PLAYBACK_MANIFEST_SCHEMA);
-        assert_eq!(decoded["recording_segment_id"], recording_id.to_string());
-        assert_eq!(decoded["blueprint"]["map_provider"], "mapbox");
+        assert_eq!(decoded["recordingSegmentId"], recording_id.to_string());
+        assert_eq!(decoded["blueprint"]["mapProvider"], "mapbox");
         assert_eq!(decoded["live"]["transport"], "rerun_rrd_channel_v2");
     }
 
@@ -410,8 +557,8 @@ mod tests {
         manifest["state"] = json!("live");
         manifest["archive"] = serde_json::Value::Null;
         manifest["live"] = json!({
-            "history_seconds": 1,
-            "video_preroll_seconds": 2,
+            "historySeconds": 1,
+            "videoPrerollSeconds": 2,
             "transport": "http_rrd"
         });
         assert!(
@@ -509,7 +656,7 @@ mod tests {
         );
 
         let mut unknown_provider = manifest_value(recording_id);
-        unknown_provider["blueprint"]["map_provider"] = json!("silentFallback");
+        unknown_provider["blueprint"]["mapProvider"] = json!("silentFallback");
         assert!(
             validated_manifest_bytes(
                 &serde_json::to_vec(&unknown_provider).unwrap(),
@@ -523,11 +670,11 @@ mod tests {
     fn shared_playback_contract_rejects_invalid_identities_and_unknown_fields() {
         let recording = RecordingId::new();
         for pointer in [
-            "/dataset_id",
-            "/recording_segment_id",
-            "/access/grant_id",
-            "/archive/dataset_id",
-            "/archive/recording_segment_id",
+            "/datasetId",
+            "/recordingSegmentId",
+            "/access/grantId",
+            "/archive/datasetId",
+            "/archive/recordingSegmentId",
         ] {
             for invalid in [
                 "private-id",

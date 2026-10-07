@@ -11,24 +11,29 @@ fn database_pages_derive_identities_and_require_ordered_complete_continuations()
     assert_eq!(wire["limit"], 100);
     assert_eq!(
         wire["items"][0],
-        json!({"db_id":"db_000","db_uri":"duckdb://db/db_000"})
+        json!({"dbId":"db_000","dbUri":"duckdb://db/db_000"})
     );
     assert_eq!(page.next_cursor().unwrap().after().as_str(), "db_099");
     assert_eq!(
         serde_json::from_value::<DuckDbDatabasePage>(wire.clone()).unwrap(),
         page
     );
-    for (pointer, value) in [
-        ("/limit", json!(99)),
-        ("/items/0/db_id", json!("different")),
-        ("/items/0/db_uri", json!("duckdb://db/different")),
+    let schema = serde_json::to_value(schemars::schema_for!(DuckDbDatabasePage)).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&wire));
+    for (pointer, value, schema_valid) in [
+        ("/limit", json!(99), false),
+        ("/items/0/dbId", json!("different"), true),
+        ("/items/0/dbUri", json!("duckdb://db/different"), true),
         (
-            "/next_cursor",
+            "/nextCursor",
             json!(DuckDbDatabaseCursor::new("different".parse().unwrap())),
+            true,
         ),
     ] {
         let mut bad = wire.clone();
         *bad.pointer_mut(pointer).unwrap() = value;
+        assert_eq!(validator.is_valid(&bad), schema_valid, "{pointer}");
         assert!(
             serde_json::from_value::<DuckDbDatabasePage>(bad).is_err(),
             "{pointer}"

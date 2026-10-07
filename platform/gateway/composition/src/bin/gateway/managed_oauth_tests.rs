@@ -24,20 +24,20 @@ fn managed_state(store: &veoveo_platform_store::PlatformStore) -> AgentManagemen
     let catalog = GatewayCatalogHandle::new(Arc::new(agent_catalog::fixture_catalog()));
 
     let template = json!({
-        "id":"bounded", "name":"Bounded worker", "tenant":"test", "work_contexts":["shared"],
-        "required_deployer_scopes":["operator:use"], "profile":"operator", "scopes":["operator:use"], "roles":[], "membership":"contributor",
-        "models":["approved"], "tools":[], "resource_subscriptions":[],
-        "parameters":{"session":{"label":"Session", "shape":{"kind":"identifier","maxLength":40}, "environment_variable":"VEOVEO_PARAM_SESSION"}},
-        "workload":{"namespace":"agents", "config_map":"bounded-template", "config_digest":format!("sha256:{}", "b".repeat(64)), "image":format!("registry.test/kernel@sha256:{}", "a".repeat(64)),
-            "database_secret":"agent-store", "storage_class":"local-path", "storage_gib":2, "cpu_millis":500, "memory_mib":1024,
-            "model_secrets":[{"reference":"media_provider_api_key", "secret":"agent-model", "key":"api-key"}]}
+        "id":"bounded", "name":"Bounded worker", "tenant":"test", "workContexts":["shared"],
+        "requiredDeployerScopes":["operator:use"], "profile":"operator", "scopes":["operator:use"], "roles":[], "membership":"contributor",
+        "models":["approved"], "tools":[], "resourceSubscriptions":[],
+        "parameters":{"session":{"label":"Session", "shape":{"kind":"identifier","maxLength":40}, "environmentVariable":"VEOVEO_PARAM_SESSION"}},
+        "workload":{"namespace":"agents", "configMap":"bounded-template", "configDigest":format!("sha256:{}", "b".repeat(64)), "image":format!("registry.test/kernel@sha256:{}", "a".repeat(64)),
+            "databaseSecret":"agent-store", "storageClass":"local-path", "storageGib":2, "cpuMillis":500, "memoryMib":1024,
+            "modelSecrets":[{"reference":"media_provider_api_key", "secret":"agent-model", "key":"api-key"}]}
     });
     let templates = Arc::new(
         ManagedTemplateCatalog::from_json(&json!([template]).to_string(), &catalog.current())
             .unwrap(),
     );
     let gateway = crate::bindings::gateway_state(store.clone(), templates.clone()).unwrap();
-    let model:ModelConnection=serde_json::from_value(json!({"id":"approved","name":"Approved model","provider":"Fixture","tenant":"test","work_contexts":["shared"],"base_url":"https://provider.test/v1","model":"model","api_key":"media_provider_api_key","limits":{"maxOutputTokens":128,"maxCompletionCalls":4,"maxToolCalls":8,"deadlineSeconds":120}})).unwrap();
+    let model:ModelConnection=serde_json::from_value(json!({"id":"approved","name":"Approved model","provider":"Fixture","tenant":"test","workContexts":["shared"],"baseUrl":"https://provider.test/v1","model":"model","apiKey":"media_provider_api_key","limits":{"maxOutputTokens":128,"maxCompletionCalls":4,"maxToolCalls":8,"deadlineSeconds":120}})).unwrap();
     let scope = veoveo_mcp_gateway::http::ModuleTaskScope::new();
     AgentManagementState {
         agent_control: veoveo_agent_runtime::AgentControl::new(store.clone()).unwrap(),
@@ -196,7 +196,7 @@ async fn managed_token_http_route_resolves_durable_clients_before_resource_routi
     ] {
         let mut form = url::form_urlencoded::Serializer::new(String::new());
         form.append_pair("grant_type", "client_credentials")
-            .append_pair("client_id", &instance.identity.client_id);
+            .append_pair("clientId", &instance.identity.client_id);
         if let Some(resource) = resource {
             form.append_pair("resource", resource);
         }
@@ -235,7 +235,7 @@ async fn managed_token_http_route_resolves_durable_clients_before_resource_routi
     assert_eq!(status, StatusCode::OK);
     let mut form = url::form_urlencoded::Serializer::new(String::new());
     form.append_pair("grant_type", "client_credentials")
-        .append_pair("client_id", &instance.identity.client_id)
+        .append_pair("clientId", &instance.identity.client_id)
         .append_pair("resource", &instance.identity.resource);
     let response = tokens
         .oneshot(

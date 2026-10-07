@@ -174,6 +174,24 @@
       "type": "string"
     },
     "ArtifactAccessRequestId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_artifact_contract::ledger"
+              },
+              "profile": "ArtifactAccessRequestId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "ArtifactAccessSource": {
@@ -467,6 +485,24 @@
       ]
     },
     "ArtifactId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_artifact_contract::identity"
+              },
+              "profile": "ArtifactId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
       "type": "string"
     },
@@ -474,9 +510,27 @@
       "additionalProperties": false,
       "properties": {
         "kind": {
-          "type": "string"
+          "$ref": "#/$defs/RecordingArtifactProvenanceKind"
         },
         "layerId": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_recording_contract::ids"
+                  },
+                  "profile": "RecordingLayerId",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "type": [
             "string",
             "null"
@@ -490,6 +544,24 @@
           ]
         },
         "recordingId": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_recording_contract::ids"
+                  },
+                  "profile": "RecordingId",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "type": "string"
         }
       },
@@ -892,14 +964,68 @@
       "type": "object"
     },
     "DataLabelId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "DataLabelId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
       "type": "string"
     },
     "DelegationId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "DelegationId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Auditable identity of authority delegated by an initiator to another actor.",
       "type": "string"
     },
     "GatewayProfileId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::platform_names"
+              },
+              "profile": "GatewayProfileId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Veoveo profile id exposed under `/mcp/{profile}`.",
       "type": "string"
     },
@@ -912,6 +1038,24 @@
       "type": "string"
     },
     "GroupId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "GroupId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Identity-provider group identifier used by gateway policy.",
       "type": "string"
     },
@@ -925,6 +1069,24 @@
       "type": "string"
     },
     "LocalToolName": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::platform_names"
+              },
+              "profile": "LocalToolName",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Tool name as exposed by one direct MCP server.",
       "type": "string"
     },
@@ -983,6 +1145,24 @@
       "type": "object"
     },
     "PolicyVersion": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "PolicyVersion",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Immutable policy version identifier emitted with decisions and audit records.",
       "type": "string"
     },
@@ -1025,6 +1205,24 @@
       ]
     },
     "PrincipalId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "PrincipalId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Stable authenticated user or service-principal identity.",
       "type": "string"
     },
@@ -1045,7 +1243,33 @@
       "type": "object"
     },
     "PromptName": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::platform_names"
+              },
+              "profile": "PromptName",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Prompt name as exposed by one direct MCP server or gateway profile.",
+      "type": "string"
+    },
+    "RecordingArtifactProvenanceKind": {
+      "enum": [
+        "recording_layer",
+        "recording_blueprint",
+        "recording_manifest"
+      ],
       "type": "string"
     },
     "RecordingEvent": {
@@ -1071,6 +1295,24 @@
           "additionalProperties": false,
           "properties": {
             "id": {
+              "ai.veoveo/naming-profile": {
+                "revision": 1,
+                "role": {
+                  "kind": "scalar",
+                  "profile": {
+                    "declaration": {
+                      "applicability": "the declared scalar identity schema",
+                      "authority": {
+                        "kind": "owner",
+                        "module": "veoveo_recording_contract::ids"
+                      },
+                      "profile": "RecordingId",
+                      "version": "unversioned"
+                    },
+                    "kind": "owner_identity"
+                  }
+                }
+              },
               "type": "string"
             },
             "op": {
@@ -1120,6 +1362,24 @@
           ]
         },
         "id": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "declaration": {
+                  "applicability": "the declared scalar identity schema",
+                  "authority": {
+                    "kind": "owner",
+                    "module": "veoveo_recording_contract::ids"
+                  },
+                  "profile": "RecordingId",
+                  "version": "unversioned"
+                },
+                "kind": "owner_identity"
+              }
+            }
+          },
           "type": "string"
         },
         "lastDataAt": {
@@ -1185,17 +1445,37 @@
     },
     "ResetReason": {
       "enum": [
-        "cursor-out-of-range",
-        "seed-failed",
-        "replay-failed"
+        "cursor_out_of_range",
+        "seed_failed",
+        "replay_failed"
       ],
       "type": "string"
     },
     "ResourceScheme": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "resource_scheme",
+            "kind": "builtin"
+          }
+        }
+      },
       "description": "Server-owned resource URI scheme, for example `media`.",
       "type": "string"
     },
     "ScopeName": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "scope_name",
+            "kind": "builtin"
+          }
+        }
+      },
       "description": "OAuth/OIDC scope value. It must not contain whitespace or control characters.",
       "type": "string"
     },
@@ -1302,6 +1582,16 @@
       "type": "object"
     },
     "ServerSlug": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "server_slug",
+            "kind": "builtin"
+          }
+        }
+      },
       "description": "Canonical hosted MCP server id used in manifests, profiles, and gateway routes.",
       "type": "string"
     },
@@ -1489,6 +1779,24 @@
       ]
     },
     "TaskId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::task"
+              },
+              "profile": "TaskId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "maxLength": 45,
       "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
       "type": "string"
@@ -1569,10 +1877,38 @@
       "type": "object"
     },
     "TaskTypeName": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "grammar": "task_type_name",
+            "kind": "builtin"
+          }
+        }
+      },
       "description": "A Task operation name: 1–128 ASCII bytes, starting with a lowercase letter,\nfollowed by lowercase letters, digits, dots, underscores or hyphens.",
       "type": "string"
     },
     "TenantId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "TenantId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Tenant, organization, or customer boundary identifier.",
       "type": "string"
     },
@@ -1583,9 +1919,45 @@
       "type": "string"
     },
     "UpstreamUrl": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_gateway_contract::http"
+              },
+              "profile": "UpstreamUrl",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "type": "string"
     },
     "WorkContextId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "WorkContextId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Tenant-local boundary that governs related work and every output it produces.",
       "type": "string"
     },

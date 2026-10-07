@@ -247,7 +247,7 @@ fn disabled_gateway_and_knowledge_emit_no_module_plan_or_mount() -> Result<()> {
 
 #[test]
 fn optimization_receives_the_same_revisioned_runtime_plan() -> Result<()> {
-    let values = json!({"installationPreset":"custom", "components":["gateway","platform-store","artifact-service","object-store"], "mcpServers":["optimization"]});
+    let values = json!({"installationPreset":"custom", "components":["gateway","platform-store","artifact-service","object-store"], "mcpServers":["optimization","frames"]});
     let rendered = objects(render(&values)?)?;
     let deployment = find(&rendered, "Deployment", "optimization-mcp")?;
     let pod = &deployment["spec"]["template"]["spec"];
@@ -292,6 +292,72 @@ fn optimization_receives_the_same_revisioned_runtime_plan() -> Result<()> {
             .is_string()
     );
     ensure!(server["readinessProbe"].is_object());
+    for component in ["artifact-service", "frames-mcp"] {
+        let artifact = find(&rendered, "Deployment", component)?;
+        let artifact_pod = &artifact["spec"]["template"]["spec"];
+        let artifact_server = artifact_pod["containers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|container| container["name"] == component)
+            .unwrap();
+        let env = |name: &str| {
+            artifact_server["env"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|env| env["name"] == name)
+                .with_context(|| format!("{component} missing {name}"))
+        };
+        ensure!(env("VEOVEO_MODULE_PLAN")?["value"] == "/etc/veoveo/modules/plan.json");
+        for name in [
+            "VEOVEO_MODULE_COMPOSITION",
+            "VEOVEO_INSTALLATION_GENERATION",
+            "VEOVEO_CREDENTIAL_REVISION",
+        ] {
+            let expected = server["env"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|env| env["name"] == name)
+                .unwrap();
+            ensure!(env(name)?["value"] == expected["value"]);
+        }
+        let runtime_user = &env("VEOVEO_SURREAL_RUNTIME_USERNAME")?["valueFrom"]["secretKeyRef"];
+        ensure!(runtime_user["key"] == "username" && runtime_user["name"].is_string());
+        ensure!(env("VEOVEO_SURREAL_USERNAME")?["valueFrom"]["secretKeyRef"] == *runtime_user);
+        ensure!(
+            artifact_server["volumeMounts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|mount| mount["name"] == "module-plan"
+                    && mount["mountPath"] == "/etc/veoveo/modules"
+                    && mount["readOnly"] == true)
+        );
+        let plan_volume = artifact_pod["volumes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|volume| volume["name"] == "module-plan")
+            .unwrap();
+        let plan_name = plan_volume["configMap"]["name"]
+            .as_str()
+            .context("runtime plan ConfigMap")?;
+        find(&rendered, "ConfigMap", plan_name)?;
+        let annotations = &artifact["spec"]["template"]["metadata"]["annotations"];
+        for name in [
+            "veoveo.ai/installation-generation",
+            "checksum/module-plan",
+            "veoveo.ai/database-credential-revision",
+        ] {
+            ensure!(annotations[name].is_string());
+            ensure!(
+                annotations[name]
+                    == deployment["spec"]["template"]["metadata"]["annotations"][name]
+            );
+        }
+    }
     let executor = pod["containers"]
         .as_array()
         .unwrap()

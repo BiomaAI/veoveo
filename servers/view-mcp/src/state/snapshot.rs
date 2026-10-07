@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 /// Frozen, internally consistent capture input. Admission checks run on both
 /// construction and decoding; the public accessors cannot mutate the snapshot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(try_from = "SnapshotWire")]
 pub struct ViewCaptureSnapshot {
     view: ViewRecord,
@@ -56,6 +57,7 @@ impl ViewCaptureSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SnapshotWire {
     view: ViewRecord,
     composition: ResolvedSceneComposition,

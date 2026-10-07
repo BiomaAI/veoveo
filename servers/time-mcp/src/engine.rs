@@ -664,7 +664,7 @@ mod tests {
         TimeAuthorityReference::new(
             TimeAuthorityReleaseUri::bootstrap(&release_id),
             dataset_kind,
-            TimeAuthoritySource::Bootstrap,
+            TimeAuthoritySource::Bootstrap {},
             veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
             release_id.to_string(),
         )
@@ -744,9 +744,36 @@ mod tests {
         );
         let value = serde_json::to_value(output).unwrap();
 
-        assert!(value["effective_authority"]["tzdb"]["source_digest"].is_string());
-        assert!(value.get("clock_quality").is_none());
-        assert!(value.get("effective_policy").is_none());
+        assert!(value["effectiveAuthority"]["tzdb"]["sourceDigest"].is_string());
+        let schema = serde_json::to_value(schemars::schema_for!(ResolveTimeOutput)).unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        assert!(validator.is_valid(&value));
+        for (path, current, retired) in [
+            ("", "effectiveAuthority", "effective_authority"),
+            ("", "utcRfc3339", "utc_rfc3339"),
+            ("/instant", "taiSecondsSince1970", "tai_seconds_since_1970"),
+            ("/instant/authority", "tzdbReleaseId", "tzdb_release_id"),
+            ("/effectiveAuthority", "leapSeconds", "leap_seconds"),
+            ("/effectiveAuthority/tzdb", "sourceDigest", "source_digest"),
+        ] {
+            for mixed in [false, true] {
+                let mut bad = value.clone();
+                let object = bad.pointer_mut(path).unwrap().as_object_mut().unwrap();
+                let field = object[current].clone();
+                if !mixed {
+                    object.remove(current);
+                }
+                object.insert(retired.into(), field);
+                assert!(!validator.is_valid(&bad), "{path}/{retired} mixed={mixed}");
+                assert!(
+                    serde_json::from_value::<ResolveTimeOutput>(bad).is_err(),
+                    "{path}/{retired} mixed={mixed}"
+                );
+            }
+        }
+
+        assert!(value.get("clockQuality").is_none());
+        assert!(value.get("effectivePolicy").is_none());
     }
 
     #[test]

@@ -21,7 +21,7 @@ from veoveo_mcp.contract import (
     PutArtifactRequest,
 )
 from veoveo_mcp.contract.identity import GatewayInternalIdentity
-from veoveo_mcp.types import ResourceUri
+from veoveo_mcp.types import ChronoTimestamp, ResourceUri
 from veoveo_mcp.tasks import (
     Conflict,
     mcp_task_completion,
@@ -89,10 +89,10 @@ async def start_profile_task(
         capability = await state.artifacts.issue_write_capability(
             caller,
             IssueArtifactWriteCapabilityRequest(
-                task_id=str(task_id),
-                expires_at=datetime.now(timezone.utc) + ARTIFACT_CAPABILITY_TTL,
-                max_artifact_count=1,
-                max_total_bytes=state.max_artifact_bytes,
+                taskId=str(task_id),
+                expiresAt=ChronoTimestamp.from_datetime(datetime.now(timezone.utc) + ARTIFACT_CAPABILITY_TTL),
+                maxArtifactCount=1,
+                maxTotalBytes=state.max_artifact_bytes,
             ),
         )
     request_payload: dict[str, Any] = {
@@ -234,7 +234,7 @@ async def _run_task_inner(
                 capability,
                 f"datasheet:{task_id}:profile",
                 PutArtifactRequest(
-                    mime_type=ARTIFACT_MIME,
+                    mimeType=ARTIFACT_MIME,
                     filename=f"datasheet-profile-{task_id}.json",
                     metadata={
                         "task_id": task_id,

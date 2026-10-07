@@ -570,7 +570,7 @@ mod tests {
             vehicle_id: VehicleId::parse("uav-1").unwrap(),
             expected_world_revision_uri: revision_uri,
             map_route: MapRouteHandoffBuilder {
-                schema_profile: MapRouteHandoffSchema::V1,
+                schema_profile: MapRouteHandoffSchema::V2,
                 route_uri: veoveo_map_mcp::contract::MapRouteUri::new(
                     veoveo_map_mcp::contract::RouteId::from_stable_key(b"native"),
                 ),

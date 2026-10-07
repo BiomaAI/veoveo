@@ -9,12 +9,14 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     time::Duration,
 };
+use veoveo_gateway_contract::GatewayDiscoveryDegradation;
 use veoveo_gateway_contract::GatewayDiscoveryFailureCode;
 use veoveo_knowledge_contract::{
     CollectionRegistration, KnowledgeCollectionApproval, KnowledgeError,
 };
+use veoveo_mcp_contract::GatewayDiscoveryMetadata;
 use veoveo_mcp_contract::{
-    GatewayDiscoveryDegradation, ServerResourceUris,
+    ServerResourceUris,
     docs::{CONTRACT_REVISION, ContractDeclaration},
 };
 use veoveo_mcp_knowledge_extension::{
@@ -203,16 +205,24 @@ impl GatewaySource {
                     let declaration: ContractDeclaration =
                         serde_json::from_str(text(&result, &uri, 256 * 1024)?)
                             .map_err(|_| KnowledgeError("invalid source contract declaration"))?;
-                    if declaration.server != server.as_str()
-                        || declaration.contract_revision != CONTRACT_REVISION
+                    if declaration.server().as_str() != server.as_str()
+                        || declaration.contract_revision() != CONTRACT_REVISION
                     {
                         return Err(KnowledgeError(
                             "source must implement the current hosted contract revision",
                         )
                         .into());
                     }
-                    declarations.insert(server.clone(), declaration.contract_revision);
-                    declaration.contract_revision
+                    declaration
+                        .profile()
+                        .check_knowledge_applicability(true)
+                        .map_err(|_| {
+                            KnowledgeError(
+                                "source contract contradicts its knowledge collection declaration",
+                            )
+                        })?;
+                    declarations.insert(server.clone(), declaration.contract_revision());
+                    declaration.contract_revision()
                 }
             };
             let registration = CollectionRegistration {

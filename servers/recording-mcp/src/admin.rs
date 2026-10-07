@@ -14,9 +14,7 @@ pub static SERVER_DOCS: LazyLock<ServerDocs> =
 
 #[cfg(test)]
 mod tests {
-    use veoveo_mcp_contract::docs::{
-        ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN, parse_compliance,
-    };
+    use veoveo_mcp_contract::docs::{ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN};
 
     use super::SERVER_DOCS;
 
@@ -25,11 +23,11 @@ mod tests {
         assert_eq!(SERVER_DOCS.server(), "recording");
         SERVER_DOCS.doc(DOC_ID_AGENTS).expect("agents document");
         SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
-        let compliance = parse_compliance(SERVER_DOCS.agent_manual().expect("agent manual"));
+        let compliance = SERVER_DOCS.profile().compliance();
         for id in ["C18", "C19", "C20", "C21"] {
             let item = compliance
                 .iter()
-                .find(|item| item.id == id)
+                .find(|item| item.id.as_str() == id)
                 .expect("declared checklist item");
             assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
         }

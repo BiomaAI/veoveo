@@ -21,6 +21,16 @@ export type PerceptionOperation =
   "object_detection" | "object_detection_tracking" | "instance_segmentation" | "pose_estimation";
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
+ * via the `definition` "LivePreviewSchema".
+ */
+export type LivePreviewSchema = "veoveo.ai/stream-live-preview/v2";
+/**
+ * This interface was referenced by `AppContracts`'s JSON-Schema
+ * via the `definition` "LiveResultsSchema".
+ */
+export type LiveResultsSchema = "veoveo.ai/stream-live-results/v2";
+/**
+ * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "LiveTransport".
  */
 export type LiveTransport = "rtp_h264_udp";
@@ -51,10 +61,10 @@ export interface AppContracts {
 export interface PipelineView {
   description: string;
   id: string;
-  model_uri?: string | null;
+  modelUri?: string | null;
   profile: PipelineProfile;
-  supports_live_input: boolean;
-  supports_recording_replay: boolean;
+  supportsLiveInput: boolean;
+  supportsRecordingReplay: boolean;
   title: string;
   uri: string;
 }
@@ -64,10 +74,10 @@ export interface PipelineView {
  */
 export interface LivePreviewView {
   chunks: EncodedVideoChunk[];
-  dropped_chunks: number;
-  received_video_frames: number;
-  schema: string;
-  session_id: string;
+  droppedChunks: number;
+  receivedVideoFrames: number;
+  schema: LivePreviewSchema;
+  sessionId: string;
   video: LiveVideoView;
 }
 /**
@@ -75,7 +85,7 @@ export interface LivePreviewView {
  * via the `definition` "EncodedVideoChunk".
  */
 export interface EncodedVideoChunk {
-  data_base64: string;
+  dataBase64: string;
   keyframe: boolean;
   /**
    * Decode-order identity. This is the ordering contract for retained chunks.
@@ -85,7 +95,7 @@ export interface EncodedVideoChunk {
    * H.264 presentation timestamp in microseconds. AVC frame reordering can make
    * presentation timestamps non-monotonic in decode sequence.
    */
-  timestamp_us: number;
+  timestampUs: number;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -96,8 +106,8 @@ export interface LiveVideoView {
    * RFC 6381 AVC codec string admitted with the native pipeline.
    */
   codec: string;
-  expected_bitrate_bps: number;
-  frame_rate: number;
+  expectedBitrateBps: number;
+  frameRate: number;
   height: number;
   width: number;
 }
@@ -106,12 +116,12 @@ export interface LiveVideoView {
  * via the `definition` "LiveResultsView".
  */
 export interface LiveResultsView {
-  dropped_result_frames: number;
+  droppedResultFrames: number;
   frames: LiveResultFrame[];
-  pipeline_id: string;
-  processed_frames: number;
-  schema: string;
-  session_id: string;
+  pipelineId: string;
+  processedFrames: number;
+  schema: LiveResultsSchema;
+  sessionId: string;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -124,7 +134,7 @@ export interface LiveResultFrame {
    * are intentionally not used because AVC reordering can make them non-monotonic.
    */
   index: number;
-  observed_at: string;
+  observedAt: string;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -132,18 +142,18 @@ export interface LiveResultFrame {
  */
 export interface Detection {
   bounds: BoundingBox2D;
-  class_id: number;
+  classId: number;
   /**
    * Detector confidence. DeepStream does not provide this value for every
    * clustering mode or tracker-propagated object.
    */
   confidence?: number | null;
   label: string;
-  track_id?: number | null;
+  trackId?: number | null;
   /**
    * Tracker confidence when the selected tracker exposes one.
    */
-  tracker_confidence?: number | null;
+  trackerConfidence?: number | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -163,18 +173,18 @@ export interface LiveSessionView {
   error?: string | null;
   ingress: LiveIngressView;
   lifecycle: LiveSessionLifecycle;
-  newest_result_at?: string | null;
-  pipeline_id: string;
-  pipeline_uri: string;
-  preview_uri: string;
-  processed_frames: number;
-  received_video_frames: number;
-  recording_output?: LiveRecordingOutputView | null;
-  results_uri: string;
-  session_id: string;
-  session_uri: string;
-  started_at: string;
-  stopped_at?: string | null;
+  newestResultAt?: string | null;
+  pipelineId: string;
+  pipelineUri: string;
+  previewUri: string;
+  processedFrames: number;
+  receivedVideoFrames: number;
+  recordingOutput?: LiveRecordingOutputView | null;
+  resultsUri: string;
+  sessionId: string;
+  sessionUri: string;
+  startedAt: string;
+  stoppedAt?: string | null;
   video: LiveVideoView;
 }
 /**
@@ -183,9 +193,9 @@ export interface LiveSessionView {
  */
 export interface LiveIngressView {
   caps: string;
-  clock_rate: number;
+  clockRate: number;
   host: string;
-  payload_type: number;
+  payloadType: number;
   port: number;
   transport: LiveTransport;
 }
@@ -194,12 +204,12 @@ export interface LiveIngressView {
  * via the `definition` "LiveRecordingOutputView".
  */
 export interface LiveRecordingOutputView {
-  application_id: string;
-  entity_path: string;
+  applicationId: string;
+  entityPath: string;
   error?: string | null;
-  forwarded_video_frames: number;
+  forwardedVideoFrames: number;
   lifecycle: LiveRecordingLifecycle;
-  recording_key: string;
+  recordingKey: string;
   timeline: string;
 }
 /**
@@ -210,7 +220,7 @@ export interface LiveRecordingOutputView {
  */
 export interface LiveSessionsPage {
   limit: number;
-  next_cursor?: string | null;
+  nextCursor?: string | null;
   sessions: LiveSessionView[];
 }
 /**
@@ -219,13 +229,13 @@ export interface LiveSessionsPage {
  */
 export interface StartLiveSessionOutput {
   ingress: LiveIngressView;
-  pipeline_uri: string;
-  preview_uri: string;
-  recording_output?: LiveRecordingOutputView | null;
-  result_uri: string;
-  results_uri: string;
-  session_id: string;
-  started_at: string;
+  pipelineUri: string;
+  previewUri: string;
+  recordingOutput?: LiveRecordingOutputView | null;
+  resultUri: string;
+  resultsUri: string;
+  sessionId: string;
+  startedAt: string;
   video: LiveVideoView;
 }
 /**
@@ -234,9 +244,9 @@ export interface StartLiveSessionOutput {
  */
 export interface StopLiveSessionOutput {
   lifecycle: LiveSessionLifecycle;
-  processed_frames: number;
-  received_video_frames: number;
-  recording_output?: LiveRecordingOutputView | null;
-  result_uri: string;
-  stopped_at: string;
+  processedFrames: number;
+  receivedVideoFrames: number;
+  recordingOutput?: LiveRecordingOutputView | null;
+  resultUri: string;
+  stoppedAt: string;
 }

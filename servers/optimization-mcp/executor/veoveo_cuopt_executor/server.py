@@ -69,7 +69,7 @@ class ExecutorServer:
         run_id = "run-00000000-0000-7000-8000-000000000000"
         try:
             request = await read_frame(reader, self.maximum_frame_bytes)
-            run_id = request["run_id"]
+            run_id = request['runId']
             operation = require_mapping(request["operation"], "operation")
             operation_name = operation["operation"]
             if operation_name == "health":
@@ -79,7 +79,7 @@ class ExecutorServer:
                     "health": self.health.to_dict(),
                 }
             elif operation_name == "cancel":
-                target = operation.get("target_run_id")
+                target = operation.get('targetRunId')
                 if target == self.active_run_id:
                     LOGGER.warning(
                         "cancelling active run %s by terminating the worker",
@@ -135,7 +135,7 @@ class ExecutorServer:
                 "executor already has an active solve; queue in the control plane"
             )
         async with self.solve_lock:
-            self.active_run_id = request["run_id"]
+            self.active_run_id = request['runId']
             try:
                 return await asyncio.to_thread(
                     dispatch, operation, request["profile"], self.staging_root
@@ -207,7 +207,7 @@ def dispatch(
         from .mathematical import solve_model_file
 
         family = operation["family"]
-        path = _staged_path(operation["staged_path"], staging_root)
+        path = _staged_path(operation['stagedPath'], staging_root)
         return {
             "result": "model",
             "solution": solve_model_file(family, str(path), profile),

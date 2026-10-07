@@ -25,8 +25,7 @@ pub struct ResumeUpdateInput {
     pub acknowledged_cancellation_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum MaintenancePhase {
     Queued,
     Stopping,
@@ -40,8 +39,7 @@ pub enum MaintenancePhase {
     RecoveryRequired,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum MaintenanceRecoveryReason {
     ObservationBudgetExhausted,
     AuthorityDenied,

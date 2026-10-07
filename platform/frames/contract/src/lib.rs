@@ -26,6 +26,7 @@ use veoveo_artifact_contract::ArtifactMetadata;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct EcefPosition {
     pub x_m: f64,
     pub y_m: f64,
@@ -34,6 +35,7 @@ pub struct EcefPosition {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct WorldFramePosition {
     pub frame_uri: WorldFrameUri,
     pub x_m: f64,
@@ -44,6 +46,7 @@ pub struct WorldFramePosition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all_fields = "camelCase")]
 pub enum CoordinatePoint {
     Wgs84(Wgs84Position),
     EcefWgs84(EcefPosition),
@@ -52,6 +55,7 @@ pub enum CoordinatePoint {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ConvertFrameRequest {
     pub target: CoordinateSpace,
     #[schemars(length(min = 1, max = 10_000))]
@@ -62,6 +66,7 @@ pub struct ConvertFrameRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ConvertFrameOutput {
     pub points: Vec<CoordinatePoint>,
     pub provenance: CoordinateOperationProvenance,
@@ -70,6 +75,7 @@ pub struct ConvertFrameOutput {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateWorldRequest {
     pub world_id: FrameWorldId,
     pub display_name: String,
@@ -79,12 +85,14 @@ pub struct CreateWorldRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateWorldOutput {
     pub world: FrameWorldSummary,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct PublishWorldRequest {
     pub world_id: FrameWorldId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -94,6 +102,7 @@ pub struct PublishWorldRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct PublishWorldOutput {
     pub world: FrameWorldSummary,
     pub revision: FrameWorldRevision,
@@ -102,6 +111,7 @@ pub struct PublishWorldOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct BatchTransformRequest {
     pub convert: ConvertFrameRequest,
     #[serde(default)]
@@ -110,6 +120,7 @@ pub struct BatchTransformRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct BatchTransformOutput {
     pub result: ConvertFrameOutput,
     #[serde(default, skip_serializing_if = "Option::is_none")]

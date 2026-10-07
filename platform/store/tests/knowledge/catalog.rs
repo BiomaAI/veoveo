@@ -112,3 +112,35 @@ async fn complete_catalog_replacement_fences_racing_discovery_and_removed_approv
     .await
     .expect("catalog replacement exceeded 120 seconds");
 }
+
+#[tokio::test]
+async fn current_public_approval_roundtrips_through_native_projection_and_sql_selection() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let db = fixture::TestDb::new().await;
+        let mut registration = registration("current-approval");
+        registration.approval.authoritative_for = [KnowledgeSubject::new("facilities").unwrap()].into();
+        registration.approval.data_labels = ["restricted".parse().unwrap()].into();
+        registration.validate().unwrap();
+        db.a.register_knowledge_collection(&registration, None).await.unwrap();
+        assert_eq!(db.a.knowledge_collection(&registration.tenant, registration.descriptor.collection()).await.unwrap(), Some(registration.clone()));
+        let root = source::enumeration_uri(&registration.descriptor, None).unwrap();
+        let approvals = [(registration.approval.collection.clone(), registration.approval.clone())].into();
+        let scopes = registration.descriptor.required_scopes().clone();
+        assert_eq!(db.a.knowledge_collection_at_root(&registration.tenant, &root, &approvals, &scopes).await.unwrap(), Some(registration.clone()));
+        let selected = db.a.readable_knowledge_collections(&registration.tenant, &approvals, &scopes, veoveo_platform_store::knowledge::CatalogSelection::All).await.unwrap();
+        assert_eq!(selected, vec![registration.clone()]);
+        let mut response = db.a.client().query(include_str!("../queries/knowledge/catalog/read_approval.surql"))
+            .bind(("tenant", registration.tenant.to_string()))
+            .bind(("collection", registration.descriptor.collection().to_string()))
+            .await.unwrap().check().unwrap();
+        let native: Vec<veoveo_platform_store::Value> = response.take(0).unwrap();
+        assert_eq!(native.len(), 1);
+        let native = veoveo_platform_store::native_json_from_value_strict(native.into_iter().next().unwrap()).unwrap();
+        assert_eq!(native, serde_json::json!({"collection":"fixture.records", "mode":"index", "stewards":["stewards"], "authoritative_for":["facilities"], "data_labels":["restricted"]}));
+        let mut foreign = registration.approval.clone();
+        foreign.data_labels = ["other-label".parse().unwrap()].into();
+        let foreign = [(foreign.collection.clone(), foreign)].into();
+        assert!(db.a.knowledge_collection_at_root(&registration.tenant, &root, &foreign, &scopes).await.unwrap().is_none());
+        assert!(db.a.readable_knowledge_collections(&registration.tenant, &foreign, &scopes, veoveo_platform_store::knowledge::CatalogSelection::All).await.unwrap().is_empty());
+    }).await.unwrap();
+}

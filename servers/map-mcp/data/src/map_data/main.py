@@ -13,7 +13,7 @@ from map_data.adapters import (
     normalize_maritime,
     normalize_osm,
 )
-from map_data.contract import ContractError, NormalizeCommand, NormalizeResult
+from map_data.contract import ContractError, NormalizeCommand, NormalizeResult, QualityReport
 
 
 ADAPTERS = {
@@ -54,13 +54,11 @@ def run(value) -> NormalizeResult:
     if adapter is None:
         raise ContractError(f"unsupported adapter_kind {command.adapter_kind!r}")
     normalized, quality_report, routing_build = adapter(command)
-    quality = json.loads(quality_report.read_text(encoding="utf-8"))
-    if not quality.get("passed"):
-        failed = [
-            check.get("name", "unknown")
-            for check in quality.get("checks", [])
-            if not check.get("passed")
-        ]
+    quality = QualityReport.model_validate_json(quality_report.read_text(encoding="utf-8"))
+    if quality.acquisition_id != command.acquisition_id:
+        raise ContractError("quality report acquisition or adapter does not match the command")
+    if not quality.passed:
+        failed = [check.name for check in quality.checks if not check.passed]
         raise ContractError(f"normalization quality checks failed: {failed}")
     enforce_output_limit(
         command,
@@ -69,12 +67,13 @@ def run(value) -> NormalizeResult:
     digest = sha256(command.source_path)
     version_label = f"sha256:{digest}"
     return NormalizeResult(
-        acquisition_id=command.acquisition_id,
-        source_digest_sha256=digest,
-        version_label=version_label,
-        normalized_paths=normalized,
-        quality_report_path=quality_report,
-        routing_build_path=routing_build,
+        schemaVersion=2,
+        acquisitionId=command.acquisition_id,
+        sourceDigestSha256=digest,
+        versionLabel=version_label,
+        normalizedPaths=normalized,
+        qualityReportPath=quality_report,
+        routingBuildPath=routing_build,
     )
 
 

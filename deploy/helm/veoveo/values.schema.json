@@ -485,11 +485,11 @@
                       "name",
                       "provider",
                       "tenant",
-                      "work_contexts",
-                      "base_url",
+                      "workContexts",
+                      "baseUrl",
                       "model",
-                      "api_key",
-                      "required_scopes",
+                      "apiKey",
+                      "requiredScopes",
                       "limits"
                     ],
                     "properties": {
@@ -514,7 +514,7 @@
                         "minLength": 1,
                         "maxLength": 128
                       },
-                      "work_contexts": {
+                      "workContexts": {
                         "type": "array",
                         "minItems": 1,
                         "maxItems": 64,
@@ -525,7 +525,7 @@
                           "maxLength": 128
                         }
                       },
-                      "base_url": {
+                      "baseUrl": {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 2048,
@@ -536,12 +536,12 @@
                         "minLength": 1,
                         "maxLength": 256
                       },
-                      "api_key": {
+                      "apiKey": {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 128
                       },
-                      "required_scopes": {
+                      "requiredScopes": {
                         "type": "array",
                         "maxItems": 64,
                         "uniqueItems": true,
@@ -596,15 +596,15 @@
                       "id",
                       "name",
                       "tenant",
-                      "work_contexts",
-                      "required_deployer_scopes",
+                      "workContexts",
+                      "requiredDeployerScopes",
                       "profile",
                       "scopes",
                       "roles",
                       "membership",
                       "models",
                       "tools",
-                      "resource_subscriptions",
+                      "resourceSubscriptions",
                       "parameters",
                       "workload"
                     ],
@@ -624,7 +624,7 @@
                         "minLength": 1,
                         "maxLength": 128
                       },
-                      "work_contexts": {
+                      "workContexts": {
                         "type": "array",
                         "items": {
                           "type": "string",
@@ -634,7 +634,7 @@
                         "uniqueItems": true,
                         "maxItems": 64
                       },
-                      "required_deployer_scopes": {
+                      "requiredDeployerScopes": {
                         "type": "array",
                         "items": {
                           "type": "string",
@@ -697,7 +697,7 @@
                         "uniqueItems": true,
                         "maxItems": 64
                       },
-                      "resource_subscriptions": {
+                      "resourceSubscriptions": {
                         "type": "array",
                         "items": {
                           "type": "string",
@@ -716,7 +716,7 @@
                           "required": [
                             "label",
                             "shape",
-                            "environment_variable"
+                            "environmentVariable"
                           ],
                           "properties": {
                             "label": {
@@ -801,7 +801,7 @@
                                 }
                               ]
                             },
-                            "environment_variable": {
+                            "environmentVariable": {
                               "type": "string",
                               "pattern": "^VEOVEO_PARAM_[A-Z0-9_]+$"
                             }
@@ -813,15 +813,15 @@
                         "additionalProperties": false,
                         "required": [
                           "namespace",
-                          "config_map",
-                          "config_digest",
+                          "configMap",
+                          "configDigest",
                           "image",
-                          "database_secret",
-                          "storage_class",
-                          "storage_gib",
-                          "cpu_millis",
-                          "memory_mib",
-                          "model_secrets"
+                          "databaseSecret",
+                          "storageClass",
+                          "storageGib",
+                          "cpuMillis",
+                          "memoryMib",
+                          "modelSecrets"
                         ],
                         "properties": {
                           "namespace": {
@@ -829,12 +829,12 @@
                             "minLength": 1,
                             "maxLength": 253
                           },
-                          "config_map": {
+                          "configMap": {
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 253
                           },
-                          "config_digest": {
+                          "configDigest": {
                             "type": "string",
                             "pattern": "^sha256:[a-f0-9]{64}$"
                           },
@@ -842,32 +842,32 @@
                             "type": "string",
                             "pattern": "@sha256:[a-f0-9]{64}$"
                           },
-                          "database_secret": {
+                          "databaseSecret": {
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 253
                           },
-                          "storage_class": {
+                          "storageClass": {
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 253
                           },
-                          "storage_gib": {
+                          "storageGib": {
                             "type": "integer",
                             "minimum": 1,
                             "maximum": 1024
                           },
-                          "cpu_millis": {
+                          "cpuMillis": {
                             "type": "integer",
                             "minimum": 100,
                             "maximum": 16000
                           },
-                          "memory_mib": {
+                          "memoryMib": {
                             "type": "integer",
                             "minimum": 256,
                             "maximum": 65536
                           },
-                          "model_secrets": {
+                          "modelSecrets": {
                             "type": "array",
                             "minItems": 1,
                             "maxItems": 64,
@@ -2198,10 +2198,10 @@
               "minLength": 1
             },
             "tag": {
-              "const": "v0.30.0"
+              "const": "v0.31.0"
             },
             "digest": {
-              "const": "sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90"
+              "const": "sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3"
             }
           }
         },
@@ -2259,11 +2259,19 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "precision",
             "gpuMemoryUtilization",
             "maxNumBatchedTokens",
             "maxNumSeqs"
           ],
           "properties": {
+            "precision": {
+              "type": "string",
+              "enum": [
+                "bfloat16",
+                "float16"
+              ]
+            },
             "gpuMemoryUtilization": {
               "type": "number",
               "exclusiveMinimum": 0,

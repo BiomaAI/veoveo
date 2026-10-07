@@ -164,3 +164,48 @@ fn table_names_preserve_quoted_identity_in_requests_and_metadata() {
         assert!(DuckDbSqlText::new(invalid).is_err());
     }
 }
+
+#[test]
+fn current_requests_refuse_retired_optional_fields_and_nested_reader_keys() {
+    let cases = [
+        (
+            json!({"db":"metrics","sql":"SELECT 1","rowLimit":10}),
+            "rowLimit",
+            "row_limit",
+        ),
+        (
+            json!({"db":"metrics","sql":"SELECT 1","timeoutMs":100}),
+            "timeoutMs",
+            "timeout_ms",
+        ),
+    ];
+    let schema = serde_json::to_value(schemars::schema_for!(DuckDbQueryRequest)).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    for (current, canonical, retired) in cases {
+        assert!(validator.is_valid(&current));
+        serde_json::from_value::<DuckDbQueryRequest>(current.clone()).unwrap();
+        for mixed in [false, true] {
+            let mut bad = current.clone();
+            bad[retired] = bad[canonical].clone();
+            if !mixed {
+                bad.as_object_mut().unwrap().remove(canonical);
+            }
+            assert!(!validator.is_valid(&bad));
+            assert!(serde_json::from_value::<DuckDbQueryRequest>(bad).is_err());
+        }
+    }
+    let current = json!({"timestampFormat":"%Y-%m-%d", "extra":{"sample_size":-1}});
+    let schema = serde_json::to_value(schemars::schema_for!(DuckDbReadOptions)).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&current));
+    serde_json::from_value::<DuckDbReadOptions>(current.clone()).unwrap();
+    for mixed in [false, true] {
+        let mut bad = current.clone();
+        bad["timestamp_format"] = bad["timestampFormat"].clone();
+        if !mixed {
+            bad.as_object_mut().unwrap().remove("timestampFormat");
+        }
+        assert!(!validator.is_valid(&bad));
+        assert!(serde_json::from_value::<DuckDbReadOptions>(bad).is_err());
+    }
+}

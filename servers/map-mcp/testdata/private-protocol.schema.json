@@ -4,29 +4,30 @@
     "title": "NormalizeCommand",
     "type": "object",
     "properties": {
-      "schema_version": {
+      "schemaVersion": {
         "type": "integer",
         "format": "uint32",
-        "minimum": 0
+        "minimum": 2,
+        "maximum": 2
       },
-      "acquisition_id": {
+      "acquisitionId": {
         "type": "string"
       },
-      "adapter_kind": {
+      "adapterKind": {
         "$ref": "#/$defs/SourceAdapterKind"
       },
-      "source_path": {
+      "sourcePath": {
         "type": "string"
       },
-      "output_dir": {
+      "outputDir": {
         "type": "string"
       },
-      "maximum_elapsed_seconds": {
+      "maximumElapsedSeconds": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       },
-      "maximum_output_bytes": {
+      "maximumOutputBytes": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
@@ -34,13 +35,13 @@
     },
     "additionalProperties": false,
     "required": [
-      "schema_version",
-      "acquisition_id",
-      "adapter_kind",
-      "source_path",
-      "output_dir",
-      "maximum_elapsed_seconds",
-      "maximum_output_bytes"
+      "schemaVersion",
+      "acquisitionId",
+      "adapterKind",
+      "sourcePath",
+      "outputDir",
+      "maximumElapsedSeconds",
+      "maximumOutputBytes"
     ],
     "$defs": {
       "SourceAdapterKind": {
@@ -64,30 +65,30 @@
     "title": "NormalizeResult",
     "type": "object",
     "properties": {
-      "schema_version": {
+      "schemaVersion": {
         "type": "integer",
         "format": "uint32",
         "minimum": 0
       },
-      "acquisition_id": {
+      "acquisitionId": {
         "$ref": "#/$defs/AcquisitionId"
       },
-      "source_digest_sha256": {
+      "sourceDigestSha256": {
         "type": "string"
       },
-      "version_label": {
+      "versionLabel": {
         "type": "string"
       },
-      "normalized_paths": {
+      "normalizedPaths": {
         "type": "array",
         "items": {
           "type": "string"
         }
       },
-      "quality_report_path": {
+      "qualityReportPath": {
         "type": "string"
       },
-      "routing_build_path": {
+      "routingBuildPath": {
         "type": [
           "string",
           "null"
@@ -96,16 +97,34 @@
     },
     "additionalProperties": false,
     "required": [
-      "schema_version",
-      "acquisition_id",
-      "source_digest_sha256",
-      "version_label",
-      "normalized_paths",
-      "quality_report_path"
+      "schemaVersion",
+      "acquisitionId",
+      "sourceDigestSha256",
+      "versionLabel",
+      "normalizedPaths",
+      "qualityReportPath"
     ],
     "$defs": {
       "AcquisitionId": {
-        "type": "string"
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_map_mcp::contract::ids"
+                },
+                "profile": "AcquisitionId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
       }
     }
   }

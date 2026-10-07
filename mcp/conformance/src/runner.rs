@@ -48,6 +48,17 @@ pub async fn run_hosted_server_conformance_with_probes(
     credentials: &ConformanceCredentials,
     probes: &crate::knowledge_probes::KnowledgeProbes<'_>,
 ) -> Result<ConformanceReport> {
+    run_hosted_server_conformance_with_evidence(profile, credentials, probes, &Default::default())
+        .await
+}
+
+/// Add typed owner schemas and deliberately safe observations without invoking domain tools.
+pub async fn run_hosted_server_conformance_with_evidence(
+    profile: &HostedServerConformanceProfile,
+    credentials: &ConformanceCredentials,
+    probes: &crate::knowledge_probes::KnowledgeProbes<'_>,
+    evidence: &crate::schema_evidence::NamingEvidence<'_>,
+) -> Result<ConformanceReport> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     profile.validate()?;
     let bearer_token = credentials
@@ -201,8 +212,11 @@ pub async fn run_hosted_server_conformance_with_probes(
             .is_some_and(|capability| capability.list_changed == Some(true))
         || tasks_advertised;
 
+    let naming_started = std::time::Instant::now();
     let tools = if should_query(profile.surfaces.tools, tools_advertised) {
-        match crate::catalog::tools(&client).await {
+        match crate::catalog::before_naming_deadline(naming_started, crate::catalog::tools(&client))
+            .await
+        {
             Ok(result) => Some(result),
             Err(error) => {
                 checks.push(failed(
@@ -226,7 +240,12 @@ pub async fn run_hosted_server_conformance_with_probes(
         })
         .unwrap_or_default();
     let resources = if should_query(profile.surfaces.resources, resources_advertised) {
-        match crate::catalog::resources(&client).await {
+        match crate::catalog::before_naming_deadline(
+            naming_started,
+            crate::catalog::resources(&client),
+        )
+        .await
+        {
             Ok(result) => Some(result),
             Err(error) => {
                 checks.push(failed(
@@ -259,7 +278,12 @@ pub async fn run_hosted_server_conformance_with_probes(
     );
 
     let templates = if resources_advertised {
-        match crate::catalog::templates(&client).await {
+        match crate::catalog::before_naming_deadline(
+            naming_started,
+            crate::catalog::templates(&client),
+        )
+        .await
+        {
             Ok(result) => Some(result),
             Err(error) => {
                 checks.push(failed(
@@ -293,7 +317,12 @@ pub async fn run_hosted_server_conformance_with_probes(
     );
 
     let prompts = if should_query(profile.surfaces.prompts, prompts_advertised) {
-        match crate::catalog::prompts(&client).await {
+        match crate::catalog::before_naming_deadline(
+            naming_started,
+            crate::catalog::prompts(&client),
+        )
+        .await
+        {
             Ok(result) => Some(result),
             Err(error) => {
                 checks.push(failed(
@@ -324,6 +353,21 @@ pub async fn run_hosted_server_conformance_with_probes(
         &prompt_names,
         &mut checks,
     );
+
+    let complete_catalogs = (!tools_advertised || tools.is_some())
+        && (!resources_advertised || resources.is_some())
+        && (!resources_advertised || templates.is_some())
+        && (!prompts_advertised || prompts.is_some());
+    checks.push(crate::naming::check_discovery_since(
+        naming_started,
+        complete_catalogs,
+        tools.as_deref().unwrap_or_default(),
+        resources.as_deref().unwrap_or_default(),
+        templates.as_deref().unwrap_or_default(),
+        prompts.as_deref().unwrap_or_default(),
+        info.capabilities.extensions.as_ref(),
+        evidence,
+    ));
 
     check_capability(
         "VV-MCP-COMPLETIONS-001",
@@ -570,27 +614,47 @@ async fn check_well_known_surface(
         Ok(text) => {
             match serde_json::from_str::<veoveo_mcp_contract::docs::ContractDeclaration>(&text) {
                 Ok(declaration) => {
-                    let revision_matches = declaration.contract_revision
+                    let revision_matches = declaration.contract_revision()
                         == veoveo_mcp_contract::docs::CONTRACT_REVISION;
-                    let identity_matches = declaration.server == profile.server_slug
-                        && declaration.server == implementation.name;
+                    let identity_matches = declaration.server().as_str() == profile.server_slug
+                        && declaration.server().as_str() == implementation.name;
                     let unmet: Vec<&str> = ["C18", "C19", "C20", "C21"]
                         .into_iter()
                         .filter(|id| {
-                            !declaration.compliance.iter().any(|item| {
-                                item.id == *id
+                            !declaration.compliance().iter().any(|item| {
+                                item.id.as_str() == *id
                                     && item.status
                                         == veoveo_mcp_contract::docs::ComplianceStatus::Met
                             })
                         })
                         .collect();
+                    let knowledge_declared = client
+                        .peer_info()
+                        .as_ref()
+                        .and_then(|info| info.capabilities.extensions.as_ref())
+                        .is_some_and(|extensions| {
+                            extensions.contains_key(
+                                veoveo_mcp_contract::docs::knowledge_extension::EXTENSION_ID,
+                            )
+                        });
+                    let applicability = declaration
+                        .profile()
+                        .check_knowledge_applicability(knowledge_declared);
+                    checks.push(match applicability {
+                        Ok(()) => passed(
+                            "VV-MCP-CONTRACT-003",
+                            "C32 applicability agrees with Discover",
+                            None,
+                        ),
+                        Err(error) => failed("VV-MCP-CONTRACT-003", error.to_string()),
+                    });
                     checks.push(if revision_matches && identity_matches && unmet.is_empty() {
                         passed(
                             "VV-MCP-CONTRACT-001",
                             "contract declaration matches the selected revision and server identity with C18-C21 met",
                             Some(json!({
-                                "server": declaration.server,
-                                "contractRevision": declaration.contract_revision,
+                                "server": declaration.server().as_str(),
+                                "contractRevision": declaration.contract_revision(),
                                 "selectedRevision": profile.contract_revision
                             })),
                         )
@@ -599,10 +663,10 @@ async fn check_well_known_surface(
                             "VV-MCP-CONTRACT-001",
                             format!(
                                 "declaration server {:?}, observed server {:?}, expected profile server {:?}; revision {} (expected {} for {}), unmet well-known items {unmet:?}",
-                                declaration.server,
+                                declaration.server().as_str(),
                                 implementation.name,
                                 profile.server_slug,
-                                declaration.contract_revision,
+                                declaration.contract_revision(),
                                 veoveo_mcp_contract::docs::CONTRACT_REVISION,
                                 profile.contract_revision,
                             ),

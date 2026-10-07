@@ -16,7 +16,7 @@ use veoveo_deploy_contract::{
 };
 use veoveo_deploy_runtime::{compile_component_lock, lock_source_charts};
 
-const IMAGE_STAGE_EVIDENCE_SCHEMA: &str = "veoveo.ai/image-stage-evidence/v2";
+const IMAGE_STAGE_EVIDENCE_SCHEMA: &str = "veoveo.ai/image-stage-evidence/v3";
 
 pub(crate) mod components;
 
@@ -1325,7 +1325,7 @@ mod tests {
         fs::write(
             &stage,
             serde_json::to_vec_pretty(&serde_json::json!({
-                "schemaVersion": "veoveo.ai/image-stage-evidence/v2",
+                "schemaVersion": "veoveo.ai/image-stage-evidence/v3",
                 "sourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "registry": {
                     "pushAddress": "registry.example.invalid",

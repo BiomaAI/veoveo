@@ -62,11 +62,33 @@ impl JsonSchema for DuckDbReadOptionName {
         "DuckDbReadOptionName".into()
     }
     fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        schemars::json_schema!({
+        let schema = schemars::json_schema!({
             "type":"string", "pattern":"^[a-z_]",
             "not":{"anyOf":[{"enum":RESERVED_NAMES},{"pattern":"[^a-z0-9_]"}]},
             "description":"Lowercase reader option name; use explicit fields for header, delimiter and timestamp format."
-        })
+        });
+        use veoveo_types::naming::{
+            NamingAuthority, NamingDeclaration, NamingLabel, ScalarNaming, scalar_schema,
+        };
+        scalar_schema(
+            schema,
+            ScalarNaming::Standard {
+                declaration: NamingDeclaration {
+                    authority: NamingAuthority::Standard {
+                        document: veoveo_types::HttpsUrl::parse(
+                            "https://duckdb.org/docs/stable/data/csv/overview.html",
+                        )
+                        .expect("declared upstream URL"),
+                    },
+                    profile: NamingLabel::new("DuckDB reader option names")
+                        .expect("declared scalar profile"),
+                    version: NamingLabel::new("1.5.6").expect("pinned reader version"),
+                    applicability: NamingLabel::new("only extra reader-option dictionary names")
+                        .expect("declared scalar applicability"),
+                },
+            },
+        )
+        .expect("upstream reader option scalar schema")
     }
 }
 
@@ -130,6 +152,7 @@ pub struct DuckDbReadOptions(ReadOptionsWire);
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct ReadOptionsWire {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     header: Option<bool>,
@@ -243,7 +266,7 @@ impl fmt::Display for DuckDbReadOptionsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Name => "expected a lowercase ASCII reader option name beginning with a letter or underscore",
-            Self::ReservedName => "use the explicit header, delimiter or timestamp_format field instead of an extra option alias",
+            Self::ReservedName => "use the explicit header, delimiter or timestampFormat field instead of an extra option alias",
             Self::DuplicateName => "reader option names must be unique",
             Self::Nul => "reader option text must not contain NUL",
         })

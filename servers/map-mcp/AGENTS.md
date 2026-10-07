@@ -41,7 +41,7 @@ Map Explorer App.
 - `build_travel_model` is the canonical Map-to-Optimization boundary. It
   preserves shared location order, binds each vehicle type to an exact
   mobility-profile version, records unavailable cells, and publishes
-  `veoveo.ai/travel-model-artifact/v1`. Never reconstruct these matrices in
+  `veoveo.ai/travel-model-artifact/v2`. Never reconstruct these matrices in
   Optimization.
 - Travel-model references use Map's `MapTravelModelUri` in producers and consumers.
   Exact reads, collection pages and completion use `TravelModelReads`; owner, stored
@@ -131,7 +131,9 @@ Map Explorer App.
 
 ## Contract Compliance
 
-Contract revision: 3
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met
@@ -156,12 +158,14 @@ Contract revision: 3
 - C21: met
 - C22: met
 - C23: met
+- C24: met
 - C25: met
 - C26: met
 - C27: met — scoped derivation indexes and mutable resources use the shared Store LIVE/change-feed observer; native tests qualify cross-client writes, observer restart, and authoring projection recovery
 - C28: met
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
-- C24: met
 - C31: pending — installed Discover and list readiness qualification is pending
 - C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

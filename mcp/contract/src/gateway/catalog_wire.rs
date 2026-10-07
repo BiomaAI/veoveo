@@ -1,5 +1,6 @@
 use super::*;
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ControlPlaneWire {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branding: Option<InstallationBranding>,
@@ -24,6 +25,21 @@ struct ControlPlaneWire {
 impl<'de> Deserialize<'de> for GatewayControlPlane {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = veoveo_types::UniqueJsonValue::deserialize(deserializer)?.0;
+        // Flattened owner extensions cannot absorb retired core spellings.
+        for obsolete in [
+            "identity_providers",
+            "authorization_servers",
+            "work_contexts",
+            "data_labels",
+            "oauth_clients",
+            "oidc_clients",
+        ] {
+            if value.get(obsolete).is_some() {
+                return Err(serde::de::Error::custom(format!(
+                    "obsolete control-plane field `{obsolete}`"
+                )));
+            }
+        }
         let wire: ControlPlaneWire =
             serde_json::from_value(value).map_err(serde::de::Error::custom)?;
         Ok(Self {

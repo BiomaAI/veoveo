@@ -15,17 +15,18 @@ use super::{
 };
 use crate::{RecordingContractError, RecordingDatasetId, RecordingId, RecordingProjectionId};
 
-pub const RECORDING_PROJECTION_HANDLE_SCHEMA: &str = "veoveo.ai/recording-projection-handle/v1";
+pub const RECORDING_PROJECTION_HANDLE_SCHEMA: &str = "veoveo.ai/recording-projection-handle/v2";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
+#[schemars(transform = crate::format_tag_role)]
 pub enum RecordingProjectionHandleSchema {
-    #[serde(rename = "veoveo.ai/recording-projection-handle/v1")]
-    V1,
+    #[serde(rename = "veoveo.ai/recording-projection-handle/v2")]
+    V2,
 }
 
 /// Result facts supplied to the handle builder. File integrity is checked by the service.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RecordingProjectionResultMetadata {
     pub catalog_revision: String,
     #[serde(with = "sha256_hex")]
@@ -33,6 +34,7 @@ pub struct RecordingProjectionResultMetadata {
     pub query_digest: Sha256Digest,
     pub timeline: String,
     pub sample_grid: Vec<i64>,
+    #[schemars(schema_with = "crate::projection_units_schema")]
     pub units: BTreeMap<String, String>,
     #[schemars(length(max = 64))]
     pub coordinate_frame_refs: Vec<WorldFrameUri>,
@@ -48,7 +50,7 @@ pub struct RecordingProjectionResultMetadata {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 #[schemars(rename = "RecordingProjectionHandle")]
 pub struct RecordingProjectionHandleBuilder {
     pub schema: RecordingProjectionHandleSchema,
@@ -56,7 +58,7 @@ pub struct RecordingProjectionHandleBuilder {
     pub dataset_id: RecordingDatasetId,
     pub recording_id: RecordingId,
     pub result: RecordingProjectionResultMetadata,
-    #[schemars(with = "String")]
+    #[schemars(with = "String", extend("format" = "date-time"))]
     pub expires_at: DateTime<Utc>,
 }
 

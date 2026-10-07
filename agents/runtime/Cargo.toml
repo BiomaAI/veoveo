@@ -65,7 +65,7 @@ thiserror = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["time"], optional = true }
 uuid = { workspace = true, features = ["serde", "v7"], optional = true }
 veoveo-platform-store = { workspace = true, optional = true }
-veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]

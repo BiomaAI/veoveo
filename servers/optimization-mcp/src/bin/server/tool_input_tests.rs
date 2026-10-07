@@ -59,7 +59,7 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
         );
         let discover = gateway.rpc("server/discover", json!({})).await;
         assert!(discover.get("error").is_none(), "{discover}");
-        let mut arguments = json!({"solution_uri":"optimization://solution/solution-01983da0-0000-7000-8000-000000000000"});
+        let mut arguments = json!({"solutionUri":"optimization://solution/solution-01983da0-0000-7000-8000-000000000000"});
         let _: veoveo_optimization_mcp::contract::VerifySolutionRequest =
             serde_json::from_value(arguments.clone()).unwrap();
         arguments["undeclared"] = true.into();
@@ -97,6 +97,42 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
                 }
                 _ => panic!("unexpected fixture tool"),
             }
+            for mixed in [false, true] {
+                let mut arguments = case.arguments.clone();
+                let policy = arguments["policy"].as_object_mut().unwrap();
+                let value = if mixed {
+                    policy["profileUri"].clone()
+                } else {
+                    policy.remove("profileUri").unwrap()
+                };
+                policy.insert("profile_uri".into(), value);
+                let body = gateway
+                    .rpc(
+                        "tools/call",
+                        json!({"name":case.tool,"arguments":arguments}),
+                    )
+                    .await;
+                assert!(
+                    body.get("error").is_none(),
+                    "{} mixed={mixed}: {body}",
+                    case.branch
+                );
+                assert_eq!(body["result"]["resultType"], "complete", "{body}");
+                let result: rmcp::model::CallToolResult =
+                    serde_json::from_value(body["result"].clone()).unwrap();
+                assert_eq!(
+                    result.is_error,
+                    Some(true),
+                    "{} mixed={mixed}: {body}",
+                    case.branch
+                );
+                assert!(
+                    serde_json::to_string(&result.content)
+                        .unwrap()
+                        .contains("profile"),
+                    "{body}"
+                );
+            }
             for (location, arguments) in case
                 .unknown_fields()
                 .into_iter()
@@ -128,6 +164,27 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
                 );
                 case.assert_error(&location, &serde_json::to_string(&result.content).unwrap());
             }
+        }
+        for mixed in [false, true] {
+            let mut arguments = json!({"solutionUri":"optimization://solution/solution-01983da0-0000-7000-8000-000000000000"});
+            let object = arguments.as_object_mut().unwrap();
+            let value = if mixed {
+                object["solutionUri"].clone()
+            } else {
+                object.remove("solutionUri").unwrap()
+            };
+            object.insert("solution_uri".into(), value);
+            let body = gateway
+                .rpc(
+                    "tools/call",
+                    json!({"name":"verify_solution","arguments":arguments}),
+                )
+                .await;
+            assert!(body.get("error").is_none(), "{body}");
+            assert_eq!(body["result"]["resultType"], "complete", "{body}");
+            let result: rmcp::model::CallToolResult =
+                serde_json::from_value(body["result"].clone()).unwrap();
+            assert_eq!(result.is_error, Some(true), "{body}");
         }
         assert!(state.tasks.list().await.unwrap().is_empty());
         assert!(

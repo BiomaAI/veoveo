@@ -276,6 +276,7 @@ impl AuditCommand {
                 }
                 verifier.finish(&expected)?;
                 #[derive(serde::Serialize)]
+                #[serde(rename_all = "camelCase")]
                 struct Report {
                     checkpoint: AuditCheckpoint,
                     blocks: u64,

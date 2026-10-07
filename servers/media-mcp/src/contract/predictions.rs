@@ -113,7 +113,7 @@ pub struct MediaPredictionEntry {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct EntryWire {
     id: MediaPredictionId,
     prediction_uri: MediaPredictionUri,
@@ -168,12 +168,15 @@ pub struct MediaPredictionPage {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(transform = super::model_tools::require_cursor_presence)]
 struct PageWire {
     #[schemars(length(max = 100))]
     items: Vec<MediaPredictionEntry>,
     #[schemars(range(min = 100, max = 100))]
     limit: usize,
+    #[serde(deserialize_with = "required_cursor")]
+    #[schemars(required, schema_with = "nullable_cursor")]
     next_cursor: Option<MediaPredictionCursor>,
 }
 
@@ -247,4 +250,13 @@ impl veoveo_types::ResourceProfile for MediaPredictionErrorAddresses {
         veoveo_types::ResourceProfileSpec {
             route_error: |_, _| MediaPredictionError,
         };
+}
+
+fn required_cursor<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<MediaPredictionCursor>, D::Error> {
+    Option::deserialize(deserializer)
+}
+fn nullable_cursor(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    <Option<MediaPredictionCursor>>::json_schema(generator)
 }

@@ -37,7 +37,6 @@ pub struct ExecutionOutput {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ExecutionResult {
-    #[serde(rename = "result_uri")]
     #[schemars(
         with = "String",
         regex(
@@ -99,7 +98,6 @@ impl ExecutionResult {
 #[derive(Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ExecutionResultWire {
-    #[serde(rename = "result_uri")]
     #[schemars(
         with = "String",
         regex(

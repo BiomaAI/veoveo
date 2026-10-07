@@ -126,6 +126,7 @@ struct RecordingLayerContent {
     failure_reason: Option<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
+    properties_preparation: Option<crate::RecordingPropertiesPreparation>,
     revision: i64,
 }
 
@@ -248,6 +249,74 @@ impl RecordingRepository {
         &self,
         draft: RecordingLayerDraft,
     ) -> Result<RecordingLayerRecord, RecordingStoreError> {
+        self.open_recording_layer_with_preparation(draft, None, &[])
+            .await
+    }
+
+    pub async fn prepare_recording_properties_layer(
+        &self,
+        draft: RecordingLayerDraft,
+        body: veoveo_recording_contract::RecordingProperties,
+        source_layers: &[RecordingLayerRecord],
+    ) -> Result<RecordingLayerRecord, RecordingStoreError> {
+        if draft.kind != RecordingLayerKind::Properties {
+            return Err(RecordingStoreError::InvalidRecordingField {
+                field: "properties_preparation",
+                reason: "requires the properties layer kind",
+            });
+        }
+        if source_layers
+            .iter()
+            .filter(|row| row.kind != RecordingLayerKind::Properties)
+            .count()
+            >= MAX_LAYER_LIMIT as usize
+        {
+            return Err(RecordingStoreError::InvalidRecordingField {
+                field: "properties_preparation",
+                reason: "source set leaves no room for the properties layer",
+            });
+        }
+        if source_layers
+            .iter()
+            .filter(|row| row.kind != RecordingLayerKind::Properties)
+            .any(|row| {
+                row.recording != draft.recording_id.record_id()
+                    || row.tenant != draft.identity.tenant_id.record_id()
+                    || row.state != RecordingLayerState::Committed
+                    || row.properties_preparation.is_some()
+            })
+            || body.immutable_manifest_digest
+                != crate::source_layer_manifest_digest(
+                    crate::RecordingDatasetId::from_uuid(body.dataset_id.as_uuid()),
+                    draft.recording_id,
+                    source_layers,
+                )
+        {
+            return Err(RecordingStoreError::InvalidRecordingField {
+                field: "properties_preparation",
+                reason: "source snapshot is incomplete or inconsistent",
+            });
+        }
+        self.open_recording_layer_with_preparation(
+            draft,
+            Some(crate::RecordingPropertiesPreparation::new(body)),
+            source_layers,
+        )
+        .await
+    }
+
+    async fn open_recording_layer_with_preparation(
+        &self,
+        draft: RecordingLayerDraft,
+        preparation: Option<crate::RecordingPropertiesPreparation>,
+        source_layers: &[RecordingLayerRecord],
+    ) -> Result<RecordingLayerRecord, RecordingStoreError> {
+        if (draft.kind == RecordingLayerKind::Properties) != preparation.is_some() {
+            return Err(RecordingStoreError::InvalidRecordingField {
+                field: "properties_preparation",
+                reason: "current properties layer requires its checked original preimage",
+            });
+        }
         validate_layer_draft(&draft)?;
         let mut recording = self
             .recording(draft.identity.tenant_id, draft.recording_id)
@@ -255,6 +324,38 @@ impl RecordingRepository {
             .ok_or_else(|| {
                 RecordingStoreError::RecordingNotFound(draft.recording_id.to_string())
             })?;
+        if let Some(existing) = self
+            .recording_layer_by_name(
+                draft.identity.tenant_id,
+                draft.recording_id,
+                &draft.layer_name,
+            )
+            .await?
+        {
+            validate_existing_layer(&existing, &draft)?;
+            if existing.properties_preparation != preparation {
+                return Err(RecordingStoreError::InvalidRecordingField {
+                    field: "properties_preparation",
+                    reason: "retry differs from the original checked preimage",
+                });
+            }
+            return Ok(existing);
+        }
+        if let Some(path) = draft.staging_path.as_deref()
+            && let Some(existing) = self
+                .recording_layer_by_staging_path(draft.identity.tenant_id, path)
+                .await?
+        {
+            validate_existing_layer(&existing, &draft)?;
+            if existing.properties_preparation != preparation {
+                return Err(RecordingStoreError::InvalidRecordingField {
+                    field: "properties_preparation",
+                    reason: "retry differs from the original checked preimage",
+                });
+            }
+            return Ok(existing);
+        }
+
         if draft.kind == RecordingLayerKind::Capture
             && matches!(
                 recording.state,
@@ -280,25 +381,6 @@ impl RecordingRepository {
                 target: "open recording layer",
             });
         }
-        if let Some(existing) = self
-            .recording_layer_by_name(
-                draft.identity.tenant_id,
-                draft.recording_id,
-                &draft.layer_name,
-            )
-            .await?
-        {
-            validate_existing_layer(&existing, &draft)?;
-            return Ok(existing);
-        }
-        if let Some(path) = draft.staging_path.as_deref()
-            && let Some(existing) = self
-                .recording_layer_by_staging_path(draft.identity.tenant_id, path)
-                .await?
-        {
-            validate_existing_layer(&existing, &draft)?;
-            return Ok(existing);
-        }
 
         let id = RecordingLayerId::new();
         let now = Utc::now();
@@ -321,6 +403,7 @@ impl RecordingRepository {
             failure_reason: None,
             created_at: now,
             updated_at: now,
+            properties_preparation: preparation,
             revision: 0,
         };
 
@@ -330,9 +413,31 @@ impl RecordingRepository {
                 "queries/recording_catalog/open_recording_layer.surql"
             ))
             .bind(("layer", id.record_id()))
-            .bind(("content", content))
+            .bind(("content", content.clone()))
+            .bind((
+                "source_layers",
+                source_layers
+                    .iter()
+                    .filter(|row| row.kind != RecordingLayerKind::Properties)
+                    .map(
+                        |row| crate::persistence::manifest_publication::LayerRevision {
+                            layer: row.id.clone(),
+                            revision: row.revision,
+                        },
+                    )
+                    .collect::<Vec<_>>(),
+            ))
+            .bind((
+                "publication",
+                crate::persistence::manifest_publication::publication_record_id(draft.recording_id),
+            ))
             .await
-            .and_then(|response| response.check());
+            .and_then(|mut response| {
+                match veoveo_platform_store::primary_transaction_error(response.take_errors()) {
+                    Some(error) => Err(error),
+                    None => Ok(response),
+                }
+            });
         if let Err(error) = result {
             if let Some(existing) = self
                 .recording_layer_by_name(
@@ -343,6 +448,12 @@ impl RecordingRepository {
                 .await?
             {
                 validate_existing_layer(&existing, &draft)?;
+                if existing.properties_preparation != content.properties_preparation {
+                    return Err(RecordingStoreError::InvalidRecordingField {
+                        field: "properties_preparation",
+                        reason: "concurrent reservation differs from the original preimage",
+                    });
+                }
                 return Ok(existing);
             }
             return Err(error.into());
@@ -413,9 +524,18 @@ impl RecordingRepository {
             .bind(("end_time", end_time))
             .bind(("recording", recording_id.record_id()))
             .bind(("tenant", identity.tenant_id.record_id()))
+            .bind((
+                "publication",
+                crate::persistence::manifest_publication::publication_record_id(recording_id),
+            ))
             .bind(("activity_at", end_time.unwrap_or_else(Utc::now)))
-            .await?
-            .check()?;
+            .await
+            .and_then(|mut response| {
+                match veoveo_platform_store::primary_transaction_error(response.take_errors()) {
+                    Some(error) => Err(error),
+                    None => Ok(response),
+                }
+            })?;
         self.recording_layer(identity.tenant_id, layer_id)
             .await?
             .ok_or(RecordingStoreError::MissingRecord {
@@ -471,9 +591,20 @@ impl RecordingRepository {
             .bind(("layer", layer_id.record_id()))
             .bind(("revision", existing.revision))
             .bind(("artifact", artifact_id.record_id()))
+            .bind(("recording", recording_id.record_id()))
+            .bind(("tenant", identity.tenant_id.record_id()))
+            .bind((
+                "publication",
+                crate::persistence::manifest_publication::publication_record_id(recording_id),
+            ))
             .bind(("dataset", recording.dataset))
-            .await?
-            .check()?;
+            .await
+            .and_then(|mut response| {
+                match veoveo_platform_store::primary_transaction_error(response.take_errors()) {
+                    Some(error) => Err(error),
+                    None => Ok(response),
+                }
+            })?;
         self.recording_layer(identity.tenant_id, layer_id)
             .await?
             .ok_or(RecordingStoreError::MissingRecord {
@@ -507,7 +638,7 @@ impl RecordingRepository {
                 layer_id: layer_id.to_string(),
             });
         }
-        recording_id_from_record(&existing.recording)?;
+        let recording_id = recording_id_from_record(&existing.recording)?;
 
         self.client()
             .query(include_str!(
@@ -515,9 +646,20 @@ impl RecordingRepository {
             ))
             .bind(("layer", layer_id.record_id()))
             .bind(("revision", existing.revision))
+            .bind(("recording", recording_id.record_id()))
+            .bind(("tenant", identity.tenant_id.record_id()))
+            .bind((
+                "publication",
+                crate::persistence::manifest_publication::publication_record_id(recording_id),
+            ))
             .bind(("reason", reason.to_owned()))
-            .await?
-            .check()?;
+            .await
+            .and_then(|mut response| {
+                match veoveo_platform_store::primary_transaction_error(response.take_errors()) {
+                    Some(error) => Err(error),
+                    None => Ok(response),
+                }
+            })?;
         self.recording_layer(identity.tenant_id, layer_id)
             .await?
             .ok_or(RecordingStoreError::MissingRecord {

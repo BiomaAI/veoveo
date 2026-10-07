@@ -2,20 +2,20 @@
   "agent": {
     "tenant": "default",
     "id": "pilot",
-    "display_name": "AI Pilot"
+    "displayName": "AI Pilot"
   },
   "model": {
-    "base_url": "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",
-    "api_key_env": "CLOUDFLARE_API_TOKEN",
+    "baseUrl": "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",
+    "apiKeyEnv": "CLOUDFLARE_API_TOKEN",
     "model": "@cf/moonshotai/kimi-k2.6",
-    "max_output_tokens": 4096
+    "maxOutputTokens": 4096
   },
   "gateway": {
     "url": "${PILOT_GATEWAY_URL}",
-    "transport_url": "${PILOT_GATEWAY_TRANSPORT_URL}",
+    "transportUrl": "${PILOT_GATEWAY_TRANSPORT_URL}",
     "profile": "operator",
-    "client_id": "pilot-agent",
-    "work_context": "operations",
+    "clientId": "pilot-agent",
+    "workContext": "operations",
     "audience": "${PILOT_GATEWAY_AUDIENCE}",
     "resource": "${PILOT_GATEWAY_RESOURCE}",
     "scopes": [
@@ -33,15 +33,15 @@
       "map:restriction:withdraw",
       "time:read"
     ],
-    "private_key_env": "PILOT_AGENT_PRIVATE_KEY_DER_B64",
-    "private_key_kid": "pilot-agent-key"
+    "privateKeyEnv": "PILOT_AGENT_PRIVATE_KEY_DER_B64",
+    "privateKeyKid": "pilot-agent-key"
   },
   "episode": {
-    "max_turns": 12,
-    "task_deadline_s": 900
+    "maxTurns": 12,
+    "taskDeadlineS": 900
   },
   "memory": {
-    "memory_write_tables": [
+    "memoryWriteTables": [
       "targets",
       "missions",
       "waypoints",
@@ -50,7 +50,7 @@
     ]
   },
   "context": {
-    "max_context_tokens": 24000,
+    "maxContextTokens": 24000,
     "sections": [
       {
         "name": "Active targets",
@@ -75,17 +75,17 @@
     ]
   },
   "budgets": {
-    "per_episode": {
-      "max_completion_calls": 24,
-      "max_tool_calls": 16
+    "perEpisode": {
+      "maxCompletionCalls": 24,
+      "maxToolCalls": 16
     },
-    "hourly_max_episodes": 60
+    "hourlyMaxEpisodes": 60
   },
   "schedule": {
-    "heartbeat_interval_s": 300,
-    "min_wake_interval_s": 5,
-    "wake_coalesce_window_ms": 500
+    "heartbeatIntervalS": 300,
+    "minWakeIntervalS": 5,
+    "wakeCoalesceWindowMs": 500
   },
-  "migrations_dir": "migrations",
+  "migrationsDir": "migrations",
   "preamble": "You are the Pilot: an autonomous operations agent responsible for targets, missions, and routes.\n\nYour memory is external and durable. The `targets`, `missions`, `waypoints`, `constraints`, and `beliefs` tables in your memory database are your current truth \u2014 read them with memory_query, record every durable conclusion with memory_write. Your decision log (timeline_query) holds everything you have observed and done.\n\nHosted tools reach you through a gateway: map__* for Earth geography, governed travel models, and logistics routing; frames__* for robot and simulation frame math; optimization__optimize_routes and optimization__optimize_route_scenarios for fleet decisions; optimization__solve_convex and optimization__solve_milp for mathematical decisions; duckdb__* for analytics; and media__* when imagery is needed. Long-running tools are dispatched as background tasks \u2014 you will be woken when they finish; never wait or poll.\n\nWork in bounded episodes: act on the wake that started this episode, keep your memory tables accurate, and stop when nothing actionable remains."
 }

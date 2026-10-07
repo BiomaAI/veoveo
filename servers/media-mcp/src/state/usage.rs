@@ -1,7 +1,6 @@
 //! Media ledger writes, retention and SQL selection for billing recovery.
 use super::{
-    MediaProviderJob, MediaState, PROVIDER, STATE_ID_NAMESPACE, open_object, record_uuid,
-    tenant_record,
+    MediaProviderJob, MediaState, PROVIDER, STATE_ID_NAMESPACE, record_uuid, tenant_record,
 };
 use crate::contract::MediaPredictionId;
 use crate::storage::{MediaUsageId, MediaUsageKind, MediaUsageRecord, PredictionRecord};
@@ -51,6 +50,13 @@ impl MediaState {
             UsageKind::Estimate => MediaUsageKind::Estimate,
             UsageKind::Actual => MediaUsageKind::Actual,
         };
+        let metadata = serde_json::from_value(usage.metadata.clone()).map_err(|_| {
+            StoreError::InvalidUsageField {
+                field: "metadata",
+                reason: "requires current Media model_registry or billing_record attribution",
+            }
+        })?;
+        kind.require_metadata(&metadata)?;
         let key = format!(
             "{}:{}:{}",
             task.task_id,
@@ -73,7 +79,7 @@ impl MediaState {
             unit: usage.unit.clone(),
             amount: usage.amount,
             currency: usage.currency.clone(),
-            metadata: open_object(usage.metadata.clone()),
+            metadata,
             recorded_at: usage.recorded_at,
         };
 

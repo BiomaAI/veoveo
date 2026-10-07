@@ -1,7 +1,7 @@
 # Speech MCP
 
-Status: private dictation and recording transcription are deployed. Native CUDA,
-recovery, hosted MCP and installed browser acceptance pass within the
+Speech supplies private dictation and recording transcription. Acceptance requires
+the native CUDA, recovery, hosted MCP and installed browser checks described under
 [qualification limits](#qualification-limits).
 
 ## Standards And Protocols
@@ -10,9 +10,14 @@ recovery, hosted MCP and installed browser acceptance pass within the
 |---|---|
 | MCP `2026-07-28` | Public transcription, official Tasks and authorized transcript resources using the shared runtime |
 | Veoveo Artifact plane | Source read capabilities and idempotent transcript publication |
-| `veoveo.speech-worker/v1` | Private Unix socket protocol: one bounded JSON request followed by length-prefixed little-endian float32 mono PCM for live input; NDJSON transcript snapshots in response |
-| Photon | Moondream `2.4.1`, Kestrel `0.8.1`, NVIDIA CUDA only; Parakeet Ultra weights SHA-256 `c9608f36d0ab956c14bfcc525479b0746b3b42a56f6949ec85c14eb7466717dc` |
-| JSON / WebVTT | Typed transcripts with word/segment times in seconds and caption export |
+| `veoveo.ai/speech-worker/v2` | Private Unix socket protocol: one bounded JSON request followed by length-prefixed little-endian float32 mono PCM for live input; NDJSON transcript snapshots in response |
+| Photon | Moondream `2.6.1`, Kestrel `0.9.1`, Torch `2.14.1`, NVIDIA CUDA only; Parakeet Ultra weights SHA-256 `c9608f36d0ab956c14bfcc525479b0746b3b42a56f6949ec85c14eb7466717dc` |
+| `veoveo.ai/speech-gpu-acceptance/v2` | Native hardware-run operator report with current owned JSON keys; no downstream machine reader is declared |
+| `veoveo.ai/speech-transcript/v2` / WebVTT | CamelCase JSON transcript documents with word/segment times in seconds; captions use the WebVTT text profile |
+
+The transcript document schema declares its exact current format literal with the
+foundational `format_tag` scalar naming role. Decoder admission checks the same
+version before transcript retention.
 
 ## Library Features
 
@@ -58,6 +63,32 @@ language code. No speaker identity, translation or confidence value is fabricate
 Provisional snapshots may revise previous text. Text and segment limits apply before
 publication and before delivery to a browser.
 
+## Wire Admission
+
+Speech JSON uses camelCase field names and snake_case controlled enum values.
+Tool and prompt names, the prompt argument `artifact_uri` and URI template variables
+keep their declared identifier spellings. Native Task rows and JWT identity snapshots
+keep their own storage and claim profiles. The durable request envelope keeps its
+native field names; its nested tool input, Artifact capabilities and publication
+products use their owning wire contracts.
+
+The private worker advertises `veoveo.ai/speech-worker/v2`; parent readiness
+admits that protocol before accepting inference work. Rust field names and the private Python request dataclass stay internal. Pydantic
+wire models declare their camelCase field names directly. Both Python validation
+paths reject retired snake_case spellings,
+mixed spellings and unknown fields before path admission or worker capacity effects.
+`provider_transcript` explicitly translates provider `duration_seconds` into owned
+`durationSeconds` and emits only declared transcript fields.
+
+Transcript construction and retained decoding require
+`veoveo.ai/speech-transcript/v2`. Workspace admits that tag before previewing a
+published document. Format disagreement requires a coordinated upgrade. The
+installation drains writers and replaces all incompatible peers together; it starts
+from empty current-format storage. This profile supplies no rolling mixed-version
+support. WebVTT bytes, PCM framing, source hashes and model identities use their
+existing formats. Native GPU reports use `veoveo.ai/speech-gpu-acceptance/v2` with
+camelCase timing and acceptance fields; reports require a fresh hardware run.
+
 ## Packaging
 
 The worker's Python environment has an exact lock separate from the Rust compilation
@@ -65,12 +96,38 @@ inputs. Its GPU runtime and model cache belong to the Speech image. This release
 boundary permits model updates without rebuilding the gateway and browser edge.
 The model remains loaded between requests; idle residency does not initiate inference.
 
-The runtime base pins uv `0.12.18` with CPython 3.13 and Debian Trixie at OCI
-index `sha256:8891323e7ddaddc86d08c91f8af845ac5774a07d6f98e6765883030e1ad16fbc`.
-Python 3.13 is the qualified native Photon wheel boundary. Build-only Hatchling
-is pinned at `1.32.4`. Build-time cache admission verifies the model's SHA-256;
-installed pods run offline against read-only image weights. The image includes
-model attribution. No CUDA model initialization occurs during image assembly.
+The runtime base pins uv `0.12.23` with the selected CPython `3.14.8` profile and
+Debian Trixie at OCI index
+`sha256:8e88a074b0969bdc461f681727238e109438d70771828909f9ef19cfcc96c43a`.
+Build-only Hatchling is pinned at `1.32.4`. Moondream `2.6.1` requires Kestrel
+`0.9.1`, whose kernel and native packages are `0.7.4` and `0.1.8` respectively.
+Kestrel `0.9.2`, kernels `0.7.5` and native `0.1.9` are excluded by that exact
+Moondream dependency. Speech owns this compatibility exception and follows an
+upstream Moondream release that supports the newer Kestrel family. Review is due
+by October 14, 2026 or before the next dependency image release, whichever comes first.
+
+`runner/src/speech_runner/cache_model.py` owns the model identity and the required
+checkpoint files. Its shared admission helper resolves the immutable revision with
+Hugging Face `snapshot_download`. Build-time caching permits downloading that revision;
+runtime requests `local_files_only=True`. The helper selects the SDK's configured
+`HF_HUB_CACHE` and requires the current model repository's exact revision snapshot.
+The full-precision Ultra snapshot contains exactly the three declared files.
+Admission rejects every additional entry, including directories and dangling symlinks,
+before provider construction. The provider's optional `ternary.json` manifest is outside
+this profile; cache selection patterns alone do not establish snapshot membership.
+Required files may resolve inside that snapshot, its repository-local `blobs` directory,
+or the configured Hub cache's shared `blobs` directory, which holds Xet-backed objects.
+The profile grants no access to an enclosing home or temporary directory, or to the
+separate unused `HF_XET_CACHE`. Admission verifies every file's byte length and SHA-256
+before returning the model directory. Resolver and
+filesystem errors expose only a fixed checkpoint-admission diagnostic.
+
+The worker passes that verified directory through the released
+`md.photon(MODEL, device="cuda", model_path=...)` API. Installed pods run offline
+against read-only image weights. Warmup and at least 500,000,000 bytes of CUDA model
+residency precede socket readiness. The image includes model attribution, and image
+assembly performs no CUDA model initialization. The selected package and interpreter
+profile requires both maintained native GPU controls before hardware qualification.
 
 Helm selects Speech in the full installation. A pod requests one NVIDIA GPU,
 reserves two inference slots for recordings and two for private dictation, and
@@ -81,12 +138,17 @@ The Bioma local node advertises eight shared GPU slots using NVIDIA device plugi
 GPU, not memory isolation or additional hardware capacity.
 
 
-The latest model repository revision on September 22, 2026 is
-`4cd0e9998a84defad3b47e6a698b699c3d3de274`. Its configuration, tokenizer and weight
-objects are identical to Photon `0.8.1`'s pinned revision
-`510e6f5a1c4619f39c72b083c091476935734e65`. The packaged adapter uses that qualified
-immutable pin and records the weight digest. Attribution: Moondream Parakeet Ultra,
-derived from NVIDIA Parakeet TDT 0.6B v3, CC-BY-4.0.
+The packaged model revision is `73175eb7aeb0d82f1e2a6b53b3aabc10a90bcd0b`.
+Checkpoint admission requires the following immutable files:
+
+| File | Bytes | SHA-256 |
+|---|---:|---|
+| `config.json` | 1153 | `e747b85e1bdfd300c8b8ac63bac8dd5221f8fe9bc275b48d06c735fcd6971b6e` |
+| `tokenizer.json` | 1159960 | `bd321b096832a3f270bd3b2a88823957920f1a5c5ada71114a26ea729d0cbe91` |
+| `model.safetensors` | 1255353386 | `c9608f36d0ab956c14bfcc525479b0746b3b42a56f6949ec85c14eb7466717dc` |
+
+Attribution: Moondream Parakeet Ultra, derived from NVIDIA Parakeet TDT 0.6B v3,
+CC-BY-4.0.
 
 ## Recorded Transcription
 
@@ -150,14 +212,15 @@ The first deployment has one GPU replica because dictation state is ephemeral.
 
 ## Contract Compliance
 
-Native qualification passed all 26 hosted conformance checks, including declared
-schemas, authenticated documentation, stateless transport, Tasks and subscriptions.
-The native fixture also qualified current source/output authority, independent-runtime
-cancellation, and recovery after publication but before Task settlement with identical
-Artifact IDs. Installed certification covers catalog readiness under C31. The headed
-Workspace harness covers private dictation, delayed chunk delivery, cancellation,
-explicit send, recording transcription, Task observation after reload and checked
-transcript/caption downloads through the deployed CUDA worker.
+Native hosted certification exercises declared schemas, authenticated documentation,
+stateless transport, Tasks and subscriptions. Owner checks exercise source/output
+authority, independent-runtime cancellation and recovery after publication but before
+Task settlement with identical Artifact IDs. Installed certification requires catalog
+readiness under C31. Headed Workspace acceptance checks private dictation, delayed
+chunk delivery, cancellation, explicit send, recording transcription and checked
+transcript/caption downloads through the deployed CUDA worker. Qualification must use
+the current transcript and worker formats; protocol-only checks establish no inference
+or installed behavior.
 
 The application router is shared by the executable and native conformance fixture.
 The fixture uses the actual CUDA worker, disposable database, internal assertions
@@ -197,5 +260,5 @@ Speech identity declarations use `Id` with owner UUID admission. Transcription a
 ## Task Completion Products
 
 Transcription publication returns a typed MCP result until Task completion admission.
-The completion stores the transcript's canonical `result_uri` alongside the complete
+The completion stores the transcript's canonical `resultUri` alongside the complete
 MCP envelope, preserving its single resource link.

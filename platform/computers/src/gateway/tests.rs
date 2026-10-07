@@ -103,16 +103,16 @@ fn catalog_with_mutual_tls_upstream(
         serde_json::from_str(SMOKE_CONTROL_PLANE).expect("smoke control plane json");
     let upstream = &mut control_plane["servers"][0]["upstream"];
     upstream["url"] = json!("https://media.internal/media/mcp");
-    upstream["health_url"] = json!("https://media.internal/media/healthz");
+    upstream["healthUrl"] = json!("https://media.internal/media/healthz");
     upstream["security"] = json!("mutual_tls");
-    upstream["trusted_certificate_authorities"] = json!([
+    upstream["trustedCertificateAuthorities"] = json!([
         {
             "source": "file",
             "path": ca_path.to_string_lossy()
         }
     ]);
-    upstream["client_certificate"] = json!("media_upstream_tls_client_certificate");
-    upstream["client_private_key"] = json!("media_upstream_tls_client_private_key");
+    upstream["clientCertificate"] = json!("media_upstream_tls_client_certificate");
+    upstream["clientPrivateKey"] = json!("media_upstream_tls_client_private_key");
 
     control_plane["secrets"]
         .as_array_mut()

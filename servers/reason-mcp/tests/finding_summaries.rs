@@ -18,9 +18,9 @@ fn source() -> (AdmittedFinding, ArtifactMetadata, Vec<Grant>, DateTime<Utc>) {
     let analysis = "01983da0-0000-7000-8000-000000000010".parse().unwrap();
     let artifact = ArtifactId::new();
     let metadata = serde_json::from_value(json!({
-        "artifact_id":artifact, "artifact_uri":artifact.plane_uri(), "byte_len":4096, "created_at":time,
-        "compliance":{"tenant_id":"acme", "work_context":"operations", "owner":{"kind":"principal","id":"author"},
-            "data_labels":["traffic"], "provenance":{"producer":"worker", "invocation_mode":"automated", "policy_revision":"r1"}},
+        "artifactId":artifact, "artifactUri":artifact.plane_uri(), "byteLen":4096, "createdAt":time,
+        "compliance":{"tenantId":"acme", "workContext":"operations", "owner":{"kind":"principal","id":"author"},
+            "dataLabels":["traffic"], "provenance":{"producer":"worker", "invocationMode":"automated", "policyRevision":"r1"}},
         "metadata": ReasonArtifactMetadata { provenance: ReasonArtifactProvenance::Results {
             analysis_id:analysis, recording_id:results.recording_uri.id(), pipeline_id:results.pipeline_id.clone(),
             model_id:results.model_id.clone(), prompt_revision:results.prompt_revision.clone(), task_kind:(&results.task).into(),
@@ -55,7 +55,7 @@ fn source() -> (AdmittedFinding, ArtifactMetadata, Vec<Grant>, DateTime<Utc>) {
 #[test]
 fn findings_negotiate_conditions_and_access_changes_without_changing_content() {
     let (mut finding, metadata, mut grants, time) = source();
-    for kind in FindingCollection::ALL {
+    for kind in FindingCollection::ALL.iter().copied() {
         let snapshot =
             ArtifactMetadataSnapshot::new(metadata.clone(), grants.clone(), time).unwrap();
         let (text, observation) = summary::summarize(kind, &finding, &snapshot, time).unwrap();
@@ -144,15 +144,15 @@ fn findings_negotiate_conditions_and_access_changes_without_changing_content() {
 fn stored_results_must_agree_with_task_artifact_and_provenance() {
     let (finding, metadata, grants, time) = source();
     for mutation in [
-        "analysis_id",
-        "model_id",
-        "prompt_revision",
-        "source_snapshot_sha256",
+        "analysisId",
+        "modelId",
+        "promptRevision",
+        "sourceSnapshotSha256",
     ] {
         let mut corrupted = metadata.clone();
         corrupted.metadata["provenance"][mutation] = match mutation {
-            "analysis_id" => "01983da0-0000-7000-8000-000000000099".into(),
-            "source_snapshot_sha256" => "b".repeat(64).into(),
+            "analysisId" => "01983da0-0000-7000-8000-000000000099".into(),
+            "sourceSnapshotSha256" => "b".repeat(64).into(),
             _ => "different".into(),
         };
         let snapshot = ArtifactMetadataSnapshot::new(corrupted, grants.clone(), time).unwrap();

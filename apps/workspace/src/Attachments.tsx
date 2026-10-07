@@ -42,7 +42,7 @@ export function AttachmentComposer({ value, onChange, disabled, uploads, onUploa
       <div className="modal attachment-picker"><div className="details-heading"><h2 id={title}>Attach files</h2><button className="icon-button" aria-label="Close attachment picker" onClick={() => setOpen(false)}><X size={18}/></button></div>
         <p>Choose files to include in your next message.</p>
         <button disabled={disabled} onClick={() => { setOpen(false); onUpload(); }}><Upload size={15}/> Upload a file</button>
-        {!!ready.length && <section aria-label="Completed uploads"><h3>Completed uploads</h3><div className="attachment-choices">{ready.map(entry => <button key={entry.key} disabled={disabled || value.some(file => file.id === entry.receipt!.artifact_id)} onClick={() => add(entry.receipt!.artifact_uri, entry.receipt!.filename)}><Paperclip size={15}/>{entry.receipt!.filename}</button>)}</div></section>}
+        {!!ready.length && <section aria-label="Completed uploads"><h3>Completed uploads</h3><div className="attachment-choices">{ready.map(entry => <button key={entry.key} disabled={disabled || value.some(file => file.id === entry.receipt!.artifactId)} onClick={() => add(entry.receipt!.artifactUri, entry.receipt!.filename)}><Paperclip size={15}/>{entry.receipt!.filename}</button>)}</div></section>}
         <form onSubmit={event => { event.preventDefault(); add(uri, name); }}>
           <h3>Use a file link</h3><label>File link<input value={uri} maxLength={200} onChange={event => setUri(event.target.value)} placeholder="artifact://…" autoComplete="off"/></label>
           <label>Name shown in chat<input value={name} maxLength={255} onChange={event => setName(event.target.value)} placeholder="e.g. Project notes" autoComplete="off"/></label>

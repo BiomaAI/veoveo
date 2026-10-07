@@ -47,7 +47,9 @@ the actual GPU, model revision and package pins.
 
 ## Contract Compliance
 
-Contract revision: 3
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met — native hosted certification and domain qualification; see DESIGN.md.
 - C02: met — native hosted certification and domain qualification; see DESIGN.md.
@@ -81,3 +83,5 @@ Contract revision: 3
 - C30: met — native hosted certification and domain qualification; see DESIGN.md.
 - C31: met — installed catalog certification and headed Workspace CUDA transcription/dictation pass.
 - C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

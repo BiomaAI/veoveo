@@ -85,7 +85,7 @@ fn bootstrap_reference(id: &str, kind: AuthorityDatasetKind) -> TimeAuthorityRef
     TimeAuthorityReference::new(
         TimeAuthorityReleaseUri::bootstrap(&release_id),
         kind,
-        TimeAuthoritySource::Bootstrap,
+        TimeAuthoritySource::Bootstrap {},
         Sha256Digest::from_hex("a".repeat(64)).unwrap(),
         "fixture".into(),
     )

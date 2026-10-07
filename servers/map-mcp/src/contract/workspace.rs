@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 /// style dependency on the same origin, which the App resource declares
 /// through MCP Apps CSP metadata.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapWorkspaceBasemap {
     pub id: String,
     pub title: String,
@@ -85,6 +87,8 @@ fn valid_slug_byte(byte: u8) -> bool {
 /// handlers remain the authorization boundary; these booleans only let the
 /// view present the surface the current caller can actually use.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapWorkspaceAccess {
     pub administration: bool,
     pub dataset_read: bool,

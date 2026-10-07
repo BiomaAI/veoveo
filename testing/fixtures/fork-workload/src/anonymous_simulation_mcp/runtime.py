@@ -49,12 +49,12 @@ class FixtureRuntime:
         self._lock = asyncio.Lock()
         self._authorizations: dict[str, _Authorization] = {}
         self._frame_sequence = 1
-        self._camera = CameraDescriptor(
-            session_id=SESSION_ID,
-            camera_id=CAMERA_ID,
-            width_px=1280,
-            height_px=720,
-            frame_rate_millihertz=30_000,
+        self._camera = CameraDescriptor(schemaVersion="veoveo.ai/live-view/v4",
+            sessionId=SESSION_ID,
+            cameraId=CAMERA_ID,
+            widthPx=1280,
+            heightPx=720,
+            frameRateMillihertz=30_000,
             health=CameraHealth.READY,
             revision=1,
         )
@@ -86,34 +86,34 @@ class FixtureRuntime:
                     return self._rotate(authorization, now)
             live_view_id = f"view-{uuid4()}"
             token = _token()
-            wire = LiveViewState(
-                live_view_id=live_view_id,
-                resource_uri=(
+            wire = LiveViewState(schemaVersion="veoveo.ai/live-view/v4",
+                liveViewId=live_view_id,
+                resourceUri=(
                     f"anonymous-simulation://session/{SESSION_ID}/live-view/{live_view_id}"
                 ),
-                session_id=SESSION_ID,
-                camera_id=CAMERA_ID,
-                stream_product_id=STREAM_PRODUCT_ID,
+                sessionId=SESSION_ID,
+                cameraId=CAMERA_ID,
+                streamProductId=STREAM_PRODUCT_ID,
                 owner=owner,
-                viewer_actor=actor,
-                viewer_instance_id=request.viewer_instance_id,
+                viewerActor=actor,
+                viewerInstanceId=request.viewer_instance_id,
                 lifecycle=ViewLifecycle.READY,
-                width_px=self._camera.width_px,
-                height_px=self._camera.height_px,
-                coded_width_px=self._camera.width_px,
-                coded_height_px=self._camera.height_px,
-                source_region=CameraRegion(
-                    camera_id=CAMERA_ID,
-                    x_px=0,
-                    y_px=0,
-                    width_px=self._camera.width_px,
-                    height_px=self._camera.height_px,
+                widthPx=self._camera.width_px,
+                heightPx=self._camera.height_px,
+                codedWidthPx=self._camera.width_px,
+                codedHeightPx=self._camera.height_px,
+                sourceRegion=CameraRegion(
+                    cameraId=CAMERA_ID,
+                    xPx=0,
+                    yPx=0,
+                    widthPx=self._camera.width_px,
+                    heightPx=self._camera.height_px,
                 ),
-                frame_rate_millihertz=self._camera.frame_rate_millihertz,
-                connected_viewers=0,
-                endpoint=MediaEndpoint(stream_url=self._config.public_stream_url),
-                created_at=now,
-                expires_at=now
+                frameRateMillihertz=self._camera.frame_rate_millihertz,
+                connectedViewers=0,
+                endpoint=MediaEndpoint(streamUrl=self._config.public_stream_url),
+                createdAt=now,
+                expiresAt=now
                 + timedelta(seconds=self._config.authorization_seconds),
             )
             authorization = _Authorization(
@@ -123,7 +123,7 @@ class FixtureRuntime:
             )
             self._authorizations[live_view_id] = authorization
             self._arm_expiry(live_view_id, authorization.generation, wire.expires_at)
-            return LiveViewConnection(stream=wire, access_token=token)
+            return LiveViewConnection(stream=wire, accessToken=token)
 
     async def renew(
         self,
@@ -161,7 +161,7 @@ class FixtureRuntime:
             )
             self._close(authorization)
             return CloseLiveViewResult(
-                resource_uri=authorization.wire.resource_uri,
+                resourceUri=authorization.wire.resource_uri,
                 closed=True,
             )
 
@@ -202,29 +202,29 @@ class FixtureRuntime:
                 if authorization.wire.lifecycle is not ViewLifecycle.CLOSED
             ]
             product = StreamProduct(
-                stream_product_id=STREAM_PRODUCT_ID,
-                camera_regions=(
+                streamProductId=STREAM_PRODUCT_ID,
+                cameraRegions=(
                     CameraRegion(
-                        camera_id=CAMERA_ID,
-                        x_px=0,
-                        y_px=0,
-                        width_px=self._camera.width_px,
-                        height_px=self._camera.height_px,
+                        cameraId=CAMERA_ID,
+                        xPx=0,
+                        yPx=0,
+                        widthPx=self._camera.width_px,
+                        heightPx=self._camera.height_px,
                     ),
                 ),
-                coded_width_px=self._camera.width_px,
-                coded_height_px=self._camera.height_px,
+                codedWidthPx=self._camera.width_px,
+                codedHeightPx=self._camera.height_px,
                 lifecycle=ProductLifecycle.READY,
-                active_viewers=len(active),
-                connected_viewers=sum(view.connected_viewers for view in active),
-                nvenc_sessions=1,
-                encoded_frames=self._frame_sequence,
-                source_to_render_samples=self._frame_sequence,
+                activeViewers=len(active),
+                connectedViewers=sum(view.connected_viewers for view in active),
+                nvencSessions=1,
+                encodedFrames=self._frame_sequence,
+                sourceToRenderSamples=self._frame_sequence,
             )
-            return FixtureState(
-                session_id=SESSION_ID,
+            return FixtureState(schemaVersion="veoveo.ai/simulator-hosted-live-view-fixture/v2",
+                sessionId=SESSION_ID,
                 cameras=(self._camera,),
-                stream_products=(product,),
+                streamProducts=(product,),
             )
 
     async def close_runtime(self) -> None:
@@ -257,7 +257,7 @@ class FixtureRuntime:
                 + timedelta(seconds=self._config.authorization_seconds),
             }
         )
-        return LiveViewConnection(stream=authorization.wire, access_token=token)
+        return LiveViewConnection(stream=authorization.wire, accessToken=token)
 
     def _arm_expiry(
         self, live_view_id: str, generation: int, expires_at: datetime

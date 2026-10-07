@@ -6,6 +6,18 @@ gateway:
 # Render-only references; the fixture creates neither credentials nor an index.
 knowledge:
   existingConfigMap: fixture-knowledge-configuration
+  embeddingRuntimeConfigKey: embedding-runtime.json
   indexingConfigKeys: [indexing.json]
   configurationRevision: "2222222222222222222222222222222222222222222222222222222222222222"
   existingSigningSecret: fixture-knowledge-indexer
+# Render the selected serving profile without claiming a mounted or qualified bundle.
+embedding:
+  engine:
+    precision: float16
+    gpuMemoryUtilization: 0.45
+    maxNumBatchedTokens: 8192
+    maxNumSeqs: 32
+  resources:
+    limits:
+      cpu: "4"
+      memory: 12Gi

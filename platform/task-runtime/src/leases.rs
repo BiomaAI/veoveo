@@ -141,8 +141,16 @@ impl TaskRuntime {
                 "expected_owner_context",
                 veoveo_platform_store::TaskOwnerRecord::try_from(&snapshot.owner)?,
             ))
-            .await?
-            .check()?;
+            .await?;
+        if let Some(error) = veoveo_platform_store::primary_transaction_error(response.take_errors()) {
+            if matches!(
+                error.query_details(),
+                Some(surrealdb::types::QueryError::TransactionConflict)
+            ) {
+                return Err(TaskError::Conflict(task_id.to_string()));
+            }
+            return Err(error.into());
+        }
         let updated: Option<TaskRecord> = response.take(2)?;
         let snapshot = updated
             .map(record_to_snapshot)

@@ -10,6 +10,111 @@ use veoveo_mcp_contract::hosting::{
     testing::{self, TestGateway},
 };
 
+fn fixture_field<T: serde::de::DeserializeOwned>(wire: &serde_json::Value, key: &str) -> T {
+    serde_json::from_value(wire[key].clone()).unwrap()
+}
+
+/// Rebuild controlled owner inputs from admitted fields; Serde owns their wire spelling.
+fn current_fixture_arguments(case: &serde_json::Value) -> Option<serde_json::Value> {
+    use crate::contract::*;
+    let arguments = &case["arguments"];
+    match case["tool"].as_str().unwrap() {
+        "register_source" => {
+            let source = &arguments["source"];
+            let source = RegisteredSource::new(RegisteredSourceValue {
+                source_id: fixture_field(source, "sourceId"),
+                dataset_id: fixture_field(source, "datasetId"),
+                name: fixture_field(source, "name"),
+                adapter_kind: fixture_field(source, "adapterKind"),
+                authority: fixture_field(source, "authority"),
+                acquisition_model: fixture_field(source, "acquisitionModel"),
+                map_families: fixture_field(source, "mapFamilies"),
+                location: fixture_field(source, "location"),
+                credential: fixture_field(source, "credential"),
+                publisher_key_refs: source
+                    .get("publisherKeyRefs")
+                    .map(|value| serde_json::from_value(value.clone()).unwrap())
+                    .unwrap_or_default(),
+                expected_media_types: fixture_field(source, "expectedMediaTypes"),
+                maximum_download_bytes: fixture_field(source, "maximumDownloadBytes"),
+                maximum_elapsed_seconds: fixture_field(source, "maximumElapsedSeconds"),
+                license: fixture_field(source, "license"),
+                enabled: fixture_field(source, "enabled"),
+                record_version: 1,
+                created_at: fixture_field(source, "createdAt"),
+                updated_at: fixture_field(source, "updatedAt"),
+            })
+            .unwrap();
+            Some(
+                serde_json::to_value(CreateSourceRequest {
+                    source,
+                    idempotency_key: fixture_field(arguments, "idempotencyKey"),
+                })
+                .unwrap(),
+            )
+        }
+        "publish_restriction" => {
+            let restriction = &arguments["restriction"];
+            let restriction = Restriction::new(RestrictionValue {
+                restriction_id: fixture_field(restriction, "restrictionId"),
+                kind: fixture_field(restriction, "kind"),
+                geometry: fixture_field(restriction, "geometry"),
+                vertical_band: fixture_field(restriction, "verticalBand"),
+                affected_mobility_families: fixture_field(restriction, "affectedMobilityFamilies"),
+                effect: fixture_field(restriction, "effect"),
+                valid_from: fixture_field(restriction, "validFrom"),
+                valid_until: fixture_field(restriction, "validUntil"),
+                authority: fixture_field(restriction, "authority"),
+                source_release_id: fixture_field(restriction, "sourceReleaseId"),
+                issued_at: fixture_field(restriction, "issuedAt"),
+                cancelled_by: fixture_field(restriction, "cancelledBy"),
+                record_version: 1,
+            })
+            .unwrap();
+            Some(serde_json::to_value(PublishRestrictionRequest { restriction }).unwrap())
+        }
+        _ => None,
+    }
+}
+
+#[test]
+fn actual_controlled_input_producer_matches_current_fixture() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata/controlled-inputs.json");
+    let captured: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let mut current = captured.clone();
+    let mut generated = 0;
+    for case in current.as_array_mut().unwrap() {
+        if let Some(arguments) = current_fixture_arguments(case) {
+            case["arguments"] = arguments;
+            generated += 1;
+        }
+    }
+    assert_eq!(generated, 73);
+    if std::env::var_os("UPDATE_MAP_INPUT_FIXTURES").is_some() {
+        std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&current).unwrap() + "\n",
+        )
+        .unwrap();
+    }
+    let restored: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(current, restored);
+    for case in input_fixture::ToolInputCase::load(&std::fs::read(path).unwrap()) {
+        match case.tool.as_str() {
+            "register_source" => {
+                let _: crate::contract::CreateSourceRequest = case.decode();
+            }
+            "publish_restriction" => {
+                let _: crate::contract::PublishRestrictionRequest = case.decode();
+            }
+            _ => {}
+        }
+    }
+}
+
 #[tokio::test]
 async fn unknown_tool_arguments_complete_before_map_operation() {
     let qualification = async {
@@ -173,7 +278,7 @@ async fn unknown_tool_arguments_complete_before_map_operation() {
             .await
             .1;
         assert!(discover.get("error").is_none(), "{discover}");
-        let mut arguments = json!({"source_crs":"EPSG:4326","target_crs":"EPSG:4326","positions":[{"crs":"EPSG:4326","x":8.0,"y":47.0}]});
+        let mut arguments = json!({"sourceCrs":"EPSG:4326","targetCrs":"EPSG:4326","positions":[{"crs":"EPSG:4326","x":8.0,"y":47.0}]});
         let _: crate::contract::TransformCrsRequest =
             serde_json::from_value(arguments.clone()).unwrap();
         arguments["undeclared"] = true.into();

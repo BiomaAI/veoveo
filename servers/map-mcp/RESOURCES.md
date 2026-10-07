@@ -12,7 +12,7 @@ features. The MCP adapter exposes these contracts through checked declarations.
 | Veoveo MCP server contract revision 3 | `McpServerContract` and `McpServerSetup` validate startup and discovery declarations for MCP `2026-07-28`. |
 | RFC 9562 | Map identity types own their generated UUIDv7 and stable UUIDv5 profiles. |
 | JSON Schema Draft 2020-12 | Public Rust types supply the schemas used by the MCP adapter. |
-| Veoveo Map cursor version 1 | Hex-encoded typed JSON binds metadata and operational continuations to their collection and selected parent. |
+| Veoveo Map cursor profiles | Mobility and travel-model pages use version 2 camelCase JSON envelopes. The unchanged metadata, source, restriction and ID-only operational envelopes use version 1; each binds its admitted collection and parent. |
 
 ## Resource Surface
 
@@ -123,7 +123,7 @@ Route, matrix, and acquisition indexes return the same page envelope with up to
 100 items ordered by immutable domain ID. Their cursors bind the collection and
 are valid only at version 1. Map repository queries apply tenant and owner predicates before
 keyset selection and limits, including for direct reads. Route and matrix items
-contain status or profile metadata and a `resource_uri` for the complete document;
+contain status or profile metadata and a `resourceUri` for the complete document;
 index queries omit route geometry and matrix cells. Matrix reads and completion
 select only rows containing a matrix document. Acquisition pages contain job
 records, and acquisition updates enforce ownership in the same SQL write as their

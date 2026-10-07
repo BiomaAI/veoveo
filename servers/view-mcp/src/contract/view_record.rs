@@ -14,6 +14,7 @@ use super::{
 /// fn change_parent(view: &mut ViewRecord) { view.revision = 0; }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(try_from = "ViewRecordWire", into = "ViewRecordWire")]
 pub struct ViewRecord {
     view_id: ViewId,
@@ -108,6 +109,7 @@ impl ViewRecord {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ViewRecordWire {
     view_id: ViewId,
     view_uri: ViewUri,

@@ -10,7 +10,7 @@ use super::{
     SpatialDerivationId, Wgs84LineString, Wgs84Polygon, Wgs84Position,
 };
 
-pub const SPATIAL_DERIVATION_SCHEMA_VERSION: u64 = 1;
+pub const SPATIAL_DERIVATION_SCHEMA_VERSION: u64 = 2;
 pub const SPATIAL_DERIVATION_ALGORITHM_REVISION: &str =
     "map-spatial-local-equirectangular-wgs84-v1";
 pub const MAX_SPATIAL_INPUT_COORDINATES: usize = 10_000;
@@ -21,6 +21,7 @@ pub const MAX_PARALLEL_LANES: u32 = 128;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SpatialPointInput {
     pub id: String,
     pub position: Wgs84Position,
@@ -37,6 +38,7 @@ impl SpatialPointInput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SpatialGeometryInput {
     pub id: String,
     pub geometry: FeatureGeometry,
@@ -73,7 +75,11 @@ pub enum StationKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum SpatialDerivationOperation {
     ResampleLine {
@@ -296,6 +302,7 @@ impl SpatialDerivationOperation {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct DeriveSpatialGeometryRequest {
     pub mobility_profile_id: MobilityProfileId,
     pub mobility_profile_version: crate::contract::MobilityProfileVersion,
@@ -339,6 +346,8 @@ pub enum SpatialGeometryRole {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct SpatialGeometry {
     pub role: SpatialGeometryRole,
     pub ordinal: u32,
@@ -374,6 +383,8 @@ pub enum SpatialFindingCode {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct SpatialFinding {
     pub severity: SpatialFindingSeverity,
     pub code: SpatialFindingCode,
@@ -383,6 +394,8 @@ pub struct SpatialFinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct SpatialProjection {
     pub profile: String,
     pub origin: Wgs84Position,
@@ -391,7 +404,10 @@ pub struct SpatialProjection {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "SpatialDerivation")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct SpatialDerivationValue {
+    #[schemars(range(min = 2, max = 2))]
     pub schema_version: u64,
     pub derivation_id: SpatialDerivationId,
     pub resource_uri: super::MapSpatialDerivationUri,

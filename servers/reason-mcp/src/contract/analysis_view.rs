@@ -8,9 +8,9 @@ use super::{
 
 #[derive(Clone, Debug)]
 pub struct AnalysisDetails {
-    pub status: String,
+    pub status: veoveo_task_contract::TaskStatus,
     pub progress: f64,
-    pub task_kind: String,
+    pub task_kind: super::ReasoningKind,
     pub recording_uri: veoveo_recording_mcp::contract::RecordingUri,
     pub entity_path: String,
     pub timeline: String,
@@ -54,6 +54,16 @@ impl AnalysisView {
                     "analysis output pipeline",
                 ));
             }
+            let finding = &output.finding;
+            if finding.recording_uri() != &self.details.recording_uri
+                || finding.entity_path() != self.details.entity_path
+                || finding.timeline() != self.details.timeline
+                || super::ReasoningKind::from(finding.task()) != self.details.task_kind
+            {
+                return Err(ReasonContractError::InvalidRelationship(
+                    "analysis output source and kind",
+                ));
+            }
         }
         self.output = output;
         Ok(self)
@@ -91,14 +101,15 @@ impl AnalysisView {
 
 // Keep the admitted flat JSON profile while storing each identity only once.
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct AnalysisViewWire {
     analysis_uri: AnalysisUri,
     results_uri: ResultsUri,
     task_id: AnalysisId,
-    status: String,
+    status: veoveo_task_contract::TaskStatus,
     progress: f64,
     pipeline_id: PipelineId,
-    task_kind: String,
+    task_kind: super::ReasoningKind,
     recording_uri: veoveo_recording_mcp::contract::RecordingUri,
     entity_path: String,
     timeline: String,

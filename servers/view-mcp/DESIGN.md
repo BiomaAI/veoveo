@@ -39,6 +39,8 @@ identities keep the `view://` scheme.
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://view/preview.html` drives canonical resources, direct view tools, and task-based capture. |
 | OGC 3D Tiles 1.0 and 1.1 | Explicit tile trees, external tilesets, bounding boxes/spheres/regions, transforms, geometric error, and `REPLACE`/`ADD` refinement. Implicit tiling and legacy payloads are rejected. |
 | glTF/GLB 2.0 | Meshes, standard materials and textures, node transforms, and GLB binary content. |
+| Bevy `0.19.1`, WGPU/HAL `29.0.4`, Vulkan | Offscreen NVIDIA rendering and GPU RGB packing; Linux opaque-FD external buffer memory with explicit queue-family release. |
+| CUDA toolkit `13.4.92`, nvJPEG `13.2.3.58` | CUDA device UUID matching, imported Vulkan device buffers and explicit `NVJPEG_ENC_BACKEND_GPU` encoding. The runtime image selects CUDA `13.4.1`; this uses the GPU CUDA encoder, not Thor's fixed-function encoder. |
 | PNG and JPEG | `FrameEncoding` selects the image format; frame metadata admits only `image/png` and `image/jpeg`. |
 | Draco glTF geometry compression | Native decode of Draco-compressed GLB geometry. Preview resources preserve the original compressed bytes. |
 | WGS 84 and ECEF | Exact geodetic camera definitions and `f64` planetary transforms resolved into a local east-up-north rendering frame. |
@@ -48,6 +50,59 @@ identities keep the `view://` scheme.
 | PNG and JPEG | Bounded captured-frame encodings returned as MCP image content and governed frame resources. |
 | RFC 3986 and RFC 6570 | The [foundational URI profile](../../platform/types/DESIGN.md) supplies concrete component parsing, encoding and template expansion. View admits its own route shapes and typed parameters. |
 | Map, Frames, Recording and Artifact resource contracts | Governed scene references contain owner-defined URI types. Recording uses `recording://recordings/{id}` with RFC 9562 UUIDv7; Map product IDs require RFC-variant UUIDv5/v7 and source features name their release. |
+
+Controlled View JSON uses camelCase fields and rejects unknown fields. Camera,
+overlay and source variants keep snake_case values. MCP tool names, completion
+arguments, URI template variables and scene query parameter names follow their
+own declared profiles. Configured layers use the same owned field spelling;
+external OGC, glTF and Google tiles payloads keep their provider vocabulary.
+
+The composition algorithm schema declares its current literal with the foundational
+`format_tag` scalar naming role. Numeric `schemaVersion` is a version number.
+
+Scene compositions require `schemaVersion: 2` and the identity algorithm
+`veoveo.ai/view-scene-composition/v2`. Admission checks the version before state
+or rendering effects. The request digest hashes compact Serde JSON bytes of the
+typed request after ordering governed inputs by `inputId`. The authority digest
+hashes compact Serde JSON bytes of the typed authority. Stable
+UUIDv5 identities include the current algorithm and request and authority digests.
+The authority wrapper uses `principalId`; its embedded foundational invocation
+claims keep their declared native spelling. Writers and readers require one
+coordinated drain and upgrade. Stored compositions and capture snapshots with
+unsupported versions require regeneration from admitted inputs; View supplies
+no historical reader or destructive conversion. Recovery preserves the original
+rows and Artifact bytes until the current replacement is qualified.
+
+The content digest hashes compact Serde JSON bytes of a private borrowed content
+struct. Its fields serialize in this order: `schemaVersion`, `compositionId`,
+`compositionUri`, `revision`, `baseLayer`, `mapReleases`, `localFrame`, `styleId`,
+`governedInputs`, `overlays`, `algorithmRevision`, `requestDigestSha256`,
+`authority`. An absent `localFrame` is omitted; empty content collections are
+included. Only `createdAt` and `compositionDigestSha256` are excluded from the
+record. Exhaustive wire-record destructuring requires each added field to have
+an explicit inclusion or exclusion decision.
+
+Nested values serialize through their owner types and declared Serde field order.
+Ordered sets use their admitted ordering, overlays keep request order, and finite
+floats use their typed JSON serialization without conversion through a JSON value.
+The preimage contains no dynamic JSON objects. Enabling `serde_json/preserve_order`
+therefore leaves request, authority, content and UUID identities unchanged. The
+record owner freezes one complete governed-marker preimage and its hashes across
+both feature profiles; clock exclusion, input normalization, authority binding,
+digest rejection and serialized float round trips have separate controls. These
+fixtures qualify contract serialization and admission; installed Task recovery
+and hardware rendering require their own acceptance.
+
+Frame and preview records, capture snapshots, layer configuration and overlay
+geometry JSON are unversioned owned formats. Their current writers and readers
+use the same closed DTOs. Overlay Artifact JSON uses
+`application/vnd.veoveo.view-overlay-geometry+json`; updated owned geometry JSON
+produces its own current byte digest. Tile source digests, binary GLB, Draco,
+PNG and JPEG bytes, native SQL columns, Task ownership claims and credential
+references keep their declared formats. Prepared overlay caches include current
+composition, style and camera values and cannot share entries with a different
+composition digest. The readiness wrapper uses camelCase fields while adapter
+backend and device descriptions preserve the renderer's external vocabulary.
 
 ## Library Features
 
@@ -140,7 +195,7 @@ The composition contract refers to a configured layer id. It never accepts an
 API key. Redirects, credentials, local roots, request caps, and cache behavior
 belong to the server-side layer catalog.
 
-`tools/list` refines the generated `create_scene_composition.base_layer`
+`tools/list` refines the generated `create_scene_composition.baseLayer`
 schema with the exact identifiers from the active catalog. A single configured
 layer is also the schema default. Labels and source kinds remain descriptive
 catalog fields and are never accepted as identifiers. An unknown identifier
@@ -184,7 +239,7 @@ or infer a coordinate transform.
 
 Styles contain finite bounded colors and physical dimensions. Visibility is
 explicit and can apply minimum or maximum camera distance. An overlay can
-carry one timestamp or a validity interval. `capture_frame.scene_time`
+carry one timestamp or a validity interval. `capture_frame.sceneTime`
 determines the visible set.
 
 Inline geometry is limited to 4,096 points and 256 KiB for the complete
@@ -388,9 +443,9 @@ drives the same frustum selection used for capture, and the transport admits a
 complete render cut of up to 256 tiles. The app sends its current capture policy,
 which keeps detail inside the camera frustum representative of the requested
 frame. The manifest carries the
-resolved camera, a local origin with its column-major `local_from_ecef`
+resolved camera, a local origin with its column-major `localFromEcef`
 frame, aggregated attribution, and per-tile `view://tile/{tile_key}` URIs
-with verbatim `ecef_from_content` transforms (glTF Y-up to Z-up baked in;
+with verbatim `ecefFromContent` transforms (glTF Y-up to Z-up baked in;
 CESIUM_RTC and node transforms stay inside the GLB and are the consumer's
 job, exactly as in the renderer). Tile keys are sha256 tokens over the layer
 and credential-free content location, resolved through an in-process
@@ -467,19 +522,132 @@ Bevy `Mesh`, `Image`, or material values.
 
 ## Bevy Renderer
 
-The service uses Bevy 0.19 with an exact dependency and a minimal feature set.
+The service uses Bevy `0.19.1` with an exact dependency and a minimal feature set.
 It has no Winit plugin, primary window, OS input source, camera controller,
 audio stack, UI, or picking backend. An externally driven `App` renders into
-`Image` targets and pumps only for asset upload, capture, readback, and cleanup
-work.
+`Image` targets. View disables Bevy's pipelined rendering plugin because one
+renderer thread owns the render world, Vulkan queue and CUDA context. ECS
+systems can still use Bevy's worker pool.
 
-Production selects the Vulkan backend, high-performance power preference, and
-rejects fallback or CPU adapters. Readiness includes the selected adapter name,
-backend, and device type. A process without a hardware adapter is not ready.
+Production requires NVIDIA Vulkan and a CUDA device with the same physical-device
+UUID. There is no optional GPU profile. Readiness includes `jpegEncoder` equal
+to `nvjpeg_cuda_gpu` and the selected `cudaDeviceUuid`. Before reporting readiness,
+View renders a GPU clear image and completes the same RGB packing, memory import,
+JPEG encoding and compressed-bitstream retrieval used by captures. Missing native
+libraries, an incompatible version, unavailable GPU backend, mismatched devices
+or unsupported external-memory capabilities refuse startup.
 
-The NVIDIA image contains the Vulkan loader and runs through NVIDIA Container
-Toolkit with `graphics`, `compute`, and `utility` driver capabilities. Helm
-requests one `nvidia.com/gpu` resource for each renderer replica.
+`renderer/gpu_jpeg.rs` owns nvJPEG state, quality and 4:4:4 sampling. Its explicit
+`NVJPEG_ENC_BACKEND_GPU` selects CUDA execution on NVIDIA hardware. The Ada profile
+does not request the fixed-function Thor encoder. `renderer/packing.wgsl` reads an
+unorm view of the sRGB target to preserve its stored encoded channel bytes, removes
+alpha and packs RGB on the GPU. JPEG bypasses Bevy's screenshot readback. Only the
+compressed bitstream crosses into host memory. The render target stays live until
+encoding completes.
+
+`renderer/vulkan_cuda.rs` creates a device-local Vulkan buffer with opaque-FD
+export memory. The owner initializes the buffer on the GPU before importing it
+into WGPU. After packing, a completed WGPU submission and a native queue-family
+release to `EXTERNAL` with a completed Vulkan fence establish CUDA ownership.
+CUDA maps the same allocation. Its completion event precedes releasing the mapped
+pointer, imported memory, WGPU buffer and backing Vulkan allocation, in that order.
+The buffer has one Vulkan writer and one CUDA reader; no GPU pixels are uploaded
+from a CPU screenshot.
+
+CUDA context and stream mechanics use maintained `cudarc 0.19.10`. The adapter uses
+that release's generated driver result APIs for external memory. The convenience
+`driver/safe/external_memory.rs::ExternalMemory::map_range` creates a mapped pointer
+before a fallible event creation. View's narrow mapping owner instead establishes
+ownership before mapping and frees the pointer before the imported memory on every
+admitted release. A pre-submit mapping failure releases only the import. View can
+remove this adapter when the maintained wrapper frees mapped pointers on event
+creation failure and passes these owner lifetime controls.
+
+The checked-in `renderer/nvjpeg_bindings.rs` is generated by `bindgen 0.73.2` from
+NVIDIA nvJPEG `13.2.3.58` header SHA-256
+`23ac8656e13b28ce7033c4dc35b9990a8e71c6ef0aa965bd00531162324fe187`.
+The generator uses the complete CUDA `13.4.92` target headers, Rust 2024, Rust
+minimum target 1.85 and explicit unsafe blocks. Its allowlist contains only
+`nvjpegCreateSimple`, `nvjpegDestroy`, `nvjpegGetProperty`,
+`nvjpegEncoderStateCreateWithBackend`, `nvjpegEncoderStateDestroy`,
+`nvjpegEncoderParamsCreate`, `nvjpegEncoderParamsDestroy`,
+`nvjpegEncoderParamsSetQuality`, `nvjpegEncoderParamsSetSamplingFactors`,
+`nvjpegEncodeImage` and `nvjpegEncodeRetrieveBitstream`, plus their referenced types
+and version constants. It uses bindgen's all-required dynamic library wrapper
+`Nvjpeg` with `libloading 0.9.0`. Normal Cargo builds require neither SDK headers
+nor NVCC. All native dependencies and renderer modules are gated by `runtime`;
+independent `contract` consumers exclude them.
+
+### Completion And Interruption
+
+One 15-second user-space completion deadline covers capture render pumping, native
+buffer initialization, packing, ownership release, encoding, retrieval and target
+cleanup. Startup completion observations use a 30-second budget. Resource and
+shutdown drain observations use five seconds. View's current Pod uses Kubernetes'
+30-second termination grace. Shutdown rejects further queued captures, so it waits
+for at most the current capture plus drains rather than four FIFO GPU captures.
+The service selects the combined Task and View-close cancellation token while
+awaiting the renderer. Cancellation closes its queued response before dispatch;
+already active GPU work completes before the renderer releases storage. A server
+lifetime guard signals queue shutdown when hosted serving returns, independently
+of renderer handles retained by Task workers. Installed shutdown still requires
+qualification against the hosting lifecycle.
+
+If submitted native work has an uncertain outcome or a completion observation
+exceeds its deadline, View exits with status 70 through Linux `_exit`. It skips
+Rust and native destructors, produces no core dump and does not reset the GPU.
+Fatal device-loss and uncaptured-error callbacks are installed before JPEG
+admission. Immediate submission and poll calls catch backend panics with native
+owners outside the unwind boundary. The render pump uses the same boundary while
+its renderer storage stays outside it; this cannot repair a dependency that has
+already freed in-flight storage during its own unwind. Explicit device destruction
+is accepted only after the owner observes WGPU and CUDA shutdown drains; native
+loss still terminates even after that witness. The service cannot publish Task
+success after that exit. Persisted capture
+snapshots and unresolved Task outcomes preserve the shared runtime's lease,
+process-epoch and output-reuse checks. View establishes shared startup recovery
+observation before its baseline and schedules the immediate resumable report.
+Tasks held under live leases are revisited automatically on native Task changes
+or their earliest retained lease deadline. Every scheduling attempt admits the
+stored capture snapshot, validates its owner and current resources, then claims
+through the durable lease guard. A claim conflict or active-lease response triggers
+one trusted runtime recovery read. Physical deletion or a terminal Task settles the
+handoff. A Task reassigned to another server fails before its payload is decoded. An
+unfinished Task must preserve its admitted server, operation, recovery profile,
+owner and capture input, and only a
+live lease held by a different worker proves another replica owns execution.
+An unowned, expired or own-worker lease after a failed claim ends serving.
+The observer covers only Tasks admitted at startup; normal capture admission owns
+new Tasks and active workers.
+
+`server/recovery.rs` owns the observer independently of renderer and Task-held
+state clones. Hosted exit cancels and drains it within five seconds. A stalled
+drain aborts the observer and returns an error. Observer query, admission or
+scheduling errors end serving instead of silently abandoning retained Tasks.
+Exhausting the startup set is healthy completion. Live leases held by another
+worker do not delay readiness. Native controls inject claim error categories
+against real Store states without claiming transaction-contention coverage.
+Its owning lifetime tests use no renderer and
+establish behavioral shutdown and error propagation only.
+
+These user-space observation bounds
+do not promise to interrupt a kernel or driver hang.
+
+PNG keeps its explicit public encoding. Its screenshot readback, RGB conversion
+and compression are marked `TODO(GPU)` for a device-resident PNG encoder. PNG
+cannot establish GPU JPEG acceptance.
+
+The NVIDIA image contains the Vulkan loader and exact CUDA/nvJPEG user-space
+libraries. NVIDIA Container Toolkit injects driver capabilities `graphics`,
+`compute` and `utility`; Helm requests one `nvidia.com/gpu` per renderer replica.
+The pinned CUDA 13.4.1 image requires driver-advertised CUDA capability of at
+least 13.4 for the GeForce profile. The NVIDIA container runtime must enforce
+`NVIDIA_REQUIRE_CUDA`; disabling that admission check is unsupported. The
+driver qualification candidate is NVIDIA open driver `615.71.09-2ubuntu1`.
+The deterministic owner GPU control must execute on the installed driver before
+image and runtime qualification. Package installation alone supplies no execution
+qualification. View uses standard external-memory and nvJPEG APIs without
+NVRTC-generated PTX or an older-library fallback.
 
 ## Attribution
 
@@ -513,13 +681,34 @@ Rust tests cover camera resolution, ECEF cancellation, tree construction, SSE
 selection, weighted eviction, freshness, credential-free cache keys, GLB
 preprocessing, and typed unsupported content. The Rust smoke path starts the
 renderer inside the NVIDIA container, verifies a non-CPU Vulkan adapter,
-captures a deterministic local tileset and governed marker, polyline, polygon,
+captures both PNG and GPU JPEG from a deterministic local tileset and governed marker, polyline, polygon,
 and label overlays through source, traversal, decode, and Bevy through the
 production MCP task and frame-resource boundaries. It verifies composition
-provenance, output digest, and owner isolation. The production image
+provenance, output digest, decoded dimensions, frame-resource byte agreement and owner isolation. GPU JPEG completion records must match the admitted device UUID and the local capture dimensions. The owning library tests cover pre-submit map failure, post-submit failure release ordering, canceled queued captures, shutdown queue rejection and destructor-free deadline, backend-panic, device-loss and partial-submission exits. The production image
 contains only the View MCP server. Build it with `cargo xtask image build
 --target view-mcp`, then dispatch the Rust harness with `cargo xtask smoke
 view-mcp`.
+
+The local `view-mcp` smoke also submits eight JPEG Tasks with one capture
+in flight. It freezes the owning container after observing a claimed unfinished
+Task, rechecks that row, then kills the container. A replacement starts on the
+same owned Store before the unchanged 180-second lease expires. The harness
+requires no early claim or completion, then verifies GPU JPEG completion,
+provenance, digest, frame-resource bytes and owner isolation through the maintained
+Task interface. Normal replacement shutdown must exit successfully within
+30 seconds and record the GPU UUID and encoder. This lifecycle has a 360-second
+deadline inside the smoke scenario's 3,600-second budget. Lifecycle Docker
+commands use the maintained asynchronous process owner and the remaining
+absolute deadline. Interruption inspection has five seconds. Each final log
+collection has five seconds, including after failure. Command timeout or
+cancellation kills its owned group immediately and gives reaping at most one
+second, preserving unresolved registrations. Caller isolation requires the
+declared MCP invalid-parameters response and the domain's unknown-Task or
+unknown-resource diagnostic; transport and internal errors fail the probe.
+Logs precede cleanup,
+including failed observations. This local signed fixture covers the owning
+hardware lifecycle; gateway OAuth and installation rollout have separate
+acceptance. Executing this scenario is required for GPU runtime qualification.
 
 The billed live acceptance scenario captures Google Photorealistic 3D Tiles
 from a camera orbiting the Statue of Liberty at 40.6892494, -74.0445004. It
@@ -549,7 +738,7 @@ and result slots. Complete static statements cover finite SQL grammar choices.
 
 ## Task Completion Products
 
-Capture metadata carries `result_uri` equal to its checked `frame_uri`. The MCP
+Capture metadata carries `resultUri` equal to its checked `frameUri`. The MCP
 result contains short status text, image content and one matching frame resource link.
 Task completion admits that envelope before storage; retained reads reconstruct the
 same checked capture metadata and content.
@@ -576,3 +765,35 @@ The App typecheck uses maintained `@types/three` `0.186.0` and `@types/draco3d`
 Three surface is limited to constructors and constants consumed from the
 qualified vendor; startup checks its required constructors and OrbitControls.
 These development declarations do not change the renderer or its GPU qualification.
+
+## NVIDIA Runtime Notice
+
+NOTWITHSTANDING ANY TERMS OR CONDITIONS TO THE CONTRARY IN THE
+LICENSE AGREEMENT, NVIDIA MAKES NO REPRESENTATION ABOUT THE
+SUITABILITY OF THESE LICENSED DELIVERABLES FOR ANY PURPOSE.  IT IS
+PROVIDED "AS IS" WITHOUT EXPRESS OR IMPLIED WARRANTY OF ANY KIND.
+NVIDIA DISCLAIMS ALL WARRANTIES WITH REGARD TO THESE LICENSED
+DELIVERABLES, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY,
+NONINFRINGEMENT, AND FITNESS FOR A PARTICULAR PURPOSE.
+NOTWITHSTANDING ANY TERMS OR CONDITIONS TO THE CONTRARY IN THE
+LICENSE AGREEMENT, IN NO EVENT SHALL NVIDIA BE LIABLE FOR ANY
+SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, OR ANY
+DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
+ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
+OF THESE LICENSED DELIVERABLES.
+
+U.S. Government End Users.  These Licensed Deliverables are a
+"commercial item" as that term is defined at 48 C.F.R. 2.101 (OCT
+1995), consisting of "commercial computer software" and "commercial
+computer software documentation" as such terms are used in 48
+C.F.R. 12.212 (SEPT 1995) and is provided to the U.S. Government
+only as a commercial end item.  Consistent with 48 C.F.R.12.212 and
+48 C.F.R. 227.7202-1 through 227.7202-4 (JUNE 1995), all
+U.S. Government End Users acquire the Licensed Deliverables with
+only those rights set forth herein.
+
+Any use of the Licensed Deliverables in individual and commercial
+software must include, in the user documentation and internal
+comments to the code, the above Disclaimer and U.S. Government End
+Users Notice.

@@ -122,3 +122,47 @@ fn subscription_targets_share_the_typed_resource_profile() {
 fn subscribable(uri: &str) -> Option<MediaSubscriptionResource> {
     MediaSubscriptionResource::from_resource(MediaResource::parse(uri).ok()?)
 }
+
+#[test]
+fn current_page_requires_cursor_and_refuses_retired_root_and_entry_members() {
+    let page = MediaPredictionPage::from_ids(vec![MediaPredictionId::new("job-1").unwrap()], None)
+        .unwrap();
+    let wire = serde_json::to_value(&page).unwrap();
+    let schema = serde_json::to_value(schemars::schema_for!(MediaPredictionPage)).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&wire));
+    assert_eq!(
+        serde_json::from_value::<MediaPredictionPage>(wire.clone()).unwrap(),
+        page
+    );
+    for (current, retired, nested) in [
+        ("nextCursor", "next_cursor", false),
+        ("predictionUri", "prediction_uri", true),
+    ] {
+        for retain_current in [false, true] {
+            let mut bad = wire.clone();
+            let object = if nested {
+                bad["items"][0].as_object_mut().unwrap()
+            } else {
+                bad.as_object_mut().unwrap()
+            };
+            let value = object.get(current).unwrap().clone();
+            if !retain_current {
+                object.remove(current);
+            }
+            object.insert(retired.into(), value);
+            assert!(
+                !validator.is_valid(&bad),
+                "{retired} mixed={retain_current}"
+            );
+            assert!(
+                serde_json::from_value::<MediaPredictionPage>(bad).is_err(),
+                "{retired} mixed={retain_current}"
+            );
+        }
+    }
+    let mut omitted = wire;
+    omitted.as_object_mut().unwrap().remove("nextCursor");
+    assert!(!validator.is_valid(&omitted));
+    assert!(serde_json::from_value::<MediaPredictionPage>(omitted).is_err());
+}

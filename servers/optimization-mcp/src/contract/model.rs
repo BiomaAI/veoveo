@@ -12,6 +12,7 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct VariableBounds {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lower: Option<FiniteF64>,
@@ -42,6 +43,7 @@ pub enum VariableKind {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ModelVariable {
     pub variable_id: VariableId,
     pub kind: VariableKind,
@@ -50,6 +52,7 @@ pub struct ModelVariable {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct LinearTerm {
     pub variable_id: VariableId,
     pub coefficient: FiniteF64,
@@ -57,6 +60,7 @@ pub struct LinearTerm {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct QuadraticTerm {
     pub left_variable_id: VariableId,
     pub right_variable_id: VariableId,
@@ -65,6 +69,7 @@ pub struct QuadraticTerm {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ModelObjective {
     pub direction: ObjectiveDirection,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -84,6 +89,7 @@ pub enum ObjectiveDirection {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct LinearConstraint {
     pub constraint_id: ConstraintId,
     pub terms: Vec<LinearTerm>,
@@ -92,6 +98,7 @@ pub struct LinearConstraint {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct QuadraticConstraint {
     pub constraint_id: ConstraintId,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -112,7 +119,9 @@ pub enum ConvexProblemKind {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "ConvexProblem")]
+#[serde(rename_all = "camelCase")]
 pub struct ConvexProblemValue {
+    #[schemars(schema_with = "super::naming::convex_version")]
     pub version: String,
     pub kind: ConvexProblemKind,
     pub variables: Vec<ModelVariable>,
@@ -194,7 +203,9 @@ impl ConvexProblemValue {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "MilpProblem")]
+#[serde(rename_all = "camelCase")]
 pub struct MilpProblemValue {
+    #[schemars(schema_with = "super::naming::milp_version")]
     pub version: String,
     pub variables: Vec<ModelVariable>,
     pub objective: ModelObjective,
@@ -376,19 +387,24 @@ fn validate_initial_solution(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactModelFormat {
-    OptimizationJsonV1,
+    OptimizationJsonV2,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ArtifactModelSource {
     pub uri: ArtifactUri,
     pub format: ArtifactModelFormat,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "source", rename_all = "snake_case")]
-#[serde(deny_unknown_fields)]
+#[serde(
+    tag = "source",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ConvexProblemSource {
     Inline { problem: ConvexProblem },
     Resource { uri: OptimizationProblemUri },
@@ -396,8 +412,12 @@ pub enum ConvexProblemSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "source", rename_all = "snake_case")]
-#[serde(deny_unknown_fields)]
+#[serde(
+    tag = "source",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum MilpProblemSource {
     Inline { problem: MilpProblem },
     Resource { uri: OptimizationProblemUri },
@@ -406,6 +426,7 @@ pub enum MilpProblemSource {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ConvexOutputPolicy {
     #[serde(default)]
     pub retain_warm_start: bool,
@@ -413,6 +434,7 @@ pub struct ConvexOutputPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct MilpOutputPolicy {
     #[serde(default)]
     pub retain_warm_start: bool,
@@ -422,6 +444,7 @@ pub struct MilpOutputPolicy {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SolveConvexRequest {
     pub problem: ConvexProblemSource,
     pub policy: SolverPolicyRef,
@@ -431,6 +454,7 @@ pub struct SolveConvexRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SolveMilpRequest {
     pub problem: MilpProblemSource,
     pub policy: SolverPolicyRef,
@@ -442,6 +466,7 @@ pub struct SolveMilpRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct VerifySolutionRequest {
     pub solution_uri: OptimizationSolutionUri,
     #[serde(default, skip_serializing_if = "Option::is_none")]

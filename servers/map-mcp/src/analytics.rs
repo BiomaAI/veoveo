@@ -4,6 +4,7 @@ use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use duckdb::{Connection, params};
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use sha2::{Digest, Sha256};
 use veoveo_duckdb_runtime::{
     EngineSettings, FileAccess, SharedDatabase, SpatialAxisPolicy, TrustedExtension,
@@ -33,7 +34,7 @@ mod recovery_tests;
 
 pub(crate) use projection::ReleaseProjectionWriter;
 
-const SCHEMA_VERSION: i64 = 11;
+const SCHEMA_VERSION: i64 = 12;
 
 const SPATIAL_INDEXES: [&str; 4] = [
     "map_boundary_geometry",
@@ -388,7 +389,7 @@ impl MapAnalytics {
                     query_domain: SOURCE_FEATURE_QUERY_DOMAIN.to_owned(),
                     query_digest_sha256: query_digest.clone(),
                     distance_m: item.distance.map(Meters::get),
-                    feature_id: item.feature.feature_id.to_string(),
+                    feature_id: item.feature.feature_id.clone(),
                 })
             })
         } else {
@@ -840,26 +841,20 @@ fn checked_raster_product(row: &duckdb::Row<'_>) -> Result<RasterProduct> {
     Ok(value)
 }
 
-const SOURCE_FEATURE_QUERY_DOMAIN: &str = "veoveo.ai/map/source-feature-query/v2";
+const SOURCE_FEATURE_QUERY_DOMAIN: &str = "veoveo.ai/map/source-feature-query/v3";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct SourceFeatureCursor {
     query_domain: String,
-    query_digest_sha256: String,
+    #[serde(with = "veoveo_types::sha256_hex")]
+    query_digest_sha256: veoveo_types::Sha256Digest,
     distance_m: Option<f64>,
-    feature_id: String,
+    feature_id: SourceFeatureId,
 }
 
-fn source_query_digest(request: &QuerySourceFeaturesRequest) -> Result<String> {
-    let mut canonical = request.clone();
-    canonical.cursor = None;
-    let bytes = serde_json::to_vec(&canonical)?;
-    let mut digest = Sha256::new();
-    digest.update(SOURCE_FEATURE_QUERY_DOMAIN.as_bytes());
-    digest.update(b"\0");
-    digest.update(bytes);
-    Ok(hex::encode(digest.finalize()))
+fn source_query_digest(request: &QuerySourceFeaturesRequest) -> Result<veoveo_types::Sha256Digest> {
+    Ok(request.query_digest_sha256()?)
 }
 
 struct SourceFeatureCursorCodec;
@@ -868,12 +863,6 @@ impl veoveo_types::CursorCodec for SourceFeatureCursorCodec {
     type Error = anyhow::Error;
     fn check(&self, cursor: &SourceFeatureCursor) -> Result<()> {
         if cursor.query_domain != SOURCE_FEATURE_QUERY_DOMAIN
-            || cursor.query_digest_sha256.len() != 64
-            || !cursor
-                .query_digest_sha256
-                .bytes()
-                .all(|byte| byte.is_ascii_hexdigit())
-            || SourceFeatureId::parse(cursor.feature_id.clone()).is_err()
             || cursor
                 .distance_m
                 .is_some_and(|value| !value.is_finite() || value < 0.0)
@@ -999,12 +988,12 @@ fn source_feature_query_sql(
         if let Some(distance) = cursor.distance_m {
             scored_predicates.push(format!(
                 "(scored.distance_m > {distance} OR (scored.distance_m = {distance} AND scored.feature_key > {}))",
-                duckdb_string_literal(&cursor.feature_id)
+                duckdb_string_literal(cursor.feature_id.as_str())
             ));
         } else {
             scored_predicates.push(format!(
                 "scored.feature_key > {}",
-                duckdb_string_literal(&cursor.feature_id)
+                duckdb_string_literal(cursor.feature_id.as_str())
             ));
         }
     }
@@ -1314,6 +1303,70 @@ mod tests {
     }
 
     #[test]
+    fn source_and_raster_products_refuse_old_version_and_wire_fields() {
+        fn qualify<T: serde::Serialize + serde::de::DeserializeOwned + schemars::JsonSchema>(
+            value: T,
+        ) {
+            let current = serde_json::to_value(value).unwrap();
+            let schema = serde_json::to_value(schemars::schema_for!(T)).unwrap();
+            let validator = jsonschema::validator_for(&schema).unwrap();
+            assert!(validator.is_valid(&current));
+            serde_json::from_value::<T>(current.clone()).unwrap_or_else(|error| panic!("{error}"));
+            for version in [1, 3] {
+                let mut bad = current.clone();
+                bad["schemaVersion"] = serde_json::json!(version);
+                assert!(!validator.is_valid(&bad));
+                assert!(serde_json::from_value::<T>(bad).is_err());
+            }
+            for (canonical, retired) in [
+                ("schemaVersion", "schema_version"),
+                ("sourceId", "source_id"),
+                ("releaseId", "release_id"),
+            ] {
+                for mixed in [false, true] {
+                    let mut bad = current.clone();
+                    let value = bad[canonical].clone();
+                    assert!(!value.is_null());
+                    if !mixed {
+                        bad.as_object_mut().unwrap().remove(canonical);
+                    }
+                    bad[retired] = value;
+                    assert!(!validator.is_valid(&bad));
+                    assert!(serde_json::from_value::<T>(bad).is_err());
+                }
+            }
+        }
+        let feature = test_source_feature(&DatasetReleaseId::new(), 0);
+        let raster = RasterProduct::new(crate::contract::RasterProductValue {
+            schema_version: crate::contract::RASTER_PRODUCT_SCHEMA_VERSION,
+            raster_id: RasterProductId::new(),
+            source_id: feature.source_id.clone(),
+            release_id: feature.release_id.clone(),
+            artifact_uri: veoveo_artifact_contract::ArtifactId::new().plane_uri(),
+            checksum_sha256: "a".repeat(64),
+            crs: "EPSG:4326".into(),
+            transform: [0., 1., 0., 0., 0., -1.],
+            width: 1,
+            height: 1,
+            extent: [0., -1., 1., 0.],
+            resolution: [1., 1.],
+            bands: vec![crate::contract::RasterBand {
+                index: 1,
+                name: None,
+                data_type: "Float32".into(),
+                unit: None,
+                interpretation: crate::contract::RasterValueInterpretation::Continuous,
+                nodata: None,
+            }],
+            license: feature.license.clone(),
+            attribution: feature.license.attribution.clone(),
+        })
+        .unwrap();
+        qualify(feature);
+        qualify(raster);
+    }
+
+    #[test]
     fn duckdb_literals_escape_single_quotes() {
         assert_eq!(duckdb_string_literal("a'b"), "'a''b'");
         assert_eq!(
@@ -1341,7 +1394,7 @@ mod tests {
             query_domain: SOURCE_FEATURE_QUERY_DOMAIN.to_owned(),
             query_digest_sha256: digest.clone(),
             distance_m: None,
-            feature_id: SourceFeatureId::new().to_string(),
+            feature_id: SourceFeatureId::new(),
         })
         .unwrap();
         assert_eq!(
@@ -1355,36 +1408,76 @@ mod tests {
         let feature_id = SourceFeatureId::new().to_string();
         let legacy = URL_SAFE_NO_PAD.encode(
             serde_json::to_vec(&serde_json::json!({
-                "query_digest_sha256": hex::encode(Sha256::digest(b"legacy-query")),
-                "distance_m": null,
-                "feature_id": feature_id,
+                "queryDigestSha256": hex::encode(Sha256::digest(b"legacy-query")),
+                "distanceM": null,
+                "featureId": feature_id,
             }))
             .unwrap(),
         );
         assert!(decode_source_cursor(&legacy).is_err());
 
+        let current = SourceFeatureCursor {
+            query_domain: SOURCE_FEATURE_QUERY_DOMAIN.to_owned(),
+            query_digest_sha256: veoveo_types::Sha256Digest::from_bytes(
+                Sha256::digest(b"current-query").into(),
+            ),
+            distance_m: None,
+            feature_id: SourceFeatureId::new(),
+        };
+        let mut old = serde_json::to_value(&current).unwrap();
+        old["queryDomain"] = serde_json::json!("veoveo.ai/map/source-feature-query/v2");
+        assert!(
+            decode_source_cursor(&URL_SAFE_NO_PAD.encode(serde_json::to_vec(&old).unwrap()))
+                .is_err()
+        );
+        for (canonical, retired) in [
+            ("queryDomain", "query_domain"),
+            ("queryDigestSha256", "query_digest_sha256"),
+            ("distanceM", "distance_m"),
+            ("featureId", "feature_id"),
+        ] {
+            for mixed in [false, true] {
+                let mut invalid = serde_json::to_value(&current).unwrap();
+                invalid[retired] = invalid[canonical].clone();
+                if !mixed {
+                    invalid.as_object_mut().unwrap().remove(canonical);
+                }
+                assert!(
+                    decode_source_cursor(
+                        &URL_SAFE_NO_PAD.encode(serde_json::to_vec(&invalid).unwrap())
+                    )
+                    .is_err()
+                );
+            }
+        }
         let negative = encode_source_cursor(&SourceFeatureCursor {
             query_domain: SOURCE_FEATURE_QUERY_DOMAIN.to_owned(),
-            query_digest_sha256: hex::encode(Sha256::digest(b"current-query")),
+            query_digest_sha256: veoveo_types::Sha256Digest::from_bytes(
+                Sha256::digest(b"current-query").into(),
+            ),
             distance_m: Some(-1.0),
-            feature_id: SourceFeatureId::new().to_string(),
+            feature_id: SourceFeatureId::new(),
         })
         .unwrap();
         assert!(decode_source_cursor(&negative).is_err());
 
         let feature_ordered = SourceFeatureCursor {
             query_domain: SOURCE_FEATURE_QUERY_DOMAIN.to_owned(),
-            query_digest_sha256: hex::encode(Sha256::digest(b"feature-query")),
+            query_digest_sha256: veoveo_types::Sha256Digest::from_bytes(
+                Sha256::digest(b"feature-query").into(),
+            ),
             distance_m: None,
-            feature_id: SourceFeatureId::new().to_string(),
+            feature_id: SourceFeatureId::new(),
         };
         assert!(validate_source_cursor_order(&feature_ordered, true).is_err());
 
         let distance_ordered = SourceFeatureCursor {
             query_domain: SOURCE_FEATURE_QUERY_DOMAIN.to_owned(),
-            query_digest_sha256: hex::encode(Sha256::digest(b"distance-query")),
+            query_digest_sha256: veoveo_types::Sha256Digest::from_bytes(
+                Sha256::digest(b"distance-query").into(),
+            ),
             distance_m: Some(1.0),
-            feature_id: SourceFeatureId::new().to_string(),
+            feature_id: SourceFeatureId::new(),
         };
         assert!(validate_source_cursor_order(&distance_ordered, false).is_err());
     }
@@ -1658,12 +1751,13 @@ mod tests {
             .unwrap();
         let original = serde_json::to_value(&feature).unwrap();
         for (field, other) in [
-            ("feature_id", serde_json::json!(SourceFeatureId::new())),
-            ("source_id", serde_json::json!(MapSourceId::new())),
-            ("release_id", serde_json::json!(DatasetReleaseId::new())),
+            ("featureId", serde_json::json!(SourceFeatureId::new())),
+            ("sourceId", serde_json::json!(MapSourceId::new())),
+            ("releaseId", serde_json::json!(DatasetReleaseId::new())),
         ] {
             let mut corrupt = original.clone();
             corrupt[field] = other;
+            serde_json::from_value::<SourceFeature>(corrupt.clone()).unwrap();
             analytics.connection().unwrap().execute("UPDATE map_source_feature SET canonical_json = ? WHERE tenant_key = ? AND feature_key = ?", params![serde_json::to_string(&corrupt).unwrap(), "tenant", feature.feature_id.as_str()]).unwrap();
             assert!(
                 analytics

@@ -68,6 +68,7 @@ impl RunRecordingOutput {
     }
 }
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(rename = "RunRecordingOutput")]
 pub struct RunRecordingOutputBuilder {
     pub run_uri: RunUri,

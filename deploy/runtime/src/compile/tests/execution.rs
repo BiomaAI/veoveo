@@ -28,8 +28,8 @@ fn verify_retained_execution(
         .installation_inputs
         .insert(InstallationInput::GatewayActivation);
     definition.wait_for_deployments = vec!["platform".into()];
-    let control = json!({"identity_providers":[], "authorization_servers":[], "servers":[], "profiles":[],
-        "tenants":[], "work_contexts":[], "policies":[], "data_labels":[], "oidc_clients":[],
+    let control = json!({"identityProviders":[], "authorizationServers":[], "servers":[], "profiles":[],
+        "tenants":[], "workContexts":[], "policies":[], "dataLabels":[], "oidcClients":[],
         "metadata":{"fixture":"old"}});
     fs::write(
         original.repository.join("old-gateway.json"),

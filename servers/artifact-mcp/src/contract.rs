@@ -66,6 +66,7 @@ pub struct SetArtifactReleaseRequest {
 #[serde(deny_unknown_fields)]
 pub struct ShareLinkOptions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<veoveo_types::ChronoUtcTimestampSchema>")]
     pub expires_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_downloads: Option<u64>,
@@ -84,6 +85,7 @@ pub struct CreateArtifactShareRequest {
 struct CreateArtifactShareWire {
     artifact_id: ArtifactId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<veoveo_types::ChronoUtcTimestampSchema>")]
     expires_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     max_downloads: Option<u64>,
@@ -140,6 +142,93 @@ mod input_strictness_tests {
         input["undeclared"] = json!(true);
         let error = serde_json::from_value::<T>(input).err().unwrap();
         assert!(error.to_string().contains("undeclared"));
+    }
+
+    #[test]
+    fn sharing_timestamp_schema_and_decoder_keep_optional_current_profile() {
+        let id = ArtifactId::new();
+        let schemas = json!({
+            "ShareLinkOptions": schemars::schema_for!(ShareLinkOptions),
+            "CreateArtifactShareRequest": schemars::schema_for!(CreateArtifactShareRequest),
+        });
+        let mut cases = Vec::new();
+        for timestamp in [
+            chrono::DateTime::<Utc>::MIN_UTC,
+            chrono::DateTime::<Utc>::MAX_UTC,
+            "2016-12-31T23:59:60.123456789Z".parse().unwrap(),
+            "2026-10-05T14:34:56.123456789+02:00".parse().unwrap(),
+        ] {
+            let options = ShareLinkOptions {
+                expires_at: Some(timestamp),
+                max_downloads: Some(3),
+            };
+            let options_wire = serde_json::to_value(&options).unwrap();
+            let request = CreateArtifactShareRequest {
+                artifact_id: id,
+                options,
+            };
+            let request_wire = serde_json::to_value(&request).unwrap();
+            let decoded: CreateArtifactShareRequest =
+                serde_json::from_value(request_wire.clone()).unwrap();
+            assert_eq!(decoded.options.expires_at, Some(timestamp));
+            assert_eq!(serde_json::to_value(decoded).unwrap(), request_wire);
+            let decoded: ShareLinkOptions = serde_json::from_value(options_wire.clone()).unwrap();
+            assert_eq!(decoded.expires_at, Some(timestamp));
+            cases.push(json!({"options": options_wire, "request":request_wire}));
+        }
+        for wire in [
+            json!({"artifact_id":id}),
+            json!({"artifact_id":id,"expires_at":null}),
+        ] {
+            let decoded: CreateArtifactShareRequest = serde_json::from_value(wire.clone()).unwrap();
+            assert_eq!(decoded.options.expires_at, None);
+            assert!(
+                serde_json::to_value(decoded)
+                    .unwrap()
+                    .get("expires_at")
+                    .is_none()
+            );
+            cases.push(json!({"request":wire}));
+        }
+        for malformed in [
+            json!(true),
+            json!(1),
+            json!("2026-02-30T00:00:00Z"),
+            json!("2026-01-01T00:00:00"),
+            json!("+262143-01-01T00:00:00Z"),
+        ] {
+            assert!(
+                serde_json::from_value::<CreateArtifactShareRequest>(json!({
+                    "artifact_id":id,"expires_at":malformed
+                }))
+                .is_err()
+            );
+        }
+        assert!(
+            serde_json::from_value::<CreateArtifactShareRequest>(json!({
+                "artifact_id":id,"expiresAt":"2026-01-01T00:00:00Z"
+            }))
+            .is_err()
+        );
+        for schema in schemas.as_object().unwrap().values() {
+            let field = &schema["properties"]["expires_at"];
+            assert!(field.is_object());
+            assert!(!serde_json::to_string(field).unwrap().contains("date-time"));
+            assert!(
+                !schema["required"]
+                    .as_array()
+                    .is_some_and(|fields| fields.iter().any(|field| field == "expires_at"))
+            );
+        }
+        // The existing owner test exposes actual schema/typed producer observations
+        // for the maintained browser validator; capture does not assert browser admission.
+        if let Some(path) = std::env::var_os("VEOVEO_ARTIFACT_SHARE_TIMESTAMP_SCHEMA_CAPTURE") {
+            std::fs::write(
+                path,
+                serde_json::to_vec_pretty(&json!({"schemas":schemas,"cases":cases})).unwrap(),
+            )
+            .unwrap();
+        }
     }
 
     #[test]

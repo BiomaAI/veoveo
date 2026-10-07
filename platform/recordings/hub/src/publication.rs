@@ -35,6 +35,7 @@ pub struct GatewayLayerPublisher {
     http: reqwest::Client,
     endpoint: Url,
     tokens: OAuthTokenProvider,
+    context: veoveo_recording_contract::RecordingPublisherContext,
 }
 
 impl GatewayLayerPublisher {
@@ -74,6 +75,11 @@ impl GatewayLayerPublisher {
                 .gateway_url
                 .join(&format!("recordings/{}/layers", config.profile))?,
         )?;
+        let context = veoveo_recording_contract::RecordingPublisherContext {
+            client_id: config.client_id.clone(),
+            profile: config.profile.clone(),
+            protected_resource: config.protected_resource.as_str().to_owned(),
+        };
         let tokens = OAuthTokenProvider::new(OAuthTokenProviderConfig {
             http: http.clone(),
             token_endpoint,
@@ -89,7 +95,12 @@ impl GatewayLayerPublisher {
             http,
             endpoint,
             tokens,
+            context,
         })
+    }
+
+    pub fn publication_context(&self) -> &veoveo_recording_contract::RecordingPublisherContext {
+        &self.context
     }
 
     pub async fn publish(
@@ -157,7 +168,12 @@ impl GatewayLayerPublisher {
             .json::<ArtifactMetadata>()
             .await
             .context("decoding recording layer Artifact metadata")?;
-        admit_publication_response(&metadata, artifact_id, expected_byte_len)?;
+        admit_publication_response(
+            &metadata,
+            artifact_id,
+            expected_byte_len,
+            &request.artifact.metadata,
+        )?;
         Ok(metadata)
     }
 
@@ -193,11 +209,13 @@ fn admit_publication_response(
     metadata: &ArtifactMetadata,
     artifact_id: ArtifactId,
     expected_byte_len: u64,
+    expected_metadata: &serde_json::Value,
 ) -> Result<()> {
     ensure!(
         metadata.artifact_uri == artifact_id.plane_uri()
             && metadata.byte_len == expected_byte_len
-            && metadata.download_url.is_none(),
+            && metadata.download_url.is_none()
+            && &metadata.metadata == expected_metadata,
         "Artifact service returned mismatched recording layer metadata"
     );
     Ok(())
@@ -288,20 +306,58 @@ mod tests {
             compliance: Default::default(),
             metadata: serde_json::json!({}),
         };
+        let mut owned = metadata.clone();
+        owned.metadata =
+            serde_json::to_value(veoveo_recording_contract::RecordingCaptureMetadata {
+                recording_id: veoveo_recording_contract::RecordingId::new(),
+                dataset_id: veoveo_recording_contract::RecordingDatasetId::new(),
+                layer_kind: veoveo_recording_contract::RecordingLayerKind::Capture,
+                schema_digest: veoveo_types::Sha256Digest::from_bytes([3; 32]),
+            })
+            .unwrap();
+        admit_publication_response(&owned, id, 3, &owned.metadata).unwrap();
+        for (current, retired) in [
+            ("recordingId", "recording_id"),
+            ("datasetId", "dataset_id"),
+            ("layerKind", "layer_kind"),
+            ("schemaDigest", "schema_digest"),
+        ] {
+            for mode in ["replacement", "mixed", "conflicting"] {
+                let mut changed = owned.clone();
+                let value = changed.metadata.get(current).unwrap().clone();
+                changed.metadata[retired] = if mode == "conflicting" {
+                    serde_json::json!("retired-conflict")
+                } else {
+                    value
+                };
+                if mode == "replacement" {
+                    changed.metadata.as_object_mut().unwrap().remove(current);
+                }
+                assert!(
+                    admit_publication_response(&changed, id, 3, &owned.metadata).is_err(),
+                    "{current}/{mode}"
+                );
+            }
+        }
+        let mut changed = owned.clone();
+        changed.metadata["recordingId"] =
+            serde_json::json!(veoveo_recording_contract::RecordingId::new());
+        assert!(admit_publication_response(&changed, id, 3, &owned.metadata).is_err());
         // The real response supplies no declared digest; integrity is checked
         // by the Artifact streaming request, not an invented metadata field.
-        admit_publication_response(&metadata, id, 3).unwrap();
+        admit_publication_response(&metadata, id, 3, &metadata.metadata).unwrap();
         let mut wrong = metadata.clone();
         wrong.artifact_uri = ArtifactId::new().plane_uri();
-        assert!(admit_publication_response(&wrong, id, 3).is_err());
+        assert!(admit_publication_response(&wrong, id, 3, &metadata.metadata).is_err());
         let mut wrong = metadata.clone();
         wrong.byte_len = 4;
-        assert!(admit_publication_response(&wrong, id, 3).is_err());
+        assert!(admit_publication_response(&wrong, id, 3, &metadata.metadata).is_err());
         let mut wrong = metadata.clone();
         wrong.download_url = Some("https://unexpected.example/file".into());
-        assert!(admit_publication_response(&wrong, id, 3).is_err());
+        assert!(admit_publication_response(&wrong, id, 3, &metadata.metadata).is_err());
         let wrong = metadata
+            .clone()
             .presented_under_scheme(&veoveo_types::ResourceScheme::parse("recording").unwrap());
-        assert!(admit_publication_response(&wrong, id, 3).is_err());
+        assert!(admit_publication_response(&wrong, id, 3, &metadata.metadata).is_err());
     }
 }

@@ -76,7 +76,7 @@ url = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest", "reqwest-tls-no-provider"], optional = true }
 veoveo-mcp-apps-extension = { path = "../../../mcp/apps-extension", optional = true }
-veoveo-mcp-contract = { workspace = true, default-features = false, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, default-features = false, optional = true }
 veoveo-computers-contract = { path = "../../../platform/computers/contract", optional = true }
 veoveo-computers-transport = { path = "../../../platform/computers/transport", optional = true }
 

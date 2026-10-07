@@ -8,6 +8,7 @@ name = "veoveo_rrd"
 path = "src/lib.rs"
 
 [dependencies]
+veoveo-artifact-contract.workspace = true
 veoveo-recording-contract.workspace = true
 veoveo-types.workspace = true
 veoveo-map-mcp = { path = "../../../servers/map-mcp", default-features = false, features = ["contract"] }

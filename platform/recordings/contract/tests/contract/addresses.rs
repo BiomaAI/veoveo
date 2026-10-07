@@ -76,8 +76,7 @@ fn identities_require_canonical_rfc_uuid_v7_at_wire_admission() {
         assert!(!error.to_string().contains(invalid));
         assert!(serde_json::from_value::<RecordingId>(json!(invalid)).is_err());
         assert!(
-            serde_json::from_value::<SealRecordingRequest>(json!({"recording_id":invalid}))
-                .is_err()
+            serde_json::from_value::<SealRecordingRequest>(json!({"recordingId":invalid})).is_err()
         );
     }
 }
@@ -100,21 +99,21 @@ fn catalog_selection_is_bounded_and_canonical_at_construction_and_decoding() {
     assert_eq!(request.dataset_id(), dataset);
     assert_eq!(request.recording_ids(), &[a, b]);
     let decoded: CreateRecordingCatalogGrantRequest =
-        serde_json::from_value(json!({"dataset_id":dataset, "recording_ids":[b,a,b]})).unwrap();
+        serde_json::from_value(json!({"datasetId":dataset, "recordingIds":[b,a,b]})).unwrap();
     assert_eq!(decoded.recording_ids(), &[a, b]);
     for count in [0, 501] {
         assert!(CreateRecordingCatalogGrantRequest::new(dataset, vec![a; count]).is_err());
         assert!(
             serde_json::from_value::<CreateRecordingCatalogGrantRequest>(
-                json!({"dataset_id":dataset,"recording_ids":vec![a;count]})
+                json!({"datasetId":dataset,"recordingIds":vec![a;count]})
             )
             .is_err()
         );
     }
     assert!(CreateRecordingCatalogGrantRequest::new(dataset, vec![a; 500]).is_ok());
     for value in [
-        json!({"dataset_id":"01983da0-0000-4000-8000-000000000001","recording_ids":[a]}),
-        json!({"dataset_id":dataset,"recording_ids":["01983da0-0000-7000-c000-000000000001"]}),
+        json!({"datasetId":"01983da0-0000-4000-8000-000000000001","recordingIds":[a]}),
+        json!({"datasetId":dataset,"recordingIds":["01983da0-0000-7000-c000-000000000001"]}),
     ] {
         assert!(serde_json::from_value::<CreateRecordingCatalogGrantRequest>(value).is_err());
     }
@@ -213,17 +212,17 @@ fn cursor_admission_checks_collection_version_position_and_encoding() {
     let envelope: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(
         envelope,
-        json!({"version":1,"collection":"recording://catalog",
-        "position":{"started_at":"2026-09-28T12:00:00Z","recording_id":ID}})
+        json!({"version":2,"collection":"recording://catalog",
+        "position":{"startedAt":"2026-09-28T12:00:00Z","recordingId":ID}})
     );
     for (pointer, value) in [
-        ("/version", json!(2)),
+        ("/version", json!(1)),
         ("/collection", json!("time://events")),
         (
-            "/position/recording_id",
+            "/position/recordingId",
             json!("01983da0-0000-4000-8000-000000000001"),
         ),
-        ("/position/started_at", json!("private-timestamp")),
+        ("/position/startedAt", json!("private-timestamp")),
         ("/position", json!({})),
     ] {
         let mut invalid = envelope.clone();
@@ -232,6 +231,28 @@ fn cursor_admission_checks_collection_version_position_and_encoding() {
             RecordingCatalogCursor::parse(hex::encode(serde_json::to_vec(&invalid).unwrap()))
                 .is_err()
         );
+    }
+    for (current, retired) in [("startedAt", "started_at"), ("recordingId", "recording_id")] {
+        for mode in ["replacement", "mixed", "conflicting"] {
+            let mut invalid = envelope.clone();
+            let position = invalid["position"].as_object_mut().unwrap();
+            let value = position.get(current).unwrap().clone();
+            position.insert(
+                retired.into(),
+                if mode == "conflicting" {
+                    json!("retired-conflict")
+                } else {
+                    value
+                },
+            );
+            if mode == "replacement" {
+                position.remove(current).unwrap();
+            }
+            assert!(
+                RecordingCatalogCursor::parse(hex::encode(serde_json::to_vec(&invalid).unwrap()))
+                    .is_err()
+            );
+        }
     }
     for pointer in ["", "/position"] {
         let mut invalid = envelope.clone();
@@ -311,7 +332,7 @@ fn public_identity_address_and_cursor_schemas_keep_the_string_wire_shape() {
     ] {
         assert_eq!(serde_json::to_value(schema).unwrap()["type"], "string");
     }
-    let request: SealRecordingRequest = serde_json::from_value(json!({"recording_id":ID})).unwrap();
+    let request: SealRecordingRequest = serde_json::from_value(json!({"recordingId":ID})).unwrap();
     assert_eq!(request.recording_id, id());
     let page = RecordingCatalogPage {
         items: Vec::new(),
@@ -320,6 +341,6 @@ fn public_identity_address_and_cursor_schemas_keep_the_string_wire_shape() {
     };
     assert_eq!(
         serde_json::to_value(page).unwrap(),
-        json!({"items":[],"limit":100,"next_cursor":cursor().as_str()})
+        json!({"items":[],"limit":100,"nextCursor":cursor().as_str()})
     );
 }

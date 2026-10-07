@@ -146,11 +146,11 @@ async fn source_pages_and_completion_select_tenant_before_limits_and_recheck_acc
         for private in [
             "location",
             "credential",
-            "publisher_key_refs",
+            "publisherKeyRefs",
             "private-bearer-key",
             "private-publisher-key",
-            "maximum_download_bytes",
-            "expected_media_types",
+            "maximumDownloadBytes",
+            "expectedMediaTypes",
         ] {
             assert!(!json.contains(private), "{private}");
         }
@@ -229,16 +229,16 @@ async fn selected_source_documents_must_agree_with_indexed_metadata() {
             .unwrap();
         let wire = serde_json::to_value(&record).unwrap();
         for (field, value) in [
-            ("source_id", serde_json::json!(MapSourceId::new())),
-            ("dataset_id", serde_json::json!(MapDatasetId::new())),
+            ("sourceId", serde_json::json!(MapSourceId::new())),
+            ("datasetId", serde_json::json!(MapDatasetId::new())),
             ("name", serde_json::json!("different")),
-            ("adapter_kind", serde_json::json!("open_street_map")),
+            ("adapterKind", serde_json::json!("open_street_map")),
             ("authority", serde_json::json!("community")),
-            ("map_families", serde_json::json!(["maritime"])),
+            ("mapFamilies", serde_json::json!(["maritime"])),
             ("enabled", serde_json::json!(false)),
-            ("record_version", serde_json::json!(2)),
-            ("maximum_download_bytes", serde_json::json!(0)),
-            ("updated_at", serde_json::json!("2020-01-01T00:00:00Z")),
+            ("recordVersion", serde_json::json!(2)),
+            ("maximumDownloadBytes", serde_json::json!(0)),
+            ("updatedAt", serde_json::json!("2020-01-01T00:00:00Z")),
         ] {
             let mut bad = wire.clone();
             bad[field] = value;

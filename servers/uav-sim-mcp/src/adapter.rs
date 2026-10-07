@@ -35,6 +35,7 @@ const RECORDING_CATALOG_RETRY: Duration = Duration::from_millis(100);
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct AdapterRecordingState {
     application_id: String,
     recording_key: RecordingKey,
@@ -51,6 +52,7 @@ struct AdapterRecordingState {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct AdapterSimulationState {
     session_id: SessionId,
     lifecycle: SimulationLifecycle,
@@ -69,6 +71,7 @@ struct AdapterSimulationState {
 
 #[derive(serde::Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct AdapterWorldRequest<'a> {
     session_id: &'a SessionId,
     world: &'a SimulationWorldBinding,
@@ -122,7 +125,7 @@ impl HttpAdapter {
     }
 
     pub async fn state(&self) -> Result<SimulationState, AdapterError> {
-        let state: AdapterSimulationState = self.get("v1/state").await?;
+        let state: AdapterSimulationState = self.get("v2/state").await?;
         if state
             .stream_products
             .iter()
@@ -213,7 +216,7 @@ impl HttpAdapter {
             .validate()
             .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
         let output: ConfigureWorldOutput = self
-            .post("v1/world", &AdapterWorldRequest { session_id, world })
+            .post("v2/world", &AdapterWorldRequest { session_id, world })
             .await?;
         admit_world_reply(session_id, world, &output)?;
         Ok(output)
@@ -223,7 +226,7 @@ impl HttpAdapter {
         &self,
         command: &SimulationCommand,
     ) -> Result<CommandAcknowledgement, AdapterError> {
-        let output: CommandAcknowledgement = self.post("v1/commands", command).await?;
+        let output: CommandAcknowledgement = self.post("v2/commands", command).await?;
         admit_command_reply(command, &output)?;
         Ok(output)
     }
@@ -243,7 +246,7 @@ impl HttpAdapter {
                 duration.max(self.operation_timeout)
             });
         let result: AdapterDurableOperationResult = self
-            .post_with_timeout("v1/operations", operation, timeout)
+            .post_with_timeout("v2/operations", operation, timeout)
             .await?;
         result.correlate(operation)
     }
@@ -751,13 +754,13 @@ pub(crate) fn private_protocol_schemas() -> serde_json::Map<String, serde_json::
         serde_json::json!({"direction": direction, "schema": generator.into_root_schema_for::<T>()})
     }
     serde_json::json!({
-        "POST /v1/world request": root::<AdapterWorldRequest<'static>>("rust_to_python"),
-        "POST /v1/commands request": root::<SimulationCommand>("rust_to_python"),
-        "POST /v1/operations request": root::<DurableOperation>("rust_to_python"),
-        "GET /v1/state response": root::<AdapterSimulationState>("python_to_rust"),
-        "POST /v1/world response": root::<ConfigureWorldOutput>("python_to_rust"),
-        "POST /v1/commands response": root::<CommandAcknowledgement>("python_to_rust"),
-        "POST /v1/operations response": root::<AdapterDurableOperationResult>("python_to_rust"),
+        "POST /v2/world request": root::<AdapterWorldRequest<'static>>("rust_to_python"),
+        "POST /v2/commands request": root::<SimulationCommand>("rust_to_python"),
+        "POST /v2/operations request": root::<DurableOperation>("rust_to_python"),
+        "GET /v2/state response": root::<AdapterSimulationState>("python_to_rust"),
+        "POST /v2/world response": root::<ConfigureWorldOutput>("python_to_rust"),
+        "POST /v2/commands response": root::<CommandAcknowledgement>("python_to_rust"),
+        "POST /v2/operations response": root::<AdapterDurableOperationResult>("python_to_rust"),
     })
     .as_object()
     .unwrap()
@@ -831,11 +834,11 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(120), async {
             let _ = rustls::crypto::ring::default_provider().install_default();
             let db = super::fixture::TestDb::new().await;
-            let response = Arc::new(Mutex::new(serde_json::json!({"accepted": true, "detail": "paused", "resource_uri": "uav-sim://session/session-alpha"})));
+            let response = Arc::new(Mutex::new(serde_json::json!({"accepted": true, "detail": "paused", "resourceUri": "uav-sim://session/session-alpha"})));
             async fn reply(State(value): State<Arc<Mutex<serde_json::Value>>>, Json(_request): Json<serde_json::Value>) -> Json<serde_json::Value> { Json(value.lock().await.clone()) }
             let socket = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let url = Url::parse(&format!("http://{}/", socket.local_addr().unwrap())).unwrap();
-            let server = tokio::spawn(axum::serve(socket, Router::new().route("/v1/commands", post(reply)).route("/v1/world", post(reply)).with_state(response.clone())).into_future());
+            let server = tokio::spawn(axum::serve(socket, Router::new().route("/v2/commands", post(reply)).route("/v2/world", post(reply)).with_state(response.clone())).into_future());
             struct Server(tokio::task::JoinHandle<Result<(), std::io::Error>>);
             impl Drop for Server { fn drop(&mut self) { self.0.abort(); } }
             let _server = Server(server);
@@ -844,10 +847,10 @@ mod tests {
             let command = SimulationCommand::Pause(crate::contract::SessionRequest { session_id: session.clone() });
             assert!(adapter.command(&command).await.unwrap().accepted);
             for resource in ["uav-sim://session/other", "uav-sim://session/session-alpha/world", "uav-sim://session/session-alpha/vehicle/uav-1"] {
-                *response.lock().await = serde_json::json!({"accepted": true, "detail": "paused", "resource_uri": resource});
+                *response.lock().await = serde_json::json!({"accepted": true, "detail": "paused", "resourceUri": resource});
                 assert!(matches!(adapter.command(&command).await, Err(AdapterError::InvalidState(_))));
             }
-            *response.lock().await = serde_json::json!({"accepted": false, "detail": "command rejected", "resource_uri": "uav-sim://session/session-alpha"});
+            *response.lock().await = serde_json::json!({"accepted": false, "detail": "command rejected", "resourceUri": "uav-sim://session/session-alpha"});
             assert!(adapter.command(&command).await.is_err());
             let world = fake_world();
             let good = ConfigureWorldOutput { accepted: true, world: world.clone(), resource_uri: crate::contract::UavResource::World(session.clone()) };
@@ -857,8 +860,8 @@ mod tests {
                 let mut wire = serde_json::to_value(&good).unwrap();
                 match field {
                     0 => wire["accepted"] = false.into(),
-                    1 => wire["resource_uri"] = "uav-sim://session/other/world".into(),
-                    _ => wire["world"]["spec_sha256"] = "b".repeat(64).into(),
+                    1 => wire["resourceUri"] = "uav-sim://session/other/world".into(),
+                    _ => wire["world"]["specSha256"] = "b".repeat(64).into(),
                 }
                 *response.lock().await = wire;
                 assert!(adapter.configure_world_binding(&session, &world).await.is_err());
@@ -1027,14 +1030,83 @@ mod tests {
         );
         for timestamp in ["20261004T120000+0000", "2026-W40-7T12:00:00+00:00"] {
             let mut invalid = fixture["state"].clone();
-            invalid["updated_at"] = serde_json::json!(timestamp);
+            invalid["updatedAt"] = serde_json::json!(timestamp);
             assert!(serde_json::from_value::<AdapterSimulationState>(invalid).is_err());
         }
         for timestamp in ["2026-10-04t12:00:00z", "2026-10-04T12:00:00+03:30"] {
             let mut valid = fixture["state"].clone();
-            valid["updated_at"] = serde_json::json!(timestamp);
+            valid["updatedAt"] = serde_json::json!(timestamp);
             assert!(serde_json::from_value::<AdapterSimulationState>(valid).is_ok());
         }
+    }
+
+    #[test]
+    fn private_current_outputs_refuse_retired_and_mixed_nested_members() {
+        fn mutations(value: &serde_json::Value) -> Vec<serde_json::Value> {
+            let mut result = Vec::new();
+            match value {
+                serde_json::Value::Object(fields) => {
+                    for (key, child) in fields {
+                        let retired: String = key
+                            .chars()
+                            .flat_map(|c| {
+                                if c.is_ascii_uppercase() {
+                                    vec!['_', c.to_ascii_lowercase()]
+                                } else {
+                                    vec![c]
+                                }
+                            })
+                            .collect();
+                        if retired != *key {
+                            for mixed in [false, true] {
+                                let mut bad = fields.clone();
+                                if !mixed {
+                                    bad.remove(key);
+                                }
+                                bad.insert(retired.clone(), child.clone());
+                                result.push(bad.into());
+                            }
+                        }
+                        for bad_child in mutations(child) {
+                            let mut bad = fields.clone();
+                            bad.insert(key.clone(), bad_child);
+                            result.push(bad.into());
+                        }
+                    }
+                }
+                serde_json::Value::Array(items) => {
+                    for (index, child) in items.iter().enumerate() {
+                        for bad_child in mutations(child) {
+                            let mut bad = items.clone();
+                            bad[index] = bad_child;
+                            result.push(bad.into());
+                        }
+                    }
+                }
+                _ => {}
+            }
+            result
+        }
+        fn qualify<T: serde::de::DeserializeOwned>(current: &serde_json::Value) -> usize {
+            let _: T = serde_json::from_value(current.clone()).unwrap();
+            let bad = mutations(current);
+            for value in &bad {
+                assert!(serde_json::from_value::<T>(value.clone()).is_err());
+                assert!(serde_json::from_slice::<T>(&serde_json::to_vec(value).unwrap()).is_err());
+            }
+            bad.len()
+        }
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../showcase/uav-sim/runtime/tests/fixtures/adapter_outputs.json"
+        ))
+        .unwrap();
+        let mut count = qualify::<AdapterSimulationState>(&fixture["state"]);
+        count += qualify::<CommandAcknowledgement>(&fixture["command"]);
+        count += qualify::<ConfigureWorldOutput>(&fixture["world"]);
+        for result in fixture["results"].as_array().unwrap() {
+            count += qualify::<AdapterDurableOperationResult>(result);
+        }
+        assert!(count > 100);
     }
 
     #[test]
@@ -1056,7 +1128,7 @@ mod tests {
             100.0,
         ] {
             let mut payload = fixture["state"].clone();
-            payload["vehicles"][0]["battery_percent"] = serde_json::json!(value);
+            payload["vehicles"][0]["batteryPercent"] = serde_json::json!(value);
             let bytes = serde_json::to_vec(&payload).unwrap();
             let decoded: AdapterSimulationState = serde_json::from_slice(&bytes).unwrap();
             let battery = decoded.vehicles[0].battery_percent;
@@ -1071,7 +1143,7 @@ mod tests {
         }
         for value in [serde_json::json!(true), serde_json::json!("100")] {
             let mut payload = fixture["state"].clone();
-            payload["vehicles"][0]["battery_percent"] = value;
+            payload["vehicles"][0]["batteryPercent"] = value;
             assert!(
                 serde_json::from_slice::<AdapterSimulationState>(
                     &serde_json::to_vec(&payload).unwrap()
@@ -1144,15 +1216,15 @@ mod tests {
     #[test]
     fn private_adapter_recording_wire_uses_catalog_key() {
         let recording: AdapterRecordingState = serde_json::from_value(serde_json::json!({
-            "application_id": "veoveo-uav-sim",
-            "recording_key": "019f7122-3d89-7d21-8312-8940d1e0f510",
+            "applicationId": "veoveo-uav-sim",
+            "recordingKey": "019f7122-3d89-7d21-8312-8940d1e0f510",
             "active": true,
-            "publisher_lifecycle": "ready",
-            "queue_capacity": 256,
-            "queued_events": 0,
-            "dropped_events": 0,
-            "camera_streams": ["/world/uav-sim/session-alpha/vehicle/uav-1/camera/down"],
-            "started_at": "2026-07-16T18:00:00Z"
+            "publisherLifecycle": "ready",
+            "queueCapacity": 256,
+            "queuedEvents": 0,
+            "droppedEvents": 0,
+            "cameraStreams": ["/world/uav-sim/session-alpha/vehicle/uav-1/camera/down"],
+            "startedAt": "2026-07-16T18:00:00Z"
         }))
         .unwrap();
 
@@ -1166,27 +1238,27 @@ mod tests {
     #[test]
     fn private_adapter_camera_wire_requires_exact_h264_nvenc_identity() {
         let camera: CameraState = serde_json::from_value(serde_json::json!({
-            "vehicle_id": "uav-1",
-            "entity_path": "/world/uav-sim/session-alpha/vehicle/uav-1/camera/down",
+            "vehicleId": "uav-1",
+            "entityPath": "/world/uav-sim/session-alpha/vehicle/uav-1/camera/down",
             "lifecycle": "ready",
             "width": 640,
             "height": 480,
-            "frame_rate_hz": 2,
+            "frameRateHz": 2,
             "codec": "h264",
             "encoder": "nvidia_nvenc",
             "transport": "rtsp_rtp",
-            "frames_observed": 10,
-            "last_access_unit_bytes": 32768,
-            "last_frame_keyframe": false,
-            "render_pose": {
-                "position_error_m": 0.02,
-                "forward_error_degrees": 0.01,
-                "rendered_position_enu_m": {
-                    "east_m": 10.0,
-                    "north_m": 20.0,
-                    "up_m": 30.0
+            "framesObserved": 10,
+            "lastAccessUnitBytes": 32768,
+            "lastFrameKeyframe": false,
+            "renderPose": {
+                "positionErrorM": 0.02,
+                "forwardErrorDegrees": 0.01,
+                "renderedPositionEnuM": {
+                    "eastM": 10.0,
+                    "northM": 20.0,
+                    "upM": 30.0
                 },
-                "rendered_forward_enu": {
+                "renderedForwardEnu": {
                     "east": 0.0,
                     "north": 0.0,
                     "up": -1.0
@@ -1206,16 +1278,16 @@ mod tests {
         let tiles: TileState = serde_json::from_value(serde_json::json!({
             "lifecycle": "ready",
             "source": "google_photorealistic_3d_tiles",
-            "ion_asset_id": 2_275_207,
-            "resident_tiles": 526,
-            "visible_tiles": 18,
-            "loading_tiles": 0,
-            "geometries_loaded": 470,
-            "geometries_rendered": 29,
-            "materials_loaded": 470,
-            "provider_generation": 1,
-            "event_sequence": 1,
-            "refresh_count": 0
+            "ionAssetId": 2_275_207,
+            "residentTiles": 526,
+            "visibleTiles": 18,
+            "loadingTiles": 0,
+            "geometriesLoaded": 470,
+            "geometriesRendered": 29,
+            "materialsLoaded": 470,
+            "providerGeneration": 1,
+            "eventSequence": 1,
+            "refreshCount": 0
         }))
         .unwrap();
 
@@ -1227,23 +1299,23 @@ mod tests {
     #[test]
     fn private_adapter_timing_wire_requires_render_cadence_measurements() {
         let timing: RuntimeTimingState = serde_json::from_value(serde_json::json!({
-            "physics_hz": 60,
-            "native_rendering_hz": 30,
-            "render_cycles": 120,
-            "physics_steps": 240,
-            "refresh_states_wall_seconds": 0.4,
-            "vehicle_update_wall_seconds": 0.8,
-            "state_update_wall_seconds": 0.1,
-            "dynamics_update_wall_seconds": 0.4,
-            "sensor_update_wall_seconds": 0.2,
-            "backend_state_wall_seconds": 0.1,
-            "flush_forces_wall_seconds": 0.2,
-            "after_step_wall_seconds": 0.1,
-            "native_update_wall_seconds": 3.0,
-            "render_cycle_wall_seconds": 3.5,
-            "maximum_physics_step_ms": 12.0,
-            "maximum_native_update_ms": 31.0,
-            "maximum_render_cycle_ms": 35.0
+            "physicsHz": 60,
+            "nativeRenderingHz": 30,
+            "renderCycles": 120,
+            "physicsSteps": 240,
+            "refreshStatesWallSeconds": 0.4,
+            "vehicleUpdateWallSeconds": 0.8,
+            "stateUpdateWallSeconds": 0.1,
+            "dynamicsUpdateWallSeconds": 0.4,
+            "sensorUpdateWallSeconds": 0.2,
+            "backendStateWallSeconds": 0.1,
+            "flushForcesWallSeconds": 0.2,
+            "afterStepWallSeconds": 0.1,
+            "nativeUpdateWallSeconds": 3.0,
+            "renderCycleWallSeconds": 3.5,
+            "maximumPhysicsStepMs": 12.0,
+            "maximumNativeUpdateMs": 31.0,
+            "maximumRenderCycleMs": 35.0
         }))
         .unwrap();
 
@@ -1256,16 +1328,16 @@ mod tests {
     #[test]
     fn private_adapter_rejects_claimed_public_recording_uri() {
         let error = serde_json::from_value::<AdapterRecordingState>(serde_json::json!({
-            "application_id": "veoveo-uav-sim",
-            "recording_key": "019f7122-3d89-7d21-8312-8940d1e0f510",
-            "recording_uri": "recording://recordings/not-cataloged",
+            "applicationId": "veoveo-uav-sim",
+            "recordingKey": "019f7122-3d89-7d21-8312-8940d1e0f510",
+            "recordingUri": "recording://recordings/not-cataloged",
             "active": true,
-            "publisher_lifecycle": "ready",
-            "queue_capacity": 256,
-            "queued_events": 0,
-            "dropped_events": 0,
-            "camera_streams": [],
-            "started_at": "2026-07-16T18:00:00Z"
+            "publisherLifecycle": "ready",
+            "queueCapacity": 256,
+            "queuedEvents": 0,
+            "droppedEvents": 0,
+            "cameraStreams": [],
+            "startedAt": "2026-07-16T18:00:00Z"
         }))
         .unwrap_err();
 

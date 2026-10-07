@@ -1,0 +1,1531 @@
+{
+  "format": "veoveo.ai/smoke-scenarios/v1",
+  "owner": "platform/gateway/composition",
+  "scenarios": [
+    {
+      "id": "gateway-suite",
+      "description": "Run the full production gateway smoke suite.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "platform/gateway/composition",
+          "package": "veoveo-gateway-composition",
+          "target": "gateway-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gateway-suite"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/recordings/hub",
+            "package": "veoveo-recording-hub",
+            "target": "spooler",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-mcp",
+            "features": [
+              "mcp"
+            ],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-service",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "examples/bioma/acceptance",
+            "package": "veoveo-bioma-acceptance",
+            "target": "installation-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "gateway-platform-store",
+      "description": "Smoke-test gateway platform bootstrap and active revision validation.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "platform/gateway/composition",
+          "package": "veoveo-gateway-composition",
+          "target": "gateway-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gateway-platform-store"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "contract-schemas",
+      "description": "Smoke-test contract schema export for external implementations.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "platform/gateway/composition",
+          "package": "veoveo-gateway-composition",
+          "target": "gateway-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "contract-schemas"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": false,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Local fixture or schema checks use the declared compiler/tool prerequisites. No installed identity, provider, graphics device or cluster mutation is required."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "otel",
+      "description": "Smoke-test OTLP HTTP log and trace export from the gateway.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "platform/gateway/composition",
+          "package": "veoveo-gateway-composition",
+          "target": "gateway-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "otel"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "gateway-http",
+      "description": "Smoke-test the gateway HTTP boundary, auth discovery, and browser OAuth flow.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "platform/gateway/composition",
+          "package": "veoveo-gateway-composition",
+          "target": "gateway-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gateway-http"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "gateway-keycloak",
+      "description": "Verify browser OAuth against a pinned, real HTTPS Keycloak identity provider.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "platform/gateway/composition",
+          "package": "veoveo-gateway-composition",
+          "target": "gateway-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gateway-keycloak"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "gateway-authenticated",
+      "description": "Smoke-test authenticated gateway-to-media forwarding and policy/admin flows.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "platform/gateway/composition",
+          "package": "veoveo-gateway-composition",
+          "target": "gateway-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gateway-authenticated"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-mcp",
+            "features": [
+              "mcp"
+            ],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-service",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "gateway-two-servers",
+      "description": "Run one gateway profile against two hosted MCP upstreams.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "platform/gateway/composition",
+          "package": "veoveo-gateway-composition",
+          "target": "gateway-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gateway-two-servers"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "gateway-console-stream",
+      "description": "Smoke-test the live console SSE stream (cursor, replay, limits).",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "platform/gateway/composition",
+          "package": "veoveo-gateway-composition",
+          "target": "gateway-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gateway-console-stream"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "gateway-chart-projection",
+      "description": "Smoke-test gateway projection for server-owned chart resources.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "platform/gateway/composition",
+          "package": "veoveo-gateway-composition",
+          "target": "gateway-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gateway-chart-projection"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "gateway-task-run",
+      "description": "Smoke-test a full gateway task run with webhook completion and usage.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "platform/gateway/composition",
+          "package": "veoveo-gateway-composition",
+          "target": "gateway-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gateway-task-run"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-mcp",
+            "features": [
+              "mcp"
+            ],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-service",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "gateway-vault-secrets",
+      "description": "Smoke-test gateway secret resolution against a real Vault KV v2 service.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "platform/gateway/composition",
+          "package": "veoveo-gateway-composition",
+          "target": "gateway-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gateway-vault-secrets"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    }
+  ]
+}

@@ -269,9 +269,20 @@ pub(crate) fn append_release_values(
                     "--set-string".to_owned(),
                     "installationPreset=custom".to_owned(),
                     "--set-string".to_owned(),
-                    format!("computerCapacity={}", platform.computer_capacity.as_str()),
+                    format!(
+                        "computerCapacity={}",
+                        platform.computer_capacity.helm_value()
+                    ),
                     "--set-json".to_owned(),
-                    format!("components={}", serde_json::to_string(components)?),
+                    format!(
+                        "components={}",
+                        serde_json::to_string(
+                            &components
+                                .iter()
+                                .map(|component| component.helm_value())
+                                .collect::<Vec<_>>()
+                        )?
+                    ),
                     "--set-json".to_owned(),
                     format!("mcpServers={}", serde_json::to_string(mcp_servers)?),
                 ]);
@@ -376,4 +387,101 @@ pub fn lock_source_charts(
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use veoveo_deploy_contract::InstallationPreset;
+    mod gpu_fixture {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../testing/fixtures/platform-selection/gpu_scheduling.rs"
+        ));
+    }
+
+    #[test]
+    fn release_values_use_chart_identities_for_every_typed_component() {
+        let repository = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let mut profile = LoadedProfile::load(
+            &repository.join("testing/fixtures/platform-selection/deployment.json"),
+            repository,
+        )
+        .unwrap();
+        profile.definition.gateway_activation = None;
+        profile.definition.gateway_requirements.clear();
+        let release = profile.definition.sources[0].releases[0].clone();
+        let schema: serde_json::Value =
+            serde_json::from_str(include_str!("../../helm/veoveo/values.schema.json")).unwrap();
+        let admitted_components = schema["properties"]["components"]["items"]["enum"]
+            .as_array()
+            .unwrap();
+        let admitted_servers = schema["properties"]["mcpServers"]["items"]["enum"]
+            .as_array()
+            .unwrap();
+        for preset in [InstallationPreset::Full, InstallationPreset::Foundation] {
+            profile.definition.platform = gpu_fixture::selection(preset);
+            let selected = profile.definition.platform.resolve().unwrap();
+            let mut args = Vec::new();
+            append_release_values(
+                &mut args,
+                &profile,
+                &release,
+                VALIDATION_REVISION,
+                None,
+                &selected.components,
+                &selected.mcp_servers,
+            )
+            .unwrap();
+            let components: serde_json::Value = serde_json::from_str(
+                args.iter()
+                    .find_map(|arg| arg.strip_prefix("components="))
+                    .unwrap(),
+            )
+            .unwrap();
+            assert!(
+                components
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|value| admitted_components.contains(value))
+            );
+            let expected: BTreeSet<_> = selected
+                .components
+                .iter()
+                .map(|component| component.helm_value())
+                .collect();
+            let actual: BTreeSet<_> = components
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|value| value.as_str().unwrap())
+                .collect();
+            assert_eq!(actual, expected);
+            if preset == InstallationPreset::Full {
+                let chart: BTreeSet<_> = admitted_components
+                    .iter()
+                    .map(|value| value.as_str().unwrap())
+                    .collect();
+                assert_eq!(
+                    actual, chart,
+                    "all component variants must agree with chart identities"
+                );
+            }
+            let servers: serde_json::Value = serde_json::from_str(
+                args.iter()
+                    .find_map(|arg| arg.strip_prefix("mcpServers="))
+                    .unwrap(),
+            )
+            .unwrap();
+            assert!(
+                servers
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|value| admitted_servers.contains(value))
+            );
+            assert!(args.contains(&"computerCapacity=unconfigured".into()));
+        }
+    }
 }

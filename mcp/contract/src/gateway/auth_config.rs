@@ -8,6 +8,7 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct IdentityProvider {
     pub id: IdentityProviderId,
     pub issuer: TokenIssuer,
@@ -28,6 +29,7 @@ pub struct IdentityProvider {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct IdentityProviderClaimMapping {
     #[serde(default)]
     pub subject: IdentityProviderSubjectClaim,
@@ -56,6 +58,7 @@ pub enum IdentityProviderSubjectClaim {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct IdentityProviderTenantClaimMapping {
     pub claim: IdentityProviderTenantClaim,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -80,6 +83,7 @@ pub enum IdentityProviderTenantClaim {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ResourceAuthorizationServer {
     pub id: AuthorizationServerId,
     pub issuer: TokenIssuer,
@@ -96,7 +100,12 @@ pub struct ResourceAuthorizationServer {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "source", deny_unknown_fields)]
+#[serde(
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    tag = "source",
+    deny_unknown_fields
+)]
 pub enum JwksSource {
     Remote { jwks_uri: HttpsUrl },
     File { path: JwksFilePath },
@@ -104,6 +113,7 @@ pub enum JwksSource {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct OAuthClientRegistration {
     /// Explicit collection grant for the installation's indexing machine client.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -158,6 +168,7 @@ fn is_false(value: &bool) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct IdentityProviderOidcClientRegistration {
     pub id: OidcClientRegistrationId,
     pub identity_provider: IdentityProviderId,

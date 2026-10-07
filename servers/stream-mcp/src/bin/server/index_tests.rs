@@ -41,27 +41,50 @@ fn owner() -> TaskOwner {
     }
 }
 
-fn request() -> serde_json::Value {
-    let capability = json!({
-        "capability_id": uuid::Uuid::now_v7(),
-        "secret": "fixture-capability-never-sent-to-an-artifact-service",
-        "task_id": uuid::Uuid::now_v7(),
-        "expires_at": chrono::Utc::now(),
-    });
-    let request = json!({
-        "input": {
-            "operation": "run_recording",
-            "pipeline_id": "fixture",
-            "video": {
-                "recording_uri": format!("recording://recordings/{}", uuid::Uuid::now_v7()),
-                "entity_path": "/camera", "timeline": "log_time", "range": {"start": 0, "end": 1}
-            }
+fn request(id: TaskId) -> serde_json::Value {
+    use veoveo_artifact_contract::{
+        ArtifactReadCapabilityId, ArtifactReadCapabilitySecret, ArtifactTaskId,
+        ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, IssuedArtifactReadCapability,
+        IssuedArtifactWriteCapability,
+    };
+    use veoveo_stream_mcp::contract::{
+        IndexRange, RecordingVideoSelection, RunRecordingRequest, SamplingPolicy,
+    };
+    let task_id = ArtifactTaskId::try_from(id.as_uuid()).unwrap();
+    let expires_at = chrono::Utc::now();
+    // These admitted capabilities are inert and never sent to an Artifact service.
+    let secret = "fixture-capability-never-sent-to-an-artifact-service";
+    let request = super::super::tasks::DurableStreamRequest {
+        input: super::super::tasks::StreamTaskInput::RunRecording(RunRecordingRequest {
+            pipeline_id: "fixture".parse().unwrap(),
+            video: RecordingVideoSelection::new(
+                "recording://recordings/01983da0-0000-7000-8000-000000000000"
+                    .parse()
+                    .unwrap(),
+                "/camera".into(),
+                "log_time".into(),
+                IndexRange::new(0, 1).unwrap(),
+            )
+            .unwrap(),
+            sampling: SamplingPolicy::EveryFrame,
+            include_source_clip: false,
+        }),
+        artifact_write_capability: IssuedArtifactWriteCapability {
+            capability_id: ArtifactWriteCapabilityId::new(),
+            secret: ArtifactWriteCapabilitySecret::new(secret).unwrap(),
+            task_id,
+            expires_at,
         },
-        "artifact_write_capability": capability,
-        "artifact_read_capability": capability,
-    });
-    serde_json::from_value::<super::super::tasks::DurableStreamRequest>(request.clone()).unwrap();
-    request
+        artifact_read_capability: IssuedArtifactReadCapability {
+            capability_id: ArtifactReadCapabilityId::new(),
+            secret: ArtifactReadCapabilitySecret::new(secret).unwrap(),
+            task_id,
+            expires_at,
+        },
+    };
+    let wire = serde_json::to_value(request).unwrap();
+    serde_json::from_value::<super::super::tasks::DurableStreamRequest>(wire.clone()).unwrap();
+    wire
 }
 
 #[tokio::test]
@@ -88,13 +111,14 @@ async fn native_completion_filters_before_limits_and_enumerates_separate_artifac
         let mut expected_tasks = Vec::new();
         let mut expected_artifacts = Vec::new();
         for index in 0..103 {
+            let id = TaskId::new();
             let mut task_owner = owner();
             if index == 0 {
                 task_owner.data_labels.insert("restricted".into());
             }
             let task = tasks
                 .create(CreateTask {
-                    task_id: TaskId::new(),
+                    task_id: id,
                     owner: task_owner,
                     server: "stream".into(),
                     task_type: if index == 1 {
@@ -102,7 +126,7 @@ async fn native_completion_filters_before_limits_and_enumerates_separate_artifac
                     } else {
                         veoveo_stream_mcp::contract::StreamTaskKind::RunRecording.name()
                     },
-                    request: request(),
+                    request: request(id),
                     recovery_class: RecoveryClass::Resume,
                     idempotency_key: None,
                     ttl_ms: None,
@@ -118,37 +142,37 @@ async fn native_completion_filters_before_limits_and_enumerates_separate_artifac
             let mut output: serde_json::Value =
                 serde_json::from_str(include_str!("../../../testdata/run-output.json")).unwrap();
             let run = veoveo_stream_mcp::contract::RunId::try_from(task.task_id).unwrap();
-            output["run_uri"] =
+            output["runUri"] =
                 serde_json::to_value(veoveo_stream_mcp::contract::RunUri::new(run)).unwrap();
-            output["result_uri"] =
+            output["resultUri"] =
                 serde_json::to_value(veoveo_stream_mcp::contract::RunResultsUri::new(run)).unwrap();
-            output["pipeline_uri"] = "stream://pipeline/fixture".into();
+            output["pipelineUri"] = "stream://pipeline/fixture".into();
             for (field, artifact) in [
-                ("results_artifact", &artifact),
-                ("annotations_artifact", &annotation),
+                ("resultsArtifact", &artifact),
+                ("annotationsArtifact", &annotation),
             ] {
-                output[field]["artifact_id"] = artifact.clone().into();
-                output[field]["artifact_uri"] = serde_json::to_value(
+                output[field]["artifactId"] = artifact.clone().into();
+                output[field]["artifactUri"] = serde_json::to_value(
                     veoveo_stream_mcp::uris::artifact_uri(artifact.parse().unwrap()),
                 )
                 .unwrap();
             }
-            output["results_artifact"]["metadata"]["provenance"]["run_id"] = run.to_string().into();
-            output["results_artifact"]["metadata"]["provenance"]["pipeline_id"] = "fixture".into();
-            output["annotations_artifact"]["metadata"]["provenance"]["run_id"] =
+            output["resultsArtifact"]["metadata"]["provenance"]["runId"] = run.to_string().into();
+            output["resultsArtifact"]["metadata"]["provenance"]["pipelineId"] = "fixture".into();
+            output["annotationsArtifact"]["metadata"]["provenance"]["runId"] =
                 run.to_string().into();
-            output["annotations_artifact"]["metadata"]["provenance"]["results_artifact_uri"] =
-                output["results_artifact"]["artifact_uri"].clone();
-            output["source_clip_artifact"] = output["results_artifact"].clone();
-            output["source_clip_artifact"]["artifact_id"] = clip.clone().into();
-            output["source_clip_artifact"]["artifact_uri"] =
+            output["annotationsArtifact"]["metadata"]["provenance"]["resultsArtifactUri"] =
+                output["resultsArtifact"]["artifactUri"].clone();
+            output["sourceClipArtifact"] = output["resultsArtifact"].clone();
+            output["sourceClipArtifact"]["artifactId"] = clip.clone().into();
+            output["sourceClipArtifact"]["artifactUri"] =
                 serde_json::to_value(veoveo_stream_mcp::uris::artifact_uri(clip.parse().unwrap()))
                     .unwrap();
-            output["source_clip_artifact"]["metadata"]["provenance"] = json!({
-                "kind":"stream_source_clip", "run_id":run,
-                "recording_id":"01983da0-0000-7000-8000-000000000000",
-                "entity_path":"/camera", "timeline":"log_time", "decode_start_index":0,
-                "source_snapshot_sha256":"a".repeat(64)
+            output["sourceClipArtifact"]["metadata"]["provenance"] = json!({
+                "kind":"stream_source_clip", "runId":run,
+                "recordingId":"01983da0-0000-7000-8000-000000000000",
+                "entityPath":"/camera", "timeline":"log_time", "decodeStartIndex":0,
+                "sourceSnapshotSha256":"a".repeat(64)
             });
             let result = super::super::task_results::recording_result(
                 serde_json::from_value(output).unwrap(),

@@ -15,21 +15,21 @@ fn round_trip<T: JsonSchema + Serialize + DeserializeOwned>(wire: Value, title: 
 fn existing_app_dependency_wire_and_schema_profiles() {
     round_trip::<AppResourceDependency>(
         json!({
-            "app_resource": "ui://map/explorer", "server": "frames",
-            "scheme": "frames", "uri_prefix": "frames://frame/",
-            "required_scope": "frames:read", "operations": ["read", "subscribe"]
+            "appResource": "ui://map/explorer", "server": "frames",
+            "scheme": "frames", "uriPrefix": "frames://frame/",
+            "requiredScope": "frames:read", "operations": ["read", "subscribe"]
         }),
         "AppResourceDependency",
     );
     round_trip::<AppToolDependency>(
         json!({
-            "app_resource": "ui://map/explorer", "server": "frames",
-            "required_scope": "frames:read", "tools": [{"name":"read-frame", "target_tool":"read-frame"}]
+            "appResource": "ui://map/explorer", "server": "frames",
+            "requiredScope": "frames:read", "tools": [{"name":"read-frame", "targetTool":"read-frame"}]
         }),
         "AppToolDependency",
     );
     round_trip::<AppToolImport>(
-        json!({"name":"read-frame", "target_tool":"read-frame"}),
+        json!({"name":"read-frame", "targetTool":"read-frame"}),
         "AppToolImport",
     );
     round_trip::<AppResourceOperation>(json!("subscribe"), "AppResourceOperation");
@@ -64,7 +64,7 @@ fn existing_discovery_wire_names_and_admission() {
     );
     assert!(
         serde_json::from_value::<AppToolImport>(
-            json!({"name":"bad/name", "target_tool":"read-frame"})
+            json!({"name":"bad/name", "targetTool":"read-frame"})
         )
         .is_err()
     );

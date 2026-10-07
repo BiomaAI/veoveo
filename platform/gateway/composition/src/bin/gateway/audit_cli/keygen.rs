@@ -19,6 +19,7 @@ pub(super) fn generate(output: &Path) -> anyhow::Result<()> {
         .context("cannot write audit signing seed")?;
     file.sync_all().context("cannot sync audit signing seed")?;
     #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct PublicKey {
         key_id: veoveo_types::Sha256Digest,
         public_key: String,

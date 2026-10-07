@@ -31,6 +31,7 @@ required-features = ["mcp"]
 schema = ["dep:veoveo-modules"]
 default = ["mcp"]
 contract = [
+    "dep:veoveo-task-contract",
     "dep:veoveo-recording-mcp",
     "dep:base64",
     "dep:chrono",
@@ -111,16 +112,18 @@ re_log_types = { workspace = true, optional = true }
 
 veoveo-artifact-client = { path = "../../platform/artifacts/client", optional = true }
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension", optional = true }
-veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, optional = true }
 veoveo-platform-store = { workspace = true, optional = true }
 veoveo-recording-reader = { workspace = true, optional = true }
 veoveo-recording-video = { path = "../../platform/recordings/video", default-features = false, features = ["contract"], optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
+veoveo-task-contract = { workspace = true, optional = true }
 
 veoveo-artifact-mcp = { path = "../artifact-mcp", default-features = false, features = ["knowledge"], optional = true }
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 
 [dev-dependencies]
+veoveo-testing-support = { path = "../../testing/support" }
 veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-gateway-contract.workspace = true
 veoveo-gateway-catalog.workspace = true

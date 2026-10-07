@@ -30,7 +30,7 @@ fn usage_builders_preserve_native_task_identity_and_wire_shape() {
     assert_eq!(entry.usage_uri(), &usage);
     assert_eq!(
         serde_json::to_value(&entry).unwrap(),
-        json!({"task_id": task_id, "usage_uri": usage})
+        json!({"taskId": task_id, "usageUri": usage})
     );
     let cursor = MediaUsageCursor::new(task_id).unwrap();
     assert_eq!(
@@ -58,7 +58,7 @@ fn usage_admission_rejects_invalid_envelopes_and_address_aliases() {
         json!({"version":1,"collection":"timeseries://usage","after":id}),
         json!({"version":1,"collection":MediaUsageIndexUri::ROOT,"after":"not-a-task"}),
         json!({"version":1,"collection":MediaUsageIndexUri::ROOT,"after":id,"extra":true}),
-        json!({"version":1,"task_id":id}),
+        json!({"version":1,"taskId":id}),
     ] {
         assert!(
             MediaUsageCursor::parse(URL_SAFE_NO_PAD.encode(serde_json::to_vec(&envelope).unwrap()))
@@ -133,7 +133,7 @@ fn usage_pages_and_entries_reject_inconsistent_construction_and_decoding() {
         assert!(MediaUsagePage::from_task_ids(ids, next).is_err());
     }
     let mut wrong_entry = encoded["items"][0].clone();
-    wrong_entry["task_id"] = json!(task(9));
+    wrong_entry["taskId"] = json!(task(9));
     assert!(serde_json::from_value::<MediaUsageEntry>(wrong_entry).is_err());
     let mut wrong_page = encoded;
     wrong_page["limit"] = json!(200);
@@ -154,8 +154,8 @@ fn usage_cursor_and_page_follow_the_declared_collection_profile() {
     assert_eq!(
         serde_json::to_value(page).unwrap(),
         json!({
-            "items": [{"task_id": id, "usage_uri": MediaTaskUsageUri::new(id).unwrap()}],
-            "limit": 100, "next_cursor": null
+            "items": [{"taskId": id, "usageUri": MediaTaskUsageUri::new(id).unwrap()}],
+            "limit": 100, "nextCursor": null
         })
     );
     assert!(serde_json::from_value::<MediaUsagePage>(json!([])).is_err());
@@ -163,4 +163,48 @@ fn usage_cursor_and_page_follow_the_declared_collection_profile() {
     assert_eq!(schema["properties"]["items"]["maxItems"], 100);
     assert_eq!(schema["properties"]["limit"]["minimum"], 100);
     assert_eq!(schema["properties"]["limit"]["maximum"], 100);
+}
+
+#[test]
+fn current_page_requires_cursor_and_refuses_retired_root_and_entry_members() {
+    let page = MediaUsagePage::from_task_ids(vec![task(1)], None).unwrap();
+    let wire = serde_json::to_value(&page).unwrap();
+    let schema = serde_json::to_value(schemars::schema_for!(MediaUsagePage)).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&wire));
+    assert_eq!(
+        serde_json::from_value::<MediaUsagePage>(wire.clone()).unwrap(),
+        page
+    );
+    for (current, retired, nested) in [
+        ("nextCursor", "next_cursor", false),
+        ("taskId", "task_id", true),
+        ("usageUri", "usage_uri", true),
+    ] {
+        for retain_current in [false, true] {
+            let mut bad = wire.clone();
+            let object = if nested {
+                bad["items"][0].as_object_mut().unwrap()
+            } else {
+                bad.as_object_mut().unwrap()
+            };
+            let value = object.get(current).unwrap().clone();
+            if !retain_current {
+                object.remove(current);
+            }
+            object.insert(retired.into(), value);
+            assert!(
+                !validator.is_valid(&bad),
+                "{retired} mixed={retain_current}"
+            );
+            assert!(
+                serde_json::from_value::<MediaUsagePage>(bad).is_err(),
+                "{retired} mixed={retain_current}"
+            );
+        }
+    }
+    let mut omitted = wire;
+    omitted.as_object_mut().unwrap().remove("nextCursor");
+    assert!(!validator.is_valid(&omitted));
+    assert!(serde_json::from_value::<MediaUsagePage>(omitted).is_err());
 }

@@ -1,0 +1,1823 @@
+[
+  {
+    "name": "equal",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T00:00:00Z",
+      "endedAt": "2026-10-03T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T00:00:00Z",
+      "endedAt": "2026-10-03T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "1790985600",
+      "nanosecond": 0
+    },
+    "ended": {
+      "wholeSecond": "1790985600",
+      "nanosecond": 0
+    },
+    "expires": {
+      "wholeSecond": "4094668800",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "nanoseconds",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T00:00:00.000000001Z",
+      "endedAt": "2026-10-03T00:00:00.000000002Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00.000000003Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T00:00:00.000000001Z",
+      "endedAt": "2026-10-03T00:00:00.000000002Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00.000000003Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "1790985600",
+      "nanosecond": 1
+    },
+    "ended": {
+      "wholeSecond": "1790985600",
+      "nanosecond": 2
+    },
+    "expires": {
+      "wholeSecond": "4094668800",
+      "nanosecond": 3
+    }
+  },
+  {
+    "name": "reversed_within_millisecond",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T00:00:00.000000002Z",
+      "endedAt": "2026-10-03T00:00:00.000000001Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": null,
+    "admitted": false,
+    "started": null,
+    "ended": null,
+    "expires": null
+  },
+  {
+    "name": "fraction_more_than_nine",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T00:00:00.123456789123Z",
+      "endedAt": "2026-10-03T00:00:00.123456789999Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00.000000000001Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T00:00:00.123456789Z",
+      "endedAt": "2026-10-03T00:00:00.123456789Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "1790985600",
+      "nanosecond": 123456789
+    },
+    "ended": {
+      "wholeSecond": "1790985600",
+      "nanosecond": 123456789
+    },
+    "expires": {
+      "wholeSecond": "4094668800",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "positive_offset",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T05:30:00.000000001+05:30",
+      "endedAt": "2026-10-03T00:00:00.000000002Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T01:30:00+01:30"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T00:00:00.000000001Z",
+      "endedAt": "2026-10-03T00:00:00.000000002Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "1790985600",
+      "nanosecond": 1
+    },
+    "ended": {
+      "wholeSecond": "1790985600",
+      "nanosecond": 2
+    },
+    "expires": {
+      "wholeSecond": "4094668800",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "negative_offset",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-02T20:30:00.000000001-03:30",
+      "endedAt": "2026-10-03T00:00:00.000000002Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-02T20:30:00-03:30"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T00:00:00.000000001Z",
+      "endedAt": "2026-10-03T00:00:00.000000002Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "1790985600",
+      "nanosecond": 1
+    },
+    "ended": {
+      "wholeSecond": "1790985600",
+      "nanosecond": 2
+    },
+    "expires": {
+      "wholeSecond": "4094668800",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "leap_second",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2016-12-31T23:59:60.000000001Z",
+      "endedAt": "2016-12-31T23:59:60.000000002Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2016-12-31T23:59:60.999999999Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2016-12-31T23:59:60.000000001Z",
+      "endedAt": "2016-12-31T23:59:60.000000002Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2016-12-31T23:59:60.999999999Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "1483228799",
+      "nanosecond": 1000000001
+    },
+    "ended": {
+      "wholeSecond": "1483228799",
+      "nanosecond": 1000000002
+    },
+    "expires": {
+      "wholeSecond": "1483228799",
+      "nanosecond": 1999999999
+    }
+  },
+  {
+    "name": "leap_before_following_second",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2016-12-31T23:59:60.999999999Z",
+      "endedAt": "2017-01-01T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2016-12-31T23:59:60.999999999Z",
+      "endedAt": "2017-01-01T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "1483228799",
+      "nanosecond": 1999999999
+    },
+    "ended": {
+      "wholeSecond": "1483228800",
+      "nanosecond": 0
+    },
+    "expires": {
+      "wholeSecond": "4094668800",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "following_second_before_leap",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2017-01-01T00:00:00Z",
+      "endedAt": "2016-12-31T23:59:60.999999999Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": null,
+    "admitted": false,
+    "started": null,
+    "ended": null,
+    "expires": null
+  },
+  {
+    "name": "offset_leap",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2017-01-01T05:29:60.123456789+05:30",
+      "endedAt": "2017-01-01T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2016-12-31T23:59:60.123456789Z",
+      "endedAt": "2017-01-01T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "1483228799",
+      "nanosecond": 1123456789
+    },
+    "ended": {
+      "wholeSecond": "1483228800",
+      "nanosecond": 0
+    },
+    "expires": {
+      "wholeSecond": "4094668800",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "year_zero_leap_day",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "0000-02-29T00:00:00Z",
+      "endedAt": "0000-03-01T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "0000-02-29T00:00:00Z",
+      "endedAt": "0000-03-01T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "-62162121600",
+      "nanosecond": 0
+    },
+    "ended": {
+      "wholeSecond": "-62162035200",
+      "nanosecond": 0
+    },
+    "expires": {
+      "wholeSecond": "4094668800",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "negative_year",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "-0001-12-31T23:59:59.999999999Z",
+      "endedAt": "0000-01-01T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "-0001-12-31T23:59:59.999999999Z",
+      "endedAt": "0000-01-01T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "-62167219201",
+      "nanosecond": 999999999
+    },
+    "ended": {
+      "wholeSecond": "-62167219200",
+      "nanosecond": 0
+    },
+    "expires": {
+      "wholeSecond": "4094668800",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "expanded_year",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "+10000-01-01T00:00:00.000000001Z",
+      "endedAt": "+10000-01-01T00:00:00.000000002Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "+10001-01-01T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "+10000-01-01T00:00:00.000000001Z",
+      "endedAt": "+10000-01-01T00:00:00.000000002Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "+10001-01-01T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "253402300800",
+      "nanosecond": 1
+    },
+    "ended": {
+      "wholeSecond": "253402300800",
+      "nanosecond": 2
+    },
+    "expires": {
+      "wholeSecond": "253433923200",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "minimum_year",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "-262143-01-01T00:00:00Z",
+      "endedAt": "-262143-01-01T00:00:00.000000001Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "-262143-01-01T00:00:00Z",
+      "endedAt": "-262143-01-01T00:00:00.000000001Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "-8334601228800",
+      "nanosecond": 0
+    },
+    "ended": {
+      "wholeSecond": "-8334601228800",
+      "nanosecond": 1
+    },
+    "expires": {
+      "wholeSecond": "4094668800",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "maximum_year",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "+262142-12-31T23:59:59.999999998Z",
+      "endedAt": "+262142-12-31T23:59:59.999999999Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "+262142-12-31T23:59:59Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "+262142-12-31T23:59:59.999999998Z",
+      "endedAt": "+262142-12-31T23:59:59.999999999Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "+262142-12-31T23:59:59Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "8210266876799",
+      "nanosecond": 999999998
+    },
+    "ended": {
+      "wholeSecond": "8210266876799",
+      "nanosecond": 999999999
+    },
+    "expires": {
+      "wholeSecond": "8210266876799",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "minimum_offset_inside",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "-262143-01-01T01:00:00+01:00",
+      "endedAt": "-262143-01-01T01:00:00.000000001+01:00",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "-262143-01-01T00:00:00Z",
+      "endedAt": "-262143-01-01T00:00:00.000000001Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "-8334601228800",
+      "nanosecond": 0
+    },
+    "ended": {
+      "wholeSecond": "-8334601228800",
+      "nanosecond": 1
+    },
+    "expires": {
+      "wholeSecond": "4094668800",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "maximum_offset_inside",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "+262142-12-31T22:59:59.999999998-01:00",
+      "endedAt": "+262142-12-31T22:59:59.999999999-01:00",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "+262142-12-31T23:59:59Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "+262142-12-31T23:59:59.999999998Z",
+      "endedAt": "+262142-12-31T23:59:59.999999999Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "+262142-12-31T23:59:59Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "8210266876799",
+      "nanosecond": 999999998
+    },
+    "ended": {
+      "wholeSecond": "8210266876799",
+      "nanosecond": 999999999
+    },
+    "expires": {
+      "wholeSecond": "8210266876799",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "minimum_offset_outside",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "-262143-01-01T00:00:00+01:00",
+      "endedAt": "-262143-01-01T01:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": null,
+    "admitted": false,
+    "started": null,
+    "ended": null,
+    "expires": null
+  },
+  {
+    "name": "maximum_offset_outside",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "+262142-12-31T23:59:59-01:00",
+      "endedAt": "+262142-12-31T23:59:59Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": null,
+    "admitted": false,
+    "started": null,
+    "ended": null,
+    "expires": null
+  },
+  {
+    "name": "invalid_calendar",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-02-30T00:00:00Z",
+      "endedAt": "2026-03-01T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": null,
+    "admitted": false,
+    "started": null,
+    "ended": null,
+    "expires": null
+  },
+  {
+    "name": "invalid_century_leap",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "1900-02-29T00:00:00Z",
+      "endedAt": "1900-03-01T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": null,
+    "admitted": false,
+    "started": null,
+    "ended": null,
+    "expires": null
+  },
+  {
+    "name": "invalid_hour",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T24:00:00Z",
+      "endedAt": "2026-10-04T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": null,
+    "admitted": false,
+    "started": null,
+    "ended": null,
+    "expires": null
+  },
+  {
+    "name": "invalid_offset",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T00:00:00+24:00",
+      "endedAt": "2026-10-04T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": null,
+    "admitted": false,
+    "started": null,
+    "ended": null,
+    "expires": null
+  },
+  {
+    "name": "invalid_second",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T00:00:61Z",
+      "endedAt": "2026-10-04T00:00:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2099-10-03T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": null,
+    "admitted": false,
+    "started": null,
+    "ended": null,
+    "expires": null
+  },
+  {
+    "name": "invalid_expiry",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "sealed",
+      "startedAt": "2026-10-03T00:00:00Z",
+      "endedAt": "2026-10-03T00:01:00Z",
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2026-02-30T00:00:00Z"
+      },
+      "archive": {
+        "uri": "rerun://archive.example:443/dataset/0197F78EF2F07A6E8a5df41c691e4471?segment_id=0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+        "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+        "catalogRevision": "r1",
+        "rrdVersion": "0.38.1",
+        "optimizationProfile": "object-store",
+        "byteLen": 128,
+        "layerCount": 1
+      },
+      "live": null,
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": null,
+    "admitted": false,
+    "started": null,
+    "ended": null,
+    "expires": null
+  },
+  {
+    "name": "live_ended_omitted",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "live",
+      "startedAt": "2026-09-29T00:00:00Z",
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      },
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2026-09-29T00:05:00Z"
+      },
+      "archive": null,
+      "live": {
+        "historySeconds": 1,
+        "videoPrerollSeconds": 2,
+        "transport": "rerun_rrd_channel_v2"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "live",
+      "startedAt": "2026-09-29T00:00:00Z",
+      "endedAt": null,
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2026-09-29T00:05:00Z"
+      },
+      "archive": null,
+      "live": {
+        "historySeconds": 1,
+        "videoPrerollSeconds": 2,
+        "transport": "rerun_rrd_channel_v2"
+      },
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "1790640000",
+      "nanosecond": 0
+    },
+    "ended": null,
+    "expires": {
+      "wholeSecond": "1790640300",
+      "nanosecond": 0
+    }
+  },
+  {
+    "name": "live_ended_null",
+    "inputWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "live",
+      "startedAt": "2026-09-29T00:00:00Z",
+      "endedAt": null,
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2026-09-29T00:05:00Z"
+      },
+      "archive": null,
+      "live": {
+        "historySeconds": 1,
+        "videoPrerollSeconds": 2,
+        "transport": "rerun_rrd_channel_v2"
+      },
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "producedWire": {
+      "schema": "veoveo.ai/recording-playback/v11",
+      "datasetId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "recordingSegmentId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4472",
+      "applicationId": "producer",
+      "recordingKey": "capture",
+      "state": "live",
+      "startedAt": "2026-09-29T00:00:00Z",
+      "endedAt": null,
+      "catalogRevision": "r1",
+      "access": {
+        "grantId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4473",
+        "redapToken": "opaque-token",
+        "expiresAt": "2026-09-29T00:05:00Z"
+      },
+      "archive": null,
+      "live": {
+        "historySeconds": 1,
+        "videoPrerollSeconds": 2,
+        "transport": "rerun_rrd_channel_v2"
+      },
+      "blueprint": {
+        "blueprintId": "producer-blueprint",
+        "revision": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLen": 64,
+        "mapProvider": "none"
+      }
+    },
+    "admitted": true,
+    "started": {
+      "wholeSecond": "1790640000",
+      "nanosecond": 0
+    },
+    "ended": null,
+    "expires": {
+      "wholeSecond": "1790640300",
+      "nanosecond": 0
+    }
+  }
+]

@@ -2,17 +2,13 @@
 use crate::persistence::MapRepository;
 use crate::persistence::{MapDependencyIdentity, MapRouteState};
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::{MapAccessContext, MapCatalog, decode, encode};
-use crate::{
-    contract::{
-        AcquisitionId, AcquisitionJob, AcquisitionStatus, DatasetReleaseId, MapCatalogPage,
-        MobilityProfileId, RestrictionId, RouteId, RouteMatrix, RouteMatrixId, RoutePlan,
-        RouteStatus,
-    },
-    uris,
+use crate::contract::{
+    AcquisitionId, AcquisitionJob, AcquisitionStatus, DatasetReleaseId, MapCatalogPage,
+    MapMatrixUri, MapRouteUri, MatrixSummary, MatrixSummaryBuilder, RestrictionId, RouteId,
+    RouteMatrix, RouteMatrixId, RoutePlan, RouteStatus, RouteSummary, RouteSummaryBuilder,
 };
 
 pub const PAGE_SIZE: usize = 100;
@@ -67,27 +63,6 @@ impl Collection {
             next_cursor,
         })
     }
-}
-
-#[derive(Debug, Serialize)]
-pub struct RouteSummary {
-    pub route_id: RouteId,
-    pub resource_uri: String,
-    pub status: RouteStatus,
-    pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
-    pub departure_time: DateTime<Utc>,
-    pub arrival_time: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct MatrixSummary {
-    pub matrix_id: RouteMatrixId,
-    pub resource_uri: String,
-    pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
-    pub created_at: DateTime<Utc>,
 }
 
 impl MapCatalog {
@@ -162,10 +137,10 @@ impl MapCatalog {
             rows,
             |row| &row.route_key,
             |row| {
-                Ok(RouteSummary {
-                    resource_uri: crate::contract::MapRouteUri::new(row.route_key.parse()?)
-                        .to_string(),
-                    route_id: row.route_key.parse()?,
+                let route_id: RouteId = row.route_key.parse()?;
+                Ok(RouteSummaryBuilder {
+                    resource_uri: MapRouteUri::new(route_id.clone()),
+                    route_id,
                     status: match row.status {
                         MapRouteState::PlanningAdvisory => RouteStatus::PlanningAdvisory,
                         MapRouteState::Validated => RouteStatus::Validated,
@@ -178,7 +153,8 @@ impl MapCatalog {
                     departure_time: row.departure_time,
                     arrival_time: row.arrival_time,
                     created_at: row.created_at,
-                })
+                }
+                .build()?)
             },
         )
     }
@@ -195,13 +171,15 @@ impl MapCatalog {
             rows,
             |row| &row.matrix_key,
             |row| {
-                Ok(MatrixSummary {
-                    resource_uri: uris::matrix_uri(&row.matrix_key.parse()?),
-                    matrix_id: row.matrix_key.parse()?,
+                let matrix_id: RouteMatrixId = row.matrix_key.parse()?;
+                Ok(MatrixSummaryBuilder {
+                    resource_uri: MapMatrixUri::new(matrix_id.clone()),
+                    matrix_id,
                     mobility_profile_id: row.mobility_profile_key.parse()?,
                     mobility_profile_version: row.mobility_profile_version.try_into()?,
                     created_at: row.created_at,
-                })
+                }
+                .build()?)
             },
         )
     }

@@ -1,1 +1,1 @@
-UPDATE ONLY $lookup SET settlement.finding.prompt_revision = 'other-prompt';
+UPDATE ONLY $lookup SET settlement.finding.promptRevision = 'other-prompt';

@@ -21,7 +21,7 @@ struct Wire<T> {
 fn encode<T: Serialize>(collection: &str, position: &T) -> Result<String, UavResourceError> {
     let value = hex::encode(
         serde_json::to_vec(&Wire {
-            version: 1,
+            version: if collection == uris::USAGE { 2 } else { 1 },
             collection: collection.into(),
             position,
         })
@@ -39,14 +39,16 @@ fn decode<T: DeserializeOwned>(collection: &str, value: &str) -> Result<T, UavRe
     let bytes = hex::decode(value).map_err(|_| UavResourceError::InvalidCursor)?;
     let wire: Wire<T> =
         serde_json::from_slice(&bytes).map_err(|_| UavResourceError::InvalidCursor)?;
-    if wire.version != 1 || wire.collection != collection {
+    if wire.version != (if collection == uris::USAGE { 2 } else { 1 })
+        || wire.collection != collection
+    {
         return Err(UavResourceError::InvalidCursor);
     }
     Ok(wire.position)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UavUsagePosition {
     pub created_at: DateTime<Utc>,
     pub task_id: TaskId,

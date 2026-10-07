@@ -14,6 +14,7 @@ pub struct PipelineDetails {
     pub supports_live_input: bool,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(try_from = "PipelineViewWire", into = "PipelineViewWire")]
 pub struct PipelineView {
     pub uri: PipelineUri,
@@ -72,6 +73,7 @@ impl PipelineView {
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PipelineViewWire {
     id: PipelineId,
     uri: PipelineUri,
@@ -124,6 +126,7 @@ impl From<PipelineView> for PipelineViewWire {
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(try_from = "ModelViewWire", into = "ModelViewWire")]
 pub struct ModelView {
     pub uri: ModelUri,
@@ -145,6 +148,7 @@ impl ModelView {
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ModelViewWire {
     id: ModelId,
     uri: ModelUri,

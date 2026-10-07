@@ -60,7 +60,7 @@ fn runtime_uses_the_qualified_pin_verified_checkpoint_gpu_and_secret_reference()
     let offline: Value =
         serde_json::from_str(include_str!("../../../deploy/offline/images.lock.json"))?;
     ensure!(
-        offline["external_images"]
+        offline["externalImages"]
             .as_array()
             .context("offline images")?
             .iter()
@@ -69,6 +69,11 @@ fn runtime_uses_the_qualified_pin_verified_checkpoint_gpu_and_secret_reference()
     ensure!(container["resources"]["requests"]["nvidia.com/gpu"] == "1");
     ensure!(container["resources"]["limits"]["nvidia.com/gpu"] == "1");
     let args = container["args"].as_array().context("runtime args")?;
+    ensure!(args.iter().filter(|arg| **arg == json!("--dtype")).count() == 1);
+    ensure!(
+        args.windows(2)
+            .any(|pair| pair == [json!("--dtype"), json!("bfloat16")])
+    );
     ensure!(args.iter().any(|v| {
         v.as_str()
             .is_some_and(|s| s.contains("torch.cuda.is_available()"))
@@ -156,6 +161,26 @@ fn isolation_is_always_present_and_no_general_ingress_policy_bypasses_it() -> Re
 }
 
 #[test]
+fn declared_precision_is_passed_once_to_the_pooling_engine() -> Result<()> {
+    for precision in ["bfloat16", "float16"] {
+        let mut values = selection();
+        values["embedding"] = json!({"engine":{"precision":precision}});
+        let rendered = objects(render(&values)?)?;
+        let args =
+            find(&rendered, "Deployment", "embedding")?["spec"]["template"]["spec"]["containers"]
+                [0]["args"]
+                .as_array()
+                .context("runtime args")?;
+        ensure!(args.iter().filter(|arg| **arg == json!("--dtype")).count() == 1);
+        ensure!(
+            args.windows(2)
+                .any(|pair| pair == [json!("--dtype"), json!(precision)])
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn renderer_rejects_unpinned_or_cpu_configuration_and_accepts_declared_gpu_claim() -> Result<()> {
     for value in [
         json!({"runtimeClassName":"runc"}),
@@ -167,6 +192,31 @@ fn renderer_rejects_unpinned_or_cpu_configuration_and_accepts_declared_gpu_claim
         let mut values = selection();
         values["embedding"] = value;
         ensure!(!render(&values)?.status.success());
+    }
+    for precision in [
+        json!("auto"),
+        json!("float32"),
+        json!("int8"),
+        json!("int4"),
+        json!("unknown"),
+        json!("fp16"),
+        json!("BFLOAT16"),
+        json!(16),
+        json!(null),
+        json!([]),
+        json!({}),
+    ] {
+        let mut values = selection();
+        values["embedding"] = json!({"engine":{"precision":precision}});
+        let output = render(&values)?;
+        ensure!(
+            !output.status.success(),
+            "unsupported precision admitted: {precision}"
+        );
+        ensure!(
+            String::from_utf8_lossy(&output.stderr).contains("precision"),
+            "precision refusal must identify its configuration field"
+        );
     }
     let mut values = selection();
     values["global"] = json!({"gpuPlacement":{"enabled":true,"claimName":"embedding-gpu","runtimeClassName":"nvidia","evidenceDigest":format!("sha256:{}","a".repeat(64)),"workloadRequests":{"embedding":"embedding"},"workloadReplicas":{"embedding":1}}});

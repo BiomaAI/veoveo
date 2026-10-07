@@ -1,10 +1,10 @@
 {
-  "schemaVersion": "veoveo.ai/deployment/v8",
+  "schemaVersion": "veoveo.ai/deployment/v9",
   "name": "sumo",
   "registry": {
     "pushAddress": "127.0.0.1:5001",
     "pullAddress": "k3d-veoveo-registry.localhost:5001",
-    "transport": "insecure-http",
+    "transport": "insecure_http",
     "localConfig": "../../../deploy/local/k3d/registry.json"
   },
   "sources": [
@@ -49,7 +49,7 @@
           "chart": "showcase/sumo/deploy/helm",
           "sourceValues": [],
           "installationValues": [],
-          "valuesContract": "veoveo-source",
+          "valuesContract": "veoveo_source",
           "timeoutSeconds": 720
         }
       ]
@@ -90,10 +90,10 @@
     "installationPreset": "custom",
     "components": [
       "gateway",
-      "platform-store",
-      "object-store",
-      "artifact-service",
-      "recording-data-plane",
+      "platform_store",
+      "object_store",
+      "artifact_service",
+      "recording_data_plane",
       "console",
       "telemetry",
       "ingress"
@@ -150,8 +150,8 @@
       "releases": [],
       "installationInputs": [
         "namespace",
-        "node-bootstrap",
-        "gateway-activation"
+        "node_bootstrap",
+        "gateway_activation"
       ]
     },
     {

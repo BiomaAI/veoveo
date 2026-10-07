@@ -535,7 +535,7 @@ async fn native_read_snapshot_survives_settlement_revocation_and_parent_deletion
         let seed_snapshot = writer.get(seed.task).await.unwrap().unwrap();
         let queued = veoveo_types::TaskId::new();
         let mut request = seed_snapshot.request.clone();
-        request["common"]["artifact_write_capability"]["task_id"] =
+        request["common"]["artifactWriteCapability"]["taskId"] =
             serde_json::to_value(queued).unwrap();
         db.a.client()
             .query(include_str!("queries/reads/native_read_snapshot_survives_settlement_revocation_and_parent_deletion.surql"))

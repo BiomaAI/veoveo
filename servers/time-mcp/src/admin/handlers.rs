@@ -8,10 +8,10 @@ use veoveo_mcp_contract::GatewayInternalIdentity;
 
 use crate::{
     contract::{
-        ActivateReleaseRequest, AdminPage, AuthorityRelease, CalendarVersionPath,
-        ClockQualityPolicy, CreateAcquisitionRequest, CreateCalendarRequest, CreateSourceRequest,
-        MissionEpoch, MissionEpochId, ReplaceClockQualityPolicyRequest, ReplaceSourceRequest,
-        TimeAcquisition, TimeAcquisitionId, TimeSource, TimeSourceId, UpsertMissionEpochRequest,
+        ActivateReleaseRequest, AdminPage, AuthorityRelease, CalendarId, ClockQualityPolicy,
+        CreateAcquisitionRequest, CreateCalendarRequest, CreateSourceRequest, MissionEpoch,
+        MissionEpochId, ReplaceClockQualityPolicyRequest, ReplaceSourceRequest, TimeAcquisition,
+        TimeAcquisitionId, TimeSource, TimeSourceId, UpsertMissionEpochRequest,
     },
     state::TimeApplication,
     uris,
@@ -23,6 +23,7 @@ type ApiResult<T> = Result<Json<T>, ApiError>;
 
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct CursorQuery<C> {
     cursor: Option<C>,
 }
@@ -219,13 +220,13 @@ pub(super) async fn list_calendars(
 pub(super) async fn get_calendar(
     State(state): State<Arc<TimeApplication>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path(path): Path<CalendarVersionPath>,
+    Path((calendar_id, version)): Path<(CalendarId, crate::contract::TimeVersion)>,
 ) -> ApiResult<crate::contract::OperationalCalendar> {
     let scope = state.scope(&identity).await.map_err(ApiError::internal)?;
     Ok(Json(
         state
             .catalog
-            .calendar(&scope, &path.calendar_id, path.version)
+            .calendar(&scope, &calendar_id, version)
             .await?
             .ok_or_else(|| ApiError::not_found("unknown calendar version"))?,
     ))

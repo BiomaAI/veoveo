@@ -297,10 +297,10 @@ async fn cuda_file_live_cancel_and_input_bounds() -> Result<()> {
         }
     })
     .await??;
-    let evidence = serde_json::json!({"schema":"veoveo.speech-gpu-acceptance/v1", "readiness":readiness,
-        "load_seconds":load_seconds, "english_seconds":english_seconds, "spanish_seconds":spanish_seconds,
-        "live_first_update_seconds":first_update_seconds, "english":en, "spanish":es,
-        "live":live_transcript, "cancellation_released_capacity":true, "path_boundary":true});
+    let evidence = serde_json::json!({"schema":"veoveo.ai/speech-gpu-acceptance/v2", "readiness":readiness,
+        "loadSeconds":load_seconds, "englishSeconds":english_seconds, "spanishSeconds":spanish_seconds,
+        "liveFirstUpdateSeconds":first_update_seconds, "english":en, "spanish":es,
+        "live":live_transcript, "cancellationReleasedCapacity":true, "pathBoundary":true});
     let output = root.join("../../output/development/speech/native-gpu.json");
     std::fs::create_dir_all(output.parent().context("evidence parent")?)?;
     std::fs::write(output, serde_json::to_vec_pretty(&evidence)?)?;

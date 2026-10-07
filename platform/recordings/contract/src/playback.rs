@@ -5,19 +5,20 @@ use veoveo_types::sha256_hex;
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
-use veoveo_types::Sha256Digest;
+use veoveo_types::{ChronoUtcTimestampSchema, Sha256Digest};
 
 use crate::{
     PlaybackArchiveUri, RecordingContractError, RecordingDatasetId, RecordingId,
     RecordingReadGrantId,
 };
 
-pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-playback/v10";
+pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-playback/v11";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[schemars(transform = crate::format_tag_role)]
 pub enum PlaybackManifestSchema {
-    #[serde(rename = "veoveo.ai/recording-playback/v10")]
-    V10,
+    #[serde(rename = "veoveo.ai/recording-playback/v11")]
+    V11,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -45,7 +46,7 @@ impl fmt::Display for RecordingState {
 
 /// Complete construction inputs. `build` admits relationships before the manifest is usable.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlaybackManifestBuilder {
     pub schema: PlaybackManifestSchema,
     pub dataset_id: RecordingDatasetId,
@@ -53,9 +54,9 @@ pub struct PlaybackManifestBuilder {
     pub application_id: String,
     pub recording_key: String,
     pub state: RecordingState,
-    #[schemars(with = "String")]
+    #[schemars(with = "ChronoUtcTimestampSchema")]
     pub started_at: DateTime<Utc>,
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<ChronoUtcTimestampSchema>")]
     pub ended_at: Option<DateTime<Utc>>,
     pub catalog_revision: String,
     pub access: PlaybackAccess,
@@ -129,16 +130,16 @@ impl<'de> Deserialize<'de> for PlaybackManifest {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlaybackAccess {
     pub grant_id: RecordingReadGrantId,
     pub redap_token: String,
-    #[schemars(with = "String")]
+    #[schemars(with = "ChronoUtcTimestampSchema")]
     pub expires_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlaybackArchive {
     pub uri: PlaybackArchiveUri,
     pub dataset_id: RecordingDatasetId,
@@ -151,7 +152,7 @@ pub struct PlaybackArchive {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 /// Recording-scoped channel, available throughout Live, including capture-layer gaps.
 pub struct PlaybackLiveReceiver {
     pub history_seconds: u64,
@@ -166,7 +167,7 @@ pub enum PlaybackLiveTransport {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlaybackBlueprint {
     pub blueprint_id: String,
     pub revision: NonZeroU64,
@@ -178,7 +179,7 @@ pub struct PlaybackBlueprint {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub enum PlaybackMapProvider {
     None,
     OpenStreetMap,

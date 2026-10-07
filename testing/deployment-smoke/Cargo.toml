@@ -6,40 +6,49 @@ edition.workspace = true
 [[bin]]
 name = "deployment-smoke"
 path = "src/main.rs"
+required-features = ["smoke"]
 
 [[test]]
 name = "gitops_convergence"
 harness = false
+required-features = ["smoke"]
 
 [dependencies]
-veoveo-agent-runtime = { workspace = true, features = ["catalog"] }
-veoveo-platform-store.workspace = true
-veoveo-types.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "time"] }
-chrono.workspace = true
-uuid.workspace = true
-url.workspace = true
-base64.workspace = true
-futures.workspace = true
+veoveo-embedding-contract = { workspace = true, optional = true }
+reqwest = {workspace = true, optional = true}
+veoveo-testing-support = {path = "../support", optional = true}
+veoveo-gateway-contract = { workspace = true, optional = true }
+veoveo-artifact-contract = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+veoveo-mcp-conformance = { path = "../../mcp/conformance", optional = true }
+veoveo-agent-runtime = { workspace = true, features = ["catalog", "persistence"] , optional = true }
+veoveo-platform-store = { workspace = true, optional = true }
+veoveo-types = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "time"] , optional = true }
+chrono = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
 # Matches the Store's qualified SDK; fixture-owned LIVE IDs are explicitly killed.
-surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"] }
+surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"] , optional = true }
 # OCI reference admission without registry/network clients; upstream v0.10.0 qualified by the owning harness.
-nix = { version = "=0.31.3", default-features = false, features = ["process", "signal"] }
-oci-spec = { version = "=0.10.0", default-features = false, features = ["distribution"] }
-veoveo-simulation-contract.workspace = true
-anyhow.workspace = true
-clap.workspace = true
-hex.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-serde_yaml_ng.workspace = true
-sha2.workspace = true
-tempfile.workspace = true
-veoveo-deploy-contract.workspace = true
-veoveo-modules = { workspace = true, features = ["serialization"] }
-veoveo-deploy-runtime.workspace = true
-veoveo-image-build-control.workspace = true
-veoveo-mcp-contract.workspace = true
+nix = { version = "=0.31.3", default-features = false, features = ["process", "signal"] , optional = true }
+oci-spec = { version = "=0.10.0", default-features = false, features = ["distribution"] , optional = true }
+veoveo-simulation-contract = { workspace = true, optional = true }
+anyhow = { workspace = true, optional = true }
+clap = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+serde_yaml_ng = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+veoveo-deploy-contract = { workspace = true, optional = true }
+veoveo-modules = { workspace = true, features = ["serialization"] , optional = true }
+veoveo-deploy-runtime = { workspace = true, optional = true }
+veoveo-image-build-control = { workspace = true, optional = true }
+veoveo-mcp-contract = { workspace = true, features = ["runtime"] , optional = true }
 
 [dev-dependencies]
 veoveo-audit-contract.workspace = true
@@ -51,3 +60,31 @@ veoveo-gateway-catalog.workspace = true
 veoveo-agent-runtime = { path = "../../agents/runtime", default-features = false, features = ["gateway"] }
 veoveo-recording-mcp = { path = "../../servers/recording-mcp", default-features = false, features = ["gateway"] }
 veoveo-mcp-gateway = { path = "../../platform/gateway" }
+
+[[bin]]
+name = "deployment-fixtures"
+path = "src/smoke/deployment_smoke.rs"
+required-features = ["smoke"]
+
+[features]
+smoke = ["dep:veoveo-embedding-contract", "dep:reqwest","dep:veoveo-testing-support", "dep:veoveo-gateway-contract",  "dep:veoveo-artifact-contract",         "dep:rustls",    "dep:veoveo-mcp-conformance", "dep:veoveo-agent-runtime", "dep:veoveo-platform-store", "dep:veoveo-types", "dep:tokio", "dep:chrono", "dep:uuid", "dep:url", "dep:base64", "dep:futures", "dep:surrealdb", "dep:nix", "dep:oci-spec", "dep:veoveo-simulation-contract", "dep:anyhow", "dep:clap", "dep:hex", "dep:serde", "dep:serde_json", "dep:serde_yaml_ng", "dep:sha2", "dep:tempfile", "dep:veoveo-deploy-contract", "dep:veoveo-modules", "dep:veoveo-deploy-runtime", "dep:veoveo-image-build-control", "dep:veoveo-mcp-contract"]
+
+[[test]]
+name = "computers_helm"
+required-features = ["smoke"]
+
+[[test]]
+name = "embedding_helm"
+required-features = ["smoke"]
+
+[[test]]
+name = "speech_helm"
+required-features = ["smoke"]
+
+[[test]]
+name = "knowledge_helm"
+required-features = ["smoke"]
+
+[[test]]
+name = "workspace_helm"
+required-features = ["smoke"]

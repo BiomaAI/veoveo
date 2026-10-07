@@ -24,6 +24,13 @@ shape that a real simulator implements, but it does not claim hardware rendering
 NVENC execution, advancing video, or browser playback. First-party UAV acceptance and
 each simulator's own GPU qualification provide that evidence.
 
+Controlled fixture models admit only their declared camelCase wire keys through
+Python, JSON and TypeAdapter decoding. Internal runtime constructors use that same
+shape while Python attribute access keeps its native names. Current fixture and
+live-view markers are closed values. The MCP handler rejects malformed request
+objects before viewer creation, token rotation or closure and reports validation
+failure without copying the supplied values into diagnostics.
+
 ## MCP Surface
 
 The server exposes `list_live_cameras`, `open_live_view`, `renew_live_view`, and
@@ -45,3 +52,12 @@ second workload.
 
 The CPU-sized fixture resources are intentional because this chart exercises packaging
 and governance only. They cannot satisfy the repository's hardware visual gate.
+
+## Packaged Contract Declaration
+
+The owner profile supplies every requirement in Rust's revision-1 catalog. The shared
+SDK loader validates that profile and its marked manual rendering before constructing
+the declaration; hosted revision3 is unchanged. Hatch packages the exact manuals,
+profile and generated catalog/schema with their digests. Installed loading uses only
+package artifacts and refuses stale or altered bytes. A declaration records owner
+status; pending qualification is not converted into a runtime pass.

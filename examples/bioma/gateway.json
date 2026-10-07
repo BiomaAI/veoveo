@@ -1,18 +1,18 @@
 {
   "branding": {
     "name": "Bioma",
-    "product_label": "Operations",
-    "accent_color": "#4fa87d"
+    "productLabel": "Operations",
+    "accentColor": "#4fa87d"
   },
-  "identity_providers": [
+  "identityProviders": [
     {
       "id": "enterprise",
       "issuer": "https://login.microsoftonline.com/e0ee3c6a-4f58-4f66-8de4-253226eeed5f/v2.0",
       "jwks": {
         "source": "remote",
-        "jwks_uri": "https://login.microsoftonline.com/e0ee3c6a-4f58-4f66-8de4-253226eeed5f/discovery/v2.0/keys"
+        "jwksUri": "https://login.microsoftonline.com/e0ee3c6a-4f58-4f66-8de4-253226eeed5f/discovery/v2.0/keys"
       },
-      "claim_mapping": {
+      "claimMapping": {
         "subject": "oid",
         "tenant": {
           "claim": "tid",
@@ -21,27 +21,27 @@
           }
         }
       },
-      "authorization_endpoint": "https://login.microsoftonline.com/e0ee3c6a-4f58-4f66-8de4-253226eeed5f/oauth2/v2.0/authorize",
-      "token_endpoint": "https://login.microsoftonline.com/e0ee3c6a-4f58-4f66-8de4-253226eeed5f/oauth2/v2.0/token",
+      "authorizationEndpoint": "https://login.microsoftonline.com/e0ee3c6a-4f58-4f66-8de4-253226eeed5f/oauth2/v2.0/authorize",
+      "tokenEndpoint": "https://login.microsoftonline.com/e0ee3c6a-4f58-4f66-8de4-253226eeed5f/oauth2/v2.0/token",
       "metadata": {
         "provider": "microsoft_entra",
         "external_tenant_id": "e0ee3c6a-4f58-4f66-8de4-253226eeed5f"
       }
     }
   ],
-  "authorization_servers": [
+  "authorizationServers": [
     {
       "id": "veoveo",
       "issuer": "https://veoveo.bioma.ai/oauth",
       "jwks": {
         "source": "remote",
-        "jwks_uri": "https://veoveo.bioma.ai/oauth/jwks.json"
+        "jwksUri": "https://veoveo.bioma.ai/oauth/jwks.json"
       },
-      "access_token_key_id": "veoveo-bioma-2026-07",
-      "access_token_signing_key": "veoveo_access_token_private_key",
-      "identity_provider": "enterprise",
-      "authorization_endpoint": "https://veoveo.bioma.ai/oauth/authorize",
-      "token_endpoint": "https://veoveo.bioma.ai/oauth/token",
+      "accessTokenKeyId": "veoveo-bioma-2026-07",
+      "accessTokenSigningKey": "veoveo_access_token_private_key",
+      "identityProvider": "enterprise",
+      "authorizationEndpoint": "https://veoveo.bioma.ai/oauth/authorize",
+      "tokenEndpoint": "https://veoveo.bioma.ai/oauth/token",
       "metadata": {
         "deployment": "bioma"
       }
@@ -50,24 +50,24 @@
   "servers": [
     {
       "slug": "media",
-      "uri_scheme": "media",
-      "mount_path": "/media",
-      "mcp_path": "/media/mcp",
+      "uriScheme": "media",
+      "mountPath": "/media",
+      "mcpPath": "/media/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://media-mcp:8787/media/mcp",
-        "health_url": "http://media-mcp:8787/media/readyz",
+        "healthUrl": "http://media-mcp:8787/media/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true,
+        "resourcesListChanged": true,
         "apps": true
       },
       "tools": [
@@ -76,7 +76,7 @@
         "models",
         "run"
       ],
-      "compatibility_helpers": [
+      "compatibilityHelpers": [
         "artifact",
         "model_schema",
         "models"
@@ -87,10 +87,10 @@
         "media-video-generate",
         "media-task-review"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
-      "owned_routes": [
+      "ownedRoutes": [
         {
           "path": "/media/webhooks",
           "purpose": "webhook"
@@ -100,29 +100,31 @@
           "purpose": "provider_fetchable_files"
         }
       ],
-      "metadata": {},
-      "resource_projection": "server_owned"
+      "metadata": {
+        "contractRevision": 4
+      },
+      "resourceProjection": "server_owned"
     },
     {
       "slug": "uav-sim",
-      "uri_scheme": "uav-sim",
-      "mount_path": "/uav-sim",
-      "mcp_path": "/uav-sim/mcp",
+      "uriScheme": "uav-sim",
+      "mountPath": "/uav-sim",
+      "mcpPath": "/uav-sim/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://uav-sim-mcp:8802/uav-sim/mcp",
-        "health_url": "http://uav-sim-mcp:8802/uav-sim/healthz",
+        "healthUrl": "http://uav-sim-mcp:8802/uav-sim/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true,
+        "resourcesListChanged": true,
         "apps": true
       },
       "tools": [
@@ -148,19 +150,19 @@
         "capture_dataset"
       ],
       "prompts": [
-        "uav-sim-mission-plan",
-        "uav-sim-session-review"
+        "uav_sim_mission_plan",
+        "uav_sim_session_review"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
         "runtime": "isaac-sim-6.0.1",
         "world_source": "google_photorealistic_3d_tiles",
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned",
-      "referenced_resource_schemes": [
+      "resourceProjection": "server_owned",
+      "referencedResourceSchemes": [
         "frames",
         "map",
         "recording"
@@ -168,24 +170,24 @@
     },
     {
       "slug": "stream",
-      "uri_scheme": "stream",
-      "mount_path": "/stream",
-      "mcp_path": "/stream/mcp",
+      "uriScheme": "stream",
+      "mountPath": "/stream",
+      "mcpPath": "/stream/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://stream-mcp:8797/stream/mcp",
-        "health_url": "http://stream-mcp:8797/stream/healthz",
+        "healthUrl": "http://stream-mcp:8797/stream/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": true
       },
       "tools": [
@@ -194,53 +196,53 @@
         "stop_live_session"
       ],
       "prompts": [
-        "stream-run-recording",
-        "stream-start-live-session"
+        "stream_run_recording",
+        "stream_start_live_session"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned"
+      "resourceProjection": "server_owned"
     },
     {
       "slug": "reason",
-      "uri_scheme": "reason",
-      "mount_path": "/reason",
-      "mcp_path": "/reason/mcp",
+      "uriScheme": "reason",
+      "mountPath": "/reason",
+      "mcpPath": "/reason/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://reason-mcp:8803/reason/mcp",
-        "health_url": "http://reason-mcp:8803/reason/healthz",
+        "healthUrl": "http://reason-mcp:8803/reason/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": true
       },
       "tools": [
         "analyze_recording"
       ],
       "prompts": [
-        "reason-analyze-recording",
-        "reason-answer-question"
+        "reason_analyze_recording",
+        "reason_answer_question"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned",
+      "resourceProjection": "server_owned",
       "knowledge": [
         {
           "collection": "reason.docs",
@@ -248,8 +250,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "reason.analyses",
@@ -257,8 +259,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "reason.results",
@@ -266,64 +268,64 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         }
       ]
     },
     {
       "slug": "timeseries",
-      "uri_scheme": "timeseries",
-      "mount_path": "/timeseries",
-      "mcp_path": "/timeseries/mcp",
+      "uriScheme": "timeseries",
+      "mountPath": "/timeseries",
+      "mcpPath": "/timeseries/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://timeseries-mcp:8789/timeseries/mcp",
-        "health_url": "http://timeseries-mcp:8789/timeseries/readyz",
+        "healthUrl": "http://timeseries-mcp:8789/timeseries/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": false,
+        "resourceTemplates": true,
+        "resourceSubscriptions": false,
         "prompts": false,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": true
       },
       "tools": [
         "forecast"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned"
+      "resourceProjection": "server_owned"
     },
     {
       "slug": "duckdb",
-      "uri_scheme": "duckdb",
-      "mount_path": "/duckdb",
-      "mcp_path": "/duckdb/mcp",
+      "uriScheme": "duckdb",
+      "mountPath": "/duckdb",
+      "mcpPath": "/duckdb/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://duckdb-mcp:8791/duckdb/mcp",
-        "health_url": "http://duckdb-mcp:8791/duckdb/readyz",
+        "healthUrl": "http://duckdb-mcp:8791/duckdb/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": false,
+        "resourceTemplates": true,
+        "resourceSubscriptions": false,
         "prompts": false,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": true
       },
       "tools": [
@@ -332,34 +334,34 @@
         "ingest",
         "export"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned"
+      "resourceProjection": "server_owned"
     },
     {
       "slug": "optimization",
-      "uri_scheme": "optimization",
-      "mount_path": "/optimization",
-      "mcp_path": "/optimization/mcp",
+      "uriScheme": "optimization",
+      "mountPath": "/optimization",
+      "mcpPath": "/optimization/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://optimization-mcp:8792/optimization/mcp",
-        "health_url": "http://optimization-mcp:8792/optimization/readyz",
+        "healthUrl": "http://optimization-mcp:8792/optimization/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true,
+        "resourcesListChanged": true,
         "apps": true
       },
       "tools": [
@@ -374,39 +376,39 @@
         "compare_route_scenarios",
         "formulate_mathematical_model"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 3,
+        "contractRevision": 4,
         "engine": "nvidia-cuopt-26.08"
       },
-      "resource_projection": "server_owned",
-      "referenced_resource_schemes": [
+      "resourceProjection": "server_owned",
+      "referencedResourceSchemes": [
         "artifact",
         "map"
       ]
     },
     {
       "slug": "frames",
-      "uri_scheme": "frames",
-      "mount_path": "/frames",
-      "mcp_path": "/frames/mcp",
+      "uriScheme": "frames",
+      "mountPath": "/frames",
+      "mcpPath": "/frames/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://frames-mcp:8793/frames/mcp",
-        "health_url": "http://frames-mcp:8793/frames/readyz",
+        "healthUrl": "http://frames-mcp:8793/frames/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": false,
+        "resourceTemplates": true,
+        "resourceSubscriptions": false,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": true
       },
       "tools": [
@@ -416,38 +418,38 @@
         "publish_world"
       ],
       "prompts": [
-        "frames-frame-audit",
-        "frames-world-design",
-        "frames-transform-explain"
+        "frames_frame_audit",
+        "frames_world_design",
+        "frames_transform_explain"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned"
+      "resourceProjection": "server_owned"
     },
     {
       "slug": "map",
-      "uri_scheme": "map",
-      "mount_path": "/map",
-      "mcp_path": "/map/mcp",
+      "uriScheme": "map",
+      "mountPath": "/map",
+      "mcpPath": "/map/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://map-mcp:8799/map/mcp",
-        "health_url": "http://map-mcp:8799/map/readyz",
+        "healthUrl": "http://map-mcp:8799/map/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": true
       },
       "tools": [
@@ -503,13 +505,13 @@
         "prepare_route_request",
         "review_route"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned",
+      "resourceProjection": "server_owned",
       "knowledge": [
         {
           "collection": "map.docs",
@@ -517,8 +519,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "map.layers",
@@ -526,8 +528,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "map.features",
@@ -535,8 +537,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "map.publications",
@@ -544,8 +546,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "map.locations",
@@ -553,8 +555,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "map.facilities",
@@ -562,8 +564,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "map.releases",
@@ -571,31 +573,31 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         }
       ]
     },
     {
       "slug": "view",
-      "uri_scheme": "view",
-      "mount_path": "/view",
-      "mcp_path": "/view/mcp",
+      "uriScheme": "view",
+      "mountPath": "/view",
+      "mcpPath": "/view/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://view-mcp:8801/view/mcp",
-        "health_url": "http://view-mcp:8801/view/healthz",
+        "healthUrl": "http://view-mcp:8801/view/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": false,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": true
       },
       "tools": [
@@ -605,35 +607,35 @@
         "create_view",
         "set_camera"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
         "renderer": "headless_nvidia_vulkan",
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned"
+      "resourceProjection": "server_owned"
     },
     {
       "slug": "time",
-      "uri_scheme": "time",
-      "mount_path": "/time",
-      "mcp_path": "/time/mcp",
+      "uriScheme": "time",
+      "mountPath": "/time",
+      "mcpPath": "/time/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://time-mcp:8800/time/mcp",
-        "health_url": "http://time-mcp:8800/time/readyz",
+        "healthUrl": "http://time-mcp:8800/time/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": true
       },
       "tools": [
@@ -651,13 +653,13 @@
         "resolve_operational_time",
         "validate_mission_timeline"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned",
+      "resourceProjection": "server_owned",
       "knowledge": [
         {
           "collection": "time.docs",
@@ -665,8 +667,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "time.calendars",
@@ -674,8 +676,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "time.epochs",
@@ -683,8 +685,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "time.events",
@@ -692,8 +694,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "time.authority-releases",
@@ -701,8 +703,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "time.bootstrap-authorities",
@@ -710,31 +712,31 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         }
       ]
     },
     {
       "slug": "datasheet",
-      "uri_scheme": "datasheet",
-      "mount_path": "/datasheet",
-      "mcp_path": "/datasheet/mcp",
+      "uriScheme": "datasheet",
+      "mountPath": "/datasheet",
+      "mcpPath": "/datasheet/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://datasheet-mcp:8798/datasheet/mcp",
-        "health_url": "http://datasheet-mcp:8798/datasheet/healthz",
+        "healthUrl": "http://datasheet-mcp:8798/datasheet/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": false,
+        "resourceTemplates": true,
+        "resourceSubscriptions": false,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": true
       },
       "tools": [
@@ -746,34 +748,34 @@
         "datasheet-profile-dataset",
         "datasheet-report-review"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned"
+      "resourceProjection": "server_owned"
     },
     {
       "slug": "artifact",
-      "uri_scheme": "artifact",
-      "mount_path": "/artifact",
-      "mcp_path": "/artifact/mcp",
+      "uriScheme": "artifact",
+      "mountPath": "/artifact",
+      "mcpPath": "/artifact/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://artifact-mcp:8794/artifact/mcp",
-        "health_url": "http://artifact-mcp:8794/artifact/readyz",
+        "healthUrl": "http://artifact-mcp:8794/artifact/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": false,
-        "resources_list_changed": true,
+        "resourcesListChanged": true,
         "apps": true
       },
       "tools": [
@@ -788,13 +790,13 @@
         "artifact-access-review",
         "artifact-share-review"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned",
+      "resourceProjection": "server_owned",
       "knowledge": [
         {
           "collection": "artifact.docs",
@@ -802,8 +804,8 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         },
         {
           "collection": "artifact.metadata",
@@ -811,31 +813,31 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         }
       ]
     },
     {
       "slug": "recording",
-      "uri_scheme": "recording",
-      "mount_path": "/recording",
-      "mcp_path": "/recording/mcp",
+      "uriScheme": "recording",
+      "mountPath": "/recording",
+      "mcpPath": "/recording/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://recording-mcp:8796/mcp",
-        "health_url": "http://recording-mcp:8796/healthz",
+        "healthUrl": "http://recording-mcp:8796/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": false,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": true
       },
       "tools": [
@@ -843,14 +845,14 @@
         "seal_recording"
       ],
       "prompts": [
-        "recording-inspect",
-        "recording-project",
-        "recording-seal"
+        "recording_inspect",
+        "recording_project",
+        "recording_seal"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
-      "owned_routes": [
+      "ownedRoutes": [
         {
           "path": "/recordings",
           "purpose": "artifact_bytes"
@@ -858,33 +860,33 @@
       ],
       "metadata": {
         "raw_ingest": "internal_only",
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned"
+      "resourceProjection": "server_owned"
     },
     {
       "slug": "charts",
-      "uri_scheme": "charts",
-      "mount_path": "/charts",
-      "mcp_path": "/charts/mcp",
+      "uriScheme": "charts",
+      "mountPath": "/charts",
+      "mcpPath": "/charts/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://chart-mcp:8795/charts/mcp",
-        "health_url": "http://chart-mcp:8795/charts/healthz",
+        "healthUrl": "http://chart-mcp:8795/charts/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": false,
+        "resourceTemplates": true,
+        "resourceSubscriptions": false,
         "prompts": true,
         "completions": false,
         "tasks": false,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": true
       },
-      "resource_projection": "server_owned",
+      "resourceProjection": "server_owned",
       "tools": [
         "render_chart",
         "compile_chart",
@@ -896,13 +898,13 @@
       "prompts": [
         "author_flint_chart"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
         "upstream_kind": "external_http",
         "runtime": "node",
-        "contract_revision": 3
+        "contractRevision": 4
       },
       "knowledge": [
         {
@@ -911,33 +913,33 @@
           "stewards": [
             "operations"
           ],
-          "authoritative_for": [],
-          "data_labels": []
+          "authoritativeFor": [],
+          "dataLabels": []
         }
       ]
     },
     {
       "slug": "rerun",
-      "uri_scheme": "rerun",
-      "mount_path": "/rerun",
-      "mcp_path": "/rerun/mcp",
+      "uriScheme": "rerun",
+      "mountPath": "/rerun",
+      "mcpPath": "/rerun/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://rerun-bridge:8790/mcp",
-        "health_url": "http://rerun-bridge:8790/healthz",
+        "healthUrl": "http://rerun-bridge:8790/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": false,
-        "resource_templates": false,
-        "resource_subscriptions": false,
+        "resourceTemplates": false,
+        "resourceSubscriptions": false,
         "prompts": false,
         "completions": false,
         "tasks": false,
-        "resources_list_changed": false
+        "resourcesListChanged": false
       },
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
@@ -947,24 +949,24 @@
     },
     {
       "slug": "computers",
-      "uri_scheme": "computer",
-      "mount_path": "/computers",
-      "mcp_path": "/computers/mcp",
+      "uriScheme": "computer",
+      "mountPath": "/computers",
+      "mcpPath": "/computers/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://computers-mcp:8804/computers/mcp",
-        "health_url": "http://computers-mcp:8804/computers/readyz",
+        "healthUrl": "http://computers-mcp:8804/computers/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false
+        "resourcesListChanged": false
       },
       "tools": [
         "create",
@@ -981,34 +983,34 @@
       "prompts": [
         "develop"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned"
+      "resourceProjection": "server_owned"
     },
     {
       "slug": "speech",
-      "uri_scheme": "speech",
-      "mount_path": "/speech",
-      "mcp_path": "/speech/mcp",
+      "uriScheme": "speech",
+      "mountPath": "/speech",
+      "mcpPath": "/speech/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://speech-mcp:8811/speech/mcp",
-        "health_url": "http://speech-mcp:8811/speech/readyz",
+        "healthUrl": "http://speech-mcp:8811/speech/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": false
       },
       "tools": [
@@ -1020,37 +1022,37 @@
       "prompts": [
         "transcribe_recording"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned",
-      "referenced_resource_schemes": [
+      "resourceProjection": "server_owned",
+      "referencedResourceSchemes": [
         "artifact"
       ]
     },
     {
       "slug": "knowledge",
-      "uri_scheme": "knowledge",
-      "mount_path": "/knowledge",
-      "mcp_path": "/knowledge/mcp",
+      "uriScheme": "knowledge",
+      "mountPath": "/knowledge",
+      "mcpPath": "/knowledge/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://knowledge-mcp:8800/knowledge/mcp",
-        "health_url": "http://knowledge-mcp:8800/knowledge/readyz",
+        "healthUrl": "http://knowledge-mcp:8800/knowledge/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": false,
         "completions": true,
         "tasks": false,
-        "resources_list_changed": true,
+        "resourcesListChanged": true,
         "apps": false
       },
       "tools": [
@@ -1058,13 +1060,13 @@
         "embed"
       ],
       "prompts": [],
-      "required_scopes": [],
+      "requiredScopes": [],
       "metadata": {
-        "contract_revision": 3
+        "contractRevision": 4
       },
-      "resource_projection": "server_owned",
+      "resourceProjection": "server_owned",
       "knowledge": [],
-      "referenced_resource_schemes": [
+      "referencedResourceSchemes": [
         "artifact",
         "charts",
         "map",
@@ -1076,15 +1078,15 @@
   "profiles": [
     {
       "id": "operator",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.bioma.ai/mcp/operator",
-      "policy_version": "2026-10-02-knowledge-docs",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://veoveo.bioma.ai/mcp/operator",
+      "policyVersion": "2026-10-02-knowledge-docs",
+      "authModes": [
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use",
         "uav-sim:control",
         "uav-sim:stream",
@@ -1516,8 +1518,8 @@
           "prompts": {
             "mode": "listed",
             "items": [
-              "recording-inspect",
-              "recording-project"
+              "recording_inspect",
+              "recording_project"
             ]
           },
           "completions": "enabled",
@@ -1647,19 +1649,19 @@
       "metadata": {
         "tenant": "bioma"
       },
-      "artifact_upload": {
-        "max_object_bytes": 107374182400,
-        "tenant_quota_bytes": 214748364800,
-        "max_active_uploads_per_tenant": 8,
-        "part_bytes": 16777216,
-        "max_part_bytes": 67108864,
-        "max_parts": 10000,
-        "parallel_parts": 4,
-        "max_inflight_bytes": 134217728,
-        "inactivity_seconds": 86400,
-        "lifetime_seconds": 604800,
-        "part_timeout_seconds": 120,
-        "allowed_mime_types": [
+      "artifactUpload": {
+        "maxObjectBytes": 107374182400,
+        "tenantQuotaBytes": 214748364800,
+        "maxActiveUploadsPerTenant": 8,
+        "partBytes": 16777216,
+        "maxPartBytes": 67108864,
+        "maxParts": 10000,
+        "parallelParts": 4,
+        "maxInflightBytes": 134217728,
+        "inactivitySeconds": 86400,
+        "lifetimeSeconds": 604800,
+        "partTimeoutSeconds": 120,
+        "allowedMimeTypes": [
           "application/json",
           "application/octet-stream",
           "application/pdf",
@@ -1681,15 +1683,15 @@
     },
     {
       "id": "agent",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.bioma.ai/mcp/agent",
-      "policy_version": "2026-10-02-knowledge-docs",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://veoveo.bioma.ai/mcp/agent",
+      "policyVersion": "2026-10-02-knowledge-docs",
+      "authModes": [
         "oauth_client_credentials"
       ],
-      "discovery_failure_mode": "fail_closed",
-      "required_scopes": [
+      "discoveryFailureMode": "fail_closed",
+      "requiredScopes": [
         "operator:use",
         "uav-sim:control",
         "map:dataset:read",
@@ -1874,15 +1876,15 @@
     },
     {
       "id": "admin",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.bioma.ai/mcp/admin",
-      "policy_version": "2026-10-02-knowledge-docs",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://veoveo.bioma.ai/mcp/admin",
+      "policyVersion": "2026-10-02-knowledge-docs",
+      "authModes": [
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use",
         "admin:manage",
         "time:read"
@@ -2401,19 +2403,19 @@
       "metadata": {
         "tenant": "bioma"
       },
-      "artifact_upload": {
-        "max_object_bytes": 107374182400,
-        "tenant_quota_bytes": 214748364800,
-        "max_active_uploads_per_tenant": 8,
-        "part_bytes": 16777216,
-        "max_part_bytes": 67108864,
-        "max_parts": 10000,
-        "parallel_parts": 4,
-        "max_inflight_bytes": 134217728,
-        "inactivity_seconds": 86400,
-        "lifetime_seconds": 604800,
-        "part_timeout_seconds": 120,
-        "allowed_mime_types": [
+      "artifactUpload": {
+        "maxObjectBytes": 107374182400,
+        "tenantQuotaBytes": 214748364800,
+        "maxActiveUploadsPerTenant": 8,
+        "partBytes": 16777216,
+        "maxPartBytes": 67108864,
+        "maxParts": 10000,
+        "parallelParts": 4,
+        "maxInflightBytes": 134217728,
+        "inactivitySeconds": 86400,
+        "lifetimeSeconds": 604800,
+        "partTimeoutSeconds": 120,
+        "allowedMimeTypes": [
           "application/json",
           "application/octet-stream",
           "application/pdf",
@@ -2435,14 +2437,14 @@
     },
     {
       "id": "recording-publish",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.bioma.ai/recordings/publish",
-      "policy_version": "2026-10-02-knowledge-docs",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://veoveo.bioma.ai/recordings/publish",
+      "policyVersion": "2026-10-02-knowledge-docs",
+      "authModes": [
         "oauth_client_credentials"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "recording:publish"
       ],
       "servers": [
@@ -2468,15 +2470,15 @@
     },
     {
       "id": "rerun",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.bioma.ai/mcp/rerun",
-      "policy_version": "2026-10-02-knowledge-docs",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://veoveo.bioma.ai/mcp/rerun",
+      "policyVersion": "2026-10-02-knowledge-docs",
+      "authModes": [
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "servers": [
@@ -2501,14 +2503,14 @@
     },
     {
       "id": "workspace",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.bioma.ai/mcp/workspace",
-      "policy_version": "2026-10-02-knowledge-docs",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://veoveo.bioma.ai/mcp/workspace",
+      "policyVersion": "2026-10-02-knowledge-docs",
+      "authModes": [
         "oidc_authorization_code_pkce"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "servers": [
@@ -2932,8 +2934,8 @@
           "prompts": {
             "mode": "listed",
             "items": [
-              "recording-inspect",
-              "recording-project"
+              "recording_inspect",
+              "recording_project"
             ]
           },
           "completions": "enabled",
@@ -3063,19 +3065,19 @@
       "metadata": {
         "purpose": "Shared productivity chats and governed user tools"
       },
-      "artifact_upload": {
-        "max_object_bytes": 107374182400,
-        "tenant_quota_bytes": 214748364800,
-        "max_active_uploads_per_tenant": 8,
-        "part_bytes": 16777216,
-        "max_part_bytes": 67108864,
-        "max_parts": 10000,
-        "parallel_parts": 4,
-        "max_inflight_bytes": 134217728,
-        "inactivity_seconds": 86400,
-        "lifetime_seconds": 604800,
-        "part_timeout_seconds": 120,
-        "allowed_mime_types": [
+      "artifactUpload": {
+        "maxObjectBytes": 107374182400,
+        "tenantQuotaBytes": 214748364800,
+        "maxActiveUploadsPerTenant": 8,
+        "partBytes": 16777216,
+        "maxPartBytes": 67108864,
+        "maxParts": 10000,
+        "parallelParts": 4,
+        "maxInflightBytes": 134217728,
+        "inactivitySeconds": 86400,
+        "lifetimeSeconds": 604800,
+        "partTimeoutSeconds": 120,
+        "allowedMimeTypes": [
           "application/json",
           "application/octet-stream",
           "application/pdf",
@@ -3097,14 +3099,14 @@
     },
     {
       "id": "knowledge-indexing",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.bioma.ai/mcp/knowledge-indexing",
-      "policy_version": "knowledge-indexing-v2",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://veoveo.bioma.ai/mcp/knowledge-indexing",
+      "policyVersion": "knowledge-indexing-v2",
+      "authModes": [
         "oauth_client_credentials"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use",
         "map:dataset:read",
         "map:feature:read",
@@ -3198,54 +3200,54 @@
   "recording_ingest_resources": [
     {
       "id": "recording-ingest",
-      "protected_resource": "https://veoveo.bioma.ai/ingest/recordings",
-      "authorization_server": "veoveo",
-      "policy_version": "2026-10-02-knowledge-docs",
       "upstream": {
         "url": "http://recording-hub:9878",
-        "health_url": "http://recording-hub:9878/healthz",
+        "healthUrl": "http://recording-hub:9878/healthz",
         "security": "cluster_internal_http"
       },
-      "maximum_batch_bytes": 8388608,
-      "required_scopes": [
-        "recording:ingest"
-      ],
+      "maximumBatchBytes": 8388608,
       "producers": [
         {
           "id": "recording-producer",
-          "oauth_client": "recording-producer",
+          "oauthClient": "recording-producer",
           "tenant": "bioma",
           "dataset": "recordings",
-          "allowed_application_ids": [
+          "allowedApplicationIds": [
             "veoveo-sensor",
             "veoveo-video-test",
             "veoveo-uav-sim"
           ],
-          "single_recording_application_ids": [
+          "singleRecordingApplicationIds": [
             "veoveo-uav-sim"
           ],
           "classification": "unclassified",
           "labels": [],
           "quotas": {
-            "maximum_concurrent_streams": 8,
-            "maximum_batches_per_minute": 1200,
-            "maximum_bytes_per_day": 68719476736,
-            "maximum_stream_bytes": 2147483648
+            "maximumConcurrentStreams": 8,
+            "maximumBatchesPerMinute": 1200,
+            "maximumBytesPerDay": 68719476736,
+            "maximumStreamBytes": 2147483648
           },
           "blueprints": {
             "enabled": true,
-            "maximum_bytes": 2097152,
-            "maximum_messages": 10000,
-            "maximum_revisions": 32
+            "maximumBytes": 2097152,
+            "maximumMessages": 10000,
+            "maximumRevisions": 32
           },
           "retention": {
-            "open_stream_days": 7
+            "openStreamDays": 7
           },
           "enabled": true,
           "metadata": {}
         }
       ],
-      "metadata": {}
+      "metadata": {},
+      "protectedResource": "https://veoveo.bioma.ai/ingest/recordings",
+      "authorizationServer": "veoveo",
+      "policyVersion": "2026-10-02-knowledge-docs",
+      "requiredScopes": [
+        "recording:ingest"
+      ]
     }
   ],
   "policies": [
@@ -3262,16 +3264,16 @@
             "recording_blueprint_publish",
             "recording_stream_finish"
           ],
-          "protected_resources": [
+          "protectedResources": [
             "https://veoveo.bioma.ai/ingest/recordings"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#recording-producer"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "recording:ingest"
           ],
           "metadata": {}
@@ -3308,7 +3310,7 @@
             "models",
             "run"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "media",
             "ui"
           ],
@@ -3318,11 +3320,11 @@
             "media-video-generate",
             "media-task-review"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -3360,7 +3362,7 @@
             "models",
             "run"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "media",
             "ui"
           ],
@@ -3370,10 +3372,10 @@
             "media-video-generate",
             "media-task-review"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -3409,7 +3411,7 @@
             "models",
             "run"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "media",
             "ui"
           ],
@@ -3419,11 +3421,11 @@
             "media-video-generate",
             "media-task-review"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -3461,7 +3463,7 @@
             "models",
             "run"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "media",
             "ui"
           ],
@@ -3471,10 +3473,10 @@
             "media-video-generate",
             "media-task-review"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -3509,7 +3511,7 @@
             "revoke_share_link",
             "set_release_state"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "artifact",
             "ui"
           ],
@@ -3517,11 +3519,11 @@
             "artifact-access-review",
             "artifact-share-review"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -3557,7 +3559,7 @@
             "revoke_share_link",
             "set_release_state"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "artifact",
             "ui"
           ],
@@ -3565,10 +3567,10 @@
             "artifact-access-review",
             "artifact-share-review"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -3602,7 +3604,7 @@
             "revoke_share_link",
             "set_release_state"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "artifact",
             "ui"
           ],
@@ -3610,11 +3612,11 @@
             "artifact-access-review",
             "artifact-share-review"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -3650,7 +3652,7 @@
             "revoke_share_link",
             "set_release_state"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "artifact",
             "ui"
           ],
@@ -3658,10 +3660,10 @@
             "artifact-access-review",
             "artifact-share-review"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -3676,11 +3678,11 @@
           "profiles": [
             "admin"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "admin:manage"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -3697,10 +3699,10 @@
           "profiles": [
             "admin"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "admin:manage"
           ],
           "metadata": {}
@@ -3716,10 +3718,10 @@
           "profiles": [
             "admin"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -3736,13 +3738,13 @@
             "operator",
             "workspace"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
             "operator"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -3758,13 +3760,13 @@
           "profiles": [
             "admin"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
             "administrator"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -3782,11 +3784,11 @@
           "servers": [
             "rerun"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -3806,10 +3808,10 @@
           "servers": [
             "rerun"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -3841,18 +3843,18 @@
             "list_themes",
             "create_chart_view"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "charts",
             "ui"
           ],
           "prompts": [
             "author_flint_chart"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -3885,17 +3887,17 @@
             "list_themes",
             "create_chart_view"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "charts",
             "ui"
           ],
           "prompts": [
             "author_flint_chart"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -3926,18 +3928,18 @@
             "list_themes",
             "create_chart_view"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "charts",
             "ui"
           ],
           "prompts": [
             "author_flint_chart"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -3970,17 +3972,17 @@
             "list_themes",
             "create_chart_view"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "charts",
             "ui"
           ],
           "prompts": [
             "author_flint_chart"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -4012,15 +4014,15 @@
           "tools": [
             "forecast"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "timeseries",
             "ui"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -4053,15 +4055,15 @@
           "tools": [
             "forecast"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "timeseries",
             "ui"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service"
           ]
         },
@@ -4091,15 +4093,15 @@
           "tools": [
             "forecast"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "timeseries",
             "ui"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -4132,15 +4134,15 @@
           "tools": [
             "forecast"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "timeseries",
             "ui"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ]
         },
@@ -4177,7 +4179,7 @@
             "solve_milp",
             "verify_solution"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "optimization",
             "ui"
           ],
@@ -4186,11 +4188,11 @@
             "compare_route_scenarios",
             "formulate_mathematical_model"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -4229,7 +4231,7 @@
             "solve_milp",
             "verify_solution"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "optimization",
             "ui"
           ],
@@ -4238,11 +4240,11 @@
             "compare_route_scenarios",
             "formulate_mathematical_model"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service"
           ]
         },
@@ -4278,7 +4280,7 @@
             "solve_milp",
             "verify_solution"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "optimization",
             "ui"
           ],
@@ -4287,11 +4289,11 @@
             "compare_route_scenarios",
             "formulate_mathematical_model"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -4330,7 +4332,7 @@
             "solve_milp",
             "verify_solution"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "optimization",
             "ui"
           ],
@@ -4339,11 +4341,11 @@
             "compare_route_scenarios",
             "formulate_mathematical_model"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ]
         },
@@ -4379,20 +4381,20 @@
             "create_world",
             "publish_world"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "frames",
             "ui"
           ],
           "prompts": [
-            "frames-frame-audit",
-            "frames-world-design",
-            "frames-transform-explain"
+            "frames_frame_audit",
+            "frames_world_design",
+            "frames_transform_explain"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -4430,20 +4432,20 @@
             "create_world",
             "publish_world"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "frames",
             "ui"
           ],
           "prompts": [
-            "frames-frame-audit",
-            "frames-world-design",
-            "frames-transform-explain"
+            "frames_frame_audit",
+            "frames_world_design",
+            "frames_transform_explain"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service"
           ]
         },
@@ -4478,20 +4480,20 @@
             "create_world",
             "publish_world"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "frames",
             "ui"
           ],
           "prompts": [
-            "frames-frame-audit",
-            "frames-world-design",
-            "frames-transform-explain"
+            "frames_frame_audit",
+            "frames_world_design",
+            "frames_transform_explain"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -4529,20 +4531,20 @@
             "create_world",
             "publish_world"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "frames",
             "ui"
           ],
           "prompts": [
-            "frames-frame-audit",
-            "frames-world-design",
-            "frames-transform-explain"
+            "frames_frame_audit",
+            "frames_world_design",
+            "frames_transform_explain"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ]
         },
@@ -4565,11 +4567,11 @@
           "servers": [
             "view"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "view",
             "ui"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "view:read"
           ],
@@ -4595,7 +4597,7 @@
             "set_camera",
             "close_view"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "view:write"
           ],
@@ -4622,7 +4624,7 @@
           "tools": [
             "capture_frame"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "view:capture"
           ],
@@ -4652,7 +4654,7 @@
           "servers": [
             "map"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:dataset:read"
           ],
@@ -4680,7 +4682,7 @@
           "servers": [
             "map"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:feature:read"
           ],
@@ -4703,7 +4705,7 @@
           "tools": [
             "query_features"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:feature:read"
           ],
@@ -4732,7 +4734,7 @@
             "update_map_composition",
             "validate_feature_changes"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:feature:write"
           ],
@@ -4759,7 +4761,7 @@
           "tools": [
             "inspect_geopackage"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:feature:read"
           ],
@@ -4786,7 +4788,7 @@
           "tools": [
             "import_feature_layer"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:feature:write"
           ],
@@ -4809,7 +4811,7 @@
           "tools": [
             "publish_feature_layer"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:feature:publish"
           ],
@@ -4837,7 +4839,7 @@
             "build_vector_tiles",
             "export_feature_layer"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:feature:publish"
           ],
@@ -4859,7 +4861,7 @@
             "archive_feature_layer",
             "archive_map_composition"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "admin:manage",
             "map:feature:admin"
@@ -4887,7 +4889,7 @@
           "tools": [
             "derive_raster"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:dataset:read",
             "map:raster:derive"
@@ -4911,7 +4913,7 @@
           "tools": [
             "derive_spatial_geometry"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:dataset:read",
             "map:spatial:derive"
@@ -4945,7 +4947,7 @@
             "transform_crs",
             "validate_geofence"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:dataset:read"
           ],
@@ -4975,7 +4977,7 @@
             "route",
             "validate_route"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:route"
           ],
@@ -5002,7 +5004,7 @@
           "tools": [
             "reachable_area"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:route"
           ],
@@ -5030,7 +5032,7 @@
             "route_matrix",
             "build_travel_model"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:route_matrix"
           ],
@@ -5053,7 +5055,7 @@
           "tools": [
             "publish_restriction"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:restriction:publish"
           ],
@@ -5076,7 +5078,7 @@
           "tools": [
             "withdraw_restriction"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:restriction:withdraw"
           ],
@@ -5105,7 +5107,7 @@
             "rollback_release",
             "start_acquisition"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "admin:manage",
             "map:admin"
@@ -5136,7 +5138,7 @@
           "servers": [
             "time"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "time:read"
           ],
@@ -5162,7 +5164,7 @@
             "convert_time",
             "resolve_time"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "time:read"
           ],
@@ -5190,7 +5192,7 @@
             "evaluate_windows",
             "expand_schedule"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "time:schedule"
           ],
@@ -5217,7 +5219,7 @@
           "tools": [
             "validate_timeline"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "time:timeline"
           ],
@@ -5241,7 +5243,7 @@
             "cancel_temporal_event",
             "create_temporal_event"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "time:event:write"
           ],
@@ -5260,7 +5262,7 @@
           "servers": [
             "time"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "admin:manage",
             "time:admin"
@@ -5297,15 +5299,15 @@
             "ingest",
             "export"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "duckdb",
             "ui"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -5341,15 +5343,15 @@
             "ingest",
             "export"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "duckdb",
             "ui"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service"
           ]
         },
@@ -5382,15 +5384,15 @@
             "ingest",
             "export"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "duckdb",
             "ui"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -5426,15 +5428,15 @@
             "ingest",
             "export"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "duckdb",
             "ui"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {},
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ]
         },
@@ -5450,14 +5452,14 @@
           "servers": [
             "recording"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#recording-hub",
             "https://veoveo.bioma.ai/oauth#recording-mcp-publisher"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "recording:publish"
           ],
           "metadata": {}
@@ -5487,18 +5489,18 @@
           "tools": [
             "create_recording_projection"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "recording",
             "ui"
           ],
           "prompts": [
-            "recording-inspect",
-            "recording-project"
+            "recording_inspect",
+            "recording_project"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -5530,18 +5532,18 @@
           "tools": [
             "create_recording_projection"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "recording",
             "ui"
           ],
           "prompts": [
-            "recording-inspect",
-            "recording-project"
+            "recording_inspect",
+            "recording_project"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -5570,19 +5572,19 @@
           "tools": [
             "create_recording_projection"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "recording",
             "ui"
           ],
           "prompts": [
-            "recording-inspect",
-            "recording-project"
+            "recording_inspect",
+            "recording_project"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "admin:manage"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -5610,14 +5612,14 @@
             "seal_recording"
           ],
           "prompts": [
-            "recording-seal"
+            "recording_seal"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "admin:manage",
             "recording:seal"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -5657,18 +5659,18 @@
             "start_live_session",
             "stop_live_session"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "stream",
             "ui"
           ],
           "prompts": [
-            "stream-run-recording",
-            "stream-start-live-session"
+            "stream_run_recording",
+            "stream_start_live_session"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -5708,19 +5710,19 @@
             "start_live_session",
             "stop_live_session"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "stream",
             "ui"
           ],
           "prompts": [
-            "stream-run-recording",
-            "stream-start-live-session"
+            "stream_run_recording",
+            "stream_start_live_session"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service",
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -5755,18 +5757,18 @@
           "tools": [
             "analyze_recording"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "reason",
             "ui"
           ],
           "prompts": [
-            "reason-analyze-recording",
-            "reason-answer-question"
+            "reason_analyze_recording",
+            "reason_answer_question"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -5804,19 +5806,19 @@
           "tools": [
             "analyze_recording"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "reason",
             "ui"
           ],
           "prompts": [
-            "reason-analyze-recording",
-            "reason-answer-question"
+            "reason_analyze_recording",
+            "reason_answer_question"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service",
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -5853,7 +5855,7 @@
             "preview_dataset",
             "profile_dataset"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "datasheet",
             "ui"
           ],
@@ -5861,10 +5863,10 @@
             "datasheet-profile-dataset",
             "datasheet-report-review"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -5904,7 +5906,7 @@
             "preview_dataset",
             "profile_dataset"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "datasheet",
             "ui"
           ],
@@ -5912,11 +5914,11 @@
             "datasheet-profile-dataset",
             "datasheet-report-review"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service",
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -5937,7 +5939,7 @@
             "grant_vehicle_control",
             "revoke_vehicle_control"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "admin:manage",
             "uav-sim:admin"
@@ -5988,21 +5990,21 @@
             "execute_vehicle_mission_plan",
             "capture_dataset"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "uav-sim"
           ],
           "prompts": [
-            "uav-sim-mission-plan",
-            "uav-sim-session-review"
+            "uav_sim_mission_plan",
+            "uav_sim_session_review"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
             "operator",
             "administrator"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -6031,11 +6033,11 @@
             "renew_live_view",
             "close_live_view"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "uav-sim",
             "ui"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "uav-sim:stream"
           ],
@@ -6083,17 +6085,17 @@
             "execute_vehicle_mission_plan",
             "capture_dataset"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "uav-sim"
           ],
           "prompts": [
-            "uav-sim-mission-plan",
-            "uav-sim-session-review"
+            "uav_sim_mission_plan",
+            "uav_sim_session_review"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "uav-sim:read"
           ],
@@ -6141,17 +6143,17 @@
             "execute_vehicle_mission_plan",
             "capture_dataset"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "uav-sim"
           ],
           "prompts": [
-            "uav-sim-mission-plan",
-            "uav-sim-session-review"
+            "uav_sim_mission_plan",
+            "uav_sim_session_review"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "uav-sim:admin"
           ],
@@ -6187,10 +6189,10 @@
             "land_vehicle",
             "execute_vehicle_mission_plan"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "uav-sim"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "uav-sim:control"
           ],
@@ -6198,7 +6200,7 @@
           "roles": [
             "uav-pilot"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ]
         },
@@ -6226,18 +6228,18 @@
           "tools": [
             "create_recording_projection"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "recording",
             "ui"
           ],
           "prompts": [
-            "recording-inspect",
-            "recording-project"
+            "recording_inspect",
+            "recording_project"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "admin:manage"
           ],
@@ -6263,12 +6265,12 @@
             "seal_recording"
           ],
           "prompts": [
-            "recording-seal"
+            "recording_seal"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "admin:manage",
             "recording:seal"
@@ -6288,10 +6290,10 @@
           "servers": [
             "artifact"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "artifact:upload"
           ],
@@ -6312,15 +6314,15 @@
           "servers": [
             "artifact"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "artifact:upload"
           ],
           "metadata": {},
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service"
           ]
         },
@@ -6336,10 +6338,10 @@
           "servers": [
             "artifact"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "artifact:upload"
           ],
@@ -6360,15 +6362,15 @@
           "servers": [
             "artifact"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "artifact:upload"
           ],
           "metadata": {},
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ]
         },
@@ -6410,16 +6412,16 @@
             "update_template",
             "transfer_file"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "computer"
           ],
           "prompts": [
             "develop"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "id": "allow_personal_computers",
@@ -6465,20 +6467,20 @@
             "update_template",
             "transfer_file"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "computer"
           ],
           "prompts": [
             "develop"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "id": "allow_service_computers",
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service",
             "https://veoveo.bioma.ai/oauth#admin-service"
           ]
@@ -6502,10 +6504,10 @@
           "profiles": [
             "admin"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -6528,13 +6530,13 @@
             "operator",
             "workspace"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
             "operator"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -6558,13 +6560,13 @@
           "profiles": [
             "admin"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
             "administrator"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -6602,16 +6604,16 @@
             "finish_dictation",
             "cancel_dictation"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "speech"
           ],
           "prompts": [
             "transcribe_recording"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -6650,17 +6652,17 @@
           "tools": [
             "transcribe"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "speech"
           ],
           "prompts": [
             "transcribe_recording"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service",
             "https://veoveo.bioma.ai/oauth#admin-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -6693,16 +6695,16 @@
           "tools": [
             "transcribe"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "speech"
           ],
           "prompts": [
             "transcribe_recording"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "roles": [
@@ -6732,10 +6734,10 @@
             "knowledge"
           ],
           "tools": [],
-          "required_scopes": [
+          "requiredScopes": [
             "knowledge:read"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "metadata": {}
@@ -6758,13 +6760,13 @@
           "tools": [
             "search"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "knowledge"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "knowledge:search"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "metadata": {}
@@ -6787,13 +6789,13 @@
           "tools": [
             "embed"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "knowledge"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "knowledge:embed"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
           "metadata": {}
@@ -6815,13 +6817,13 @@
           "profiles": [
             "knowledge-indexing"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#knowledge-indexer"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:dataset:read",
             "map:feature:read",
@@ -6847,13 +6849,13 @@
             "reason",
             "time"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#knowledge-indexer"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:dataset:read",
             "map:feature:read",
@@ -6876,13 +6878,13 @@
             "reason",
             "time"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://veoveo.bioma.ai/oauth#knowledge-indexer"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "bioma"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use",
             "map:dataset:read",
             "map:feature:read",
@@ -6893,7 +6895,7 @@
       ]
     }
   ],
-  "data_labels": [
+  "dataLabels": [
     {
       "id": "cui",
       "title": "Controlled Unclassified Information",
@@ -6922,18 +6924,18 @@
       }
     }
   ],
-  "work_contexts": [
+  "workContexts": [
     {
       "id": "operations",
       "tenant": "bioma",
       "title": "Operations",
-      "policy_revision": "2026-10-02-knowledge-docs",
-      "output_policy": {
+      "policyRevision": "2026-10-02-knowledge-docs",
+      "outputPolicy": {
         "owner": {
           "kind": "group",
           "id": "operations"
         },
-        "initial_grants": [
+        "initialGrants": [
           {
             "subject": {
               "kind": "group",
@@ -6946,7 +6948,7 @@
       "memberships": [
         {
           "level": "owner",
-          "oauth_clients": [
+          "oauthClients": [
             "admin-console",
             "admin-service"
           ]
@@ -6957,7 +6959,7 @@
             "https://veoveo.local/services#recording-hub",
             "https://veoveo.local/services#recording-mcp-publisher"
           ],
-          "oauth_clients": [
+          "oauthClients": [
             "recording-hub",
             "recording-mcp-publisher",
             "recording-producer",
@@ -6968,13 +6970,13 @@
         },
         {
           "level": "contributor",
-          "oauth_clients": [
+          "oauthClients": [
             "workspace"
           ]
         },
         {
           "level": "viewer",
-          "oauth_clients": [
+          "oauthClients": [
             "knowledge-indexer"
           ]
         }
@@ -6984,42 +6986,42 @@
       "id": "independent-review",
       "tenant": "bioma",
       "title": "Independent Review",
-      "policy_revision": "2026-10-02-knowledge-docs",
-      "output_policy": {
+      "policyRevision": "2026-10-02-knowledge-docs",
+      "outputPolicy": {
         "owner": {
           "kind": "group",
           "id": "independent-review"
         },
-        "initial_grants": []
+        "initialGrants": []
       },
       "memberships": [
         {
           "level": "contributor",
-          "oauth_clients": [
+          "oauthClients": [
             "operator-service"
           ]
         }
       ]
     }
   ],
-  "oauth_clients": [
+  "oauthClients": [
     {
       "id": "recording-producer",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Recording Producer",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Recording Producer",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.bioma.ai/ingest/recordings"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "recording:ingest"
       ],
       "jwks": {
@@ -7033,21 +7035,21 @@
     },
     {
       "id": "recording-hub",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Recording Hub Publisher",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Recording Hub Publisher",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.bioma.ai/recordings/publish"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "recording:publish"
       ],
       "jwks": {
@@ -7061,21 +7063,21 @@
     },
     {
       "id": "recording-mcp-publisher",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Recording MCP Properties Publisher",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Recording MCP Properties Publisher",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.bioma.ai/recordings/publish"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "recording:publish"
       ],
       "jwks": {
@@ -7089,23 +7091,23 @@
     },
     {
       "id": "operator-local-public",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "direct",
-      "display_name": "Veoveo Operator Local Client",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "direct",
+      "displayName": "Veoveo Operator Local Client",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.bioma.ai/mcp/operator",
         "https://veoveo.bioma.ai/mcp/rerun"
       ],
-      "grant_types": [
+      "grantTypes": [
         "authorization_code_pkce",
         "refresh_token"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use",
         "uav-sim:read",
         "uav-sim:control",
@@ -7135,7 +7137,7 @@
       "metadata": {
         "client_boundary": "local_public"
       },
-      "redirect_uris": [
+      "redirectUris": [
         "http://localhost:6274/oauth/callback",
         "http://localhost:6274/oauth/callback/debug",
         "http://127.0.0.1:6274/oauth/callback",
@@ -7148,33 +7150,33 @@
       "tenant": "bioma",
       "jwks": {
         "source": "remote",
-        "jwks_uri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
+        "jwksUri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
       }
     },
     {
       "id": "operator-hosted-public",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "direct",
-      "display_name": "Veoveo Operator Hosted Client",
-      "client_surface": "tools_compat",
-      "allowed_compatibility_helpers": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "direct",
+      "displayName": "Veoveo Operator Hosted Client",
+      "clientSurface": "tools_compat",
+      "allowedCompatibilityHelpers": [
         "media.artifact",
         "media.model_schema",
         "media.models"
       ],
-      "direct_task_call_adapter": true,
-      "allowed_resources": [
+      "directTaskCallAdapter": true,
+      "allowedResources": [
         "https://veoveo.bioma.ai/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "authorization_code_pkce",
         "refresh_token"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use",
         "uav-sim:read",
         "uav-sim:control",
@@ -7204,35 +7206,35 @@
       "metadata": {
         "client_boundary": "hosted_public"
       },
-      "redirect_uris": [
+      "redirectUris": [
         "https://claude.ai/api/mcp/auth_callback",
         "https://chatgpt.com/connector/oauth/gJtUJETZMrHO"
       ],
       "tenant": "bioma",
       "jwks": {
         "source": "remote",
-        "jwks_uri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
+        "jwksUri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
       }
     },
     {
       "id": "admin-console",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "direct",
-      "display_name": "Veoveo Admin Console",
-      "client_surface": "tools_compat",
-      "direct_task_call_adapter": true,
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "direct",
+      "displayName": "Veoveo Admin Console",
+      "clientSurface": "tools_compat",
+      "directTaskCallAdapter": true,
+      "allowedResources": [
         "https://veoveo.bioma.ai/mcp/admin"
       ],
-      "grant_types": [
+      "grantTypes": [
         "authorization_code_pkce",
         "refresh_token"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "audit:read",
         "operator:use",
         "admin:manage",
@@ -7267,33 +7269,33 @@
       "metadata": {
         "client_boundary": "admin_console"
       },
-      "redirect_uris": [
+      "redirectUris": [
         "https://veoveo.bioma.ai/auth/callback"
       ],
       "tenant": "bioma",
       "jwks": {
         "source": "remote",
-        "jwks_uri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
+        "jwksUri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
       }
     },
     {
       "id": "operator-service",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Veoveo Operator Service",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Veoveo Operator Service",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.bioma.ai/mcp/operator",
         "https://veoveo.bioma.ai/mcp/rerun"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use",
         "uav-sim:read",
         "uav-sim:control",
@@ -7331,21 +7333,21 @@
     },
     {
       "id": "admin-service",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Veoveo Admin Service",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Veoveo Admin Service",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.bioma.ai/mcp/admin"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "audit:read",
         "operator:use",
         "admin:manage",
@@ -7390,22 +7392,22 @@
     },
     {
       "id": "workspace",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "direct",
-      "display_name": "Veoveo Workspace",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "direct",
+      "displayName": "Veoveo Workspace",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.bioma.ai/mcp/workspace"
       ],
-      "grant_types": [
+      "grantTypes": [
         "authorization_code_pkce",
         "refresh_token"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "artifact:upload",
         "map:dataset:read",
         "map:feature:publish",
@@ -7435,32 +7437,32 @@
       "metadata": {
         "client_boundary": "workspace"
       },
-      "redirect_uris": [
+      "redirectUris": [
         "https://veoveo.bioma.ai/workspace/auth/callback"
       ],
       "tenant": "bioma",
       "jwks": {
         "source": "remote",
-        "jwks_uri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
+        "jwksUri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
       }
     },
     {
       "id": "knowledge-indexer",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Knowledge collection indexer",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Knowledge collection indexer",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://veoveo.bioma.ai/mcp/knowledge-indexing"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use",
         "map:dataset:read",
         "map:feature:read",
@@ -7472,7 +7474,7 @@
         "path": "/etc/veoveo/gateway/knowledge-indexer-jwks.json"
       },
       "tenant": "bioma",
-      "knowledge_indexing": {
+      "knowledgeIndexing": {
         "collections": [
           "artifact.docs",
           "artifact.metadata",
@@ -7494,21 +7496,21 @@
       }
     }
   ],
-  "oidc_clients": [
+  "oidcClients": [
     {
       "id": "enterprise",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "allowed_resources": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "allowedResources": [
         "https://veoveo.bioma.ai/mcp/operator",
         "https://veoveo.bioma.ai/mcp/admin",
         "https://veoveo.bioma.ai/mcp/rerun",
         "https://veoveo.bioma.ai/mcp/workspace"
       ],
-      "client_id": "853550a7-5fd4-421c-abd2-bea0216fa579",
-      "redirect_uri": "https://veoveo.bioma.ai/oauth/callback",
-      "auth_method": "client_secret_post",
-      "credential_secret": "enterprise_oidc_client_secret",
+      "clientId": "853550a7-5fd4-421c-abd2-bea0216fa579",
+      "redirectUri": "https://veoveo.bioma.ai/oauth/callback",
+      "authMethod": "client_secret_post",
+      "credentialSecret": "enterprise_oidc_client_secret",
       "scopes": [
         "openid",
         "profile",

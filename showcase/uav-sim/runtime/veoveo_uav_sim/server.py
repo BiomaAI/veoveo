@@ -70,7 +70,7 @@ def _world_configuration_response(
     return admit_output(WorldAcknowledgement, {
         "accepted": True,
         "world": world.as_dict(),
-        "resource_uri": command_resource(session_id, world=True),
+        'resourceUri': command_resource(session_id, world=True),
     })
 
 
@@ -91,8 +91,8 @@ class PreconfigurationApplication:
             [
                 web.get("/healthz", self._health),
                 web.get("/readyz", self._ready),
-                web.get("/v1/state", self._get_state),
-                web.post("/v1/world", self._configure_world),
+                web.get("/v2/state", self._get_state),
+                web.post("/v2/world", self._configure_world),
                 web.get("/v1/events", runtime_events.stream),
             ]
         )
@@ -110,8 +110,8 @@ class PreconfigurationApplication:
         return web.json_response(
             {
                 "ready": True,
-                "simulation_ready": False,
-                "visual_ready": False,
+                "simulationReady": False,
+                "visualReady": False,
                 "status": status,
             }
         )
@@ -121,39 +121,39 @@ class PreconfigurationApplication:
         world = self._world_slot.get()
         return web.json_response(admit_output(SimulationState,
             {
-                "session_id": self._config.session_id,
+                'sessionId': self._config.session_id,
                 "lifecycle": "starting" if world is not None else "unconfigured",
-                "simulation_time_s": 0.0,
-                "physics_step": 0,
+                'simulationTimeS': 0.0,
+                'physicsStep': 0,
                 "timing": initial_runtime_timing(self._config),
                 "world": world.as_dict() if world is not None else None,
                 "tiles": {
                     "lifecycle": "connecting",
                     "source": "google_photorealistic_3d_tiles",
-                    "ion_asset_id": self._config.cesium_ion_asset_id,
-                    "resident_tiles": 0,
-                    "visible_tiles": 0,
-                    "loading_tiles": 0,
-                    "geometries_loaded": 0,
-                    "geometries_rendered": 0,
-                    "materials_loaded": 0,
-                    "provider_generation": 0,
-                    "event_sequence": 0,
-                    "refresh_count": 0,
+                    'ionAssetId': self._config.cesium_ion_asset_id,
+                    'residentTiles': 0,
+                    'visibleTiles': 0,
+                    'loadingTiles': 0,
+                    'geometriesLoaded': 0,
+                    'geometriesRendered': 0,
+                    'materialsLoaded': 0,
+                    'providerGeneration': 0,
+                    'eventSequence': 0,
+                    'refreshCount': 0,
                 },
                 "cameras": [],
-                "live_cameras": [
+                'liveCameras': [
                     live_camera_descriptor(self._config.session_id, camera)
                     for camera in self._config.operator_live_view.cameras
                 ],
-                "stream_products": [
+                'streamProducts': [
                     initial_operator_atlas_state(
                         self._config.operator_live_view
                     )
                 ],
                 "vehicles": [],
                 "recordings": [],
-                "updated_at": now,
+                'updatedAt': now,
             }
         ))
 
@@ -203,10 +203,10 @@ class AdapterApplication:
             [
                 web.get("/healthz", self._health),
                 web.get("/readyz", self._ready),
-                web.get("/v1/state", self._get_state),
-                web.post("/v1/world", self._configure_world),
-                web.post("/v1/commands", self._command),
-                web.post("/v1/operations", self._operation),
+                web.get("/v2/state", self._get_state),
+                web.post("/v2/world", self._configure_world),
+                web.post("/v2/commands", self._command),
+                web.post("/v2/operations", self._operation),
                 web.get("/v1/live-streams/{camera_id}", self._live_stream),
                 web.get("/v1/events", runtime_events.stream),
             ]
@@ -226,15 +226,15 @@ class AdapterApplication:
         simulation_ready = (
             snapshot["lifecycle"] in {"ready", "running", "paused"}
             and bool(snapshot["vehicles"])
-            and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
+            and all(vehicle['px4Connected'] for vehicle in snapshot["vehicles"])
         )
         tiles = snapshot["tiles"]
         visual_ready = (
             tile_content_ready(
                 lifecycle=tiles["lifecycle"],
-                visible_tiles=tiles["visible_tiles"],
-                geometries_rendered=tiles["geometries_rendered"],
-                materials_loaded=tiles["materials_loaded"],
+                visible_tiles=tiles['visibleTiles'],
+                geometries_rendered=tiles['geometriesRendered'],
+                materials_loaded=tiles['materialsLoaded'],
             )
             and bool(snapshot["cameras"])
             and all(camera["lifecycle"] == "ready" for camera in snapshot["cameras"])
@@ -243,8 +243,8 @@ class AdapterApplication:
         return web.json_response(
             {
                 "ready": ready,
-                "simulation_ready": simulation_ready,
-                "visual_ready": visual_ready,
+                "simulationReady": simulation_ready,
+                "visualReady": visual_ready,
                 "status": snapshot["lifecycle"],
             },
             status=200 if ready else 503,
@@ -299,7 +299,7 @@ class AdapterApplication:
                 {"error": "the canonical H.264 stream protocol is required"},
                 status=400,
             )
-        camera_id = request.match_info["camera_id"]
+        camera_id = request.match_info['cameraId']
         websocket = web.WebSocketResponse(
             protocols=(LIVE_STREAM_PROTOCOL,),
             heartbeat=10.0,
@@ -334,9 +334,9 @@ class AdapterApplication:
         tiles = self._state.snapshot()["tiles"]
         return tile_content_ready(
             lifecycle=tiles["lifecycle"],
-            visible_tiles=tiles["visible_tiles"],
-            geometries_rendered=tiles["geometries_rendered"],
-            materials_loaded=tiles["materials_loaded"],
+            visible_tiles=tiles['visibleTiles'],
+            geometries_rendered=tiles['geometriesRendered'],
+            materials_loaded=tiles['materialsLoaded'],
         )
 
     def _execute_command(self, command: DirectCommand) -> dict[str, object]:
@@ -352,7 +352,7 @@ class AdapterApplication:
         elif command.command == "reset":
             snapshot = self._state.snapshot()
             if any(
-                vehicle["flight_state"] not in {"standby", "landed"}
+                vehicle['flightState'] not in {"standby", "landed"}
                 for vehicle in snapshot["vehicles"]
             ):
                 raise RuntimeError("all vehicles must be landed before reset")
@@ -388,7 +388,7 @@ class AdapterApplication:
             resource_uri = (
                 command_resource(command.session_id, vehicle_id=command.vehicle_id)
             )
-        return {"accepted": True, "detail": detail, "resource_uri": resource_uri}
+        return {"accepted": True, "detail": detail, 'resourceUri': resource_uri}
 
     def _execute_operation(self, operation: DurableOperation) -> dict[str, object]:
         self._state.require_session(operation.session_id)
@@ -401,13 +401,13 @@ class AdapterApplication:
             )
             snapshot = self._state.snapshot()
             output = {
-                "session_id": operation.session_id,
-                "elapsed_seconds": duration,
-                "final_simulation_time_s": final_time,
-                "collision_count": sum(
-                    vehicle["collision_count"] for vehicle in snapshot["vehicles"]
+                'sessionId': operation.session_id,
+                'elapsedSeconds': duration,
+                'finalSimulationTimeS': final_time,
+                'collisionCount': sum(
+                    vehicle['collisionCount'] for vehicle in snapshot["vehicles"]
                 ),
-                "recording_keys": self._state.recording_keys(),
+                'recordingKeys': self._state.recording_keys(),
             }
             return {"result": "run_scenario", "output": output}
         if operation.operation == "capture_dataset":
@@ -428,9 +428,9 @@ class AdapterApplication:
             return {
                 "result": "capture_dataset",
                 "output": {
-                    "session_id": operation.session_id,
-                    "elapsed_seconds": duration,
-                    "recording_keys": self._state.recording_keys(),
+                    'sessionId': operation.session_id,
+                    'elapsedSeconds': duration,
+                    'recordingKeys': self._state.recording_keys(),
                 },
             }
         if operation.operation == "execute_mission":
@@ -440,7 +440,7 @@ class AdapterApplication:
     def _execute_mission(self, operation: DurableOperation) -> dict[str, object]:
         assert operation.mission_id is not None
         assert operation.vehicles is not None
-        world_revision_uri = self._state.snapshot()["world"]["revision_uri"]
+        world_revision_uri = self._state.snapshot()["world"]['revisionUri']
         if operation.expected_world_revision_uri != world_revision_uri:
             raise ValueError(
                 "mission expected world revision "
@@ -453,7 +453,7 @@ class AdapterApplication:
         self._fleet_loop.take_control(tuple(vehicle_ids))
         started_at = _timestamp()
         self._recording.log_mission(
-            operation.mission_id, "running", {"vehicle_ids": vehicle_ids}
+            operation.mission_id, "running", {"vehicleIds": vehicle_ids}
         )
         try:
             with concurrent.futures.ThreadPoolExecutor(
@@ -476,17 +476,17 @@ class AdapterApplication:
         self._recording.log_mission(
             operation.mission_id,
             "completed",
-            {"completed_waypoints": completed_waypoints},
+            {'completedWaypoints': completed_waypoints},
         )
         return {
             "result": "execute_mission",
             "output": {
-                "mission_id": operation.mission_id,
+                'missionId': operation.mission_id,
                 "lifecycle": "completed",
-                "started_at": started_at,
-                "finished_at": finished_at,
-                "completed_waypoints": completed_waypoints,
-                "recording_keys": self._state.recording_keys(),
+                'startedAt': started_at,
+                'finishedAt': finished_at,
+                'completedWaypoints': completed_waypoints,
+                'recordingKeys': self._state.recording_keys(),
             },
         }
 

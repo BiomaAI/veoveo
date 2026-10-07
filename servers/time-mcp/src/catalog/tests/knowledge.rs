@@ -39,6 +39,24 @@ async fn observations_use_stored_authority_and_versioned_members() {
         );
         let access = observation.access().unwrap();
         assert_eq!(
+            observation.content_sha256(),
+            &veoveo_mcp_knowledge_extension::content_digest(&text)
+        );
+        let current: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(current["calendarId"], calendar.calendar_id.to_string());
+        assert_eq!(current["zoneId"], "UTC");
+        let mut retired = current.clone();
+        let object = retired.as_object_mut().unwrap();
+        let value = object.remove("calendarId").unwrap();
+        object.insert("calendar_id".into(), value);
+        let retired_text = serde_json::to_string(&retired).unwrap();
+        assert!(serde_json::from_str::<OperationalCalendar>(&retired_text).is_err());
+        assert_ne!(
+            veoveo_mcp_knowledge_extension::content_digest(&retired_text),
+            *observation.content_sha256()
+        );
+
+        assert_eq!(
             access.owner,
             AccessSubject::Principal("creator".parse().unwrap())
         );
@@ -139,7 +157,7 @@ async fn observations_use_stored_authority_and_versioned_members() {
             ["1", "2"]
         );
         let wire = serde_json::to_value(&page).unwrap();
-        assert!(wire.get("next_cursor").is_none());
+        assert!(wire.get("nextCursor").is_none());
 
         let event = event(
             &catalog,

@@ -42,8 +42,8 @@ pub(crate) use crate::agent_catalog::fixture_catalog;
 pub(super) fn fixture_model() -> models::ModelConnection {
     serde_json::from_value(json!({
         "id":"approved","name":"Approved model","provider":"Fixture", "tenant":"test",
-        "work_contexts":["shared"],"base_url":"https://provider.test/v1", "model":"model",
-        "api_key":"fixture-secret", "limits":{"maxOutputTokens":128,"maxCompletionCalls":4,"maxToolCalls":8,"deadlineSeconds":120}
+        "workContexts":["shared"],"baseUrl":"https://provider.test/v1", "model":"model",
+        "apiKey":"fixture-secret", "limits":{"maxOutputTokens":128,"maxCompletionCalls":4,"maxToolCalls":8,"deadlineSeconds":120}
     })).unwrap()
 }
 

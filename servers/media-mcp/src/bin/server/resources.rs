@@ -69,7 +69,7 @@ impl MediaMcp {
                             veoveo_mcp_apps_extension::WorkbenchTool {
                                 label: "Inspect artifact",
                                 name: "artifact",
-                                arguments_json: r#"{"artifact_uri":"media://artifact/"}"#,
+                                arguments_json: r#"{"artifactUri":"media://artifact/"}"#,
                             },
                         ],
                         stream_result: None,
@@ -120,7 +120,10 @@ impl MediaMcp {
                             None,
                         )
                     })?;
-                json_read(uri, &entry)
+                json_read(
+                    uri,
+                    &veoveo_media_mcp::contract::ModelResourceOutput::from(entry),
+                )
             }
             MediaResource::Generation(address) => {
                 let result = self

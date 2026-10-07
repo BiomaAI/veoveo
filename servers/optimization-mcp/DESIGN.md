@@ -31,6 +31,8 @@ retain the `optimization://` scheme.
 
 ## Standards And Protocols
 
+Map owns the v2 travel-model artifact wire type. Optimization decodes that owner document, checks its selected Map resource attestation and matrix relations, then converts it into its existing internal travel model. Inline and prepared Optimization documents keep their declared representation.
+
 | Standard or protocol | Implemented profile |
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | Protocol version `2026-07-28`; JSON-RPC 2.0 over stateless Streamable HTTP with per-request metadata, Discover, tools, resources and templates, prompts, completions, subscriptions, ordered notifications, and structured content. |
@@ -40,16 +42,16 @@ retain the `optimization://` scheme.
 | [NVIDIA cuOpt](https://github.com/NVIDIA/cuOpt) | Stable release `26.08`, running from `nvidia/cuopt:26.8.0-cuda13.3-py3.14` at Linux amd64 manifest digest `sha256:81441d50797ffaf6352552d94bd14560c53df28370bd0c9bf413fd7eeebbf178`. |
 | CUDA | CUDA 13.3 runtime supplied by the pinned cuOpt image. A hardware NVIDIA GPU is mandatory. |
 | GNU OpenMP runtime | Ubuntu Jammy `libgomp1` `12.3.0-1ubuntu1~22.04.3` satisfies the cuDSS `libcudss_mtlayer_gomp.so.0` runtime dependency omitted by the cuOpt 26.08 image. The executor image build verifies that the threading layer has no unresolved shared libraries. |
-| `veoveo.ai/optimization/v1` | Repository-owned Optimization resource and result profile. |
-| `veoveo.ai/routing-problem/v1` | Repository-owned routing problem profile for service or pickup-delivery orders. |
-| `veoveo.ai/convex-problem/v1` | Repository-owned continuous LP, QP, QCQP, and quadratic SOCP representation. |
-| `veoveo.ai/milp-problem/v1` | Repository-owned linear MILP profile with continuous, integer, and semi-continuous variables. |
-| `veoveo.ai/travel-model-artifact/v1` | Immutable Map-to-Optimization matrix exchange with location order, vehicle types, units, unavailable cells, and Map resource attestation. |
-| `veoveo.ai/cuopt-executor/v1` | Private control-to-executor protocol over a Unix-domain socket. Each JSON message has an unsigned 64-bit big-endian length prefix and a configured byte bound. It is not a public contract. |
+| `veoveo.ai/optimization/v2` | Repository-owned Optimization resource and result profile. |
+| `veoveo.ai/routing-problem/v2` | Repository-owned routing problem profile for service or pickup-delivery orders. |
+| `veoveo.ai/convex-problem/v2` | Repository-owned continuous LP, QP, QCQP, and quadratic SOCP representation. |
+| `veoveo.ai/milp-problem/v2` | Repository-owned linear MILP profile with continuous, integer, and semi-continuous variables. |
+| `veoveo.ai/travel-model-artifact/v2` | Immutable Map-to-Optimization matrix exchange with location order, vehicle types, units, unavailable cells, and Map resource attestation. |
+| `veoveo.ai/cuopt-executor/v2` | Private control-to-executor protocol over a Unix-domain socket. Each JSON message has an unsigned 64-bit big-endian length prefix and a configured byte bound. It is not a public contract. |
 | SHA-256 and UUID version 7 | Canonical problem and solution digests use SHA-256. Problem, run, solution, and verification identities use UUIDv7-derived controlled identifiers. |
-| Veoveo usage resource profile | Native UUIDv7 Task addresses built through the shared URI component profile, 100-entry pages, and version 1 URL-safe unpadded Base64 cursors as specified under Usage Reads. |
+| Veoveo usage resource profile | Native UUIDv7 Task addresses built through the shared URI component profile, 100-entry pages, and version 2 URL-safe unpadded Base64 cursors as specified under Usage Reads. |
 | SurrealDB 3.3.0 | Domain-owned parameterized SQL for current owner, Work Context, Task metadata and completed-result selection. The runtime dependency matches the Store driver and installed server. |
-| Veoveo Optimization catalog profile | Collection-bound version 1 Base64 cursors over creation time and native UUIDv7 Task identity; concrete addresses use the shared URI component builder. |
+| Veoveo Optimization catalog profile | Collection-bound version 2 Base64 cursors over creation time and native UUIDv7 Task identity; concrete addresses use the shared URI component builder. |
 | RFC 9562 and the Veoveo concrete URI profile | Output identities use lowercase hyphenated RFC-variant UUIDv7 values with domain prefixes. Resource constructors and parsers use the foundation's URL 2.5.8 component implementation. Profile names use bounded ASCII unreserved characters and exclude relative path segments. |
 | RFC 6570 | Discovery templates use checked declarations; iri-string 0.7.14 expansion is qualified against each typed resource family. |
 | Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, the 8 MiB final serialized-response cap, the hosted runtime, artifact plane, platform store, documentation resources, and gateway registration. |
@@ -130,8 +132,9 @@ the Optimization workspace with a recorded byte length and SHA-256 digest.
 
 The `contract` feature exposes the public model through `contract` with default
 features disabled. It gates dependencies as well as modules, excluding the MCP
-adapter, Store, TaskRuntime, Artifact client, compiler and executor. Map imports
-this feature to qualify its travel-model exchange. The `runtime` feature adds
+adapter, Store, TaskRuntime, Artifact client, compiler and executor. Independent consumers import
+this feature for Optimization request and result admission. Optimization consumes
+Map travel-model artifacts through Map’s contract feature and its typed conversion. The `runtime` feature adds
 compilation, execution clients, verification, Artifact access and the domain readers.
 The default `mcp` feature adds the hosted binary and transport integration.
 
@@ -164,19 +167,29 @@ rejected with instructions to use the MCP Task API. Task subscriptions carry
 progress and terminal wakeups; agents do not poll the solver.
 
 Each successful solve returns typed `structuredContent` with one top-level
-`result_uri` for its canonical `optimization://solution/{solution_id}`. Human
+`resultUri` for its canonical `optimization://solution/{solution_id}`. Human
 content contains an identity-free status and one resource link for that
 solution. Problem, run, artifact, provenance, and verification detail remains
 in structured content. `verify_solution` creates a report and artifact but no
-new addressable domain product, so it does not fabricate `result_uri`. No
+new addressable domain product, so it does not fabricate `resultUri`. No
 structured result embeds an ungoverned download URL.
+
+## Controlled Wire And Digest Profiles
+
+Optimization serializes controlled object members in camelCase and closed vocabulary values in snake_case. Tagged source and solution variants follow the same member profile. Unknown members, retired spellings and unsupported document revisions fail admission. Native Task catalog columns and cuOpt API keywords keep their native names; adapters convert at those boundaries.
+
+Problem definitions hash their current typed Serde bytes. Solutions hash the owner field-order preimage with the digest member set to an empty string. Prepared staging records hash the complete current prepared document and retain its byte length. Receiving loaders verify those bytes and the selected problem, run, family and Task relationships before use. The fresh-state installation drain also covers retained requests, prepared files and Artifact documents.
+
+The mathematical Artifact marker is `optimization_json_v2`. Collection cursors carry `createdAt` and `taskId`; usage cursors carry `taskId`. Both current envelopes use revision 2 and reject other revisions while preserving their collection, keyset, UUID and encoding checks. URI query and prompt argument identifiers keep their declared snake_case profile.
+
+The private executor admits actual camelCase field declarations on both Python entrypoints, without field-name aliases. Its typed current messages are converted into the native cuOpt API at the provider adapter; native solver method names and controlled objective vocabulary are unchanged. Socket framing uses the same unsigned 64-bit big-endian length prefix.
 
 ## Problem Sources
 
 Each solver family accepts bounded inline JSON. It also accepts an immutable
 `optimization://problem/{problem_id}` of the same family or a governed
 `artifact://` JSON model. The only mathematical artifact format is
-`optimization_json_v1`.
+`optimization_json_v2`.
 
 Routing has one additional boundary. Its travel model can be:
 
@@ -456,17 +469,17 @@ completed-result and cursor choices select finite statements with the same owner
 predicates. Runtime values use driver bindings. Native mutations live in
 `tests/queries/`; each finite malformed-envelope case selects a complete statement.
 
-`OptimizationIndexCursor` preserves the version 1 fields `version`, `collection`,
-`created_at` and `task_id`, including emitted Base64 bytes. It requires a native RFC
+`OptimizationIndexCursor` emits revision 2 fields `version`, `collection`,
+`createdAt` and `taskId` through URL-safe unpadded Base64. It requires a native RFC
 UUIDv7 identity. `OptimizationCollectionUri` binds that cursor to its collection,
 uses the shared component builder and rejects aliases, fragments and extra query
 parameters. A saved position grants no access; each continuation rechecks SQL policy.
 
 Installation activation requires the composed fresh-state storage cut. It must apply
 and verify the Tasks selection lane and Optimization catalog lane before Task recovery
-or catalog traffic. Adapter binding checks declarations only. Current startup checks
-recovery and GPU readiness without an installed-lane readiness gate; implementing
-that gate is required before activation. Source and native fixture qualification
+or catalog traffic. Adapter binding checks declarations only. RuntimeInstallation verifies the composed plan, generation, credential revision,
+runtime account preparation and current required lanes before recovery. GPU
+readiness is checked separately. Source and native fixture qualification
 do not establish that the reference installation has these lanes. Existing Store
 Task indexes stay until the coordinated storage cut. The public URI, cursor, solver
 and Task wire profiles are unchanged; the internal identity owner is the catalog.
@@ -574,10 +587,10 @@ Parsers reject aliases, fragments and duplicate or unsupported query parameters.
 Entries derive their Task identity from the typed URI. Pages require ascending unique
 IDs, a limit of 100, and a continuation matching the last entry of a full page.
 
-The cursor preserves the published version 1 JSON envelope
-`{"version":1,"task_id":"<uuid>"}` encoded as URL-safe unpadded Base64.
+The cursor emits the current revision 2 JSON envelope
+`{"version":2,"taskId":"<uuid>"}` encoded as URL-safe unpadded Base64.
 It grants no access: every read checks the current caller and stored authority.
-The response fields are `usage`, `limit` and optional `next_cursor`; terminal pages
+The response fields are `usage`, `limit` and optional `nextCursor`; terminal pages
 omit the cursor. Exact usage report fields are unchanged.
 
 ### Usage Deployment And Qualification
@@ -716,7 +729,7 @@ or mocked CUDA result cannot satisfy this test.
 Contract revision: 3.
 
 C09 has remaining DTO relationship admission work.
-Checked MCP setup is implemented; installed readiness qualification for C31 is pending. The knowledge-source extension
+Checked MCP setup and the read-only installation guard are implemented; installed qualification for C31 is pending. The knowledge-source extension
 (C32) is planned. C06 is satisfied by the single canonical surface. The gateway
 registration states revision 3 and the cuOpt 26.08 engine. Documentation and
 contract resources are embedded at build time and served through MCP and the

@@ -18,7 +18,7 @@ port        8793
 ## Standards And Protocols
 
 Frames implements Model Context Protocol `2026-07-28` under Veoveo hosted MCP
-contract revision 3. Resource and tool payloads use JSON. Geodetic positions
+contract revision 3. Resource and tool payloads use closed camelCase JSON objects with snake_case controlled vocabulary values. MCP prompt names and argument identifiers use snake_case. Geodetic positions
 use WGS84, while ECEF positions use the EPSG:4978 coordinate reference system.
 MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` defines the
 server-owned `ui://frames/workspace.html` Frame Editor application.
@@ -325,9 +325,9 @@ gate in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 
 | Prompt | Purpose |
 |---|---|
-| `frames-frame-audit` | Reviews frames, units, axes, datum, origin, and approximation assumptions. |
-| `frames-world-design` | Drafts one complete rooted tree for a robot, sensor, or simulation world. |
-| `frames-transform-explain` | Explains recorded operation provenance without inventing missing transforms. |
+| `frames_frame_audit` | Reviews frames, units, axes, datum, origin, and approximation assumptions. |
+| `frames_world_design` | Drafts one complete rooted tree for a robot, sensor, or simulation world. |
+| `frames_transform_explain` | Explains recorded operation provenance without inventing missing transforms. |
 
 ## Calculation and provenance
 
@@ -503,3 +503,34 @@ checkpoint behavior. Public DTO contract features do not activate observation so
 no product address. Materialized Artifact output carries that Artifact's typed URI as
 `result_uri` and one matching resource link. The decoder rejects absent or mismatched
 Artifact product addresses and present-null addresses.
+
+## Persistence Encoding
+
+The Frames schema lane declares current nested public definition trees separately
+from native record columns. Stored `definition.frames` objects carry the same
+camelCase node, origin and transform fields as public trees. Fresh installations
+apply the complete owner lane before publication or reads. The coordinated cut
+requires draining earlier stored trees; the driver never repairs or translates them.
+
+Native world keys, authority fields, selected frame indexes and operation provenance
+keep their snake_case database profiles. The provenance driver converts typed
+coordinate spaces and operation references explicitly and verifies their repeated
+identity before returning public values. SQL continues to select authorized parents
+and labels before page limits. Frame Editor consumes the generated public schemas
+and canonical `nextCursor` page member through the shared Workbench renderer.
+
+### Runtime Installation Admission
+
+Before Task recovery, publication workers or the HTTP bind, `startup.rs` admits the
+configured module plan against the compiled Frames and kernel histories. It checks
+the full prepared plan and authenticated database runtime account through the
+existing read-only module runner. The service does not install lanes or repair
+missing preparation.
+
+The composition supplies `VEOVEO_MODULE_PLAN`, `VEOVEO_MODULE_COMPOSITION`,
+`VEOVEO_INSTALLATION_GENERATION`, `VEOVEO_CREDENTIAL_REVISION` and
+`VEOVEO_SURREAL_RUNTIME_USERNAME` beside the configured database credentials. Frames
+checks those identities before recovery. The installation plan must include the
+current Frames lane and its declared prerequisites. Artifact service readiness is a
+separate receiving context; admitting the Frames lane does not establish that the
+Artifact transport or object store is ready.

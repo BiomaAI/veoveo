@@ -100,6 +100,43 @@ fn spatial() -> SpatialDerivation {
 }
 
 #[test]
+fn derivation_roots_admit_current_wire_and_refuse_retired_forms() {
+    fn qualify<T: serde::Serialize + serde::de::DeserializeOwned + schemars::JsonSchema>(value: T) {
+        let current = serde_json::to_value(value).unwrap();
+        let schema = serde_json::to_value(schemars::schema_for!(T)).unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        assert!(validator.is_valid(&current));
+        serde_json::from_value::<T>(current.clone()).unwrap_or_else(|error| panic!("{error}"));
+        for version in [1, 3] {
+            let mut bad = current.clone();
+            bad["schemaVersion"] = serde_json::json!(version);
+            assert!(!validator.is_valid(&bad));
+            assert!(serde_json::from_value::<T>(bad).is_err());
+        }
+        for (canonical, retired) in [
+            ("schemaVersion", "schema_version"),
+            ("derivationId", "derivation_id"),
+            ("createdBy", "created_by"),
+            ("workContext", "work_context"),
+        ] {
+            for mixed in [false, true] {
+                let mut bad = current.clone();
+                let value = bad[canonical].clone();
+                assert!(!value.is_null());
+                if !mixed {
+                    bad.as_object_mut().unwrap().remove(canonical);
+                }
+                bad[retired] = value;
+                assert!(!validator.is_valid(&bad));
+                assert!(serde_json::from_value::<T>(bad).is_err());
+            }
+        }
+    }
+    qualify(raster(1));
+    qualify(spatial());
+}
+
+#[test]
 fn derivation_builders_and_decoders_share_value_and_uri_admission() {
     let value = raster(1);
     assert_eq!(
@@ -223,7 +260,7 @@ async fn qualify_sql_pages() {
     assert_eq!(first.items.len(), 100);
     let json = serde_json::to_string(&first).unwrap();
     assert!(
-        !json.contains("source_transform"),
+        !json.contains("sourceTransform"),
         "pages contain metadata, not full derivation documents"
     );
     let cursor = first.next_cursor.as_deref().unwrap();
@@ -324,12 +361,12 @@ async fn qualify_sql_pages() {
         .await
         .unwrap()
         .unwrap();
-    for field in ["created_by", "created_at", "derivation_id"] {
+    for field in ["createdBy", "createdAt", "derivationId"] {
         let mut body = serde_json::to_value(&original).unwrap();
         body[field] = match field {
-            "created_by" => serde_json::json!(PrincipalId::parse("other").unwrap()),
-            "created_at" => serde_json::json!(original.created_at + chrono::TimeDelta::seconds(1)),
-            "derivation_id" => serde_json::json!(RasterDerivationId::new()),
+            "createdBy" => serde_json::json!(PrincipalId::parse("other").unwrap()),
+            "createdAt" => serde_json::json!(original.created_at + chrono::TimeDelta::seconds(1)),
+            "derivationId" => serde_json::json!(RasterDerivationId::new()),
             _ => unreachable!(),
         };
         let corrupt = serde_json::to_string(&body).unwrap();

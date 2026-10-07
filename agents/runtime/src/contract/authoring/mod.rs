@@ -72,8 +72,7 @@ pub struct Content {
     pub execution: Execution,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum DefinitionStatus {
     Enabled,
     Disabled,
@@ -197,8 +196,7 @@ pub struct ValidateDefinition {
     pub audience: Vec<WorkContextId>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum FindingCode {
     InvalidContent,
     ModelUnavailable,

@@ -61,12 +61,12 @@ class OwnerTaskUsageQuery:
             if parent != native_task_id(task_id):
                 raise InvalidRecord("selected usage belongs to another Task")
             records.append(UsageRecord(
-                task_id=str(parent), model_id=record["model_id"],
-                kind=record["kind"], source_id=record.get("source_id"),
-                provider_job_id=record.get("provider_job_id"),
+                taskId=str(parent), modelId=record["model_id"],
+                kind=record["kind"], sourceId=record.get("source_id"),
+                providerJobId=record.get("provider_job_id"),
                 quantity=record.get("quantity"), unit=record.get("unit"),
                 amount=record.get("amount"), currency=record.get("currency"),
-                recorded_at=record["recorded_at"], metadata=record.get("metadata"),
+                recordedAt=record["recorded_at"], metadata=record.get("metadata"),
             ))
         return tuple(records)
 

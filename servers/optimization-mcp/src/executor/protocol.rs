@@ -9,9 +9,22 @@ use crate::contract::{
     RouteObjectiveMetric, RunId, VariableId, VariableKind, VehicleId, VerificationFinding,
 };
 
+fn current_protocol<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    let value = String::deserialize(deserializer)?;
+    if value != EXECUTOR_PROTOCOL_VERSION {
+        return Err(serde::de::Error::custom(
+            "unsupported cuOpt executor protocol; current installation required",
+        ));
+    }
+    Ok(value)
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecutorRequest {
+    #[serde(deserialize_with = "current_protocol")]
+    #[schemars(schema_with = "crate::contract::naming::executor_version")]
     pub protocol: String,
     pub run_id: RunId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -40,7 +53,12 @@ impl ExecutorRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, JsonSchema)]
-#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "operation",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ExecutorOperation {
     Health,
     Cancel {
@@ -62,7 +80,12 @@ pub enum ExecutorOperation {
     },
 }
 #[derive(Deserialize)]
-#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "operation",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 enum ExecutorOperationWire {
     Health {},
     Cancel {
@@ -109,6 +132,7 @@ impl<'de> Deserialize<'de> for ExecutorOperation {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecutorProfile {
     pub name: String,
     pub routing: RoutingSolverSettings,
@@ -118,6 +142,7 @@ pub struct ExecutorProfile {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RoutingSolverSettings {
     pub time_limit_seconds: NonNegativeF64,
     #[serde(default)]
@@ -133,6 +158,7 @@ pub enum ConvexMethod {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ConvexSolverSettings {
     pub time_limit_seconds: NonNegativeF64,
     pub method: ConvexMethod,
@@ -142,6 +168,7 @@ pub struct ConvexSolverSettings {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct MilpSolverSettings {
     pub time_limit_seconds: NonNegativeF64,
     pub relative_gap: NonNegativeF64,
@@ -153,6 +180,7 @@ pub struct MilpSolverSettings {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledRouteCase {
     pub case_id: RouteCaseId,
     pub problem: CompiledRoutingProblem,
@@ -160,6 +188,7 @@ pub struct CompiledRouteCase {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledRoutingProblem {
     pub location_ids: Vec<LocationId>,
     pub nodes: Vec<CompiledRouteNode>,
@@ -182,6 +211,7 @@ pub struct CompiledRoutingProblem {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledInitialRoutingSolution {
     pub vehicle_indices: Vec<u32>,
     pub route_nodes: Vec<u32>,
@@ -200,6 +230,7 @@ pub enum CompiledInitialRouteNodeKind {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledRouteNode {
     pub order_id: OrderId,
     pub location_id: LocationId,
@@ -213,6 +244,7 @@ pub struct CompiledRouteNode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledVehicle {
     pub vehicle_id: VehicleId,
     pub vehicle_type: u8,
@@ -233,6 +265,7 @@ pub struct CompiledVehicle {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledVehicleBreak {
     pub earliest: u32,
     pub latest: u32,
@@ -243,6 +276,7 @@ pub struct CompiledVehicleBreak {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledDenseMatrix {
     pub vehicle_type: u8,
     pub dimension: u32,
@@ -253,6 +287,7 @@ pub struct CompiledDenseMatrix {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledCapacityDimension {
     pub dimension_id: CapacityDimensionId,
     pub demand: Vec<i32>,
@@ -261,6 +296,7 @@ pub struct CompiledCapacityDimension {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledPickupDeliveryPair {
     pub pickup_node: u32,
     pub delivery_node: u32,
@@ -268,6 +304,7 @@ pub struct CompiledPickupDeliveryPair {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledOrderVehicleMatch {
     pub node: u32,
     pub vehicles: Vec<u32>,
@@ -275,6 +312,7 @@ pub struct CompiledOrderVehicleMatch {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledRouteObjective {
     pub metric: RouteObjectiveMetric,
     pub weight: f32,
@@ -289,6 +327,7 @@ pub enum ExecutorModelFamily {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledMathematicalModel {
     pub variable_ids: Vec<VariableId>,
     pub variable_kinds: Vec<VariableKind>,
@@ -313,6 +352,7 @@ pub struct CompiledMathematicalModel {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CsrMatrix {
     pub rows: u32,
     pub columns: u32,
@@ -323,6 +363,7 @@ pub struct CsrMatrix {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledQuadraticConstraint {
     pub constraint_id: ConstraintId,
     pub linear_indices: Vec<u32>,
@@ -343,14 +384,22 @@ pub enum QuadraticConstraintSense {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecutorResponse {
+    #[serde(deserialize_with = "current_protocol")]
+    #[schemars(schema_with = "crate::contract::naming::executor_version")]
     pub protocol: String,
     pub run_id: RunId,
     pub result: ExecutorResult,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "result", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "result",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ExecutorResult {
     Health {
         health: ExecutorHealth,
@@ -371,6 +420,7 @@ pub enum ExecutorResult {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecutorHealth {
     pub ready: bool,
     pub cuopt_version: String,
@@ -382,6 +432,7 @@ pub struct ExecutorHealth {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecutorError {
     pub code: ExecutorErrorCode,
     pub message: String,
@@ -412,6 +463,7 @@ pub enum ExecutorRoutingStatus {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecutorRoutingSolution {
     pub status: ExecutorRoutingStatus,
     pub message: String,
@@ -427,6 +479,7 @@ pub struct ExecutorRoutingSolution {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecutorRouteCaseSolution {
     pub case_id: RouteCaseId,
     pub solution: ExecutorRoutingSolution,
@@ -434,6 +487,7 @@ pub struct ExecutorRouteCaseSolution {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecutorVehicleRoute {
     pub vehicle: u32,
     pub nodes: Vec<ExecutorRouteVisit>,
@@ -441,13 +495,19 @@ pub struct ExecutorVehicleRoute {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecutorRouteVisit {
     pub node: ExecutorRouteNode,
     pub arrival: NonNegativeF64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ExecutorRouteNode {
     Depot { location: u32 },
     Order { node: u32 },
@@ -472,6 +532,7 @@ pub enum ExecutorModelStatus {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecutorMathematicalSolution {
     pub family: ProblemFamily,
     pub status: ExecutorModelStatus,
@@ -502,6 +563,7 @@ pub struct ExecutorMathematicalSolution {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecutorIncumbent {
     pub sequence: u64,
     pub values: Vec<FiniteF64>,
@@ -565,6 +627,77 @@ mod strict_protocol_tests {
             assert!(serde_json::from_value::<ExecutorResponse>(changed).is_err());
         }
     }
+    fn controlled_members(value: &serde_json::Value, path: &str, out: &mut Vec<(String, String)>) {
+        match value {
+            serde_json::Value::Object(fields) => {
+                for (key, child) in fields {
+                    if key.chars().any(char::is_uppercase) {
+                        out.push((path.to_owned(), key.clone()));
+                    }
+                    controlled_members(child, &format!("{path}/{key}"), out);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for (index, child) in items.iter().enumerate() {
+                    controlled_members(child, &format!("{path}/{index}"), out);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    #[test]
+    fn every_private_variant_refuses_retired_members_and_protocol_on_actual_decoders() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../testdata/executor-protocol.json")).unwrap();
+        let mut controls = 0;
+        for family in ["requests", "responses"] {
+            for wire in fixture[family].as_array().unwrap() {
+                let admits = |value: serde_json::Value| {
+                    if family == "requests" {
+                        serde_json::from_value::<ExecutorRequest>(value).is_ok()
+                    } else {
+                        serde_json::from_value::<ExecutorResponse>(value).is_ok()
+                    }
+                };
+                assert!(admits(wire.clone()));
+                let mut retired = wire.clone();
+                retired["protocol"] = "veoveo.ai/cuopt-executor/v1".into();
+                assert!(!admits(retired));
+                let mut fields = Vec::new();
+                controlled_members(wire, "", &mut fields);
+                for (path, key) in fields {
+                    let old: String = key
+                        .chars()
+                        .flat_map(|c| {
+                            if c.is_ascii_uppercase() {
+                                vec!['_', c.to_ascii_lowercase()]
+                            } else {
+                                vec![c]
+                            }
+                        })
+                        .collect();
+                    for mixed in [false, true] {
+                        let mut changed = wire.clone();
+                        let object = changed.pointer_mut(&path).unwrap().as_object_mut().unwrap();
+                        let value = if mixed {
+                            object[&key].clone()
+                        } else {
+                            object.remove(&key).unwrap()
+                        };
+                        object.insert(old.clone(), value);
+                        assert!(!admits(changed), "{family} {path}/{key} mixed={mixed}");
+                        controls += 1;
+                    }
+                }
+            }
+        }
+        assert!(
+            controls > 20,
+            "private fixture must exercise nested current members"
+        );
+    }
+
     #[test]
     fn private_protocol_schema_snapshot() {
         let snapshot = serde_json::json!({

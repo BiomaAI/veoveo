@@ -13,7 +13,7 @@ and uploads versioned protobuf envelopes to `/ingest/recordings/v1`.
 | Protocol Buffers | versioned Recording ingest envelopes with the repository-owned media type |
 | Rerun RRD 0.38.1 | complete bounded recording and Blueprint store payloads |
 | SHA-256 | immutable batch and Blueprint content identity |
-| `veoveo.ai/recording-ingest-diagnostics/v1` | aggregate authenticated-ingest process counters without tenant or stream identity |
+| `veoveo.ai/recording-ingest-diagnostics/v2` | flattened camelCase JSON counters for authenticated ingest without tenant or stream identity |
 
 The OAuth protected resource is installation-specific. A representative installation uses
 `https://platform.example/ingest/recordings` and the `recording:ingest` scope. Public and
@@ -126,7 +126,8 @@ open TCP listener does not qualify an ingest replica as healthy.
 
 Authenticated ingest exposes bounded aggregate diagnostics at the cluster-internal
 `/internal/recording-ingest/v1/diagnostics` route. The same gateway assertion required by
-the write routes protects this projection. It reports unique accepted batches, messages,
+the write routes protects this projection. Its JSON `schemaVersion` is
+`veoveo.ai/recording-ingest-diagnostics/v2`. It reports unique accepted batches, messages,
 and bytes; duplicate append requests; batches and bytes waiting for materialization; and
 the last completed append time. Every successful append emits the same fields as one
 structured event. The projection contains no tenant, producer, stream, recording, token,

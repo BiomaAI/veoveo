@@ -58,21 +58,22 @@ mod catalog_wire;
 pub use catalog_schema::composed_gateway_schema;
 pub const GATEWAY_CORE_FIELDS: &[&str] = &[
     "branding",
-    "identity_providers",
-    "authorization_servers",
+    "identityProviders",
+    "authorizationServers",
     "servers",
     "profiles",
     "tenants",
-    "work_contexts",
+    "workContexts",
     "policies",
-    "data_labels",
-    "oauth_clients",
-    "oidc_clients",
+    "dataLabels",
+    "oauthClients",
+    "oidcClients",
     "secrets",
     "metadata",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct GatewayControlPlane {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branding: Option<InstallationBranding>,
@@ -96,6 +97,7 @@ pub struct GatewayControlPlane {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GatewayControlPlaneRevision {
     pub revision_id: GatewayControlPlaneRevisionId,
     pub sha256: String,

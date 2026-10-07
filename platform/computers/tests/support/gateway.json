@@ -1,5 +1,5 @@
 {
-  "identity_providers": [
+  "identityProviders": [
     {
       "id": "enterprise",
       "issuer": "https://idp.example.com",
@@ -7,13 +7,13 @@
         "source": "file",
         "path": "configs/jwks.smoke.json"
       },
-      "authorization_endpoint": "https://idp.example.com/oauth2/authorize",
-      "token_endpoint": "https://idp.example.com/oauth2/token",
-      "enterprise_managed_authorization_endpoint": "https://idp.example.com/oauth2/id-jag",
+      "authorizationEndpoint": "https://idp.example.com/oauth2/authorize",
+      "tokenEndpoint": "https://idp.example.com/oauth2/token",
+      "enterpriseManagedAuthorizationEndpoint": "https://idp.example.com/oauth2/id-jag",
       "metadata": {}
     }
   ],
-  "authorization_servers": [
+  "authorizationServers": [
     {
       "id": "veoveo",
       "issuer": "https://computers.test",
@@ -21,63 +21,63 @@
         "source": "file",
         "path": "configs/jwks.smoke.json"
       },
-      "access_token_key_id": "test-key",
-      "access_token_signing_key": "veoveo_access_token_private_key",
-      "identity_provider": "enterprise",
-      "authorization_endpoint": "https://veoveo.example/oauth/authorize",
-      "token_endpoint": "https://veoveo.example/oauth/token",
+      "accessTokenKeyId": "test-key",
+      "accessTokenSigningKey": "veoveo_access_token_private_key",
+      "identityProvider": "enterprise",
+      "authorizationEndpoint": "https://veoveo.example/oauth/authorize",
+      "tokenEndpoint": "https://veoveo.example/oauth/token",
       "metadata": {}
     }
   ],
   "servers": [
     {
       "slug": "computers",
-      "uri_scheme": "computer",
-      "mount_path": "/computers",
-      "mcp_path": "/computers/mcp",
+      "uriScheme": "computer",
+      "mountPath": "/computers",
+      "mcpPath": "/computers/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://127.0.0.1:18802/computers/mcp",
-        "health_url": "http://127.0.0.1:18802/computers/readyz",
+        "healthUrl": "http://127.0.0.1:18802/computers/readyz",
         "security": "loopback_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true
+        "resourcesListChanged": true
       },
       "tools": [
         "create",
         "start",
         "stop"
       ],
-      "compatibility_helpers": [],
+      "compatibilityHelpers": [],
       "prompts": [],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
-      "owned_routes": [],
+      "ownedRoutes": [],
       "metadata": {}
     }
   ],
   "profiles": [
     {
       "id": "operator",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://computers.test/mcp/operator",
-      "policy_version": "test-1",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://computers.test/mcp/operator",
+      "policyVersion": "test-1",
+      "authModes": [
         "enterprise_managed_authorization",
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "servers": [
@@ -127,14 +127,14 @@
             "start",
             "stop"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ]
         }
       ]
     }
   ],
-  "data_labels": [
+  "dataLabels": [
     {
       "id": "cui",
       "title": "Controlled Unclassified Information",
@@ -160,13 +160,13 @@
       "title": "Computer test tenant"
     }
   ],
-  "work_contexts": [
+  "workContexts": [
     {
       "id": "computers-test",
       "tenant": "test",
       "title": "Computers tests",
-      "policy_revision": "test-1",
-      "output_policy": {
+      "policyRevision": "test-1",
+      "outputPolicy": {
         "owner": {
           "kind": "principal",
           "id": "https://computers.test#alice"
@@ -175,7 +175,7 @@
       "memberships": [
         {
           "level": "contributor",
-          "oauth_clients": [
+          "oauthClients": [
             "console",
             "service",
             "delegated"
@@ -184,31 +184,31 @@
       ]
     }
   ],
-  "oauth_clients": [
+  "oauthClients": [
     {
       "id": "console",
-      "authorization_server": "veoveo",
-      "default_work_context": "computers-test",
-      "invocation_mode": "direct",
-      "display_name": "Veoveo Operator Local Client",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "computers-test",
+      "invocationMode": "direct",
+      "displayName": "Veoveo Operator Local Client",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://computers.test/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "authorization_code_pkce",
         "refresh_token"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use"
       ],
       "metadata": {
         "client_boundary": "local_public"
       },
-      "redirect_uris": [
+      "redirectUris": [
         "http://localhost:6274/oauth/callback",
         "http://localhost:6274/oauth/callback/debug",
         "http://127.0.0.1:6274/oauth/callback",
@@ -221,21 +221,21 @@
     },
     {
       "id": "service",
-      "authorization_server": "veoveo",
-      "default_work_context": "computers-test",
-      "invocation_mode": "automated",
-      "display_name": "Veoveo Operator Service",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "computers-test",
+      "invocationMode": "automated",
+      "displayName": "Veoveo Operator Service",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://computers.test/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use"
       ],
       "metadata": {
@@ -249,24 +249,24 @@
     },
     {
       "id": "delegated",
-      "authorization_server": "veoveo",
-      "default_work_context": "computers-test",
-      "invocation_mode": "delegated",
-      "display_name": "Operator Delegated Client",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "computers-test",
+      "invocationMode": "delegated",
+      "displayName": "Operator Delegated Client",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://computers.test/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "enterprise_managed_authorization"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "redirect_uris": [
+      "redirectUris": [
         "http://localhost:8789/oauth/callback"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use"
       ],
       "metadata": {
@@ -274,18 +274,18 @@
       }
     }
   ],
-  "oidc_clients": [
+  "oidcClients": [
     {
       "id": "enterprise",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "allowed_resources": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "allowedResources": [
         "https://computers.test/mcp/operator"
       ],
-      "client_id": "veoveo",
-      "redirect_uri": "https://veoveo.example/oauth/callback",
-      "auth_method": "client_secret_post",
-      "credential_secret": "enterprise_oidc_client_secret",
+      "clientId": "veoveo",
+      "redirectUri": "https://veoveo.example/oauth/callback",
+      "authMethod": "client_secret_post",
+      "credentialSecret": "enterprise_oidc_client_secret",
       "scopes": [
         "openid",
         "profile",

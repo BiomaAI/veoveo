@@ -217,8 +217,8 @@ mod tests {
             },
             "nvidiaDriverRoot": "/",
             "eligibleNodeSelector": {"node.example/gpu": "true"},
-            "conflictingDevicePluginRemoval": {"mode": "require-absent"},
-            "maturityAcceptance": "technology-preview",
+            "conflictingDevicePluginRemoval": {"mode": "require_absent"},
+            "maturityAcceptance": "technology_preview",
             "timeoutSeconds": 600
         }))
         .unwrap()

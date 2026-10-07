@@ -54,10 +54,22 @@ impl ResourceAddress for Address {
 }
 
 fn documents(owner: &'static str) -> ServerDocs {
+    let mut value: serde_json::Value =
+        serde_json::from_str(include_str!("../testdata/compliance-example.json")).unwrap();
+    value["server"] = serde_json::json!(owner);
+    let profile: veoveo_mcp_contract::docs::ComplianceProfile =
+        serde_json::from_value(value).unwrap();
+    let manual = format!(
+        "# Manual\n\n## Contract Compliance\n\n{}\n",
+        veoveo_mcp_contract::docs::render_compliance(&profile)
+    );
     ServerDocs::new(owner)
-        .with_doc("agents", "Agent manual", "# Manual")
+        .with_doc("agents", "Agent manual", Box::leak(manual.into_boxed_str()))
         .with_doc("design", "Design", "# Design")
+        .with_profile_json(&serde_json::to_string(&profile).unwrap())
+        .unwrap()
 }
+
 static DOCUMENTS: LazyLock<ServerDocs> = LazyLock::new(|| documents("independent"));
 static FOREIGN_DOCUMENTS: LazyLock<ServerDocs> = LazyLock::new(|| documents("foreign"));
 static EMPTY_DOCUMENTS: LazyLock<ServerDocs> = LazyLock::new(|| ServerDocs::new("independent"));
@@ -290,4 +302,169 @@ fn template_metadata_cannot_override_the_validated_reference() {
         McpResourceTemplate::new(template, |uri| ResourceTemplate::new(uri, " ")).unwrap_err(),
         McpSetupError::InvalidTemplate
     );
+}
+
+#[cfg(feature = "testing")]
+mod product_results {
+    use super::*;
+    use rmcp::{
+        ErrorData, RoleServer,
+        handler::server::{router::tool::ToolRouter, wrapper::Parameters},
+        model::{CallToolResult, ReadResourceRequestParams},
+        service::RequestContext,
+    };
+    use veoveo_mcp_contract::hosting::{
+        DomainRead, DomainServer, Hosted, product_result,
+        testing::{self, TestGateway},
+    };
+
+    #[derive(Clone)]
+    struct ProductDomain {
+        router: ToolRouter<Self>,
+    }
+
+    #[derive(serde::Deserialize, schemars::JsonSchema)]
+    #[serde(deny_unknown_fields)]
+    struct Request {
+        case: Case,
+    }
+
+    #[derive(Clone, Copy, serde::Deserialize, schemars::JsonSchema)]
+    #[serde(rename_all = "snake_case")]
+    enum Case {
+        Current,
+        Retired,
+        Mixed,
+        Mismatch,
+        Missing,
+        WrongType,
+    }
+
+    #[rmcp::tool_router]
+    impl ProductDomain {
+        #[rmcp::tool(
+            name = "produce_product",
+            description = "Contract fixture product result"
+        )]
+        async fn produce(
+            &self,
+            Parameters(request): Parameters<Request>,
+        ) -> Result<CallToolResult, ErrorData> {
+            let output = match request.case {
+                Case::Current => serde_json::json!({"resultUri":"independent://products/1"}),
+                Case::Retired => serde_json::json!({"result_uri":"independent://products/1"}),
+                Case::Mixed => {
+                    serde_json::json!({"resultUri":"independent://products/1", "result_uri":"independent://products/1"})
+                }
+                Case::Mismatch => serde_json::json!({"resultUri":"independent://products/2"}),
+                Case::Missing => serde_json::json!({}),
+                Case::WrongType => serde_json::json!({"resultUri":42}),
+            };
+            product_result(
+                "Product ready",
+                Resource::new("independent://products/1", "Product"),
+                &output,
+            )
+        }
+    }
+
+    impl DomainServer for ProductDomain {
+        type Contract = Fixture<VALID>;
+        fn setup() -> &'static McpServerSetup<Self::Contract> {
+            static SETUP: LazyLock<McpServerSetup<Fixture<VALID>>> =
+                LazyLock::new(|| McpServerSetup::new().unwrap());
+            &SETUP
+        }
+        fn tool_router(&self) -> &ToolRouter<Self> {
+            &self.router
+        }
+        async fn read(
+            &self,
+            _: Address,
+            _: &ReadResourceRequestParams,
+            _: &RequestContext<RoleServer>,
+        ) -> Result<DomainRead, ErrorData> {
+            Err(ErrorData::resource_not_found(
+                "No fixture product read",
+                None,
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn gateway_product_results_require_only_current_result_uri_and_matching_link() {
+        tokio::time::timeout(std::time::Duration::from_secs(20), async {
+            let gateway = TestGateway::new(testing::for_domain::<ProductDomain>()
+                .handler(|| Hosted::new(ProductDomain { router: ProductDomain::tool_router() })).build());
+            let bearer = gateway.token();
+            let mut violations = Vec::new();
+            for (case, succeeds) in [("current", true), ("retired", false), ("mixed", false), ("mismatch", false), ("missing", false), ("wrong_type", false)] {
+                let request = serde_json::json!({"name":"produce_product", "arguments":{"case":case}});
+                let (status, response) = gateway.rpc_with("tools/call", request.clone(), Some(&bearer)).await;
+                let success = response.get("result").is_some_and(|result| result.get("isError") != Some(&serde_json::Value::Bool(true)));
+                let intended_error = response["error"]["code"] == -32603
+                    && response["error"]["message"].as_str().is_some_and(|message| {
+                        message.starts_with("product result") && message.ends_with("must match its resource link")
+                    });
+                if status.as_u16() != 200 || (succeeds && !success) || (!succeeds && !intended_error) {
+                    violations.push(serde_json::json!({"request":request,"httpStatus":status.as_u16(),"response":response}));
+                } else if succeeds {
+                    assert_eq!(response["result"]["structuredContent"]["resultUri"], "independent://products/1");
+                    assert_eq!(response["result"]["content"][1]["type"], "resource_link");
+                    assert_eq!(response["result"]["content"][1]["uri"], "independent://products/1");
+                    assert!(response["result"]["structuredContent"].get("result_uri").is_none());
+                }
+            }
+            assert!(violations.is_empty(), "Product result contract violations: {}", serde_json::Value::Array(violations));
+        }).await.expect("Gateway product result matrix exceeded twenty seconds");
+    }
+
+    #[tokio::test]
+    async fn gateway_traces_preserve_routing_without_query_or_credentials() {
+        use std::{
+            io::Write,
+            sync::{Arc, Mutex},
+        };
+        use tracing::instrument::WithSubscriber;
+        struct TraceWriter(Arc<Mutex<Vec<u8>>>);
+        impl Write for TraceWriter {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        tokio::time::timeout(std::time::Duration::from_secs(20), async {
+            let captured = Arc::new(Mutex::new(Vec::new()));
+            let writer = captured.clone();
+            let subscriber = tracing_subscriber::fmt()
+                .with_max_level(tracing::Level::TRACE).with_ansi(false).without_time()
+                .with_span_events(tracing_subscriber::fmt::format::FmtSpan::NEW)
+                .with_writer(move || TraceWriter(writer.clone())).finish();
+            let gateway = TestGateway::new(testing::for_domain::<ProductDomain>()
+                .handler(|| Hosted::new(ProductDomain { router: ProductDomain::tool_router() }))
+                .public_routes(axum::Router::new().route("/trace-query", axum::routing::get(|uri: axum::http::Uri| async move {
+                    uri.query().unwrap_or_default().to_owned()
+                }))).build());
+            let query = "veoveo_trace_query_sentinel=veoveo_trace_query_value&access_token=synthetic-trace-query-token&signature=synthetic-trace-signature%2Fvalue";
+            let request = gateway.request(&format!("/trace-query?{query}"))
+                .method("GET").version(axum::http::Version::HTTP_11)
+                .header("authorization", "Bearer synthetic-trace-header-token")
+                .header("cookie", "fixture=synthetic-trace-cookie")
+                .body(axum::body::Body::empty()).unwrap();
+            let expected_path = request.uri().path().to_owned();
+            let (status, body) = gateway.send(request).with_subscriber(subscriber).await;
+            assert_eq!(status.as_u16(), 200);
+            assert_eq!(body, query, "the route must receive the original query");
+            let trace = String::from_utf8(captured.lock().unwrap().clone()).unwrap();
+            assert!(trace.contains("method=GET"), "missing request method");
+            assert!(trace.contains(&expected_path), "missing request path");
+            assert!(trace.contains("version=HTTP/1.1"), "missing request version");
+            let forbidden = ["veoveo_trace_query_sentinel", "veoveo_trace_query_value", "access_token", "synthetic-trace-query-token", "synthetic-trace-signature", "synthetic-trace-header-token", "synthetic-trace-cookie"]
+                .into_iter().filter(|value| trace.contains(value)).collect::<Vec<_>>();
+            assert!(forbidden.is_empty(), "Request trace contains synthetic query/credential sentinels: {forbidden:?}");
+        }).await.expect("Gateway trace query control exceeded twenty seconds");
+    }
 }

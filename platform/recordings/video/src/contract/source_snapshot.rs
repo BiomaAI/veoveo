@@ -22,7 +22,7 @@ pub struct RecordingSourceError;
 /// fn mutate_sources(snapshot: &mut RecordingSourceSnapshot) { snapshot.sources.clear(); }
 /// ```
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(
     rename = "RecordingSourceSnapshot",
     description = "Ordered source identities captured for one recording analysis."
@@ -93,7 +93,7 @@ impl RecordingSourceSnapshot {
 /// fn change_part(source: &mut RecordingSourceIdentity) { source.part_sequence = None; }
 /// ```
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(
     rename = "RecordingSourceIdentity",
     description = "Identity and integrity of one committed layer or acknowledged live part."

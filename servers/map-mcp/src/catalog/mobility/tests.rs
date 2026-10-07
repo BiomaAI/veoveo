@@ -13,10 +13,10 @@ fn version(n: u64) -> MobilityProfileVersion {
 fn profile(n: usize, v: u64) -> MobilityProfile {
     let mut wire: serde_json::Value =
         serde_json::from_str(include_str!("../../../tests/fixtures/mobility.json")).unwrap();
-    wire["profile"]["metadata"]["profile_id"] = serde_json::json!(id(n));
+    wire["profile"]["metadata"]["profileId"] = serde_json::json!(id(n));
     wire["profile"]["metadata"]["version"] = serde_json::json!(v);
     if v == 1 {
-        wire["profile"]["metadata"]["valid_until"] = serde_json::json!("2026-01-02T00:00:00Z");
+        wire["profile"]["metadata"]["validUntil"] = serde_json::json!("2026-01-02T00:00:00Z");
     }
     serde_json::from_value(wire).unwrap()
 }
@@ -242,13 +242,13 @@ async fn selected_profile_metadata_and_physical_identity_must_agree() {
         catalog.create_mobility_profile(&access,profile.clone()).await.unwrap();
         let wire = serde_json::to_value(&profile).unwrap();
         for (path, value) in [
-            ("/profile/metadata/profile_id",serde_json::json!(id(2))),
+            ("/profile/metadata/profileId",serde_json::json!(id(2))),
             ("/profile/metadata/version",serde_json::json!(2)),
             ("/profile/metadata/name",serde_json::json!("different")),
-            ("/profile/metadata/valid_from",serde_json::json!("2025-01-01T00:00:00Z")),
-            ("/profile/metadata/valid_until",serde_json::json!("2026-01-03T00:00:00Z")),
-            ("/profile/preferred_speed",serde_json::json!(30)),
-            ("/profile/planning/maximum_route_points",serde_json::json!(1)),
+            ("/profile/metadata/validFrom",serde_json::json!("2025-01-01T00:00:00Z")),
+            ("/profile/metadata/validUntil",serde_json::json!("2026-01-03T00:00:00Z")),
+            ("/profile/preferredSpeed",serde_json::json!(30)),
+            ("/profile/planning/maximumRoutePoints",serde_json::json!(1)),
             ("/profile/metadata/version",serde_json::json!(0)),
             ("/profile/metadata/version",serde_json::json!(u64::MAX)),
         ] {

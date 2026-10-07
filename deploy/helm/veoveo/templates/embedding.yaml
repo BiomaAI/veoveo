@@ -120,6 +120,8 @@ spec:
             - pooling
             - --served-model-name
             - qwen3-embedding-0.6b
+            - --dtype
+            - {{ .Values.embedding.engine.precision | quote }}
             - --scheduling-policy
             - priority
             - --gpu-memory-utilization

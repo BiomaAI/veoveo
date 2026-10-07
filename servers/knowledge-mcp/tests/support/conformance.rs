@@ -15,7 +15,7 @@ async fn hosted_contract_and_immutable_knowledge_documents_conform() {
         let server =
             Server::new(db.a.clone(), Arc::new(SyntheticEmbeddings::new()), &signing).await;
         let profile = HostedServerConformanceProfile {
-            schema_version: HostedServerProfileSchema::V1,
+            schema_version: HostedServerProfileSchema::V2,
             profile_id: "knowledge-native".into(),
             contract_revision: HOSTED_MCP_CONTRACT_REVISION.into(),
             endpoint: format!("{}/mcp", server.base),

@@ -35,11 +35,13 @@ pub enum FeatureContentClass {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[schemars(transform = super::naming::geojson_scalar)]
 pub enum GeoJsonFeatureType {
     Feature,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[schemars(transform = super::naming::geojson_scalar)]
 pub enum FeatureGeometryType {
     Point,
     MultiPoint,
@@ -113,6 +115,7 @@ impl GeoJsonPosition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", content = "coordinates")]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = super::naming::geojson_geometry)]
 pub enum FeatureGeometry {
     Point(GeoJsonPosition),
     MultiPoint(Vec<GeoJsonPosition>),
@@ -316,6 +319,7 @@ impl From<JsonFgTimeBoundary> for String {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct FeatureTime {
     /// Inclusive JSON-FG valid-time interval. The `..` string is an open bound.
     pub interval: [JsonFgTimeBoundary; 2],
@@ -337,6 +341,8 @@ impl FeatureTime {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct FeatureProvenance {
     pub actor_id: PrincipalId,
     pub work_context: WorkContextId,
@@ -352,6 +358,8 @@ pub struct FeatureProvenance {
 /// its time and feature-type members use JSON-FG vocabulary.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "MapFeature")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapFeatureValue {
     #[serde(rename = "type")]
     pub feature_type: GeoJsonFeatureType,
@@ -381,6 +389,8 @@ pub struct MapFeatureValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct FeatureSchemaRevision {
     pub schema_revision_id: FeatureSchemaRevisionId,
     pub layer_id: FeatureLayerId,
@@ -392,6 +402,7 @@ pub struct FeatureSchemaRevision {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct LayerStyle {
     #[serde(default)]
     pub rules: Vec<StyleRule>,
@@ -399,6 +410,7 @@ pub struct LayerStyle {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct StyleRule {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub geometry_type: Option<FeatureGeometryType>,
@@ -423,6 +435,8 @@ pub struct StyleRule {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapStyleRevision {
     pub style_revision_id: StyleRevisionId,
     pub layer_id: FeatureLayerId,
@@ -433,6 +447,8 @@ pub struct MapStyleRevision {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "FeatureLayer")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct FeatureLayerValue {
     pub layer_id: FeatureLayerId,
     pub title: String,
@@ -458,6 +474,7 @@ pub struct FeatureLayerValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateFeatureLayerRequest {
     pub title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -473,6 +490,7 @@ pub struct CreateFeatureLayerRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateFeatureLayerRequest {
     pub layer_id: FeatureLayerId,
     pub expected_layer_revision: u64,
@@ -491,6 +509,7 @@ pub struct UpdateFeatureLayerRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct FeatureInput {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub feature_id: Option<MapFeatureId>,
@@ -509,7 +528,11 @@ pub struct FeatureInput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "action", rename_all = "snake_case")]
+#[serde(
+    tag = "action",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum FeatureMutation {
     Create {
@@ -532,6 +555,7 @@ pub enum FeatureMutation {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ValidateFeatureChangesRequest {
     pub layer_id: FeatureLayerId,
     pub expected_layer_revision: u64,
@@ -540,6 +564,7 @@ pub struct ValidateFeatureChangesRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CommitFeatureChangesRequest {
     pub layer_id: FeatureLayerId,
     pub expected_layer_revision: u64,
@@ -548,6 +573,8 @@ pub struct CommitFeatureChangesRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct FeatureValidationFinding {
     pub mutation_index: usize,
     pub code: String,
@@ -555,6 +582,8 @@ pub struct FeatureValidationFinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ValidateFeatureChangesOutput {
     pub valid: bool,
     pub layer_id: FeatureLayerId,
@@ -570,6 +599,8 @@ pub enum ProjectionState {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct FeatureChangeSet {
     pub changeset_id: FeatureChangeSetId,
     pub layer_id: FeatureLayerId,
@@ -585,6 +616,8 @@ pub struct FeatureChangeSet {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct CommitFeatureChangesOutput {
     pub changeset: FeatureChangeSet,
     pub features: Vec<MapFeature>,
@@ -593,6 +626,7 @@ pub struct CommitFeatureChangesOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct RestoreFeatureRequest {
     pub layer_id: FeatureLayerId,
     pub feature_id: MapFeatureId,
@@ -602,6 +636,7 @@ pub struct RestoreFeatureRequest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[schemars(transform = super::naming::cql2_operator)]
 pub enum Cql2Operator {
     #[serde(rename = "and")]
     And,
@@ -627,6 +662,7 @@ pub enum Cql2Operator {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct Cql2Filter {
     pub op: Cql2Operator,
     pub args: Vec<Cql2Expression>,
@@ -642,6 +678,7 @@ pub enum Cql2Expression {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct Cql2PropertyReference {
     pub property: String,
 }
@@ -657,6 +694,7 @@ pub enum Cql2Literal {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct QueryFeaturesRequest {
     pub layer_id: FeatureLayerId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -682,6 +720,8 @@ fn default_feature_query_limit() -> u32 {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct QueryFeaturesOutput {
     pub layer_id: FeatureLayerId,
     pub features: Vec<MapFeature>,
@@ -692,6 +732,7 @@ pub struct QueryFeaturesOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct PublishFeatureLayerRequest {
     pub layer_id: FeatureLayerId,
     pub expected_layer_revision: u64,
@@ -701,6 +742,8 @@ pub struct PublishFeatureLayerRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "LayerPublication")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct LayerPublicationValue {
     pub publication_id: LayerPublicationId,
     pub layer_id: FeatureLayerId,
@@ -719,6 +762,7 @@ pub struct LayerPublicationValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ArchiveFeatureLayerRequest {
     pub layer_id: FeatureLayerId,
     pub expected_layer_revision: u64,
@@ -940,10 +984,10 @@ mod tests {
     #[test]
     fn feature_changes_close_envelopes_and_preserve_authored_properties() {
         let wire = serde_json::json!({
-            "layer_id": FeatureLayerId::new(), "expected_layer_revision": 1,
+            "layerId": FeatureLayerId::new(), "expectedLayerRevision": 1,
             "mutations": [{"action": "create", "feature": {
                 "geometry": {"type": "Point", "coordinates": [-89.2, 13.7]},
-                "semantic_type": "NamedPlace",
+                "semanticType": "NamedPlace",
                 "time": {"interval": ["..", ".."]},
                 "properties": {"installation_key": {"nested": [1, {"custom": true}]}}
             }}]
@@ -980,15 +1024,15 @@ mod tests {
     #[test]
     fn layer_creation_preserves_supplied_schema_and_closes_style() {
         let wire = serde_json::json!({
-            "title": "Places", "content_class": "named_locations",
-            "property_schema": {"type": "object", "properties": {"owner_key": {"type": "object", "additionalProperties": true}}, "x-owner-key": {"custom": true}},
-            "style": {"rules": [{"fill_color": "#112233"}]}
+            "title": "Places", "contentClass": "named_locations",
+            "propertySchema": {"type": "object", "properties": {"owner_key": {"type": "object", "additionalProperties": true}}, "x-owner-key": {"custom": true}},
+            "style": {"rules": [{"fillColor": "#112233"}]}
         });
         let schema =
             serde_json::to_value(schemars::schema_for!(CreateFeatureLayerRequest)).unwrap();
         let validator = jsonschema::validator_for(&schema).unwrap();
         let request: CreateFeatureLayerRequest = serde_json::from_value(wire.clone()).unwrap();
-        assert_eq!(request.property_schema, wire["property_schema"]);
+        assert_eq!(request.property_schema, wire["propertySchema"]);
         assert!(validator.is_valid(&wire));
         for pointer in ["", "/style", "/style/rules/0"] {
             let mut invalid = wire.clone();

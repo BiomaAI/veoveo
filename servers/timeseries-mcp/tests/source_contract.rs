@@ -5,7 +5,7 @@ use veoveo_timeseries_mcp::contract::*;
 fn forecasting_consumes_source_admission_from_the_owner() {
     let request = |source| {
         json!({
-            "source":source,"mapping":{"value_column":"value"},
+            "source":source,"mapping":{"valueColumn":"value"},
         "horizon":4,"method":"naive_trend"
         })
     };
@@ -33,17 +33,32 @@ fn forecasting_consumes_source_admission_from_the_owner() {
 fn forecast_schema_matches_the_owning_source_types() {
     let expected: serde_json::Value =
         serde_json::from_str(include_str!("../testdata/source-contract.schema.json")).unwrap();
-    assert_eq!(
-        serde_json::to_value(schemars::schema_for!(TimeseriesForecastRequest)).unwrap(),
-        expected
-    );
+    let current = serde_json::to_value(schemars::schema_for!(TimeseriesForecastRequest)).unwrap();
+    if let Some(output) = std::env::var_os("VEOVEO_CAPTURE_TIMESERIES_SOURCE_SCHEMA") {
+        use std::io::Write;
+        let output = std::path::PathBuf::from(output);
+        assert!(output.is_absolute(), "schema capture path must be absolute");
+        let bytes = serde_json::to_vec_pretty(&current).unwrap();
+        assert!(
+            bytes.len() <= 4 * 1024 * 1024,
+            "schema capture exceeds 4 MiB"
+        );
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(output)
+            .unwrap();
+        file.write_all(&bytes).unwrap();
+        file.write_all(b"\n").unwrap();
+    }
+    assert_eq!(current, expected);
 }
 
 #[test]
 fn forecast_schema_and_decoder_enforce_the_same_request_profile() {
     let schema = serde_json::to_value(schemars::schema_for!(TimeseriesForecastRequest)).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
-    let base = json!({"source":{"kind":"inline_csv","csv":"value\n1\n"},"mapping":{"value_column":"value"},"horizon":4});
+    let base = json!({"source":{"kind":"inline_csv","csv":"value\n1\n"},"mapping":{"valueColumn":"value"},"horizon":4});
     let check = |value: serde_json::Value, valid| {
         assert_eq!(validator.is_valid(&value), valid, "schema: {value}");
         assert_eq!(
@@ -58,7 +73,7 @@ fn forecast_schema_and_decoder_enforce_the_same_request_profile() {
         value["horizon"] = json!(horizon);
         check(value, valid);
     }
-    for column in ["value_column", "time_column", "series_column"] {
+    for column in ["valueColumn", "timeColumn", "seriesColumn"] {
         for (name, valid) in [
             ("", false),
             (" \n\t", false),
@@ -103,7 +118,7 @@ fn forecast_schema_and_decoder_enforce_the_same_request_profile() {
         ),
     ] {
         let mut value = base.clone();
-        value["training_filter"] = filter;
+        value["trainingFilter"] = filter;
         check(value, valid);
     }
     let mut artifact = base.clone();
@@ -139,4 +154,33 @@ fn native_construction_cannot_create_invalid_horizons_or_filters() {
         serde_json::to_value(TimeseriesFilterValue::F64(number)).unwrap(),
         json!(1.25)
     );
+}
+
+#[test]
+fn forecast_request_refuses_retired_mapping_filter_and_nested_reader_names() {
+    let current = json!({"source":{"kind":"inline_csv","csv":"value\n1\n", "options":{"timestampFormat":"%Y"}},
+        "mapping":{"valueColumn":"value", "timeColumn":"timestamp"}, "horizon":4,
+        "trainingFilter":{"predicates":[{"op":"is_not_null","column":"value"}]}});
+    let schema = serde_json::to_value(schemars::schema_for!(TimeseriesForecastRequest)).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&current));
+    serde_json::from_value::<TimeseriesForecastRequest>(current.clone()).unwrap();
+    for (parent, canonical, retired) in [
+        ("", "trainingFilter", "training_filter"),
+        ("/mapping", "valueColumn", "value_column"),
+        ("/mapping", "timeColumn", "time_column"),
+        ("/source/options", "timestampFormat", "timestamp_format"),
+    ] {
+        for mixed in [false, true] {
+            let mut bad = current.clone();
+            let object = bad.pointer_mut(parent).unwrap().as_object_mut().unwrap();
+            let value = object[canonical].clone();
+            object.insert(retired.into(), value);
+            if !mixed {
+                object.remove(canonical);
+            }
+            assert!(!validator.is_valid(&bad));
+            assert!(serde_json::from_value::<TimeseriesForecastRequest>(bad).is_err());
+        }
+    }
 }

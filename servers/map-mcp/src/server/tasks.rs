@@ -761,19 +761,19 @@ async fn run_raster_derivation_task(
     artifact.compliance = artifact_compliance(&request.identity);
     artifact.metadata = serde_json::json!({
         "domain": "map_raster",
-        "schema_version": RASTER_DERIVATION_SCHEMA_VERSION,
-        "derivation_id": request.derivation_id,
-        "source_raster_id": request.input.raster_id,
-        "source_release_id": request.source_release_id,
+        "schemaVersion": RASTER_DERIVATION_SCHEMA_VERSION,
+        "derivationId": request.derivation_id,
+        "sourceRasterId": request.input.raster_id,
+        "sourceReleaseId": request.source_release_id,
         "operation": request.input.operation,
-        "algorithm_revision": request.input.algorithm_revision,
-        "source_checksum_sha256": request.source_digest_sha256,
-        "source_crs": request.source_crs,
-        "source_transform": request.source_transform,
-        "output_crs": generated.output_crs,
-        "output_transform": generated.output_transform,
-        "output_mime_type": generated.mime_type,
-        "output_checksum_sha256": output_digest_sha256,
+        "algorithmRevision": request.input.algorithm_revision,
+        "sourceChecksumSha256": request.source_digest_sha256,
+        "sourceCrs": request.source_crs,
+        "sourceTransform": request.source_transform,
+        "outputCrs": generated.output_crs,
+        "outputTransform": generated.output_transform,
+        "outputMimeType": generated.mime_type,
+        "outputChecksumSha256": output_digest_sha256,
     });
     let metadata = state
         .artifacts
@@ -959,11 +959,11 @@ async fn run_travel_model_task(
     artifact.compliance = artifact_compliance(&request.identity);
     artifact.metadata = serde_json::json!({
         "domain": "map_travel_model",
-        "travel_model_id": request.travel_model_id,
+        "travelModelId": request.travel_model_id,
         "version": crate::contract::TRAVEL_MODEL_ARTIFACT_VERSION,
-        "location_count": location_count,
-        "vehicle_type_count": vehicle_type_count,
-        "unavailable_cell_count": unavailable_cell_count,
+        "locationCount": location_count,
+        "vehicleTypeCount": vehicle_type_count,
+        "unavailableCellCount": unavailable_cell_count,
     });
     let artifact = state
         .artifacts
@@ -1135,12 +1135,12 @@ async fn publish_generated_product(
     artifact.compliance = artifact_compliance(identity);
     artifact.metadata = serde_json::json!({
         "domain": "map_authoring",
-        "layer_id": layer_id,
-        "publication_id": publication_id,
-        "product_id": product_id,
+        "layerId": layer_id,
+        "publicationId": publication_id,
+        "productId": product_id,
         "format": generated.format,
-        "digest_sha256": generated.digest_sha256,
-        "feature_count": generated.feature_count,
+        "digestSha256": generated.digest_sha256,
+        "featureCount": generated.feature_count,
     });
     let metadata = state
         .artifacts

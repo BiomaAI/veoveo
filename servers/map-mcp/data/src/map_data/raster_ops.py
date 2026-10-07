@@ -14,21 +14,34 @@ from map_data.contract import ContractError
 from map_data.terrain import corridor_sample_positions
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MAX_SAMPLES = 10_000
 MAX_WINDOW_PIXELS = 4096 * 4096
 MAX_FULL_RASTER_PIXELS = 2048 * 2048
 
 
 def run(value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict) or value.get("schema_version") != SCHEMA_VERSION:
+    if not isinstance(value, dict) or value.get("schemaVersion") != SCHEMA_VERSION:
         raise ContractError("unsupported raster-operation schema")
-    source = confined_file(value.get("source_path"), "source_path")
-    output_dir = confined_directory(value.get("output_dir"), "output_dir")
-    maximum_output_bytes = positive_int(value.get("maximum_output_bytes"), "maximum_output_bytes")
+    if value.keys() - {"schemaVersion", "sourcePath", "outputDir", "maximumOutputBytes", "operation"}:
+        raise ContractError("raster command contains an unsupported field")
     operation = value.get("operation")
     if not isinstance(operation, dict) or not isinstance(operation.get("kind"), str):
         raise ContractError("operation is invalid")
+    fields = {
+        "sample":{"band", "positions"}, "window":{"bounds", "width", "height"},
+        "corridor_maximum":{"band", "corridor", "sampleSpacing", "halfWidth", "crossTrackSamples"},
+        "class_mask":{"band", "classes"}, "contour":{"band", "interval", "base"},
+        "polygonize":{"band"}, "skeletonize":{"band", "threshold"},
+        "derive_lines":{"band", "threshold", "minimumLength"},
+    }
+    kind = operation["kind"]
+    if kind not in fields or operation.keys() - (fields[kind] | {"kind"}):
+        raise ContractError("raster operation contains an unsupported field or kind")
+    admit_operation(operation, fields[kind])
+    maximum_output_bytes = positive_int(value.get("maximumOutputBytes"), "maximumOutputBytes")
+    source = confined_file(value.get("sourcePath"), "sourcePath")
+    output_dir = confined_directory(value.get("outputDir"), "outputDir")
     gdal.UseExceptions()
     dataset = gdal.Open(str(source), gdal.GA_ReadOnly)
     if dataset is None:
@@ -77,11 +90,12 @@ def run(value: Any) -> dict[str, Any]:
         raise ContractError("raster operation output is absent or exceeds its byte limit")
     output_crs, output_transform = output_spatial_metadata(path, mime_type)
     return {
+        "schemaVersion": SCHEMA_VERSION,
         "path": str(path),
         "filename": path.name,
-        "mime_type": mime_type,
-        "output_crs": output_crs,
-        "output_transform": output_transform,
+        "mimeType": mime_type,
+        "outputCrs": output_crs,
+        "outputTransform": output_transform,
     }
 
 
@@ -92,6 +106,67 @@ def output_spatial_metadata(path: Path, mime_type: str) -> tuple[str, list[float
             raise ContractError("derived raster omitted its coordinate reference system")
         return " ".join(dataset.GetProjection().split()), list(dataset.GetGeoTransform())
     return "EPSG:4326", None
+
+
+def closed_object(value: Any, required: set[str], optional: set[str], label: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or required - value.keys() or value.keys() - (required | optional):
+        raise ContractError(f"{label} contains missing or unsupported fields")
+    return value
+
+
+def admit_position(value: Any) -> None:
+    position = closed_object(value, {"longitudeDeg", "latitudeDeg"}, {"ellipsoidalHeightM"}, "position")
+    longitude = finite_number(position["longitudeDeg"], "longitudeDeg")
+    latitude = finite_number(position["latitudeDeg"], "latitudeDeg")
+    if not -180 <= longitude <= 180 or not -90 <= latitude <= 90:
+        raise ContractError("position is outside WGS84")
+    if position.get("ellipsoidalHeightM") is not None:
+        finite_number(position["ellipsoidalHeightM"], "ellipsoidalHeightM")
+
+
+def admit_operation(operation: dict[str, Any], fields: set[str]) -> None:
+    closed_object(operation, fields | {"kind"}, set(), "raster operation")
+    kind = operation["kind"]
+    if "band" in fields and positive_int(operation["band"], "band") > 2**32 - 1:
+        raise ContractError("band exceeds the owner integer profile")
+    if kind == "sample":
+        positions = operation["positions"]
+        if not isinstance(positions, list) or not 1 <= len(positions) <= MAX_SAMPLES:
+            raise ContractError("sample positions exceed their bound")
+        for position in positions:
+            admit_position(position)
+    elif kind == "corridor_maximum":
+        corridor = closed_object(operation["corridor"], {"coordinates"}, set(), "corridor")
+        positions = corridor["coordinates"]
+        if not isinstance(positions, list) or not 2 <= len(positions) <= MAX_SAMPLES:
+            raise ContractError("corridor positions exceed their bound")
+        for position in positions:
+            admit_position(position)
+        positive_number(operation["sampleSpacing"], "sampleSpacing")
+        half_width = non_negative_number(operation["halfWidth"], "halfWidth")
+        cross = positive_int(operation["crossTrackSamples"], "crossTrackSamples")
+        if cross > 64 or (half_width == 0 and cross != 1):
+            raise ContractError("corridor cross-track samples exceed their bound")
+    elif kind == "window":
+        bounds = closed_object(operation["bounds"], {"west", "south", "east", "north"}, set(), "bounds")
+        west, south, east, north = (finite_number(bounds[key], key) for key in ["west", "south", "east", "north"])
+        if not -180 <= west <= east <= 180 or not -90 <= south < north <= 90:
+            raise ContractError("window bounds are invalid")
+        width = positive_int(operation["width"], "width")
+        height = positive_int(operation["height"], "height")
+        if width > 2**32 - 1 or height > 2**32 - 1 or width * height > MAX_WINDOW_PIXELS:
+            raise ContractError("window dimensions exceed their bound")
+    elif kind == "class_mask":
+        classes = operation["classes"]
+        if not isinstance(classes, list) or not 1 <= len(classes) <= 256 or any(type(v) is not int or not -(2**63) <= v < 2**63 for v in classes):
+            raise ContractError("classes exceed their owner profile")
+    elif kind == "contour":
+        positive_number(operation["interval"], "interval")
+        finite_number(operation["base"], "base")
+    elif kind in {"skeletonize", "derive_lines"}:
+        finite_number(operation["threshold"], "threshold")
+        if kind == "derive_lines":
+            non_negative_number(operation["minimumLength"], "minimumLength")
 
 
 def sample(dataset: gdal.Dataset, operation: dict[str, Any]) -> dict[str, Any]:
@@ -106,8 +181,8 @@ def sample(dataset: gdal.Dataset, operation: dict[str, Any]) -> dict[str, Any]:
     for position in positions:
         if not isinstance(position, dict):
             raise ContractError("sample position is invalid")
-        longitude = finite_number(position.get("longitude_deg"), "longitude_deg")
-        latitude = finite_number(position.get("latitude_deg"), "latitude_deg")
+        longitude = finite_number(position.get("longitudeDeg"), "longitudeDeg")
+        latitude = finite_number(position.get("latitudeDeg"), "latitudeDeg")
         x, y, _ = transform.TransformPoint(longitude, latitude)
         pixel = int(math.floor(inverse[0] + inverse[1] * x + inverse[2] * y))
         row = int(math.floor(inverse[3] + inverse[4] * x + inverse[5] * y))
@@ -121,11 +196,11 @@ def sample(dataset: gdal.Dataset, operation: dict[str, Any]) -> dict[str, Any]:
                     value = candidate
         values.append(
             {
-                "position": {"longitude_deg": longitude, "latitude_deg": latitude},
+                "position": {"longitudeDeg": longitude, "latitudeDeg": latitude},
                 "value": value,
             }
         )
-    return {"schema_version": 1, "band": band_number, "samples": values}
+    return {"schemaVersion": 2, "band": band_number, "samples": values}
 
 
 def corridor_maximum(dataset: gdal.Dataset, operation: dict[str, Any]) -> dict[str, Any]:
@@ -140,15 +215,15 @@ def corridor_maximum(dataset: gdal.Dataset, operation: dict[str, Any]) -> dict[s
     for position in coordinates:
         if not isinstance(position, dict):
             raise ContractError("corridor position is invalid")
-        longitude = finite_number(position.get("longitude_deg"), "longitude_deg")
-        latitude = finite_number(position.get("latitude_deg"), "latitude_deg")
+        longitude = finite_number(position.get("longitudeDeg"), "longitudeDeg")
+        latitude = finite_number(position.get("latitudeDeg"), "latitudeDeg")
         if not -180 <= longitude <= 180 or not -90 <= latitude <= 90:
             raise ContractError("corridor position is outside WGS84")
         positions.append((longitude, latitude))
-    spacing = positive_number(operation.get("sample_spacing"), "sample_spacing")
-    half_width = non_negative_number(operation.get("half_width"), "half_width")
+    spacing = positive_number(operation.get("sampleSpacing"), "sampleSpacing")
+    half_width = non_negative_number(operation.get("halfWidth"), "halfWidth")
     cross_track_samples = positive_int(
-        operation.get("cross_track_samples"), "cross_track_samples"
+        operation.get("crossTrackSamples"), "crossTrackSamples"
     )
     if cross_track_samples > 64 or (half_width == 0 and cross_track_samples != 1):
         raise ContractError("corridor cross-track sampling is invalid")
@@ -167,11 +242,11 @@ def corridor_maximum(dataset: gdal.Dataset, operation: dict[str, Any]) -> dict[s
             dataset, band, inverse, to_raster, longitude, latitude
         )
         item = {
-            "along_distance_m": along_distance,
-            "cross_track_offset_m": cross_track_offset,
+            "alongDistanceM": along_distance,
+            "crossTrackOffsetM": cross_track_offset,
             "position": {
-                "longitude_deg": longitude,
-                "latitude_deg": latitude,
+                "longitudeDeg": longitude,
+                "latitudeDeg": latitude,
             },
             "value": value,
         }
@@ -181,13 +256,13 @@ def corridor_maximum(dataset: gdal.Dataset, operation: dict[str, Any]) -> dict[s
     if not valid_samples:
         raise ContractError("corridor contains no valid raster samples")
     return {
-        "schema_version": 1,
+        "schemaVersion": 2,
         "band": band_number,
-        "sample_spacing_m": spacing,
-        "half_width_m": half_width,
-        "cross_track_samples": cross_track_samples,
-        "sample_count": len(output_samples),
-        "valid_sample_count": len(valid_samples),
+        "sampleSpacingM": spacing,
+        "halfWidthM": half_width,
+        "crossTrackSamples": cross_track_samples,
+        "sampleCount": len(output_samples),
+        "validSampleCount": len(valid_samples),
         "minimum": min(valid_samples, key=lambda item: item["value"]),
         "maximum": max(valid_samples, key=lambda item: item["value"]),
         "samples": output_samples,
@@ -411,7 +486,7 @@ def derive_lines(
     operation: dict[str, Any],
     output_dir: Path,
 ) -> Path:
-    minimum_length = finite_number(operation.get("minimum_length"), "minimum_length")
+    minimum_length = finite_number(operation.get("minimumLength"), "minimumLength")
     transform = dataset.GetGeoTransform()
     to_wgs84 = coordinate_transform_to_wgs84(dataset)
     pixels = {tuple(value) for value in np.argwhere(skeleton > 0)}

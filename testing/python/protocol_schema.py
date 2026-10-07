@@ -11,7 +11,8 @@ import json
 import math
 import struct
 
-ANNOTATIONS = {"$schema", "$id", "title", "description", "examples", "deprecated", "readOnly", "writeOnly", "discriminator"}
+# The naming profile declares source roles; this comparator checks instance constraints only.
+ANNOTATIONS = {"ai.veoveo/naming-profile", "$schema", "$id", "title", "description", "examples", "deprecated", "readOnly", "writeOnly", "discriminator"}
 ASSERTIONS = {"$ref", "$defs", "type", "const", "enum", "anyOf", "oneOf", "properties", "required", "additionalProperties", "propertyNames", "items", "prefixItems", "minItems", "maxItems", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength", "pattern", "format", "default"}
 
 

@@ -89,27 +89,32 @@ impl ArtifactEndpoint {
                     let (status, body) = match reply {
                         Reply::Denied(status) => (status, String::new()),
                         reply => {
-                            let id = if matches!(reply, Reply::WrongId) {
+                            let occurrence = if matches!(reply, Reply::WrongUri) {
                                 ArtifactId::new()
                             } else {
                                 artifact_id
                             };
-                            let uri = if matches!(reply, Reply::WrongUri) {
-                                ArtifactId::new().plane_uri()
-                            } else {
-                                artifact_id.plane_uri()
+                            let metadata = veoveo_artifact_contract::ArtifactMetadata {
+                                artifact_uri: occurrence.plane_uri(),
+                                byte_len: if matches!(reply, Reply::WrongLength) {
+                                    6
+                                } else {
+                                    5
+                                },
+                                mime_type: None,
+                                filename: None,
+                                download_url: None,
+                                created_at: "2026-09-08T00:00:00Z".parse().unwrap(),
+                                release_state: Default::default(),
+                                compliance: Default::default(),
+                                metadata: serde_json::Value::Null,
                             };
-                            let length = if matches!(reply, Reply::WrongLength) {
-                                6
-                            } else {
-                                5
-                            };
-                            (
-                                200,
-                                format!(
-                                    r#"{{"artifact_id":"{id}","artifact_uri":"{uri}","byte_len":{length},"created_at":"2026-09-08T00:00:00Z"}}"#
-                                ),
-                            )
+                            let mut body = serde_json::to_value(metadata).unwrap();
+                            if matches!(reply, Reply::WrongId) {
+                                body["artifactId"] =
+                                    serde_json::to_value(ArtifactId::new()).unwrap();
+                            }
+                            (200, serde_json::to_string(&body).unwrap())
                         }
                     };
                     write!(
@@ -308,7 +313,7 @@ async fn task_capability_reauthorizes_a_reopened_cache_and_rejects_revoked_or_wr
     let endpoint = ArtifactEndpoint::with_authority(
         id,
         format!(
-            "GET /artifact-read-capabilities/{}/artifacts/{id}/meta?task_id={} HTTP/1.1",
+            "GET /artifact-read-capabilities/{}/artifacts/{id}/meta?taskId={} HTTP/1.1",
             cap.capability_id, cap.task_id
         ),
         cap.secret.expose_secret().to_owned(),

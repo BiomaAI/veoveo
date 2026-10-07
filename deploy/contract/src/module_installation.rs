@@ -6,6 +6,7 @@ use anyhow::{Context, Result, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_modules::{ModulePlanDocument, ModuleSelectionDocument};
+use veoveo_types::Vocabulary;
 
 use crate::{FirstPartyMcpServer, PlatformComponent, ResolvedPlatformSelection};
 
@@ -65,20 +66,19 @@ pub fn validate_module_plan(
             .component
             .as_ref()
             .map(|key| {
-                serde_json::from_value::<PlatformComponent>(serde_json::Value::String(
-                    key.as_str().into(),
-                ))
-                .context("module plan names an unsupported platform component")
+                PlatformComponent::ALL
+                    .iter()
+                    .copied()
+                    .find(|component| component.helm_value() == key.as_str())
+                    .context("module plan names an unsupported platform component")
             })
             .transpose()?;
         let server = binding
             .mcp_server
             .as_ref()
             .map(|key| {
-                serde_json::from_value::<FirstPartyMcpServer>(serde_json::Value::String(
-                    key.as_str().into(),
-                ))
-                .context("module plan names an unsupported hosted MCP server")
+                FirstPartyMcpServer::from_wire(key.as_str())
+                    .context("module plan names an unsupported hosted MCP server")
             })
             .transpose()?;
         let enabled = (component.is_some() || server.is_some())
@@ -112,18 +112,29 @@ mod tests {
     use super::*;
     use serde_json::{Value, json};
 
-    fn actual_fixture() -> Value {
+    fn actual_fixture(name: &str) -> Value {
         serde_json::from_slice(
             &std::fs::read(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("../../testing/fixtures/module-schema-consumer/module-plan.json"),
+                    .join("../../testing/fixtures/module-schema-consumer")
+                    .join(name),
             )
             .unwrap(),
         )
         .unwrap()
     }
-    fn platform(components: &[&str], servers: &[&str]) -> ResolvedPlatformSelection {
-        serde_json::from_value(json!({"components":components,"mcpServers":servers,"artifactAudiences":[],"gpuScheduling":null})).unwrap()
+    fn platform(
+        components: &[PlatformComponent],
+        servers: &[FirstPartyMcpServer],
+    ) -> ResolvedPlatformSelection {
+        ResolvedPlatformSelection {
+            computer_capacity: Default::default(),
+            components: components.iter().copied().collect(),
+            mcp_servers: servers.iter().copied().collect(),
+            artifact_audiences: Default::default(),
+            workloads: Default::default(),
+            gpu_scheduling: None,
+        }
     }
     fn decode(value: &Value) -> ModulePlanDocument {
         serde_json::from_value(value.clone()).unwrap()
@@ -131,10 +142,18 @@ mod tests {
 
     #[test]
     fn actual_generated_plan_checks_identity_generation_and_execution_profile() {
-        let fixture = actual_fixture();
+        let fixture = actual_fixture("module-plan.json");
         let plan = decode(&fixture);
         let selection = plan.selection().unwrap();
-        let platform = platform(&["gateway", "platform-store"], &["map"]);
+        let platform = platform(
+            &[
+                PlatformComponent::Gateway,
+                PlatformComponent::PlatformStore,
+                PlatformComponent::AgentRuntimeSupport,
+                PlatformComponent::RecordingDataPlane,
+            ],
+            &[FirstPartyMcpServer::Map, FirstPartyMcpServer::Recording],
+        );
         validate_module_plan(&plan, &selection, plan.composition().as_str(), &platform).unwrap();
         assert!(
             validate_module_plan(
@@ -167,7 +186,7 @@ mod tests {
 
     #[test]
     fn enabled_hosts_require_lanes_without_enabling_unrequested_hosts() {
-        let mut fixture = actual_fixture();
+        let mut fixture = actual_fixture("module-plan.json");
         fixture["enabled"]
             .as_array_mut()
             .unwrap()
@@ -183,7 +202,7 @@ mod tests {
                 &plan,
                 &selection,
                 plan.composition().as_str(),
-                &platform(&["gateway"], &["map"])
+                &platform(&[PlatformComponent::Gateway], &[FirstPartyMcpServer::Map])
             )
             .is_err()
         );
@@ -191,9 +210,31 @@ mod tests {
             &plan,
             &selection,
             plan.composition().as_str(),
-            &platform(&["gateway"], &[]),
+            &platform(&[PlatformComponent::Gateway], &[]),
         )
         .unwrap();
+        let kernels = decode(&actual_fixture("kernels-plan.json"));
+        let kernel_selection = kernels.selection().unwrap();
+        validate_module_plan(
+            &kernels,
+            &kernel_selection,
+            kernels.composition().as_str(),
+            &platform(&[PlatformComponent::Gateway], &[]),
+        )
+        .unwrap();
+        for component in [
+            PlatformComponent::AgentRuntimeSupport,
+            PlatformComponent::RecordingDataPlane,
+        ] {
+            let error = validate_module_plan(
+                &kernels,
+                &kernel_selection,
+                kernels.composition().as_str(),
+                &platform(&[component], &[]),
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("requires selected module"));
+        }
         // Both present keys form one conjunction. Separate rows express alternatives.
         fixture["runtimeBindings"] =
             json!([{"module":"map","component":"console","mcpServer":"map"}]);
@@ -202,7 +243,7 @@ mod tests {
             &plan,
             &selection,
             plan.composition().as_str(),
-            &platform(&["gateway"], &["map"]),
+            &platform(&[PlatformComponent::Gateway], &[FirstPartyMcpServer::Map]),
         )
         .unwrap();
         assert!(
@@ -210,20 +251,41 @@ mod tests {
                 &plan,
                 &selection,
                 plan.composition().as_str(),
-                &platform(&["gateway", "console"], &["map"])
+                &platform(
+                    &[PlatformComponent::Gateway, PlatformComponent::Console],
+                    &[FirstPartyMcpServer::Map],
+                )
             )
             .is_err()
         );
-        fixture["runtimeBindings"][0]["component"] = "invented-host".into();
-        let invalid = decode(&fixture);
-        assert!(
-            validate_module_plan(
+        for key in [
+            "invented-host",
+            "agent_runtime_support",
+            "recording_data_plane",
+        ] {
+            fixture["runtimeBindings"][0]["component"] = key.into();
+            let invalid = decode(&fixture);
+            let error = validate_module_plan(
                 &invalid,
                 &selection,
                 invalid.composition().as_str(),
-                &platform(&[], &[])
+                &platform(&[], &[]),
             )
-            .is_err()
-        );
+            .unwrap_err();
+            assert!(error.to_string().contains("unsupported platform component"));
+        }
+        fixture["runtimeBindings"][0]["component"] = "console".into();
+        for key in ["invented-server", "Map"] {
+            fixture["runtimeBindings"][0]["mcpServer"] = key.into();
+            let invalid = decode(&fixture);
+            let error = validate_module_plan(
+                &invalid,
+                &selection,
+                invalid.composition().as_str(),
+                &platform(&[], &[]),
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("unsupported hosted MCP server"));
+        }
     }
 }

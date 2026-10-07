@@ -45,6 +45,7 @@ pub struct AuthorityBinding(veoveo_types::Checked<BindingWire>);
 
 #[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct BindingWire {
     tzdb_release_id: AuthorityReleaseId,
     leap_seconds_release_id: AuthorityReleaseId,
@@ -92,9 +93,14 @@ impl From<AuthorityBinding> for BindingWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum TimeAuthoritySource {
-    Bootstrap,
+    Bootstrap {},
     Acquisition {
         source_id: TimeSourceId,
         acquisition_id: TimeAcquisitionId,
@@ -110,6 +116,8 @@ pub enum TimeAuthoritySource {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "ReferenceWire", into = "ReferenceWire")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TimeAuthorityReference {
     release_uri: TimeAuthorityReleaseUri,
     dataset_kind: AuthorityDatasetKind,
@@ -120,6 +128,7 @@ pub struct TimeAuthorityReference {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct ReferenceWire {
     release_uri: TimeAuthorityReleaseUri,
     release_id: AuthorityReleaseId,
@@ -139,7 +148,7 @@ impl TimeAuthorityReference {
         source_digest: Sha256Digest,
         version_label: String,
     ) -> Result<Self, TimeAuthorityError> {
-        if release_uri.is_bootstrap() != matches!(source, TimeAuthoritySource::Bootstrap) {
+        if release_uri.is_bootstrap() != matches!(source, TimeAuthoritySource::Bootstrap {}) {
             return Err(TimeAuthorityError::SourceLocation);
         }
         if version_label.trim().is_empty() {
@@ -214,6 +223,7 @@ pub struct EffectiveTimeAuthority(veoveo_types::Checked<EffectiveWire>);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct EffectiveWire {
     tzdb: TimeAuthorityReference,
     leap_seconds: TimeAuthorityReference,
@@ -275,10 +285,10 @@ impl JsonSchema for EffectiveTimeAuthority {
     fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
         let reference = generator.subschema_for::<TimeAuthorityReference>();
         schemars::json_schema!({
-            "type":"object", "additionalProperties":false, "required":["tzdb","leap_seconds"],
+            "type":"object", "additionalProperties":false, "required":["tzdb","leapSeconds"],
             "properties": {
-                "tzdb": {"allOf":[reference.clone(), {"properties":{"dataset_kind":{"const":AuthorityDatasetKind::Tzdb}}}]},
-                "leap_seconds": {"allOf":[reference, {"properties":{"dataset_kind":{"const":AuthorityDatasetKind::LeapSeconds}}}]}
+                "tzdb": {"allOf":[reference.clone(), {"properties":{"datasetKind":{"const":AuthorityDatasetKind::Tzdb}}}]},
+                "leapSeconds": {"allOf":[reference, {"properties":{"datasetKind":{"const":AuthorityDatasetKind::LeapSeconds}}}]}
             }
         })
     }

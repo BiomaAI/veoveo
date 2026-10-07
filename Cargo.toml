@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "testing/support",
     "agents/kernel",
     "agents/manager",
     "agents/runtime",
@@ -7,6 +8,7 @@ members = [
     "deploy/contract",
     "deploy/runtime",
     "examples/bioma/acceptance",
+    "examples/bioma/flight",
     "platform/runtimes/simulation/contract",
     "mcp/apps-extension",
     "mcp/bridges/legacy",
@@ -73,9 +75,7 @@ members = [
     "showcase/sumo/sumo-mcp",
     "testing/deployment-smoke",
     "testing/browser-smoke",
-    "testing/flight-smoke",
     "testing/fixtures/modular-mcp",
-    "testing/smoke",
     "tools/image-build/control",
     "tools/xtask",
 ]
@@ -192,6 +192,7 @@ semver = "=1.0.28"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_path_to_error = "=0.1.20"
 serde_json = "=1.0.151"
+toml = "=1.1.6"
 serde_yaml_ng = "=0.10.0"
 sguaba = { version = "0.10.4", features = ["serde"] }
 secrecy = "0.10.3"

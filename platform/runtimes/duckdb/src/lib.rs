@@ -18,3 +18,6 @@ pub use source::{
     materialize_authorized_artifact, materialize_https_source,
     materialize_https_source_with_headers,
 };
+
+#[cfg(feature = "smoke")]
+pub mod smoke;

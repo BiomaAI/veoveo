@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use veoveo_mcp_contract::{
     ArtifactReadAuthority, GatewayInternalIdentity, PrincipalKind, TokenIssuer, TokenSubject,
 };
@@ -99,30 +98,25 @@ pub struct RecordingReadPlan {
     pub layers: Vec<RecordingReadLayer>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RecordingReadSourceKind {
     CommittedLayer,
     LiveIngestPart,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RecordingReadSource {
     pub layer_id: RecordingLayerId,
     pub layer_name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub layer_ordinal: Option<i64>,
     pub kind: RecordingReadSourceKind,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub part_sequence: Option<u64>,
     pub byte_len: u64,
-    #[serde(with = "veoveo_types::sha256_hex")]
     pub sha256: Sha256Digest,
-    #[serde(skip)]
     pub path: PathBuf,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RecordingReadSnapshot {
     pub recording_id: RecordingId,
     pub dataset_id: RecordingDatasetId,

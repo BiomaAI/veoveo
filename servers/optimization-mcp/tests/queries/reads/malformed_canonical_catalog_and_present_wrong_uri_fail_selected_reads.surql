@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET result.payload.structuredContent.result_uri = 42;
+UPDATE ONLY $task SET result.payload.structuredContent.resultUri = 42;

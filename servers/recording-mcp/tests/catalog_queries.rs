@@ -238,18 +238,18 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
             .scopes
             .insert(veoveo_types::ScopeName::parse("admin:manage").unwrap());
         assert_eq!(
-            service.seal(&sealer, oldest).await.unwrap_err().to_string(),
+            service.seal(&sealer, &artifact_reader(&sealer), oldest).await.unwrap_err().to_string(),
             "Missing Recording scope `recording:seal`."
         );
         sealer.actor.scopes.insert(RecordingScope::Seal.into());
         for id in [hidden.unwrap(), foreign_id] {
             assert_eq!(
-                service.seal(&sealer, id).await.unwrap_err().to_string(),
+                service.seal(&sealer, &artifact_reader(&sealer), id).await.unwrap_err().to_string(),
                 "recording not found"
             );
         }
         assert_eq!(
-            service.seal(&sealer, oldest).await.unwrap_err().to_string(),
+            service.seal(&sealer, &artifact_reader(&sealer), oldest).await.unwrap_err().to_string(),
             "recording is not sealable from state live"
         );
 
@@ -427,7 +427,16 @@ async fn public_seal_resumes_retained_properties_without_repair_or_new_occurrenc
         .unwrap(),
     ])
     .await;
-    tokio::time::timeout(Duration::from_secs(90), seal_recovery::qualify(&db))
+    let recovery = Box::pin(seal_recovery::qualify(&db));
+    tokio::time::timeout(Duration::from_secs(90), recovery)
         .await
         .expect("Recording public seal recovery exceeded 90 seconds");
+}
+
+fn artifact_reader(identity: &GatewayInternalIdentity) -> veoveo_mcp_contract::PlaneCaller {
+    veoveo_mcp_contract::PlaneCaller {
+        identity: identity.clone(),
+        memberships: identity.actor.group_memberships(),
+        bearer_token: "recording-fixture".into(),
+    }
 }

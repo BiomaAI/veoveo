@@ -2,7 +2,7 @@ use rmcp::{
     ErrorData as McpError,
     model::{CallToolResult, ContentBlock},
 };
-use veoveo_media_mcp::contract::{MediaModelUri, ModelEntry, ModelSchemaOutputValue, ModelsArgs};
+use veoveo_media_mcp::contract::{ModelEntry, ModelSchemaOutput, ModelsArgs};
 
 pub(super) fn models_result(
     models: &[ModelEntry],
@@ -12,7 +12,7 @@ pub(super) fn models_result(
         .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
     call_result(
         format!(
-            "Found {} matching media model(s), returning {}. Use exact `model_id` values with media__run.",
+            "Found {} matching media model(s), returning {}. Use exact `modelId` values with media__run.",
             output.total_available, output.returned
         ),
         output,
@@ -20,19 +20,8 @@ pub(super) fn models_result(
 }
 
 pub(super) fn model_schema_result(model: ModelEntry) -> Result<CallToolResult, McpError> {
-    let request_schema = model.request_schema().cloned();
-    let output = ModelSchemaOutputValue {
-        model_id: model.model_id.clone(),
-        name: model.name,
-        model_type: model.model_type,
-        description: model.description,
-        base_price: model.base_price,
-        formula: model.formula,
-        schema_uri: MediaModelUri::new(model.model_id.clone()),
-        request_schema,
-    }
-    .build()
-    .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+    let output = ModelSchemaOutput::try_from(model)
+        .map_err(|error| McpError::internal_error(error.to_string(), None))?;
     call_result(
         format!(
             "Schema for {}. Pass this exact model id as `model` to media__run.",
@@ -125,6 +114,35 @@ mod tests {
             "fast image generation",
         ))
         .unwrap();
+        let wire = result.structured_content.as_ref().unwrap();
+        let schema = serde_json::to_value(schemars::schema_for!(ModelSchemaOutput)).unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        assert!(validator.is_valid(wire));
+        for (current, retired) in [
+            ("modelId", "model_id"),
+            ("basePrice", "base_price"),
+            ("schemaUri", "schema_uri"),
+            ("requestSchema", "request_schema"),
+        ] {
+            for mode in ["replacement", "mixed", "conflicting"] {
+                let mut bad = wire.clone();
+                let object = bad.as_object_mut().unwrap();
+                let value = object.get(current).cloned().unwrap();
+                if mode == "replacement" {
+                    object.remove(current);
+                }
+                object.insert(
+                    retired.into(),
+                    if mode == "conflicting" {
+                        serde_json::json!("retired-conflict")
+                    } else {
+                        value
+                    },
+                );
+                assert!(!validator.is_valid(&bad));
+                assert!(serde_json::from_value::<ModelSchemaOutput>(bad).is_err());
+            }
+        }
         let output: ModelSchemaOutput =
             serde_json::from_value(result.structured_content.unwrap()).unwrap();
         assert_eq!(output.model_id.as_str(), "wavespeed-ai/flux-schnell");
@@ -228,14 +246,61 @@ mod paging_tests {
             )
             .is_err()
         );
+        let current = serde_json::to_value(&first).unwrap();
+        for (key, old, nested) in [
+            ("nextCursor", "next_cursor", false),
+            ("totalAvailable", "total_available", false),
+            ("modelId", "model_id", true),
+            ("schemaUri", "schema_uri", true),
+        ] {
+            for mixed in [false, true] {
+                let mut bad = current.clone();
+                let object = if nested {
+                    bad["models"][0].as_object_mut().unwrap()
+                } else {
+                    bad.as_object_mut().unwrap()
+                };
+                let value = object[key].clone();
+                if !mixed {
+                    object.remove(key);
+                }
+                object.insert(old.into(), value);
+                assert!(
+                    serde_json::from_value::<ModelCatalogOutput>(bad).is_err(),
+                    "{old} mixed={mixed}"
+                );
+            }
+        }
+        use base64::Engine as _;
+        let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(first.next_cursor.as_ref().unwrap().as_str())
+            .unwrap();
+        let envelope: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(envelope["version"], 2);
+        assert!(envelope.get("modelType").is_some());
+        for mutation in 0..3 {
+            let mut bad = envelope.clone();
+            if mutation == 0 {
+                bad["version"] = 1.into();
+            } else {
+                let value = bad["modelType"].clone();
+                if mutation == 1 {
+                    bad.as_object_mut().unwrap().remove("modelType");
+                }
+                bad["model_type"] = value;
+            }
+            let wire = base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .encode(serde_json::to_vec(&bad).unwrap());
+            assert!(veoveo_media_mcp::contract::MediaModelCursor::parse(wire).is_err());
+        }
         let mut value = serde_json::to_value(&first).unwrap();
         value["returned"] = serde_json::json!(0);
         assert!(serde_json::from_value::<ModelCatalogOutput>(value).is_err());
         let mut value = serde_json::to_value(&first).unwrap();
-        value["models"][0]["schema_uri"] = serde_json::json!("media://model/foreign/model");
+        value["models"][0]["schemaUri"] = serde_json::json!("media://model/foreign/model");
         assert!(serde_json::from_value::<ModelCatalogOutput>(value).is_err());
         let mut value = serde_json::to_value(&first).unwrap();
-        value.as_object_mut().unwrap().remove("next_cursor");
+        value.as_object_mut().unwrap().remove("nextCursor");
         assert!(serde_json::from_value::<ModelCatalogOutput>(value).is_err());
         assert!(veoveo_media_mcp::contract::MediaModelCursor::parse("not-a-cursor").is_err());
         let empty = model_catalog_page(

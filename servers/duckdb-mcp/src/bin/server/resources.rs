@@ -184,7 +184,7 @@ fn workbench_html() -> String {
             veoveo_mcp_apps_extension::WorkbenchTool {
                 label: "Execute",
                 name: "execute",
-                arguments_json: r#"{"db":"","sql":"CREATE TABLE example(value INTEGER)","create_if_missing":true}"#,
+                arguments_json: r#"{"db":"","sql":"CREATE TABLE example(value INTEGER)","createIfMissing":true}"#,
             },
             veoveo_mcp_apps_extension::WorkbenchTool {
                 label: "Ingest",
@@ -218,7 +218,7 @@ mod tests {
         let schema = schema_from_rows("metrics".parse().unwrap(), rows.clone()).unwrap();
         assert_eq!(
             serde_json::to_value(schema).unwrap(),
-            serde_json::json!({"db_id":"metrics", "tables":[{"name":"a","columns":[{"name":"z","type":"INTEGER"},{"name":"b","type":"VARCHAR"}]}]})
+            serde_json::json!({"dbId":"metrics", "tables":[{"name":"a","columns":[{"name":"z","type":"INTEGER"},{"name":"b","type":"VARCHAR"}]}]})
         );
         let mut bad = rows.clone();
         bad.truncated = true;

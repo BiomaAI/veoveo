@@ -32,7 +32,10 @@ application migration. Claims identify logical owners, not tenant isolation.
 
 ## Fresh Installation And Execution
 
-Every kernel lane installs its complete current schema at version zero. Optional
+Kernel lanes retain their accepted version-zero identities. The Artifact lane
+adds the current-only request receipt format at version one; fresh installations
+execute both declarations. The new field has no default or backfill, and its
+receivers reject missing or unsupported markers before mutation. Optional
 owners supply their current schemas from their own crates. The composition selects
 those owners and prepares every selected SQL body before database writes. The runner
 records append-only lane and migration identities, rejects drift and preserves

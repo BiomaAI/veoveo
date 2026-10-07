@@ -1,31 +1,38 @@
 {
   "input": {
     "operation": "analyze",
-    "pipeline_id": "traffic-events",
     "video": {
-      "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000001",
-      "entity_path": "/camera/front",
+      "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+      "entityPath": "/camera/front",
       "timeline": "sensor_time",
       "range": {
         "start": 10,
         "end": 20
       }
     },
+    "pipelineId": "traffic-events",
     "task": {
       "kind": "detect_events",
-      "prompt": "Observe traffic"
-    }
+      "prompt": "Vehicles entering the intersection"
+    },
+    "sampling": {
+      "maxFrames": 32
+    },
+    "decode": {
+      "mode": "greedy"
+    },
+    "includeSourceClip": false
   },
-  "artifact_write_capability": {
-    "capability_id": "01983da0-0000-7000-8000-000000000004",
+  "artifactWriteCapability": {
+    "capabilityId": "01983da0-0000-7000-8000-000000000004",
     "secret": "inert_fixture_capability_not_issued_0000",
-    "task_id": "01983da0-0000-7000-8000-000000000001",
-    "expires_at": "2030-01-01T00:00:00Z"
+    "taskId": "01983da0-0000-7000-8000-000000000001",
+    "expiresAt": "2030-01-01T00:00:00Z"
   },
-  "artifact_read_capability": {
-    "capability_id": "01983da0-0000-7000-8000-000000000004",
+  "artifactReadCapability": {
+    "capabilityId": "01983da0-0000-7000-8000-000000000004",
     "secret": "inert_fixture_capability_not_issued_0000",
-    "task_id": "01983da0-0000-7000-8000-000000000001",
-    "expires_at": "2030-01-01T00:00:00Z"
+    "taskId": "01983da0-0000-7000-8000-000000000001",
+    "expiresAt": "2030-01-01T00:00:00Z"
   }
 }

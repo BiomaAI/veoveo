@@ -114,3 +114,12 @@ repository root as build context and the local SDK source, runs as UID 10001, an
 deployed as the `datasheet-mcp` domain service of the versioned `veoveo` Helm
 chart with a `Recreate` replacement strategy. Durable tasks live in the shared
 SurrealDB platform store; schema migrations remain owned by `platform/store`.
+
+## Packaged Contract Declaration
+
+The owner profile supplies every requirement in Rust's revision-1 catalog. The shared
+SDK loader validates that profile and its marked manual rendering before constructing
+the declaration; hosted revision3 is unchanged. Hatch packages the exact manuals,
+profile and generated catalog/schema with their digests. Installed loading uses only
+package artifacts and refuses stale or altered bytes. A declaration records owner
+status; pending qualification is not converted into a runtime pass.

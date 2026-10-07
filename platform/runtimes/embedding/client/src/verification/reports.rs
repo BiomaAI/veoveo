@@ -2,7 +2,9 @@
 use super::*;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use veoveo_embedding_contract::{EmbeddingQualification, EmbeddingQualificationEvidence};
+use veoveo_embedding_contract::{
+    EmbeddingPrecision, EmbeddingQualification, EmbeddingQualificationEvidence,
+};
 use veoveo_types::Sha256Digest;
 
 #[derive(Deserialize)]
@@ -26,7 +28,7 @@ struct ReferenceReport {
     passed: bool,
     vectors: usize,
     cuda_device: String,
-    reference_precision: String,
+    reference_precision: EmbeddingPrecision,
     attention_backend: String,
 }
 #[derive(Deserialize)]
@@ -194,7 +196,11 @@ fn verify_comparison(
             && (999000..=1000000).contains(&reference.minimum_cosine_millionths)
             && reference.vectors > 0
             && reference.cuda_device == profile.contents().environment.gpu.as_ref()
-            && reference.reference_precision == "bfloat16"
+            && matches!(
+                reference.reference_precision,
+                EmbeddingPrecision::Bfloat16 | EmbeddingPrecision::Float16
+            )
+            && reference.reference_precision == profile.space().precision
             && reference.attention_backend == "cudnn_attention",
     )?;
     require(

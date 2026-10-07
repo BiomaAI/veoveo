@@ -1,10 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
-use chrono::{DateTime, Utc};
 use veoveo_mcp_contract::{UsageKind, UsageRecord, now_utc};
 use veoveo_media_mcp::{
-    contract::ModelEntry,
     contract::{MediaPredictionId, MediaTaskUsageUri},
+    contract::{MediaUsageCostKind, MediaUsageMetadata, ModelEntry},
     provider::{BillingRecord, Prediction},
     state::MediaProviderJob,
 };
@@ -28,12 +27,12 @@ fn usage_estimate(
         amount: entry.base_price,
         currency: entry.base_price.map(|_| "USD".into()),
         recorded_at: now_utc(),
-        metadata: serde_json::json!({
-            "source": "model_registry",
-            "model_type": entry.model_type,
-            "formula": entry.formula,
-            "cost_kind": "estimate"
-        }),
+        metadata: serde_json::to_value(MediaUsageMetadata::ModelRegistry {
+            model_type: entry.model_type.clone(),
+            formula: entry.formula.clone(),
+            cost_kind: MediaUsageCostKind::Estimate,
+        })
+        .expect("estimate usage metadata serializes"),
     }
 }
 
@@ -42,18 +41,6 @@ fn actual_usage_record(
     prediction: &Prediction,
     billing: &BillingRecord,
 ) -> Option<UsageRecord> {
-    #[derive(serde::Serialize)]
-    struct ActualUsageMetadata<'a> {
-        source: &'static str,
-        billing_type: &'a str,
-        source_created_at: Option<DateTime<Utc>>,
-        source_updated_at: Option<DateTime<Utc>>,
-        order_id: Option<&'a str>,
-        order_state: Option<&'a str>,
-        order_status: Option<&'a str>,
-        job_status: Option<&'a str>,
-    }
-
     let amount = billing.signed_amount()?;
     Some(UsageRecord {
         task_id: task_id.to_string(),
@@ -70,27 +57,20 @@ fn actual_usage_record(
         amount: Some(amount),
         currency: Some("USD".into()),
         recorded_at: now_utc(),
-        metadata: serde_json::to_value(ActualUsageMetadata {
-            source: "billing_record",
-            billing_type: &billing.billing_type,
+        metadata: serde_json::to_value(MediaUsageMetadata::BillingRecord {
+            billing_type: billing.billing_type.clone(),
             source_created_at: billing.created_at,
             source_updated_at: billing.updated_at,
-            order_id: billing
-                .order
-                .as_ref()
-                .and_then(|order| order.uuid.as_deref()),
-            order_state: billing
-                .order
-                .as_ref()
-                .and_then(|order| order.state.as_deref()),
+            order_id: billing.order.as_ref().and_then(|order| order.uuid.clone()),
+            order_state: billing.order.as_ref().and_then(|order| order.state.clone()),
             order_status: billing
                 .order
                 .as_ref()
-                .and_then(|order| order.status.as_deref()),
+                .and_then(|order| order.status.clone()),
             job_status: billing
                 .prediction
                 .as_ref()
-                .and_then(|prediction| prediction.status.as_deref()),
+                .and_then(|prediction| prediction.status.clone()),
         })
         .expect("actual usage metadata serializes"),
     })
@@ -230,6 +210,91 @@ pub(super) async fn spawn_missing_actual_usage_reconciliations(state: Arc<AppSta
         match page.next_job_id {
             Some(next) => after = Some(next),
             None => return,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use surrealdb::types::SurrealValue;
+
+    #[test]
+    fn actual_usage_producers_emit_closed_current_metadata() {
+        let task = TaskId::new();
+        let prediction: Prediction = serde_json::from_value(
+            json!({"id":"usage-job","model":"owner/model","status":"completed"}),
+        )
+        .unwrap();
+        let model: ModelEntry = serde_json::from_value(
+            json!({"model_id":"owner/model","type":"text-to-image","base_price":0.5}),
+        )
+        .unwrap();
+        let billing: BillingRecord = serde_json::from_value(json!({"uuid":"billing-1","billing_type":"deduct","price":0.25,"order":{"uuid":"order-1","state":"upstream-state","status":"upstream-status"},"prediction":{"model_uuid":"provider-model","status":"completed"}})).unwrap();
+        let schema = serde_json::to_value(schemars::schema_for!(MediaUsageMetadata)).unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        for (usage, fields) in [
+            (
+                usage_estimate(task, &prediction.id, &model),
+                vec![("modelType", "model_type"), ("costKind", "cost_kind")],
+            ),
+            (
+                actual_usage_record(task, &prediction, &billing).unwrap(),
+                vec![
+                    ("billingType", "billing_type"),
+                    ("sourceCreatedAt", "source_created_at"),
+                    ("sourceUpdatedAt", "source_updated_at"),
+                    ("orderId", "order_id"),
+                    ("orderState", "order_state"),
+                    ("orderStatus", "order_status"),
+                    ("jobStatus", "job_status"),
+                ],
+            ),
+        ] {
+            assert!(validator.is_valid(&usage.metadata));
+            let typed = MediaUsageMetadata::from_value(
+                veoveo_platform_store::native_json_into_value(usage.metadata.clone()),
+            )
+            .unwrap();
+            assert_eq!(serde_json::to_value(typed).unwrap(), usage.metadata);
+            for (current, retired) in fields {
+                for mode in ["replacement", "mixed", "conflicting"] {
+                    let mut bad = usage.metadata.clone();
+                    let object = bad.as_object_mut().unwrap();
+                    let value = object.get(current).cloned().unwrap();
+                    if mode == "replacement" {
+                        object.remove(current);
+                    }
+                    object.insert(
+                        retired.into(),
+                        if mode == "conflicting" {
+                            json!("retired-conflict")
+                        } else {
+                            value
+                        },
+                    );
+                    assert!(!validator.is_valid(&bad));
+                    assert!(
+                        MediaUsageMetadata::from_value(
+                            veoveo_platform_store::native_json_into_value(bad)
+                        )
+                        .is_err()
+                    );
+                }
+            }
+            for bad in [
+                json!({}),
+                json!({"source":"unknown_source"}),
+                json!({"source":"model_regsitry"}),
+            ] {
+                assert!(
+                    MediaUsageMetadata::from_value(veoveo_platform_store::native_json_into_value(
+                        bad
+                    ))
+                    .is_err()
+                );
+            }
         }
     }
 }

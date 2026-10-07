@@ -40,6 +40,7 @@ pub fn server_bootstrap_principal(server: &ServerSlug) -> String {
 /// consuming server decodes it against its own `deny_unknown_fields` schema.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ServerBootstrapDocument {
     pub server: ServerSlug,
     pub tenant_key: String,
@@ -99,7 +100,7 @@ impl fmt::Display for ServerBootstrapError {
                 "bootstrap document targets server `{document}` but `{server}` is consuming it"
             ),
             Self::EmptyTenantKey => {
-                write!(formatter, "bootstrap tenant_key must not be empty")
+                write!(formatter, "bootstrap tenantKey must not be empty")
             }
         }
     }
@@ -119,7 +120,7 @@ mod tests {
     fn decode_enforces_the_target_server() {
         let bytes = serde_json::to_vec(&serde_json::json!({
             "server": "map",
-            "tenant_key": "installation",
+            "tenantKey": "installation",
             "payload": {"sources": []},
         }))
         .expect("document serializes");
@@ -136,7 +137,7 @@ mod tests {
     fn decode_rejects_blank_tenants_and_unknown_envelope_fields() {
         let blank = serde_json::to_vec(&serde_json::json!({
             "server": "map",
-            "tenant_key": "  ",
+            "tenantKey": "  ",
             "payload": {},
         }))
         .expect("document serializes");
@@ -146,7 +147,7 @@ mod tests {
         ));
         let unknown = serde_json::to_vec(&serde_json::json!({
             "server": "map",
-            "tenant_key": "installation",
+            "tenantKey": "installation",
             "payload": {},
             "sources": [],
         }))

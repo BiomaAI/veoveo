@@ -267,6 +267,7 @@ pub enum TimeUnit {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TimeBasis {
     pub origin: DateTime<Utc>,
     pub unit: TimeUnit,
@@ -274,6 +275,7 @@ pub struct TimeBasis {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TimeWindow {
     pub earliest: u32,
     pub latest: u32,
@@ -292,6 +294,7 @@ impl TimeWindow {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SolverPolicyRef {
     pub profile_uri: OptimizationProfileUri,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -302,6 +305,7 @@ pub struct SolverPolicyRef {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct QualityTarget {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relative_gap: Option<UnitInterval>,

@@ -31,7 +31,7 @@ class _IncumbentRecorder:
                         ],
                         "objective": float(solution_cost[0]),
                         "bound": float(solution_bound[0]),
-                        "found_at_seconds": max(
+                        'foundAtSeconds': max(
                             0.0, time.monotonic() - inner_self.started
                         ),
                     }
@@ -47,7 +47,7 @@ def solve_model(
 ) -> dict[str, Any]:
     from cuopt import linear_programming
 
-    needs_auxiliary = not model_data["constraint_matrix"]["values"]
+    needs_auxiliary = not model_data['constraintMatrix']["values"]
     native_data = _with_auxiliary_row(model_data) if needs_auxiliary else model_data
     model = _build_model(native_data, linear_programming)
     settings, recorder = _settings(
@@ -69,12 +69,12 @@ def solve_model(
     )
     if needs_auxiliary:
         # Solver-only dimensions never enter the public solution or warm starts.
-        result["primal_solution"] = result["primal_solution"][:-1]
+        result['primalSolution'] = result['primalSolution'][:-1]
         for incumbent in result["incumbents"]:
             incumbent["values"] = incumbent["values"][:-1]
-        row = model_data["constraint_matrix"]["rows"]
-        dual = result["dual_solution"]
-        result["dual_solution"] = dual[:row] + dual[row + 1:]
+        row = model_data['constraintMatrix']["rows"]
+        dual = result['dualSolution']
+        result['dualSolution'] = dual[:row] + dual[row + 1:]
     return result
 
 
@@ -87,42 +87,42 @@ def _with_auxiliary_row(data: dict[str, Any]) -> dict[str, Any]:
     Retire this adapter when a pinned cuOpt release qualifies empty CSR directly.
     """
     native = dict(data)
-    variable_ids = data["variable_ids"]
+    variable_ids = data['variableIds']
     auxiliary_name = "__veoveo_auxiliary"
     while auxiliary_name in variable_ids:
         auxiliary_name += "_"
     for key, value in [
-        ("variable_ids", auxiliary_name),
-        ("variable_kinds", "continuous"),
-        ("variable_lower_bounds", 0.0),
-        ("variable_upper_bounds", 0.0),
-        ("objective_coefficients", 0.0),
-        ("constraint_lower_bounds", 0.0),
-        ("constraint_upper_bounds", 0.0),
+        ('variableIds', auxiliary_name),
+        ('variableKinds', "continuous"),
+        ('variableLowerBounds', 0.0),
+        ('variableUpperBounds', 0.0),
+        ('objectiveCoefficients', 0.0),
+        ('constraintLowerBounds', 0.0),
+        ('constraintUpperBounds', 0.0),
     ]:
         native[key] = [*data[key], value]
-    matrix = data["constraint_matrix"]
-    native["constraint_matrix"] = {
+    matrix = data['constraintMatrix']
+    native['constraintMatrix'] = {
         "rows": matrix["rows"] + 1,
         "columns": matrix["columns"] + 1,
         "offsets": [*matrix["offsets"], 1],
         "indices": [matrix["columns"]],
         "values": [1.0],
     }
-    if data.get("quadratic_objective") is not None:
-        quadratic = data["quadratic_objective"]
-        native["quadratic_objective"] = {
+    if data.get('quadraticObjective') is not None:
+        quadratic = data['quadraticObjective']
+        native['quadraticObjective'] = {
             **quadratic,
             "rows": quadratic["rows"] + 1,
             "columns": quadratic["columns"] + 1,
             "offsets": [*quadratic["offsets"], quadratic["offsets"][-1]],
         }
-    if data.get("initial_primal_solution") is not None:
-        native["initial_primal_solution"] = [*data["initial_primal_solution"], 0.0]
-    if data.get("initial_dual_solution") is not None:
+    if data.get('initialPrimalSolution') is not None:
+        native['initialPrimalSolution'] = [*data['initialPrimalSolution'], 0.0]
+    if data.get('initialDualSolution') is not None:
         row = matrix["rows"]
-        dual = data["initial_dual_solution"]
-        native["initial_dual_solution"] = [*dual[:row], 0.0, *dual[row:]]
+        dual = data['initialDualSolution']
+        native['initialDualSolution'] = [*dual[:row], 0.0, *dual[row:]]
     return native
 
 
@@ -155,29 +155,29 @@ def _build_model(
     data: dict[str, Any], linear_programming: Any
 ) -> Any:
     model = linear_programming.DataModel()
-    constraint_matrix = data["constraint_matrix"]
+    constraint_matrix = data['constraintMatrix']
     model.set_csr_constraint_matrix(
         np.asarray(constraint_matrix["values"], dtype=np.float64),
         np.asarray(constraint_matrix["indices"], dtype=np.int32),
         np.asarray(constraint_matrix["offsets"], dtype=np.int32),
     )
     model.set_constraint_lower_bounds(
-        _bounds(data["constraint_lower_bounds"], lower=True)
+        _bounds(data['constraintLowerBounds'], lower=True)
     )
     model.set_constraint_upper_bounds(
-        _bounds(data["constraint_upper_bounds"], lower=False)
+        _bounds(data['constraintUpperBounds'], lower=False)
     )
     model.set_variable_lower_bounds(
-        _bounds(data["variable_lower_bounds"], lower=True)
+        _bounds(data['variableLowerBounds'], lower=True)
     )
     model.set_variable_upper_bounds(
-        _bounds(data["variable_upper_bounds"], lower=False)
+        _bounds(data['variableUpperBounds'], lower=False)
     )
     model.set_objective_coefficients(
-        np.asarray(data["objective_coefficients"], dtype=np.float64)
+        np.asarray(data['objectiveCoefficients'], dtype=np.float64)
     )
-    model.set_objective_offset(float(data["objective_offset"]))
-    model.set_maximize(data["objective_direction"] == "maximize")
+    model.set_objective_offset(float(data['objectiveOffset']))
+    model.set_maximize(data['objectiveDirection'] == "maximize")
     model.set_variable_types(
         np.asarray(
             [
@@ -186,29 +186,29 @@ def _build_model(
                     "integer": "I",
                     "semi_continuous": "S",
                 }[kind]
-                for kind in data["variable_kinds"]
+                for kind in data['variableKinds']
             ],
             dtype="U1",
         )
     )
     model.set_variable_names(
-        np.asarray(data["variable_ids"], dtype="U")
+        np.asarray(data['variableIds'], dtype="U")
     )
-    if data.get("quadratic_objective") is not None:
-        quadratic = data["quadratic_objective"]
+    if data.get('quadraticObjective') is not None:
+        quadratic = data['quadraticObjective']
         model.set_quadratic_objective_matrix(
             np.asarray(quadratic["values"], dtype=np.float64),
             np.asarray(quadratic["indices"], dtype=np.int32),
             np.asarray(quadratic["offsets"], dtype=np.int32),
         )
-    for constraint in data.get("quadratic_constraints", []):
+    for constraint in data.get('quadraticConstraints', []):
         model.add_quadratic_constraint(
-            constraint_row_name=constraint["constraint_id"],
+            constraint_row_name=constraint['constraintId'],
             linear_values=np.asarray(
-                constraint["linear_values"], dtype=np.float64
+                constraint['linearValues'], dtype=np.float64
             ),
             linear_indices=np.asarray(
-                constraint["linear_indices"], dtype=np.int32
+                constraint['linearIndices'], dtype=np.int32
             ),
             rhs_value=float(constraint["rhs"]),
             vals=np.asarray(constraint["values"], dtype=np.float64),
@@ -220,15 +220,15 @@ def _build_model(
                 else "G"
             ),
         )
-    if data.get("initial_primal_solution") is not None:
+    if data.get('initialPrimalSolution') is not None:
         model.set_initial_primal_solution(
             np.asarray(
-                data["initial_primal_solution"], dtype=np.float64
+                data['initialPrimalSolution'], dtype=np.float64
             )
         )
-    if data.get("initial_dual_solution") is not None:
+    if data.get('initialDualSolution') is not None:
         model.set_initial_dual_solution(
-            np.asarray(data["initial_dual_solution"], dtype=np.float64)
+            np.asarray(data['initialDualSolution'], dtype=np.float64)
         )
     return model
 
@@ -242,8 +242,8 @@ def _bounds(values: list[float | None], lower: bool) -> np.ndarray:
 
 
 def _requires_barrier(data: dict[str, Any]) -> bool:
-    return data.get("quadratic_objective") is not None or bool(
-        data.get("quadratic_constraints")
+    return data.get('quadraticObjective') is not None or bool(
+        data.get('quadraticConstraints')
     )
 
 
@@ -257,7 +257,7 @@ def _settings(
     settings = linear_programming.SolverSettings()
     selected = profile[family]
     settings.set_parameter(
-        "time_limit", float(selected["time_limit_seconds"])
+        "time_limit", float(selected['timeLimitSeconds'])
     )
     settings.set_parameter(
         "presolve",
@@ -276,20 +276,20 @@ def _settings(
             ),
         )
         settings.set_optimality_tolerance(
-            float(selected["optimality_tolerance"])
+            float(selected['optimalityTolerance'])
         )
     else:
         settings.set_parameter(
-            "mip_relative_gap", float(selected["relative_gap"])
+            "mip_relative_gap", float(selected['relativeGap'])
         )
         settings.set_parameter(
-            "mip_absolute_gap", float(selected["absolute_gap"])
+            "mip_absolute_gap", float(selected['absoluteGap'])
         )
         settings.set_parameter(
             "mip_integrality_tolerance",
-            float(selected["integrality_tolerance"]),
+            float(selected['integralityTolerance']),
         )
-        if selected.get("retain_incumbents", False):
+        if selected.get('retainIncumbents', False):
             from cuopt.linear_programming.internals import GetSolutionCallback
 
             recorder = _IncumbentRecorder(GetSolutionCallback)
@@ -331,22 +331,22 @@ def _solution(
     return {
         "family": family,
         "status": status,
-        "primal_solution": primal,
-        "dual_solution": dual,
-        "primal_objective": _optional_number(
+        'primalSolution': primal,
+        'dualSolution': dual,
+        'primalObjective': _optional_number(
             solution, "get_primal_objective"
         ),
-        "dual_objective": _optional_number(
+        'dualObjective': _optional_number(
             solution, "get_dual_objective"
         ),
-        "best_bound": finite_or_none(milp_stats.get("solution_bound")),
-        "relative_gap": _non_negative_or_none(
+        'bestBound': finite_or_none(milp_stats.get("solution_bound")),
+        'relativeGap': _non_negative_or_none(
             milp_stats.get("mip_gap")
         ),
-        "primal_residual": _non_negative_or_none(
+        'primalResidual': _non_negative_or_none(
             lp_stats.get("primal_residual")
         ),
-        "dual_residual": _non_negative_or_none(
+        'dualResidual': _non_negative_or_none(
             lp_stats.get("dual_residual")
         ),
         "iterations": _integer_or_none(
@@ -357,7 +357,7 @@ def _solution(
         ),
         "nodes": _integer_or_none(milp_stats.get("num_nodes")),
         "incumbents": incumbents,
-        "solve_seconds": float(max(0.0, elapsed)),
+        'solveSeconds': float(max(0.0, elapsed)),
     }
 
 

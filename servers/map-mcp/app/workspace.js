@@ -17,10 +17,10 @@ const bridge = createBridge();
 const state = {
   access: /** @type {import("./generated/map").AppContracts["workspace"]} */ ({
     administration: false,
-    dataset_read: false,
-    feature_read: false,
-    feature_write: false,
-    feature_publish: false,
+    datasetRead: false,
+    featureRead: false,
+    featureWrite: false,
+    featurePublish: false,
     basemap: null,
   }),
   layers: /** @type {import("./generated/map").AppContracts["layers"]["items"]} */ ([]),
@@ -29,7 +29,7 @@ const state = {
   styles: /** @type {Map<string,import("./generated/map").AppContracts["style"]>} */ (new Map()),
   sources: /** @type {import("./generated/map").AppContracts["sources"]["items"]} */ ([]),
   datasets: /** @type {import("./generated/map").AppContracts["datasets"]["items"]} */ ([]),
-  activeReleases: /** @type {import("./generated/map").AppContracts["active_releases"]} */ ([]),
+  activeReleases: /** @type {import("./generated/map").AppContracts["activeReleases"]} */ ([]),
   acquisitions: /** @type {import("./generated/map").AppContracts["acquisitions"]["items"]} */ ([]),
   profiles: /** @type {import("./generated/map").AppContracts["profiles"]["items"]} */ ([]),
   entries: new Map(),
@@ -101,12 +101,8 @@ function toolFailureText(result, name) {
 
 async function toolRaw(name, args) {
   const result = toolEnvelope(await bridge.request("tools/call", { name, arguments: args }));
-  if (result && (result.isError || result.is_error)) throw new Error(toolFailureText(result, name));
+  if (result && result.isError) throw new Error(toolFailureText(result, name));
   return result;
-}
-
-function structured(result) {
-  return result && (result.structuredContent || result.structured_content) || result;
 }
 
 /** @template {keyof typeof import("./contracts.js").tools} N @param {N} name @param {Record<string,unknown>} args @returns {Promise<import("./generated/map").AppContracts[(typeof import("./contracts.js").tools)[N]]>} */
@@ -135,38 +131,38 @@ async function taskTool(name, args, onProgress = () => {}) {
   if (status === "failed") throw new Error(statusMessage || `${name} task failed`);
   if (status === "cancelled") throw new Error(`${name} task was cancelled`);
   const result = snapshot.result || {};
-  if (result.isError || result.is_error) throw new Error(toolFailureText(result, name));
+  if (result.isError) throw new Error(toolFailureText(result, name));
   return toolValue(name,structuredResult(result),args);
 }
 
 /** @param {ParentNode} [root] */
 function applyAccessVisibility(root = document) {
-  root.querySelectorAll("[data-feature-write]").forEach((item) => { if(item instanceof HTMLElement)item.hidden = !state.access.feature_write; });
+  root.querySelectorAll("[data-feature-write]").forEach((item) => { if(item instanceof HTMLElement)item.hidden = !state.access.featureWrite; });
   root.querySelectorAll("[data-admin]").forEach((item) => { if(item instanceof HTMLElement)item.hidden = !state.access.administration; });
 }
 
 function renderAccess() {
   const permissions = [
-    ["features", state.access.feature_read],
-    ["datasets", state.access.dataset_read],
-    ["write", state.access.feature_write],
-    ["publish", state.access.feature_publish],
+    ["features", state.access.featureRead],
+    ["datasets", state.access.datasetRead],
+    ["write", state.access.featureWrite],
+    ["publish", state.access.featurePublish],
     ["admin", state.access.administration],
   ];
   el("access").replaceChildren(...permissions.map(([label, enabled]) =>
     node("span", label, `chip ${enabled ? "on" : ""}`)));
-  const admitted = state.access.dataset_read || state.access.feature_read || state.access.administration;
+  const admitted = state.access.datasetRead || state.access.featureRead || state.access.administration;
   el("workspace").hidden = !admitted;
   el("permission-note").hidden = admitted;
-  el("add-data").hidden = !state.access.feature_write && !state.access.administration;
+  el("add-data").hidden = !state.access.featureWrite && !state.access.administration;
   applyAccessVisibility();
 }
 
 function latestPublication(layerId) {
   return state.publications
-    .filter((publication) => publication.layer_id === layerId)
-    .sort((left, right) => right.layer_revision - left.layer_revision ||
-      String(right.published_at || "").localeCompare(String(left.published_at || "")))[0];
+    .filter((publication) => publication.layerId === layerId)
+    .sort((left, right) => right.layerRevision - left.layerRevision ||
+      String(right.publishedAt || "").localeCompare(String(left.publishedAt || "")))[0];
 }
 
 function allDatasetReleases() {
@@ -174,38 +170,38 @@ function allDatasetReleases() {
 }
 
 function activeReleaseEntries() {
-  if (!state.access.dataset_read) return [];
+  if (!state.access.datasetRead) return [];
   return state.activeReleases.map(({pointer,release}) => {
-    const source = state.sources.find((candidate) => candidate.source_id === release.source_id);
+    const source = state.sources.find((candidate) => candidate.sourceId === release.sourceId);
     return { pointer, release, source };
   });
 }
 
 function composition() {
-  return state.compositions.find((candidate) => candidate.composition_id === state.selectedCompositionId);
+  return state.compositions.find((candidate) => candidate.compositionId === state.selectedCompositionId);
 }
 
 async function rebuildEntries() {
   const previous = state.entries;
   const next = new Map();
   if (!state.compositionChoiceInitialized) {
-    state.selectedCompositionId = state.compositions[0]?.composition_id || "live";
+    state.selectedCompositionId = state.compositions[0]?.compositionId || "live";
     state.compositionChoiceInitialized = true;
   }
   const selectedComposition = composition();
   const compositionLayers = new Map((selectedComposition?.current?.layers || [])
-    .map((entry) => [entry.layer_id, entry]));
+    .map((entry) => [entry.layerId, entry]));
 
   for (const [index, layer] of state.layers.entries()) {
-    const key = `authored:${layer.layer_id}`;
+    const key = `authored:${layer.layerId}`;
     const old = previous.get(key);
-    const pinned = compositionLayers.get(layer.layer_id);
+    const pinned = compositionLayers.get(layer.layerId);
     const publication = pinned
-      ? state.publications.find((candidate) => candidate.publication_id === pinned.publication_id)
-      : latestPublication(layer.layer_id);
+      ? state.publications.find((candidate) => candidate.publicationId === pinned.publicationId)
+      : latestPublication(layer.layerId);
     let style = layer.style || null;
-    const styleId = pinned?.style_revision_id || publication?.style_revision_id;
-    if (styleId && (!style || style.style_revision_id !== styleId)) {
+    const styleId = pinned?.styleRevisionId || publication?.styleRevisionId;
+    if (styleId && (!style || style.styleRevisionId !== styleId)) {
       if (!state.styles.has(styleId)) {
         state.styles.set(styleId, await read(`map://feature-style/${styleId}`,"style"));
       }
@@ -215,10 +211,10 @@ async function rebuildEntries() {
       key,
       kind: "authored",
       title: layer.title,
-      subtitle: pinned ? `saved publication · r${publication?.layer_revision || "?"}`
-        : publication?.layer_revision === layer.revision ? `published · r${layer.revision}` : `current head · r${layer.revision}`,
+      subtitle: pinned ? `saved publication · r${publication?.layerRevision || "?"}`
+        : publication?.layerRevision === layer.revision ? `published · r${layer.revision}` : `current head · r${layer.revision}`,
       layer,
-      publicationId: pinned?.publication_id || null,
+      publicationId: pinned?.publicationId || null,
       publication,
       style,
       opacity: pinned?.opacity ?? old?.opacity ?? 1,
@@ -233,13 +229,13 @@ async function rebuildEntries() {
   }
 
   for (const [index, item] of activeReleaseEntries().entries()) {
-    const key = `source:${item.release.release_id}`;
+    const key = `source:${item.release.releaseId}`;
     const old = previous.get(key);
     next.set(key, {
       key,
       kind: "source",
-      title: item.source?.name || item.release.version_label || item.release.release_id,
-      subtitle: `active source · ${item.release.version_label}`,
+      title: item.source?.name || item.release.versionLabel || item.release.releaseId,
+      subtitle: `active source · ${item.release.versionLabel}`,
       source: item.source,
       release: item.release,
       pointer: item.pointer,
@@ -307,7 +303,7 @@ function renderCatalog() {
   const sources = filteredEntries("source");
   el("authored-count").textContent = String(authored.length);
   el("source-layer-count").textContent = String(sources.length);
-  el("source-section").hidden = !state.access.dataset_read;
+  el("source-section").hidden = !state.access.datasetRead;
   renderCatalogList("authored-list", authored, "No authored feature layers.");
   renderCatalogList("source-layer-list", sources, "No active source releases.");
   const visible = [...state.entries.values()].filter((entry) => entry.enabled).length;
@@ -322,11 +318,11 @@ function renderCompositionOptions() {
   live.value = "live";
   select.replaceChildren(live, ...state.compositions.map((item) => {
     const option = node("option", `${item.title} · r${item.current.revision}`);
-    option.value = item.composition_id;
+    option.value = item.compositionId;
     return option;
   }));
-  state.selectedCompositionId = prior === "live" || state.compositions.some((item) => item.composition_id === prior)
-    ? prior : (state.compositions[0]?.composition_id || "live");
+  state.selectedCompositionId = prior === "live" || state.compositions.some((item) => item.compositionId === prior)
+    ? prior : (state.compositions[0]?.compositionId || "live");
   select.value = state.selectedCompositionId;
   el("composition-count").textContent = String(state.compositions.length);
   const selected = composition();
@@ -410,7 +406,7 @@ function fallbackStyle(theme) {
 
 function basemapStyleUrl(theme) {
   const basemap = state.access?.basemap;
-  return theme === "dark" ? basemap?.dark_style_url : basemap?.light_style_url;
+  return theme === "dark" ? basemap?.darkStyleUrl : basemap?.lightStyleUrl;
 }
 
 function waitForMapEvent(eventName, timeoutMs = 10000) {
@@ -592,8 +588,8 @@ function clearInstalledEntries() {
 
 function styleRule(entry, geometry) {
   const rules = entry.style?.style?.rules || [];
-  return rules.find((rule) => geometryKind(rule.geometry_type) === geometry)
-    || rules.find((rule) => !rule.geometry_type) || {};
+  return rules.find((rule) => geometryKind(rule.geometryType) === geometry)
+    || rules.find((rule) => !rule.geometryType) || {};
 }
 
 function geometryKind(value) {
@@ -625,15 +621,15 @@ function installEntryLayer(entry, index, type) {
   const geometry = type === "fill" ? "polygon" : type === "circle" ? "point" : "line";
   const rule = styleRule(entry, geometry);
   const paint = type === "fill" ? {
-    "fill-color": rule.fill_color || entry.color,
-    "fill-opacity": (rule.fill_opacity ?? 0.3) * entry.opacity,
+    "fill-color": rule.fillColor || entry.color,
+    "fill-opacity": (rule.fillOpacity ?? 0.3) * entry.opacity,
   } : type === "line" ? {
-    "line-color": rule.line_color || entry.color,
-    "line-width": rule.line_width_px || (entry.kind === "source" ? 1.6 : 2.5),
+    "line-color": rule.lineColor || entry.color,
+    "line-width": rule.lineWidthPx || (entry.kind === "source" ? 1.6 : 2.5),
     "line-opacity": entry.opacity,
   } : {
-    "circle-color": rule.circle_color || entry.color,
-    "circle-radius": rule.circle_radius_px || (entry.kind === "source" ? 4 : 5.5),
+    "circle-color": rule.circleColor || entry.color,
+    "circle-radius": rule.circleRadiusPx || (entry.kind === "source" ? 4 : 5.5),
     "circle-opacity": entry.opacity,
     "circle-stroke-color": css("--panel"),
     "circle-stroke-width": 1,
@@ -643,8 +639,8 @@ function installEntryLayer(entry, index, type) {
     id,
     source: entry.sourceId,
     type,
-    minzoom: rule.minimum_zoom ?? 0,
-    maxzoom: rule.maximum_zoom ?? 24,
+    minzoom: rule.minimumZoom ?? 0,
+    maxzoom: rule.maximumZoom ?? 24,
     filter: ["==", ["geometry-type"], filterType],
     paint,
     layout: { visibility: entry.enabled ? "visible" : "none" },
@@ -668,10 +664,10 @@ function applyInitialView() {
 function jumpToComposition(selected) {
   const view = selected.current.view;
   state.map.jumpTo({
-    center: [view.center.longitude_deg, view.center.latitude_deg],
+    center: [view.center.longitudeDeg, view.center.latitudeDeg],
     zoom: view.zoom,
-    bearing: view.bearing_deg,
-    pitch: view.pitch_deg,
+    bearing: view.bearingDeg,
+    pitch: view.pitchDeg,
   });
 }
 
@@ -712,9 +708,9 @@ function asAuthoredGeoFeature(feature, entry) {
       _workspace_key: entry.key,
       _feature_id: feature.id,
       _title: feature.title || "",
-      _semantic_type: feature.featureType || feature.semantic_type || "feature",
-      _layer_id: feature.layer_id,
-      _feature_revision: feature.feature_revision,
+      _semantic_type: feature.featureType || feature.semanticType || "feature",
+      _layer_id: feature.layerId,
+      _feature_revision: feature.featureRevision,
     },
   };
 }
@@ -723,17 +719,17 @@ function asSourceGeoFeature(match, entry) {
   const feature = match.feature || match;
   return {
     type: "Feature",
-    id: feature.feature_id,
+    id: feature.featureId,
     geometry: feature.geometry,
     properties: {
-      ...feature.normalized_tags,
+      ...feature.normalizedTags,
       _workspace_key: entry.key,
-      _feature_id: feature.feature_id,
-      _title: feature.normalized_tags?.name || feature.source_element_id || "",
-      _semantic_type: feature.representation || feature.source_element_type || "feature",
-      _source_id: feature.source_id,
-      _release_id: feature.release_id,
-      _source_element_id: feature.source_element_id,
+      _feature_id: feature.featureId,
+      _title: feature.normalizedTags?.name || feature.sourceElementId || "",
+      _semantic_type: feature.representation || feature.sourceElementType || "feature",
+      _source_id: feature.sourceId,
+      _release_id: feature.releaseId,
+      _source_element_id: feature.sourceElementId,
     },
   };
 }
@@ -743,13 +739,13 @@ async function queryAuthoredEntry(entry, bbox, generation) {
   const seenCursors = new Set();
   let cursor;
   do {
-    const request = { layer_id: entry.layer.layer_id, bbox, limit: 1000 };
-    if (entry.publicationId) request.publication_id = entry.publicationId;
+    const request = { layerId: entry.layer.layerId, bbox, limit: 1000 };
+    if (entry.publicationId) request.publicationId = entry.publicationId;
     if (cursor) request.cursor = cursor;
     const output = await tool("query_features", request);
     if (generation !== state.queryGeneration) return null;
     features.push(...(output.features || []).map((feature) => asAuthoredGeoFeature(feature, entry)));
-    cursor = output.next_cursor;
+    cursor = output.nextCursor;
     if(cursor && seenCursors.has(cursor)) throw new Error("Feature cursor did not advance");
     if(cursor) seenCursors.add(cursor);
   } while (cursor && features.length < MAX_AUTHORED_VIEW_FEATURES);
@@ -763,8 +759,8 @@ async function querySourceEntry(entry, bbox, generation) {
   let cursor;
   do {
     const request = {
-      release_id: entry.release.release_id,
-      source_id: entry.release.source_id,
+      releaseId: entry.release.releaseId,
+      sourceId: entry.release.sourceId,
       spatial: { kind: "bounding_box", bounds: bbox },
       limit: 500,
     };
@@ -772,7 +768,7 @@ async function querySourceEntry(entry, bbox, generation) {
     const output = await tool("query_source_features", request);
     if (generation !== state.queryGeneration) return null;
     features.push(...(output.features || []).map((feature) => asSourceGeoFeature(feature, entry)));
-    cursor = output.next_cursor;
+    cursor = output.nextCursor;
     if(cursor && seenCursors.has(cursor)) throw new Error("Feature cursor did not advance");
     if(cursor) seenCursors.add(cursor);
   } while (cursor && features.length < MAX_SOURCE_VIEW_FEATURES);
@@ -959,41 +955,41 @@ function renderEntryInspector(entry) {
   const visibility = node("button", entry.enabled ? "Hide" : "Show");
   visibility.addEventListener("click", () => setEntryVisibility(entry.key, !entry.enabled));
   actions.append(zoom, visibility);
-  if (entry.kind === "authored" && state.access.feature_write) {
+  if (entry.kind === "authored" && state.access.featureWrite) {
     const add = node("button", "Draw feature");
-    add.addEventListener("click", () => showAction("add-feature", entry.layer.layer_id));
+    add.addEventListener("click", () => showAction("add-feature", entry.layer.layerId));
     const importButton = node("button", "Import artifact");
-    importButton.addEventListener("click", () => showAction("import-artifact", entry.layer.layer_id));
+    importButton.addEventListener("click", () => showAction("import-artifact", entry.layer.layerId));
     actions.append(add, importButton);
   }
-  if (entry.kind === "authored" && state.access.feature_publish) {
+  if (entry.kind === "authored" && state.access.featurePublish) {
     const publish = node("button", "Publish current", "primary");
-    publish.disabled = entry.publication?.layer_revision === entry.layer.revision;
+    publish.disabled = entry.publication?.layerRevision === entry.layer.revision;
     publish.addEventListener("click", () => void publishEntry(entry));
     actions.append(publish);
   }
   if (entry.kind === "source" && state.access.administration) {
     const acquire = node("button", "New acquisition");
-    acquire.addEventListener("click", () => showAction("acquire-source", entry.release.source_id));
+    acquire.addEventListener("click", () => showAction("acquire-source", entry.release.sourceId));
     actions.append(acquire);
   }
   heading.append(actions);
   body.append(heading);
   if (entry.error) appendDetail(body, "Preview unavailable", entry.error);
   if (entry.kind === "authored") {
-    appendDetail(body, "Identity", entry.layer.layer_id, true);
-    appendDetail(body, "Content class", entry.layer.content_class);
+    appendDetail(body, "Identity", entry.layer.layerId, true);
+    appendDetail(body, "Content class", entry.layer.contentClass);
     appendDetail(body, "Layer revision", entry.layer.revision);
-    appendDetail(body, "Publication", entry.publicationId || entry.publication?.publication_id || "Not published", true);
+    appendDetail(body, "Publication", entry.publicationId || entry.publication?.publicationId || "Not published", true);
     appendDetail(body, "Visible records", `${entry.count}${entry.truncated ? "+" : ""}`);
     const advanced = document.createElement("details");
     advanced.innerHTML = `<summary>Advanced layer record</summary><pre class="mono"></pre>`;
     advanced.querySelector("pre").textContent = JSON.stringify(entry.layer, null, 2);
     body.append(advanced);
   } else {
-    appendDetail(body, "Release", entry.release.release_id, true);
-    appendDetail(body, "Source", entry.release.source_id, true);
-    appendDetail(body, "Version", entry.release.version_label);
+    appendDetail(body, "Release", entry.release.releaseId, true);
+    appendDetail(body, "Source", entry.release.sourceId, true);
+    appendDetail(body, "Version", entry.release.versionLabel);
     appendDetail(body, "Coverage", formatBounds(entry.release.coverage));
     appendDetail(body, "Attribution", entry.release.license?.attribution || "—");
     appendDetail(body, "Visible records", `${entry.count}${entry.truncated ? "+" : ""}`);
@@ -1088,11 +1084,11 @@ function bindActionLinks(root) {
 function layerOptions(select, preferredId) {
   select.replaceChildren(...state.layers.map((layer) => {
     const option = node("option", `${layer.title} · r${layer.revision}`);
-    option.value = layer.layer_id;
+    option.value = layer.layerId;
     return option;
   }));
-  if (preferredId && state.layers.some((layer) => layer.layer_id === preferredId)) select.value = preferredId;
-  else if (selectedEntry()?.kind === "authored") select.value = selectedEntry().layer.layer_id;
+  if (preferredId && state.layers.some((layer) => layer.layerId === preferredId)) select.value = preferredId;
+  else if (selectedEntry()?.kind === "authored") select.value = selectedEntry().layer.layerId;
 }
 
 function bindCreateLayer(root) {
@@ -1104,15 +1100,15 @@ function bindCreateLayer(root) {
       const styleText = el("new-layer-style").value.trim();
       const request = {
         title: el("new-layer-title").value.trim(),
-        content_class: el("new-layer-class").value,
-        property_schema: schema,
+        contentClass: el("new-layer-class").value,
+        propertySchema: schema,
       };
       const description = el("new-layer-description").value.trim();
       if (description) request.description = description;
       if (styleText) request.style = JSON.parse(styleText);
       const layer = await tool("create_feature_layer", request);
       await refreshAll();
-      selectEntry(`authored:${layer.layer_id}`);
+      selectEntry(`authored:${layer.layerId}`);
       setStatus(`Created ${layer.title}.`, "good");
     });
   });
@@ -1155,10 +1151,10 @@ function featureInput() {
   return {
     geometry: state.featureDraft.geometry,
     properties: propertyFormValue(),
-    semantic_type: semanticType,
+    semanticType: semanticType,
     title,
-    related_resources: [],
-    evidence_resources: [],
+    relatedResources: [],
+    evidenceResources: [],
   };
 }
 
@@ -1167,10 +1163,10 @@ function syncAdvancedFeatureJson() {
   const draft = {
     geometry: state.featureDraft.geometry,
     properties: propertyFormValue(),
-    semantic_type: el("feature-semantic-type").value.trim(),
+    semanticType: el("feature-semantic-type").value.trim(),
     title: el("feature-title").value.trim(),
-    related_resources: [],
-    evidence_resources: [],
+    relatedResources: [],
+    evidenceResources: [],
   };
   el("feature-json-advanced").value = JSON.stringify(draft, null, 2);
 }
@@ -1193,7 +1189,7 @@ function bindAddFeature(root, preferredId) {
     const input = JSON.parse(el("feature-json-advanced").value);
     state.featureDraft.geometry = input.geometry || null;
     el("feature-title").value = input.title || "";
-    el("feature-semantic-type").value = input.semantic_type || input.featureType || "";
+    el("feature-semantic-type").value = input.semanticType || input.featureType || "";
     el("property-rows").replaceChildren();
     for (const [key, value] of Object.entries(input.properties || {})) addPropertyRow(key, value);
     if (!Object.keys(input.properties || {}).length) addPropertyRow();
@@ -1209,7 +1205,7 @@ function bindAddFeature(root, preferredId) {
 }
 
 function selectedFormLayer(selectId) {
-  const layer = state.layers.find((candidate) => candidate.layer_id === input(selectId).value);
+  const layer = state.layers.find((candidate) => candidate.layerId === input(selectId).value);
   if (!layer) throw new Error("Choose an authored destination layer.");
   return layer;
 }
@@ -1217,8 +1213,8 @@ function selectedFormLayer(selectId) {
 function featureMutationRequest() {
   const layer = selectedFormLayer("feature-layer");
   return {
-    layer_id: layer.layer_id,
-    expected_layer_revision: layer.revision,
+    layerId: layer.layerId,
+    expectedLayerRevision: layer.revision,
     mutations: [{ action: "create", feature: featureInput() }],
   };
 }
@@ -1234,12 +1230,12 @@ async function validateFeature() {
 async function commitFeature() {
   await runAction(async () => {
     const request = featureMutationRequest();
-    request.idempotency_key = uuid();
+    request.idempotencyKey = uuid();
     const output = await tool("commit_feature_changes", request);
     const featureId = output.features?.[0]?.id;
     await refreshAll();
-    selectEntry(`authored:${request.layer_id}`);
-    if (featureId) selectFeature(`authored:${request.layer_id}`, featureId);
+    selectEntry(`authored:${request.layerId}`);
+    if (featureId) selectFeature(`authored:${request.layerId}`, featureId);
     setStatus("Feature committed to the authored layer.", "good");
   });
 }
@@ -1289,13 +1285,13 @@ async function inspectGeoPackage() {
     const artifactId = el("import-artifact-id").value.trim();
     if (!artifactId) throw new Error("Enter an artifact ID first.");
     el("import-progress").textContent = "Inspecting GeoPackage…";
-    const output = await taskTool("inspect_geopackage", { source_artifact_id: artifactId }, (status, message) => {
+    const output = await taskTool("inspect_geopackage", { sourceArtifactId: artifactId }, (status, message) => {
       el("import-progress").textContent = `GeoPackage inspection ${status}${message ? ` · ${message}` : ""}`;
     });
     state.geopackageManifest = output.manifest;
-    const tables = output.manifest?.feature_tables || [];
+    const tables = output.manifest?.featureTables || [];
     el("geopackage-table").replaceChildren(...tables.map((table) => {
-      const option = node("option", `${table.identifier || table.table} · ${table.feature_count} features`);
+      const option = node("option", `${table.identifier || table.table} · ${table.featureCount} features`);
       option.value = table.table;
       return option;
     }));
@@ -1306,9 +1302,9 @@ async function inspectGeoPackage() {
 
 function renderGeoPackageTable() {
   if (!state.geopackageManifest) return;
-  const table = state.geopackageManifest.feature_tables.find((candidate) => candidate.table === el("geopackage-table").value);
+  const table = state.geopackageManifest.featureTables.find((candidate) => candidate.table === el("geopackage-table").value);
   if (!table) return;
-  el("geopackage-summary").textContent = `${table.geometry_type} · ${table.feature_count} features · ${table.crs_name || `SRS ${table.srs_id}`} · ${table.has_spatial_index ? "spatial index present" : "no declared spatial index"}${table.extent_wgs84 ? ` · ${formatBounds(table.extent_wgs84)}` : ""}`;
+  el("geopackage-summary").textContent = `${table.geometryType} · ${table.featureCount} features · ${table.crsName || `SRS ${table.srsId}`} · ${table.hasSpatialIndex ? "spatial index present" : "no declared spatial index"}${table.extentWgs84 ? ` · ${formatBounds(table.extentWgs84)}` : ""}`;
   const optional = (label) => {
     const option = node("option", label);
     option.value = "";
@@ -1316,7 +1312,7 @@ function renderGeoPackageTable() {
   };
   for (const id of ["geopackage-identity", "geopackage-semantic", "geopackage-title"]) {
     el(id).replaceChildren(optional("Not mapped"), ...(table.fields || []).map((field) => {
-      const option = node("option", `${field.name} · ${field.field_type}`);
+      const option = node("option", `${field.name} · ${field.fieldType}`);
       option.value = field.name;
       return option;
     }));
@@ -1329,32 +1325,32 @@ async function importArtifact() {
     const format = el("import-format").value;
     const defaultSemanticType = el("import-semantic-type").value.trim();
     if (!defaultSemanticType) throw new Error("Enter a default semantic type.");
-    let source = { format, default_semantic_type: defaultSemanticType };
+    let source = { format, defaultSemanticType: defaultSemanticType };
     if (format === "geo_package") {
       const table = el("geopackage-table").value;
       if (!table) throw new Error("Inspect the GeoPackage and choose one feature table.");
       source = { ...source, table };
       const mappings = [
-        ["identity_column", "geopackage-identity"],
-        ["semantic_type_column", "geopackage-semantic"],
-        ["title_column", "geopackage-title"],
+        ["identityColumn", "geopackage-identity"],
+        ["semanticTypeColumn", "geopackage-semantic"],
+        ["titleColumn", "geopackage-title"],
       ];
       for (const [field, id] of mappings) if (input(id).value) source[field] = input(id).value;
     }
     const request = {
-      layer_id: layer.layer_id,
-      expected_layer_revision: layer.revision,
-      source_artifact_id: el("import-artifact-id").value.trim(),
+      layerId: layer.layerId,
+      expectedLayerRevision: layer.revision,
+      sourceArtifactId: el("import-artifact-id").value.trim(),
       source,
-      idempotency_key: uuid(),
+      idempotencyKey: uuid(),
     };
     el("import-progress").textContent = "Starting import task…";
     const output = await taskTool("import_feature_layer", request, (status, message) => {
       el("import-progress").textContent = `Import ${status}${message ? ` · ${message}` : ""}`;
     });
     await refreshAll();
-    selectEntry(`authored:${layer.layer_id}`);
-    setStatus(`Imported ${output.imported_feature_count || 0} features.`, "good");
+    selectEntry(`authored:${layer.layerId}`);
+    setStatus(`Imported ${output.importedFeatureCount || 0} features.`, "good");
   });
 }
 
@@ -1363,7 +1359,7 @@ function bindAcquireSource(root, preferredId) {
   const select = el("acquire-source");
   select.replaceChildren(...state.sources.filter((source) => source.enabled).map((source) => {
     const option = node("option", source.name);
-    option.value = source.source_id;
+    option.value = source.sourceId;
     return option;
   }));
   if (preferredId) select.value = preferredId;
@@ -1374,9 +1370,9 @@ function bindAcquireSource(root, preferredId) {
       const sourceId = select.value;
       if (!sourceId) throw new Error("Choose an enabled data source.");
       await tool("start_acquisition", {
-        source_id: sourceId,
-        requested_coverage: requestedCoverage(),
-        idempotency_key: uuid(),
+        sourceId: sourceId,
+        requestedCoverage: requestedCoverage(),
+        idempotencyKey: uuid(),
       });
       await refreshAll();
       setStatus("Source acquisition started. Progress appears here as it updates.", "good");
@@ -1418,21 +1414,21 @@ function bindSaveView(root) {
         title: el("save-view-title").value.trim(),
         layers: current.layers,
         view: {
-          center: { longitude_deg: center.lng, latitude_deg: center.lat },
+          center: { longitudeDeg: center.lng, latitudeDeg: center.lat },
           zoom: state.map.getZoom(),
-          bearing_deg: state.map.getBearing(),
-          pitch_deg: state.map.getPitch(),
+          bearingDeg: state.map.getBearing(),
+          pitchDeg: state.map.getPitch(),
         },
       };
       let output;
       if (selected) {
         output = await tool("update_map_composition", {
-          composition_id: selected.composition_id,
-          expected_revision: selected.current.revision,
+          compositionId: selected.compositionId,
+          expectedRevision: selected.current.revision,
           ...request,
         });
       } else output = await tool("create_map_composition", request);
-      state.selectedCompositionId = output.composition_id;
+      state.selectedCompositionId = output.compositionId;
       await refreshAll();
       setStatus(`Saved ${output.title}.`, "good");
       closeAction();
@@ -1446,19 +1442,19 @@ function compositionLayersForSave() {
   for (const entry of state.entries.values()) {
     if (entry.kind !== "authored" || !entry.enabled) continue;
     const publication = entry.publicationId
-      ? state.publications.find((candidate) => candidate.publication_id === entry.publicationId)
-      : latestPublication(entry.layer.layer_id);
+      ? state.publications.find((candidate) => candidate.publicationId === entry.publicationId)
+      : latestPublication(entry.layer.layerId);
     if (!publication) {
       omitted.push(entry);
       continue;
     }
     const layer = {
-      layer_id: entry.layer.layer_id,
-      publication_id: publication.publication_id,
+      layerId: entry.layer.layerId,
+      publicationId: publication.publicationId,
       visible: true,
       opacity: entry.opacity,
     };
-    if (publication.style_revision_id) layer.style_revision_id = publication.style_revision_id;
+    if (publication.styleRevisionId) layer.styleRevisionId = publication.styleRevisionId;
     layers.push(layer);
   }
   return { layers, omitted };
@@ -1469,14 +1465,14 @@ function bindRawAdmin(root, kind) {
   state.rawAdminKind = kind;
   el("raw-admin-title").textContent = kind === "register-source" ? "Register source" : "Register mobility profile";
   el("raw-admin-json").value = kind === "register-source"
-    ? JSON.stringify({ source_id: "", dataset_id: "", name: "", adapter_kind: "authority_vector" }, null, 2)
-    : JSON.stringify({ family: "uas", metadata: { profile_id: "", name: "", version: 1 } }, null, 2);
+    ? JSON.stringify({ sourceId: "", datasetId: "", name: "", adapterKind: "authority_vector" }, null, 2)
+    : JSON.stringify({ family: "uas", metadata: { profileId: "", name: "", version: 1 } }, null, 2);
   el("raw-admin-form").addEventListener("submit", (event) => {
     event.preventDefault();
     void runAction(async () => {
       const record = JSON.parse(el("raw-admin-json").value);
-      if (kind === "register-source") await tool("register_source", { source: record, idempotency_key: uuid() });
-      else await tool("register_mobility_profile", { profile: record, idempotency_key: uuid() });
+      if (kind === "register-source") await tool("register_source", { source: record, idempotencyKey: uuid() });
+      else await tool("register_mobility_profile", { profile: record, idempotencyKey: uuid() });
       await refreshAll();
       setStatus(kind === "register-source" ? "Source registered." : "Mobility profile registered.", "good");
       showAction("picker");
@@ -1492,13 +1488,13 @@ function bindManageData(root) {
   for (const job of state.acquisitions) {
     const record = node("div", undefined, "record");
     const head = node("div", undefined, "record-head");
-    head.append(node("strong", job.acquisition_id), node("span", job.status, `chip ${job.status === "succeeded" ? "good" : ""}`));
+    head.append(node("strong", job.acquisitionId), node("span", job.status, `chip ${job.status === "succeeded" ? "good" : ""}`));
     record.append(head, node("div", job.progress?.phase || "", "mono"));
     if (ACTIVE_ACQUISITION_STATUSES.has(job.status) && job.status !== "cancel_requested") {
       const actions = node("div", undefined, "actions");
       const cancel = node("button", "Cancel acquisition");
       cancel.addEventListener("click", () => void runAction(async () => {
-        await tool("cancel_acquisition", { acquisition_id: job.acquisition_id });
+        await tool("cancel_acquisition", { acquisitionId: job.acquisitionId });
         await refreshAll();
         showAction("manage-data");
         setStatus("Acquisition cancellation requested.", "good");
@@ -1509,20 +1505,20 @@ function bindManageData(root) {
     acquisitions.append(record);
   }
 
-  const releases = [...allDatasetReleases()].sort((left, right) => String(right.updated_at || "").localeCompare(String(left.updated_at || "")));
+  const releases = [...allDatasetReleases()].sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
   const releaseHost = el("manage-releases");
   releaseHost.replaceChildren();
   if (!releases.length) releaseHost.append(node("div", "No dataset releases.", "muted"));
   for (const release of releases) {
     const record = node("div", undefined, "record");
     const head = node("div", undefined, "record-head");
-    head.append(node("strong", release.version_label || release.release_id), node("span", release.state, `chip ${release.state === "active" ? "good" : ""}`));
-    record.append(head, node("div", release.release_id, "mono"), node("div", formatBounds(release.coverage), "mono"));
-    const pointer = state.activeReleases.find((candidate) => candidate.pointer.dataset_id === release.dataset_id);
+    head.append(node("strong", release.versionLabel || release.releaseId), node("span", release.state, `chip ${release.state === "active" ? "good" : ""}`));
+    record.append(head, node("div", release.releaseId, "mono"), node("div", formatBounds(release.coverage), "mono"));
+    const pointer = state.activeReleases.find((candidate) => candidate.pointer.datasetId === release.datasetId);
     const request = {
-      release_id: release.release_id,
-      expected_record_version: release.record_version,
-      expected_active_pointer_version: pointer ? pointer.pointer.record_version : 0,
+      releaseId: release.releaseId,
+      expectedRecordVersion: release.recordVersion,
+      expectedActivePointerVersion: pointer ? pointer.pointer.recordVersion : 0,
     };
     const actions = node("div", undefined, "actions");
     const addAction = (label, name) => {
@@ -1531,7 +1527,7 @@ function bindManageData(root) {
         await tool(name, request);
         await refreshAll();
         showAction("manage-data");
-        setStatus(`${label} completed for ${release.version_label}.`, "good");
+        setStatus(`${label} completed for ${release.versionLabel}.`, "good");
       }));
       actions.append(button);
     };
@@ -1548,8 +1544,8 @@ function bindManageData(root) {
 async function publishEntry(entry) {
   await runAction(async () => {
     await tool("publish_feature_layer", {
-      layer_id: entry.layer.layer_id,
-      expected_layer_revision: entry.layer.revision,
+      layerId: entry.layer.layerId,
+      expectedLayerRevision: entry.layer.revision,
       title: entry.layer.title,
     });
     await refreshAll();

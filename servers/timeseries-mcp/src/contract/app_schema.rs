@@ -5,6 +5,8 @@ use schemars::{JsonSchema, Schema};
 
 #[derive(JsonSchema)]
 #[allow(dead_code)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct AppContracts {
     pub request: TimeseriesForecastRequest,
     pub forecast: TimeseriesForecastOutput,

@@ -1,17 +1,18 @@
 use super::*;
 use chrono::TimeDelta;
 use serde_json::json;
+use std::path::Path;
 use veoveo_platform_store::{PrincipalId, TenantId, WorkContextId};
 
 fn request() -> CreateRecordingProjectionRequest {
     serde_json::from_value(json!({
-        "dataset_id": crate::contract::RecordingDatasetId::new(),
-        "recording_id": crate::contract::RecordingId::new(),
-        "entity_paths": ["/sensor"], "component_ids": ["Scalars:scalars"], "timeline": "tick",
-        "sampling": {"kind": "range", "start": 0, "end": 2}, "sparse_fill": "none",
-        "maximum_entities": 1, "maximum_columns": 1, "maximum_samples": 3,
-        "maximum_rows": 3, "maximum_bytes": 1048576, "deadline_ms": 1000,
-        "idempotency_key": "result", "units": {}, "coordinate_frame_refs": []
+        "datasetId": crate::contract::RecordingDatasetId::new(),
+        "recordingId": crate::contract::RecordingId::new(),
+        "entityPaths": ["/sensor"], "componentIds": ["Scalars:scalars"], "timeline": "tick",
+        "sampling": {"kind": "range", "start": 0, "end": 2}, "sparseFill": "none",
+        "maximumEntities": 1, "maximumColumns": 1, "maximumSamples": 3,
+        "maximumRows": 3, "maximumBytes": 1048576, "deadlineMs": 1000,
+        "idempotencyKey": "result", "units": {}, "coordinateFrameRefs": []
     }))
     .unwrap()
 }
@@ -288,14 +289,14 @@ fn maximum_grid_and_metadata_fit_the_reserved_envelope() {
         .iter()
         .map(|name| (name.clone(), "\"".repeat(256)))
         .collect();
-    wire["component_ids"] = json!(components);
-    wire["maximum_columns"] = json!(64);
-    wire["maximum_samples"] = json!(10000);
-    wire["maximum_rows"] = json!(10000);
+    wire["componentIds"] = json!(components);
+    wire["maximumColumns"] = json!(64);
+    wire["maximumSamples"] = json!(10000);
+    wire["maximumRows"] = json!(10000);
     wire["timeline"] = json!("x".repeat(1024));
     wire["sampling"] = json!({"kind": "sample_grid", "values": (1..=10000).map(|n| i64::MIN + n).collect::<Vec<_>>()});
     wire["units"] = json!(units);
-    wire["coordinate_frame_refs"] = json!(
+    wire["coordinateFrameRefs"] = json!(
         (0..64)
             .map(|index| format!(
                 "frames://world/{}/revision/{}/frame/{index:0128}",
@@ -384,13 +385,13 @@ fn arrow_result_survives_receipt_readback_and_rejects_changed_context() {
     let wire = serde_json::to_value(&handle).unwrap();
     for (pointer, value) in [
         (
-            "/expires_at",
+            "/expiresAt",
             json!((handle.expires_at + TimeDelta::minutes(1)).to_rfc3339()),
         ),
-        ("/result/catalog_revision", json!("another-catalog")),
-        ("/result/query_digest", json!("b".repeat(64))),
+        ("/result/catalogRevision", json!("another-catalog")),
+        ("/result/queryDigest", json!("b".repeat(64))),
         ("/result/timeline", json!("other-timeline")),
-        ("/result/payload_sha256", json!("c".repeat(64))),
+        ("/result/payloadSha256", json!("c".repeat(64))),
     ] {
         let mut changed = wire.clone();
         *changed.pointer_mut(pointer).unwrap() = value;
@@ -400,7 +401,99 @@ fn arrow_result_survives_receipt_readback_and_rejects_changed_context() {
             "{pointer}"
         );
     }
+    for (pointer, current, retired) in [
+        ("", "projectionId", "projection_id"),
+        ("", "datasetId", "dataset_id"),
+        ("/result", "queryDigest", "query_digest"),
+        ("/result", "payloadSha256", "payload_sha256"),
+    ] {
+        for mode in ["replacement", "mixed", "conflicting"] {
+            let mut invalid = wire.clone();
+            let object = invalid
+                .pointer_mut(pointer)
+                .unwrap()
+                .as_object_mut()
+                .unwrap();
+            let value = object.get(current).unwrap().clone();
+            object.insert(
+                retired.into(),
+                if mode == "conflicting" {
+                    json!("retired-conflict")
+                } else {
+                    value
+                },
+            );
+            if mode == "replacement" {
+                object.remove(current).unwrap();
+            }
+            std::fs::write(&paths.final_metadata, serde_json::to_vec(&invalid).unwrap()).unwrap();
+            assert!(
+                read_handle(&paths, &receipt, &request, HandleReadMode::Recovering).is_err(),
+                "{pointer}/{current}/{mode}"
+            );
+        }
+    }
+    let mut obsolete = wire.clone();
+    obsolete["schema"] = json!("veoveo.ai/recording-projection-handle/v1");
+    std::fs::write(
+        &paths.final_metadata,
+        serde_json::to_vec(&obsolete).unwrap(),
+    )
+    .unwrap();
+    assert!(read_handle(&paths, &receipt, &request, HandleReadMode::Recovering).is_err());
     std::fs::write(&paths.final_metadata, serde_json::to_vec(&wire).unwrap()).unwrap();
     receipt.query_digest = "b".repeat(64);
     assert!(read_handle(&paths, &receipt, &request, HandleReadMode::Recovering).is_err());
+}
+
+#[test]
+fn current_projection_query_and_catalog_cursor_preimages() {
+    let mut wire = serde_json::to_value(request()).unwrap();
+    wire["datasetId"] = json!("019fa000-0000-7000-8000-000000000002");
+    wire["recordingId"] = json!("019fa000-0000-7000-8000-000000000001");
+    let admitted: CreateRecordingProjectionRequest = serde_json::from_value(wire.clone()).unwrap();
+    let query = serde_json::to_vec(&admitted.query_identity()).unwrap();
+    let digest = projection_query_digest(&admitted).unwrap();
+    wire["idempotencyKey"] = json!("another-attempt");
+    let other: CreateRecordingProjectionRequest = serde_json::from_value(wire).unwrap();
+    assert_eq!(digest, projection_query_digest(&other).unwrap());
+    let cursor = crate::contract::RecordingCatalogCursor::new(
+        "2026-10-03T00:00:00Z".parse().unwrap(),
+        admitted.recording_id,
+    );
+    crate::contract::RecordingCatalogCursor::parse(cursor.as_str()).unwrap();
+    let produced = json!({"queryJson": String::from_utf8(query).unwrap(), "querySha256": digest.hex(),
+        "cursor": cursor.as_str()});
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata/projection-cursor-preimages.json");
+    if let Some(capture) = std::env::var_os("CAPTURE_RECORDING_FORMAT_FIXTURE") {
+        use std::io::Write;
+        let capture = std::path::PathBuf::from(capture);
+        assert!(
+            capture.is_absolute(),
+            "capture requires an absolute scratch path"
+        );
+        assert!(
+            capture
+                .parent()
+                .unwrap()
+                .canonicalize()
+                .unwrap()
+                .starts_with(std::env::temp_dir().canonicalize().unwrap()),
+            "capture parent must be an existing scratch directory"
+        );
+        let bytes = format!("{}\n", serde_json::to_string_pretty(&produced).unwrap());
+        assert!(bytes.len() <= 64 * 1024, "capture exceeds 64 KiB");
+        let mut output = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(capture)
+            .unwrap();
+        output.write_all(bytes.as_bytes()).unwrap();
+        output.sync_all().unwrap();
+        return;
+    }
+    let captured: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    assert_eq!(produced, captured);
 }

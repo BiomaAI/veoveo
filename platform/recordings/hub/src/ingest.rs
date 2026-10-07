@@ -274,16 +274,13 @@ impl RecordingIngestService {
                 recording_key: recording_key.to_owned(),
                 classification,
                 labels,
-                metadata: std::collections::BTreeMap::from([
-                    (
-                        "source".to_owned(),
-                        serde_json::json!("authenticated-recording-ingest"),
-                    ),
-                    (
-                        "producer_id".to_owned(),
-                        serde_json::json!(producer.producer_id),
-                    ),
-                ]),
+                metadata: serde_json::from_value(serde_json::to_value(
+                    veoveo_recording_contract::RecordingOriginMetadata::AuthenticatedIngest {
+                        producer_id: veoveo_recording_contract::RecordingProducerId::parse(
+                            &producer.producer_id,
+                        )?,
+                    },
+                )?)?,
                 started_at: chrono::Utc::now(),
             })
             .await?;
@@ -1230,12 +1227,18 @@ impl RecordingIngestService {
                     classification: None,
                     data_labels: BTreeSet::new(),
                     retention_expires_at: None,
-                    metadata: serde_json::json!({
-                        "recording_id": recording_id.to_string(),
-                        "dataset_id": dataset_id.to_string(),
-                        "layer_kind": "capture",
-                        "schema_digest": inspection.schema_digest.hex(),
-                    }),
+                    metadata: serde_json::to_value(
+                        veoveo_recording_contract::RecordingCaptureMetadata {
+                            recording_id: veoveo_recording_contract::RecordingId::try_from(
+                                recording_id.as_uuid(),
+                            )?,
+                            dataset_id: veoveo_recording_contract::RecordingDatasetId::try_from(
+                                dataset_id.as_uuid(),
+                            )?,
+                            layer_kind: veoveo_recording_contract::RecordingLayerKind::Capture,
+                            schema_digest: inspection.schema_digest.clone(),
+                        },
+                    )?,
                 },
                 path,
                 inspection.byte_len,
@@ -1911,6 +1914,7 @@ mod tests {
             failure_reason: None,
             created_at: now,
             updated_at: now,
+            properties_preparation: None,
             revision: 0,
         }
     }

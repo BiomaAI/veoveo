@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use veoveo_reason_mcp::contract::{AnalysisId, ReasonArtifactMetadata, ReasonArtifactProvenance};
 
 use anyhow::{Context, Result};
@@ -193,16 +193,9 @@ async fn record_usage(
             amount: None,
             currency: None,
             recorded_at: now_utc(),
-            metadata: OpenObject::new(BTreeMap::from([
-                ("pipeline_id".into(), serde_json::json!(results.pipeline_id)),
-                ("task_kind".into(), serde_json::json!(results.task.kind())),
-                ("entity_path".into(), serde_json::json!(results.entity_path)),
-                ("timeline".into(), serde_json::json!(results.timeline)),
-                (
-                    "prompt_revision".into(),
-                    serde_json::json!(results.prompt_revision),
-                ),
-            ])),
+            metadata: OpenObject::new(serde_json::from_value(serde_json::to_value(
+                veoveo_reason_mcp::contract::ReasonUsageMetadata::from(results),
+            )?)?),
         })
         .await
         .context("recording reason usage")?;
@@ -252,7 +245,7 @@ mod tests {
 
         for metadata in variants {
             assert_eq!(
-                metadata["provenance"]["source_snapshot_sha256"],
+                metadata["provenance"]["sourceSnapshotSha256"],
                 "a".repeat(64)
             );
             let request = PutArtifactRequest {

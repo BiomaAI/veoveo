@@ -1,4 +1,4 @@
-//! The existing v1 cursor wire format, with collection-specific public types.
+//! Collection-specific current cursor envelopes; only changed event positions use v2.
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -12,6 +12,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct VersionPosition<I> {
     key: I,
     version: TimeVersion,
@@ -19,6 +20,7 @@ struct VersionPosition<I> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct EventPosition {
     tai_seconds: i64,
     nanosecond: SubsecondNanoseconds,
@@ -27,20 +29,25 @@ struct EventPosition {
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct WireCursor<P> {
     version: u8,
     collection: String,
     position: P,
 }
 
-fn decode<P: DeserializeOwned>(wire: &str, collection: &str) -> Result<P, TimeResourceError> {
+fn decode<P: DeserializeOwned>(
+    wire: &str,
+    collection: &str,
+    version: u8,
+) -> Result<P, TimeResourceError> {
     if wire.is_empty() || wire.len() > 2048 {
         return Err(TimeResourceError::InvalidCursor);
     }
     let bytes = hex::decode(wire).map_err(|_| TimeResourceError::InvalidCursor)?;
     let cursor: WireCursor<P> =
         serde_json::from_slice(&bytes).map_err(|_| TimeResourceError::InvalidCursor)?;
-    if cursor.version != 1 || cursor.collection != collection {
+    if cursor.version != version || cursor.collection != collection {
         return Err(TimeResourceError::InvalidCursor);
     }
     Ok(cursor.position)
@@ -49,6 +56,7 @@ fn decode<P: DeserializeOwned>(wire: &str, collection: &str) -> Result<P, TimeRe
 trait CursorCollection {
     type Position: Serialize + DeserializeOwned;
     const URI: &'static str;
+    const VERSION: u8 = 1;
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -63,7 +71,7 @@ impl<C: CursorCollection> veoveo_types::CursorCodec for TimeCursorCodec<C> {
     fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
         Ok(hex::encode(
             serde_json::to_vec(&WireCursor {
-                version: 1,
+                version: C::VERSION,
                 collection: C::URI.to_owned(),
                 position,
             })
@@ -71,7 +79,7 @@ impl<C: CursorCollection> veoveo_types::CursorCodec for TimeCursorCodec<C> {
         ))
     }
     fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
-        decode(wire, C::URI)
+        decode(wire, C::URI, C::VERSION)
     }
 }
 
@@ -133,6 +141,7 @@ struct EventCollection;
 impl CursorCollection for EventCollection {
     type Position = EventPosition;
     const URI: &'static str = uris::EVENTS_URI;
+    const VERSION: u8 = 2;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

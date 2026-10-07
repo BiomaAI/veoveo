@@ -1,4 +1,6 @@
 use super::*;
+use jsonwebtoken::jwk::JwkSet;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Deserialize)]
 struct AuthDiscoveryMetadata {

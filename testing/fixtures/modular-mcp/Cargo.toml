@@ -17,7 +17,7 @@ schemars = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 rmcp = { workspace = true, features = ["server"], optional = true }
 serde_json = { workspace = true, optional = true }
-veoveo-mcp-contract = { workspace = true, default-features = false, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, default-features = false, optional = true }
 
 [[test]]
 name = "contract"

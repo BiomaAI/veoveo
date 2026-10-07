@@ -119,44 +119,44 @@ async fn native_completion_filters_before_limits_and_enumerates_separate_artifac
                         "kind": answer,
                         "excerpt": {"text": "A vehicle entered.", "truncated": false}
                     });
-                    output["summary"]["event_count"] = 0.into();
+                    output["summary"]["eventCount"] = 0.into();
                 }
                 output["finding"]["decode"] = if index % 2 == 0 {
                     serde_json::json!({"mode": "greedy"})
                 } else {
-                    serde_json::json!({"mode": "sampled", "temperature": 0.5, "top_p": 0.75, "seed": 7})
+                    serde_json::json!({"mode": "sampled", "temperature": 0.5, "topP": 0.75, "seed": 7})
                 };
-                output["results_artifact"]["metadata"]["provenance"]["task_kind"] = kind.into();
+                output["resultsArtifact"]["metadata"]["provenance"]["taskKind"] = kind.into();
                 if index == 2 {
-                    output["finding"]["model_digest"] = serde_json::Value::Null;
+                    output["finding"]["modelDigest"] = serde_json::Value::Null;
                 } else if index == 3 {
-                    output["finding"].as_object_mut().unwrap().remove("model_digest");
+                    output["finding"].as_object_mut().unwrap().remove("modelDigest");
                 }
             }
             let analysis = veoveo_reason_mcp::contract::AnalysisId::try_from(task.task_id).unwrap();
-            output["analysis_uri"] =
+            output["analysisUri"] =
                 serde_json::to_value(veoveo_reason_mcp::contract::AnalysisUri::new(analysis))
                     .unwrap();
-            output["result_uri"] =
+            output["resultUri"] =
                 serde_json::to_value(veoveo_reason_mcp::contract::ResultsUri::new(analysis))
                     .unwrap();
-            output["results_artifact"]["metadata"]["provenance"]["analysis_id"] =
+            output["resultsArtifact"]["metadata"]["provenance"]["analysisId"] =
                 task.task_id.to_string().into();
             for (field, artifact) in [("results_artifact", &artifact), ("annotations_artifact", &annotation)] {
                 output[field]["artifact_id"] = artifact.clone().into();
                 output[field]["artifact_uri"] = format!("reason://artifact/{artifact}").into();
             }
-            output["annotations_artifact"]["metadata"]["provenance"]["analysis_id"] = task.task_id.to_string().into();
-            output["annotations_artifact"]["metadata"]["provenance"]["results_artifact_uri"] = output["results_artifact"]["artifact_uri"].clone();
-            output["source_clip_artifact"] = output["results_artifact"].clone();
-            output["source_clip_artifact"]["artifact_id"] = clip.clone().into();
-            output["source_clip_artifact"]["artifact_uri"] = format!("reason://artifact/{clip}").into();
-            output["source_clip_artifact"]["metadata"]["provenance"] = serde_json::json!({
-                "kind":"reason_source_clip", "analysis_id":analysis,
-                "recording_id":output["results_artifact"]["metadata"]["provenance"]["recording_id"],
-                "entity_path":output["finding"]["entity_path"], "timeline":output["finding"]["timeline"],
-                "decode_start_index":output["summary"]["decode_start_index"],
-                "source_snapshot_sha256":output["results_artifact"]["metadata"]["provenance"]["source_snapshot_sha256"]
+            output["annotationsArtifact"]["metadata"]["provenance"]["analysisId"] = task.task_id.to_string().into();
+            output["annotationsArtifact"]["metadata"]["provenance"]["resultsArtifactUri"] = output["resultsArtifact"]["artifact_uri"].clone();
+            output["sourceClipArtifact"] = output["resultsArtifact"].clone();
+            output["sourceClipArtifact"]["artifact_id"] = clip.clone().into();
+            output["sourceClipArtifact"]["artifact_uri"] = format!("reason://artifact/{clip}").into();
+            output["sourceClipArtifact"]["metadata"]["provenance"] = serde_json::json!({
+                "kind":"reason_source_clip", "analysisId":analysis,
+                "recordingId":output["resultsArtifact"]["metadata"]["provenance"]["recordingId"],
+                "entityPath":output["finding"]["entityPath"], "timeline":output["finding"]["timeline"],
+                "decodeStartIndex":output["summary"]["decodeStartIndex"],
+                "sourceSnapshotSha256":output["resultsArtifact"]["metadata"]["provenance"]["sourceSnapshotSha256"]
             });
             let output: veoveo_reason_mcp::contract::AnalyzeRecordingOutput =
                 serde_json::from_value(output).unwrap();

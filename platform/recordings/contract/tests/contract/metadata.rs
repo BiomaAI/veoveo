@@ -2,38 +2,39 @@
 use serde_json::{Value, json};
 use veoveo_artifact_contract::{ArtifactId, ArtifactUri};
 use veoveo_recording_contract::{
-    LayerView, LayerViewBuilder, ManifestLayer, ManifestLayerBuilder, RecordingManifest,
-    RecordingManifestBuilder, RecordingManifestSchema, RecordingView, SealRecordingOutput,
-    SealRecordingOutputBuilder,
+    LayerView, LayerViewBuilder, ManifestLayer, ManifestLayerBuilder, RecordingId,
+    RecordingManifest, RecordingManifestBuilder, RecordingManifestSchema, RecordingView,
+    SealRecordingOutput, SealRecordingOutputBuilder,
 };
 
 fn artifact() -> ArtifactUri {
     ArtifactUri::plane(ArtifactId::new())
 }
-fn layer() -> Value {
+pub(super) fn layer() -> Value {
     json!({
-        "layer_id": super::RECORDING, "layer_name": "capture-00000000000000000000",
-        "kind": "capture", "ordinal": 0, "state": "committed", "byte_len": 1024,
-        "message_count": 3, "sha256": "a".repeat(64), "artifact_uri": artifact(),
-        "rrd_version": "0.38.1", "schema_digest": "b".repeat(64),
-        "created_at": "2026-09-29T10:00:00Z", "updated_at": "2026-09-29T10:01:00Z"
+        "layerId": super::RECORDING, "layerName": "capture-00000000000000000000",
+        "kind": "capture", "ordinal": 0, "state": "committed", "byteLen": 1024,
+        "messageCount": 3, "sha256": "a".repeat(64), "artifactUri": artifact(),
+        "rrdVersion": "0.38.1", "schemaDigest": "b".repeat(64),
+        "createdAt": "2026-09-29T10:00:00Z", "updatedAt": "2026-09-29T10:01:00Z"
     })
 }
-fn manifest_layer() -> Value {
+pub(super) fn manifest_layer() -> Value {
     let mut wire = layer();
-    for key in ["state", "message_count", "created_at", "updated_at"] {
+    for key in ["state", "messageCount", "createdAt", "updatedAt"] {
         wire.as_object_mut().unwrap().remove(key);
     }
     wire
 }
-fn catalog() -> Value {
+pub(super) fn catalog() -> Value {
     json!({
-        "recording_id": super::RECORDING, "dataset_id": super::DATASET,
-        "dataset_key": "recordings", "application_id": "application", "recording_key": "capture",
+        "recordingId": super::RECORDING, "datasetId": super::DATASET,
+        "datasetKey": "recordings", "applicationId": "application", "recordingKey": "capture",
         "state": "sealed", "classification": "unclassified", "labels": ["operations"],
-        "started_at": "2026-09-29T10:00:00Z", "last_data_at": "2026-09-29T10:01:00Z",
-        "ended_at": "2026-09-29T10:01:00Z", "sealed_at": "2026-09-29T10:02:00Z",
-        "manifest_artifact_uri": artifact(), "layer_count": 1, "committed_layer_count": 1
+        "startedAt": "2026-09-29T10:00:00Z", "lastDataAt": "2026-09-29T10:01:00Z",
+        "endedAt": "2026-09-29T10:01:00Z", "sealedAt": "2026-09-29T10:02:00Z",
+        "manifestArtifactUri": ArtifactUri::plane(ArtifactId::try_from(
+            RecordingId::parse(super::RECORDING).unwrap().as_uuid()).unwrap()), "layerCount": 1, "committedLayerCount": 1
     })
 }
 
@@ -46,17 +47,17 @@ fn layer_admission_checks_lifecycle_integrity_and_kind_identity() {
     for (field, value) in [
         ("sha256", json!("a".repeat(63))),
         ("sha256", json!("A".repeat(64))),
-        ("schema_digest", Value::Null),
-        ("rrd_version", Value::Null),
-        ("artifact_uri", Value::Null),
-        ("artifact_uri", json!("artifact://bad")),
-        ("message_count", json!(0)),
-        ("byte_len", json!(-1)),
-        ("byte_len", json!(0)),
+        ("schemaDigest", Value::Null),
+        ("rrdVersion", Value::Null),
+        ("artifactUri", Value::Null),
+        ("artifactUri", json!("artifact://bad")),
+        ("messageCount", json!(0)),
+        ("byteLen", json!(-1)),
+        ("byteLen", json!(0)),
         ("kind", json!("other")),
         ("kind", json!("derived")),
         ("ordinal", json!(1)),
-        ("updated_at", json!("2026-09-29T09:00:00Z")),
+        ("updatedAt", json!("2026-09-29T09:00:00Z")),
     ] {
         let mut invalid = wire.clone();
         invalid[field] = value;
@@ -68,24 +69,24 @@ fn layer_admission_checks_lifecycle_integrity_and_kind_identity() {
     let mut staged = wire.clone();
     staged["state"] = json!("staged");
     assert!(serde_json::from_value::<LayerView>(staged.clone()).is_err());
-    staged["artifact_uri"] = Value::Null;
+    staged["artifactUri"] = Value::Null;
     assert!(serde_json::from_value::<LayerView>(staged).is_ok());
     let mut writing = wire;
     writing["state"] = json!("writing");
-    for key in ["sha256", "schema_digest", "rrd_version", "artifact_uri"] {
+    for key in ["sha256", "schemaDigest", "rrdVersion", "artifactUri"] {
         writing[key] = Value::Null;
     }
-    writing["byte_len"] = json!(0);
-    writing["message_count"] = json!(0);
+    writing["byteLen"] = json!(0);
+    writing["messageCount"] = json!(0);
     assert!(serde_json::from_value::<LayerView>(writing.clone()).is_ok());
     writing["state"] = json!("failed");
     assert!(serde_json::from_value::<LayerView>(writing.clone()).is_ok());
     writing["kind"] = json!("properties");
-    writing["layer_name"] = json!("properties");
+    writing["layerName"] = json!("properties");
     writing["ordinal"] = Value::Null;
     assert!(serde_json::from_value::<LayerView>(writing.clone()).is_ok());
     writing["kind"] = json!("derived");
-    writing["layer_name"] = json!("derived-sensors");
+    writing["layerName"] = json!("derived-sensors");
     assert!(serde_json::from_value::<LayerView>(writing).is_ok());
     let mut builder: LayerViewBuilder = (*admitted).clone();
     builder.sha256 = None;
@@ -101,17 +102,18 @@ fn catalog_admission_checks_publication_counts_and_timestamps() {
         wire
     );
     for (field, value) in [
-        ("manifest_artifact_uri", json!("artifact://invalid")),
-        ("manifest_artifact_uri", Value::Null),
-        ("sealed_at", Value::Null),
-        ("ended_at", Value::Null),
-        ("layer_count", json!(0)),
-        ("committed_layer_count", json!(0)),
-        ("committed_layer_count", json!(2)),
+        ("manifestArtifactUri", json!("artifact://invalid")),
+        ("manifestArtifactUri", json!(artifact())),
+        ("manifestArtifactUri", Value::Null),
+        ("sealedAt", Value::Null),
+        ("endedAt", Value::Null),
+        ("layerCount", json!(0)),
+        ("committedLayerCount", json!(0)),
+        ("committedLayerCount", json!(2)),
         ("labels", json!(["operations", "operations"])),
         ("labels", json!(["private", "operations"])),
         ("labels", json!(["x".repeat(257)])),
-        ("started_at", json!("2026-09-29T11:00:00Z")),
+        ("startedAt", json!("2026-09-29T11:00:00Z")),
     ] {
         let mut invalid = wire.clone();
         invalid[field] = value;
@@ -123,11 +125,11 @@ fn catalog_admission_checks_publication_counts_and_timestamps() {
     let mut live = wire;
     live["state"] = json!("live");
     assert!(serde_json::from_value::<RecordingView>(live.clone()).is_err());
-    for key in ["manifest_artifact_uri", "ended_at", "sealed_at"] {
+    for key in ["manifestArtifactUri", "endedAt", "sealedAt"] {
         live[key] = Value::Null;
     }
-    live["layer_count"] = json!(0);
-    live["committed_layer_count"] = json!(0);
+    live["layerCount"] = json!(0);
+    live["committedLayerCount"] = json!(0);
     assert!(serde_json::from_value::<RecordingView>(live).is_ok());
 }
 
@@ -169,7 +171,7 @@ fn seal_output_rejects_duplicate_occurrences_regardless_of_uri_spelling() {
 fn manifest_admission_checks_current_schema_and_immutable_occurrence_roles() {
     let layer: ManifestLayer = serde_json::from_value(manifest_layer()).unwrap();
     let mut builder = RecordingManifestBuilder {
-        schema: RecordingManifestSchema::V9,
+        schema: RecordingManifestSchema::V10,
         dataset_id: super::DATASET.parse().unwrap(),
         recording_segment_id: super::RECORDING.parse().unwrap(),
         catalog_revision: "r1".into(),
@@ -184,9 +186,9 @@ fn manifest_admission_checks_current_schema_and_immutable_occurrence_roles() {
         wire
     );
     for (field, value) in [
-        ("schema", json!("veoveo.ai/recording-manifest/v8")),
+        ("schema", json!("veoveo.ai/recording-manifest/v9")),
         ("layers", json!([])),
-        ("sealed_at", json!("yesterday")),
+        ("sealedAt", json!("yesterday")),
     ] {
         let mut invalid = wire.clone();
         invalid[field] = value;
@@ -211,17 +213,17 @@ fn manifest_admission_checks_current_schema_and_immutable_occurrence_roles() {
     builder.layers[1] = distinct.build().unwrap();
     assert!(builder.build().is_ok());
     let mut invalid = wire;
-    invalid["blueprint"] = json!({"blueprint_id": "blueprint", "revision": 1, "byte_len": 42,
-        "message_count": 1, "sha256": "c".repeat(64), "artifact_uri": layer.artifact_uri});
+    invalid["blueprint"] = json!({"blueprintId": "blueprint", "revision": 1, "byteLen": 42,
+        "messageCount": 1, "sha256": "c".repeat(64), "artifactUri": layer.artifact_uri});
     assert!(serde_json::from_value::<RecordingManifest>(invalid.clone()).is_err());
-    invalid["blueprint"]["artifact_uri"] = json!(artifact());
+    invalid["blueprint"]["artifactUri"] = json!(artifact());
     assert!(serde_json::from_value::<RecordingManifest>(invalid.clone()).is_ok());
     for (field, value) in [
         ("revision", json!(0)),
-        ("byte_len", json!(0)),
-        ("message_count", json!(0)),
+        ("byteLen", json!(0)),
+        ("messageCount", json!(0)),
         ("sha256", json!("invalid")),
-        ("blueprint_id", json!("")),
+        ("blueprintId", json!("")),
     ] {
         let mut bad = invalid.clone();
         bad["blueprint"][field] = value;

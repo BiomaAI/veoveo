@@ -15,7 +15,7 @@ use veoveo_recording_hub::GatewayLayerPublisher;
 use veoveo_recording_store::{
     RecordingBlueprintRecord, RecordingDatasetId, RecordingId, RecordingLayerDraft,
     RecordingLayerId, RecordingLayerKind, RecordingLayerRecord, RecordingLayerState,
-    RecordingRecord, RecordingSeal, RecordingState,
+    RecordingRecord, RecordingSeal, RecordingState, source_layer_manifest_digest,
 };
 use veoveo_rrd::properties_layer::{
     RecordingPropertiesBuilder, build_properties_layer_with_admission,
@@ -33,6 +33,7 @@ mod grants;
 mod views;
 use views::{artifact_reference, artifact_uri, layer_view, manifest_blueprint, manifest_layer};
 mod index;
+mod manifest;
 mod projection;
 pub use projection::{ProjectionDownload, ProjectionRuntimeLimits, ProjectionRuntimeStats};
 
@@ -519,9 +520,19 @@ impl RecordingService {
     pub async fn seal(
         &self,
         identity: &GatewayInternalIdentity,
+        artifact_caller: &PlaneCaller,
         recording_id: RecordingId,
     ) -> Result<SealRecordingOutput> {
         ensure_scope(&identity.actor.scopes, RecordingScope::Seal)?;
+        ensure!(
+            artifact_caller.identity == *identity
+                && !artifact_caller.bearer_token.is_empty()
+                && !artifact_caller
+                    .bearer_token
+                    .chars()
+                    .any(char::is_whitespace),
+            "Recording seal requires the current caller's Artifact read credential"
+        );
         let Some((platform_identity, recording)) =
             self.visible_recording(identity, recording_id).await?
         else {
@@ -540,7 +551,10 @@ impl RecordingService {
                 .recording_dataset(platform_identity.tenant_id, dataset_id)
                 .await?
                 .context("sealed recording dataset is missing")?;
-            let output = self.sealed_output(&platform_identity, recording).await?;
+            let output = self
+                .sealed_output(&platform_identity, artifact_caller, recording)
+                .await?;
+            self.remove_manifest_staging(recording_id)?;
             self.remove_recording_static_context(recording_id, &dataset.dataset_key)?;
             return Ok(output);
         }
@@ -580,6 +594,119 @@ impl RecordingService {
                 .any(|layer| layer.kind != RecordingLayerKind::Properties),
             "recording has no committed source layers"
         );
+        let retained_intent = self
+            .recordings
+            .manifest_publication(&platform_identity, recording_id)
+            .await?;
+        if let Some(intent) = retained_intent {
+            self.admit_manifest_publication(&recording, &intent)?;
+            let layers = self
+                .recordings
+                .manifest_publication_layers(&platform_identity, recording_id, &intent)
+                .await?;
+            self.admit_retained_properties(
+                &platform_identity,
+                &recording,
+                &layers,
+                intent.sealed_at,
+            )
+            .await?;
+            let selected_layers = layers
+                .iter()
+                .map(manifest_layer)
+                .collect::<Result<Vec<_>>>()?;
+            let selected_blueprint = self
+                .recordings
+                .current_recording_blueprint(platform_identity.tenant_id, recording_id)
+                .await?
+                .map(manifest_blueprint)
+                .transpose()?;
+            intent.body.0.validate_selection(
+                crate::contract::RecordingDatasetId::try_from(record_uuid(
+                    &recording.dataset,
+                    "recording_dataset",
+                )?)?,
+                crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
+                &selected_layers,
+                selected_blueprint.as_ref(),
+            )?;
+            ensure!(
+                intent.body.0.catalog_revision
+                    == catalog_revision(
+                        intent.dataset_revision,
+                        intent.recording_revision,
+                        &layers
+                    ),
+                "Recording intent differs from its original source snapshot"
+            );
+            let reserved = PlatformArtifactId::from_uuid(recording_id.as_uuid());
+            let mut selected = recording.clone();
+            if self.store.artifact_aggregate(reserved).await?.is_some() {
+                // A confirmed occurrence requires a fresh policy-checked body read;
+                // a denied or unavailable read never falls through to publication.
+                selected.manifest_artifact = Some(reserved.record_id());
+                self.read_current_manifest(
+                    &platform_identity,
+                    artifact_caller,
+                    &selected,
+                    &layers,
+                    &selected_layers,
+                    selected_blueprint.as_ref(),
+                )
+                .await?;
+            } else {
+                ensure!(
+                    recording.manifest_artifact.is_none(),
+                    "staged Recording manifest occurrence is unavailable; outcome remains unresolved"
+                );
+                // This is exactly the original create-only operation, with the original
+                // descriptor/body. Canonical Artifact auth and immutable retry admission apply.
+                self.publish_manifest(&intent).await?;
+            }
+            self.recordings
+                .stage_recording_manifest(&platform_identity, recording_id, reserved)
+                .await?;
+            let output = SealRecordingOutputBuilder {
+                recording_id: intent.body.0.recording_segment_id,
+                manifest_artifact_uri: artifact_uri(reserved)?,
+                layer_artifact_uris: selected_layers
+                    .iter()
+                    .map(|layer| layer.artifact_uri.clone())
+                    .collect(),
+                blueprint_artifact_uri: selected_blueprint.map(|blueprint| blueprint.artifact_uri),
+            }
+            .build()?;
+            self.recordings
+                .complete_recording_seal(RecordingSeal {
+                    identity: platform_identity.clone(),
+                    recording_id,
+                    task_id: None,
+                    manifest_artifact_id: reserved,
+                    sealed_at: intent.sealed_at,
+                })
+                .await?;
+            let dataset_id = RecordingDatasetId::from_uuid(record_uuid(
+                &recording.dataset,
+                "recording_dataset",
+            )?);
+            let dataset = self
+                .recordings
+                .recording_dataset(platform_identity.tenant_id, dataset_id)
+                .await?
+                .context("sealed dataset is missing")?;
+            self.remove_manifest_staging(recording_id)?;
+            self.remove_recording_static_context(recording_id, &dataset.dataset_key)?;
+            return Ok(output);
+        }
+        ensure!(
+            recording.manifest_artifact.is_none()
+                && self
+                    .store
+                    .artifact_aggregate(PlatformArtifactId::from_uuid(recording_id.as_uuid()))
+                    .await?
+                    .is_none(),
+            "retained Recording outcome has no current publication intent; outcome remains unresolved"
+        );
         if recording.state != RecordingState::Sealing {
             self.recordings
                 .begin_recording_seal(&platform_identity, recording_id, None)
@@ -597,16 +724,26 @@ impl RecordingService {
             .recording(platform_identity.tenant_id, recording_id)
             .await?
             .context("recording disappeared while sealing")?;
-        let sealed_at = current.updated_at;
-        self.ensure_properties_layer(
-            &platform_identity,
-            &current,
-            dataset_id,
-            &dataset.dataset_key,
-            sealed_at,
-            &layers,
-        )
-        .await?;
+        // Begin may have observed a source mutation after the initial admission.
+        layers = self
+            .recordings
+            .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
+            .await?;
+        for layer in &layers {
+            if layer.kind != RecordingLayerKind::Properties {
+                manifest_layer(layer)?;
+            }
+        }
+        let sealed_at = self
+            .ensure_properties_layer(
+                &platform_identity,
+                &current,
+                dataset_id,
+                &dataset.dataset_key,
+                current.updated_at,
+                &layers,
+            )
+            .await?;
         self.ensure_blueprint_artifact(&platform_identity, &current, dataset_id, recording_id)
             .await?;
         layers = self
@@ -618,14 +755,18 @@ impl RecordingService {
             .recording_dataset(platform_identity.tenant_id, dataset_id)
             .await?
             .context("recording dataset disappeared while sealing")?;
+        self.admit_retained_properties(&platform_identity, &current, &layers, sealed_at)
+            .await?;
         let manifest_layers = layers
             .iter()
             .map(manifest_layer)
             .collect::<Result<Vec<_>>>()?;
-        let manifest_blueprint = self
+        let selected_blueprint = self
             .recordings
             .current_recording_blueprint(platform_identity.tenant_id, recording_id)
-            .await?
+            .await?;
+        let manifest_blueprint = selected_blueprint
+            .clone()
             .map(manifest_blueprint)
             .transpose()?;
         let current = self
@@ -634,7 +775,7 @@ impl RecordingService {
             .await?
             .context("recording disappeared while sealing")?;
         let manifest = RecordingManifestBuilder {
-            schema: RecordingManifestSchema::V9,
+            schema: RecordingManifestSchema::V10,
             dataset_id: crate::contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?,
             recording_segment_id: crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
             catalog_revision: catalog_revision(dataset.revision, current.revision, &layers),
@@ -643,18 +784,37 @@ impl RecordingService {
             sealed_at,
         }
         .build()?;
-        let manifest_artifact_id = if let Some(record) = current.manifest_artifact {
-            PlatformArtifactId::from_uuid(record_uuid(&record, "artifact_occurrence")?)
-        } else {
-            let metadata = self
-                .publish_manifest(&recording, dataset_id, recording_id, &manifest)
-                .await?;
-            let artifact_id = PlatformArtifactId::from_uuid(metadata.artifact_id().as_uuid());
-            self.recordings
-                .stage_recording_manifest(&platform_identity, recording_id, artifact_id)
-                .await?;
-            artifact_id
-        };
+        let descriptor = self.manifest_publication_request(
+            &current,
+            dataset_id,
+            recording_id,
+            &manifest,
+            dataset.revision,
+            current.revision,
+        )?;
+        let publisher = self
+            .layer_publisher
+            .as_ref()
+            .context("Recording manifest publisher is not configured")?;
+        let intent = self
+            .recordings
+            .reserve_manifest_publication(
+                &platform_identity,
+                &current,
+                &dataset,
+                &layers,
+                selected_blueprint.as_ref(),
+                manifest,
+                descriptor,
+                veoveo_recording_hub::invocation_authority_record(&identity.authority),
+                publisher.publication_context().clone(),
+            )
+            .await?;
+        let metadata = self.publish_manifest(&intent).await?;
+        let manifest_artifact_id = PlatformArtifactId::from_uuid(metadata.artifact_id().as_uuid());
+        self.recordings
+            .stage_recording_manifest(&platform_identity, recording_id, manifest_artifact_id)
+            .await?;
         let output = SealRecordingOutputBuilder {
             recording_id: crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
             manifest_artifact_uri: artifact_uri(manifest_artifact_id)?,
@@ -674,6 +834,7 @@ impl RecordingService {
                 sealed_at,
             })
             .await?;
+        self.remove_manifest_staging(recording_id)?;
         self.remove_recording_static_context(recording_id, &dataset.dataset_key)?;
         Ok(output)
     }
@@ -686,7 +847,7 @@ impl RecordingService {
         dataset_key: &str,
         sealed_at: chrono::DateTime<Utc>,
         source_layers: &[RecordingLayerRecord],
-    ) -> Result<()> {
+    ) -> Result<chrono::DateTime<Utc>> {
         let publisher = self
             .layer_publisher
             .as_ref()
@@ -696,50 +857,72 @@ impl RecordingService {
             .as_ref()
             .context("recording catalog cache is not configured")?;
         let recording_id = RecordingId::from_uuid(record_uuid(&recording.id, "recording")?);
-        let properties = RecordingPropertiesBuilder {
-            dataset_id: veoveo_recording_contract::RecordingDatasetId::try_from(
-                dataset_id.as_uuid(),
-            )?,
-            recording_id: veoveo_recording_contract::RecordingId::try_from(recording_id.as_uuid())?,
-            dataset_key: dataset_key.to_owned(),
-            producer_recording_key: recording.recording_key.clone(),
-            lifecycle_state: veoveo_recording_contract::RecordingState::Sealed,
-            started_at: recording.started_at.to_rfc3339(),
-            ended_at: recording
-                .ended_at
-                .context("sealable recording has no end time")?
-                .to_rfc3339(),
-            sealed_at: sealed_at.to_rfc3339(),
-            source_revision: recording.revision,
-            immutable_manifest_digest: source_layer_manifest_digest(
-                dataset_id,
-                recording_id,
-                source_layers,
-            ),
-            model_revisions: Default::default(),
-            environment_revisions: Default::default(),
-        }
-        .build()?;
+        let retained = self
+            .recordings
+            .recording_layer_by_name(identity.tenant_id, recording_id, "properties")
+            .await?;
+        let properties = if let Some(layer) = retained {
+            layer
+                .properties_preparation
+                .context("retained properties layer has no current original preparation")?
+                .body
+        } else {
+            RecordingPropertiesBuilder {
+                dataset_id: veoveo_recording_contract::RecordingDatasetId::try_from(
+                    dataset_id.as_uuid(),
+                )?,
+                recording_id: veoveo_recording_contract::RecordingId::try_from(
+                    recording_id.as_uuid(),
+                )?,
+                dataset_key: dataset_key.to_owned(),
+                producer_recording_key: recording.recording_key.clone(),
+                lifecycle_state: veoveo_recording_contract::RecordingState::Sealed,
+                started_at: recording.started_at.to_rfc3339(),
+                ended_at: recording
+                    .ended_at
+                    .context("sealable recording has no end time")?
+                    .to_rfc3339(),
+                sealed_at: sealed_at.to_rfc3339(),
+                source_revision: recording.revision,
+                immutable_manifest_digest: source_layer_manifest_digest(
+                    dataset_id,
+                    recording_id,
+                    source_layers,
+                ),
+                model_revisions: Default::default(),
+                environment_revisions: Default::default(),
+            }
+            .build()?
+        };
+        let sealed_at =
+            chrono::DateTime::parse_from_rfc3339(&properties.sealed_at)?.with_timezone(&Utc);
+        admit_properties_source(
+            &properties,
+            recording,
+            dataset_id,
+            dataset_key,
+            source_layers,
+        )?;
         let relative_path = format!("properties/{recording_id}.rrd");
         let path = cache_root.join(&relative_path);
-        std::fs::create_dir_all(
-            path.parent()
-                .context("recording properties layer has no parent")?,
-        )?;
         let mut layer = self
             .recordings
-            .open_recording_layer(RecordingLayerDraft {
-                identity: identity.clone(),
-                recording_id,
-                layer_name: "properties".to_owned(),
-                kind: RecordingLayerKind::Properties,
-                ordinal: None,
-                staging_path: Some(relative_path.clone()),
-                start_time: None,
-            })
+            .prepare_recording_properties_layer(
+                RecordingLayerDraft {
+                    identity: identity.clone(),
+                    recording_id,
+                    layer_name: "properties".to_owned(),
+                    kind: RecordingLayerKind::Properties,
+                    ordinal: None,
+                    staging_path: Some(relative_path.clone()),
+                    start_time: None,
+                },
+                properties.clone(),
+                source_layers,
+            )
             .await?;
         if layer.state == RecordingLayerState::Committed {
-            return Ok(());
+            return Ok(sealed_at);
         }
         ensure!(
             matches!(
@@ -768,6 +951,10 @@ impl RecordingService {
                 "retained Staged properties seal time differs from source snapshot"
             );
         }
+        std::fs::create_dir_all(
+            path.parent()
+                .context("recording properties layer has no parent")?,
+        )?;
         let inspection = build_properties_layer_with_admission(&path, &properties, |expected| {
             if layer.state == RecordingLayerState::Staged {
                 ensure!(
@@ -808,6 +995,22 @@ impl RecordingService {
                 .context("staged properties layer has no digest")?,
         )?;
         let byte_len = u64::try_from(layer.byte_len)?;
+        let publication_sources = self
+            .recordings
+            .recording_layers(identity.tenant_id, recording_id, MAX_LAYERS)
+            .await?;
+        for source in &publication_sources {
+            if source.kind != RecordingLayerKind::Properties {
+                manifest_layer(source)?;
+            }
+        }
+        admit_properties_source(
+            &properties,
+            recording,
+            dataset_id,
+            dataset_key,
+            &publication_sources,
+        )?;
         let metadata = publisher
             .publish(
                 layer_id,
@@ -817,16 +1020,21 @@ impl RecordingService {
                     classification: artifact_classification(&recording.classification)?,
                     data_labels: labels(&recording.labels)?,
                     retention_expires_at: None,
-                    metadata: serde_json::json!({
-                        "provenance": {
-                            "kind": "recording_layer",
-                            "layer_kind": "properties",
-                            "dataset_id": dataset_id,
-                            "recording_id": recording_id,
-                            "layer_id": layer_id,
-                            "sha256": sha256.hex(),
-                        }
-                    }),
+                    metadata: serde_json::to_value(crate::contract::RecordingArtifactMetadata {
+                        provenance: crate::contract::RecordingArtifactProvenance::RecordingLayer {
+                            layer_kind: crate::contract::RecordingLayerKind::Properties,
+                            dataset_id: crate::contract::RecordingDatasetId::try_from(
+                                dataset_id.as_uuid(),
+                            )?,
+                            recording_id: crate::contract::RecordingId::try_from(
+                                recording_id.as_uuid(),
+                            )?,
+                            layer_id: crate::contract::RecordingLayerId::try_from(
+                                layer_id.as_uuid(),
+                            )?,
+                            sha256: sha256.clone(),
+                        },
+                    })?,
                 },
                 &path,
                 byte_len,
@@ -855,7 +1063,7 @@ impl RecordingService {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
         }
-        Ok(())
+        Ok(sealed_at)
     }
 
     async fn ensure_blueprint_artifact(
@@ -913,16 +1121,23 @@ impl RecordingService {
                     classification: artifact_classification(&recording.classification)?,
                     data_labels: labels(&recording.labels)?,
                     retention_expires_at: None,
-                    metadata: serde_json::json!({
-                        "provenance": {
-                            "kind": "recording_blueprint",
-                            "dataset_id": dataset_id,
-                            "recording_id": recording_id,
-                            "blueprint_id": blueprint.blueprint_id,
-                            "revision": blueprint.revision,
-                            "sha256": blueprint.sha256,
-                        }
-                    }),
+                    metadata: serde_json::to_value(crate::contract::RecordingArtifactMetadata {
+                        provenance:
+                            crate::contract::RecordingArtifactProvenance::RecordingBlueprint {
+                                dataset_id: crate::contract::RecordingDatasetId::try_from(
+                                    dataset_id.as_uuid(),
+                                )?,
+                                recording_id: crate::contract::RecordingId::try_from(
+                                    recording_id.as_uuid(),
+                                )?,
+                                blueprint_id: blueprint.blueprint_id.clone(),
+                                revision: std::num::NonZeroU64::new(u64::try_from(
+                                    blueprint.revision,
+                                )?)
+                                .context("Blueprint revision is zero")?,
+                                sha256: Sha256Digest::from_hex(&blueprint.sha256)?,
+                            },
+                    })?,
                 },
                 &path,
                 byte_len,
@@ -945,115 +1160,6 @@ impl RecordingService {
             .await?;
         self.remove_spool_staging_file(&blueprint.relative_path)?;
         Ok(())
-    }
-
-    async fn publish_manifest(
-        &self,
-        recording: &RecordingRecord,
-        dataset_id: RecordingDatasetId,
-        recording_id: RecordingId,
-        manifest: &RecordingManifest,
-    ) -> Result<veoveo_artifact_contract::ArtifactMetadata> {
-        let publisher = self
-            .layer_publisher
-            .as_ref()
-            .context("recording manifest publisher is not configured")?;
-        let cache_root = self
-            .catalog_cache_root
-            .as_ref()
-            .context("recording catalog cache is not configured")?;
-        let directory = cache_root.join("manifests");
-        std::fs::create_dir_all(&directory)?;
-        let path = directory.join(format!("{recording_id}.v9.json"));
-        let bytes = serde_json::to_vec_pretty(manifest)?;
-        let sha256 = Sha256Digest::from_bytes(Sha256::digest(&bytes).into());
-        if path.exists() {
-            let existing = std::fs::read(&path)?;
-            ensure!(
-                existing == bytes,
-                "staged recording manifest differs from the retry input"
-            );
-        } else {
-            let mut file = std::fs::OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .open(&path)?;
-            use std::io::Write as _;
-            file.write_all(&bytes)?;
-            file.sync_all()?;
-            drop(file);
-            File::open(&directory)?.sync_all()?;
-        }
-        let artifact_id = veoveo_artifact_contract::ArtifactId::parse(recording_id.to_string())?;
-        let metadata = publisher
-            .publish_artifact(
-                artifact_id,
-                PutArtifactRequest {
-                    mime_type: Some(MANIFEST_MIME.to_owned()),
-                    filename: Some(format!("{}.recording-v9.json", recording.recording_key)),
-                    classification: artifact_classification(&recording.classification)?,
-                    data_labels: labels(&recording.labels)?,
-                    retention_expires_at: None,
-                    metadata: serde_json::json!({
-                        "provenance": {
-                            "kind": "recording_manifest",
-                            "recording_id": recording_id,
-                            "dataset_id": dataset_id,
-                            "catalog_revision": manifest.catalog_revision,
-                            "sha256": sha256.hex(),
-                        }
-                    }),
-                },
-                &path,
-                u64::try_from(bytes.len())?,
-                &sha256,
-            )
-            .await?;
-        match std::fs::remove_file(path) {
-            Ok(()) => File::open(&directory)?.sync_all()?,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error.into()),
-        }
-        Ok(metadata)
-    }
-
-    async fn sealed_output(
-        &self,
-        identity: &PlatformIdentity,
-        recording: RecordingRecord,
-    ) -> Result<SealRecordingOutput> {
-        let recording_id = RecordingId::from_uuid(record_uuid(&recording.id, "recording")?);
-        let manifest = recording
-            .manifest_artifact
-            .as_ref()
-            .context("sealed recording has no manifest artifact")?;
-        let layers = self
-            .recordings
-            .recording_layers(identity.tenant_id, recording_id, MAX_LAYERS)
-            .await?;
-        let layer_artifact_uris = layers
-            .iter()
-            .map(|layer| manifest_layer(layer).map(|layer| layer.artifact_uri.clone()))
-            .collect::<Result<Vec<_>>>()?;
-        let blueprint_artifact_uri = self
-            .recordings
-            .current_recording_blueprint(identity.tenant_id, recording_id)
-            .await?
-            .map(|blueprint| {
-                let artifact = blueprint
-                    .artifact
-                    .as_ref()
-                    .context("sealed recording Blueprint has no artifact")?;
-                artifact_reference(artifact)
-            })
-            .transpose()?;
-        Ok(SealRecordingOutputBuilder {
-            recording_id: crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
-            manifest_artifact_uri: artifact_reference(manifest)?,
-            layer_artifact_uris,
-            blueprint_artifact_uri,
-        }
-        .build()?)
     }
 
     fn archive_path(&self, relative: &str) -> Result<PathBuf> {
@@ -1163,28 +1269,31 @@ pub fn catalog_set_revision(plans: &[RecordingPlaybackPlan]) -> String {
     hex::encode(digest.finalize())
 }
 
-fn source_layer_manifest_digest(
+fn admit_properties_source(
+    properties: &veoveo_recording_contract::RecordingProperties,
+    recording: &RecordingRecord,
     dataset_id: RecordingDatasetId,
-    recording_id: RecordingId,
-    layers: &[RecordingLayerRecord],
-) -> Sha256Digest {
-    let mut digest = Sha256::new();
-    digest.update(dataset_id.to_string());
-    digest.update([0]);
-    digest.update(recording_id.to_string());
-    for layer in layers
-        .iter()
-        .filter(|layer| layer.kind != RecordingLayerKind::Properties)
-    {
-        digest.update([0]);
-        digest.update(layer.layer_name.as_bytes());
-        digest.update(layer.byte_len.to_be_bytes());
-        digest.update(layer.message_count.to_be_bytes());
-        if let Some(sha256) = &layer.sha256 {
-            digest.update(sha256.as_bytes());
-        }
-    }
-    Sha256Digest::from_bytes(digest.finalize().into())
+    dataset_key: &str,
+    source_layers: &[RecordingLayerRecord],
+) -> Result<()> {
+    let recording_id = RecordingId::from_uuid(record_uuid(&recording.id, "recording")?);
+    ensure!(
+        properties.recording_id.as_uuid() == recording_id.as_uuid()
+            && properties.dataset_id.as_uuid() == dataset_id.as_uuid()
+            && properties.dataset_key == dataset_key
+            && properties.producer_recording_key == recording.recording_key
+            && chrono::DateTime::parse_from_rfc3339(&properties.started_at)?.with_timezone(&Utc)
+                == recording.started_at
+            && chrono::DateTime::parse_from_rfc3339(&properties.ended_at)?.with_timezone(&Utc)
+                == recording
+                    .ended_at
+                    .context("sealable recording has no end time")?
+            && properties.source_revision <= recording.revision
+            && properties.immutable_manifest_digest
+                == source_layer_manifest_digest(dataset_id, recording_id, source_layers),
+        "properties preparation differs from selected immutable source facts"
+    );
+    Ok(())
 }
 
 pub(super) fn recording_state(state: RecordingState) -> crate::contract::RecordingState {

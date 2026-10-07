@@ -41,8 +41,8 @@ export function FilesPanel({ computer, scope, snapshot, stale, artifacts, upload
         values.set(artifact.id, { id: artifact.id, filename: artifact.filename, bytes: artifact.byteLength });
     }
     for (const entry of uploads.entries) {
-      if (entry.phase === "Ready" && entry.receipt && entry.receipt.byte_len <= maximumBytes)
-        values.set(entry.receipt.artifact_id, { id: entry.receipt.artifact_id, filename: entry.receipt.filename, bytes: entry.receipt.byte_len });
+      if (entry.phase === "Ready" && entry.receipt && entry.receipt.byteLen <= maximumBytes)
+        values.set(entry.receipt.artifactId, { id: entry.receipt.artifactId, filename: entry.receipt.filename, bytes: entry.receipt.byteLen });
     }
     return [...values.values()];
   }, [artifacts, uploads.entries, maximumBytes]);

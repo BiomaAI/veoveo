@@ -23,18 +23,18 @@ def main() -> None:
     from . import inference, protocol
 
     request = protocol.parse_request(arguments.request_json.read_bytes())
-    if Path(request.response_json) != arguments.response_json:
-        raise SystemExit("request response_json does not match --response-json")
+    if Path(request.responseJson) != arguments.responseJson:
+        raise SystemExit("request responseJson does not match --response-json")
     response = inference.run(request)
     payload = response.to_json().encode("utf-8")
-    if len(payload) > request.max_response_bytes:
+    if len(payload) > request.maxResponseBytes:
         raise SystemExit(
             f"response is {len(payload)} bytes and exceeds "
-            f"max_response_bytes ({request.max_response_bytes})"
+            f"maxResponseBytes ({request.maxResponseBytes})"
         )
-    staging = arguments.response_json.with_suffix(".tmp")
+    staging = arguments.responseJson.with_suffix(".tmp")
     staging.write_bytes(payload)
-    os.replace(staging, arguments.response_json)
+    os.replace(staging, arguments.responseJson)
 
 
 if __name__ == "__main__":

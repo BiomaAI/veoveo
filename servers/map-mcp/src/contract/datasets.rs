@@ -87,7 +87,11 @@ impl From<SecretReference> for String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum SourceCredential {
     Bearer {
@@ -313,7 +317,11 @@ impl From<SourceMountId> for String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum SourceLocation {
     Https {
@@ -363,6 +371,7 @@ impl SourceLocation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct DatasetLicense {
     pub license_id: String,
     pub source_terms_uri: HttpsEndpoint,
@@ -390,6 +399,7 @@ impl DatasetLicense {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(rename = "RegisteredSource")]
+#[serde(rename_all = "camelCase")]
 pub struct RegisteredSourceValue {
     pub source_id: MapSourceId,
     pub dataset_id: MapDatasetId,
@@ -444,6 +454,8 @@ pub enum DatasetReleaseState {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "DatasetRelease")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct DatasetReleaseValue {
     pub release_id: DatasetReleaseId,
     pub dataset_id: MapDatasetId,

@@ -32,12 +32,12 @@ pub(super) async fn read(
                         veoveo_mcp_apps_extension::WorkbenchTool {
                             label: "Create bounded Arrow projection",
                             name: "create_recording_projection",
-                            arguments_json: r#"{"dataset_id":"","recording_id":"","entity_paths":["/sensor"],"component_ids":["Scalars:scalars"],"timeline":"tick","sampling":{"kind":"range","start":0,"end":100},"sparse_fill":"none","maximum_entities":8,"maximum_columns":8,"maximum_samples":1000,"maximum_rows":10000,"maximum_bytes":33554432,"deadline_ms":15000,"idempotency_key":"","units":{},"coordinate_frame_refs":[]}"#,
+                            arguments_json: r#"{"datasetId":"","recordingId":"","entityPaths":["/sensor"],"componentIds":["Scalars:scalars"],"timeline":"tick","sampling":{"kind":"range","start":0,"end":100},"sparseFill":"none","maximumEntities":8,"maximumColumns":8,"maximumSamples":1000,"maximumRows":10000,"maximumBytes":33554432,"deadlineMs":15000,"idempotencyKey":"","units":{},"coordinateFrameRefs":[]}"#,
                         },
                         veoveo_mcp_apps_extension::WorkbenchTool {
                             label: "Seal recording",
                             name: "seal_recording",
-                            arguments_json: r#"{"recording_id":""}"#,
+                            arguments_json: r#"{"recordingId":""}"#,
                         },
                     ],
                     stream_result: Some(

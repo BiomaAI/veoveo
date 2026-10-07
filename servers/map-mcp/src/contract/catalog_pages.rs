@@ -33,14 +33,24 @@ pub enum MapCatalogPage {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "collection", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "collection",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 enum OwnedPosition {
     Routes { version: u8, after: RouteId },
     Matrices { version: u8, after: RouteMatrixId },
     Acquisitions { version: u8, after: AcquisitionId },
 }
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "collection", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "collection",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 enum ReleasePosition {
     Releases {
         version: u8,
@@ -49,7 +59,12 @@ enum ReleasePosition {
     },
 }
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 enum DerivationPosition {
     Raster {
         version: u8,

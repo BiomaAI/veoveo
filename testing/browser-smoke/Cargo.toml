@@ -3,21 +3,11 @@ name = "veoveo-browser-smoke"
 version.workspace = true
 edition.workspace = true
 
-[[bin]]
-name = "browser-smoke"
-path = "src/main.rs"
-
 [dependencies]
-veoveo-deploy-contract.workspace = true
-veoveo-gateway-catalog.workspace = true
-veoveo-gateway-contract.workspace = true
-veoveo-recording-contract.workspace = true
 veoveo-types.workspace = true
-veoveo-uav-sim-mcp = { path = "../../servers/uav-sim-mcp", default-features = false, features = ["contract"] }
 anyhow.workspace = true
 base64.workspace = true
 chrono.workspace = true
-clap.workspace = true
 futures.workspace = true
 hex.workspace = true
 image.workspace = true
@@ -30,4 +20,5 @@ tokio = { workspace = true, features = ["full"] }
 tokio-tungstenite.workspace = true
 url.workspace = true
 uuid.workspace = true
-veoveo-mcp-contract.workspace = true
+
+veoveo-testing-support = { path = "../support" }

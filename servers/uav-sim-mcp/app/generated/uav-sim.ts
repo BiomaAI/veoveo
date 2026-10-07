@@ -410,17 +410,17 @@ export interface LiveCameraRegion {
  */
 export interface SessionSummary {
   lifecycle: SimulationLifecycle;
-  recording_count: number;
-  session_id: SessionId;
-  tile_lifecycle: TileLifecycle;
+  recordingCount: number;
+  sessionId: SessionId;
+  tileLifecycle: TileLifecycle;
   timing: RuntimeTimingState;
-  updated_at: string;
-  vehicle_count: number;
+  updatedAt: string;
+  vehicleCount: number;
   world: {
-    georeference_origin: Wgs84Position;
-    revision_uri: FrameWorldRevisionUri;
-    simulation_frame_uri: WorldFrameUri;
-    spec_sha256: UploadSha256;
+    georeferenceOrigin: Wgs84Position;
+    revisionUri: FrameWorldRevisionUri;
+    simulationFrameUri: WorldFrameUri;
+    specSha256: UploadSha256;
   };
 }
 /**
@@ -428,30 +428,30 @@ export interface SessionSummary {
  * via the `definition` "RuntimeTimingState".
  */
 export interface RuntimeTimingState {
-  after_step_wall_seconds: number;
-  backend_state_wall_seconds: number;
-  dynamics_update_wall_seconds: number;
-  flush_forces_wall_seconds: number;
-  maximum_native_update_ms: number;
-  maximum_physics_step_ms: number;
-  maximum_render_cycle_ms: number;
-  native_rendering_hz: number;
-  native_update_wall_seconds: number;
-  physics_hz: number;
-  physics_steps: number;
-  refresh_states_wall_seconds: number;
-  render_cycle_wall_seconds: number;
-  render_cycles: number;
-  sensor_update_wall_seconds: number;
-  state_update_wall_seconds: number;
-  vehicle_update_wall_seconds: number;
+  afterStepWallSeconds: number;
+  backendStateWallSeconds: number;
+  dynamicsUpdateWallSeconds: number;
+  flushForcesWallSeconds: number;
+  maximumNativeUpdateMs: number;
+  maximumPhysicsStepMs: number;
+  maximumRenderCycleMs: number;
+  nativeRenderingHz: number;
+  nativeUpdateWallSeconds: number;
+  physicsHz: number;
+  physicsSteps: number;
+  refreshStatesWallSeconds: number;
+  renderCycleWallSeconds: number;
+  renderCycles: number;
+  sensorUpdateWallSeconds: number;
+  stateUpdateWallSeconds: number;
+  vehicleUpdateWallSeconds: number;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "Wgs84Position".
  */
 export interface Wgs84Position {
-  ellipsoid_height_m: number;
-  latitude_degrees: number;
-  longitude_degrees: number;
+  ellipsoidHeightM: number;
+  latitudeDegrees: number;
+  longitudeDegrees: number;
 }

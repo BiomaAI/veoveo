@@ -6,17 +6,20 @@ use rmcp::{
 use serde_json::Value;
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct FrameAuditArgs {
     mission: String,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct WorldDesignArgs {
     workflow: String,
     earth_anchor_hint: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct TransformExplainArgs {
     operation_id: veoveo_frames_mcp::contract::CoordinateOperationId,
 }
@@ -37,9 +40,9 @@ impl FramesPrompt {
 
     pub(super) fn name(self) -> &'static str {
         match self {
-            Self::FrameAudit => "frames-frame-audit",
-            Self::WorldDesign => "frames-world-design",
-            Self::TransformExplain => "frames-transform-explain",
+            Self::FrameAudit => "frames_frame_audit",
+            Self::WorldDesign => "frames_world_design",
+            Self::TransformExplain => "frames_transform_explain",
         }
     }
 

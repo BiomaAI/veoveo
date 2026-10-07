@@ -6,6 +6,7 @@ pub const SOURCE_PAGE_SIZE: usize = 100;
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CursorWire {
     version: u8,
     collection: String,
@@ -73,6 +74,8 @@ impl MapSourceCursor {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "PageWire", into = "PageWire")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MapSourcePage {
     items: Vec<SourceSummary>,
     next_cursor: Option<MapSourceCursor>,
@@ -81,6 +84,7 @@ pub struct MapSourcePage {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(transform = super::app_pages::require_cursor_presence)]
+#[serde(rename_all = "camelCase")]
 struct PageWire {
     #[schemars(length(max = 100))]
     items: Vec<SourceSummary>,

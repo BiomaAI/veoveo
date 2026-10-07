@@ -14,11 +14,11 @@ const app: AppDescriptor = {
   agentMessageTargets: [],
   resourceDependencies: [
     {
-      app_resource: "ui://fleet/overview.html",
+      appResource: "ui://fleet/overview.html",
       server: "map",
       scheme: "map",
-      uri_prefix: "map://feature/",
-      required_scope: "map:read",
+      uriPrefix: "map://feature/",
+      requiredScope: "map:read",
       operations: ["read"],
     },
   ],

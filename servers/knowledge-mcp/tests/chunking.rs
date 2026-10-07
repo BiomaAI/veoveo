@@ -83,3 +83,29 @@ fn enumeration_checks_duplicates_and_escapes_opaque_cursors() {
         }
     }
 }
+
+#[test]
+fn source_page_current_fields_close_the_root_and_preserve_owner_item_fields() {
+    let current = serde_json::json!({"items":[{"uri":"fixture://record/one", "ownerField":"source-owned"}], "limit":100, "nextCursor":"one"});
+    let page: SourcePage = serde_json::from_value(current.clone()).unwrap();
+    assert_eq!(page.items().len(), 1);
+    assert_eq!(page.next_cursor(), Some("one"));
+    for mixed in [false, true] {
+        let mut bad = current.clone();
+        let value = bad["nextCursor"].clone();
+        if !mixed {
+            bad.as_object_mut().unwrap().remove("nextCursor");
+        }
+        bad["next_cursor"] = value;
+        assert!(serde_json::from_value::<SourcePage>(bad.clone()).is_err());
+        assert!(serde_json::from_slice::<SourcePage>(&serde_json::to_vec(&bad).unwrap()).is_err());
+    }
+    for limit in [0, 101] {
+        let mut bad = current.clone();
+        bad["limit"] = limit.into();
+        assert!(serde_json::from_value::<SourcePage>(bad).is_err());
+    }
+    let mut unknown = current;
+    unknown["retry"] = true.into();
+    assert!(serde_json::from_value::<SourcePage>(unknown).is_err());
+}

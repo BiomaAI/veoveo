@@ -11,7 +11,7 @@ pub use source_snapshot::{
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(rename = "RecordingVideoSelection")]
 pub struct RecordingVideoSelectionBuilder {
     /// Canonical `recording://recordings/{recording_id}` URI.
@@ -24,7 +24,7 @@ pub struct RecordingVideoSelectionBuilder {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(rename = "IndexRange")]
 pub struct IndexRangeBuilder {
     pub start: i64,
@@ -162,8 +162,8 @@ fn validate_selection_fields(selection: &RecordingVideoSelectionBuilder) -> Resu
 mod tests {
     use super::*;
     fn wire() -> serde_json::Value {
-        serde_json::json!({"recording_uri":"recording://recordings/019fa7e9-d7c6-7fe1-bdff-0a5313586c3c",
-          "entity_path":"/uav/camera/primary", "timeline":"simulation_time", "range":{"start":-10,"end":10}})
+        serde_json::json!({"recordingUri":"recording://recordings/019fa7e9-d7c6-7fe1-bdff-0a5313586c3c",
+          "entityPath":"/uav/camera/primary", "timeline":"simulation_time", "range":{"start":-10,"end":10}})
     }
     #[test]
     fn selection_construction_and_decode_share_admission() {
@@ -172,8 +172,8 @@ mod tests {
         assert_eq!(serde_json::to_value(value).unwrap(), wire());
         assert!(IndexRange::new(5, 4).is_err());
         for (field, invalid) in [
-            ("entity_path", "relative"),
-            ("entity_path", "/bad\npath"),
+            ("entityPath", "relative"),
+            ("entityPath", "/bad\npath"),
             ("timeline", ""),
             ("timeline", "bad\taxis"),
         ] {

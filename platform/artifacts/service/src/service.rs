@@ -1206,7 +1206,11 @@ fn artifact_write_request_hash(
         ))
     })?;
     let mut hash = Sha256::new();
-    hash.update(b"veoveo.artifact-write-request.v1");
+    hash.update(
+        veoveo_artifact_contract::ArtifactWriteRequestFormat::V2
+            .as_str()
+            .as_bytes(),
+    );
     hash.update([0]);
     hash.update(blob_sha.as_str().as_bytes());
     hash.update([0]);
@@ -1291,6 +1295,7 @@ pub(crate) mod tests {
     mod native_database;
     mod provenance;
     mod read_capability;
+    mod startup;
     mod upload_admission;
     mod upload_engine;
     mod upload_lifecycle;

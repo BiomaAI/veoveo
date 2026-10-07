@@ -45,7 +45,11 @@ impl<'de> Deserialize<'de> for GeoPackageIdentifier {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "format", rename_all = "snake_case")]
+#[serde(
+    tag = "format",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum FeatureImportSource {
     GeoJsonFeatureCollection {
@@ -74,6 +78,7 @@ pub enum FeatureImportSource {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ImportFeatureLayerRequest {
     pub layer_id: FeatureLayerId,
     pub expected_layer_revision: u64,
@@ -83,6 +88,8 @@ pub struct ImportFeatureLayerRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ImportFeatureLayerOutput {
     pub imported_feature_count: u64,
     pub changeset: FeatureChangeSet,
@@ -90,7 +97,11 @@ pub struct ImportFeatureLayerOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
-#[serde(tag = "format", rename_all = "snake_case")]
+#[serde(
+    tag = "format",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum FeatureExportFormat {
     GeoJsonSeq,
@@ -100,7 +111,12 @@ pub enum FeatureExportFormat {
 
 // Empty struct variants reject extra keys without changing public unit construction.
 #[derive(Deserialize)]
-#[serde(tag = "format", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "format",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 // Wire variants mirror the established public geospatial format names.
 #[allow(clippy::enum_variant_names)]
 enum FeatureExportFormatWire {
@@ -121,6 +137,7 @@ impl<'de> Deserialize<'de> for FeatureExportFormat {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ExportFeatureLayerRequest {
     pub layer_id: FeatureLayerId,
     pub publication_id: LayerPublicationId,
@@ -128,12 +145,15 @@ pub struct ExportFeatureLayerRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ExportFeatureLayerOutput {
     pub product: LayerProduct,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct InspectGeoPackageRequest {
     pub source_artifact_id: ArtifactId,
 }
@@ -146,6 +166,8 @@ pub enum GeoPackageFindingLevel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct GeoPackageFinding {
     pub level: GeoPackageFindingLevel,
     pub code: String,
@@ -169,6 +191,8 @@ pub enum GeoPackageFieldType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct GeoPackageField {
     pub name: GeoPackageIdentifier,
     pub field_type: GeoPackageFieldType,
@@ -176,6 +200,8 @@ pub struct GeoPackageField {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct GeoPackageFeatureTable {
     pub table: GeoPackageIdentifier,
     pub identifier: String,
@@ -193,6 +219,8 @@ pub struct GeoPackageFeatureTable {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct GeoPackageExtension {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -204,6 +232,8 @@ pub struct GeoPackageExtension {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct GeoPackageManifest {
     pub version: String,
     pub application_id: u32,
@@ -214,6 +244,8 @@ pub struct GeoPackageManifest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct InspectGeoPackageOutput {
     pub source_artifact_uri: veoveo_artifact_contract::ArtifactUri,
     pub manifest: GeoPackageManifest,
@@ -223,6 +255,7 @@ pub struct InspectGeoPackageOutput {
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TileCoordinate {
     pub z: u8,
     pub x: u32,
@@ -246,6 +279,7 @@ impl TileCoordinate {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct BuildVectorTilesRequest {
     pub layer_id: FeatureLayerId,
     pub publication_id: LayerPublicationId,
@@ -253,6 +287,8 @@ pub struct BuildVectorTilesRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct BuildVectorTilesOutput {
     pub product: LayerProduct,
     pub tile_count: u64,
@@ -297,16 +333,16 @@ mod tests {
     #[test]
     fn geopackage_import_requires_explicit_table_and_mapping() {
         let value = serde_json::json!({
-            "layer_id": "feature-layer-019c0000-0000-7000-8000-000000000001",
-            "expected_layer_revision": 3,
-            "source_artifact_id": "019c0000-0000-7000-8000-000000000002",
+            "layerId": "feature-layer-019c0000-0000-7000-8000-000000000001",
+            "expectedLayerRevision": 3,
+            "sourceArtifactId": "019c0000-0000-7000-8000-000000000002",
             "source": {
                 "format": "geo_package",
                 "table": "named places",
-                "identity_column": "external id",
-                "default_semantic_type": "NamedPlace"
+                "identityColumn": "external id",
+                "defaultSemanticType": "NamedPlace"
             },
-            "idempotency_key": "import-019c0000-0000-7000-8000-000000000003"
+            "idempotencyKey": "import-019c0000-0000-7000-8000-000000000003"
         });
         let request: ImportFeatureLayerRequest =
             serde_json::from_value(value).expect("typed GeoPackage import");

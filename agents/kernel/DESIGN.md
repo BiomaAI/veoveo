@@ -12,6 +12,8 @@ Rig tool argument schemas use JSON Schema 2020-12 generated from their Serde DTO
 Resource reads negotiate `ai.veoveo/knowledge-source` through the shared extension
 contract and validate its SHA-256 content binding.
 
+Kernel manifests and local Rig tool arguments use closed camelCase object members. Tool names and controlled unit values use snake_case. The manifest loader expands declared environment references before typed admission; it opens no memory or provider connection for a rejected shape. Rig publishes the same DTO-generated schemas that decode its arguments. SQL result columns and provider parameters keep their own spelling.
+
 ## Resource Context
 
 The gateway connection declares the knowledge extension through Rig's client
@@ -101,3 +103,7 @@ admission supplies correction guidance for malformed and inadmissible addresses.
 Parameter-schema and byte-decoder tests exercise the real Rig parameter methods;
 existing transaction, recorder, timeline, resource-budget and knowledge-read tests
 qualify their execution paths.
+
+## Owning Command Utilities
+
+The nondefault `smoke` feature builds `agent-smoke` for the existing Agent inspection and control commands. It reuses Agent runtime and the existing authenticated MCP client mechanics. Multi-process installation assertions compile in the Bioma acceptance composition; the kernel does not depend on that composition.

@@ -529,23 +529,23 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             config = RuntimeConfig.from_environment()
 
         timing = initial_runtime_timing(config)
-        self.assertEqual(timing["physics_hz"], 30)
-        self.assertEqual(timing["native_rendering_hz"], 30)
-        self.assertEqual(timing["render_cycles"], 0)
-        self.assertEqual(timing["physics_steps"], 0)
-        self.assertEqual(timing["refresh_states_wall_seconds"], 0.0)
-        self.assertEqual(timing["vehicle_update_wall_seconds"], 0.0)
-        self.assertEqual(timing["state_update_wall_seconds"], 0.0)
-        self.assertEqual(timing["dynamics_update_wall_seconds"], 0.0)
-        self.assertEqual(timing["sensor_update_wall_seconds"], 0.0)
-        self.assertEqual(timing["backend_state_wall_seconds"], 0.0)
-        self.assertEqual(timing["flush_forces_wall_seconds"], 0.0)
-        self.assertEqual(timing["after_step_wall_seconds"], 0.0)
-        self.assertEqual(timing["native_update_wall_seconds"], 0.0)
-        self.assertEqual(timing["render_cycle_wall_seconds"], 0.0)
-        self.assertEqual(timing["maximum_physics_step_ms"], 0.0)
-        self.assertEqual(timing["maximum_native_update_ms"], 0.0)
-        self.assertEqual(timing["maximum_render_cycle_ms"], 0.0)
+        self.assertEqual(timing['physicsHz'], 30)
+        self.assertEqual(timing['nativeRenderingHz'], 30)
+        self.assertEqual(timing['renderCycles'], 0)
+        self.assertEqual(timing['physicsSteps'], 0)
+        self.assertEqual(timing['refreshStatesWallSeconds'], 0.0)
+        self.assertEqual(timing['vehicleUpdateWallSeconds'], 0.0)
+        self.assertEqual(timing['stateUpdateWallSeconds'], 0.0)
+        self.assertEqual(timing['dynamicsUpdateWallSeconds'], 0.0)
+        self.assertEqual(timing['sensorUpdateWallSeconds'], 0.0)
+        self.assertEqual(timing['backendStateWallSeconds'], 0.0)
+        self.assertEqual(timing['flushForcesWallSeconds'], 0.0)
+        self.assertEqual(timing['afterStepWallSeconds'], 0.0)
+        self.assertEqual(timing['nativeUpdateWallSeconds'], 0.0)
+        self.assertEqual(timing['renderCycleWallSeconds'], 0.0)
+        self.assertEqual(timing['maximumPhysicsStepMs'], 0.0)
+        self.assertEqual(timing['maximumNativeUpdateMs'], 0.0)
+        self.assertEqual(timing['maximumRenderCycleMs'], 0.0)
 
         server_source = (
             Path(__file__).parents[1] / "veoveo_uav_sim" / "server.py"
@@ -639,17 +639,17 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             ).snapshot()
         self.assertEqual(len(state["cameras"]), 1)
         camera = state["cameras"][0]
-        camera_path = camera["entity_path"]
-        recording_path = state["recordings"][0]["camera_streams"][0]
+        camera_path = camera['entityPath']
+        recording_path = state["recordings"][0]['cameraStreams'][0]
         self.assertTrue(camera_path.endswith("/camera/down"))
         self.assertEqual(recording_path, camera_path)
         self.assertNotIn("front", camera_path)
         self.assertEqual(camera["codec"], "h264")
         self.assertEqual(camera["encoder"], "nvidia_nvenc")
         self.assertEqual(camera["transport"], "rtsp_rtp")
-        self.assertEqual(state["recordings"][0]["camera_streams"], [camera_path])
+        self.assertEqual(state["recordings"][0]['cameraStreams'], [camera_path])
         self.assertEqual(
-            state["recordings"][0]["recording_key"], str(RECORDING_KEY)
+            state["recordings"][0]['recordingKey'], str(RECORDING_KEY)
         )
 
         recording_source = (
@@ -744,10 +744,10 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         state.update_recording_publisher("degraded", 17, 9, "network unavailable")
         recording = state.snapshot()["recordings"][0]
         self.assertTrue(recording["active"])
-        self.assertEqual(recording["publisher_lifecycle"], "degraded")
-        self.assertEqual(recording["queue_capacity"], 256)
-        self.assertEqual(recording["queued_events"], 17)
-        self.assertEqual(recording["dropped_events"], 9)
+        self.assertEqual(recording['publisherLifecycle'], "degraded")
+        self.assertEqual(recording['queueCapacity'], 256)
+        self.assertEqual(recording['queuedEvents'], 17)
+        self.assertEqual(recording['droppedEvents'], 9)
         self.assertEqual(recording["diagnostic"], "network unavailable")
 
     def test_streamable_cameras_share_one_persistent_atlas(self) -> None:
@@ -755,20 +755,20 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             state = RuntimeState(
                 RuntimeConfig.from_environment(), WORLD, RECORDING_KEY
             )
-        products = state.snapshot()["stream_products"]
+        products = state.snapshot()['streamProducts']
 
         state.update_stream_products(products)
 
         snapshot = state.snapshot()
         self.assertEqual(
-            [product["streamProductId"] for product in snapshot["stream_products"]],
+            [product["streamProductId"] for product in snapshot['streamProducts']],
             ["camera-atlas"],
         )
         self.assertEqual(
-            snapshot["stream_products"][0]["cameraRegions"][0]["cameraId"],
+            snapshot['streamProducts'][0]["cameraRegions"][0]["cameraId"],
             "follow",
         )
-        self.assertEqual(snapshot["live_cameras"][0]["health"], "warming")
+        self.assertEqual(snapshot['liveCameras'][0]["health"], "warming")
 
     def test_camera_health_tracks_its_persistent_product(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
@@ -796,7 +796,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        camera = state.snapshot()["live_cameras"][0]
+        camera = state.snapshot()['liveCameras'][0]
         self.assertEqual(camera["health"], "healthy")
         self.assertEqual(camera["lastFrameAt"], "2026-08-07T18:00:01Z")
 
@@ -839,21 +839,21 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         )
 
         timing = state.snapshot()["timing"]
-        self.assertEqual(timing["render_cycles"], 2)
-        self.assertEqual(timing["physics_steps"], 5)
-        self.assertAlmostEqual(timing["refresh_states_wall_seconds"], 0.005)
-        self.assertAlmostEqual(timing["vehicle_update_wall_seconds"], 0.010)
-        self.assertAlmostEqual(timing["state_update_wall_seconds"], 0.001)
-        self.assertAlmostEqual(timing["dynamics_update_wall_seconds"], 0.005)
-        self.assertAlmostEqual(timing["sensor_update_wall_seconds"], 0.003)
-        self.assertAlmostEqual(timing["backend_state_wall_seconds"], 0.001)
-        self.assertAlmostEqual(timing["flush_forces_wall_seconds"], 0.015)
-        self.assertAlmostEqual(timing["after_step_wall_seconds"], 0.020)
-        self.assertAlmostEqual(timing["native_update_wall_seconds"], 0.06)
-        self.assertAlmostEqual(timing["render_cycle_wall_seconds"], 0.08)
-        self.assertAlmostEqual(timing["maximum_physics_step_ms"], 13.0)
-        self.assertAlmostEqual(timing["maximum_native_update_ms"], 40.0)
-        self.assertAlmostEqual(timing["maximum_render_cycle_ms"], 50.0)
+        self.assertEqual(timing['renderCycles'], 2)
+        self.assertEqual(timing['physicsSteps'], 5)
+        self.assertAlmostEqual(timing['refreshStatesWallSeconds'], 0.005)
+        self.assertAlmostEqual(timing['vehicleUpdateWallSeconds'], 0.010)
+        self.assertAlmostEqual(timing['stateUpdateWallSeconds'], 0.001)
+        self.assertAlmostEqual(timing['dynamicsUpdateWallSeconds'], 0.005)
+        self.assertAlmostEqual(timing['sensorUpdateWallSeconds'], 0.003)
+        self.assertAlmostEqual(timing['backendStateWallSeconds'], 0.001)
+        self.assertAlmostEqual(timing['flushForcesWallSeconds'], 0.015)
+        self.assertAlmostEqual(timing['afterStepWallSeconds'], 0.020)
+        self.assertAlmostEqual(timing['nativeUpdateWallSeconds'], 0.06)
+        self.assertAlmostEqual(timing['renderCycleWallSeconds'], 0.08)
+        self.assertAlmostEqual(timing['maximumPhysicsStepMs'], 13.0)
+        self.assertAlmostEqual(timing['maximumNativeUpdateMs'], 40.0)
+        self.assertAlmostEqual(timing['maximumRenderCycleMs'], 50.0)
 
         with self.assertRaisesRegex(ValueError, "cannot be negative"):
             state.observe_render_cycle(
@@ -1317,6 +1317,55 @@ class Px4HilPlantContractTests(unittest.TestCase):
 
 
 class AdapterContractTests(unittest.TestCase):
+    def test_all_current_request_variants_refuse_retired_and_mixed_on_both_decoders(self):
+        import copy
+        import re
+        from pydantic import TypeAdapter, ValidationError
+        from veoveo_uav_sim.contracts import COMMAND_ADAPTER, OPERATION_ADAPTER
+        from veoveo_uav_sim.world_config import ConfigureWorldWire
+
+        def members(value, path=()):
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    if any(c.isupper() for c in key):
+                        yield path, key, re.sub(r"([A-Z])", lambda m: "_" + m[1].lower(), key)
+                    yield from members(child, (*path, key))
+            elif isinstance(value, list):
+                for index, child in enumerate(value):
+                    yield from members(child, (*path, index))
+
+        requests = [(COMMAND_ADAPTER, {"command": kind, "sessionId": "uav-showcase"})
+                    for kind in ["pause", "resume", "reset"]]
+        requests += [(COMMAND_ADAPTER, {"command": "step", "sessionId": "uav-showcase", "steps": 1})]
+        requests += [(COMMAND_ADAPTER, {"command": kind, "sessionId": "uav-showcase", "vehicleId": "uav-1"})
+                     for kind in ["arm", "land"]]
+        requests += [(COMMAND_ADAPTER, {"command": "takeoff", "sessionId": "uav-showcase", "vehicleId": "uav-1", "relativeAltitudeM": 20.0})]
+        requests += [(OPERATION_ADAPTER, {"operation": "run_scenario", "input": {"sessionId": "uav-showcase", "durationSeconds": 1.0, "parameters": {}}}),
+                     (OPERATION_ADAPTER, {"operation": "capture_dataset", "input": {"sessionId": "uav-showcase", "durationSeconds": 1.0, "sensors": ["camera"]}}),
+                     (OPERATION_ADAPTER, {"operation": "execute_mission", "input": {"sessionId": "uav-showcase", "missionId": "mission-1", "expectedWorldRevisionUri": WORLD.revision_uri, "vehicles": [{"vehicleId": "uav-1", "waypoints": [{"position": WORLD.georeference_origin.as_dict(), "speedMps": 3.0, "holdSeconds": 0.0}]}]}}),
+                     (ConfigureWorldWire, {"sessionId": "uav-showcase", "world": WORLD.as_dict()})]
+        controls = 0
+        for model, value in requests:
+            adapter = model if isinstance(model, TypeAdapter) else TypeAdapter(model)
+            self.assertEqual(adapter.validate_python(value), adapter.validate_json(json.dumps(value)))
+            for path, key, retired in members(value):
+                for mixed in [False, True]:
+                    changed = copy.deepcopy(value)
+                    target = changed
+                    for part in path:
+                        target = target[part]
+                    target[retired] = target[key] if mixed else target.pop(key)
+                    with self.subTest(path=path, key=key, mixed=mixed):
+                        for decode, payload in [(adapter.validate_python, changed), (adapter.validate_json, json.dumps(changed))]:
+                            with self.assertRaises(ValidationError):
+                                decode(payload)
+                        if not isinstance(model, TypeAdapter):
+                            for decode, payload in [(model.model_validate, changed), (model.model_validate_json, json.dumps(changed))]:
+                                with self.assertRaises(ValidationError):
+                                    decode(payload)
+                    controls += 1
+        self.assertGreater(controls, 40)
+
     def test_invalid_discriminators_are_redacted_in_adapter_errors(self):
         for parser, value in [
             (parse_command, {"command": "sentinel-private-value"}),
@@ -1329,17 +1378,17 @@ class AdapterContractTests(unittest.TestCase):
 
     def test_adapter_diagnostics_do_not_reflect_private_values(self):
         with self.assertRaises(ContractError) as raised:
-            parse_command({"command": "pause", "session_id": "uav-showcase", "secret": "sentinel-private-value"})
+            parse_command({"command": "pause", 'sessionId': "uav-showcase", "secret": "sentinel-private-value"})
         self.assertNotIn("sentinel-private-value", str(raised.exception))
         with self.assertRaises(ContractError) as raised:
             parse_operation({"operation": "capture_dataset", "input": {
-                "session_id": "uav-showcase", "duration_seconds": 1.0,
+                'sessionId': "uav-showcase", 'durationSeconds': 1.0,
                 "sensors": ["camera"], "secret": "sentinel-private-value",
             }})
         self.assertNotIn("sentinel-private-value", str(raised.exception))
         from veoveo_uav_sim.world_config import WorldConfiguration, WorldConfigurationError
         with self.assertRaises(WorldConfigurationError) as raised:
-            WorldConfiguration.from_request({"session_id": "uav-showcase", "world": {}, "secret": "sentinel-private-value"}, "uav-showcase")
+            WorldConfiguration.from_request({'sessionId': "uav-showcase", "world": {}, "secret": "sentinel-private-value"}, "uav-showcase")
         self.assertNotIn("sentinel-private-value", str(raised.exception))
 
     def test_private_wire_schemas_close_nested_fields(self):
@@ -1356,8 +1405,8 @@ class AdapterContractTests(unittest.TestCase):
             parse_command(
                 {
                     "command": "arm",
-                    "session_id": "uav-showcase",
-                    "vehicle_id": "uav-1",
+                    'sessionId': "uav-showcase",
+                    'vehicleId': "uav-1",
                     "legacy_vehicle": "one",
                 }
             )
@@ -1367,21 +1416,21 @@ class AdapterContractTests(unittest.TestCase):
             {
                 "operation": "execute_mission",
                 "input": {
-                    "session_id": "uav-showcase",
-                    "mission_id": "mission-1",
-                    "expected_world_revision_uri": WORLD.revision_uri,
+                    'sessionId': "uav-showcase",
+                    'missionId': "mission-1",
+                    'expectedWorldRevisionUri': WORLD.revision_uri,
                     "vehicles": [
                         {
-                            "vehicle_id": "uav-1",
+                            'vehicleId': "uav-1",
                             "waypoints": [
                                 {
                                     "position": {
-                                        "latitude_degrees": 13.6929,
-                                        "longitude_degrees": -89.2182,
-                                        "ellipsoid_height_m": 705.0,
+                                        "latitudeDegrees": 13.6929,
+                                        "longitudeDegrees": -89.2182,
+                                        "ellipsoidHeightM": 705.0,
                                     },
-                                    "speed_mps": 3.0,
-                                    "hold_seconds": 0.0,
+                                    'speedMps': 3.0,
+                                    'holdSeconds': 0.0,
                                 }
                             ],
                         }
@@ -1600,10 +1649,26 @@ class Px4CommanderTests(unittest.TestCase):
 
 
 class WorldConfigurationTests(unittest.TestCase):
+    def test_frames_origin_current_keys_refuse_retired_and_mixed_before_startup(self) -> None:
+        for current, retired in [
+            ("latitudeDegrees", "latitude_degrees"),
+            ("longitudeDegrees", "longitude_degrees"),
+            ("ellipsoidHeightM", "ellipsoid_height_m"),
+        ]:
+            for mixed in [False, True]:
+                payload = {'sessionId': "uav-showcase", "world": WORLD.as_dict()}
+                origin = payload["world"]['georeferenceOrigin']
+                value = origin[current]
+                if not mixed:
+                    del origin[current]
+                origin[retired] = value
+                with self.subTest(field=current, mixed=mixed), self.assertRaises(WorldConfigurationError):
+                    WorldConfiguration.from_request(payload, "uav-showcase")
+
     def test_installation_binding_file_validates_before_runtime_startup(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "world.json"
-            payload = {"session_id": "uav-showcase", "world": WORLD.as_dict()}
+            payload = {'sessionId': "uav-showcase", "world": WORLD.as_dict()}
             path.write_text(json.dumps(payload), encoding="utf-8")
             self.assertEqual(WorldConfiguration.from_file(path, "uav-showcase"), WORLD)
             with self.assertRaisesRegex(WorldConfigurationError, "unknown simulation session"):
@@ -1639,19 +1704,19 @@ class WorldConfigurationTests(unittest.TestCase):
 
     def test_world_binding_is_strict_and_typed(self) -> None:
         world = WorldConfiguration.from_request(
-            {"session_id": "uav-showcase", "world": WORLD.as_dict()},
+            {'sessionId': "uav-showcase", "world": WORLD.as_dict()},
             "uav-showcase",
         )
         self.assertEqual(world, WORLD)
 
     def test_world_binding_rejects_a_frame_from_another_revision(self) -> None:
         payload = WORLD.as_dict()
-        payload["simulation_frame_uri"] = (
+        payload['simulationFrameUri'] = (
             "frames://world/other/revision/revision-2/frame/isaac-world"
         )
         with self.assertRaisesRegex(WorldConfigurationError, "frame in revision_uri"):
             WorldConfiguration.from_request(
-                {"session_id": "uav-showcase", "world": payload},
+                {'sessionId': "uav-showcase", "world": payload},
                 "uav-showcase",
             )
 

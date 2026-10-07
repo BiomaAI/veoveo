@@ -1,13 +1,14 @@
 use veoveo_artifact_contract::ArtifactMetadata;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactArgs {
     /// Media artifact resource URI, for example media://artifact/{artifact_id}.
     pub artifact_uri: super::MediaArtifactUri,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(rename = "ArtifactOutput")]
 pub struct ArtifactOutputValue {
     pub artifact: ArtifactMetadata,

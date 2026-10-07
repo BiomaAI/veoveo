@@ -12,6 +12,11 @@ name = "agent"
 path = "src/bin/agent.rs"
 
 [dependencies]
+veoveo-testing-support = { path = "../../testing/support", optional = true }
+veoveo-gateway-contract = { workspace = true, optional = true }
+veoveo-artifact-contract = { workspace = true, optional = true }
+axum = { workspace = true, optional = true }
+veoveo-mcp-conformance = { path = "../../mcp/conformance", optional = true }
 schemars.workspace = true
 veoveo-duckdb-mcp = { path = "../../servers/duckdb-mcp", default-features = false, features = ["contract"] }
 veoveo-types.workspace = true
@@ -46,7 +51,7 @@ url.workspace = true
 uuid.workspace = true
 veoveo-duckdb-runtime = { path = "../../platform/runtimes/duckdb" }
 veoveo-agent-runtime = { path = "../runtime" }
-veoveo-mcp-contract.workspace = true
+veoveo-mcp-contract = { workspace = true, features = ["runtime"] }
 veoveo-platform-store.workspace = true
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
@@ -54,3 +59,11 @@ veoveo-task-runtime = { path = "../../platform/task-runtime" }
 jsonschema.workspace = true
 veoveo-modules = { workspace = true, features = ["runner"] }
 tempfile = "3"
+
+[[bin]]
+name = "agent-smoke"
+path = "src/smoke/agent_smoke.rs"
+required-features = ["smoke"]
+
+[features]
+smoke = ["dep:veoveo-testing-support", "dep:veoveo-gateway-contract",   "dep:veoveo-artifact-contract", "dep:axum",        "dep:veoveo-mcp-conformance"]

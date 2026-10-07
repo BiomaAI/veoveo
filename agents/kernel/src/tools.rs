@@ -42,7 +42,7 @@ impl From<anyhow::Error> for MemoryToolError {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MemoryQueryArgs {
     /// One read-only SELECT (or WITH ... SELECT) statement.
     pub sql: String,
@@ -53,6 +53,7 @@ pub struct MemoryQueryArgs {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MemoryQueryOutput {
     pub rows: Vec<serde_json::Value>,
     pub row_count: usize,
@@ -99,6 +100,7 @@ impl Tool for MemoryQueryTool {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MemoryWriteOutput {
     pub affected_rows: usize,
 }
@@ -154,6 +156,7 @@ impl Tool for MemoryWriteTool {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TimelineQueryOutput {
     pub rows: Vec<serde_json::Value>,
     pub row_count: usize,
@@ -243,9 +246,9 @@ mod tests {
         let query_schema = query.parameters();
         for value in [
             json!({"sql":"SELECT 1"}),
-            json!({"sql":"SELECT 1","max_rows":null}),
-            json!({"sql":"SELECT 1","max_rows":0}),
-            json!({"sql":"SELECT 1","max_rows":u64::MAX}),
+            json!({"sql":"SELECT 1","maxRows":null}),
+            json!({"sql":"SELECT 1","maxRows":0}),
+            json!({"sql":"SELECT 1","maxRows":u64::MAX}),
         ] {
             admit::<MemoryQueryArgs>(&query_schema, value, true);
         }
@@ -253,9 +256,11 @@ mod tests {
             json!({}),
             json!({"sql":1}),
             json!({"sql":"SELECT 1","extra":true}),
-            json!({"sql":"SELECT 1","max_rows":-1}),
-            json!({"sql":"SELECT 1","max_rows":0.5}),
-            json!({"sql":"SELECT 1","max_rows":1e20}),
+            json!({"sql":"SELECT 1","max_rows":4}),
+            json!({"sql":"SELECT 1","maxRows":4,"max_rows":4}),
+            json!({"sql":"SELECT 1","maxRows":-1}),
+            json!({"sql":"SELECT 1","maxRows":0.5}),
+            json!({"sql":"SELECT 1","maxRows":1e20}),
         ] {
             admit::<MemoryQueryArgs>(&query_schema, value, false);
         }
@@ -290,17 +295,19 @@ mod tests {
         let timeline_schema = timeline.parameters();
         for value in [
             json!({}),
-            json!({"timeline":"custom_capture_index","entities":"/domain/**","max_rows":u64::MAX}),
-            json!({"max_rows":0}),
+            json!({"timeline":"custom_capture_index","entities":"/domain/**","maxRows":u64::MAX}),
+            json!({"maxRows":0}),
         ] {
             admit::<TimelineQuery>(&timeline_schema, value, true);
         }
         for value in [
             json!({"timeline":1}),
             json!({"entities":null}),
-            json!({"max_rows":null}),
-            json!({"max_rows":-1}),
-            json!({"max_rows":1e20}),
+            json!({"maxRows":null}),
+            json!({"max_rows":4}),
+            json!({"maxRows":4,"max_rows":4}),
+            json!({"maxRows":-1}),
+            json!({"maxRows":1e20}),
             json!({"extra":true}),
         ] {
             admit::<TimelineQuery>(&timeline_schema, value, false);
@@ -309,7 +316,7 @@ mod tests {
         assert_eq!(defaults.entities, "/**");
         assert_eq!(defaults.timeline, "log_time");
         assert_eq!(defaults.max_rows, 50);
-        assert_eq!(timeline_schema["properties"]["max_rows"]["default"], 50);
+        assert_eq!(timeline_schema["properties"]["maxRows"]["default"], 50);
         assert!(query.description().contains("agent_memory"));
         assert!(!query.description().contains("task_ledger"));
     }

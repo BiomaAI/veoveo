@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use veoveo_stream_mcp::contract::{RunId, StreamArtifactMetadata, StreamArtifactProvenance};
 
 use anyhow::{Context, Result};
@@ -178,6 +178,13 @@ fn compliance(classification: &str, labels: &[String]) -> Result<ComplianceMetad
     })
 }
 
+fn usage_metadata(results: &AnalysisResults) -> Result<OpenObject> {
+    let owned = veoveo_stream_mcp::contract::StreamUsageMetadata::from_analysis(results);
+    Ok(OpenObject::new(serde_json::from_value(
+        serde_json::to_value(owned)?,
+    )?))
+}
+
 async fn record_usage(state: &AppState, task_id: RunId, results: &AnalysisResults) -> Result<()> {
     state
         .tasks
@@ -194,11 +201,7 @@ async fn record_usage(state: &AppState, task_id: RunId, results: &AnalysisResult
             amount: None,
             currency: None,
             recorded_at: now_utc(),
-            metadata: OpenObject::new(BTreeMap::from([
-                ("pipeline_id".into(), serde_json::json!(results.pipeline_id)),
-                ("entity_path".into(), serde_json::json!(results.entity_path)),
-                ("timeline".into(), serde_json::json!(results.timeline)),
-            ])),
+            metadata: usage_metadata(results)?,
         })
         .await
         .context("recording stream usage")?;
@@ -246,7 +249,7 @@ mod tests {
 
         for metadata in variants {
             assert_eq!(
-                metadata["provenance"]["source_snapshot_sha256"],
+                metadata["provenance"]["sourceSnapshotSha256"],
                 "a".repeat(64)
             );
             let request = PutArtifactRequest {
@@ -260,6 +263,40 @@ mod tests {
             assert!(
                 serde_json::to_vec(&request).unwrap().len() < MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES
             );
+        }
+    }
+    #[test]
+    fn actual_usage_adapter_emits_only_current_owned_facts() {
+        let results: AnalysisResults =
+            serde_json::from_str(include_str!("../../../testdata/replay-results-v2.json")).unwrap();
+        let native = usage_metadata(&results).unwrap();
+        let wire = serde_json::to_value(native).unwrap();
+        let owned: veoveo_stream_mcp::contract::StreamUsageMetadata =
+            serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(
+            owned,
+            veoveo_stream_mcp::contract::StreamUsageMetadata::from_analysis(&results)
+        );
+        for (field, retired) in [("pipelineId", "pipeline_id"), ("entityPath", "entity_path")] {
+            for mode in 0..3 {
+                let mut invalid = wire.clone();
+                let object = invalid.as_object_mut().unwrap();
+                let value = if mode == 2 {
+                    serde_json::json!("retired-conflict")
+                } else {
+                    object[field].clone()
+                };
+                if mode == 0 {
+                    object.remove(field);
+                }
+                object.insert(retired.into(), value);
+                assert!(
+                    serde_json::from_value::<veoveo_stream_mcp::contract::StreamUsageMetadata>(
+                        invalid
+                    )
+                    .is_err()
+                );
+            }
         }
     }
 }

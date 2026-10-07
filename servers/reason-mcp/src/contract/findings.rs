@@ -9,14 +9,14 @@ use veoveo_types::{
 
 use super::{AnalysisId, ReasonContractError};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum FindingCollection {
+    #[vocabulary(rename = "analyses")]
     Analyses,
+    #[vocabulary(rename = "results")]
     Results,
 }
 impl FindingCollection {
-    pub const ALL: [Self; 2] = [Self::Analyses, Self::Results];
     pub fn segment(self) -> &'static str {
         match self {
             Self::Analyses => "analyses",

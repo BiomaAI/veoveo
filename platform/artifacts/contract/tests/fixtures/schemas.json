@@ -1,6 +1,24 @@
 {
   "ArtifactId": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "ai.veoveo/naming-profile": {
+      "revision": 1,
+      "role": {
+        "kind": "scalar",
+        "profile": {
+          "declaration": {
+            "applicability": "the declared scalar identity schema",
+            "authority": {
+              "kind": "owner",
+              "module": "veoveo_artifact_contract::identity"
+            },
+            "profile": "ArtifactId",
+            "version": "unversioned"
+          },
+          "kind": "owner_identity"
+        }
+      }
+    },
     "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
     "title": "ArtifactId",
     "type": "string"
@@ -11,6 +29,7 @@
         "description": "A principal or group that can own governed data or receive access.",
         "oneOf": [
           {
+            "additionalProperties": false,
             "properties": {
               "id": {
                 "$ref": "#/$defs/PrincipalId"
@@ -24,10 +43,10 @@
               "kind",
               "id"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
           {
+            "additionalProperties": false,
             "properties": {
               "id": {
                 "$ref": "#/$defs/GroupId"
@@ -41,12 +60,29 @@
               "kind",
               "id"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           }
         ]
       },
       "ArtifactId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_artifact_contract::identity"
+                },
+                "profile": "ArtifactId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
         "type": "string"
       },
@@ -54,8 +90,9 @@
         "description": "Immutable explanation of how an artifact came into being.",
         "oneOf": [
           {
+            "additionalProperties": false,
             "properties": {
-              "delegation_id": {
+              "delegationId": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/NoIdentity"
@@ -68,11 +105,11 @@
               "initiator": {
                 "$ref": "#/$defs/PrincipalId"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "const": "direct",
                 "type": "string"
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
               "producer": {
@@ -80,26 +117,27 @@
               }
             },
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
               "initiator",
-              "policy_revision"
+              "policyRevision"
             ],
             "type": "object"
           },
           {
+            "additionalProperties": false,
             "properties": {
-              "delegation_id": {
+              "delegationId": {
                 "$ref": "#/$defs/DelegationId"
               },
               "initiator": {
                 "$ref": "#/$defs/PrincipalId"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "const": "delegated",
                 "type": "string"
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
               "producer": {
@@ -107,17 +145,18 @@
               }
             },
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
               "initiator",
-              "delegation_id",
-              "policy_revision"
+              "delegationId",
+              "policyRevision"
             ],
             "type": "object"
           },
           {
+            "additionalProperties": false,
             "properties": {
-              "delegation_id": {
+              "delegationId": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/NoIdentity"
@@ -137,11 +176,11 @@
                   }
                 ]
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "const": "automated",
                 "type": "string"
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
               "producer": {
@@ -149,9 +188,9 @@
               }
             },
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
-              "policy_revision"
+              "policyRevision"
             ],
             "type": "object"
           }
@@ -170,6 +209,7 @@
         "type": "string"
       },
       "ComplianceMetadata": {
+        "additionalProperties": false,
         "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
         "properties": {
           "classification": {
@@ -182,7 +222,7 @@
               }
             ]
           },
-          "data_labels": {
+          "dataLabels": {
             "items": {
               "$ref": "#/$defs/DataLabelId"
             },
@@ -209,14 +249,14 @@
               }
             ]
           },
-          "retention_expires_at": {
+          "retentionExpiresAt": {
             "format": "date-time",
             "type": [
               "string",
               "null"
             ]
           },
-          "tenant_id": {
+          "tenantId": {
             "anyOf": [
               {
                 "$ref": "#/$defs/TenantId"
@@ -226,7 +266,7 @@
               }
             ]
           },
-          "work_context": {
+          "workContext": {
             "anyOf": [
               {
                 "$ref": "#/$defs/WorkContextId"
@@ -240,45 +280,172 @@
         "type": "object"
       },
       "DataLabelId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DataLabelId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
         "type": "string"
       },
       "DelegationId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DelegationId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Auditable identity of authority delegated by an initiator to another actor.",
         "type": "string"
       },
       "GroupId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "GroupId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Identity-provider group identifier used by gateway policy.",
         "type": "string"
       },
       "NoIdentity": false,
       "PolicyVersion": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PolicyVersion",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Immutable policy version identifier emitted with decisions and audit records.",
         "type": "string"
       },
       "PrincipalId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PrincipalId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Stable authenticated user or service-principal identity.",
         "type": "string"
       },
       "TenantId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "TenantId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Tenant, organization, or customer boundary identifier.",
         "type": "string"
       },
       "WorkContextId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "WorkContextId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Tenant-local boundary that governs related work and every output it produces.",
         "type": "string"
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
     "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
     "properties": {
-      "artifact_id": {
+      "artifactId": {
         "$ref": "#/$defs/ArtifactId"
       },
-      "artifact_uri": {
+      "artifactUri": {
         "$ref": "#/$defs/ArtifactUri"
       },
-      "byte_len": {
+      "byteLen": {
         "format": "uint64",
         "minimum": 0,
         "type": "integer"
@@ -287,11 +454,11 @@
         "$ref": "#/$defs/ComplianceMetadata",
         "default": {}
       },
-      "created_at": {
+      "createdAt": {
         "format": "date-time",
         "type": "string"
       },
-      "download_url": {
+      "downloadUrl": {
         "type": [
           "string",
           "null"
@@ -307,23 +474,23 @@
       "metadata": {
         "default": null
       },
-      "mime_type": {
+      "mimeType": {
         "default": null,
         "type": [
           "string",
           "null"
         ]
       },
-      "release_state": {
+      "releaseState": {
         "$ref": "#/$defs/ArtifactReleaseState",
         "default": "private"
       }
     },
     "required": [
-      "artifact_id",
-      "byte_len",
-      "artifact_uri",
-      "created_at"
+      "artifactId",
+      "byteLen",
+      "artifactUri",
+      "createdAt"
     ],
     "title": "ArtifactMetadata",
     "type": "object"
@@ -331,15 +498,69 @@
   "ArtifactProvenance": {
     "$defs": {
       "DelegationId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DelegationId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Auditable identity of authority delegated by an initiator to another actor.",
         "type": "string"
       },
       "NoIdentity": false,
       "PolicyVersion": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PolicyVersion",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Immutable policy version identifier emitted with decisions and audit records.",
         "type": "string"
       },
       "PrincipalId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PrincipalId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Stable authenticated user or service-principal identity.",
         "type": "string"
       }
@@ -348,8 +569,9 @@
     "description": "Immutable explanation of how an artifact came into being.",
     "oneOf": [
       {
+        "additionalProperties": false,
         "properties": {
-          "delegation_id": {
+          "delegationId": {
             "anyOf": [
               {
                 "$ref": "#/$defs/NoIdentity"
@@ -362,11 +584,11 @@
           "initiator": {
             "$ref": "#/$defs/PrincipalId"
           },
-          "invocation_mode": {
+          "invocationMode": {
             "const": "direct",
             "type": "string"
           },
-          "policy_revision": {
+          "policyRevision": {
             "$ref": "#/$defs/PolicyVersion"
           },
           "producer": {
@@ -374,26 +596,27 @@
           }
         },
         "required": [
-          "invocation_mode",
+          "invocationMode",
           "producer",
           "initiator",
-          "policy_revision"
+          "policyRevision"
         ],
         "type": "object"
       },
       {
+        "additionalProperties": false,
         "properties": {
-          "delegation_id": {
+          "delegationId": {
             "$ref": "#/$defs/DelegationId"
           },
           "initiator": {
             "$ref": "#/$defs/PrincipalId"
           },
-          "invocation_mode": {
+          "invocationMode": {
             "const": "delegated",
             "type": "string"
           },
-          "policy_revision": {
+          "policyRevision": {
             "$ref": "#/$defs/PolicyVersion"
           },
           "producer": {
@@ -401,17 +624,18 @@
           }
         },
         "required": [
-          "invocation_mode",
+          "invocationMode",
           "producer",
           "initiator",
-          "delegation_id",
-          "policy_revision"
+          "delegationId",
+          "policyRevision"
         ],
         "type": "object"
       },
       {
+        "additionalProperties": false,
         "properties": {
-          "delegation_id": {
+          "delegationId": {
             "anyOf": [
               {
                 "$ref": "#/$defs/NoIdentity"
@@ -431,11 +655,11 @@
               }
             ]
           },
-          "invocation_mode": {
+          "invocationMode": {
             "const": "automated",
             "type": "string"
           },
-          "policy_revision": {
+          "policyRevision": {
             "$ref": "#/$defs/PolicyVersion"
           },
           "producer": {
@@ -443,9 +667,9 @@
           }
         },
         "required": [
-          "invocation_mode",
+          "invocationMode",
           "producer",
-          "policy_revision"
+          "policyRevision"
         ],
         "type": "object"
       }
@@ -468,6 +692,7 @@
         "description": "A principal or group that can own governed data or receive access.",
         "oneOf": [
           {
+            "additionalProperties": false,
             "properties": {
               "id": {
                 "$ref": "#/$defs/PrincipalId"
@@ -481,10 +706,10 @@
               "kind",
               "id"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
           {
+            "additionalProperties": false,
             "properties": {
               "id": {
                 "$ref": "#/$defs/GroupId"
@@ -498,8 +723,7 @@
               "kind",
               "id"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           }
         ]
       },
@@ -507,8 +731,9 @@
         "description": "Immutable explanation of how an artifact came into being.",
         "oneOf": [
           {
+            "additionalProperties": false,
             "properties": {
-              "delegation_id": {
+              "delegationId": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/NoIdentity"
@@ -521,11 +746,11 @@
               "initiator": {
                 "$ref": "#/$defs/PrincipalId"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "const": "direct",
                 "type": "string"
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
               "producer": {
@@ -533,26 +758,27 @@
               }
             },
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
               "initiator",
-              "policy_revision"
+              "policyRevision"
             ],
             "type": "object"
           },
           {
+            "additionalProperties": false,
             "properties": {
-              "delegation_id": {
+              "delegationId": {
                 "$ref": "#/$defs/DelegationId"
               },
               "initiator": {
                 "$ref": "#/$defs/PrincipalId"
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "const": "delegated",
                 "type": "string"
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
               "producer": {
@@ -560,17 +786,18 @@
               }
             },
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
               "initiator",
-              "delegation_id",
-              "policy_revision"
+              "delegationId",
+              "policyRevision"
             ],
             "type": "object"
           },
           {
+            "additionalProperties": false,
             "properties": {
-              "delegation_id": {
+              "delegationId": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/NoIdentity"
@@ -590,11 +817,11 @@
                   }
                 ]
               },
-              "invocation_mode": {
+              "invocationMode": {
                 "const": "automated",
                 "type": "string"
               },
-              "policy_revision": {
+              "policyRevision": {
                 "$ref": "#/$defs/PolicyVersion"
               },
               "producer": {
@@ -602,45 +829,172 @@
               }
             },
             "required": [
-              "invocation_mode",
+              "invocationMode",
               "producer",
-              "policy_revision"
+              "policyRevision"
             ],
             "type": "object"
           }
         ]
       },
       "DataLabelId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DataLabelId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
         "type": "string"
       },
       "DelegationId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "DelegationId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Auditable identity of authority delegated by an initiator to another actor.",
         "type": "string"
       },
       "GroupId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "GroupId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Identity-provider group identifier used by gateway policy.",
         "type": "string"
       },
       "NoIdentity": false,
       "PolicyVersion": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PolicyVersion",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Immutable policy version identifier emitted with decisions and audit records.",
         "type": "string"
       },
       "PrincipalId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "PrincipalId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Stable authenticated user or service-principal identity.",
         "type": "string"
       },
       "TenantId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "TenantId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Tenant, organization, or customer boundary identifier.",
         "type": "string"
       },
       "WorkContextId": {
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "declaration": {
+                "applicability": "the declared scalar identity schema",
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_types::identity"
+                },
+                "profile": "WorkContextId",
+                "version": "unversioned"
+              },
+              "kind": "owner_identity"
+            }
+          }
+        },
         "description": "Tenant-local boundary that governs related work and every output it produces.",
         "type": "string"
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
     "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
     "properties": {
       "classification": {
@@ -653,7 +1007,7 @@
           }
         ]
       },
-      "data_labels": {
+      "dataLabels": {
         "items": {
           "$ref": "#/$defs/DataLabelId"
         },
@@ -680,14 +1034,14 @@
           }
         ]
       },
-      "retention_expires_at": {
+      "retentionExpiresAt": {
         "format": "date-time",
         "type": [
           "string",
           "null"
         ]
       },
-      "tenant_id": {
+      "tenantId": {
         "anyOf": [
           {
             "$ref": "#/$defs/TenantId"
@@ -697,7 +1051,7 @@
           }
         ]
       },
-      "work_context": {
+      "workContext": {
         "anyOf": [
           {
             "$ref": "#/$defs/WorkContextId"

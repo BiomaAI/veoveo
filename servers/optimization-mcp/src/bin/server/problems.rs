@@ -14,7 +14,7 @@ use veoveo_optimization_mcp::{
         OptimizationProblemUri, OptimizationSolution, OptimizationSolutionUri,
         OptimizeRouteScenariosRequest, OptimizeRoutesRequest, ProblemDimensions, ProblemFamily,
         ProblemId, RouteScenario, RoutingProblem, RoutingProblemSource, SolveConvexRequest,
-        SolveMilpRequest, TRAVEL_MODEL_ARTIFACT_VERSION, TravelModelArtifact, TravelModelSource,
+        SolveMilpRequest, TravelModelSource, decode_map_travel_model,
     },
     problem_store::{PreparedProblem, PreparedRouteCase},
 };
@@ -260,20 +260,9 @@ async fn materialize_travel_model(
         TravelModelSource::Artifact { manifest_uri } => (manifest_uri, None),
         TravelModelSource::MapResource { uri, manifest_uri } => (manifest_uri, Some(uri)),
     };
-    let artifact: TravelModelArtifact = read_json_artifact(state, caller, artifact_uri).await?;
-    if artifact.version != TRAVEL_MODEL_ARTIFACT_VERSION {
-        anyhow::bail!(
-            "travel-model artifact version must be {}",
-            TRAVEL_MODEL_ARTIFACT_VERSION
-        );
-    }
-    if let Some(expected) = expected_map_uri
-        && artifact.map_resource_uri.as_ref() != Some(expected)
-    {
-        anyhow::bail!("travel-model artifact does not attest the requested Map resource");
-    }
+    let bytes = read_artifact_bytes(state, caller, artifact_uri).await?;
     problem.travel_model = TravelModelSource::Inline {
-        model: artifact.model,
+        model: decode_map_travel_model(&bytes, expected_map_uri)?,
     };
     Ok(())
 }
@@ -294,7 +283,7 @@ async fn materialize_convex_source(
             problem
         }
         ConvexProblemSource::Artifact { model } => {
-            if model.format != ArtifactModelFormat::OptimizationJsonV1 {
+            if model.format != ArtifactModelFormat::OptimizationJsonV2 {
                 anyhow::bail!("unsupported convex artifact format");
             }
             read_json_artifact(state, caller, &model.uri).await?
@@ -320,7 +309,7 @@ async fn materialize_milp_source(
             problem
         }
         MilpProblemSource::Artifact { model } => {
-            if model.format != ArtifactModelFormat::OptimizationJsonV1 {
+            if model.format != ArtifactModelFormat::OptimizationJsonV2 {
                 anyhow::bail!("unsupported MILP artifact format");
             }
             read_json_artifact(state, caller, &model.uri).await?
@@ -335,6 +324,16 @@ async fn read_json_artifact<T: serde::de::DeserializeOwned>(
     caller: &PlaneCaller,
     uri: &veoveo_artifact_contract::ArtifactUri,
 ) -> anyhow::Result<T> {
+    Ok(serde_json::from_slice(
+        &read_artifact_bytes(state, caller, uri).await?,
+    )?)
+}
+
+async fn read_artifact_bytes(
+    state: &AppState,
+    caller: &PlaneCaller,
+    uri: &veoveo_artifact_contract::ArtifactUri,
+) -> anyhow::Result<Vec<u8>> {
     let artifact = state.artifacts.resolve(caller, uri).await?;
     if artifact.bytes.len() as u64 > state.max_artifact_bytes {
         anyhow::bail!(
@@ -343,7 +342,7 @@ async fn read_json_artifact<T: serde::de::DeserializeOwned>(
             state.max_artifact_bytes
         );
     }
-    Ok(serde_json::from_slice(&artifact.bytes)?)
+    Ok(artifact.bytes)
 }
 
 fn problem_resource(

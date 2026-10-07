@@ -6,11 +6,11 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/convex-problem/v1",
+          "version": "veoveo.ai/convex-problem/v2",
           "kind": "linear_program",
           "variables": [
             {
-              "variable_id": "x",
+              "variableId": "x",
               "kind": "continuous",
               "bounds": {
                 "lower": 0.0,
@@ -20,9 +20,9 @@
           ],
           "objective": {
             "direction": "minimize",
-            "linear_terms": [
+            "linearTerms": [
               {
-                "variable_id": "x",
+                "variableId": "x",
                 "coefficient": 1.0
               }
             ]
@@ -30,17 +30,17 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/source",
     "required": [
-      "/policy/profile_uri",
+      "/policy/profileUri",
       "/problem/source",
       "/problem/problem"
     ],
     "defaults": {
-      "/output/retain_warm_start": false
+      "/output/retainWarmStart": false
     },
     "open_objects": []
   },
@@ -53,17 +53,17 @@
         "uri": "optimization://problem/problem-00000001-0000-7000-8000-000000000000"
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/source",
     "required": [
-      "/policy/profile_uri",
+      "/policy/profileUri",
       "/problem/source",
       "/problem/uri"
     ],
     "defaults": {
-      "/output/retain_warm_start": false
+      "/output/retainWarmStart": false
     },
     "open_objects": []
   },
@@ -75,21 +75,21 @@
         "source": "artifact",
         "model": {
           "uri": "artifact://00000001-0000-7000-8000-000000000000",
-          "format": "optimization_json_v1"
+          "format": "optimization_json_v2"
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/source",
     "required": [
-      "/policy/profile_uri",
+      "/policy/profileUri",
       "/problem/source",
       "/problem/model"
     ],
     "defaults": {
-      "/output/retain_warm_start": false
+      "/output/retainWarmStart": false
     },
     "open_objects": []
   },
@@ -100,10 +100,10 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/milp-problem/v1",
+          "version": "veoveo.ai/milp-problem/v2",
           "variables": [
             {
-              "variable_id": "x",
+              "variableId": "x",
               "kind": "integer",
               "bounds": {
                 "lower": 0.0,
@@ -113,9 +113,9 @@
           ],
           "objective": {
             "direction": "minimize",
-            "linear_terms": [
+            "linearTerms": [
               {
-                "variable_id": "x",
+                "variableId": "x",
                 "coefficient": 1.0
               }
             ]
@@ -124,17 +124,17 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/source",
     "required": [
-      "/policy/profile_uri",
+      "/policy/profileUri",
       "/problem/source",
       "/problem/problem"
     ],
     "defaults": {
-      "/output/retain_incumbents": false
+      "/output/retainIncumbents": false
     },
     "open_objects": []
   },
@@ -147,17 +147,17 @@
         "uri": "optimization://problem/problem-00000001-0000-7000-8000-000000000000"
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/source",
     "required": [
-      "/policy/profile_uri",
+      "/policy/profileUri",
       "/problem/source",
       "/problem/uri"
     ],
     "defaults": {
-      "/output/retain_incumbents": false
+      "/output/retainIncumbents": false
     },
     "open_objects": []
   },
@@ -169,21 +169,21 @@
         "source": "artifact",
         "model": {
           "uri": "artifact://00000001-0000-7000-8000-000000000000",
-          "format": "optimization_json_v1"
+          "format": "optimization_json_v2"
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/source",
     "required": [
-      "/policy/profile_uri",
+      "/policy/profileUri",
       "/problem/source",
       "/problem/model"
     ],
     "defaults": {
-      "/output/retain_incumbents": false
+      "/output/retainIncumbents": false
     },
     "open_objects": []
   },
@@ -194,47 +194,47 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -252,17 +252,17 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/source",
     "required": [
-      "/policy/profile_uri",
+      "/policy/profileUri",
       "/problem/source",
       "/problem/problem"
     ],
     "defaults": {
-      "/output/include_route_table_artifact": false
+      "/output/includeRouteTableArtifact": false
     },
     "open_objects": []
   },
@@ -275,17 +275,17 @@
         "uri": "optimization://problem/problem-00000001-0000-7000-8000-000000000000"
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/source",
     "required": [
-      "/policy/profile_uri",
+      "/policy/profileUri",
       "/problem/source",
       "/problem/uri"
     ],
     "defaults": {
-      "/output/include_route_table_artifact": false
+      "/output/includeRouteTableArtifact": false
     },
     "open_objects": []
   },
@@ -295,20 +295,20 @@
     "arguments": {
       "problem": {
         "source": "artifact",
-        "manifest_uri": "artifact://00000001-0000-7000-8000-000000000000"
+        "manifestUri": "artifact://00000001-0000-7000-8000-000000000000"
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/source",
     "required": [
-      "/policy/profile_uri",
+      "/policy/profileUri",
       "/problem/source",
-      "/problem/manifest_uri"
+      "/problem/manifestUri"
     ],
     "defaults": {
-      "/output/include_route_table_artifact": false
+      "/output/includeRouteTableArtifact": false
     },
     "open_objects": []
   },
@@ -319,42 +319,42 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "map_resource",
             "uri": "map://travel-model/travel-model-00000001-0000-7000-8000-000000000000",
-            "manifest_uri": "artifact://00000001-0000-7000-8000-000000000000"
+            "manifestUri": "artifact://00000001-0000-7000-8000-000000000000"
           },
           "objectives": [
             {
@@ -365,17 +365,17 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
-    "tag": "/problem/problem/travel_model/source",
+    "tag": "/problem/problem/travelModel/source",
     "required": [
-      "/problem/problem/travel_model/source",
-      "/problem/problem/travel_model/uri",
-      "/problem/problem/travel_model/manifest_uri"
+      "/problem/problem/travelModel/source",
+      "/problem/problem/travelModel/uri",
+      "/problem/problem/travelModel/manifestUri"
     ],
     "defaults": {
-      "/output/include_route_table_artifact": false
+      "/output/includeRouteTableArtifact": false
     },
     "open_objects": []
   },
@@ -386,41 +386,41 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "artifact",
-            "manifest_uri": "artifact://00000001-0000-7000-8000-000000000000"
+            "manifestUri": "artifact://00000001-0000-7000-8000-000000000000"
           },
           "objectives": [
             {
@@ -431,16 +431,16 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
-    "tag": "/problem/problem/travel_model/source",
+    "tag": "/problem/problem/travelModel/source",
     "required": [
-      "/problem/problem/travel_model/source",
-      "/problem/problem/travel_model/manifest_uri"
+      "/problem/problem/travelModel/source",
+      "/problem/problem/travelModel/manifestUri"
     ],
     "defaults": {
-      "/output/include_route_table_artifact": false
+      "/output/includeRouteTableArtifact": false
     },
     "open_objects": []
   },
@@ -451,47 +451,47 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -509,16 +509,16 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
-    "tag": "/problem/problem/travel_model/source",
+    "tag": "/problem/problem/travelModel/source",
     "required": [
-      "/problem/problem/travel_model/source",
-      "/problem/problem/travel_model/model"
+      "/problem/problem/travelModel/source",
+      "/problem/problem/travelModel/model"
     ],
     "defaults": {
-      "/output/include_route_table_artifact": false
+      "/output/includeRouteTableArtifact": false
     },
     "open_objects": []
   },
@@ -529,11 +529,11 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/convex-problem/v1",
+          "version": "veoveo.ai/convex-problem/v2",
           "kind": "linear_program",
           "variables": [
             {
-              "variable_id": "x",
+              "variableId": "x",
               "kind": "continuous",
               "bounds": {
                 "lower": 0.0,
@@ -543,9 +543,9 @@
           ],
           "objective": {
             "direction": "minimize",
-            "linear_terms": [
+            "linearTerms": [
               {
-                "variable_id": "x",
+                "variableId": "x",
                 "coefficient": 1.0
               }
             ]
@@ -553,12 +553,12 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/kind",
     "required": [
-      "/policy/profile_uri"
+      "/policy/profileUri"
     ],
     "defaults": {},
     "open_objects": []
@@ -570,11 +570,11 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/convex-problem/v1",
+          "version": "veoveo.ai/convex-problem/v2",
           "kind": "quadratic_program",
           "variables": [
             {
-              "variable_id": "x",
+              "variableId": "x",
               "kind": "continuous",
               "bounds": {
                 "lower": 0.0,
@@ -584,16 +584,16 @@
           ],
           "objective": {
             "direction": "minimize",
-            "linear_terms": [
+            "linearTerms": [
               {
-                "variable_id": "x",
+                "variableId": "x",
                 "coefficient": 1.0
               }
             ],
-            "quadratic_terms": [
+            "quadraticTerms": [
               {
-                "left_variable_id": "x",
-                "right_variable_id": "x",
+                "leftVariableId": "x",
+                "rightVariableId": "x",
                 "coefficient": 1.0
               }
             ]
@@ -601,12 +601,12 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/kind",
     "required": [
-      "/policy/profile_uri"
+      "/policy/profileUri"
     ],
     "defaults": {},
     "open_objects": []
@@ -618,11 +618,11 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/convex-problem/v1",
+          "version": "veoveo.ai/convex-problem/v2",
           "kind": "quadratically_constrained_program",
           "variables": [
             {
-              "variable_id": "x",
+              "variableId": "x",
               "kind": "continuous",
               "bounds": {
                 "lower": 0.0,
@@ -632,20 +632,20 @@
           ],
           "objective": {
             "direction": "minimize",
-            "linear_terms": [
+            "linearTerms": [
               {
-                "variable_id": "x",
+                "variableId": "x",
                 "coefficient": 1.0
               }
             ]
           },
-          "quadratic_constraints": [
+          "quadraticConstraints": [
             {
-              "constraint_id": "unit-ball",
-              "quadratic_terms": [
+              "constraintId": "unit-ball",
+              "quadraticTerms": [
                 {
-                  "left_variable_id": "x",
-                  "right_variable_id": "x",
+                  "leftVariableId": "x",
+                  "rightVariableId": "x",
                   "coefficient": 1.0
                 }
               ],
@@ -657,12 +657,12 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/kind",
     "required": [
-      "/policy/profile_uri"
+      "/policy/profileUri"
     ],
     "defaults": {},
     "open_objects": []
@@ -674,11 +674,11 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/convex-problem/v1",
+          "version": "veoveo.ai/convex-problem/v2",
           "kind": "second_order_cone_program",
           "variables": [
             {
-              "variable_id": "x",
+              "variableId": "x",
               "kind": "continuous",
               "bounds": {
                 "lower": 0.0,
@@ -688,20 +688,20 @@
           ],
           "objective": {
             "direction": "minimize",
-            "linear_terms": [
+            "linearTerms": [
               {
-                "variable_id": "x",
+                "variableId": "x",
                 "coefficient": 1.0
               }
             ]
           },
-          "quadratic_constraints": [
+          "quadraticConstraints": [
             {
-              "constraint_id": "unit-ball",
-              "quadratic_terms": [
+              "constraintId": "unit-ball",
+              "quadraticTerms": [
                 {
-                  "left_variable_id": "x",
-                  "right_variable_id": "x",
+                  "leftVariableId": "x",
+                  "rightVariableId": "x",
                   "coefficient": 1.0
                 }
               ],
@@ -713,12 +713,12 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/kind",
     "required": [
-      "/policy/profile_uri"
+      "/policy/profileUri"
     ],
     "defaults": {},
     "open_objects": []
@@ -730,10 +730,10 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/milp-problem/v1",
+          "version": "veoveo.ai/milp-problem/v2",
           "variables": [
             {
-              "variable_id": "x",
+              "variableId": "x",
               "kind": "continuous",
               "bounds": {
                 "lower": 0.0,
@@ -741,7 +741,7 @@
               }
             },
             {
-              "variable_id": "integer-anchor",
+              "variableId": "integer-anchor",
               "kind": "integer",
               "bounds": {
                 "lower": 0.0,
@@ -751,9 +751,9 @@
           ],
           "objective": {
             "direction": "minimize",
-            "linear_terms": [
+            "linearTerms": [
               {
-                "variable_id": "x",
+                "variableId": "x",
                 "coefficient": 1.0
               }
             ]
@@ -762,7 +762,7 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/variables/0/kind",
@@ -779,10 +779,10 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/milp-problem/v1",
+          "version": "veoveo.ai/milp-problem/v2",
           "variables": [
             {
-              "variable_id": "x",
+              "variableId": "x",
               "kind": "integer",
               "bounds": {
                 "lower": 0.0,
@@ -792,9 +792,9 @@
           ],
           "objective": {
             "direction": "minimize",
-            "linear_terms": [
+            "linearTerms": [
               {
-                "variable_id": "x",
+                "variableId": "x",
                 "coefficient": 1.0
               }
             ]
@@ -803,7 +803,7 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/variables/0/kind",
@@ -820,10 +820,10 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/milp-problem/v1",
+          "version": "veoveo.ai/milp-problem/v2",
           "variables": [
             {
-              "variable_id": "x",
+              "variableId": "x",
               "kind": "semi_continuous",
               "bounds": {
                 "lower": 0.5,
@@ -833,9 +833,9 @@
           ],
           "objective": {
             "direction": "minimize",
-            "linear_terms": [
+            "linearTerms": [
               {
-                "variable_id": "x",
+                "variableId": "x",
                 "coefficient": 1.0
               }
             ]
@@ -844,7 +844,7 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/variables/0/kind",
@@ -861,10 +861,10 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/milp-problem/v1",
+          "version": "veoveo.ai/milp-problem/v2",
           "variables": [
             {
-              "variable_id": "x",
+              "variableId": "x",
               "kind": "integer",
               "bounds": {
                 "lower": 0.0,
@@ -874,9 +874,9 @@
           ],
           "objective": {
             "direction": "minimize",
-            "linear_terms": [
+            "linearTerms": [
               {
-                "variable_id": "x",
+                "variableId": "x",
                 "coefficient": 1.0
               }
             ]
@@ -885,12 +885,12 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/objective/direction",
     "required": [
-      "/policy/profile_uri"
+      "/policy/profileUri"
     ],
     "defaults": {},
     "open_objects": []
@@ -902,10 +902,10 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/milp-problem/v1",
+          "version": "veoveo.ai/milp-problem/v2",
           "variables": [
             {
-              "variable_id": "x",
+              "variableId": "x",
               "kind": "integer",
               "bounds": {
                 "lower": 0.0,
@@ -915,9 +915,9 @@
           ],
           "objective": {
             "direction": "maximize",
-            "linear_terms": [
+            "linearTerms": [
               {
-                "variable_id": "x",
+                "variableId": "x",
                 "coefficient": 1.0
               }
             ]
@@ -926,12 +926,12 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/objective/direction",
     "required": [
-      "/policy/profile_uri"
+      "/policy/profileUri"
     ],
     "defaults": {},
     "open_objects": []
@@ -943,47 +943,47 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -1001,12 +1001,12 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
-    "tag": "/problem/problem/time_basis/unit",
+    "tag": "/problem/problem/timeBasis/unit",
     "required": [
-      "/problem/problem/time_basis/origin"
+      "/problem/problem/timeBasis/origin"
     ],
     "defaults": {},
     "open_objects": []
@@ -1018,47 +1018,47 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "minute"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -1076,12 +1076,12 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
-    "tag": "/problem/problem/time_basis/unit",
+    "tag": "/problem/problem/timeBasis/unit",
     "required": [
-      "/problem/problem/time_basis/origin"
+      "/problem/problem/timeBasis/origin"
     ],
     "defaults": {},
     "open_objects": []
@@ -1093,47 +1093,47 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -1151,7 +1151,7 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/orders/0/order/kind",
@@ -1168,50 +1168,50 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "pickup_delivery",
                 "pickup": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 },
                 "delivery": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -1229,7 +1229,7 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/orders/0/order/kind",
@@ -1246,47 +1246,47 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -1304,12 +1304,12 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
-    "tag": "/problem/problem/orders/0/service_policy",
+    "tag": "/problem/problem/orders/0/servicePolicy",
     "required": [
-      "/policy/profile_uri"
+      "/policy/profileUri"
     ],
     "defaults": {},
     "open_objects": []
@@ -1321,48 +1321,48 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "optional",
-              "drop_penalty": 1.0
+              "servicePolicy": "optional",
+              "dropPenalty": 1.0
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -1380,12 +1380,12 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
-    "tag": "/problem/problem/orders/0/service_policy",
+    "tag": "/problem/problem/orders/0/servicePolicy",
     "required": [
-      "/policy/profile_uri"
+      "/policy/profileUri"
     ],
     "defaults": {},
     "open_objects": []
@@ -1397,47 +1397,47 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -1455,7 +1455,7 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/objectives/0/metric",
@@ -1472,47 +1472,47 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -1530,7 +1530,7 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/objectives/0/metric",
@@ -1547,47 +1547,47 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -1605,7 +1605,7 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/objectives/0/metric",
@@ -1622,47 +1622,47 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -1680,7 +1680,7 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/objectives/0/metric",
@@ -1697,47 +1697,47 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -1755,7 +1755,7 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/objectives/0/metric",
@@ -1772,47 +1772,47 @@
       "problem": {
         "source": "inline",
         "problem": {
-          "version": "veoveo.ai/routing-problem/v1",
-          "time_basis": {
+          "version": "veoveo.ai/routing-problem/v2",
+          "timeBasis": {
             "origin": "2026-10-04T12:00:00Z",
             "unit": "second"
           },
           "locations": [
             {
-              "location_id": "depot"
+              "locationId": "depot"
             }
           ],
           "orders": [
             {
-              "order_id": "order",
+              "orderId": "order",
               "order": {
                 "kind": "service",
                 "stop": {
-                  "location_id": "depot"
+                  "locationId": "depot"
                 }
               },
-              "service_policy": "mandatory"
+              "servicePolicy": "mandatory"
             }
           ],
           "fleet": {
             "vehicles": [
               {
-                "vehicle_id": "van-1",
-                "vehicle_type_id": "van",
-                "start_location_id": "depot",
-                "end_location_id": "depot"
+                "vehicleId": "van-1",
+                "vehicleTypeId": "van",
+                "startLocationId": "depot",
+                "endLocationId": "depot"
               }
             ]
           },
-          "travel_model": {
+          "travelModel": {
             "source": "inline",
             "model": {
-              "location_ids": [
+              "locationIds": [
                 "depot"
               ],
-              "cost_matrices": [
+              "costMatrices": [
                 {
-                  "vehicle_type_id": "van",
+                  "vehicleTypeId": "van",
                   "dimension": 1,
                   "values": [
                     0.0
@@ -1830,7 +1830,7 @@
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/problem/objectives/0/metric",
@@ -1841,18 +1841,18 @@
     "open_objects": []
   },
   {
-    "branch": "ArtifactModelFormat.optimization_json_v1",
+    "branch": "ArtifactModelFormat.optimization_json_v2",
     "tool": "solve_convex",
     "arguments": {
       "problem": {
         "source": "artifact",
         "model": {
           "uri": "artifact://00000001-0000-7000-8000-000000000000",
-          "format": "optimization_json_v1"
+          "format": "optimization_json_v2"
         }
       },
       "policy": {
-        "profile_uri": "optimization://profile/default"
+        "profileUri": "optimization://profile/default"
       }
     },
     "tag": "/problem/model/format",

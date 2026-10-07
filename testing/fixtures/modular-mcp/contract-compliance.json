@@ -1,0 +1,169 @@
+{
+  "server": "observatory",
+  "compliance": [
+    {
+      "id": "C01",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C02",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C03",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C04",
+      "status": "met",
+      "note": "fixed catalog and exact typed reading lookup"
+    },
+    {
+      "id": "C05",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C06",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C07",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C08",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C09",
+      "status": "met",
+      "note": "owned scope, resource and reading ID types"
+    },
+    {
+      "id": "C10",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C11",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C12",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C13",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C14",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C15",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C16",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C17",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C18",
+      "status": "met"
+    },
+    {
+      "id": "C19",
+      "status": "met"
+    },
+    {
+      "id": "C20",
+      "status": "met",
+      "note": "supplied by the authenticated test host"
+    },
+    {
+      "id": "C21",
+      "status": "met"
+    },
+    {
+      "id": "C22",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C23",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C24",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C25",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C26",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C27",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C28",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C29",
+      "status": "pending",
+      "note": "The independent modular fixture has not completed qualification for this requirement; installed authentication, deployment and service behavior are outside its current fixture coverage."
+    },
+    {
+      "id": "C30",
+      "status": "met",
+      "note": "stateless protocol handler"
+    },
+    {
+      "id": "C31",
+      "status": "met",
+      "note": "hosted Discover and list checks qualify this synthetic fixture; installed authentication and service behavior require their own qualification"
+    },
+    {
+      "id": "C32",
+      "status": "pending",
+      "note": "shared typed docs support is wired; K01–K08 qualification is in progress"
+    },
+    {
+      "id": "C33",
+      "status": "pending",
+      "note": "Owner naming producers, consumers and installed qualification are pending."
+    }
+  ],
+  "contractRevision": 4,
+  "catalogRevision": 2
+}

@@ -1,0 +1,531 @@
+{
+  "format": "veoveo.ai/smoke-scenarios/v1",
+  "owner": "testing/deployment-smoke",
+  "scenarios": [
+    {
+      "id": "helm-config",
+      "description": "Smoke-test Helm and k3d local deployment rendering.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "helm-config"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": false,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Local fixture or schema checks use the declared compiler/tool prerequisites. No installed identity, provider, graphics device or cluster mutation is required."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "gpu-allocation-verify",
+      "description": "Prove exclusive NVIDIA device-plugin allocation with two one-GPU pods on one node.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gpu-allocation-verify"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/media-mcp",
+            "package": "veoveo-media-mcp",
+            "target": "media-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": true,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "module-installation-verify",
+      "description": "Verify the pinned gateway image and installed module Job lifecycle in isolation.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "module-installation-verify"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "gitops-cancel-verify",
+      "description": "Verify obsolete Flux health-check cancellation in a disposable namespace.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gitops-cancel-verify"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "component-scope-verify",
+      "description": "Verify selected deployment writes with independent Git and OCI fixtures.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "component-scope-verify"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "profile-validate",
+      "description": "Validate one typed deployment profile and every selected build and Helm surface.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "profile-validate"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": false,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Local fixture or schema checks use the declared compiler/tool prerequisites. No installed identity, provider, graphics device or cluster mutation is required."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "profile-registry-up",
+      "description": "Start the standalone local registry selected by a deployment profile.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "profile-registry-up"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "profile-cluster-up",
+      "description": "Create or start the local k3d cluster selected by a deployment profile.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "profile-cluster-up"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "profile-cluster-stop",
+      "description": "Stop the local k3d cluster selected by a deployment profile.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "profile-cluster-stop"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "profile-cluster-delete",
+      "description": "Delete the local k3d cluster selected by a deployment profile.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "profile-cluster-delete"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "profile-up",
+      "description": "Apply exact components and their dependencies from one deployment lock.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "profile-up"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "profile-gpu-verify",
+      "description": "Verify the live GPU placement selected by a deployment profile without mutating it.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "profile-gpu-verify"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": true,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "profile-down",
+      "description": "Uninstall every Helm release selected by a deployment profile.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "profile-down"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "gitops-converge",
+      "description": "Observe an exact GitOps revision through deployment readiness.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "testing/deployment-smoke",
+          "package": "veoveo-deployment-smoke",
+          "target": "deployment-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "gitops-converge"
+      ],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    }
+  ]
+}

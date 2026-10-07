@@ -85,7 +85,12 @@ pub struct WebhookReceipt {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "outcome", rename_all = "snake_case")]
+#[serde(
+    tag = "outcome",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ProviderCancellationOutcome {
     Requested,
     Accepted { deleted_count: u64 },
@@ -518,13 +523,6 @@ fn prediction_from_payload(payload: OpenObject) -> Result<Prediction, StoreError
 
 fn tenant_record(owner: &TaskOwner) -> Result<RecordId, StoreError> {
     veoveo_platform_store::deterministic_tenant_id(owner.tenant_key()).map(|id| id.record_id())
-}
-
-fn open_object(value: Value) -> OpenObject {
-    let Value::Object(values) = value else {
-        unreachable!("typed Media envelopes serialize as objects");
-    };
-    OpenObject::new(values.into_iter().collect())
 }
 
 fn record_uuid(record: &RecordId) -> Result<Uuid, StoreError> {

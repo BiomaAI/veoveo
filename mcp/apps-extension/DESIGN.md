@@ -19,6 +19,7 @@ Implemented in this workspace.
 | Veoveo internal App navigation adapter | Repository-owned `ui/open-link` profile. Exact `ui://` targets navigate only when present in the caller-visible App catalog; `veoveo-console://agents` and `veoveo-console://recordings` are the only platform-view targets. Other custom, missing, or unexposed targets fail closed. |
 | Veoveo App agent-message adapter | Repository-owned `veoveo/agents/message` profile. An App resource declares exact targets in `_meta["ai.veoveo/agent-message-targets"]`; the Console validates that declaration and submits only UUIDv7-idempotent bounded text through its existing authenticated human-message BFF path. This adapter is not part of SEP-1865. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; app-started durable work retains the same task lifecycle and ownership rules as a normal MCP client. |
+| Owned Apps metadata | The host and server serialize the same `AppExtensionCapability` MIME declaration. `ToolUiMeta`, `ResourceUiMeta` and their nested types expose owner-generated schemas for the adopted upstream profile. Gateway dependency metadata uses camelCase fields and unchanged snake_case operation values. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Linked tool arguments and structured results use the same canonical schemas exposed outside the app. |
 | HTML iframe sandbox and Content Security Policy | HTML runs in an opaque-origin `sandbox="allow-scripts"` frame. The default CSP denies remote network access while permitting local `data:` fetches; a live-data App may declare exact origins through `_meta.ui.csp`, which the host validates before adding them. Cookies, storage, and same-origin privilege remain absent. |
 | WHATWG URL | The Workbench uses the browser URL and URLSearchParams APIs to encode opaque continuation cursors under configured resource roots. |
@@ -352,3 +353,7 @@ requests use generated owner declarations; the Recording adapter checks request
 identity, timeline, sample grid, units, frame references and limits before requesting
 a stream. It verifies the admitted byte length and payload SHA-256 before presenting
 stream integrity. Message listeners accept only their parent window.
+
+## Generic Declaration Dependencies
+
+App extension declarations reuse foundational `LocalToolName` and Gateway contract values. They do not import the MCP hosted runtime merely to obtain an identity scalar. Domain App schemas stay with each server owner.

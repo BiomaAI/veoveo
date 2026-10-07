@@ -1,5 +1,5 @@
 {
-  "identity_providers": [
+  "identityProviders": [
     {
       "id": "enterprise",
       "issuer": "https://idp.example.com",
@@ -7,13 +7,13 @@
         "source": "file",
         "path": "/etc/veoveo/gateway/jwks.json"
       },
-      "authorization_endpoint": "https://idp.example.com/oauth2/authorize",
-      "token_endpoint": "https://idp.example.com/oauth2/token",
-      "enterprise_managed_authorization_endpoint": "https://idp.example.com/oauth2/id-jag",
+      "authorizationEndpoint": "https://idp.example.com/oauth2/authorize",
+      "tokenEndpoint": "https://idp.example.com/oauth2/token",
+      "enterpriseManagedAuthorizationEndpoint": "https://idp.example.com/oauth2/id-jag",
       "metadata": {}
     }
   ],
-  "authorization_servers": [
+  "authorizationServers": [
     {
       "id": "veoveo",
       "issuer": "http://localhost:8780/oauth",
@@ -21,35 +21,35 @@
         "source": "file",
         "path": "/etc/veoveo/gateway/jwks.json"
       },
-      "access_token_key_id": "test-key",
-      "access_token_signing_key": "veoveo_access_token_private_key",
-      "identity_provider": "enterprise",
-      "authorization_endpoint": "http://localhost:8780/oauth/authorize",
-      "token_endpoint": "http://localhost:8780/oauth/token",
+      "accessTokenKeyId": "test-key",
+      "accessTokenSigningKey": "veoveo_access_token_private_key",
+      "identityProvider": "enterprise",
+      "authorizationEndpoint": "http://localhost:8780/oauth/authorize",
+      "tokenEndpoint": "http://localhost:8780/oauth/token",
       "metadata": {}
     }
   ],
   "servers": [
     {
       "slug": "sumo",
-      "uri_scheme": "sumo",
-      "mount_path": "/sumo",
-      "mcp_path": "/sumo/mcp",
+      "uriScheme": "sumo",
+      "mountPath": "/sumo",
+      "mcpPath": "/sumo/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://sumo-mcp:8795/sumo/mcp",
-        "health_url": "http://sumo-mcp:8795/sumo/healthz",
+        "healthUrl": "http://sumo-mcp:8795/sumo/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": false,
-        "resource_subscriptions": true,
+        "resourceTemplates": false,
+        "resourceSubscriptions": true,
         "prompts": false,
         "completions": false,
         "tasks": true,
-        "resources_list_changed": false
+        "resourcesListChanged": false
       },
       "tools": [
         "check_congestion",
@@ -65,7 +65,7 @@
         "set_edge_speed",
         "set_signal_phase"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
@@ -76,15 +76,15 @@
   "profiles": [
     {
       "id": "operator",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "http://localhost:8780/mcp/operator",
-      "policy_version": "2026-07-15",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "http://localhost:8780/mcp/operator",
+      "policyVersion": "2026-07-15",
+      "authModes": [
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "servers": [
@@ -115,14 +115,14 @@
     },
     {
       "id": "admin",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "http://localhost:8780/mcp/admin",
-      "policy_version": "2026-07-15",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "http://localhost:8780/mcp/admin",
+      "policyVersion": "2026-07-15",
+      "authModes": [
         "oidc_authorization_code_pkce"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use",
         "admin:manage"
       ],
@@ -156,44 +156,44 @@
   "recording_ingest_resources": [
     {
       "id": "recording-ingest",
-      "protected_resource": "http://localhost:8780/ingest/recordings",
-      "authorization_server": "veoveo",
-      "policy_version": "2026-07-15",
+      "protectedResource": "http://localhost:8780/ingest/recordings",
+      "authorizationServer": "veoveo",
+      "policyVersion": "2026-07-15",
       "upstream": {
         "url": "http://recording-hub:9878",
-        "health_url": "http://recording-hub:9878/healthz",
+        "healthUrl": "http://recording-hub:9878/healthz",
         "security": "cluster_internal_http"
       },
-      "maximum_batch_bytes": 8388608,
-      "required_scopes": [
+      "maximumBatchBytes": 8388608,
+      "requiredScopes": [
         "recording:ingest"
       ],
       "producers": [
         {
           "id": "sumo-recording-producer",
-          "oauth_client": "sumo-recording-producer",
+          "oauthClient": "sumo-recording-producer",
           "tenant": "tenant-a",
           "dataset": "sumo-recordings",
-          "allowed_application_ids": [
+          "allowedApplicationIds": [
             "veoveo-sumo"
           ],
-          "single_recording_application_ids": [],
+          "singleRecordingApplicationIds": [],
           "classification": "internal",
           "labels": [],
           "quotas": {
-            "maximum_concurrent_streams": 4,
-            "maximum_batches_per_minute": 1200,
-            "maximum_bytes_per_day": 10737418240,
-            "maximum_stream_bytes": 2147483648
+            "maximumConcurrentStreams": 4,
+            "maximumBatchesPerMinute": 1200,
+            "maximumBytesPerDay": 10737418240,
+            "maximumStreamBytes": 2147483648
           },
           "blueprints": {
             "enabled": true,
-            "maximum_bytes": 2097152,
-            "maximum_messages": 10000,
-            "maximum_revisions": 32
+            "maximumBytes": 2097152,
+            "maximumMessages": 10000,
+            "maximumRevisions": 32
           },
           "retention": {
-            "open_stream_days": 7
+            "openStreamDays": 7
           },
           "enabled": true,
           "metadata": {}
@@ -216,16 +216,16 @@
             "recording_blueprint_publish",
             "recording_stream_finish"
           ],
-          "protected_resources": [
+          "protectedResources": [
             "http://localhost:8780/ingest/recordings"
           ],
-          "principal_ids": [
+          "principalIds": [
             "http://localhost:8780/oauth#sumo-recording-producer"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "tenant-a"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "recording:ingest"
           ],
           "metadata": {}
@@ -266,10 +266,10 @@
             "set_edge_speed",
             "set_signal_phase"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "sumo"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -284,7 +284,7 @@
           "profiles": [
             "admin"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "admin:manage"
           ],
           "metadata": {}
@@ -293,7 +293,7 @@
       "metadata": {}
     }
   ],
-  "data_labels": [
+  "dataLabels": [
     {
       "id": "cui",
       "title": "Controlled Unclassified Information",
@@ -320,13 +320,13 @@
       "metadata": {}
     }
   ],
-  "work_contexts": [
+  "workContexts": [
     {
       "id": "traffic-operations",
       "tenant": "tenant-a",
       "title": "Traffic operations",
-      "policy_revision": "2026-07-15",
-      "output_policy": {
+      "policyRevision": "2026-07-15",
+      "outputPolicy": {
         "owner": {
           "kind": "group",
           "id": "traffic-operations"
@@ -335,7 +335,7 @@
       "memberships": [
         {
           "level": "owner",
-          "oauth_clients": [
+          "oauthClients": [
             "admin-console"
           ]
         },
@@ -344,7 +344,7 @@
           "principals": [
             "https://veoveo.local/services#recording-hub"
           ],
-          "oauth_clients": [
+          "oauthClients": [
             "sumo-recording-producer",
             "operator-local-public",
             "operator-service"
@@ -353,24 +353,24 @@
       ]
     }
   ],
-  "oauth_clients": [
+  "oauthClients": [
     {
       "id": "sumo-recording-producer",
-      "authorization_server": "veoveo",
-      "default_work_context": "traffic-operations",
-      "invocation_mode": "automated",
-      "display_name": "SUMO Recording Producer",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "traffic-operations",
+      "invocationMode": "automated",
+      "displayName": "SUMO Recording Producer",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "http://localhost:8780/ingest/recordings"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "recording:ingest"
       ],
       "jwks": {
@@ -384,28 +384,28 @@
     },
     {
       "id": "operator-local-public",
-      "authorization_server": "veoveo",
-      "default_work_context": "traffic-operations",
-      "invocation_mode": "direct",
-      "display_name": "Veoveo Operator Local Client",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "traffic-operations",
+      "invocationMode": "direct",
+      "displayName": "Veoveo Operator Local Client",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "http://localhost:8780/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "authorization_code_pkce",
         "refresh_token"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use"
       ],
       "metadata": {
         "client_boundary": "local_public"
       },
-      "redirect_uris": [
+      "redirectUris": [
         "http://localhost:6274/oauth/callback",
         "http://localhost:6274/oauth/callback/debug",
         "http://127.0.0.1:6274/oauth/callback",
@@ -418,49 +418,49 @@
     },
     {
       "id": "admin-console",
-      "authorization_server": "veoveo",
-      "default_work_context": "traffic-operations",
-      "invocation_mode": "direct",
-      "display_name": "Veoveo Admin Console",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "traffic-operations",
+      "invocationMode": "direct",
+      "displayName": "Veoveo Admin Console",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "http://localhost:8780/mcp/admin"
       ],
-      "grant_types": [
+      "grantTypes": [
         "authorization_code_pkce",
         "refresh_token"
       ],
-      "auth_methods": [
+      "authMethods": [
         "none"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use",
         "admin:manage"
       ],
       "metadata": {
         "client_boundary": "admin_console"
       },
-      "redirect_uris": [
+      "redirectUris": [
         "http://localhost:8780/admin/callback"
       ]
     },
     {
       "id": "operator-service",
-      "authorization_server": "veoveo",
-      "default_work_context": "traffic-operations",
-      "invocation_mode": "automated",
-      "display_name": "Veoveo Operator Service",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "traffic-operations",
+      "invocationMode": "automated",
+      "displayName": "Veoveo Operator Service",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "http://localhost:8780/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use"
       ],
       "metadata": {
@@ -473,19 +473,19 @@
       "tenant": "tenant-a"
     }
   ],
-  "oidc_clients": [
+  "oidcClients": [
     {
       "id": "enterprise",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "allowed_resources": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "allowedResources": [
         "http://localhost:8780/mcp/operator",
         "http://localhost:8780/mcp/admin"
       ],
-      "client_id": "veoveo",
-      "redirect_uri": "http://localhost:8780/oauth/callback",
-      "auth_method": "client_secret_post",
-      "credential_secret": "enterprise_oidc_client_secret",
+      "clientId": "veoveo",
+      "redirectUri": "http://localhost:8780/oauth/callback",
+      "authMethod": "client_secret_post",
+      "credentialSecret": "enterprise_oidc_client_secret",
       "scopes": [
         "openid",
         "profile",

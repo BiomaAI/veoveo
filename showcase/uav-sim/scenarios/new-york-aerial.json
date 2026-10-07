@@ -1,260 +1,260 @@
 {
-  "schema": "veoveo.ai/uav-sim-acceptance/v12",
-  "session_id": "uav-showcase",
-  "geospatial_layer_id": "photorealistic-world",
-  "map_mobility_profile_uri": "map://mobility-profile/mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e/1",
+  "schema": "veoveo.ai/uav-sim-acceptance/v13",
+  "sessionId": "uav-showcase",
+  "geospatialLayerId": "photorealistic-world",
+  "mapMobilityProfileUri": "map://mobility-profile/mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e/1",
   "world": {
-    "world_id": "uav-showcase-new-york",
-    "display_name": "UAV fleet showcase — New York",
+    "worldId": "uav-showcase-new-york",
+    "displayName": "UAV fleet showcase — New York",
     "description": "Complete Earth, Isaac, fleet, and camera frame hierarchy for the New York aerial showcase.",
-    "simulation_frame_id": "isaac-world",
+    "simulationFrameId": "isaac-world",
     "tree": {
       "frames": [
         {
-          "frame_id": "earth-ecef",
+          "frameId": "earth-ecef",
           "basis": {
             "kind": "ecef_wgs84"
           },
           "description": "Earth-centered, Earth-fixed WGS84 root."
         },
         {
-          "frame_id": "times-square-enu",
+          "frameId": "times-square-enu",
           "basis": {
             "kind": "enu"
           },
-          "parent_frame_id": "earth-ecef",
-          "parent_transform": {
+          "parentFrameId": "earth-ecef",
+          "parentTransform": {
             "kind": "geodetic_tangent",
             "origin": {
-              "latitude_degrees": 40.7580,
-              "longitude_degrees": -73.9855,
-              "ellipsoid_height_m": -17.0
+              "latitudeDegrees": 40.7580,
+              "longitudeDegrees": -73.9855,
+              "ellipsoidHeightM": -17.0
             }
           },
           "description": "East-north-up tangent frame anchored at Times Square."
         },
         {
-          "frame_id": "isaac-world",
+          "frameId": "isaac-world",
           "basis": {
             "kind": "enu"
           },
-          "parent_frame_id": "times-square-enu",
-          "parent_transform": {
+          "parentFrameId": "times-square-enu",
+          "parentTransform": {
             "kind": "static_rigid",
-            "translation_m": [0.0, 0.0, 0.0],
-            "rotation_xyzw": [0.0, 0.0, 0.0, 1.0]
+            "translationM": [0.0, 0.0, 0.0],
+            "rotationXyzw": [0.0, 0.0, 0.0, 1.0]
           },
           "description": "Isaac Sim stage frame."
         },
         {
-          "frame_id": "uav-1-body",
+          "frameId": "uav-1-body",
           "basis": {
             "kind": "frd"
           },
-          "parent_frame_id": "isaac-world",
-          "parent_transform": {
+          "parentFrameId": "isaac-world",
+          "parentTransform": {
             "kind": "dynamic_stream",
-            "stream_uri": "uav-sim://session/uav-showcase",
-            "entity_path": "/world/uav-sim/uav-showcase/vehicle/uav-1"
+            "streamUri": "uav-sim://session/uav-showcase",
+            "entityPath": "/world/uav-sim/uav-showcase/vehicle/uav-1"
           },
           "description": "PX4 vehicle body frame resolved from the live pose stream."
         },
         {
-          "frame_id": "uav-1-imu",
+          "frameId": "uav-1-imu",
           "basis": {
             "kind": "frd"
           },
-          "parent_frame_id": "uav-1-body",
-          "parent_transform": {
+          "parentFrameId": "uav-1-body",
+          "parentTransform": {
             "kind": "static_rigid",
-            "translation_m": [0.0, 0.0, 0.0],
-            "rotation_xyzw": [0.0, 0.0, 0.0, 1.0]
+            "translationM": [0.0, 0.0, 0.0],
+            "rotationXyzw": [0.0, 0.0, 0.0, 1.0]
           },
           "description": "Vehicle inertial measurement frame."
         },
         {
-          "frame_id": "uav-1-down-camera",
+          "frameId": "uav-1-down-camera",
           "basis": {
             "kind": "optical_rdf"
           },
-          "parent_frame_id": "uav-1-body",
-          "parent_transform": {
+          "parentFrameId": "uav-1-body",
+          "parentTransform": {
             "kind": "static_rigid",
-            "translation_m": [0.6, 0.0, 0.05],
-            "rotation_xyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
+            "translationM": [0.6, 0.0, 0.05],
+            "rotationXyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
           },
           "description": "RTX nadir camera optical frame."
         },
         {
-          "frame_id": "uav-2-body",
+          "frameId": "uav-2-body",
           "basis": {
             "kind": "frd"
           },
-          "parent_frame_id": "isaac-world",
-          "parent_transform": {
+          "parentFrameId": "isaac-world",
+          "parentTransform": {
             "kind": "dynamic_stream",
-            "stream_uri": "uav-sim://session/uav-showcase",
-            "entity_path": "/world/uav-sim/uav-showcase/vehicle/uav-2"
+            "streamUri": "uav-sim://session/uav-showcase",
+            "entityPath": "/world/uav-sim/uav-showcase/vehicle/uav-2"
           },
           "description": "PX4 vehicle body frame resolved from the live pose stream."
         },
         {
-          "frame_id": "uav-2-imu",
+          "frameId": "uav-2-imu",
           "basis": {
             "kind": "frd"
           },
-          "parent_frame_id": "uav-2-body",
-          "parent_transform": {
+          "parentFrameId": "uav-2-body",
+          "parentTransform": {
             "kind": "static_rigid",
-            "translation_m": [0.0, 0.0, 0.0],
-            "rotation_xyzw": [0.0, 0.0, 0.0, 1.0]
+            "translationM": [0.0, 0.0, 0.0],
+            "rotationXyzw": [0.0, 0.0, 0.0, 1.0]
           },
           "description": "Vehicle inertial measurement frame."
         },
         {
-          "frame_id": "uav-2-down-camera",
+          "frameId": "uav-2-down-camera",
           "basis": {
             "kind": "optical_rdf"
           },
-          "parent_frame_id": "uav-2-body",
-          "parent_transform": {
+          "parentFrameId": "uav-2-body",
+          "parentTransform": {
             "kind": "static_rigid",
-            "translation_m": [0.6, 0.0, 0.05],
-            "rotation_xyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
+            "translationM": [0.6, 0.0, 0.05],
+            "rotationXyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
           },
           "description": "RTX nadir camera optical frame."
         },
         {
-          "frame_id": "uav-3-body",
+          "frameId": "uav-3-body",
           "basis": {
             "kind": "frd"
           },
-          "parent_frame_id": "isaac-world",
-          "parent_transform": {
+          "parentFrameId": "isaac-world",
+          "parentTransform": {
             "kind": "dynamic_stream",
-            "stream_uri": "uav-sim://session/uav-showcase",
-            "entity_path": "/world/uav-sim/uav-showcase/vehicle/uav-3"
+            "streamUri": "uav-sim://session/uav-showcase",
+            "entityPath": "/world/uav-sim/uav-showcase/vehicle/uav-3"
           },
           "description": "PX4 vehicle body frame resolved from the live pose stream."
         },
         {
-          "frame_id": "uav-3-imu",
+          "frameId": "uav-3-imu",
           "basis": {
             "kind": "frd"
           },
-          "parent_frame_id": "uav-3-body",
-          "parent_transform": {
+          "parentFrameId": "uav-3-body",
+          "parentTransform": {
             "kind": "static_rigid",
-            "translation_m": [0.0, 0.0, 0.0],
-            "rotation_xyzw": [0.0, 0.0, 0.0, 1.0]
+            "translationM": [0.0, 0.0, 0.0],
+            "rotationXyzw": [0.0, 0.0, 0.0, 1.0]
           },
           "description": "Vehicle inertial measurement frame."
         },
         {
-          "frame_id": "uav-3-down-camera",
+          "frameId": "uav-3-down-camera",
           "basis": {
             "kind": "optical_rdf"
           },
-          "parent_frame_id": "uav-3-body",
-          "parent_transform": {
+          "parentFrameId": "uav-3-body",
+          "parentTransform": {
             "kind": "static_rigid",
-            "translation_m": [0.6, 0.0, 0.05],
-            "rotation_xyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
+            "translationM": [0.6, 0.0, 0.05],
+            "rotationXyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
           },
           "description": "RTX nadir camera optical frame."
         },
         {
-          "frame_id": "uav-4-body",
+          "frameId": "uav-4-body",
           "basis": {
             "kind": "frd"
           },
-          "parent_frame_id": "isaac-world",
-          "parent_transform": {
+          "parentFrameId": "isaac-world",
+          "parentTransform": {
             "kind": "dynamic_stream",
-            "stream_uri": "uav-sim://session/uav-showcase",
-            "entity_path": "/world/uav-sim/uav-showcase/vehicle/uav-4"
+            "streamUri": "uav-sim://session/uav-showcase",
+            "entityPath": "/world/uav-sim/uav-showcase/vehicle/uav-4"
           },
           "description": "PX4 vehicle body frame resolved from the live pose stream."
         },
         {
-          "frame_id": "uav-4-imu",
+          "frameId": "uav-4-imu",
           "basis": {
             "kind": "frd"
           },
-          "parent_frame_id": "uav-4-body",
-          "parent_transform": {
+          "parentFrameId": "uav-4-body",
+          "parentTransform": {
             "kind": "static_rigid",
-            "translation_m": [0.0, 0.0, 0.0],
-            "rotation_xyzw": [0.0, 0.0, 0.0, 1.0]
+            "translationM": [0.0, 0.0, 0.0],
+            "rotationXyzw": [0.0, 0.0, 0.0, 1.0]
           },
           "description": "Vehicle inertial measurement frame."
         },
         {
-          "frame_id": "uav-4-down-camera",
+          "frameId": "uav-4-down-camera",
           "basis": {
             "kind": "optical_rdf"
           },
-          "parent_frame_id": "uav-4-body",
-          "parent_transform": {
+          "parentFrameId": "uav-4-body",
+          "parentTransform": {
             "kind": "static_rigid",
-            "translation_m": [0.6, 0.0, 0.05],
-            "rotation_xyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
+            "translationM": [0.6, 0.0, 0.05],
+            "rotationXyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
           },
           "description": "RTX nadir camera optical frame."
         }
       ]
     }
   },
-  "vehicle_id": "uav-1",
-  "world_ready_timeout_seconds": 1200,
+  "vehicleId": "uav-1",
+  "worldReadyTimeoutSeconds": 1200,
   "takeoff": {
-    "relative_altitude_m": 197.0,
-    "minimum_reached_altitude_m": 192.0,
-    "state_timeout_seconds": 1800
+    "relativeAltitudeM": 197.0,
+    "minimumReachedAltitudeM": 192.0,
+    "stateTimeoutSeconds": 1800
   },
   "camera": {
-    "stream_timeout_seconds": 60
+    "streamTimeoutSeconds": 60
   },
   "mission": {
-    "longitude_offset_degrees": 0.0002,
-    "speed_mps": 20.0,
-    "hold_seconds": 0.5,
-    "task_timeout_seconds": 1800
+    "longitudeOffsetDegrees": 0.0002,
+    "speedMps": 20.0,
+    "holdSeconds": 0.5,
+    "taskTimeoutSeconds": 1800
   },
   "stream": {
-    "live_pipeline_id": "traffic-object-detection",
-    "minimum_live_frames": 10,
-    "maximum_result_age_ms": 2000,
-    "live_timeout_seconds": 180,
-    "recording_replay": {
-      "range_lag_seconds": 1.0,
-      "range_duration_seconds": 25.0,
-      "maximum_frames": 8,
-      "task_timeout_seconds": 600
+    "livePipelineId": "traffic-object-detection",
+    "minimumLiveFrames": 10,
+    "maximumResultAgeMs": 2000,
+    "liveTimeoutSeconds": 180,
+    "recordingReplay": {
+      "rangeLagSeconds": 1.0,
+      "rangeDurationSeconds": 25.0,
+      "maximumFrames": 8,
+      "taskTimeoutSeconds": 600
     }
   },
   "reason": {
     "prompt": "Describe the terrain, structures, and any moving objects visible during this aerial pass.",
-    "maximum_frames": 6,
-    "task_timeout_seconds": 900
+    "maximumFrames": 6,
+    "taskTimeoutSeconds": 900
   },
   "view": {
-    "timeout_seconds": 300,
-    "minimum_mission_sensor_frames": 10,
+    "timeoutSeconds": 300,
+    "minimumMissionSensorFrames": 10,
     "camera": {
-      "width_px": 640,
-      "height_px": 360,
-      "frame_rate_millihertz": 30000,
-      "vertical_fov_degrees": 60.0,
-      "near_clip_m": 0.1,
-      "far_clip_m": 20000.0,
-      "offset_flu_m": {
+      "widthPx": 640,
+      "heightPx": 360,
+      "frameRateMillihertz": 30000,
+      "verticalFovDegrees": 60.0,
+      "nearClipM": 0.1,
+      "farClipM": 20000.0,
+      "offsetFluM": {
         "x": -18.0,
         "y": 0.0,
         "z": 7.0
       },
-      "smoothing_seconds": 0.2
+      "smoothingSeconds": 0.2
     }
   },
-  "landing_timeout_seconds": 600
+  "landingTimeoutSeconds": 600
 }

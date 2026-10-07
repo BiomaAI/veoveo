@@ -1,5 +1,6 @@
 pub(crate) mod auth;
 mod config;
+mod recovery;
 pub(crate) mod setup;
 pub(crate) mod tasks;
 
@@ -24,7 +25,7 @@ use crate::{
 };
 
 use config::Args;
-use tasks::{ViewTaskExtension, recover_tasks};
+use tasks::ViewTaskExtension;
 
 pub(crate) const SERVER_SLUG: &str = "view";
 
@@ -52,6 +53,7 @@ pub async fn run() -> Result<()> {
         .with_context(|| format!("parse layer catalog {}", args.layer_catalog.display()))?;
     let catalog = LayerCatalog::from_definitions(catalog_file.layers, args.source_config())?;
     let renderer = RendererHandle::start(args.renderer_config())?;
+    let _renderer_shutdown = renderer.shutdown_on_drop();
     tracing::info!(
         adapter = renderer.adapter().name,
         backend = renderer.adapter().backend,
@@ -79,14 +81,18 @@ pub async fn run() -> Result<()> {
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
     )
     .await?;
-    let recovery = tasks.recover().await?;
+    let mut recovery = tasks.observe_startup_recovery().await?;
+    let initial = futures::StreamExt::next(&mut recovery).await.transpose()?;
     let state = Arc::new(AppState {
         views,
         tasks,
         captures: Semaphore::new(args.max_captures_in_flight),
         subscriptions: SubscriptionHub::new(),
     });
-    recover_tasks(state.clone(), recovery.resumable).await?;
+    if let Some(initial) = initial {
+        tasks::recover_tasks(state.clone(), initial.resumable).await?;
+    }
+    let observer = recovery::RecoveryObserver::start(state.clone(), recovery);
 
     let readiness_state = state.clone();
     let server = HostedServer::for_domain::<ViewMcp>()
@@ -107,8 +113,8 @@ pub async fn run() -> Result<()> {
             async move { adapter.hardware_accelerated && adapter.nvidia }
         })
         .build();
-    server
-        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+    observer
+        .serve(server.serve(SocketAddr::from(([0, 0, 0, 0], args.port))))
         .await
 }
 

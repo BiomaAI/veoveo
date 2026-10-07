@@ -1,4 +1,4 @@
-//! Collection-bound continuation with the published version 1 JSON/base64 profile.
+//! Collection-bound continuation with the published version 2 JSON/base64 profile.
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -12,13 +12,13 @@ pub struct AnalysisCursor {
     cursor: veoveo_types::OpaqueCursor<AnalysisCursorCodec>,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct Position {
     created_at: DateTime<Utc>,
     task_id: AnalysisId,
 }
 #[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct Wire {
     version: u8,
     collection: String,
@@ -35,7 +35,7 @@ impl veoveo_types::CursorCodec for AnalysisCursorCodec {
     }
     fn encode(&self, position: &Position) -> Result<String, ReasonContractError> {
         let bytes = serde_json::to_vec(&Wire {
-            version: 1,
+            version: 2,
             collection: uris::ANALYSES_URI.to_owned(),
             position: position.clone(),
         })
@@ -51,7 +51,7 @@ impl veoveo_types::CursorCodec for AnalysisCursorCodec {
             .map_err(|_| ReasonContractError::InvalidCursor)?;
         let value: Wire =
             serde_json::from_slice(&bytes).map_err(|_| ReasonContractError::InvalidCursor)?;
-        if value.version != 1 || value.collection != uris::ANALYSES_URI {
+        if value.version != 2 || value.collection != uris::ANALYSES_URI {
             return Err(ReasonContractError::InvalidCursor);
         }
         Ok(value.position)

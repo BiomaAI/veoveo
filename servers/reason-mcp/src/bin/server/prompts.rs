@@ -20,8 +20,8 @@ impl ReasonPrompt {
 
     fn name(self) -> &'static str {
         match self {
-            Self::AnalyzeRecording => "reason-analyze-recording",
-            Self::AnswerQuestion => "reason-answer-question",
+            Self::AnalyzeRecording => "reason_analyze_recording",
+            Self::AnswerQuestion => "reason_answer_question",
         }
     }
 
@@ -73,7 +73,7 @@ impl ReasonPrompt {
             .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
         let text = match self {
             Self::AnalyzeRecording => format!(
-                "Read reason://pipelines and verify pipeline {}. Call analyze_recording with video recording_uri {}, entity_path {}, timeline {}, range {}..={}, and a describe_segment or detect_events task using: {}. Optionally pass the results artifact of a completed perception analysis as grounding so events can cite track identities. Treat the returned analysis and artifact URIs as canonical.",
+                "Read reason://pipelines and verify pipeline {}. Call analyze_recording with video recordingUri {}, entityPath {}, timeline {}, range {}..={}, and a describe_segment or detect_events task using: {}. Optionally pass the results artifact of a completed perception analysis as grounding so events can cite track identities. Treat the returned analysis and artifact URIs as canonical.",
                 args.pipeline_id,
                 args.recording_uri,
                 args.entity_path,
@@ -83,7 +83,7 @@ impl ReasonPrompt {
                 args.prompt.as_deref().unwrap_or("<required>"),
             ),
             Self::AnswerQuestion => format!(
-                "Call analyze_recording with video recording_uri {}, entity_path {}, timeline {}, range {}..={}, pipeline {}, and an answer_question task asking: {}. Return the typed answer and cite the reason://analysis resource.",
+                "Call analyze_recording with video recordingUri {}, entityPath {}, timeline {}, range {}..={}, pipeline {}, and an answer_question task asking: {}. Return the typed answer and cite the reason://analysis resource.",
                 args.recording_uri,
                 args.entity_path,
                 args.timeline,

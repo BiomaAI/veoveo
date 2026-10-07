@@ -8,10 +8,10 @@
         "csv": "value\n1\n2\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4,
-      "training_filter": {
+      "trainingFilter": {
         "predicates": [
           {
             "op": "eq",
@@ -21,18 +21,18 @@
         ]
       }
     },
-    "tag": "/training_filter/predicates/0/op",
+    "tag": "/trainingFilter/predicates/0/op",
     "required": [
       "/source",
-      "/mapping/value_column",
+      "/mapping/valueColumn",
       "/horizon",
-      "/training_filter/predicates",
-      "/training_filter/predicates/0/column",
-      "/training_filter/predicates/0/value"
+      "/trainingFilter/predicates",
+      "/trainingFilter/predicates/0/column",
+      "/trainingFilter/predicates/0/value"
     ],
     "defaults": {
       "/method": "naive_trend",
-      "/training_filter/combination": "all"
+      "/trainingFilter/combination": "all"
     },
     "open_objects": []
   },
@@ -45,10 +45,10 @@
         "csv": "value\n1\n2\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4,
-      "training_filter": {
+      "trainingFilter": {
         "predicates": [
           {
             "op": "ne",
@@ -58,18 +58,18 @@
         ]
       }
     },
-    "tag": "/training_filter/predicates/0/op",
+    "tag": "/trainingFilter/predicates/0/op",
     "required": [
       "/source",
-      "/mapping/value_column",
+      "/mapping/valueColumn",
       "/horizon",
-      "/training_filter/predicates",
-      "/training_filter/predicates/0/column",
-      "/training_filter/predicates/0/value"
+      "/trainingFilter/predicates",
+      "/trainingFilter/predicates/0/column",
+      "/trainingFilter/predicates/0/value"
     ],
     "defaults": {
       "/method": "naive_trend",
-      "/training_filter/combination": "all"
+      "/trainingFilter/combination": "all"
     },
     "open_objects": []
   },
@@ -82,10 +82,10 @@
         "csv": "value\n1\n2\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4,
-      "training_filter": {
+      "trainingFilter": {
         "predicates": [
           {
             "op": "in",
@@ -99,18 +99,18 @@
         ]
       }
     },
-    "tag": "/training_filter/predicates/0/op",
+    "tag": "/trainingFilter/predicates/0/op",
     "required": [
       "/source",
-      "/mapping/value_column",
+      "/mapping/valueColumn",
       "/horizon",
-      "/training_filter/predicates",
-      "/training_filter/predicates/0/column",
-      "/training_filter/predicates/0/values"
+      "/trainingFilter/predicates",
+      "/trainingFilter/predicates/0/column",
+      "/trainingFilter/predicates/0/values"
     ],
     "defaults": {
       "/method": "naive_trend",
-      "/training_filter/combination": "all"
+      "/trainingFilter/combination": "all"
     },
     "open_objects": []
   },
@@ -123,10 +123,10 @@
         "csv": "value\n1\n2\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4,
-      "training_filter": {
+      "trainingFilter": {
         "predicates": [
           {
             "op": "is_not_null",
@@ -135,17 +135,17 @@
         ]
       }
     },
-    "tag": "/training_filter/predicates/0/op",
+    "tag": "/trainingFilter/predicates/0/op",
     "required": [
       "/source",
-      "/mapping/value_column",
+      "/mapping/valueColumn",
       "/horizon",
-      "/training_filter/predicates",
-      "/training_filter/predicates/0/column"
+      "/trainingFilter/predicates",
+      "/trainingFilter/predicates/0/column"
     ],
     "defaults": {
       "/method": "naive_trend",
-      "/training_filter/combination": "all"
+      "/trainingFilter/combination": "all"
     },
     "open_objects": []
   },
@@ -158,10 +158,10 @@
         "csv": "value\n1\n2\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4,
-      "training_filter": {
+      "trainingFilter": {
         "predicates": [
           {
             "op": "eq",
@@ -173,13 +173,13 @@
     },
     "tag": null,
     "required": [
-      "/mapping/value_column"
+      "/mapping/valueColumn"
     ],
     "defaults": {},
     "open_objects": [],
     "invalid": [
       {
-        "pointer": "/training_filter/predicates/0/value",
+        "pointer": "/trainingFilter/predicates/0/value",
         "value": null,
         "error": "did not match any variant"
       }
@@ -195,10 +195,10 @@
         "csv": "value\n1\n2\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4,
-      "training_filter": {
+      "trainingFilter": {
         "predicates": [
           {
             "op": "eq",
@@ -210,13 +210,13 @@
     },
     "tag": null,
     "required": [
-      "/mapping/value_column"
+      "/mapping/valueColumn"
     ],
     "defaults": {},
     "open_objects": [],
     "invalid": [
       {
-        "pointer": "/training_filter/predicates/0/value",
+        "pointer": "/trainingFilter/predicates/0/value",
         "value": null,
         "error": "did not match any variant"
       }
@@ -232,10 +232,10 @@
         "csv": "value\n1\n2\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4,
-      "training_filter": {
+      "trainingFilter": {
         "predicates": [
           {
             "op": "eq",
@@ -247,13 +247,13 @@
     },
     "tag": null,
     "required": [
-      "/mapping/value_column"
+      "/mapping/valueColumn"
     ],
     "defaults": {},
     "open_objects": [],
     "invalid": [
       {
-        "pointer": "/training_filter/predicates/0/value",
+        "pointer": "/trainingFilter/predicates/0/value",
         "value": null,
         "error": "did not match any variant"
       }
@@ -269,10 +269,10 @@
         "csv": "value\n1\n2\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4,
-      "training_filter": {
+      "trainingFilter": {
         "predicates": [
           {
             "op": "eq",
@@ -284,13 +284,13 @@
     },
     "tag": null,
     "required": [
-      "/mapping/value_column"
+      "/mapping/valueColumn"
     ],
     "defaults": {},
     "open_objects": [],
     "invalid": [
       {
-        "pointer": "/training_filter/predicates/0/value",
+        "pointer": "/trainingFilter/predicates/0/value",
         "value": null,
         "error": "did not match any variant"
       }
@@ -306,10 +306,10 @@
         "csv": "value\n1\n2\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4,
-      "training_filter": {
+      "trainingFilter": {
         "predicates": [
           {
             "op": "eq",
@@ -321,13 +321,13 @@
     },
     "tag": null,
     "required": [
-      "/mapping/value_column"
+      "/mapping/valueColumn"
     ],
     "defaults": {},
     "open_objects": [],
     "invalid": [
       {
-        "pointer": "/training_filter/predicates/0/value",
+        "pointer": "/trainingFilter/predicates/0/value",
         "value": null,
         "error": "did not match any variant"
       }
@@ -343,7 +343,7 @@
         "csv": "value\n1\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4
     },
@@ -367,7 +367,7 @@
         "format": "csv"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4
     },
@@ -393,7 +393,7 @@
         "format": "csv"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4
     },
@@ -417,7 +417,7 @@
         "format": "auto"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4
     },
@@ -438,7 +438,7 @@
         "format": "csv"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4
     },
@@ -459,7 +459,7 @@
         "format": "parquet"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4
     },
@@ -480,7 +480,7 @@
         "format": "json"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4
     },
@@ -501,7 +501,7 @@
         "format": "ndjson"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4
     },
@@ -521,10 +521,10 @@
         "csv": "value\n1\n2\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4,
-      "training_filter": {
+      "trainingFilter": {
         "combination": "all",
         "predicates": [
           {
@@ -534,9 +534,9 @@
         ]
       }
     },
-    "tag": "/training_filter/combination",
+    "tag": "/trainingFilter/combination",
     "required": [
-      "/training_filter/predicates"
+      "/trainingFilter/predicates"
     ],
     "defaults": {},
     "open_objects": []
@@ -550,10 +550,10 @@
         "csv": "value\n1\n2\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4,
-      "training_filter": {
+      "trainingFilter": {
         "combination": "any",
         "predicates": [
           {
@@ -563,9 +563,9 @@
         ]
       }
     },
-    "tag": "/training_filter/combination",
+    "tag": "/trainingFilter/combination",
     "required": [
-      "/training_filter/predicates"
+      "/trainingFilter/predicates"
     ],
     "defaults": {},
     "open_objects": []
@@ -579,7 +579,7 @@
         "csv": "value\n1\n2\n"
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4,
       "method": "naive_trend"
@@ -601,14 +601,14 @@
         "options": {
           "header": true,
           "delimiter": ",",
-          "timestamp_format": "%Y",
+          "timestampFormat": "%Y",
           "extra": {
             "sample": true
           }
         }
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4
     },
@@ -644,14 +644,14 @@
         "options": {
           "header": true,
           "delimiter": ",",
-          "timestamp_format": "%Y",
+          "timestampFormat": "%Y",
           "extra": {
             "sample": 3
           }
         }
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4
     },
@@ -687,14 +687,14 @@
         "options": {
           "header": true,
           "delimiter": ",",
-          "timestamp_format": "%Y",
+          "timestampFormat": "%Y",
           "extra": {
             "sample": "x"
           }
         }
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4
     },
@@ -730,7 +730,7 @@
         "options": {
           "header": true,
           "delimiter": ",",
-          "timestamp_format": "%Y",
+          "timestampFormat": "%Y",
           "extra": {
             "sample": [
               true,
@@ -744,7 +744,7 @@
         }
       },
       "mapping": {
-        "value_column": "value"
+        "valueColumn": "value"
       },
       "horizon": 4
     },

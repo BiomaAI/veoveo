@@ -54,16 +54,16 @@ pub fn plane(registrations: &[CollectionRegistration]) -> GatewayControlPlane {
         serde_json::from_str(include_str!("../../../../configs/gateway.smoke.json")).unwrap();
     let mut server = value["servers"][0].clone();
     server["slug"] = "knowledge".into();
-    server["uri_scheme"] = "knowledge".into();
-    server["mount_path"] = "/knowledge".into();
-    server["mcp_path"] = "/knowledge/mcp".into();
+    server["uriScheme"] = "knowledge".into();
+    server["mountPath"] = "/knowledge".into();
+    server["mcpPath"] = "/knowledge/mcp".into();
     server["upstream"]["url"] = "http://127.0.0.1:18802/knowledge/mcp".into();
-    server["upstream"]["health_url"] = "http://127.0.0.1:18802/knowledge/readyz".into();
-    server["owned_routes"] = serde_json::json!([]);
+    server["upstream"]["healthUrl"] = "http://127.0.0.1:18802/knowledge/readyz".into();
+    server["ownedRoutes"] = serde_json::json!([]);
     server["tools"] = serde_json::json!(["search", "embed"]);
     server["prompts"] = serde_json::json!([]);
-    server["compatibility_helpers"] = serde_json::json!([]);
-    server["capabilities"] = serde_json::json!({"tools":true,"resources":true,"resource_templates":true,"resource_subscriptions":true,"prompts":false,"completions":true,"tasks":false});
+    server["compatibilityHelpers"] = serde_json::json!([]);
+    server["capabilities"] = serde_json::json!({"tools":true,"resources":true,"resourceTemplates":true,"resourceSubscriptions":true,"prompts":false,"completions":true,"tasks":false});
     value["servers"].as_array_mut().unwrap().push(server);
     value["servers"][0]["knowledge"] = serde_json::to_value(
         registrations
@@ -76,7 +76,7 @@ pub fn plane(registrations: &[CollectionRegistration]) -> GatewayControlPlane {
     let mut rule = value["policies"][0]["rules"][0].clone();
     rule["id"] = "allow_knowledge".into();
     rule["servers"] = serde_json::json!(["knowledge"]);
-    rule["resource_schemes"] = serde_json::json!(["knowledge"]);
+    rule["resourceSchemes"] = serde_json::json!(["knowledge"]);
     rule["tools"] = serde_json::json!(["search", "embed"]);
     rule["prompts"] = serde_json::json!([]);
     rule["actions"] = serde_json::json!([
@@ -97,14 +97,14 @@ pub fn plane(registrations: &[CollectionRegistration]) -> GatewayControlPlane {
     rule["id"] = "allow_knowledge_catalog_observation".into();
     rule["actions"] = serde_json::json!(["subscriptions_listen"]);
     rule["tools"] = serde_json::json!([]);
-    rule["resource_schemes"] = serde_json::json!([]);
+    rule["resourceSchemes"] = serde_json::json!([]);
     value["policies"][0]["rules"]
         .as_array_mut()
         .unwrap()
         .push(rule);
-    for client in value["oauth_clients"].as_array_mut().unwrap() {
+    for client in value["oauthClients"].as_array_mut().unwrap() {
         if client["id"] == "operator-service" || client["id"] == "operator-local-public" {
-            client["allowed_scopes"].as_array_mut().unwrap().extend(
+            client["allowedScopes"].as_array_mut().unwrap().extend(
                 KnowledgeScope::ALL
                     .iter()
                     .map(|s| serde_json::Value::String(s.name().to_string())),

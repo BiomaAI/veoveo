@@ -4,15 +4,15 @@
     "tool": "run_recording",
     "arguments": {
       "video": {
-        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
-        "entity_path": "/camera/front",
+        "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entityPath": "/camera/front",
         "timeline": "sensor_time",
         "range": {
           "start": 10,
           "end": 20
         }
       },
-      "pipeline_id": "preview",
+      "pipelineId": "preview",
       "sampling": {
         "mode": "every_frame"
       }
@@ -20,10 +20,10 @@
     "tag": "/sampling/mode",
     "required": [
       "/video",
-      "/pipeline_id"
+      "/pipelineId"
     ],
     "defaults": {
-      "/include_source_clip": false
+      "/includeSourceClip": false
     },
     "open_objects": []
   },
@@ -32,15 +32,15 @@
     "tool": "run_recording",
     "arguments": {
       "video": {
-        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
-        "entity_path": "/camera/front",
+        "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entityPath": "/camera/front",
         "timeline": "sensor_time",
         "range": {
           "start": 10,
           "end": 20
         }
       },
-      "pipeline_id": "preview",
+      "pipelineId": "preview",
       "sampling": {
         "mode": "every_nth",
         "step": 2
@@ -49,11 +49,11 @@
     "tag": "/sampling/mode",
     "required": [
       "/video",
-      "/pipeline_id",
+      "/pipelineId",
       "/sampling/step"
     ],
     "defaults": {
-      "/include_source_clip": false
+      "/includeSourceClip": false
     },
     "open_objects": []
   },
@@ -62,15 +62,15 @@
     "tool": "run_recording",
     "arguments": {
       "video": {
-        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
-        "entity_path": "/camera/front",
+        "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entityPath": "/camera/front",
         "timeline": "sensor_time",
         "range": {
           "start": 10,
           "end": 20
         }
       },
-      "pipeline_id": "preview",
+      "pipelineId": "preview",
       "sampling": {
         "mode": "maximum_frames",
         "count": 4
@@ -79,11 +79,11 @@
     "tag": "/sampling/mode",
     "required": [
       "/video",
-      "/pipeline_id",
+      "/pipelineId",
       "/sampling/count"
     ],
     "defaults": {
-      "/include_source_clip": false
+      "/includeSourceClip": false
     },
     "open_objects": []
   }

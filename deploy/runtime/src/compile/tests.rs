@@ -286,13 +286,13 @@ fn independent_sources(publication: Option<PublicationCheck>) {
     initialize(&installation);
     let namespace = json!({"group":"", "kind":"Namespace", "namespace":null, "name":"veoveo"});
     let profile_value = json!({
-        "schemaVersion":"veoveo.ai/deployment/v8", "name":"compiler-fixture",
+        "schemaVersion":"veoveo.ai/deployment/v9", "name":"compiler-fixture",
         "registry":{"pushAddress":"registry.example.invalid", "pullAddress":"registry.example.invalid", "transport":"tls"},
         "sources":[
             {"name":"platform", "role":"platform", "repository":{"kind":"local", "path":"../platform"},
                 "revision":"HEAD", "imageGroups":[], "releases":[{"name":"platform", "chart":"chart", "sourceValues":[], "installationValues":[], "valuesContract":"platform", "timeoutSeconds":60}]},
             {"name":"workload", "role":"workload", "repository":{"kind":"local", "path":"../workload"},
-                "revision":"HEAD", "imageGroups":["workload"], "releases":[{"name":"workload", "chart":"chart", "sourceValues":[], "installationValues":[], "valuesContract":"veoveo-source", "timeoutSeconds":60}]}
+                "revision":"HEAD", "imageGroups":["workload"], "releases":[{"name":"workload", "chart":"chart", "sourceValues":[], "installationValues":[], "valuesContract":"veoveo_source", "timeoutSeconds":60}]}
         ],
         "components":[
             {"id":"installation", "owner":{"kind":"installation"}, "role":"installation", "dependencies":[], "namespaces":["veoveo"], "clusterObjects":[namespace], "releases":[], "installationInputs":["namespace"]},
@@ -591,7 +591,7 @@ fn retained_component_inputs(change: InputChange) {
     }
     let path = installation.join("deployment.json");
     fs::write(&path, serde_json::to_vec_pretty(&json!({
-        "schemaVersion":"veoveo.ai/deployment/v8", "name":"revision-fixture",
+        "schemaVersion":"veoveo.ai/deployment/v9", "name":"revision-fixture",
         "registry":{"pushAddress":"registry.example.invalid", "pullAddress":"registry.example.invalid", "transport":"tls"},
         "sources":[{"name":"platform", "role":"platform", "repository":{"kind":"local", "path":"../platform"},
             "revision":"HEAD", "imageGroups":[], "releases":releases}],

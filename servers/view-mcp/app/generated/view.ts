@@ -168,7 +168,7 @@ export type SceneOverlayGeometrySource =
       kind: "inline";
     }
   | {
-      input_id: SceneInputId;
+      inputId: SceneInputId;
       kind: "artifact";
     };
 /**
@@ -188,11 +188,11 @@ export type SceneOverlayGeometry =
   | {
       kind: "polygon";
       positions: ScenePosition[];
-      triangle_indices: number[];
+      triangleIndices: number[];
     }
   | {
       kind: "oriented_mesh_instance";
-      mesh_input_id: SceneInputId;
+      meshInputId: SceneInputId;
       orientation: HeadingPitchRoll;
       position: ScenePosition;
       /**
@@ -221,7 +221,7 @@ export type ScenePosition =
        * @minItems 3
        * @maxItems 3
        */
-      xyz_meters: [number, number, number];
+      xyzMeters: [number, number, number];
     };
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -252,21 +252,21 @@ export type CameraDefinition =
       kind: "pose";
       orientation: HeadingPitchRoll;
       position: Wgs84Position3D;
-      vertical_fov_degrees: number;
+      verticalFovDegrees: number;
     }
   | {
       eye: Wgs84Position3D;
       kind: "look_at";
       target: Wgs84Position3D;
-      vertical_fov_degrees: number;
+      verticalFovDegrees: number;
     }
   | {
-      azimuth_degrees: number;
-      distance_meters: number;
-      elevation_degrees: number;
+      azimuthDegrees: number;
+      distanceMeters: number;
+      elevationDegrees: number;
       kind: "orbit_target";
       target: Wgs84Position3D;
-      vertical_fov_degrees: number;
+      verticalFovDegrees: number;
     };
 
 export interface AppContracts {
@@ -283,7 +283,7 @@ export interface AppContracts {
  */
 export interface CloseViewResult {
   closed: boolean;
-  view_id: ViewId;
+  viewId: ViewId;
 }
 /**
  * A validated immutable scene, including its request, authority and content identity.
@@ -297,21 +297,21 @@ export interface CloseViewResult {
  * via the `definition` "SceneComposition".
  */
 export interface SceneComposition {
-  algorithm_revision: string;
+  algorithmRevision: "veoveo.ai/view-scene-composition/v2";
   authority: SceneCompositionAuthority;
-  base_layer: LayerId;
-  composition_digest_sha256: Sha256Digest;
-  composition_id: SceneCompositionId;
-  composition_uri: string;
-  created_at: string;
-  governed_inputs: GovernedSceneInput[];
-  local_frame?: LocalFrameBinding | null;
-  map_releases: MapReleaseUri[];
+  baseLayer: LayerId;
+  compositionDigestSha256: Sha256Digest;
+  compositionId: SceneCompositionId;
+  compositionUri: string;
+  createdAt: string;
+  governedInputs: GovernedSceneInput[];
+  localFrame?: LocalFrameBinding | null;
+  mapReleases: MapReleaseUri[];
   overlays: SceneOverlay[];
-  request_digest_sha256: Sha256Digest;
+  requestDigestSha256: Sha256Digest;
   revision: number;
-  schema_version: number;
-  style_id: SceneStyleId;
+  schemaVersion: number;
+  styleId: SceneStyleId;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -319,7 +319,7 @@ export interface SceneComposition {
  */
 export interface SceneCompositionAuthority {
   invocation: InvocationAuthority;
-  principal_id: PrincipalId;
+  principalId: PrincipalId;
 }
 /**
  * Gateway-resolved authority signed into every internal service token.
@@ -363,11 +363,11 @@ export interface WorkContextGrant {
  */
 export interface GovernedSceneInput {
   attribution: string;
-  digest_sha256: Sha256Digest;
-  input_id: SceneInputId;
+  digestSha256: Sha256Digest;
+  inputId: SceneInputId;
   license: string;
-  media_type?: string | null;
-  resource_uri: GovernedResourceUri;
+  mediaType?: string | null;
+  resourceUri: GovernedResourceUri;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -378,7 +378,7 @@ export interface LocalFrameBinding {
    * @minItems 16
    * @maxItems 16
    */
-  ecef_from_frame: [
+  ecefFromFrame: [
     number,
     number,
     number,
@@ -396,9 +396,9 @@ export interface LocalFrameBinding {
     number,
     number
   ];
-  frame_uri: WorldFrameUri;
-  operation_input_id: SceneInputId;
-  world_revision: FrameWorldRevisionUri;
+  frameUri: WorldFrameUri;
+  operationInputId: SceneInputId;
+  worldRevision: FrameWorldRevisionUri;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -406,8 +406,8 @@ export interface LocalFrameBinding {
  */
 export interface SceneOverlay {
   geometry: SceneOverlayGeometrySource;
-  governed_input_ids: SceneInputId[];
-  overlay_id: SceneOverlayId;
+  governedInputIds: SceneInputId[];
+  overlayId: SceneOverlayId;
   style?: SceneOverlayStyle;
   validity?: SceneValidity | null;
   visibility?: SceneOverlayVisibility;
@@ -417,25 +417,25 @@ export interface SceneOverlay {
  * via the `definition` "Wgs84Position3d".
  */
 export interface Wgs84Position3D {
-  ellipsoidal_height_meters: number;
-  latitude_degrees: number;
-  longitude_degrees: number;
+  ellipsoidalHeightMeters: number;
+  latitudeDegrees: number;
+  longitudeDegrees: number;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "HeadingPitchRoll".
  */
 export interface HeadingPitchRoll {
-  heading_degrees: number;
-  pitch_degrees: number;
-  roll_degrees: number;
+  headingDegrees: number;
+  pitchDegrees: number;
+  rollDegrees: number;
 }
 export interface SceneOverlayStyle {
-  fill_color?: OverlayColor | null;
-  label_height_meters?: number;
-  line_width_meters?: number;
-  marker_size_meters?: number;
-  stroke_color?: OverlayColor1;
+  fillColor?: OverlayColor | null;
+  labelHeightMeters?: number;
+  lineWidthMeters?: number;
+  markerSizeMeters?: number;
+  strokeColor?: OverlayColor1;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -459,12 +459,12 @@ export interface OverlayColor1 {
  */
 export interface SceneValidity {
   timestamp?: string | null;
-  valid_from?: string | null;
-  valid_until?: string | null;
+  validFrom?: string | null;
+  validUntil?: string | null;
 }
 export interface SceneOverlayVisibility {
-  maximum_camera_distance_meters?: number | null;
-  minimum_camera_distance_meters?: number | null;
+  maximumCameraDistanceMeters?: number | null;
+  minimumCameraDistanceMeters?: number | null;
   visible?: boolean;
 }
 /**
@@ -479,34 +479,34 @@ export interface SceneOverlayVisibility {
  * via the `definition` "FrameRecord".
  */
 export interface FrameRecord {
-  actual_max_screen_error_px: number;
+  actualMaxScreenErrorPx: number;
   attribution: AttributionSet;
-  byte_length: number;
-  captured_at: string;
-  composition_digest_sha256: Sha256Digest;
-  composition_id: SceneCompositionId;
-  composition_revision: number;
-  composition_uri: string;
-  detail_complete: boolean;
-  frame_id: FrameId;
-  frame_uri: string;
-  frame_world_revision?: FrameWorldRevisionUri | null;
-  governed_inputs: GovernedSceneInput[];
-  height_px: number;
-  mime_type: "image/png" | "image/jpeg";
-  output_digest_sha256: Sha256Digest;
-  overlay_truncated: boolean;
-  pending_tile_count: number;
-  rendered_overlay_count: number;
-  resolved_camera: GeodeticCameraPose;
-  result_uri: string;
-  scene_layer: LayerId;
-  scene_time: string;
-  style_id: SceneStyleId;
-  view_id: ViewId;
-  view_revision: number;
-  visible_tile_count: number;
-  width_px: number;
+  byteLength: number;
+  capturedAt: string;
+  compositionDigestSha256: Sha256Digest;
+  compositionId: SceneCompositionId;
+  compositionRevision: number;
+  compositionUri: string;
+  detailComplete: boolean;
+  frameId: FrameId;
+  frameUri: string;
+  frameWorldRevision?: FrameWorldRevisionUri | null;
+  governedInputs: GovernedSceneInput[];
+  heightPx: number;
+  mimeType: "image/png" | "image/jpeg";
+  outputDigestSha256: Sha256Digest;
+  overlayTruncated: boolean;
+  pendingTileCount: number;
+  renderedOverlayCount: number;
+  resolvedCamera: GeodeticCameraPose;
+  resultUri: string;
+  sceneLayer: LayerId;
+  sceneTime: string;
+  styleId: SceneStyleId;
+  viewId: ViewId;
+  viewRevision: number;
+  visibleTileCount: number;
+  widthPx: number;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -522,7 +522,7 @@ export interface AttributionSet {
 export interface GeodeticCameraPose {
   orientation: HeadingPitchRoll;
   position: Wgs84Position3D;
-  vertical_fov_degrees: number;
+  verticalFovDegrees: number;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -530,8 +530,8 @@ export interface GeodeticCameraPose {
  */
 export interface LayerSummary {
   label: string;
-  layer_id: LayerId;
-  source_kind: LayerSourceKind;
+  layerId: LayerId;
+  sourceKind: LayerSourceKind;
 }
 /**
  * The admitted view, render policy and preview cut share one immutable manifest.
@@ -546,10 +546,10 @@ export interface LayerSummary {
  */
 export interface PreviewSceneRecord {
   attribution: AttributionSet;
-  composition_digest_sha256: Sha256Digest;
-  composition_id: SceneCompositionId;
-  detail_complete: boolean;
-  height_px: number;
+  compositionDigestSha256: Sha256Digest;
+  compositionId: SceneCompositionId;
+  detailComplete: boolean;
+  heightPx: number;
   /**
    * Column-major local frame (+X east, +Y up, -Z north) from ECEF meters,
    * anchored at `local_origin` so composed tile transforms stay
@@ -558,7 +558,7 @@ export interface PreviewSceneRecord {
    * @minItems 16
    * @maxItems 16
    */
-  local_from_ecef: [
+  localFromEcef: [
     number,
     number,
     number,
@@ -576,15 +576,15 @@ export interface PreviewSceneRecord {
     number,
     number
   ];
-  local_origin: Wgs84Position3D;
-  max_screen_error_px: number;
-  resolved_camera: GeodeticCameraPose;
-  scene_layer: LayerId;
+  localOrigin: Wgs84Position3D;
+  maxScreenErrorPx: number;
+  resolvedCamera: GeodeticCameraPose;
+  sceneLayer: LayerId;
   tiles: SceneTileRecord[];
   truncated: boolean;
-  view_id: ViewId;
-  view_revision: number;
-  width_px: number;
+  viewId: ViewId;
+  viewRevision: number;
+  widthPx: number;
 }
 /**
  * One preview tile with finite, invertible affine transform and derived size status.
@@ -601,7 +601,7 @@ export interface SceneTileRecord {
   /**
    * Raw GLB length when resident in the byte cache; absent after eviction.
    */
-  byte_length?: number | null;
+  byteLength?: number | null;
   /**
    * Column-major, meters (matches glam `to_cols_array` and three.js
    * `Matrix4.fromArray`).
@@ -609,7 +609,7 @@ export interface SceneTileRecord {
    * @minItems 16
    * @maxItems 16
    */
-  ecef_from_content: [
+  ecefFromContent: [
     number,
     number,
     number,
@@ -631,7 +631,7 @@ export interface SceneTileRecord {
    * Reads of oversize tiles fail; consumers must skip them.
    */
   oversize: boolean;
-  tile_uri: string;
+  tileUri: string;
 }
 /**
  * One immutable composition binding with a checked, replaceable camera revision.
@@ -646,34 +646,34 @@ export interface SceneTileRecord {
  */
 export interface ViewRecord {
   camera: CameraDefinition;
-  composition_digest_sha256: Sha256Digest;
-  composition_id: SceneCompositionId;
-  composition_uri: string;
-  created_at: string;
-  resolved_camera: GeodeticCameraPose;
+  compositionDigestSha256: Sha256Digest;
+  compositionId: SceneCompositionId;
+  compositionUri: string;
+  createdAt: string;
+  resolvedCamera: GeodeticCameraPose;
   revision: number;
-  scene_layer: LayerId;
-  updated_at: string;
-  view_id: ViewId;
-  view_uri: string;
+  sceneLayer: LayerId;
+  updatedAt: string;
+  viewId: ViewId;
+  viewUri: string;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "SceneOverlayStyle".
  */
 export interface SceneOverlayStyle1 {
-  fill_color?: OverlayColor | null;
-  label_height_meters?: number;
-  line_width_meters?: number;
-  marker_size_meters?: number;
-  stroke_color?: OverlayColor1;
+  fillColor?: OverlayColor | null;
+  labelHeightMeters?: number;
+  lineWidthMeters?: number;
+  markerSizeMeters?: number;
+  strokeColor?: OverlayColor1;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "SceneOverlayVisibility".
  */
 export interface SceneOverlayVisibility1 {
-  maximum_camera_distance_meters?: number | null;
-  minimum_camera_distance_meters?: number | null;
+  maximumCameraDistanceMeters?: number | null;
+  minimumCameraDistanceMeters?: number | null;
   visible?: boolean;
 }

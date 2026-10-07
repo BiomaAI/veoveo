@@ -63,6 +63,7 @@ impl TimePrompt {
     }
     pub fn render(self, arguments: Option<JsonObject>) -> Result<GetPromptResult, McpError> {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Arguments {
             expression: Option<String>,
             zone_id: Option<String>,

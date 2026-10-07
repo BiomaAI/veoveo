@@ -1,4 +1,5 @@
 mod admission;
+mod installation_capture;
 
 use super::*;
 use kubernetes_types::*;
@@ -14,11 +15,11 @@ fn fixture() -> (Config, ManagedAgentReconciliation, ConfigMap) {
             "CREATE TABLE notes (text VARCHAR);".into(),
         ),
     ]);
-    let model: wire::ModelConnection = serde_json::from_value(json!({"id":"approved","name":"Approved","provider":"fixture","tenant":"test","work_contexts":["operations"],"base_url":"https://model.test/v1","model":"approved","api_key":"model-key","limits":{"maxOutputTokens":128,"maxCompletionCalls":2,"maxToolCalls":3,"deadlineSeconds":60}})).unwrap();
+    let model: wire::ModelConnection = serde_json::from_value(json!({"id":"approved","name":"Approved","provider":"fixture","tenant":"test","workContexts":["operations"],"baseUrl":"https://model.test/v1","model":"approved","apiKey":"model-key","limits":{"maxOutputTokens":128,"maxCompletionCalls":2,"maxToolCalls":3,"deadlineSeconds":60}})).unwrap();
     let template: wire::RuntimeTemplate = serde_json::from_value(json!({
-        "id":"pilot","name":"Pilot","tenant":"test","work_contexts":["operations"],"required_deployer_scopes":["operator:use"],"profile":"operator","scopes":["operator:use"],"roles":[],"membership":"contributor",
-        "models":["approved"],"tools":["time__resolve_time"],"resource_subscriptions":[],"parameters":{"vehicle":{"label":"Vehicle","shape":{"kind":"identifier","maxLength":40},"environment_variable":"VEOVEO_PARAM_VEHICLE"}},
-        "workload":{"namespace":"agents","config_map":"pilot-template","config_digest":wire::runtime_config_revision(&data),"image":format!("registry.test/kernel@sha256:{}", "a".repeat(64)),"database_secret":"agent-store","storage_class":"local-path","storage_gib":2,"cpu_millis":500,"memory_mib":512,"model_secrets":[{"reference":"model-key","secret":"approved-model","key":"api-key"}]}
+        "id":"pilot","name":"Pilot","tenant":"test","workContexts":["operations"],"requiredDeployerScopes":["operator:use"],"profile":"operator","scopes":["operator:use"],"roles":[],"membership":"contributor",
+        "models":["approved"],"tools":["time__resolve_time"],"resourceSubscriptions":[],"parameters":{"vehicle":{"label":"Vehicle","shape":{"kind":"identifier","maxLength":40},"environmentVariable":"VEOVEO_PARAM_VEHICLE"}},
+        "workload":{"namespace":"agents","configMap":"pilot-template","configDigest":wire::runtime_config_revision(&data),"image":format!("registry.test/kernel@sha256:{}", "a".repeat(64)),"databaseSecret":"agent-store","storageClass":"local-path","storageGib":2,"cpuMillis":500,"memoryMib":512,"modelSecrets":[{"reference":"model-key","secret":"approved-model","key":"api-key"}]}
     })).unwrap();
     let tenant = veoveo_platform_store::deterministic_tenant_id("test")
         .unwrap()
@@ -31,12 +32,12 @@ fn fixture() -> (Config, ManagedAgentReconciliation, ConfigMap) {
         .record_id();
     let instance = serde_json::from_value(json!({
         "id":id,"tenant":tenant,"work_context":veoveo_platform_store::deterministic_work_context_id("test", "operations").unwrap().record_id(),"owner":principal,"deployed_by":principal,"key":"worker","name":"Worker","definition":definition,"requested_revision":definition,"active_revision":definition,
-        "generation":2,"active_generation":2,"dispatch_epoch":1,"desired":"running","observed":"workload","principal":principal,
+        "generation":2,"active_generation":2,"admission_count":0,"dispatch_epoch":1,"desired":"running","observed":"workload","principal":principal,
         "identity":{"client_id":"worker-client","issuer":"https://gateway.test/oauth","authorization_server":"gateway","profile":"operator","resource":"https://gateway.test/mcp/operator","scopes":["operator:use"],"roles":[],"membership":"contributor"},
         "resources":{"namespace":"agents","workload":"agent-worker","credential_secret":"agent-worker-key","volume_claim":"retained-pilot-memory","template_config_map":"pilot-template","image":template.workload.image,"storage_gib":2},
         "public_key":{"kid":"same-key","n":"modulus","e":"AQAB"},"operation":id,"created_at":chrono::Utc::now(),"updated_at":chrono::Utc::now()
     })).unwrap();
-    let content = serde_json::from_value(json!({
+    let content: veoveo_agent_runtime::persistence::AgentContent = serde_json::from_value(json!({
         "model":{"id":"approved","revision":model.revision().as_str().trim_start_matches("sha256:")},"instructions":"PRIVATE_AUTHORED_INSTRUCTIONS","tools":["time__resolve_time"],"budgets":{"max_output_tokens":64,"max_completion_calls":1,"max_tool_calls":2,"deadline_seconds":30},
         "execution":{"kind":"managed","template":"pilot","template_revision":wire::runtime_template_revision(&template).as_str().trim_start_matches("sha256:"),"parameters":{"vehicle":"vehicle-one"},"resource_subscriptions":[]}
     })).unwrap();
@@ -45,7 +46,17 @@ fn fixture() -> (Config, ManagedAgentReconciliation, ConfigMap) {
         revision: AgentRevision {
             id: definition.clone(),
             definition,
-            digest: "a".repeat(64),
+            digest: content.digest().unwrap(),
+            execution: content.execution.clone(),
+            model: content.model.clone(),
+            tools: content.tools.clone(),
+            template_revision: match &content.execution {
+                veoveo_agent_runtime::persistence::AgentExecution::Managed {
+                    template_revision,
+                    ..
+                } => Some(template_revision.clone()),
+                veoveo_agent_runtime::persistence::AgentExecution::Chat => None,
+            },
             content,
             created_by: principal,
             created_at: chrono::Utc::now(),
@@ -248,4 +259,39 @@ fn credential_rotation_retires_then_recovers_only_after_known_drain() {
     let mut foreign = replacement;
     foreign.metadata.labels.clear();
     assert!(credential_recovery(Some(&foreign), &snapshot.instance, &config, Some(true)).is_err());
+}
+
+#[test]
+fn manager_configuration_refuses_retired_and_mixed_keys() {
+    let (config, _, _) = fixture();
+    let current = json!({
+        "namespace":config.namespace,"gatewayUrl":config.gateway_url,
+        "gatewayTransportUrl":config.gateway_transport_url,"storeEndpoint":config.store_endpoint,
+        "storeNamespace":config.store_namespace,"storeDatabase":config.store_database,
+        "databaseCredentialRevision":config.database_credential_revision,
+        "templates":config.templates,"models":config.models,
+    });
+    serde_json::from_slice::<Config>(&serde_json::to_vec(&current).unwrap()).unwrap();
+    for (key, old) in [
+        ("gatewayUrl", "gateway_url"),
+        ("gatewayTransportUrl", "gateway_transport_url"),
+        ("storeEndpoint", "store_endpoint"),
+        ("storeNamespace", "store_namespace"),
+        ("storeDatabase", "store_database"),
+        ("databaseCredentialRevision", "database_credential_revision"),
+    ] {
+        for keep in [false, true] {
+            let mut bad = current.clone();
+            let object = bad.as_object_mut().unwrap();
+            object.insert(old.into(), object[key].clone());
+            if !keep {
+                object.remove(key);
+            }
+            assert!(
+                serde_json::from_value::<Config>(bad.clone()).is_err(),
+                "{old} mixed={keep}"
+            );
+            assert!(serde_json::from_slice::<Config>(&serde_json::to_vec(&bad).unwrap()).is_err());
+        }
+    }
 }

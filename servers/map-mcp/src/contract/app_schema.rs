@@ -5,6 +5,8 @@ use schemars::{JsonSchema, Schema};
 
 #[derive(JsonSchema)]
 #[allow(dead_code)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct AppContracts {
     pub workspace: MapWorkspaceAccess,
     pub layers: MapMetadataPage<FeatureLayer>,
@@ -97,22 +99,18 @@ mod tests {
                 .unwrap(),
             ),
         ] {
-            let mut selected = schema.clone();
-            selected
-                .as_object_mut()
-                .unwrap()
-                .insert("$ref".into(), schema["properties"][root]["$ref"].clone());
-            for key in ["properties", "required"] {
-                selected.as_object_mut().unwrap().remove(key);
-            }
+            let selected = serde_json::json!({
+                "$ref": schema["properties"][root]["$ref"],
+                "$defs": schema["$defs"],
+            });
             let validator = jsonschema::validator_for(&selected).unwrap();
             assert!(validator.is_valid(&bytes));
             let mut value = bytes.clone();
-            value["next_cursor"] = serde_json::json!("owner-cursor");
+            value["nextCursor"] = serde_json::json!("owner-cursor");
             assert!(validator.is_valid(&value));
-            value["next_cursor"] = serde_json::json!(42);
+            value["nextCursor"] = serde_json::json!(42);
             assert!(!validator.is_valid(&value));
-            value.as_object_mut().unwrap().remove("next_cursor");
+            value.as_object_mut().unwrap().remove("nextCursor");
             assert!(!validator.is_valid(&value));
         }
     }

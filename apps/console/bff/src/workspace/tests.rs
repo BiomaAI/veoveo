@@ -151,7 +151,7 @@ async fn speech_uses_workspace_cookie_csrf_and_fixed_profile() {
     );
     let edge = Edge::new(upstream).await;
     let id = uuid::Uuid::now_v7();
-    let body = serde_json::to_string(&json!({"id":id,"sample_rate":48000})).unwrap();
+    let body = serde_json::to_string(&json!({"id":id,"sampleRate":48000})).unwrap();
     let path = "/workspace/api/speech/dictation";
     assert_eq!(
         edge.request("POST", path, false, true, &body)
@@ -882,7 +882,7 @@ async fn controlled_requests_reject_unknown_fields_before_forwarding() {
         let id = uuid::Uuid::now_v7();
         for (path, body, field) in [
             ("/workspace/api/chats".to_owned(), json!({"id":id,"title":"Valid","rootExtra":true}), "rootExtra"),
-            ("/workspace/api/speech/dictation".to_owned(), json!({"id":id,"sample_rate":16000,"speechExtra":true}), "speechExtra"),
+            ("/workspace/api/speech/dictation".to_owned(), json!({"id":id,"sampleRate":16000,"speechExtra":true}), "speechExtra"),
             (format!("/workspace/api/chats/{id}/messages"), json!({"id":id,"text":"Valid","attachments":[],"addressedAgents":[],"replyTo":{"kind":"message","id":id,"nestedExtra":true}}), "nestedExtra"),
         ] {
             let response = edge.request("POST", &path, true, true, &body.to_string()).await;

@@ -1,0 +1,172 @@
+{
+  "server": "speech",
+  "compliance": [
+    {
+      "id": "C01",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C02",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C03",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C04",
+      "status": "met",
+      "note": "static resources declare JSON or Markdown MIME types; transcript artifact reads preserve the published MIME type"
+    },
+    {
+      "id": "C05",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C06",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C07",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C08",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C09",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C10",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C11",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C12",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C13",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C14",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C15",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C16",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C17",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C18",
+      "status": "met",
+      "note": "embedded crate documents and shared documentation projection are covered by native tests."
+    },
+    {
+      "id": "C19",
+      "status": "met",
+      "note": "embedded crate documents and shared documentation projection are covered by native tests."
+    },
+    {
+      "id": "C20",
+      "status": "met",
+      "note": "embedded crate documents and shared documentation projection are covered by native tests."
+    },
+    {
+      "id": "C21",
+      "status": "met",
+      "note": "embedded crate documents and shared documentation projection are covered by native tests."
+    },
+    {
+      "id": "C22",
+      "status": "met",
+      "note": "embedded crate documents and shared documentation projection are covered by native tests."
+    },
+    {
+      "id": "C23",
+      "status": "met",
+      "note": "embedded crate documents and shared documentation projection are covered by native tests."
+    },
+    {
+      "id": "C24",
+      "status": "met",
+      "note": "embedded crate documents and shared documentation projection are covered by native tests."
+    },
+    {
+      "id": "C25",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C26",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C27",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C28",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C29",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C30",
+      "status": "met",
+      "note": "native hosted certification and domain qualification; see DESIGN.md."
+    },
+    {
+      "id": "C31",
+      "status": "met",
+      "note": "installed catalog certification and headed Workspace CUDA transcription/dictation pass."
+    },
+    {
+      "id": "C32",
+      "status": "pending",
+      "note": "shared typed docs support is wired; K01–K08 qualification is in progress"
+    },
+    {
+      "id": "C33",
+      "status": "pending",
+      "note": "Owner naming producers, consumers and installed qualification are pending."
+    }
+  ],
+  "contractRevision": 4,
+  "catalogRevision": 2
+}

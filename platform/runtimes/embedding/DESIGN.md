@@ -12,25 +12,29 @@ The [shared contract](contract/DESIGN.md) implements typed inputs, embedding-spa
 identities and vector admission without runtime dependencies. The
 [HTTP client](client/DESIGN.md) implements authenticated requests, shared request limits,
 priorities, deadlines and response validation. The Helm component implements GPU
-serving, checkpoint verification and namespace isolation. Local CUDA reference,
-scheduling and refusal checks pass. Installed namespace isolation and authenticated
-model access pass on the reference cluster. The controlled domain-corpus comparison
-qualifies 0.6B, 4B and 8B through Knowledge retrieval and selects 0.6B. Composed
-GPU-memory qualification with the selected concurrent workloads remains open in the
-[implementation plan](../../../docs/CONTRACT_CONSISTENCY_PLAN.md#knowledge-service).
-Reason runs in its own acceptance batch. Installed qualification keeps Knowledge and
-Embedding enabled as core services and includes their GPU allocation in the workload
-budget.
+serving, checkpoint verification and namespace isolation. The current image pin is
+vLLM 0.31.0. The CUDA FP16 profile on an RTX 4090 passed vector comparison and
+ranking. Scheduling, capacity and the full Knowledge rebuild/readback also passed
+with the embedding serving process limited to 4 CPUs and 12 GiB of memory.
+Installed profile selection, namespace isolation, API-key isolation and the
+co-resident GPU budget still require qualification. Generic BF16 and 8 GiB profiles
+are unqualified. The reference installation keeps Knowledge and Embedding enabled
+as core services and budgets their
+GPU allocation together. Reason runs in a separate acceptance batch.
 
 ## Standards And Protocols
 
 | Standard or protocol | Profile |
 |---|---|
-| [vLLM 0.30.0](https://github.com/vllm-project/vllm/releases/tag/v0.30.0) | The official `vllm/vllm-openai:v0.30.0` image, pinned by the same OCI digest as `reason-mcp`, run with the pooling runner; one vLLM pin serves both workloads |
+| [vLLM 0.31.0](https://github.com/vllm-project/vllm/releases/tag/v0.31.0) | The official `vllm/vllm-openai:v0.31.0` image, pinned by the same OCI index digest as `reason-mcp`, run with the pooling runner; one vLLM pin serves both workloads |
 | [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings), as implemented by vLLM | Internal protocol: `POST /v1/embeddings` and `GET /v1/models` over cluster-internal HTTP with a bearer API key; not a public contract |
 | [`Qwen/Qwen3-Embedding-0.6B`](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B), revision `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` | Apache-2.0 embedding model: 1024-dimension output, 32,768-token context, last-token pooling, L2 normalization |
 | NVIDIA CUDA | The runtime runs on a hardware GPU and fails at startup without one |
 | Prometheus exposition format | vLLM's `/metrics` endpoint |
+| `veoveo.ai/embedding-candidate-capture/v1` | Internal Knowledge-to-reference collector JSON; current closed typed members, 512 MiB raw-byte aggregate cap, original byte digest |
+| RFC 3986 / foundation `ResourceUri` | Collector syntax uses hash-pinned rfc3986 2.0.0 raw component matching and rfc3986-validator 0.1.1; lowercase owner scheme, explicit authority, empty authority requires a path; original spelling is the identity |
+
+The reference collector admits the complete current Knowledge capture through the focused `verification/capture.py` peer models before CUDA inspection, tokenizer/model loading, tensors or report creation. It checks profile identity, vector dimension and normalization, member indexes, unique selections and relevance membership. Rust serializes capture output through a 512 MiB aggregate byte cap before opening its output file. Python reads at most that cap plus one byte and refuses excess bytes before decode. This aggregate cap restricts the supported cross-product of the separate count and dimension maxima. The collector hashes the original admitted raw bytes for `captureDigest`. Capture and measurement format versions are unchanged. Pure receiver fixtures carry synthetic execution facts and cannot qualify NVIDIA inference.
 
 ## Serving
 
@@ -49,6 +53,20 @@ owns tokenization, batching, padding, pooling, and GPU scheduling. The pooler us
 last-token pooling with L2 normalization, which the checkpoint's sentence-transformers
 configuration declares. The served-vector comparison against the CUDA Transformers
 fixture confirms that vLLM applies this configuration without a pooler override.
+The Helm Deployment starts without profiler instrumentation. The local diagnostic
+procedure in the [verification guide](verification/README.md) may start a separate,
+temporary vLLM process with Proton graph attribution enabled. vLLM's `/start_profile`
+and `/stop_profile` routes bypass its API-key middleware, so that diagnostic process
+must use an isolated network with no external peers. It sends one authenticated
+embedding request through an in-container loopback client, then inspects the Hatchet
+tree for a graph-attributed kernel in the request phase. This reports dispatch for
+that batch shape; it does not count low-level graph replays or measure performance or
+vector quality. The diagnostic profiler does not change the embedding serving
+configuration or deployment template.
+
+The qualified local FP16 profile uses the v0.31 image and its measured CUDA/Triton
+versions. Qualification binds that execution profile and the supplied workload;
+other runtime images or serving settings require their own checks.
 
 The runtime shares GPUs with the installation's other workloads, so it claims only the
 memory fraction the installation sets, as `reason.engine.gpuMemoryUtilization` does
@@ -130,32 +148,32 @@ under the installation's simultaneous GPU workloads.
 
 ## Verification
 
-The local RTX 4090 check uses the pinned official image with its PyTorch 2.13.0,
-Transformers 5.17.0 and CUDA 13.0 packages. All four reference comparisons exceed
-0.999 cosine similarity; the smallest is 0.9997335. The runtime selects FlashAttention
-2, while the padded reference batch uses cuDNN attention. Both execute on CUDA.
-The 25% memory fraction supports the full 32,768-token context on this 24 GiB device.
-The full context requires 3.5 GiB of KV cache.
+The qualified FP16 profile uses a 45% memory fraction on the reference GPU.
+Qualification records the actual KV cache and graph dispatch for a real authenticated
+request, then checks the selected profile through the
+[verification guide](verification/README.md). The 32,768-token context needs at
+least 3.5 GiB of KV cache; co-resident GPU workloads count against the installation's
+memory budget. Reason runs in its separate acceptance batch.
 
-With six queued 32-input bulk requests, an interactive query completed in 81 ms,
-before the first bulk batch completed at 126 ms. The 192-input fixture processed about
-300 inputs/second. This checks the shipped combination of vLLM priority and shared
-client admission. It does not isolate scheduler priority from the client's bulk cap,
-or establish Knowledge retrieval throughput. The runtime rejects a corrupted checkpoint,
-startup without CUDA and unauthenticated model discovery. Installed probes reach model
-discovery from a platform pod with the API key and receive HTTP 401 without it.
-The same image cannot connect from a `computer-host`-labelled pod or another namespace.
-The reference CNI rejects these connections through its Pod firewall; a connection
-timeout is not required. Memory coexistence under load still requires qualification.
+Earlier local reference, scheduling and refusal results are preserved in the
+[Phase 8 progress record](../../../docs/PLATFORM_FOUNDATIONS_PROGRESS.md#phase-8-knowledge-service).
+The [October 2 retrieval comparison](verification/retrieval-2026-10-02.md) preserves
+the corpus and model selection results; it used a fixed 4.625 GiB KV cache with a
+0.90 memory fraction. Those measurements describe their recorded profiles and do
+not qualify the current 45% candidate or its co-resident workload. Installed
+namespace-isolation results also belong to their recorded run and do not establish
+current profile capacity.
 
-The [verification guide](verification/README.md) owns regeneration and execution.
+The verification guide owns regeneration and execution of current qualification
+artifacts. Only a passing full production workload permits installation selection.
 
 - On a hardware GPU the runtime becomes ready. It refuses readiness without a CUDA
   device or with a checkpoint whose digests differ from the pin.
 - A reference test embeds a fixed set of queries and documents through the runtime and
   compares each vector with one produced by the model card's `transformers` recipe at
   the pinned revision. Each pair reaches cosine similarity of at least 0.999. The
-  reference vectors are a committed fixture, generated once with `uv run`.
+  committed reference contains the actual current v2 four-input CUDA producer output
+  for its selected space. Regeneration precedes complete-byte promotion.
 - Client tests cover instruction formatting, request bounds, response validation, and
   the reported embedding space.
 - A load test records throughput and shows interactive requests completing ahead of a
@@ -171,3 +189,25 @@ The [verification guide](verification/README.md) owns regeneration and execution
 | `platform/runtimes/embedding/client` | `veoveo-embedding-client`: typed requests, query formatting, priorities, bounds, validation, and `EmbeddingSpace` |
 | `deploy/helm/veoveo` | runtime Deployment, model cache, init-container digest check, GPU request, NetworkPolicy, and API key Secret |
 | `platform/runtimes/embedding/checkpoint.sha256` | pinned file digests for the checkpoint revision |
+
+## Collector URI Dependencies
+
+The collector uses the upstream whole RFC 3986 grammar before the raw component
+matcher. It rejects ASCII controls and Unicode before grammar inspection. Matching
+uses ASCII case-insensitivity because the upstream IPvFuture literal `v` must also
+admit RFC spelling `V`. The scheme is checked separately against the foundation's
+lowercase admission. The collector never repairs escapes, normalizes ports or
+rewrites paths, queries or fragments. Empty-authority paths remain supported.
+The upstream grammar admits zero-prefixed IPv4 octets inside IPv6 literals while
+ResourceUri refuses them. After the complete grammar admits an authority, the
+collector extracts only its bracketed IPv6 literal and checks it with Python's
+stdlib IPv6Address. IPvFuture uses the declared URI grammar; unbracketed digit/dot
+registered names are not subject to network-address validation.
+
+The exact pure-Python wheels are declared in `verification/requirements.txt` using
+the release hashes published by [rfc3986](https://pypi.org/project/rfc3986/2.0.0/)
+and [rfc3986-validator](https://pypi.org/project/rfc3986-validator/0.1.1/).
+The latter supplies the complete syntax predicate because rfc3986's high-level
+value collapses empty authority and its authority validator narrows digit ports.
+The qualification command mounts these verified wheels as a read-only dependency
+overlay. The official GPU image and its inference packages keep their pins.

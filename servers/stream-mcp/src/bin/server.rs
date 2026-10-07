@@ -266,21 +266,21 @@ impl DomainServer for StreamMcp {
         let needle = request.argument.value.to_ascii_lowercase();
         let values: BTreeSet<String> =
             match (reference.uri.as_str(), request.argument.name.as_str()) {
-                (uris::PIPELINE_TEMPLATE, "pipeline_id") => self
+                (uris::PIPELINE_TEMPLATE, "pipelineId") => self
                     .state
                     .catalog
                     .pipeline_ids()
                     .into_iter()
                     .map(String::from)
                     .collect(),
-                (uris::MODEL_TEMPLATE, "model_id") => self
+                (uris::MODEL_TEMPLATE, "modelId") => self
                     .state
                     .catalog
                     .model_ids()
                     .into_iter()
                     .map(String::from)
                     .collect(),
-                (uris::RUN_TEMPLATE | uris::RUN_RESULTS_TEMPLATE, "run_id")
+                (uris::RUN_TEMPLATE | uris::RUN_RESULTS_TEMPLATE, "runId")
                 | (uris::ARTIFACT_TEMPLATE, "artifact_id") => {
                     let owner = runtime_owner(&gateway_identity(&context)?);
                     let domain = if reference.uri == uris::ARTIFACT_TEMPLATE {
@@ -296,7 +296,7 @@ impl DomainServer for StreamMcp {
                     uris::SESSION_TEMPLATE
                     | uris::SESSION_RESULTS_TEMPLATE
                     | uris::SESSION_PREVIEW_TEMPLATE,
-                    "session_id",
+                    "sessionId",
                 ) => {
                     let owner = runtime_owner(&gateway_identity(&context)?);
                     let values = self
@@ -582,13 +582,13 @@ mod well_known_tests {
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
         let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
-        assert_eq!(declaration.server, "stream");
-        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        assert_eq!(declaration.server().as_str(), "stream");
+        assert_eq!(declaration.contract_revision(), CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
             let item = declaration
-                .compliance
+                .compliance()
                 .iter()
-                .find(|item| item.id == id)
+                .find(|item| item.id.as_str() == id)
                 .expect("declared checklist item");
             assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
         }

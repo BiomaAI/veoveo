@@ -823,7 +823,7 @@ mod tests {
         let projected =
             resource.meta.as_ref().unwrap().0[APP_RESOURCE_DEPENDENCIES_META_KEY].clone();
         assert_eq!(
-            projected[0]["uri_prefix"],
+            projected[0]["uriPrefix"],
             serde_json::json!("view://frame/")
         );
 

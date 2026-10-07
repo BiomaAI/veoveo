@@ -44,9 +44,6 @@ reason:
     # Separate Reason acceptance uses this qualified 8192-token model profile.
     # The reference HelmRelease keeps Reason at zero replicas during other work.
     gpuMemoryUtilization: 0.42
-embedding:
-  engine:
-    gpuMemoryUtilization: 0.25
 telemetry:
   enabled: true
   existingConfigMap: bioma-otel-collector
@@ -60,103 +57,103 @@ serverBootstrap:
     tenantKey: bioma
     payload:
       sources:
-      - source_id: source-019f684b-3433-7737-8ecc-761781845859
-        dataset_id: dataset-019f684b-3434-75bb-a946-c4112703fdab
+      - sourceId: source-019f684b-3433-7737-8ecc-761781845859
+        datasetId: dataset-019f684b-3434-75bb-a946-c4112703fdab
         name: OpenStreetMap El Salvador
-        adapter_kind: open_street_map
+        adapterKind: open_street_map
         authority: community
-        acquisition_model: snapshot
-        map_families:
+        acquisitionModel: snapshot
+        mapFamilies:
         - road_street
         - active_mobility
         location:
           kind: https
           endpoint: https://download.geofabrik.de/central-america/el-salvador-latest.osm.pbf
-          allowed_redirect_hosts:
+          allowedRedirectHosts:
           - download.geofabrik.de
-        publisher_key_refs: []
-        expected_media_types:
+        publisherKeyRefs: []
+        expectedMediaTypes:
         - application/octet-stream
-        maximum_download_bytes: 134217728
-        maximum_elapsed_seconds: 1800
+        maximumDownloadBytes: 134217728
+        maximumElapsedSeconds: 1800
         license:
-          license_id: odbl-1.0
-          source_terms_uri: https://www.openstreetmap.org/copyright
+          licenseId: odbl-1.0
+          sourceTermsUri: https://www.openstreetmap.org/copyright
           attribution: "\xA9 OpenStreetMap contributors"
-          redistribution_allowed: true
-          derivatives_allowed: true
-          offline_bundle_allowed: true
+          redistributionAllowed: true
+          derivativesAllowed: true
+          offlineBundleAllowed: true
         enabled: true
-        record_version: 1
-        created_at: '2026-07-15T00:00:00Z'
-        updated_at: '2026-07-15T00:00:00Z'
-      - source_id: source-019ffdb2-0596-7c91-ac83-0a45b82d7952
-        dataset_id: dataset-019ffdb2-0598-7717-b916-e359c426f8cf
+        recordVersion: 1
+        createdAt: '2026-07-15T00:00:00Z'
+        updatedAt: '2026-07-15T00:00:00Z'
+      - sourceId: source-019ffdb2-0596-7c91-ac83-0a45b82d7952
+        datasetId: dataset-019ffdb2-0598-7717-b916-e359c426f8cf
         name: New York UAV showcase operational map
-        adapter_kind: authority_vector
+        adapterKind: authority_vector
         authority: synthetic_test
-        acquisition_model: snapshot
-        map_families:
+        acquisitionModel: snapshot
+        mapFamilies:
         - aviation
         location:
           kind: https
           endpoint: https://raw.githubusercontent.com/BiomaAI/veoveo/89133b70ea53e06b87b6a6aa268eae7727b0b27d/showcase/uav-sim/map/new-york-showcase.geojson
-          allowed_redirect_hosts:
+          allowedRedirectHosts:
           - raw.githubusercontent.com
-        publisher_key_refs: []
-        expected_media_types:
+        publisherKeyRefs: []
+        expectedMediaTypes:
         - application/geo+json
         - application/json
         - text/plain
-        maximum_download_bytes: 1048576
-        maximum_elapsed_seconds: 120
+        maximumDownloadBytes: 1048576
+        maximumElapsedSeconds: 120
         license:
-          license_id: veoveo-showcase-synthetic-v1
-          source_terms_uri: https://github.com/BiomaAI/veoveo/blob/89133b70ea53e06b87b6a6aa268eae7727b0b27d/showcase/uav-sim/map/README.md
+          licenseId: veoveo-showcase-synthetic-v1
+          sourceTermsUri: https://github.com/BiomaAI/veoveo/blob/89133b70ea53e06b87b6a6aa268eae7727b0b27d/showcase/uav-sim/map/README.md
           attribution: Veoveo synthetic simulation planning data
-          redistribution_allowed: true
-          derivatives_allowed: true
-          offline_bundle_allowed: true
+          redistributionAllowed: true
+          derivativesAllowed: true
+          offlineBundleAllowed: true
         enabled: true
-        record_version: 1
-        created_at: '2026-08-13T00:00:00Z'
-        updated_at: '2026-08-13T00:00:00Z'
-      mobility_profiles:
+        recordVersion: 1
+        createdAt: '2026-08-13T00:00:00Z'
+        updatedAt: '2026-08-13T00:00:00Z'
+      mobilityProfiles:
       - family: uas
         profile:
           metadata:
-            profile_id: mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e
+            profileId: mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e
             name: New York showcase multirotor
             version: 1
-            valid_from: '2026-08-13T00:00:00Z'
+            validFrom: '2026-08-13T00:00:00Z'
             labels: [planning-advisory, showcase]
           planning:
-            minimum_speed: 0.1
-            maximum_climb_angle: 45.0
-            maximum_descent_angle: 45.0
-            vertical_clearance: 15.0
-            lateral_clearance: 10.0
-            operating_ceiling: 500.0
-            maximum_range: 30000.0
-            maximum_route_points: 1024
-            maximum_segment_length: 5000.0
+            minimumSpeed: 0.1
+            maximumClimbAngle: 45.0
+            maximumDescentAngle: 45.0
+            verticalClearance: 15.0
+            lateralClearance: 10.0
+            operatingCeiling: 500.0
+            maximumRange: 30000.0
+            maximumRoutePoints: 1024
+            maximumSegmentLength: 5000.0
           class: multirotor
           dimensions:
             length: 1.2
             width: 1.2
             height: 0.5
-          maximum_takeoff_mass: 25.0
+          maximumTakeoffMass: 25.0
           performance:
-            maximum_speed: 30.0
-            cruise_speed: 20.0
-            service_ceiling: 500.0
-            maximum_range: 30000.0
-            payload_capacity: 5.0
-            minimum_reserve: 0.2
+            maximumSpeed: 30.0
+            cruiseSpeed: 20.0
+            serviceCeiling: 500.0
+            maximumRange: 30000.0
+            payloadCapacity: 5.0
+            minimumReserve: 0.2
           energy:
             source: battery
-            battery_capacity: 20.0
-            minimum_reserve: 0.2
-          beyond_visual_line_of_sight: true
-          navigation_capabilities: [gnss, px4]
-          airspace_permissions: [showcase-planning-advisory]
+            batteryCapacity: 20.0
+            minimumReserve: 0.2
+          beyondVisualLineOfSight: true
+          navigationCapabilities: [gnss, px4]
+          airspacePermissions: [showcase-planning-advisory]

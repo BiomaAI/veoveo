@@ -36,6 +36,12 @@ products to those domains.
 | RFC 3986, RFC 6570 and Veoveo collection cursors | Typed database, Artifact, document and usage addresses use foundational URI components and templates. Version 1 Base64url cursors bind the collection and typed position; Task addresses require RFC UUIDv7. |
 | OAuth bearer and signed JWT identity | The gateway authorizes the public MCP resource; the hosted service verifies its short-lived assertion and caller authority before deriving an owner database. |
 
+Controlled JSON object members use camelCase and owner vocabulary values use
+snake_case. Native database columns, SQL identifiers, caller-defined result columns
+and upstream reader option names keep their declared profiles. Typed request and
+result admission rejects retired field spellings. The coordinated installation
+uses drained Tasks and fresh current-format data.
+
 ## Status
 
 Implemented in this workspace. The current server provides:
@@ -245,7 +251,7 @@ writer locks keep `PathBuf` values through the engine adapter.
 
 ### Database Catalog And Schema Reads
 
-`duckdb://dbs{?cursor}` returns `{items, limit, next_cursor}`. Each item contains one
+`duckdb://dbs{?cursor}` returns `{items, limit, nextCursor}`. Each item contains one
 `DuckDbDatabaseId` and its matching `DuckDbDatabaseUri`; the immutable page checks
 ascending order, repeated identity and continuation agreement. Pages contain at most
 100 items. A continuation names the last returned database and is valid only for this
@@ -376,8 +382,8 @@ and resource links are additional content blocks over the same result.
 db
 sql
 attach[]?
-row_limit?
-timeout_ms?
+rowLimit?
+timeoutMs?
 output
 ```
 
@@ -394,12 +400,12 @@ Inline output returns:
 ```text
 columns[]
 rows[]
-row_count
+rowCount
 truncated
 artifact = null
 ```
 
-`row_limit` can lower the server's inline row ceiling but cannot raise it. The
+`rowLimit` can lower the server's inline row ceiling but cannot raise it. The
 byte ceiling is checked before a value is materialized. An interactive query
 stops reading once either limit is reached and marks the response truncated.
 Callers that need the complete set should request artifact output.
@@ -445,11 +451,11 @@ An artifact result uses:
 ```text
 db
 sql
-create_if_missing
-timeout_ms?
+createIfMissing
+timeoutMs?
 ```
 
-The operation opens one writable database connection. `create_if_missing` must
+The operation opens one writable database connection. `createIfMissing` must
 be true when the owner-local database file does not exist. The parent directory
 is derived and created by the server.
 
@@ -460,7 +466,7 @@ single in-process mutex serializes writers for each database file. Readers do
 not take that mutex.
 
 Single-statement execution reports DuckDB's changed-row count. Batch execution
-reports its statement count and sets `rows_changed` to zero because DuckDB does
+reports its statement count and sets `rowsChanged` to zero because DuckDB does
 not return a reliable per-statement aggregate for the batch.
 
 The result includes:
@@ -468,8 +474,8 @@ The result includes:
 ```text
 db
 statements
-rows_changed
-db_created
+rowsChanged
+dbCreated
 ```
 
 ### Spatial schema example
@@ -477,7 +483,7 @@ db_created
 ```json
 {
   "db": "mission_geo",
-  "create_if_missing": true,
+  "createIfMissing": true,
   "sql": "CREATE TABLE features(feature_id VARCHAR, geom GEOMETRY); CREATE INDEX features_geom_rtree ON features USING RTREE (geom);"
 }
 ```
@@ -495,7 +501,7 @@ db
 table
 source
 mode
-create_db_if_missing
+createDbIfMissing
 ```
 
 The table name is quoted as a DuckDB identifier after empty-name rejection.
@@ -561,7 +567,7 @@ The result contains:
 
 ```text
 db
-rows_exported
+rowsExported
 artifact
 ```
 
@@ -767,7 +773,7 @@ an empty table list.
 duckdb://usage
 ```
 
-Returns `DuckDbUsagePage`: at most 100 `items`, `limit: 100`, and `next_cursor`,
+Returns `DuckDbUsagePage`: at most 100 `items`, `limit: 100`, and `nextCursor`,
 which is null on the last page. Each entry contains the Task ID and its usage URI.
 The Workbench reads one page at a time through its Previous and Next controls.
 `duckdb://usage{?cursor}` selects a continuation page.
@@ -817,7 +823,7 @@ Resource and template lists use cursor pagination with a page size of 100.
 ### Deployment
 
 Deploy the server and catalog consumers together. Consumers decode `DuckDbUsagePage`
-and follow `next_cursor` through its declared template; the shared Workbench implements
+and follow `nextCursor` through its declared template; the shared Workbench implements
 this format. Artifact origins use `DuckDbArtifactOrigin`, and stored operation facts
 use `DuckDbUsageDetails`. Stop admission of new mutating Tasks and allow `execute` and
 `ingest` to settle before replacing the singleton server. Its recovery classes govern
@@ -859,7 +865,7 @@ a background principal or persisting a bearer token.
 `DuckDbArtifactOrigin` describes output facts as `{db, operation, task_id?}`.
 The operation is a closed query, table-export, SQL-export or snapshot variant. Row
 counts belong to the variants that know them; table names must be nonempty. Direct
-calls omit `task_id`. The Task association requires a native UUIDv7 and is checked
+calls omit `taskId`. The Task association requires a native UUIDv7 and is checked
 again when metadata is decoded. The Artifact plane owns authorization and attribution.
 
 `server/artifact_output.rs` constructs a writer for the verified direct caller or a
@@ -1187,7 +1193,7 @@ Analytical DuckDB query inputs and engine adapters keep their separate SQL contr
 ## Task Completion Products
 
 Artifact query and export outputs declare the Artifact's typed canonical URI as
-`result_uri` with one matching resource link. Their decoders reject missing, null or
+`resultUri` with one matching resource link. Their decoders reject missing, null or
 mismatched product addresses. Inline queries, SQL execution and ingestion report rows
 or existing database state without a product address. Task completion admits the MCP
 envelope before persisting its product address.

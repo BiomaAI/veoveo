@@ -1,0 +1,5 @@
+{
+  "queryJson": "{\"datasetId\":\"019fa000-0000-7000-8000-000000000002\",\"recordingId\":\"019fa000-0000-7000-8000-000000000001\",\"entityPaths\":[\"/sensor\"],\"componentIds\":[\"Scalars:scalars\"],\"timeline\":\"tick\",\"sampling\":{\"kind\":\"range\",\"start\":0,\"end\":2},\"sparseFill\":\"none\",\"maximumEntities\":1,\"maximumColumns\":1,\"maximumSamples\":3,\"maximumRows\":3,\"maximumBytes\":1048576,\"deadlineMs\":1000,\"units\":{},\"coordinateFrameRefs\":[]}",
+  "querySha256": "1169a2d27672ee75920da8402e979bc75a79a1875844bb152925bf086c129cfc",
+  "cursor": "7b2276657273696f6e223a322c22636f6c6c656374696f6e223a227265636f7264696e673a2f2f636174616c6f67222c22706f736974696f6e223a7b22737461727465644174223a22323032362d31302d30335430303a30303a30305a222c227265636f7264696e674964223a2230313966613030302d303030302d373030302d383030302d303030303030303030303031227d7d"
+}

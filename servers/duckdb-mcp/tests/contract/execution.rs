@@ -16,14 +16,14 @@ fn artifact_origins_separate_direct_calls_from_native_tasks() {
     ] {
         let direct = DuckDbArtifactOrigin::new("metrics".parse().unwrap(), operation);
         let wire = serde_json::to_value(&direct).unwrap();
-        assert!(wire.get("task_id").is_none());
+        assert!(wire.get("taskId").is_none());
         assert_eq!(
             serde_json::from_value::<DuckDbArtifactOrigin>(wire).unwrap(),
             direct
         );
         let durable = direct.with_task(task).unwrap();
         let wire = serde_json::to_value(&durable).unwrap();
-        assert_eq!(wire["task_id"], task.to_string());
+        assert_eq!(wire["taskId"], task.to_string());
         assert_eq!(
             serde_json::from_value::<DuckDbArtifactOrigin>(wire).unwrap(),
             durable
@@ -34,19 +34,19 @@ fn artifact_origins_separate_direct_calls_from_native_tasks() {
 
 #[test]
 fn artifact_origin_admission_rejects_fake_tasks_and_invalid_operation_facts() {
-    let valid = json!({"db":"metrics","operation":{"kind":"query","row_count":1}});
+    let valid = json!({"db":"metrics","operation":{"kind":"query","rowCount":1}});
     for task in [
         "call-01983da0-0000-7000-8000-000000000001",
         "01983da0-0000-4000-8000-000000000001",
         "01983da0-0000-7000-0000-000000000001",
     ] {
         let mut wire = valid.clone();
-        wire["task_id"] = json!(task);
+        wire["taskId"] = json!(task);
         assert!(serde_json::from_value::<DuckDbArtifactOrigin>(wire).is_err());
     }
     for operation in [
-        json!({"kind":"export_table","table":"  ","row_count":1}),
-        json!({"kind":"snapshot","row_count":1}),
+        json!({"kind":"export_table","table":"  ","rowCount":1}),
+        json!({"kind":"snapshot","rowCount":1}),
         json!({"kind":"export_sql"}),
         json!({"kind":"unknown"}),
     ] {

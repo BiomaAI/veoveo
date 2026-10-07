@@ -6,6 +6,7 @@ from typing import Annotated, Literal, Self, TypeVar
 from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
 
 from .world_config import SimulationWorldBindingWire
+from .contracts import WireModel
 from yarl import URL
 
 
@@ -35,20 +36,20 @@ Nonnegative = Annotated[Finite, Field(ge=0)]
 SimulationLifecycle = Literal["unconfigured", "starting", "ready", "running", "paused", "stopping", "stopped", "failed"]
 
 
-class Wire(BaseModel):
+class Wire(WireModel):
     model_config = ConfigDict(extra="forbid", strict=True, hide_input_in_errors=True)
 
 
 class EnuVector(Wire):
-    east_m: Finite
-    north_m: Finite
-    up_m: Finite
+    eastM: Finite
+    northM: Finite
+    upM: Finite
 
 
 class NedVector(Wire):
-    north_m: Finite
-    east_m: Finite
-    down_m: Finite
+    northM: Finite
+    eastM: Finite
+    downM: Finite
 
 
 class Quaternion(Wire):
@@ -59,13 +60,13 @@ class Quaternion(Wire):
 
 
 class Position(Wire):
-    latitude_degrees: Annotated[Finite, Field(ge=-90, le=90)]
-    longitude_degrees: Annotated[Finite, Field(ge=-180, le=180)]
-    ellipsoid_height_m: Finite
+    latitudeDegrees: Annotated[Finite, Field(ge=-90, le=90)]
+    longitudeDegrees: Annotated[Finite, Field(ge=-180, le=180)]
+    ellipsoidHeightM: Finite
 
 
 class WorldBinding(SimulationWorldBindingWire):
-    georeference_origin: Position
+    georeferenceOrigin: Position
 
 
 class Direction(Wire):
@@ -75,97 +76,97 @@ class Direction(Wire):
 
 
 class RenderPose(Wire):
-    position_error_m: Nonnegative
-    forward_error_degrees: Annotated[Finite, Field(ge=0, le=180)]
-    rendered_position_enu_m: EnuVector
-    rendered_forward_enu: Direction
+    positionErrorM: Nonnegative
+    forwardErrorDegrees: Annotated[Finite, Field(ge=0, le=180)]
+    renderedPositionEnuM: EnuVector
+    renderedForwardEnu: Direction
 
 
 class TileFailure(Wire):
     code: Literal["provider_session_rejected", "credentials_rejected", "asset_unavailable", "quota_exceeded", "provider_unavailable", "transport_failed", "request_failed"]
-    load_type: Literal["ion_endpoint", "tileset_json", "tile_content", "unknown"]
-    http_status: U16
+    loadType: Literal["ion_endpoint", "tileset_json", "tile_content", "unknown"]
+    httpStatus: U16
     generation: U64
 
 
 class TileState(Wire):
     lifecycle: Literal["connecting", "streaming", "ready", "refreshing", "degraded"]
     source: str
-    ion_asset_id: U64
-    resident_tiles: U64
-    visible_tiles: U64
-    loading_tiles: U64
-    geometries_loaded: U64
-    geometries_rendered: U64
-    materials_loaded: U64
-    provider_generation: U64
-    event_sequence: U64
-    refresh_count: U64
-    last_failure: TileFailure | None = None
+    ionAssetId: U64
+    residentTiles: U64
+    visibleTiles: U64
+    loadingTiles: U64
+    geometriesLoaded: U64
+    geometriesRendered: U64
+    materialsLoaded: U64
+    providerGeneration: U64
+    eventSequence: U64
+    refreshCount: U64
+    lastFailure: TileFailure | None = None
     diagnostic: str | None = None
 
 
 class CameraState(Wire):
-    vehicle_id: Identity
-    entity_path: str
+    vehicleId: Identity
+    entityPath: str
     lifecycle: Literal["warming", "ready", "degraded", "failed"]
     width: U32
     height: U32
-    frame_rate_hz: U32
+    frameRateHz: U32
     codec: Literal["h264"]
     encoder: Literal["nvidia_nvenc"]
     transport: Literal["rtsp_rtp"]
-    frames_observed: U64
-    last_access_unit_bytes: U64
-    last_frame_keyframe: bool
-    render_pose: RenderPose | None = None
+    framesObserved: U64
+    lastAccessUnitBytes: U64
+    lastFrameKeyframe: bool
+    renderPose: RenderPose | None = None
     diagnostic: str | None = None
 
 
 class VehicleState(Wire):
-    vehicle_id: Identity
-    flight_state: Literal["initializing", "standby", "armed", "taking_off", "flying", "landing", "landed", "failed"]
+    vehicleId: Identity
+    flightState: Literal["initializing", "standby", "armed", "taking_off", "flying", "landing", "landed", "failed"]
     wgs84: Position
     enu: EnuVector
     ned: NedVector
-    attitude_xyzw: Quaternion
-    linear_velocity_enu_mps: EnuVector
-    battery_percent: Annotated[Finite, Field(ge=0, le=100)]
-    collision_count: U64
-    px4_connected: bool
+    attitudeXyzw: Quaternion
+    linearVelocityEnuMps: EnuVector
+    batteryPercent: Annotated[Finite, Field(ge=0, le=100)]
+    collisionCount: U64
+    px4Connected: bool
 
 
 class RecordingState(Wire):
-    application_id: str
-    recording_key: Identity
+    applicationId: str
+    recordingKey: Identity
     active: bool
-    publisher_lifecycle: Literal["connecting", "ready", "degraded", "stopped"]
-    queue_capacity: U32
-    queued_events: U32
-    dropped_events: U64
+    publisherLifecycle: Literal["connecting", "ready", "degraded", "stopped"]
+    queueCapacity: U32
+    queuedEvents: U32
+    droppedEvents: U64
     diagnostic: str | None = None
-    camera_streams: list[str]
-    started_at: Timestamp
+    cameraStreams: list[str]
+    startedAt: Timestamp
 
 
 class RuntimeTiming(Wire):
-    physics_hz: Annotated[U32, Field(ge=30, le=1000)]
-    native_rendering_hz: Annotated[U32, Field(ge=1, le=120)]
-    render_cycles: U64
-    physics_steps: U64
-    refresh_states_wall_seconds: Finite
-    vehicle_update_wall_seconds: Finite
-    state_update_wall_seconds: Finite
-    dynamics_update_wall_seconds: Finite
-    sensor_update_wall_seconds: Finite
-    backend_state_wall_seconds: Finite
-    flush_forces_wall_seconds: Finite
-    after_step_wall_seconds: Finite
-    native_update_wall_seconds: Finite
-    render_cycle_wall_seconds: Finite
-    maximum_physics_step_ms: Finite
-    maximum_native_update_ms: Finite
-    maximum_render_cycle_ms: Finite
+    physicsHz: Annotated[U32, Field(ge=30, le=1000)]
+    nativeRenderingHz: Annotated[U32, Field(ge=1, le=120)]
+    renderCycles: U64
+    physicsSteps: U64
+    refreshStatesWallSeconds: Finite
+    vehicleUpdateWallSeconds: Finite
+    stateUpdateWallSeconds: Finite
+    dynamicsUpdateWallSeconds: Finite
+    sensorUpdateWallSeconds: Finite
+    backendStateWallSeconds: Finite
+    flushForcesWallSeconds: Finite
+    afterStepWallSeconds: Finite
+    nativeUpdateWallSeconds: Finite
+    renderCycleWallSeconds: Finite
+    maximumPhysicsStepMs: Finite
+    maximumNativeUpdateMs: Finite
+    maximumRenderCycleMs: Finite
 
 
 class Vector3(Wire):
@@ -319,33 +320,33 @@ class StreamProduct(Wire):
 
 
 class SimulationState(Wire):
-    session_id: Identity
+    sessionId: Identity
     lifecycle: SimulationLifecycle
-    simulation_time_s: Finite
-    physics_step: U64
+    simulationTimeS: Finite
+    physicsStep: U64
     timing: RuntimeTiming
     world: WorldBinding | None = None
     tiles: TileState
     cameras: list[CameraState]
-    live_cameras: list[LiveCamera]
-    stream_products: list[StreamProduct]
+    liveCameras: list[LiveCamera]
+    streamProducts: list[StreamProduct]
     vehicles: list[VehicleState]
     recordings: list[RecordingState]
-    updated_at: Timestamp
+    updatedAt: Timestamp
 
     @model_validator(mode="after")
     def admitted_children(self) -> Self:
-        vehicles = {v.vehicle_id for v in self.vehicles}
-        live = {c.cameraId for c in self.live_cameras}
-        if len(vehicles) != len(self.vehicles) or len(live) != len(self.live_cameras):
+        vehicles = {v.vehicleId for v in self.vehicles}
+        live = {c.cameraId for c in self.liveCameras}
+        if len(vehicles) != len(self.vehicles) or len(live) != len(self.liveCameras):
             raise ValueError("state_duplicate_identity")
-        if len({(c.vehicle_id, c.entity_path) for c in self.cameras}) != len(self.cameras) or any(c.vehicle_id not in vehicles for c in self.cameras):
+        if len({(c.vehicleId, c.entityPath) for c in self.cameras}) != len(self.cameras) or any(c.vehicleId not in vehicles for c in self.cameras):
             raise ValueError("state_camera_parent")
-        if any(c.sessionId != self.session_id for c in self.live_cameras):
+        if any(c.sessionId != self.sessionId for c in self.liveCameras):
             raise ValueError("state_camera_session")
-        if len({p.streamProductId for p in self.stream_products}) != len(self.stream_products) or any(r.cameraId not in live for p in self.stream_products for r in p.cameraRegions):
+        if len({p.streamProductId for p in self.streamProducts}) != len(self.streamProducts) or any(r.cameraId not in live for p in self.streamProducts for r in p.cameraRegions):
             raise ValueError("state_product_parent")
-        if len({r.recording_key for r in self.recordings}) != len(self.recordings):
+        if len({r.recordingKey for r in self.recordings}) != len(self.recordings):
             raise ValueError("state_recording_identity")
         return self
 
@@ -384,42 +385,42 @@ def command_resource(session_id: str, *, vehicle_id: str | None = None, world: b
 class WorldAcknowledgement(Wire):
     accepted: bool
     world: WorldBinding
-    resource_uri: AcknowledgementResource
+    resourceUri: AcknowledgementResource
 
 
 class CommandAcknowledgement(Wire):
     accepted: bool
     detail: str
-    resource_uri: AcknowledgementResource
+    resourceUri: AcknowledgementResource
 
 
 class ScenarioOutput(Wire):
-    session_id: Identity
-    elapsed_seconds: Nonnegative
-    final_simulation_time_s: Nonnegative
-    collision_count: U64
-    recording_keys: list[str]
+    sessionId: Identity
+    elapsedSeconds: Nonnegative
+    finalSimulationTimeS: Nonnegative
+    collisionCount: U64
+    recordingKeys: list[str]
 
 
 class MissionOutput(Wire):
-    mission_id: Identity
+    missionId: Identity
     lifecycle: Literal["pending", "running", "completed", "cancelled", "failed"]
-    started_at: Timestamp
-    finished_at: Timestamp
-    completed_waypoints: U64
-    recording_keys: list[str]
+    startedAt: Timestamp
+    finishedAt: Timestamp
+    completedWaypoints: U64
+    recordingKeys: list[str]
 
     @model_validator(mode="after")
     def ordered_completion(self) -> Self:
-        if _TIMESTAMP_ADAPTER.validate_python(self.finished_at) < _TIMESTAMP_ADAPTER.validate_python(self.started_at):
+        if _TIMESTAMP_ADAPTER.validate_python(self.finishedAt) < _TIMESTAMP_ADAPTER.validate_python(self.startedAt):
             raise ValueError("completion_time")
         return self
 
 
 class CaptureOutput(Wire):
-    session_id: Identity
-    elapsed_seconds: Nonnegative
-    recording_keys: list[str]
+    sessionId: Identity
+    elapsedSeconds: Nonnegative
+    recordingKeys: list[str]
 
 
 class ScenarioResult(Wire):
@@ -442,7 +443,7 @@ OPERATION_RESULT_ADAPTER = TypeAdapter(OperationResult)
 
 
 class RuntimeEventWire(Wire):
-    schema_tag: Literal["veoveo.ai/uav-runtime-event/v2"] = Field(alias="schema")
+    schemaTag: Literal["veoveo.ai/uav-runtime-event/v2"] = Field(alias="schema")
     event: Literal["adapter_ready", "ready"]
     sessionId: Identity
     generation: Annotated[U64, Field(ge=1)]

@@ -15,6 +15,8 @@ use veoveo_artifact_contract::ArtifactMetadata;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "QueryOutputWire", into = "QueryOutputWire")]
 #[schemars(transform = output_schema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct DuckDbQueryOutput {
     columns: Vec<DuckDbColumn>,
     rows: Vec<Vec<Value>>,
@@ -25,6 +27,7 @@ pub struct DuckDbQueryOutput {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct QueryOutputWire {
     #[serde(
         default,
@@ -146,8 +149,8 @@ fn output_schema(schema: &mut schemars::Schema) {
     schema.insert(
         "oneOf".into(),
         serde_json::json!([
-            {"properties":{"artifact":{"type":"null"}},"not":{"required":["result_uri"]}},
-            {"required":["artifact","result_uri"],"properties":{
+            {"properties":{"artifact":{"type":"null"}},"not":{"required":["resultUri"]}},
+            {"required":["artifact","resultUri"],"properties":{
                 "artifact":{"type":"object"},
                 "columns":{"maxItems":0},"rows":{"maxItems":0},"truncated":{"const":false}
             }}

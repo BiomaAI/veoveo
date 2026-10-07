@@ -125,11 +125,15 @@ impl ServerHandler for Gateway {
         let result = match request.uri.as_str() {
             "media://contract" => {
                 assert_eq!(intent.kind, IndexingReadKind::SourceContract);
-                let declaration = veoveo_mcp_contract::docs::ContractDeclaration {
-                    server: "media".into(),
-                    contract_revision: 3,
-                    compliance: vec![],
-                };
+                let mut profile: serde_json::Value = serde_json::from_str(include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../mcp/contract/testdata/compliance-example.json"
+                )))
+                .unwrap();
+                profile["server"] = serde_json::json!("media");
+                let declaration = veoveo_mcp_contract::docs::ContractDeclaration::new(
+                    serde_json::from_value(profile).unwrap(),
+                );
                 ReadResourceResult::new(vec![ResourceContents::text(
                     serde_json::to_string(&declaration).unwrap(),
                     request.uri,

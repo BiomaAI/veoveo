@@ -22,6 +22,7 @@ use veoveo_types::{GroupId, PolicyVersion, PrincipalId, RoleId, TenantId, WorkCo
 /// outside Veoveo's protocol and storage contracts.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkContextMembershipRule {
     pub level: WorkContextMembershipLevel,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
@@ -53,11 +54,14 @@ impl WorkContextMembershipRule {
 /// One configured Work Context.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkContextDefinition {
     pub id: WorkContextId,
     pub tenant: TenantId,
     pub title: String,
     pub policy_revision: PolicyVersion,
+    #[serde(with = "output_policy_config")]
+    #[schemars(with = "OutputPolicyConfig")]
     pub output_policy: WorkContextOutputPolicy,
     pub memberships: Vec<WorkContextMembershipRule>,
 }
@@ -73,6 +77,53 @@ impl WorkContextDefinition {
             .filter(|rule| rule.matches(principal, oauth_client))
             .map(|rule| rule.level)
             .max()
+    }
+}
+
+/// Installation wire defaults; signed invocation output policy keeps its native format.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OutputPolicyConfig {
+    pub owner: veoveo_types::AccessSubject,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub initial_grants: Vec<veoveo_types::WorkContextGrant>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub classification: Option<veoveo_types::DataLabelId>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub data_labels: BTreeSet<veoveo_types::DataLabelId>,
+}
+impl From<OutputPolicyConfig> for WorkContextOutputPolicy {
+    fn from(value: OutputPolicyConfig) -> Self {
+        Self {
+            owner: value.owner,
+            initial_grants: value.initial_grants,
+            classification: value.classification,
+            data_labels: value.data_labels,
+        }
+    }
+}
+impl From<WorkContextOutputPolicy> for OutputPolicyConfig {
+    fn from(value: WorkContextOutputPolicy) -> Self {
+        Self {
+            owner: value.owner,
+            initial_grants: value.initial_grants,
+            classification: value.classification,
+            data_labels: value.data_labels,
+        }
+    }
+}
+mod output_policy_config {
+    use super::*;
+    pub fn serialize<S: serde::Serializer>(
+        value: &WorkContextOutputPolicy,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        OutputPolicyConfig::from(value.clone()).serialize(serializer)
+    }
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+        decoder: D,
+    ) -> Result<WorkContextOutputPolicy, D::Error> {
+        OutputPolicyConfig::deserialize(decoder).map(Into::into)
     }
 }
 
@@ -134,4 +185,19 @@ mod tests {
             Some(WorkContextMembershipLevel::Custodian)
         );
     }
+    #[test]
+    fn configuration_policy_maps_to_unchanged_signed_authority_bytes() {
+        let wire = serde_json::json!({"owner":{"kind":"group","id":"operations"},"initialGrants":[],"dataLabels":["cui"]});
+        let config: OutputPolicyConfig = serde_json::from_value(wire.clone()).unwrap();
+        let policy: WorkContextOutputPolicy = config.into();
+        assert_eq!(serde_json::to_value(&policy).unwrap(), serde_json::json!({"owner":{"kind":"group","id":"operations"},"data_labels":["cui"]}));
+        let encoded = serde_json::to_value(OutputPolicyConfig::from(policy)).unwrap();
+        assert_eq!(encoded, serde_json::json!({"owner":{"kind":"group","id":"operations"},"dataLabels":["cui"]}));
+        for key in ["initial_grants", "data_labels"] {
+            let mut obsolete = wire.clone();
+            obsolete[key] = serde_json::json!([]);
+            assert!(serde_json::from_value::<OutputPolicyConfig>(obsolete).is_err());
+        }
+    }
+
 }

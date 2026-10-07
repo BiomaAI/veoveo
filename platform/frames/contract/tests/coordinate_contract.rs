@@ -275,14 +275,14 @@ fn operation_addresses_and_references_keep_their_identity_in_agreement() {
     let wire = serde_json::to_value(&reference).unwrap();
     assert_eq!(
         wire,
-        serde_json::json!({"operation_id":id,"operation_uri":uri,"created_at":"2026-01-01T00:00:00Z"})
+        serde_json::json!({"operationId":id,"operationUri":uri,"createdAt":"2026-01-01T00:00:00Z"})
     );
     assert_eq!(
         serde_json::from_value::<CoordinateOperationRef>(wire.clone()).unwrap(),
         reference
     );
     let mut wrong = wire;
-    wrong["operation_id"] = serde_json::json!("op-other");
+    wrong["operationId"] = serde_json::json!("op-other");
     assert!(serde_json::from_value::<CoordinateOperationRef>(wrong).is_err());
     for wrong in [
         "frames://operation",

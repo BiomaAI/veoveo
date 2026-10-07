@@ -1,0 +1,146 @@
+{
+  "server": "computers",
+  "compliance": [
+    {
+      "id": "C01",
+      "status": "met"
+    },
+    {
+      "id": "C02",
+      "status": "met"
+    },
+    {
+      "id": "C03",
+      "status": "met"
+    },
+    {
+      "id": "C04",
+      "status": "met"
+    },
+    {
+      "id": "C05",
+      "status": "met"
+    },
+    {
+      "id": "C06",
+      "status": "met"
+    },
+    {
+      "id": "C07",
+      "status": "met"
+    },
+    {
+      "id": "C08",
+      "status": "met"
+    },
+    {
+      "id": "C09",
+      "status": "met"
+    },
+    {
+      "id": "C10",
+      "status": "met"
+    },
+    {
+      "id": "C11",
+      "status": "met",
+      "note": "command outputs and file transfers use actual-caller Artifact capabilities"
+    },
+    {
+      "id": "C12",
+      "status": "met"
+    },
+    {
+      "id": "C13",
+      "status": "met"
+    },
+    {
+      "id": "C14",
+      "status": "met"
+    },
+    {
+      "id": "C15",
+      "status": "met",
+      "note": "digest-pinned OCI image and versioned Helm chart"
+    },
+    {
+      "id": "C16",
+      "status": "met",
+      "note": "installed typed registration declares routes, capabilities and policy"
+    },
+    {
+      "id": "C17",
+      "status": "met",
+      "note": "registration and crate documents declare contract revision 3"
+    },
+    {
+      "id": "C18",
+      "status": "met"
+    },
+    {
+      "id": "C19",
+      "status": "met"
+    },
+    {
+      "id": "C20",
+      "status": "met"
+    },
+    {
+      "id": "C21",
+      "status": "met"
+    },
+    {
+      "id": "C22",
+      "status": "met"
+    },
+    {
+      "id": "C23",
+      "status": "met"
+    },
+    {
+      "id": "C24",
+      "status": "met"
+    },
+    {
+      "id": "C25",
+      "status": "met"
+    },
+    {
+      "id": "C26",
+      "status": "met"
+    },
+    {
+      "id": "C27",
+      "status": "met"
+    },
+    {
+      "id": "C28",
+      "status": "met"
+    },
+    {
+      "id": "C29",
+      "status": "met"
+    },
+    {
+      "id": "C30",
+      "status": "met"
+    },
+    {
+      "id": "C31",
+      "status": "pending",
+      "note": "installed readiness against the declared catalog is pending"
+    },
+    {
+      "id": "C32",
+      "status": "pending",
+      "note": "installed docs pass K01–K06; K07/K08 do not apply to these collections; K09/K10 require owner qualification"
+    },
+    {
+      "id": "C33",
+      "status": "pending",
+      "note": "Owner naming producers, consumers and installed qualification are pending."
+    }
+  ],
+  "contractRevision": 4,
+  "catalogRevision": 2
+}

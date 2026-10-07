@@ -8,8 +8,8 @@ use serde_json::json;
 fn request() -> ViewCaptureTaskRequest {
     let snapshot = ViewCaptureSnapshot::new(fixture::view(), resolved::resolved()).unwrap();
     let request: CaptureFrameRequest = serde_json::from_value(json!({
-        "view_id":"view-1", "expected_revision":1, "scene_time":fixture::now(),
-        "policy":{"width_px":100,"height_px":100,"max_screen_error_px":16.0,"deadline_ms":1000}
+        "viewId":"view-1", "expectedRevision":1, "sceneTime":fixture::now(),
+        "policy":{"widthPx":100,"heightPx":100,"maxScreenErrorPx":16.0,"deadlineMs":1000}
     }))
     .unwrap();
     ViewCaptureTaskRequest::new(request, snapshot).unwrap()
@@ -32,9 +32,15 @@ fn owner() -> TaskOwner {
 fn saved_request_must_name_the_snapshot_view_and_revision() {
     let wire = serde_json::to_value(request()).unwrap();
     serde_json::from_value::<ViewCaptureTaskRequest>(wire.clone()).unwrap();
+    for (case, invalid) in fixture::retired_field_cases(&wire) {
+        assert!(
+            serde_json::from_value::<ViewCaptureTaskRequest>(invalid).is_err(),
+            "saved capture admitted {case}"
+        );
+    }
     for (path, replacement) in [
-        ("/request/view_id", json!("other")),
-        ("/request/expected_revision", json!(2)),
+        ("/request/viewId", json!("other")),
+        ("/request/expectedRevision", json!(2)),
     ] {
         let mut invalid = wire.clone();
         *invalid.pointer_mut(path).unwrap() = replacement;

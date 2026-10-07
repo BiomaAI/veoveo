@@ -128,7 +128,7 @@ fn empty_page_round_trip_and_invalid_wire_limits_fail() {
     let wire = serde_json::to_value(&page).unwrap();
     assert_eq!(
         wire,
-        serde_json::json!({"items":[], "limit":100,"next_cursor":null})
+        serde_json::json!({"items":[], "limit":100,"nextCursor":null})
     );
     assert_eq!(
         serde_json::from_value::<MapRestrictionPage>(wire.clone()).unwrap(),
@@ -138,7 +138,7 @@ fn empty_page_round_trip_and_invalid_wire_limits_fail() {
     wrong["limit"] = serde_json::json!(99);
     assert!(serde_json::from_value::<MapRestrictionPage>(wrong).is_err());
     let mut wrong = wire;
-    wrong["next_cursor"] = serde_json::json!(MapRestrictionCursor::new(RestrictionId::new()));
+    wrong["nextCursor"] = serde_json::json!(MapRestrictionCursor::new(RestrictionId::new()));
     assert!(serde_json::from_value::<MapRestrictionPage>(wrong).is_err());
 }
 
@@ -147,18 +147,18 @@ fn compact_summary_checks_identity_and_metadata_without_geometry() {
     use veoveo_map_mcp::contract::RestrictionSummary;
     let id = RestrictionId::new();
     let wire = serde_json::json!({
-        "restriction_id": id, "resource_uri": MapRestrictionUri::new(id.clone()),
-        "kind":"navigational_warning", "effect_kind":"advise", "affected_mobility_families":["human"],
-        "valid_from":"2026-01-01T00:00:00Z", "valid_until":null, "cancelled_by":null, "record_version":1,
+        "restrictionId": id, "resourceUri": MapRestrictionUri::new(id.clone()),
+        "kind":"navigational_warning", "effectKind":"advise", "affectedMobilityFamilies":["human"],
+        "validFrom":"2026-01-01T00:00:00Z", "validUntil":null, "cancelledBy":null, "recordVersion":1,
     });
     let summary: RestrictionSummary = serde_json::from_value(wire.clone()).unwrap();
     assert_eq!(summary.restriction_id(), &id);
     assert_eq!(serde_json::to_value(&summary).unwrap(), wire);
     for (key, value) in [
-        ("restriction_id", serde_json::json!(RestrictionId::new())),
+        ("restrictionId", serde_json::json!(RestrictionId::new())),
         ("record_version", serde_json::json!(0)),
-        ("affected_mobility_families", serde_json::json!([])),
-        ("valid_until", serde_json::json!("2026-01-01T00:00:00Z")),
+        ("affectedMobilityFamilies", serde_json::json!([])),
+        ("validUntil", serde_json::json!("2026-01-01T00:00:00Z")),
     ] {
         let mut bad = wire.clone();
         bad[key] = value;

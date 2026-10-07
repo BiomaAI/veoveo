@@ -14,6 +14,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OptimizationAuthority {
     pub principal_id: PrincipalId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -47,10 +48,12 @@ pub enum RunPhase {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "OptimizationProblemRecord")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OptimizationProblemRecordValue {
     pub problem_id: ProblemId,
     pub problem_uri: OptimizationProblemUri,
     pub family: ProblemFamily,
+    #[schemars(schema_with = "super::naming::problem_version")]
     pub schema_version: String,
     pub digest_sha256: veoveo_artifact_contract::UploadSha256,
     pub dimensions: ProblemDimensions,
@@ -59,6 +62,7 @@ pub struct OptimizationProblemRecordValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProblemDimensions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locations: Option<u64>,
@@ -75,6 +79,7 @@ pub struct ProblemDimensions {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OptimizationRunRecord {
     pub run_id: RunId,
     pub run_uri: OptimizationRunUri,
@@ -93,6 +98,7 @@ pub struct OptimizationRunRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct IncumbentSummary {
     pub sequence: u64,
     pub objective: FiniteF64,
@@ -104,10 +110,12 @@ pub struct IncumbentSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EngineProvenance {
     pub name: String,
     pub version: String,
     pub container_digest: String,
+    #[schemars(schema_with = "super::naming::executor_version")]
     pub executor_protocol: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gpu_name: Option<String>,
@@ -119,6 +127,7 @@ pub struct EngineProvenance {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RunTimings {
     #[serde(default)]
     pub queue_seconds: NonNegativeF64,
@@ -161,6 +170,7 @@ pub enum SolverTermination {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RouteStopResult {
     pub sequence: u32,
     pub order_id: Option<OrderId>,
@@ -184,6 +194,7 @@ pub enum RouteNodeKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct VehicleRoute {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub case_id: Option<RouteCaseId>,
@@ -193,6 +204,7 @@ pub struct VehicleRoute {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RouteSolutionSummary {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub case_id: Option<RouteCaseId>,
@@ -205,6 +217,7 @@ pub struct RouteSolutionSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MathematicalQuality {
     pub proven_optimal: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -234,12 +247,14 @@ pub struct MathematicalQuality {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct VariableValue {
     pub variable_id: VariableId,
     pub value: FiniteF64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConstraintValue {
     pub constraint_id: ConstraintId,
     pub activity: FiniteF64,
@@ -249,6 +264,7 @@ pub struct ConstraintValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct VerificationFinding {
     pub code: VerificationCode,
     pub severity: VerificationSeverity,
@@ -306,6 +322,7 @@ pub enum VerificationSeverity {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "VerificationReport")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct VerificationReportValue {
     pub verification_id: VerificationId,
     pub verified: bool,
@@ -322,7 +339,12 @@ pub struct VerificationReportValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "family", rename_all = "snake_case")]
+#[serde(
+    tag = "family",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum SolutionDetail {
     Routing {
         summaries: Vec<RouteSolutionSummary>,
@@ -347,6 +369,7 @@ pub enum SolutionDetail {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "OptimizationSolution")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OptimizationSolutionValue {
     pub solution_id: SolutionId,
     pub solution_uri: OptimizationSolutionUri,
@@ -365,6 +388,7 @@ pub struct OptimizationSolutionValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "OptimizationToolOutput")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OptimizationToolOutputValue {
     pub run_uri: OptimizationRunUri,
     pub problem_uri: OptimizationProblemUri,
@@ -380,7 +404,12 @@ pub struct OptimizationToolOutputValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "family", rename_all = "snake_case")]
+#[serde(
+    tag = "family",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum OptimizationProblemDefinition {
     Routing { problem: super::RoutingProblem },
     RouteScenarios { cases: Vec<super::RouteScenario> },
@@ -390,13 +419,19 @@ pub enum OptimizationProblemDefinition {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "OptimizationProblemResource")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OptimizationProblemResourceValue {
     pub record: OptimizationProblemRecord,
     pub definition: OptimizationProblemDefinition,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "family", rename_all = "snake_case")]
+#[serde(
+    tag = "family",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum OptimizationToolSummary {
     Routing { cases: Vec<RouteSolutionSummary> },
     Convex { quality: MathematicalQuality },
@@ -405,6 +440,7 @@ pub enum OptimizationToolSummary {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "VerifySolutionOutput")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct VerifySolutionOutputValue {
     pub solution_uri: OptimizationSolutionUri,
     pub report: VerificationReport,
@@ -554,7 +590,8 @@ impl OptimizationSolutionValue {
 impl veoveo_types::Check for OptimizationSolutionValue {
     type Error = super::OptimizationContractError;
     fn check(&self) -> Result<(), Self::Error> {
-        if self.solution_uri.id() != &self.solution_id
+        if self.engine.executor_protocol != super::EXECUTOR_PROTOCOL_VERSION
+            || self.solution_uri.id() != &self.solution_id
             || self.digest_sha256 != super::value_admission::solution_digest(self)?
         {
             return Err(super::value_admission::mismatch());
@@ -727,6 +764,7 @@ impl veoveo_types::Check for VerifySolutionOutputValue {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RunWire {
     run_id: RunId,
     run_uri: OptimizationRunUri,
@@ -773,7 +811,10 @@ impl OptimizationRunRecord {
 impl veoveo_types::Check for OptimizationRunRecord {
     type Error = super::OptimizationContractError;
     fn check(&self) -> Result<(), Self::Error> {
-        if self.run_uri.id() != &self.run_id || self.updated_at < self.created_at {
+        if self.engine.executor_protocol != super::EXECUTOR_PROTOCOL_VERSION
+            || self.run_uri.id() != &self.run_id
+            || self.updated_at < self.created_at
+        {
             return Err(super::value_admission::mismatch());
         }
         Ok(())
@@ -789,7 +830,7 @@ mod terminal_contract_tests {
         let schema = serde_json::to_value(schemars::schema_for!(OptimizationToolOutput)).unwrap();
         let properties = schema["properties"].as_object().unwrap();
 
-        assert!(properties.contains_key("result_uri"));
-        assert!(!properties.contains_key("solution_uri"));
+        assert!(properties.contains_key("resultUri"));
+        assert!(!properties.contains_key("solutionUri"));
     }
 }

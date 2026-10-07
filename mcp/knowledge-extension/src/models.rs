@@ -58,20 +58,20 @@ impl Freshness {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "snake_case")]
 pub enum ChangeSignal {
     Listen,
     Immutable,
     Revalidate,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "snake_case")]
 pub enum AccessModel {
     WorkContext,
     Profile,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "snake_case")]
 pub enum IndexingMode {
     Content,
     Metadata,
@@ -174,7 +174,7 @@ impl From<CollectionDescriptor> for CollectionWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ReadPolicy {
     /// Any reader admitted to the collection in the record's tenant.
     Tenant {},
@@ -249,7 +249,7 @@ pub struct AccessDescriptor {
 #[serde(
     tag = "kind",
     content = "id",
-    rename_all = "kebab-case",
+    rename_all = "snake_case",
     deny_unknown_fields
 )]
 pub enum ModifiedBy {
@@ -448,7 +448,7 @@ pub struct ReadCondition {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "snake_case")]
 pub enum SearchRole {
     Search,
 }

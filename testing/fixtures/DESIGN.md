@@ -104,3 +104,13 @@ and authenticated hosted tests. It checks fixture integrity, decodes serialized
 bytes, and mutates controlled objects, required fields and variant tags. Owners
 select their actual request types and assert domain state; the helper owns no
 transport, lifecycle, provider or domain catalog.
+
+## Platform Selection
+
+`platform-selection/gpu_scheduling.rs` constructs the existing deployment presets
+for native chart tests. Full selection includes the required typed NVIDIA allocator
+declarations and seven exclusive workload placements. The fixture reuses the deploy
+contract's qualified pin declarations and leaves its admission rules intact.
+Deployment-runtime chart tests and deployment-smoke Helm tests share this topology;
+each suite owns its assertions. The fixture installs no allocator, starts no workload
+and supplies no hardware qualification.

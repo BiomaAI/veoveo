@@ -6,10 +6,10 @@ use std::{
 };
 
 use anyhow::{Context, Result, ensure};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
-use veoveo_deploy_contract::ReleaseVersion;
+use veoveo_deploy_contract::{ArtifactCoordinate, ArtifactDigest, ReleaseVersion};
 
 use crate::process;
 
@@ -59,36 +59,229 @@ pub(crate) struct HelmArtifact {
     name: &'static str,
     archive: PathBuf,
     filename: String,
-    sha256: String,
+    sha256: ArtifactDigest,
     oci: Option<OciPublication>,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct OciPublication {
-    coordinate: String,
+    coordinate: ArtifactCoordinate,
     digest: String,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct HelmReleaseEvidence<'a> {
-    schema_version: &'static str,
-    version: &'a str,
-    source_revision: &'a str,
-    helm_version: &'a str,
-    artifacts: Vec<HelmArtifactEvidence<'a>>,
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct HelmReleaseEvidence {
+    schema_version: String,
+    version: String,
+    source_revision: String,
+    helm_version: String,
+    artifacts: Vec<HelmArtifactEvidence>,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct HelmArtifactEvidence<'a> {
-    name: &'static str,
-    filename: &'a str,
-    sha256: &'a str,
-    media_type: &'static str,
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct HelmArtifactEvidence {
+    name: String,
+    filename: String,
+    sha256: ArtifactDigest,
+    media_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    oci: Option<&'a OciPublication>,
+    oci: Option<OciPublication>,
+}
+
+impl HelmReleaseEvidence {
+    fn validate(&self) -> Result<()> {
+        ensure!(
+            self.schema_version == EVIDENCE_SCHEMA,
+            "unsupported Helm evidence format"
+        );
+        ReleaseVersion::parse(&self.version).context("invalid Helm evidence release")?;
+        ensure!(
+            !self.source_revision.is_empty() && !self.helm_version.is_empty(),
+            "incomplete Helm evidence producer identity"
+        );
+        ensure!(
+            !self.artifacts.is_empty() && self.artifacts.len() <= 2,
+            "invalid Helm artifact selection"
+        );
+        let mut names = BTreeSet::new();
+        for artifact in &self.artifacts {
+            ensure!(
+                matches!(artifact.name.as_str(), "veoveo" | "uav-sim")
+                    && names.insert(&artifact.name),
+                "invalid or repeated Helm chart identity"
+            );
+            ensure!(
+                artifact.filename == format!("{}-{}.tgz", artifact.name, self.version),
+                "Helm archive does not match selected chart/release"
+            );
+            ensure!(
+                artifact.media_type == "application/vnd.cncf.helm.chart.content.v1.tar+gzip",
+                "unsupported Helm archive media type"
+            );
+            if let Some(oci) = &artifact.oci {
+                ensure!(
+                    oci.digest
+                        .strip_prefix("sha256:")
+                        .is_some_and(|d| d.len() == 64
+                            && d.bytes()
+                                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))),
+                    "invalid Helm OCI publication"
+                );
+                admit_chart_coordinate(&oci.coordinate, &artifact.name, &self.version)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn admit_enrichment(&self, next: &Self) -> Result<()> {
+        self.validate()?;
+        next.validate()?;
+        let mut comparable = next.clone();
+        let mut added = false;
+        ensure!(
+            self.artifacts.len() == comparable.artifacts.len(),
+            "Helm evidence changed selected charts"
+        );
+        for (before, after) in self.artifacts.iter().zip(&mut comparable.artifacts) {
+            match (&before.oci, &after.oci) {
+                (None, Some(_)) => {
+                    added = true;
+                    after.oci = None;
+                }
+                (a, b) => ensure!(a == b, "Helm evidence changed existing OCI publication"),
+            }
+        }
+        ensure!(
+            added && self == &comparable,
+            "immutable Helm evidence differs beyond OCI enrichment"
+        );
+        Ok(())
+    }
+}
+
+fn chart_coordinate(registry: &str, name: &str, version: &str) -> Result<ArtifactCoordinate> {
+    validate_registry(registry)?;
+    ReleaseVersion::parse(version)?;
+    let registry_url = format!("oci://{registry}/");
+    let mut url = url::Url::parse(&registry_url)?;
+    ensure!(
+        url.as_str() == registry_url,
+        "noncanonical OCI registry prefix"
+    );
+    ensure!(
+        url.query().is_none() && url.fragment().is_none(),
+        "invalid OCI registry prefix"
+    );
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("OCI registry is not hierarchical"))?
+        .pop_if_empty()
+        .push(&format!("{name}:{version}"));
+    let coordinate = ArtifactCoordinate::new(url.as_str())?;
+    admit_chart_coordinate(&coordinate, name, version)?;
+    Ok(coordinate)
+}
+
+fn admit_chart_coordinate(
+    coordinate: &ArtifactCoordinate,
+    name: &str,
+    version: &str,
+) -> Result<()> {
+    let url = url::Url::parse(coordinate.as_str())?;
+    ensure!(
+        url.scheme() == "oci"
+            && url.query().is_none()
+            && url.fragment().is_none()
+            && url.as_str() == coordinate.as_str(),
+        "noncanonical Helm OCI coordinate"
+    );
+    let segments = url
+        .path_segments()
+        .context("OCI coordinate has no chart path")?
+        .collect::<Vec<_>>();
+    ensure!(
+        segments.last().copied() == Some(format!("{name}:{version}").as_str())
+            && segments
+                .iter()
+                .all(|segment| !segment.is_empty() && !segment.contains('%')),
+        "OCI coordinate does not match selected chart/release"
+    );
+    Ok(())
+}
+
+fn evidence_for_release(
+    release: &HelmRelease,
+    version: &str,
+    revision: &str,
+    helm_version: &str,
+) -> HelmReleaseEvidence {
+    HelmReleaseEvidence {
+        schema_version: EVIDENCE_SCHEMA.to_owned(),
+        version: version.to_owned(),
+        source_revision: revision.to_owned(),
+        helm_version: helm_version.to_owned(),
+        artifacts: release
+            .artifacts
+            .iter()
+            .map(|artifact| HelmArtifactEvidence {
+                name: artifact.name.to_owned(),
+                filename: artifact.filename.clone(),
+                sha256: artifact.sha256.clone(),
+                media_type: "application/vnd.cncf.helm.chart.content.v1.tar+gzip".to_owned(),
+                oci: artifact.oci.clone(),
+            })
+            .collect(),
+    }
+}
+
+fn read_evidence(target: &Path) -> Result<HelmReleaseEvidence> {
+    use std::io::Read as _;
+    let mut bytes = Vec::new();
+    fs::File::open(target)?
+        .take(64 * 1024 + 1)
+        .read_to_end(&mut bytes)?;
+    ensure!(
+        bytes.len() <= 64 * 1024,
+        "Helm evidence exceeds its 64KiB limit"
+    );
+    let evidence: HelmReleaseEvidence =
+        serde_json::from_slice(&bytes).context("admitting existing Helm release evidence")?;
+    evidence.validate()?;
+    Ok(evidence)
+}
+
+// This runs before even the version probe: refused prior evidence cannot invoke
+// Helm or authorize another registry mutation.
+fn preflight_push(
+    release: &HelmRelease,
+    registry: &str,
+    version: &str,
+    revision: &str,
+) -> Result<HelmReleaseEvidence> {
+    validate_registry(registry)?;
+    let prior = read_evidence(&release.output.join("release-evidence.json"))?;
+    let selected = evidence_for_release(release, version, revision, &prior.helm_version);
+    selected.validate()?;
+    ensure!(
+        prior == selected,
+        "Helm publication differs from selected prior release"
+    );
+    for artifact in &selected.artifacts {
+        chart_coordinate(registry, &artifact.name, version)?;
+        ensure!(
+            artifact.oci.is_none(),
+            "Helm publication already recorded; repeat push is refused"
+        );
+    }
+    for artifact in &release.artifacts {
+        ensure!(
+            sha256_file(&artifact.archive)? == artifact.sha256,
+            "selected Helm archive content changed before push"
+        );
+    }
+    Ok(prior)
 }
 
 pub(crate) fn build(
@@ -161,7 +354,12 @@ pub(crate) fn push(
     version: &str,
     revision: &str,
 ) -> Result<()> {
-    validate_registry(registry)?;
+    let prior = preflight_push(release, registry, version, revision)?;
+    let helm_version = process::output_text("helm", ["version", "--short"], None)?;
+    ensure!(
+        helm_version.trim() == prior.helm_version,
+        "Helm producer version changed before publication"
+    );
     let destination = format!("oci://{registry}");
     for artifact in &mut release.artifacts {
         let mut arguments = vec![
@@ -182,13 +380,12 @@ pub(crate) fn push(
             .context("Helm push did not report the OCI manifest digest")?;
         validate_digest(digest)?;
         artifact.oci = Some(OciPublication {
-            coordinate: format!("oci://{registry}/{}:{version}", artifact.name),
+            coordinate: chart_coordinate(registry, artifact.name, version)?,
             digest: digest.to_owned(),
         });
         print!("{stdout}");
         eprint!("{stderr}");
     }
-    let helm_version = process::output_text("helm", ["version", "--short"], None)?;
     write_evidence(release, version, revision, helm_version.trim())
 }
 
@@ -198,43 +395,31 @@ fn write_evidence(
     revision: &str,
     helm_version: &str,
 ) -> Result<()> {
-    let evidence = HelmReleaseEvidence {
-        schema_version: EVIDENCE_SCHEMA,
-        version,
-        source_revision: revision,
-        helm_version,
-        artifacts: release
-            .artifacts
-            .iter()
-            .map(|artifact| HelmArtifactEvidence {
-                name: artifact.name,
-                filename: &artifact.filename,
-                sha256: &artifact.sha256,
-                media_type: "application/vnd.cncf.helm.chart.content.v1.tar+gzip",
-                oci: artifact.oci.as_ref(),
-            })
-            .collect(),
-    };
+    let evidence = evidence_for_release(release, version, revision, helm_version);
+    evidence.validate()?;
     let mut bytes = serde_json::to_vec_pretty(&evidence)?;
     bytes.push(b'\n');
+    ensure!(
+        bytes.len() <= 64 * 1024,
+        "Helm evidence exceeds its 64KiB limit"
+    );
     let target = release.output.join("release-evidence.json");
     if target.exists() {
-        let existing = fs::read(&target)?;
+        use std::io::Read as _;
+        let mut existing = Vec::new();
+        fs::File::open(&target)?
+            .take(64 * 1024 + 1)
+            .read_to_end(&mut existing)?;
         if existing == bytes {
             return Ok(());
         }
-        let existing_value: serde_json::Value = serde_json::from_slice(&existing)
-            .with_context(|| format!("decoding existing evidence {}", target.display()))?;
-        let existing_has_oci = existing_value.pointer("/artifacts/0/oci").is_some();
-        let new_has_oci = release
-            .artifacts
-            .iter()
-            .any(|artifact| artifact.oci.is_some());
         ensure!(
-            new_has_oci && !existing_has_oci,
-            "immutable Helm evidence {} already exists with different content",
-            target.display()
+            existing.len() <= 64 * 1024,
+            "Helm evidence exceeds its 64KiB limit"
         );
+        let existing_evidence: HelmReleaseEvidence = serde_json::from_slice(&existing)
+            .context("admitting existing Helm release evidence")?;
+        existing_evidence.admit_enrichment(&evidence)?;
     }
     fs::write(&target, bytes)
         .with_context(|| format!("writing Helm release evidence {}", target.display()))
@@ -275,15 +460,16 @@ fn validate_digest(digest: &str) -> Result<()> {
     Ok(())
 }
 
-fn sha256_file(path: &Path) -> Result<String> {
+fn sha256_file(path: &Path) -> Result<ArtifactDigest> {
     let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-    Ok(format!("sha256:{}", hex::encode(Sha256::digest(bytes))))
+    ArtifactDigest::parse(&format!("sha256:{}", hex::encode(Sha256::digest(bytes))))
+        .map_err(Into::into)
 }
 
-fn copy_immutable(source: &Path, target: &Path, expected_sha256: &str) -> Result<()> {
+fn copy_immutable(source: &Path, target: &Path, expected_sha256: &ArtifactDigest) -> Result<()> {
     if target.exists() {
         ensure!(
-            sha256_file(target)? == expected_sha256,
+            &sha256_file(target)? == expected_sha256,
             "immutable Helm artifact {} already exists with different bytes",
             target.display()
         );
@@ -297,7 +483,7 @@ fn copy_immutable(source: &Path, target: &Path, expected_sha256: &str) -> Result
         )
     })?;
     ensure!(
-        sha256_file(target)? == expected_sha256,
+        &sha256_file(target)? == expected_sha256,
         "copied Helm archive {} failed its SHA-256 check",
         target.display()
     );

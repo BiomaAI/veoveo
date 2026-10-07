@@ -12,18 +12,22 @@ pub struct ArtifactMetadataSnapshot(SnapshotWire);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct SnapshotWire {
     metadata: ArtifactMetadata,
     read_grants: Vec<ArtifactReadGrant>,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     metadata_updated_at: DateTime<Utc>,
 }
 
 /// One subject allowed to read, with the deadline recorded by the Artifact service.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ArtifactReadGrant {
     pub subject: AccessSubject,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<veoveo_types::ChronoUtcTimestampSchema>")]
     pub expires_at: Option<DateTime<Utc>>,
 }
 

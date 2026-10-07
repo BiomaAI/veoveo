@@ -35,6 +35,7 @@ use crate::{
 /// fn change_bytes(scene: &mut ResolvedSceneComposition) { scene.artifact_bytes.clear(); }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[serde(try_from = "ResolvedSceneCompositionWire")]
 pub struct ResolvedSceneComposition {
     record: SceneComposition,
@@ -82,6 +83,7 @@ impl<'de> Deserialize<'de> for ResolvedArtifactBytes {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ResolvedSceneOverlay {
     pub overlay: SceneOverlay,
     pub geometry: SceneOverlayGeometry,

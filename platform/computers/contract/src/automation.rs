@@ -12,10 +12,7 @@ fn automation_oauth_client_schema(generator: &mut schemars::SchemaGenerator) -> 
     schema
 }
 
-#[derive(
-    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, veoveo_types::Vocabulary)]
 pub enum AutomationPermission {
     Read,
     Execute,
@@ -23,8 +20,7 @@ pub enum AutomationPermission {
     Stop,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum AutomationInterruption {
     StopComputer,
 }
@@ -150,7 +146,6 @@ pub struct RevokeAutomationGrantInput {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AutomationGrantResult {
-    #[serde(rename = "result_uri")]
     result_uri: crate::AutomationGrantUri,
     grant: AutomationGrantView,
 }
@@ -179,7 +174,6 @@ impl<'de> Deserialize<'de> for AutomationGrantResult {
         #[derive(Deserialize)]
         #[serde(rename_all = "camelCase", deny_unknown_fields)]
         struct Wire {
-            #[serde(rename = "result_uri")]
             result_uri: crate::AutomationGrantUri,
             grant: AutomationGrantView,
         }
@@ -513,7 +507,7 @@ mod tests {
         assert_eq!(uri.computer_id(), result.grant().computer_id);
         assert_eq!(uri.grant_id(), result.grant().grant_id);
         let wire = serde_json::to_value(&result).unwrap();
-        assert_eq!(wire["result_uri"], String::from(uri));
+        assert_eq!(wire["resultUri"], String::from(uri));
         assert_eq!(wire["grant"]["principalId"], "https://issuer.test#agent");
         assert_eq!(
             serde_json::from_value::<AutomationGrantResult>(wire.clone()).unwrap(),
@@ -532,7 +526,7 @@ mod tests {
             format!("{}?extra=true", uri.to_uri()),
         ] {
             let mut invalid = wire.clone();
-            invalid["result_uri"] = invalid_uri.into();
+            invalid["resultUri"] = invalid_uri.into();
             assert!(serde_json::from_value::<AutomationGrantResult>(invalid).is_err());
         }
         for field in ["principalId", "oauthClientId"] {

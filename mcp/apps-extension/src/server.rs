@@ -15,12 +15,7 @@ pub fn extend_capabilities(capabilities: &mut ServerCapabilities) {
 }
 
 fn extension_declaration() -> rmcp::model::JsonObject {
-    let serde_json::Value::Object(declaration) = serde_json::json!({
-        "mimeTypes": [APP_MIME_TYPE],
-    }) else {
-        unreachable!("extension declaration is an object literal");
-    };
-    declaration
+    crate::AppExtensionCapability::declaration()
 }
 
 /// An app view resource listing: correct MIME plus default `_meta.ui`.

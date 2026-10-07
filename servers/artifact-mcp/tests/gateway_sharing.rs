@@ -15,10 +15,8 @@ use veoveo_types::AccessSubject;
 
 // This domain test uses the shared transport/input subset, not its source report.
 #[allow(dead_code)]
-#[path = "../../../testing/installed/knowledge.rs"]
-mod installed;
-#[path = "../../../testing/installed/tools.rs"]
-mod tools;
+use veoveo_testing_support::installed::knowledge as installed;
+use veoveo_testing_support::installed::tools;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

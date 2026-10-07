@@ -12,9 +12,9 @@ use super::{
     RasterProductId, SourceFeatureId, Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
 };
 
-pub const SOURCE_FEATURE_SCHEMA_VERSION: u64 = 1;
-pub const RASTER_PRODUCT_SCHEMA_VERSION: u64 = 1;
-pub const RASTER_DERIVATION_SCHEMA_VERSION: u64 = 1;
+pub const SOURCE_FEATURE_SCHEMA_VERSION: u64 = 2;
+pub const RASTER_PRODUCT_SCHEMA_VERSION: u64 = 2;
+pub const RASTER_DERIVATION_SCHEMA_VERSION: u64 = 2;
 pub const MAX_SOURCE_QUERY_LIMIT: u32 = 500;
 pub const MAX_SOURCE_TAG_FILTERS: usize = 32;
 pub const MAX_SOURCE_GEOMETRY_COLLECTION_DEPTH: usize = 16;
@@ -48,7 +48,10 @@ pub enum SourceFeatureRepresentation {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "SourceFeature")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct SourceFeatureValue {
+    #[schemars(range(min = 2, max = 2))]
     pub schema_version: u64,
     pub feature_id: SourceFeatureId,
     pub source_id: MapSourceId,
@@ -144,13 +147,18 @@ pub fn representation_for_geometry(geometry: &FeatureGeometry) -> SourceFeatureR
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SourceTagEquality {
     pub key: String,
     pub value: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum SourceSpatialQuery {
     BoundingBox {
@@ -178,6 +186,7 @@ pub enum SourceSpatialQuery {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct QuerySourceFeaturesRequest {
     /// Source feature queries always select one immutable release.
     pub release_id: DatasetReleaseId,
@@ -201,6 +210,19 @@ pub struct QuerySourceFeaturesRequest {
 }
 
 impl QuerySourceFeaturesRequest {
+    /// Digest of the admitted selection; continuation text does not enter the preimage.
+    pub fn query_digest_sha256(&self) -> Result<veoveo_types::Sha256Digest, serde_json::Error> {
+        use sha2::{Digest as _, Sha256};
+        let mut selection = self.clone();
+        selection.cursor = None;
+        let mut digest = Sha256::new();
+        digest.update(b"veoveo.ai/map/source-feature-query/v3\0");
+        digest.update(serde_json::to_vec(&selection)?);
+        Ok(veoveo_types::Sha256Digest::from_bytes(
+            digest.finalize().into(),
+        ))
+    }
+
     pub fn validate(&self) -> Result<(), SourceProductError> {
         if !(1..=MAX_SOURCE_QUERY_LIMIT).contains(&self.limit) {
             return Err(SourceProductError::InvalidLimit);
@@ -262,6 +284,8 @@ impl QuerySourceFeaturesRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct SourceFeatureMatch {
     pub feature: SourceFeature,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -269,9 +293,13 @@ pub struct SourceFeatureMatch {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct QuerySourceFeaturesOutput {
     pub release_id: DatasetReleaseId,
-    pub query_digest_sha256: String,
+    #[serde(with = "veoveo_types::sha256_hex")]
+    #[schemars(with = "String", regex(pattern = "^[0-9a-f]{64}$"))]
+    pub query_digest_sha256: veoveo_types::Sha256Digest,
     pub features: Vec<SourceFeatureMatch>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<String>,
@@ -289,6 +317,8 @@ pub enum RasterValueInterpretation {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct RasterBand {
     pub index: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -303,7 +333,10 @@ pub struct RasterBand {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "RasterProduct")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct RasterProductValue {
+    #[schemars(range(min = 2, max = 2))]
     pub schema_version: u64,
     pub raster_id: RasterProductId,
     pub source_id: MapSourceId,
@@ -366,7 +399,11 @@ impl RasterProductValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[serde(deny_unknown_fields)]
 pub enum RasterDerivationOperation {
     Sample {
@@ -410,6 +447,7 @@ pub enum RasterDerivationOperation {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct DeriveRasterRequest {
     pub raster_id: RasterProductId,
     pub operation: RasterDerivationOperation,
@@ -519,7 +557,10 @@ impl DeriveRasterRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "RasterDerivation")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct RasterDerivationValue {
+    #[schemars(range(min = 2, max = 2))]
     pub schema_version: u64,
     pub derivation_id: RasterDerivationId,
     pub source_raster_id: RasterProductId,
@@ -815,6 +856,42 @@ mod tests {
         assert_eq!(
             request.validate(),
             Err(SourceProductError::TooManyTagFilters)
+        );
+    }
+
+    #[test]
+    fn source_query_digest_preserves_current_domain_selection_and_cursor_independence() {
+        use sha2::{Digest as _, Sha256};
+        let request = QuerySourceFeaturesRequest {
+            release_id: DatasetReleaseId::new(),
+            source_id: None,
+            source_element_id: None,
+            representation: None,
+            tags_equal: vec![],
+            tags_exist: vec!["highway".into()],
+            normalized_text: None,
+            spatial: None,
+            limit: 100,
+            cursor: None,
+        };
+        request.validate().unwrap();
+        let mut expected = Sha256::new();
+        expected.update(b"veoveo.ai/map/source-feature-query/v3\0");
+        expected.update(serde_json::to_vec(&request).unwrap());
+        assert_eq!(
+            request.query_digest_sha256().unwrap(),
+            veoveo_types::Sha256Digest::from_bytes(expected.finalize().into())
+        );
+        let mut continued = request.clone();
+        continued.cursor = Some("opaque-continuation".into());
+        assert_eq!(
+            request.query_digest_sha256().unwrap(),
+            continued.query_digest_sha256().unwrap()
+        );
+        continued.limit = 99;
+        assert_ne!(
+            request.query_digest_sha256().unwrap(),
+            continued.query_digest_sha256().unwrap()
         );
     }
 

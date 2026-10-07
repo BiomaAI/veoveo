@@ -53,7 +53,7 @@ fn profile(lock: &DeploymentLock) -> DeploymentProfile {
             "revision":source.revision, "imageGroups":[],
             "releases":source.charts.iter().map(|chart| serde_json::json!({
                 "name":chart.release, "chart":"chart", "sourceValues":[], "installationValues":[],
-                "valuesContract":if source.name == "platform" { "platform" } else { "veoveo-source" }, "timeoutSeconds":60,
+                "valuesContract":if source.name == "platform" { "platform" } else { "veoveo_source" }, "timeoutSeconds":60,
             })).collect::<Vec<_>>()
         })).collect::<Vec<_>>(),
         "components":components, "kubernetes":{"context":"must-not-contact-a-cluster", "localCluster":null},
@@ -335,4 +335,21 @@ fn configuration_identity_cannot_relabel_values_or_escape_the_installation() {
     let mut malformed = original;
     malformed.components[1].declaration.configuration.profile = "../deployment.json".into();
     assert!(validate_component_catalog(&malformed.components).is_err());
+}
+
+#[test]
+fn current_synthetic_lock_digests_are_owner_produced() {
+    let mut current = fixture();
+    for index in 0..current.components.len() {
+        relock(&mut current, index);
+    }
+    current.validate().unwrap();
+    if let Some(path) = std::env::var_os("VEOVEO_DEPLOYMENT_LOCK_CAPTURE") {
+        std::fs::write(path, serde_json::to_vec_pretty(&current).unwrap()).unwrap();
+        return;
+    }
+    assert_eq!(
+        serde_json::to_value(&current).unwrap(),
+        serde_json::to_value(fixture()).unwrap()
+    );
 }

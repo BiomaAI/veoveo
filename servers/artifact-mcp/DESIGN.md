@@ -21,6 +21,13 @@ contract. The repository-owned
 publishes metadata observations, strong revision validators and cursor enumeration.
 Its dates use RFC 3339 and content digests use SHA-256.
 
+Public Artifact timestamps and share-link input options select the foundational
+`ChronoUtcTimestampSchema` carrier for padded Chrono UTC JSON, including signed
+extended years and leap-second nanoseconds. Optional options keep omitted/null
+admission. MCP argument names keep their declared snake_case spelling; schema
+selection changes neither DateTime runtime values nor tool request bytes. Actual
+Chrono decoding and owner checks admit calendars, range and relationships.
+
 ## Protocol Surface
 
 The server owns the `artifact://` scheme:

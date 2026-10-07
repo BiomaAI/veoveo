@@ -23,6 +23,7 @@ pub enum ArtifactReleaseState {
 /// owner rows for task/artifact access checks. These typed fields keep exported
 /// artifact metadata aligned with the gateway principal and policy model.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ComplianceMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub classification: Option<DataLabelId>,
@@ -37,6 +38,7 @@ pub struct ComplianceMetadata {
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub data_labels: BTreeSet<DataLabelId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<veoveo_types::ChronoUtcTimestampSchema>")]
     pub retention_expires_at: Option<DateTime<Utc>>,
 }
 
@@ -47,6 +49,7 @@ pub struct ComplianceMetadata {
 /// must not become a discovery API.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "ArtifactMetadataWire", into = "ArtifactMetadataWire")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactMetadata {
     pub byte_len: u64,
     #[serde(default)]
@@ -56,6 +59,7 @@ pub struct ArtifactMetadata {
     pub artifact_uri: ArtifactUri,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub download_url: Option<String>,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     pub created_at: DateTime<Utc>,
     #[serde(default)]
     pub release_state: ArtifactReleaseState,
@@ -91,6 +95,7 @@ impl ArtifactMetadata {
 // The public JSON profile repeats the occurrence identity. Internally it comes
 // from the typed URI, so independent ID/URI mutations cannot create a mismatch.
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ArtifactMetadataWire {
     artifact_id: ArtifactId,
     byte_len: u64,
@@ -101,6 +106,7 @@ struct ArtifactMetadataWire {
     artifact_uri: ArtifactUri,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     download_url: Option<String>,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     created_at: DateTime<Utc>,
     #[serde(default)]
     release_state: ArtifactReleaseState,

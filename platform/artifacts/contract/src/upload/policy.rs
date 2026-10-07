@@ -5,6 +5,7 @@ use super::*;
 /// Absence of a configured policy disables public uploads. There is no Default.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ArtifactUploadPolicy {
     pub max_object_bytes: NonZeroU64,
     pub tenant_quota_bytes: NonZeroU64,
@@ -22,6 +23,7 @@ pub struct ArtifactUploadPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct UploadLayout {
     pub part_bytes: NonZeroU64,
     pub max_parts: NonZeroU32,
@@ -31,6 +33,7 @@ pub struct UploadLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct EffectiveArtifactUploadPolicy {
     pub allowed: bool,
     pub explanation: String,

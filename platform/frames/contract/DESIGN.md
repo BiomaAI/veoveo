@@ -4,7 +4,7 @@
 
 | Standard or format | Supported profile |
 |---|---|
-| JSON and JSON Schema Draft 2020-12 | Frames IDs, world trees, immutable revisions, conversion requests/results, provenance, catalog and Task usage models. |
+| JSON and JSON Schema Draft 2020-12 | Closed camelCase object members in Frames IDs, world trees, immutable revisions, conversion requests/results, provenance, catalog and Task usage models; controlled vocabulary values use snake_case. |
 | RFC 3986 and RFC 6570 | The foundational URL 2.5.8 component builder implements Frames' hierarchical custom-scheme routes and declared query parameters. |
 | RFC 3339 | Clock-free Chrono 0.4.45 values for creation, revision and usage timestamps. |
 | SHA-256 | Canonical world-tree serialization hashes to the foundational `sha256:` plus lowercase hex representation. |
@@ -48,8 +48,7 @@ must not claim to have resolved its frame or transformed its coordinates.
 ## Qualification
 
 The owning native tests qualify schemas, address construction, rejected inputs, world
-metadata, tree limits, canonical hashing and current UAV scenario values. The complete
-UAV tree has a pinned digest and passes repeated JSON value and byte round trips. Compile-fail
+metadata, tree limits, canonical hashing and current UAV scenario values. The UAV tree and dependent revision fixtures use the checked tree producer for their digests and repeated JSON value and byte round trips. Compile-fail
 examples reject raw or wrong-domain construction. The MCP facade test proves public
 type identity. Independent consumers must resolve without runtime dependencies.
 Installed publication, Task delivery and conversion acceptance belong to the server.
@@ -72,3 +71,18 @@ owner declarations.
 ## Cursor Admission
 
 World and usage cursors retain their owner hexadecimal JSON envelopes through private OpaqueCursor storage. Codecs preserve collection binding, existing input limits and admitted aliases. Entry and page checks validate published fields before explicit redundant-identity and fixed-limit projections.
+
+## Wire And Persistence Profiles
+
+Public tree serialization uses camelCase node and tagged-variant members.
+`ValidatedWorldTree` sorts nodes by admitted frame identity, serializes the complete
+current tree with Serde JSON, and hashes those bytes. Revision readers recompute that
+digest and compare the selected root, identities and immutable revision facts. A
+coordinated fresh-state installation drains old revisions; readers admit only the
+current tree representation.
+
+World and usage cursor envelopes contain `version`, `collection` and `after`. Their
+version 1 encoding and typed collection context do not change with public page keys.
+Native operation provenance uses an explicit server-owned snake_case adapter; it is
+not a second public JSON reader. Frame identity strings and URI template variables
+keep their owner profiles.

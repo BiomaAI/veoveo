@@ -5,6 +5,9 @@ use veoveo_modules::{
     ModuleSetup, OwnershipClaim, TableName, TablePrefix,
 };
 
+pub const MANIFEST_PUBLICATION_SCHEMA: &str =
+    include_str!("schema/migrations/0001_manifest_publication.surql");
+
 pub const CURRENT_SCHEMA: &str = include_str!("schema/migrations/0000_current.surql");
 
 /// Declare target ownership and dependencies without applying the mixed Store catalog.
@@ -14,11 +17,18 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             OwnershipClaim::TablePrefix(TablePrefix::new("recording_")?),
             OwnershipClaim::Table(TableName::new("recording")?),
         ])
-        .lane(MigrationLane::new(vec![veoveo_modules::Migration::new(
-            veoveo_modules::MigrationVersion::new(0),
-            veoveo_modules::MigrationName::new("current")?,
-            CURRENT_SCHEMA,
-        )?])?)
+        .lane(MigrationLane::new(vec![
+            veoveo_modules::Migration::new(
+                veoveo_modules::MigrationVersion::new(0),
+                veoveo_modules::MigrationName::new("current")?,
+                CURRENT_SCHEMA,
+            )?,
+            veoveo_modules::Migration::new(
+                veoveo_modules::MigrationVersion::new(1),
+                veoveo_modules::MigrationName::new("manifest_publication")?,
+                MANIFEST_PUBLICATION_SCHEMA,
+            )?,
+        ])?)
         .execution(execution)
         .requires(vec![LaneRequirement::Satisfied(ModuleName::new("tasks")?)])
         .build()

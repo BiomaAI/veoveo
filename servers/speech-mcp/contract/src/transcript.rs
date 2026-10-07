@@ -9,7 +9,7 @@ pub const MAX_RECORDING_SECONDS: u32 = 7_200;
 pub const MAX_DICTATION_SECONDS: u32 = 120;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(rename = "Transcript")]
 pub struct TranscriptValue {
     pub text: String,
@@ -60,7 +60,7 @@ impl TranscriptValue {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Segment {
     pub text: String,
     pub start: f64,
@@ -69,7 +69,7 @@ pub struct Segment {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Word {
     pub word: String,
     pub start: f64,
@@ -208,7 +208,7 @@ mod tests {
     fn transcript_constructor_and_decoder_share_interval_and_size_admission() {
         let valid = serde_json::to_value(transcript()).unwrap();
         for (pointer, bad) in [
-            ("/duration_seconds", serde_json::json!(-1)),
+            ("/durationSeconds", serde_json::json!(-1)),
             ("/segments/0/start", serde_json::json!(-0.1)),
             ("/segments/0/words/0/end", serde_json::json!(2)),
         ] {

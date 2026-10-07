@@ -7,7 +7,7 @@
 | Recording resources | Canonical UUIDv7 recording URI and typed reader authority |
 | Rerun RRD | Existing repository 0.38.1 VideoStream profile |
 | H.264 and MP4 | Bounded Annex B access-unit selection and remux without re-encoding |
-| Source identity | Checked UUIDv7 Recording, dataset and layer IDs; ordered Serde JSON, JSON Schema 2020-12, positive byte counts and bare lowercase SHA-256 fields |
+| Source identity | Checked UUIDv7 Recording, dataset and layer IDs; ordered camelCase Serde JSON, JSON Schema 2020-12, positive byte counts and bare lowercase SHA-256 fields |
 
 The video materializer depends on the shared Recording reader and RRD libraries.
 It validates selectors and limits, obtains the governed snapshot, extracts a bounded
@@ -27,8 +27,19 @@ the shared reader normalizes its live copies.
 `RecordingVideoSelectionBuilder` and `IndexRangeBuilder` construct immutable
 `Checked` products. JSON decoding applies the same range, absolute entity-path
 and timeline checks before a selector reaches materialization. Range indices stay
-signed; an ordered negative range is valid. Source snapshot serialization and its
-SHA-256 input bytes keep their existing profile.
+signed; an ordered negative range is valid. Source snapshots serialize `recordingId`, `datasetId`, `capturedAt` and ordered
+`sources`; each source uses `layerId`, `layerName`, optional `layerOrdinal`, `kind`,
+optional `partSequence`, `byteLen` and bare lowercase `sha256`. Optional absent
+fields are omitted. `digest_sha256` hashes the declared JSON member order and
+source order. The unversioned snapshot has one admitted spelling; old and mixed
+keys are refused. Native reader snapshots and SQL column names keep their
+storage profile. The explicit adapter constructs the current public owner type.
+
+The contract control constructs checked source identities, asserts an independent
+ordered preimage and its digest, and captures `testdata/source-snapshot.json` through
+`UPDATE_RECORDED_VIDEO_FIXTURES`. The native reader adapter compares its actual
+conversion with that same captured public value. Stream and Reason import the
+shared contract and check source Recording identity before replay or grounding.
 
 This coordinated admission cut rejects selectors that previously required an
 explicit validation call to detect malformed fields. Producers and readers must

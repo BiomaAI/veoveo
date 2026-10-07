@@ -448,3 +448,34 @@ mod storage_tests {
         assert!(decode_stored::<Option<AgentContent>>(Value::Null).is_err());
     }
 }
+
+#[cfg(test)]
+mod wire_profile_tests {
+    use super::*;
+    #[test]
+    fn native_content_digest_keeps_internal_field_bytes() {
+        let original = serde_json::json!({
+            "model":{"id":"approved","revision":"a".repeat(64)},"instructions":"inspect",
+            "tools":["time__resolve_time"],
+            "budgets":{"max_output_tokens":64,"max_completion_calls":1,"max_tool_calls":2,"deadline_seconds":30},
+            "execution":{"kind":"managed","template":"pilot","template_revision":"b".repeat(64),"parameters":{"vehicle":"vehicle-one"},"resource_subscriptions":[]}
+        });
+        let content: AgentContent = serde_json::from_value(original.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&content).unwrap(), original);
+        let bytes = serde_json::to_vec(&content).unwrap();
+        assert_eq!(
+            content.digest().unwrap(),
+            hex::encode(Sha256::digest(&bytes))
+        );
+        assert!(
+            String::from_utf8(bytes)
+                .unwrap()
+                .contains("\"resource_subscriptions\"")
+        );
+        let mut public_spelling = original;
+        let execution = public_spelling["execution"].as_object_mut().unwrap();
+        let value = execution.remove("template_revision").unwrap();
+        execution.insert("templateRevision".into(), value);
+        assert!(serde_json::from_value::<AgentContent>(public_spelling).is_err());
+    }
+}

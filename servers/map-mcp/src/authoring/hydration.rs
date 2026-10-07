@@ -429,9 +429,9 @@ mod tests {
             ),
         ] {
             for (field, changed) in [
-                ("data_labels", serde_json::json!([])),
+                ("dataLabels", serde_json::json!([])),
                 ("classification", serde_json::Value::Null),
-                ("created_by", serde_json::json!("other-author")),
+                ("createdBy", serde_json::json!("other-author")),
                 (
                     "owner",
                     serde_json::to_value(AccessSubject::Principal(
@@ -442,6 +442,11 @@ mod tests {
             ] {
                 let mut body: serde_json::Value = serde_json::from_str(&original).unwrap();
                 body[field] = changed;
+                if is_layer {
+                    serde_json::from_value::<FeatureLayer>(body.clone()).unwrap();
+                } else {
+                    serde_json::from_value::<MapComposition>(body.clone()).unwrap();
+                }
                 let corrupted = serde_json::to_string(&body).unwrap();
                 db.a.client()
                     .query(include_str!(

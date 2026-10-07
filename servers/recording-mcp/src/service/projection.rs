@@ -339,7 +339,7 @@ fn projection_handle(
     summary: ArrowProjectionSummary,
 ) -> Result<RecordingProjectionHandle> {
     Ok(RecordingProjectionHandleBuilder {
-        schema: RecordingProjectionHandleSchema::V1,
+        schema: RecordingProjectionHandleSchema::V2,
         projection_id: crate::contract::RecordingProjectionId::try_from(projection_id.as_uuid())?,
         dataset_id: request.dataset_id,
         recording_id: request.recording_id,

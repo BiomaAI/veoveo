@@ -1,7 +1,7 @@
 //! Exact App tool admission over the gateway-projected, caller-visible catalog.
 use rmcp::model::{Resource, Tool};
 use veoveo_gateway_contract::{APP_TOOL_DEPENDENCIES_META_KEY, AppToolDependency};
-use veoveo_mcp_contract::LocalToolName;
+use veoveo_types::LocalToolName;
 
 use crate::{is_app_resource, tool_app_link};
 
@@ -87,10 +87,13 @@ mod tests {
     #[test]
     fn imported_aliases_require_exact_view_and_current_visible_target() {
         let mut view = app_resource("ui://frames/edit.html", "Edit");
-        view.meta.as_mut().unwrap().insert(APP_TOOL_DEPENDENCIES_META_KEY.into(), serde_json::json!([{
-            "app_resource":"ui://frames/edit.html", "server":"time", "required_scope":"time:read",
-            "tools":[{"name":"clock", "target_tool":"now"}]
-        }]));
+        view.meta.as_mut().unwrap().insert(
+            APP_TOOL_DEPENDENCIES_META_KEY.into(),
+            serde_json::json!([{
+                "appResource":"ui://frames/edit.html", "server":"time", "requiredScope":"time:read",
+                "tools":[{"name":"clock", "targetTool":"now"}]
+            }]),
+        );
         let target = Tool::new("time__now", "Time", rmcp::model::JsonObject::new());
         let tools = [target];
         assert_eq!(

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct Wgs84Position {
     #[schemars(range(min = -90.0, max = 90.0))]
     pub latitude_degrees: f64,
@@ -53,6 +54,7 @@ impl FrameAxisDirection {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct FrameAxes {
     pub x: FrameAxisDirection,
     pub y: FrameAxisDirection,
@@ -106,6 +108,7 @@ impl FrameAxes {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all_fields = "camelCase")]
 pub enum FrameBasis {
     EcefWgs84,
     Enu,
@@ -118,6 +121,7 @@ pub enum FrameBasis {
 // Empty wire variants reject undeclared keys while public unit variants stay unchanged.
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(rename_all_fields = "camelCase")]
 enum FrameBasisWire {
     EcefWgs84 {},
     Enu {},
@@ -159,6 +163,7 @@ impl FrameBasis {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all_fields = "camelCase")]
 pub enum FrameParentTransform {
     GeodeticTangent {
         origin: Wgs84Position,
@@ -177,6 +182,7 @@ pub enum FrameParentTransform {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct FrameNode {
     pub frame_id: FrameId,
     pub basis: FrameBasis,
@@ -190,6 +196,7 @@ pub struct FrameNode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct FrameWorldTree {
     #[schemars(length(min = 1, max = 10_000))]
     pub frames: Vec<FrameNode>,

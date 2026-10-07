@@ -94,7 +94,7 @@ function renderLegend(shown, folded) {
       const chip = document.createElement("span");
       const swatch = document.createElement("i");
       swatch.style.background = seriesColor(index);
-      chip.append(swatch, document.createTextNode(series.series_id));
+      chip.append(swatch, document.createTextNode(series.seriesId));
       legend.append(chip);
     });
   }
@@ -216,13 +216,13 @@ function renderChart(shown) {
         x: model.x(lastPoint.x) + 6, y: model.y(lastPoint.y) + 4,
         fill: ink.getPropertyValue("--ink-secondary").trim(), "font-size": 11,
       });
-      label.textContent = series.series_id;
+      label.textContent = series.seriesId;
       svg.append(label);
     }
   });
 
   // x tick labels: first observed time, forecast boundary, horizon end
-  const firstTime = shown[0] && shown[0].observed[0] && shown[0].observed[0].event_time;
+  const firstTime = shown[0] && shown[0].observed[0] && shown[0].observed[0].eventTime;
   const axisInk = ink.getPropertyValue("--ink-muted").trim();
   const ticks = [
     { x: 0, text: firstTime ? firstTime.slice(0, 10) : "start" },
@@ -266,10 +266,10 @@ function attachHover(svg, shown, model) {
     shown.forEach((series, index) => {
       const anchor = series.observed.length - 1;
       if (position <= anchor && series.observed[position]) {
-        rows.push({ id: series.series_id, color: seriesColor(index), value: series.observed[position].value });
+        rows.push({ id: series.seriesId, color: seriesColor(index), value: series.observed[position].value });
       } else {
         const point = series.forecast.find((p) => anchor + p.step === position);
-        if (point) rows.push({ id: series.series_id, color: seriesColor(index), value: point.mean });
+        if (point) rows.push({ id: series.seriesId, color: seriesColor(index), value: point.mean });
       }
     });
     if (!rows.length) { hide(); return; }
@@ -307,7 +307,7 @@ function applyToolResult(result) {
   try { structured=admit("forecast",structuredResult(result)); }
   catch(cause){showError(cause.message);return;}
   if (!structured || !structured.preview) return;
-  preview = structured.preview.slice().sort((a, b) => a.series_id.localeCompare(b.series_id));
+  preview = structured.preview.slice().sort((a, b) => a.seriesId.localeCompare(b.seriesId));
   summary = structured.forecast || null;
   if (summary && summary.horizon) el("horizon").value = String(summary.horizon);
   el("error").style.display = "none";

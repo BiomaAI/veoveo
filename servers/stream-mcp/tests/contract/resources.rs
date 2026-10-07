@@ -114,11 +114,11 @@ fn cursors_validate_version_collection_position_and_unknown_fields() {
     let value: serde_json::Value =
         serde_json::from_slice(&URL_SAFE_NO_PAD.decode(cursor.as_str()).unwrap()).unwrap();
     for (field, mutation) in [
-        ("version", serde_json::json!(2)),
+        ("version", serde_json::json!(1)),
         ("collection", serde_json::json!("stream://sessions")),
         (
             "position",
-            serde_json::json!({"created_at": "invalid", "task_id": ID}),
+            serde_json::json!({"createdAt": "invalid", "taskId": ID}),
         ),
         ("unexpected", serde_json::json!(true)),
     ] {

@@ -23,6 +23,7 @@ required-features = ["contract"]
 schema = ["dep:veoveo-modules"]
 default = ["mcp"]
 contract = [
+    "dep:veoveo-task-contract",
     "dep:thiserror",
     "dep:veoveo-recording-mcp",
     "dep:base64",
@@ -67,6 +68,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-task-contract = { workspace = true, optional = true }
 veoveo-modules = { workspace = true, optional = true }
 surrealdb = { version = "=3.3.0", default-features = false, optional = true }
 thiserror = { workspace = true, optional = true }
@@ -96,7 +98,7 @@ re_sdk_types = { workspace = true, optional = true }
 re_log_types = { workspace = true, optional = true }
 
 veoveo-artifact-client = { path = "../../platform/artifacts/client", optional = true }
-veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-mcp-contract = { features = ["runtime"], workspace = true, optional = true }
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension", optional = true }
 veoveo-platform-store = { workspace = true, optional = true }
 veoveo-recording-reader = { workspace = true, optional = true }
@@ -105,6 +107,6 @@ veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
 veoveo-modules = { workspace = true, features = ["runner"] }
-veoveo-mcp-contract = { workspace = true, features = ["testing"] }
+veoveo-mcp-contract = { workspace = true, features = ["runtime", "testing"] }
 veoveo-gateway-catalog.workspace = true
 rmcp = { workspace = true, features = ["client"] }

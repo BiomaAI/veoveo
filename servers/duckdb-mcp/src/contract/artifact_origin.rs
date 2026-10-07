@@ -5,7 +5,12 @@ use serde::{Deserialize, Serialize};
 use veoveo_types::TaskId;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    deny_unknown_fields,
+    rename_all_fields = "camelCase"
+)]
 pub enum DuckDbArtifactOperation {
     Query {
         row_count: u64,
@@ -34,6 +39,8 @@ impl DuckDbArtifactOperation {
 /// Operation facts checked before publication. The Artifact plane owns authority.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "OriginWire", into = "OriginWire")]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct DuckDbArtifactOrigin {
     db: DuckDbDatabaseId,
     operation: DuckDbArtifactOperation,
@@ -42,6 +49,7 @@ pub struct DuckDbArtifactOrigin {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct OriginWire {
     db: DuckDbDatabaseId,
     operation: DuckDbArtifactOperation,

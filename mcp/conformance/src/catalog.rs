@@ -7,6 +7,18 @@ const MAX_PAGES: usize = 1_024;
 const MAX_ITEMS: usize = 16_384;
 const DEADLINE: Duration = Duration::from_secs(30);
 
+pub(crate) async fn before_naming_deadline<T>(
+    started: std::time::Instant,
+    operation: impl Future<Output = Result<T>>,
+) -> Result<T> {
+    let remaining = crate::naming::NAMING_DEADLINE
+        .checked_sub(started.elapsed())
+        .ok_or_else(|| anyhow::anyhow!("aggregate naming discovery deadline expired"))?;
+    tokio::time::timeout(remaining, operation)
+        .await
+        .context("aggregate naming discovery deadline expired")?
+}
+
 async fn collect<T, F, Fut>(operation: &str, mut request: F) -> Result<Vec<T>>
 where
     F: FnMut(Option<String>) -> Fut,
@@ -34,11 +46,31 @@ where
     .with_context(|| format!("{operation} exceeded its 30-second catalog deadline"))?
 }
 
+// A degraded page cannot establish complete discovery, even when it carries
+// useful items. Admit the shared producer's failure DTO before refusing it.
+fn admit_page_metadata(meta: Option<&MetaObject>, operation: &str) -> Result<()> {
+    if let Some(value) = meta
+        .and_then(|meta| meta.get(veoveo_gateway_contract::GATEWAY_DISCOVERY_DEGRADATION_META_KEY))
+    {
+        let degradation: veoveo_gateway_contract::GatewayDiscoveryDegradation =
+            serde_json::from_value(value.clone())
+                .with_context(|| format!("{operation} has malformed gateway discovery metadata"))?;
+        if !degradation.is_empty() {
+            bail!(
+                "{operation} is incomplete: {} admitted gateway discovery failures",
+                degradation.failures.len()
+            );
+        }
+    }
+    Ok(())
+}
+
 pub async fn tools(client: &Peer<RoleClient>) -> Result<Vec<Tool>> {
     collect("tools/list", |cursor| async move {
         let page = client
             .list_tools(Some(PaginatedRequestParams::default().with_cursor(cursor)))
             .await?;
+        admit_page_metadata(page.meta.as_ref(), "tools/list")?;
         Ok((page.tools, page.next_cursor))
     })
     .await
@@ -48,6 +80,7 @@ pub async fn resources(client: &Peer<RoleClient>) -> Result<Vec<Resource>> {
         let page = client
             .list_resources(Some(PaginatedRequestParams::default().with_cursor(cursor)))
             .await?;
+        admit_page_metadata(page.meta.as_ref(), "resources/list")?;
         Ok((page.resources, page.next_cursor))
     })
     .await
@@ -57,6 +90,7 @@ pub async fn templates(client: &Peer<RoleClient>) -> Result<Vec<ResourceTemplate
         let page = client
             .list_resource_templates(Some(PaginatedRequestParams::default().with_cursor(cursor)))
             .await?;
+        admit_page_metadata(page.meta.as_ref(), "resource_templates/list")?;
         Ok((page.resource_templates, page.next_cursor))
     })
     .await
@@ -66,6 +100,7 @@ pub async fn prompts(client: &Peer<RoleClient>) -> Result<Vec<Prompt>> {
         let page = client
             .list_prompts(Some(PaginatedRequestParams::default().with_cursor(cursor)))
             .await?;
+        admit_page_metadata(page.meta.as_ref(), "prompts/list")?;
         Ok((page.prompts, page.next_cursor))
     })
     .await

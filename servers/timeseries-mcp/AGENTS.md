@@ -31,7 +31,7 @@ returns structured output with a bounded chartable preview.
   app.
 - The gateway manifest keeps `resource_projection: server_owned`,
   `capabilities.apps: true`, and `resource_schemes: ["timeseries","ui"]`.
-- Forecast completion exposes one canonical `result_uri`, one resource link,
+- Forecast completion exposes one canonical `resultUri`, one resource link,
   and identity-free status text. Usage discovery is bounded and cursor-paged;
   exact task usage remains directly addressable.
 - Import tabular source types and read SQL helpers from `veoveo-duckdb-mcp` with
@@ -66,11 +66,9 @@ returns structured output with a bounded chartable preview.
 
 ## Contract Compliance
 
-Contract revision: 3
-
-Typed resource contracts, contract-only consumption and checked MCP setup are
-implemented. Installed qualification remains in the
-[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met
@@ -95,12 +93,14 @@ implemented. Installed qualification remains in the
 - C21: met
 - C22: met
 - C23: met
+- C24: met
 - C25: met
 - C26: met
 - C27: met — the shared task-only filter rejects resource observations; accepted task IDs use the durable task source
 - C28: met — resource subscription and resource-list change capabilities are absent
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
-- C24: met
 - C31: met
 - C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

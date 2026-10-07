@@ -28,9 +28,7 @@ use veoveo_types::WorkContextMembershipLevel;
 
 use super::recording_output::LiveRecordingOutput;
 
-const LIVE_RUNNER_REQUEST_SCHEMA: &str = "veoveo.stream-live-runner-request/v1";
-const LIVE_RESULTS_SCHEMA: &str = "veoveo.stream-live-results/v1";
-const LIVE_PREVIEW_SCHEMA: &str = "veoveo.stream-live-preview/v1";
+const LIVE_RUNNER_REQUEST_SCHEMA: &str = "veoveo.ai/stream-live-runner-request/v2";
 
 pub(super) struct LiveSessionManager {
     catalog: Arc<PipelineCatalog>,
@@ -83,14 +81,14 @@ pub(super) struct LiveSessionPage {
 #[derive(Deserialize)]
 #[serde(tag = "schema", deny_unknown_fields)]
 enum LiveRunnerEvent {
-    #[serde(rename = "veoveo.stream-live-frame/v1")]
+    #[serde(rename = "veoveo.ai/stream-live-frame/v2")]
     ResultFrame { frame: FrameDetections },
-    #[serde(rename = "veoveo.stream-live-video-chunk/v1")]
+    #[serde(rename = "veoveo.ai/stream-live-video-chunk/v2")]
     VideoChunk { chunk: EncodedVideoChunk },
 }
 
 #[derive(Serialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct LiveRunnerRequest {
     schema: &'static str,
     session_id: SessionId,
@@ -105,7 +103,7 @@ struct LiveRunnerRequest {
 }
 
 #[derive(Serialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RunnerPipeline {
     pipeline_id: PipelineId,
     graph: GStreamerGraphConfig,
@@ -113,7 +111,11 @@ struct RunnerPipeline {
 }
 
 #[derive(Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 enum RunnerPipelineProfile {
     PassThrough,
     Perception {
@@ -142,7 +144,7 @@ impl From<&PipelineProfileConfig> for RunnerPipelineProfile {
 }
 
 #[derive(Serialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RunnerTracker {
     config_path: PathBuf,
     width: u32,
@@ -160,7 +162,7 @@ impl From<&TrackerConfig> for RunnerTracker {
 }
 
 #[derive(Serialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RunnerModel {
     model_id: ModelId,
     model_path: PathBuf,
@@ -677,7 +679,7 @@ impl LiveSessionManager {
         let session = self.readable(session_id, caller).await?;
         let state = session.state.lock().await;
         Some(LiveResultsView {
-            schema: LIVE_RESULTS_SCHEMA.to_owned(),
+            schema: veoveo_stream_mcp::contract::LiveResultsSchema::V2,
             session_id: session.session_id,
             pipeline_id: session.pipeline_id.clone(),
             frames: state.frames.iter().cloned().collect(),
@@ -699,7 +701,7 @@ impl LiveSessionManager {
             .rposition(|chunk| chunk.keyframe)
             .unwrap_or(state.video_chunks.len());
         Some(LivePreviewView {
-            schema: LIVE_PREVIEW_SCHEMA.to_owned(),
+            schema: veoveo_stream_mcp::contract::LivePreviewSchema::V2,
             session_id: session.session_id,
             video: session.video.clone(),
             chunks: state
@@ -1111,3 +1113,7 @@ pub(super) mod subscription_fixture {
         manager.sessions.lock().await.remove(&id);
     }
 }
+
+#[cfg(test)]
+#[path = "live_product_tests.rs"]
+mod live_product_tests;

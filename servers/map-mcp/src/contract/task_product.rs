@@ -15,6 +15,8 @@ impl<T: MapTaskProductValue> MapTaskProductValue for &T {
 #[derive(Debug, Clone, JsonSchema)]
 pub struct MapTaskProduct<T: MapTaskProductValue>(veoveo_types::Checked<MapTaskProductWire<T>>);
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 struct MapTaskProductWire<T: MapTaskProductValue> {
     result_uri: ResourceUri,
     #[serde(flatten)]

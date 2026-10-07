@@ -1,0 +1,53 @@
+//! Owner-independent smoke declarations, artifact admission and process mechanics.
+use anyhow::Context;
+use std::env;
+use std::ffi::OsString;
+use std::fs;
+use std::fs::File;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process::Child;
+use std::process::Command;
+use std::process::Output;
+use std::process::Stdio;
+use std::time::Duration;
+
+use anyhow::Result;
+use anyhow::anyhow;
+use anyhow::bail;
+use anyhow::ensure;
+use reqwest::StatusCode;
+use reqwest::header::CONTENT_TYPE;
+use reqwest::header::LOCATION;
+use reqwest::redirect::Policy;
+use rmcp::ClientHandler;
+use rmcp::ClientLifecycleMode;
+use rmcp::ClientServiceExt;
+use rmcp::model::CallToolRequestParams;
+use rmcp::model::ClientCapabilities;
+use rmcp::model::ClientConfig;
+use rmcp::model::Implementation;
+use rmcp::model::ReadResourceRequestParams;
+use rmcp::model::ResourceContents;
+use rmcp::service::RunningService;
+use rmcp::transport::StreamableHttpClientTransport;
+use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
+use serde::de::DeserializeOwned;
+use serde_json::Value;
+
+pub mod artifacts;
+pub mod assertions;
+pub mod descriptor;
+pub mod lifecycle;
+pub use assertions::*;
+pub mod process;
+pub use process::*;
+pub mod http;
+pub use http::*;
+pub mod mcp;
+pub use mcp::*;
+pub mod final_tasks;
+pub use final_tasks::*;
+pub mod installed;
+
+pub mod framework;

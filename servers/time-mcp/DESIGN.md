@@ -40,7 +40,7 @@ retain the `time://` scheme.
 
 | Standard or protocol | Implemented profile |
 |---|---|
-| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | Version `2026-07-28`, JSON-RPC 2.0 over Streamable HTTP, under Veoveo hosted MCP contract revision 3. The server exposes tools, resources and templates, prompts, completions, subscriptions, notifications, and typed structured content. |
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | Version `2026-07-28`, JSON-RPC 2.0 over Streamable HTTP, under Veoveo hosted MCP contract revision 4. The server exposes tools, resources and templates, prompts, completions, subscriptions, notifications, and typed structured content. |
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://time/timeline.html` Timeline exposes clock authority, calendars, epochs, windows, and events. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Temporal expressions, authority bindings, calendars, epochs, windows, clock evidence, tasks, and results. |
 | [Veoveo concrete resource components](../../platform/types/DESIGN.md#concrete-resource-components) | All resource addresses use the shared URL 2.5.8 and percent-encoding 2.3.2 profile with Time's route, ID, and cursor validation. |
@@ -57,6 +57,16 @@ retain the `time://` scheme.
 | HTTPS | Registered IANA authority sources are acquired under fixed host, media, digest, size, and elapsed-time policy. |
 | OAuth bearer and signed JWT identity | Read, schedule, event, task, and authority-administration scopes are fixed by gateway policy and verified again in the hosted server. |
 | SurrealDB 3.3.0 and SurrealQL | Private runtime persistence uses Store's qualified Rust SDK version and connection. Bound parameters carry domain values; SQL applies catalog visibility, ordering, paging and activation transactions. Time owns the temporal schema lane. |
+
+Time JSON uses camelCase members and snake_case vocabulary; decoding rejects
+retired and mixed keys. Authority source is a closed tagged object: bootstrap
+has no payload members, while acquisition carries its typed source and acquisition IDs.
+The source variant order and admitted JSON spellings stay fixed. SQL, CLI/environment, prompt arguments, IDs and URI queries
+keep their profiles. `ntpd-rs` retains upstream snake_case fields and PascalCase
+leap values. Event cursors use version 2 with `taiSeconds`/`eventKey`; unchanged
+calendar, epoch and authority positions use version 1. Installation drains old
+Tasks and uses fresh bodies. Knowledge hashes current owner JSON and access.
+Bootstrap identity and source digests hash raw TZDB/leap bytes, excluding JSON.
 
 ## Domain Contract
 
@@ -113,7 +123,7 @@ successful completion claims a staged release. Failure and cancellation preserve
 uncertain external outcomes according to the acquisition service. Current source
 ownership and selected release existence are checked at use time.
 
-Administrative error codes use an owner vocabulary. Their `trace_id` is a canonical
+Administrative error codes use an owner vocabulary. Their `traceId` is a canonical
 UUIDv7 correlation value rather than a W3C trace identifier. Existing HTTP status,
 retry and redaction behavior stays with the administration adapter.
 
@@ -235,7 +245,7 @@ the active authority determines whether that zone exists. It preserves slash-sep
 names and literal plus signs in the public resource path.
 
 `CalendarCursor`, `EpochCursor`, and `EventCursor` retain their family's typed IDs and
-validate the v1 envelope, position, and collection name during deserialization. Page
+validate their current envelope revision, position, and collection name during deserialization. Page
 responses serialize these types as opaque strings. Catalog methods require the matching
 cursor type; admin query extraction and event recovery use those same types. The
 contract feature includes Serde JSON and hex for this wire format.
@@ -279,7 +289,7 @@ Time uses two independently versioned authority families.
 | Family | Authoritative content | Runtime product |
 |---|---|---|
 | `tzdb` | IANA Time Zone Database source release | compiled TZif directory |
-| `leap_seconds` | IANA `leap-seconds.list` | validated TAI-UTC transition table |
+| `leapSeconds` | IANA `leap-seconds.list` | validated TAI-UTC transition table |
 
 An installation begins with the TZif and leap files in the image. Their bootstrap
 release IDs bind the authority family and SHA-256 digest of the packaged source file.
@@ -430,7 +440,7 @@ pending in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 | `tai` | TAI seconds and nanoseconds since 1970-01-01 TAI |
 | `gps` | GPS week and seconds of week |
 | `julian_tai` | Julian day in the TAI scale |
-| `military_dtg` | `DDHHMMZMONYY` or `DDHHMMSSZMONYY` with a NATO zone letter |
+| `militaryDtg` | `DDHHMMZMONYY` or `DDHHMMSSZMONYY` with a NATO zone letter |
 | `epoch_relative` | mission epoch id and signed nanosecond offset |
 
 Civil folds and gaps default to `reject`. Callers select `earlier` or `later` when
@@ -439,7 +449,7 @@ is rejected by the DTG parser because `J` denotes local time rather than a fixed
 offset.
 
 Resolution returns the canonical instant together with UTC RFC 3339, an explicit
-`utc_is_leap_second` flag, military DTG, Unix seconds, GPS week/seconds when the
+`utcIsLeapSecond` flag, military DTG, Unix seconds, GPS week/seconds when the
 instant follows the GPS epoch, and Julian TAI day. A positive leap second keeps its
 `:60` representation instead of collapsing onto an adjacent UTC second. Resolution
 and conversion return the two effective authority references. They do not attach a
@@ -457,7 +467,7 @@ count or until bounds, excluded civil dates, and caller-defined labels.
 
 `expand_schedule` resolves the local windows through the active TZDB and clips them
 to an authority-bound horizon. The output is ordered, numbered, and bounded by
-`maximum_occurrences`. Expansion understands offset changes because every occurrence
+`maximumOccurrences`. Expansion understands offset changes because every occurrence
 is resolved from its local civil time rather than by adding fixed UTC durations.
 Clipped bounds retain the selected horizon endpoint's uncertainty. A bound shared with
 an occurrence keeps the larger uncertainty, and an occurrence touching only the
@@ -628,7 +638,7 @@ records are reached through the collection pages and exact URI templates. Change
 to domain records invalidate resource contents; the discovery inventory is static
 and does not advertise resource-list change notifications.
 
-Calendar, epoch, and event pages contain `items`, `limit: 100`, and `next_cursor`.
+Calendar, epoch, and event pages contain `items`, `limit: 100`, and `nextCursor`.
 Pass the opaque cursor through the root's `?cursor=` query parameter. SurrealDB
 applies authorization and the cursor position before its 101-record lookahead.
 Calendars and epochs sort by key ascending and version descending. Events sort by
@@ -727,7 +737,7 @@ not an alternate authority. The gateway exposes it through
 | `PUT /clock-policy` | replace clock policy under optimistic concurrency |
 
 Administrative errors use a typed body containing `code`, `message`, `retryable`, and
-`trace_id`. The gateway applies `admin_read` or `admin_write` policy and records the
+`traceId`. The gateway applies `admin_read` or `admin_write` policy and records the
 proxied operation in the standard audit path.
 
 ## Persistence

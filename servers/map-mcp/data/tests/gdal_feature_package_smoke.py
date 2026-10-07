@@ -59,27 +59,27 @@ def main() -> None:
         encoded_dir.mkdir()
         _source_geopackage(source)
         inspected = execute(
-            {"schema_version": 1, "operation": "inspect", "source_path": str(source)}
+            {"schemaVersion": 2, "operation": "inspect", "sourcePath": str(source)}
         )
-        table = inspected["manifest"]["feature_tables"][0]
+        table = inspected["manifest"]["featureTables"][0]
         assert table["table"] == "named places"
-        assert table["feature_count"] == 1
-        assert table["has_spatial_index"] is True
+        assert table["featureCount"] == 1
+        assert table["hasSpatialIndex"] is True
         decoded = execute(
             {
-                "schema_version": 1,
+                "schemaVersion": 2,
                 "operation": "decode",
-                "source_path": str(source),
-                "output_dir": str(decoded_dir),
-                "maximum_output_bytes": 1_048_576,
-                "maximum_features": 10_000,
+                "sourcePath": str(source),
+                "outputDir": str(decoded_dir),
+                "maximumOutputBytes": 1_048_576,
+                "maximumFeatures": 10_000,
                 "table": "named places",
-                "identity_column": "external id",
-                "semantic_type_column": "kind",
-                "default_semantic_type": "NamedPlace",
-                "title_column": "name",
-                "valid_from_column": "valid from",
-                "valid_until_column": None,
+                "identityColumn": "external id",
+                "semanticTypeColumn": "kind",
+                "defaultSemanticType": "NamedPlace",
+                "titleColumn": "name",
+                "validFromColumn": "valid from",
+                "validUntilColumn": None,
             }
         )
         record = Path(decoded["path"]).read_bytes()
@@ -95,21 +95,21 @@ def main() -> None:
         assert feature["properties"] == {"active": True, "nested": {"rank": 1}}
         encoded = execute(
             {
-                "schema_version": 1,
+                "schemaVersion": 2,
                 "operation": "encode",
-                "source_path": decoded["path"],
-                "output_dir": str(encoded_dir),
-                "maximum_output_bytes": 1_048_576,
+                "sourcePath": decoded["path"],
+                "outputDir": str(encoded_dir),
+                "maximumOutputBytes": 1_048_576,
                 "table": "published places",
             }
         )
         round_trip = execute(
-            {"schema_version": 1, "operation": "inspect", "source_path": encoded["path"]}
-        )["manifest"]["feature_tables"][0]
+            {"schemaVersion": 2, "operation": "inspect", "sourcePath": encoded["path"]}
+        )["manifest"]["featureTables"][0]
         assert round_trip["table"] == "published places"
-        assert round_trip["feature_count"] == 1
-        assert round_trip["has_spatial_index"] is True
-        assert round_trip["extent_wgs84"] == {
+        assert round_trip["featureCount"] == 1
+        assert round_trip["hasSpatialIndex"] is True
+        assert round_trip["extentWgs84"] == {
             "west": 0.0,
             "south": 0.0,
             "east": 0.0,

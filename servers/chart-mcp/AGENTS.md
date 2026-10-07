@@ -49,7 +49,9 @@ remains upstream.
 
 ## Contract Compliance
 
-Contract revision: 3
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: pending — upstream surface not audited against the protocol table
 - C02: pending — unverified
@@ -74,12 +76,14 @@ Contract revision: 3
 - C21: met
 - C22: met
 - C23: met
+- C24: pending — no Rust crate; the server is a pinned upstream npm package
 - C25: met
 - C26: met
 - C27: pending — upstream notification behavior is not yet audited
 - C28: met
 - C29: met
 - C30: met — the server is stateless and does not require sticky routing
-- C24: pending — no Rust crate; the server is a pinned upstream npm package
 - C31: pending — installed Discover and list readiness qualification is pending
 - C32: pending — docs declarations, observations and authenticated conditional reads pass native HTTP qualification; installed K01–K08 certification remains open
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

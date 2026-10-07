@@ -471,11 +471,36 @@ async fn h264_video_extracts_across_restart_segment_boundary() {
     assert_eq!(clip.samples.len(), 2, "IDR preroll plus requested P-frame");
     assert!(clip.samples[0].is_keyframe);
     assert!(!clip.samples[1].is_keyframe);
+    assert_eq!(clip.samples[0].bytes, access_units[2]);
+    assert_eq!(clip.samples[1].bytes, access_units[3]);
+
+    // This fixture's third unit is AUD/SPS/PPS/IDR; the fourth is AUD/P.
+    // AVC samples carry the picture NAL with a four-byte big-endian length,
+    // while SPS/PPS belong in the track configuration and AUD is excluded.
+    // Fixed fixture offsets and lengths make this expectation independent of
+    // the production Annex B parser and remux framing implementation.
+    assert_eq!(access_units[2].len(), 65);
+    assert_eq!(&access_units[2][40..43], &[0, 0, 1]);
+    assert_eq!(access_units[2][43] & 0x1f, 5);
+    assert_eq!(access_units[3].len(), 15);
+    assert_eq!(&access_units[3][6..9], &[0, 0, 1]);
+    assert_eq!(access_units[3][9] & 0x1f, 1);
+    let expected_avc = [
+        [&[0, 0, 0, 22][..], &access_units[2][43..65]].concat(),
+        [&[0, 0, 0, 6][..], &access_units[3][9..15]].concat(),
+    ];
 
     let mp4 = remux_h264_mp4(&clip).expect("remux without re-encoding");
-    let reader = mp4::Mp4Reader::read_header(std::io::Cursor::new(&mp4), mp4.len() as u64)
+    let mut reader = mp4::Mp4Reader::read_header(std::io::Cursor::new(&mp4), mp4.len() as u64)
         .expect("read remuxed MP4");
     assert_eq!(reader.sample_count(1).expect("video track"), 2);
+    for (index, expected) in expected_avc.iter().enumerate() {
+        let sample = reader
+            .read_sample(1, index as u32 + 1)
+            .expect("read remuxed sample payload")
+            .expect("remuxed sample exists");
+        assert_eq!(sample.bytes.as_ref(), expected.as_slice());
+    }
 
     let mut discontinuous = clip.clone();
     discontinuous.samples[1].index = discontinuous.decode_start_index + 6_000_000_000;
@@ -502,22 +527,15 @@ async fn h264_video_extracts_across_restart_segment_boundary() {
             .duration,
         540_000
     );
-
-    // TODO(GPU): replace this optional software decode probe with mandatory NVDEC
-    // and hardware-surface validation before using it as GPU acceptance evidence.
-    if std::process::Command::new("ffmpeg")
-        .arg("-version")
-        .output()
-        .is_ok()
-    {
-        let path = dir.path().join("extracted.mp4");
-        std::fs::write(&path, &mp4).expect("write decode fixture");
-        let status = std::process::Command::new("ffmpeg")
-            .args(["-v", "error", "-i"])
-            .arg(path)
-            .args(["-f", "null", "-"])
-            .status()
-            .expect("run ffmpeg decoder");
-        assert!(status.success(), "remuxed MP4 decodes successfully");
+    for (index, expected) in expected_avc.iter().enumerate() {
+        let sample = discontinuous_reader
+            .read_sample(1, index as u32 + 1)
+            .expect("read discontinuous sample payload")
+            .expect("discontinuous sample exists");
+        assert_eq!(sample.bytes.as_ref(), expected.as_slice());
     }
+
+    // TODO(GPU): qualify mandatory NVDEC and hardware surfaces in GPU acceptance,
+    // alongside headed hardware playback. This native test checks retained encoded
+    // bytes and remux sample tables; GPU decode and playback qualification are pending.
 }

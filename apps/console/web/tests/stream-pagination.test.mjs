@@ -5,17 +5,17 @@ import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright';
 
 const html = await readFile(new URL('../../../../servers/stream-mcp/assets/live.html', import.meta.url), 'utf8');
-const browserHarness = await readFile(new URL('../../../../testing/browser-smoke/src/browser.rs', import.meta.url), 'utf8');
+const browserHarness = await readFile(new URL('../../../../examples/bioma/acceptance/src/browser/browser.rs', import.meta.url), 'utf8');
 const ensureSession = browserHarness.match(/const STREAM_APP_ENSURE_SESSION: &str = r#"([\s\S]*?)"#;/)[1];
 const session = (number) => ({
-  session_id: `00000000-0000-7000-8000-${String(number).padStart(12, '0')}`,
-  session_uri: `stream://session/00000000-0000-7000-8000-${String(number).padStart(12, '0')}`,
-  pipeline_id:'fixture',pipeline_uri:'stream://pipeline/fixture',lifecycle:'stopped',
-  results_uri:`stream://session/00000000-0000-7000-8000-${String(number).padStart(12,'0')}/results`,
-  preview_uri:`stream://session/00000000-0000-7000-8000-${String(number).padStart(12,'0')}/preview`,
-  started_at:'2026-10-05T00:00:00Z',received_video_frames:0,processed_frames:0,
-  ingress: {transport:'rtp_h264_udp',host:'fixture',port:9001,payload_type:96,clock_rate:90000,caps:'application/x-rtp'},
-  video: {codec: 'avc1.42e01f', width: 640, height: 480, frame_rate: 30, expected_bitrate_bps: 1000000},
+  sessionId: `00000000-0000-7000-8000-${String(number).padStart(12, '0')}`,
+  sessionUri: `stream://session/00000000-0000-7000-8000-${String(number).padStart(12, '0')}`,
+  pipelineId:'fixture',pipelineUri:'stream://pipeline/fixture',lifecycle:'stopped',
+  resultsUri:`stream://session/00000000-0000-7000-8000-${String(number).padStart(12,'0')}/results`,
+  previewUri:`stream://session/00000000-0000-7000-8000-${String(number).padStart(12,'0')}/preview`,
+  startedAt:'2026-10-05T00:00:00Z',receivedVideoFrames:0,processedFrames:0,
+  ingress: {transport:'rtp_h264_udp',host:'fixture',port:9001,payloadType:96,clockRate:90000,caps:'application/x-rtp'},
+  video: {codec: 'avc1.42e01f', width: 640, height: 480, frameRate: 30, expectedBitrateBps: 1000000},
 });
 
 test('Live Monitor and acceptance wait for initial session discovery before starting a pipeline', {timeout: 45000}, async () => {
@@ -35,14 +35,14 @@ test('Live Monitor and acceptance wait for initial session discovery before star
       }
       const uri = request.params.uri;
       let value;
-      if (uri === 'stream://pipelines') value = [{id:'fixture',uri:'stream://pipeline/fixture',title:'Fixture',description:'Fixture',profile:{kind:'pass_through'},supports_live_input:true,supports_recording_replay:true}];
+      if (uri === 'stream://pipelines') value = [{id:'fixture',uri:'stream://pipeline/fixture',title:'Fixture',description:'Fixture',profile:{kind:'pass_through'},supportsLiveInput:true,supportsRecordingReplay:true}];
       else if (uri === 'stream://sessions') {
         await catalogGate;
         value = {sessions: [active], limit: 100};
       } else if (uri.endsWith('/results')) {
         await resultGate;
-        value = {schema:'veoveo.ai/stream-live-results/v1',session_id:uri.split('/')[3],pipeline_id:'fixture',frames:[],processed_frames:0,dropped_result_frames:0};
-      } else if (uri.endsWith('/preview')) value = {schema:'veoveo.ai/stream-live-preview/v1',session_id:active.session_id,video:active.video,chunks:[],dropped_chunks:0,received_video_frames:0};
+        value = {schema:'veoveo.ai/stream-live-results/v2',sessionId:uri.split('/')[3],pipelineId:'fixture',frames:[],processedFrames:0,droppedResultFrames:0};
+      } else if (uri.endsWith('/preview')) value = {schema:'veoveo.ai/stream-live-preview/v2',sessionId:active.sessionId,video:active.video,chunks:[],droppedChunks:0,receivedVideoFrames:0};
       else throw new Error(`Unexpected read: ${uri}`);
       return {contents: [{uri, mimeType: 'application/json', text: JSON.stringify(value)}]};
     });
@@ -98,33 +98,33 @@ test('Live Monitor navigates one bounded page and returns to the first page afte
       if (request.method === 'tools/call') {
         if (request.params.name === 'start_live_session') {
           started = true;
-          return {content:[],structuredContent:{session_id:session(108).session_id,result_uri:session(108).session_uri,results_uri:session(108).results_uri,preview_uri:session(108).preview_uri,pipeline_uri:'stream://pipeline/fixture',ingress:session(108).ingress,video:session(108).video,started_at:'2026-10-05T00:00:00Z'}};
+          return {content:[],structuredContent:{sessionId:session(108).sessionId,resultUri:session(108).sessionUri,resultsUri:session(108).resultsUri,previewUri:session(108).previewUri,pipelineUri:'stream://pipeline/fixture',ingress:session(108).ingress,video:session(108).video,startedAt:'2026-10-05T00:00:00Z'}};
         }
         assert.equal(request.params.name, 'stop_live_session');
-        assert.equal(request.params.arguments.session_id, session(108).session_id);
+        assert.equal(request.params.arguments.sessionId, session(108).sessionId);
         stopped = true;
-        return {content:[],structuredContent:{result_uri:session(108).session_uri,lifecycle:'stopped',received_video_frames:0,processed_frames:0,stopped_at:'2026-10-05T00:00:01Z'}};
+        return {content:[],structuredContent:{resultUri:session(108).sessionUri,lifecycle:'stopped',receivedVideoFrames:0,processedFrames:0,stoppedAt:'2026-10-05T00:00:01Z'}};
       }
       assert.equal(request.method, 'resources/read');
       const uri = request.params.uri;
       reads.push(uri);
       let value;
-      if (uri === 'stream://pipelines') value = [{id:'fixture',uri:'stream://pipeline/fixture',title:'Fixture',description:'Fixture',profile:{kind:'pass_through'},supports_live_input:true,supports_recording_replay:true}];
+      if (uri === 'stream://pipelines') value = [{id:'fixture',uri:'stream://pipeline/fixture',title:'Fixture',description:'Fixture',profile:{kind:'pass_through'},supportsLiveInput:true,supportsRecordingReplay:true}];
       else if (uri === 'stream://sessions') {
         const first = started ? 108 : 107;
-        value = {sessions: Array.from({length: 100}, (_, i) => current(first - i)), limit: 100, next_cursor: 'older-page'};
+        value = {sessions: Array.from({length: 100}, (_, i) => current(first - i)), limit: 100, nextCursor: 'older-page'};
       } else if (uri === 'stream://sessions?cursor=older-page') {
         if (holdOlder) {
           holdOlder = false;
           await new Promise(resolve => {releaseOlder = resolve; olderArrived();});
         }
         value = {sessions: Array.from({length: 7}, (_, i) => session(7 - i)), limit: 100};
-      } else if (uri === session(108).session_uri) value = current(108);
-      else if (uri.endsWith('/results')) value = {schema:'veoveo.ai/stream-live-results/v1',session_id:uri.split('/')[3],pipeline_id:'fixture',frames:[],processed_frames:0,dropped_result_frames:0};
-      else if (uri.endsWith('/preview')) value = {schema:'veoveo.ai/stream-live-preview/v1',session_id:uri.split('/')[3],video:session(1).video,chunks:[],dropped_chunks:0,received_video_frames:0};
+      } else if (uri === session(108).sessionUri) value = current(108);
+      else if (uri.endsWith('/results')) value = {schema:'veoveo.ai/stream-live-results/v2',sessionId:uri.split('/')[3],pipelineId:'fixture',frames:[],processedFrames:0,droppedResultFrames:0};
+      else if (uri.endsWith('/preview')) value = {schema:'veoveo.ai/stream-live-preview/v2',sessionId:uri.split('/')[3],video:session(1).video,chunks:[],droppedChunks:0,receivedVideoFrames:0};
       else throw new Error(`Unexpected read: ${uri}`);
-      if(uri.endsWith('/preview') && corruptPreview === 'nested') value.chunks=[{sequence:0,timestamp_us:'invalid',keyframe:true,data_base64:'AA=='}];
-      if(uri.endsWith('/preview') && corruptPreview === 'parent') value.session_id=session(999).session_id;
+      if(uri.endsWith('/preview') && corruptPreview === 'nested') value.chunks=[{sequence:0,timestampUs:'invalid',keyframe:true,dataBase64:'AA=='}];
+      if(uri.endsWith('/preview') && corruptPreview === 'parent') value.sessionId=session(999).sessionId;
       return {contents: [{uri, mimeType: 'application/json', text: JSON.stringify(value)}]};
     });
     await page.addInitScript(() => {
@@ -154,10 +154,10 @@ test('Live Monitor navigates one bounded page and returns to the first page afte
     await page.waitForFunction(() => document.querySelector('#sessions').options.length === 7);
     assert.equal(await page.locator('#page-status').textContent(), 'Page 2');
     assert.equal(await page.locator('#page-older').isDisabled(), true);
-    assert.equal(await page.locator('#sessions').inputValue(), session(7).session_id);
+    assert.equal(await page.locator('#sessions').inputValue(), session(7).sessionId);
     await page.getByRole('button', {name: 'Newer sessions'}).click();
     await page.waitForFunction(() => document.querySelector('#sessions').options.length === 100);
-    assert.equal(await page.locator('#sessions').inputValue(), session(107).session_id);
+    assert.equal(await page.locator('#sessions').inputValue(), session(107).sessionId);
     await page.getByRole('button', {name: 'Older sessions'}).click();
     await page.waitForFunction(() => document.querySelector('#sessions').options.length === 7);
     holdOlder = true;
@@ -167,15 +167,15 @@ test('Live Monitor navigates one bounded page and returns to the first page afte
     await page.waitForFunction(() => document.querySelector('#page-status').textContent === 'Page 1');
     const readBoundary = reads.length;
     releaseOlder();
-    await page.waitForFunction(id => document.querySelector('#sessions').value === id, session(108).session_id);
+    await page.waitForFunction(id => document.querySelector('#sessions').value === id, session(108).sessionId);
     assert.equal(await page.locator('#page-status').textContent(), 'Page 1');
     assert.equal(await page.locator('#page-newer').isDisabled(), true);
     assert.equal(await page.locator('#error').isVisible(), false);
-    assert.equal(reads.slice(readBoundary).some(uri => uri.startsWith(`stream://session/${session(7).session_id}/`)), false, 'a stale page response must not select or read its old session');
-    assert.equal(reads.filter(uri => uri === session(108).session_uri).length, 1, 'starting must read the returned result URI');
+    assert.equal(reads.slice(readBoundary).some(uri => uri.startsWith(`stream://session/${session(7).sessionId}/`)), false, 'a stale page response must not select or read its old session');
+    assert.equal(reads.filter(uri => uri === session(108).sessionUri).length, 1, 'starting must read the returned result URI');
     await page.getByRole('button', {name: 'Stop', exact: true}).click();
     await page.waitForFunction(() => document.querySelector('#stop').disabled && document.querySelector('#session').textContent.includes('stopped'));
-    assert.equal(reads.filter(uri => uri === session(108).session_uri).length, 2, 'stopping must read the returned result URI');
+    assert.equal(reads.filter(uri => uri === session(108).sessionUri).length, 2, 'stopping must read the returned result URI');
     assert.equal(await page.locator('#error').isVisible(), false);
     const beforeDecoder=await page.evaluate(()=>window.fixtureDecoderConfigurations||0);
     const retainedSelection=await page.locator('#sessions').inputValue();

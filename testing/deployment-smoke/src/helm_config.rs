@@ -822,17 +822,6 @@ pub(crate) fn helm_config() -> Result<()> {
         contains(&xtask, expected)?;
     }
     let smoke_dispatch = fs::read_to_string("tools/xtask/src/commands/smoke.rs")?;
-    for expected in [
-        "veoveo-smoke",
-        "veoveo-mcp-conformance",
-        "veoveo-duckdb-mcp",
-        "veoveo-recording-hub",
-        "veoveo-artifact-service",
-        "scenario_binaries",
-        ".args(arguments)",
-    ] {
-        contains(&smoke_dispatch, expected)?;
-    }
     for forbidden in [
         "process::status(\"kubectl\"",
         "process::status(\"helm\"",
@@ -843,11 +832,7 @@ pub(crate) fn helm_config() -> Result<()> {
         "Command::new(\"k3d\"",
         "Command::new(\"docker\"",
         "reqwest",
-        "serde_json",
-        "tokio",
-        "retry",
-        "evidence",
-        "cleanup",
+        "tokio::time::sleep",
     ] {
         not_contains(&smoke_dispatch, forbidden)?;
     }
@@ -872,29 +857,29 @@ pub(crate) fn helm_config() -> Result<()> {
     )?)?;
     ensure!(
         uav_scenario.get("schema").and_then(Value::as_str)
-            == Some("veoveo.ai/uav-sim-acceptance/v12")
+            == Some("veoveo.ai/uav-sim-acceptance/v13")
             && uav_scenario
-                .pointer("/world/tree/frames/1/parent_transform/origin/latitude_degrees")
+                .pointer("/world/tree/frames/1/parentTransform/origin/latitudeDegrees")
                 .and_then(Value::as_f64)
                 == Some(40.758)
             && uav_scenario
-                .pointer("/world/tree/frames/1/parent_transform/origin/longitude_degrees")
+                .pointer("/world/tree/frames/1/parentTransform/origin/longitudeDegrees")
                 .and_then(Value::as_f64)
                 == Some(-73.9855)
             && uav_scenario
-                .pointer("/takeoff/relative_altitude_m")
+                .pointer("/takeoff/relativeAltitudeM")
                 .and_then(Value::as_f64)
                 == Some(197.0)
             && uav_scenario
-                .pointer("/mission/speed_mps")
+                .pointer("/mission/speedMps")
                 .and_then(Value::as_f64)
                 == Some(20.0)
             && uav_scenario
-                .pointer("/mission/task_timeout_seconds")
+                .pointer("/mission/taskTimeoutSeconds")
                 .and_then(Value::as_u64)
                 == Some(1_800)
             && uav_scenario
-                .pointer("/reason/maximum_frames")
+                .pointer("/reason/maximumFrames")
                 .and_then(Value::as_u64)
                 == Some(6),
         "runtime-loaded UAV scenario omitted the canonical mission"

@@ -11,7 +11,7 @@ use veoveo_agent_runtime::persistence::{
 use veoveo_mcp_contract::GatewayControlPlane;
 
 #[derive(Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Config {
     pub namespace: String,
     pub gateway_url: String,

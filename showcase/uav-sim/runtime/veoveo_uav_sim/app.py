@@ -785,9 +785,9 @@ def run(config: RuntimeConfig) -> None:
                         operator_products.state(
                             content_ready=tile_content_ready(
                                 lifecycle=tile_state["lifecycle"],
-                                visible_tiles=tile_state["visible_tiles"],
-                                geometries_rendered=tile_state["geometries_rendered"],
-                                materials_loaded=tile_state["materials_loaded"],
+                                visible_tiles=tile_state['visibleTiles'],
+                                geometries_rendered=tile_state['geometriesRendered'],
+                                materials_loaded=tile_state['materialsLoaded'],
                             )
                         )
                     )
@@ -976,7 +976,7 @@ def run(config: RuntimeConfig) -> None:
             if (
                 snapshot["lifecycle"] == "starting"
                 and snapshot["vehicles"]
-                and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
+                and all(vehicle['px4Connected'] for vehicle in snapshot["vehicles"])
             ):
                 state.set_lifecycle("running")
                 LOGGER.info(

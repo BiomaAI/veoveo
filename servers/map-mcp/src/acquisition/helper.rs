@@ -19,7 +19,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::contract::{AcquisitionId, SourceAdapterKind};
 
-const HELPER_SCHEMA_VERSION: u32 = 1;
+const HELPER_SCHEMA_VERSION: u32 = 2;
 const MAX_HELPER_OUTPUT_BYTES: u64 = 1_048_576;
 const MAX_HELPER_DIAGNOSTIC_BYTES: u64 = 1_048_576;
 
@@ -37,7 +37,9 @@ pub struct AcquisitionHelper {
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct NormalizeCommand {
+    #[schemars(range(min = 2, max = 2))]
     schema_version: u32,
     acquisition_id: String,
     adapter_kind: SourceAdapterKind,
@@ -49,6 +51,7 @@ struct NormalizeCommand {
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct NormalizeResult {
     pub schema_version: u32,
     pub acquisition_id: AcquisitionId,
@@ -211,13 +214,13 @@ mod tests {
     #[test]
     fn normalize_result_rejects_unknown_fields() {
         let result = serde_json::json!({
-            "schema_version": 1,
-            "acquisition_id": "acquisition-019f5cda-8c2d-7283-88c8-a72f4a138a5e",
-            "source_digest_sha256": "a".repeat(64),
-            "version_label": "fixture",
-            "normalized_paths": ["/tmp/product.parquet"],
-            "quality_report_path": "/tmp/quality.json",
-            "routing_build_path": null
+            "schemaVersion": 2,
+            "acquisitionId": "acquisition-019f5cda-8c2d-7283-88c8-a72f4a138a5e",
+            "sourceDigestSha256": "a".repeat(64),
+            "versionLabel": "fixture",
+            "normalizedPaths": ["/tmp/product.parquet"],
+            "qualityReportPath": "/tmp/quality.json",
+            "routingBuildPath": null
         });
         assert!(serde_json::from_value::<NormalizeResult>(result.clone()).is_ok());
         let mut changed = result;

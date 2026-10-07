@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ChronoTimestamp } from "../chronoTimestamp.ts";
 import { compileGeneratedSchema } from "../jsonSchema.ts";
 import schema from "../generated/artifact-transfer.schema.json" with { type: "json" };
 import type { ArtifactUploadNotification, CreateArtifactUpload, ArtifactUploadReceipt, ArtifactUploadSession, UploadPartReceipt, EffectiveArtifactUploadPolicy } from "../generated/artifact-transfer";
@@ -18,19 +19,27 @@ function ownerSchema<Model>(name: keyof typeof schema.$defs): z.ZodType<Model> {
 }
 
 // A selected browser File always supplies a known, safely representable length.
-export type Descriptor = Omit<CreateArtifactUpload, "byte_len"> & { byte_len: number };
+export type Descriptor = Omit<CreateArtifactUpload, "byteLen"> & { byteLen: number };
 export type { ArtifactUploadReceipt as Receipt, ArtifactUploadSession as Session, UploadPartReceipt as Part, EffectiveArtifactUploadPolicy as Policy } from "../generated/artifact-transfer";
 export const descriptorSchema = ownerSchema<CreateArtifactUpload>("CreateArtifactUpload").refine(
-  (value): value is Descriptor => Number.isSafeInteger(value.byte_len) && (value.byte_len ?? -1) >= 0 && value.filename.length > 0 && value.filename.length <= 255,
+  (value): value is Descriptor => Number.isSafeInteger(value.byteLen) && (value.byteLen ?? -1) >= 0 && value.filename.length > 0 && value.filename.length <= 255,
 ).transform((value) => value as Descriptor);
-export const receiptSchema = ownerSchema<ArtifactUploadReceipt>("ArtifactUploadReceipt");
-export const partSchema = ownerSchema<UploadPartReceipt>("UploadPartReceipt").refine((part) => part.part_number <= 10000);
+function admitsTimestamp(wire: string): boolean {
+  try { ChronoTimestamp.parse(wire); return true; }
+  catch { return false; }
+}
+
+export const receiptSchema = ownerSchema<ArtifactUploadReceipt>("ArtifactUploadReceipt")
+  .refine((receipt) => admitsTimestamp(receipt.createdAt));
+export const partSchema = ownerSchema<UploadPartReceipt>("UploadPartReceipt").refine((part) => part.partNumber <= 10000);
 export const sessionSchema = ownerSchema<ArtifactUploadSession>("ArtifactUploadSession").refine((session) =>
-  session.layout.max_parts <= 10000 && session.parts.length <= 256
-  && session.parts.every((part) => part.part_number <= 10000)
-  && (session.next_part_cursor === undefined || session.next_part_cursor === null || session.next_part_cursor <= 10000));
+  admitsTimestamp(session.createdAt) && admitsTimestamp(session.expiresAt)
+  && (session.receipt == null || admitsTimestamp(session.receipt.createdAt))
+  && session.layout.maxParts <= 10000 && session.parts.length <= 256
+  && session.parts.every((part) => part.partNumber <= 10000)
+  && (session.nextPartCursor === undefined || session.nextPartCursor === null || session.nextPartCursor <= 10000));
 export const policySchema = ownerSchema<EffectiveArtifactUploadPolicy>("EffectiveArtifactUploadPolicy").refine((effective) =>
-  !effective.policy || (effective.policy.max_parts <= 10000 && effective.policy.part_timeout_seconds <= 3600));
+  !effective.policy || (effective.policy.maxParts <= 10000 && effective.policy.partTimeoutSeconds <= 3600));
 // The Console stream excludes open uploads; a notification wakes an authoritative status read.
 export const uploadNotificationSchema = ownerSchema<ArtifactUploadNotification>("ArtifactUploadNotification");
 export type Phase = "Selected" | "Queued" | "Preparing" | "Uploading" | "Paused" | "Waiting for connection" | "Sign in to continue" | "Select file" | "Checking file" | "Finishing upload" | "Ready" | "Needs attention" | "Cancelling" | "Cancelled";
@@ -79,16 +88,16 @@ const extensions: Record<string, string> = {
   mp4: "video/mp4", zip: "application/zip", bin: "application/octet-stream", rrd: "application/octet-stream",
 };
 export function describe(file: File): Descriptor {
-  return { filename: file.name, byte_len: file.size, mime_type: extensions[file.name.split(".").pop()?.toLowerCase() ?? ""] ?? (file.type.toLowerCase() || "application/octet-stream") };
+  return { filename: file.name, byteLen: file.size, mimeType: extensions[file.name.split(".").pop()?.toLowerCase() ?? ""] ?? (file.type.toLowerCase() || "application/octet-stream") };
 }
 export function invalidSelection(descriptor: Descriptor, policy?: Policy): string | undefined {
   if (!policy?.allowed || !policy.policy) return policy?.explanation ?? "Upload policy is not available yet.";
-  if (!Number.isSafeInteger(descriptor.byte_len) || descriptor.byte_len < 0 || descriptor.byte_len > policy.policy.max_object_bytes) return "This file exceeds the upload size limit.";
+  if (!Number.isSafeInteger(descriptor.byteLen) || descriptor.byteLen < 0 || descriptor.byteLen > policy.policy.maxObjectBytes) return "This file exceeds the upload size limit.";
   if (!descriptor.filename || [".", ".."].includes(descriptor.filename) || new TextEncoder().encode(descriptor.filename).length > 255 || descriptor.filename.trim() !== descriptor.filename || Array.from(descriptor.filename).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127 || char === "/" || char === "\\")) return "Rename this file to remove unsupported characters or shorten its name.";
-  if (!policy.policy.allowed_mime_types.includes(descriptor.mime_type)) return "This file type is not allowed here.";
-  if (policy.available_bytes != null && descriptor.byte_len > policy.available_bytes) return `This file requires ${formatBytes(descriptor.byte_len)}. Only ${formatBytes(policy.available_bytes)} of storage is currently available.`;
+  if (!policy.policy.allowedMimeTypes.includes(descriptor.mimeType)) return "This file type is not allowed here.";
+  if (policy.availableBytes != null && descriptor.byteLen > policy.availableBytes) return `This file requires ${formatBytes(descriptor.byteLen)}. Only ${formatBytes(policy.availableBytes)} of storage is currently available.`;
 }
 
 export function duplicate(left: Entry, file: File): boolean {
-  return left.descriptor.filename === file.name && left.descriptor.byte_len === file.size && left.lastModified === file.lastModified && left.phase !== "Cancelled";
+  return left.descriptor.filename === file.name && left.descriptor.byteLen === file.size && left.lastModified === file.lastModified && left.phase !== "Cancelled";
 }

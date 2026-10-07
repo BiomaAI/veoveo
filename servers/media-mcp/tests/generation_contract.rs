@@ -8,7 +8,18 @@ use veoveo_media_mcp::contract::{
 use veoveo_types::{ResourceAddress, TaskId};
 #[test]
 fn generation_schemas_preserve_the_published_profile() {
-    let actual = serde_json::json!({"summary":schemars::schema_for!(GenerationPredictionSummary),"output":schemars::schema_for!(MediaGenerationResult)});
+    let actual = serde_json::json!({"summary":schemars::schema_for!(GenerationPredictionSummary),"output":schemars::schema_for!(MediaGenerationResult),"attribution":schemars::schema_for!(veoveo_media_mcp::contract::MediaOutputArtifactMetadata),"modelResource":schemars::schema_for!(veoveo_media_mcp::contract::ModelResourceOutput),"modelSchema":schemars::schema_for!(veoveo_media_mcp::contract::ModelSchemaOutput),"artifactInput":schemars::schema_for!(veoveo_media_mcp::contract::ArtifactArgs),"artifactOutput":schemars::schema_for!(veoveo_media_mcp::contract::ArtifactOutput),"usageMetadata":schemars::schema_for!(veoveo_media_mcp::contract::MediaUsageMetadata)});
+    if std::env::var_os("UPDATE_CONTRACT_SCHEMAS").is_some() {
+        std::fs::write(
+            concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/fixtures/generation-schemas.json"
+            ),
+            serde_json::to_string_pretty(&actual).unwrap() + "\n",
+        )
+        .unwrap();
+        return;
+    }
     assert_eq!(
         actual,
         serde_json::from_str::<serde_json::Value>(include_str!("fixtures/generation-schemas.json"))
@@ -62,7 +73,7 @@ fn canonical_result_round_trip_and_empty_output_set() {
     let result = fixture::generation(task, MediaPredictionId::new("job").unwrap());
     let wire = serde_json::to_value(&result).unwrap();
     assert_eq!(wire["schema"], MediaGenerationResult::SCHEMA);
-    assert_eq!(wire["result_uri"], "media://prediction/job/result");
+    assert_eq!(wire["resultUri"], "media://prediction/job/result");
     assert_eq!(result.task_id(), task);
     assert_eq!(result.artifacts().len(), 2);
     assert_eq!(
@@ -80,7 +91,7 @@ fn canonical_result_round_trip_and_empty_output_set() {
         schema["required"]
             .as_array()
             .unwrap()
-            .contains(&json!("result_uri"))
+            .contains(&json!("resultUri"))
     );
 }
 
@@ -89,22 +100,22 @@ fn canonical_result_rejects_inconsistent_identity_and_output_attribution() {
     let result = fixture::generation(TaskId::new(), MediaPredictionId::new("job").unwrap());
     let wire = serde_json::to_value(&result).unwrap();
     for (path, replacement) in [
-        ("/schema", json!("veoveo.ai/media-generation/v2")),
-        ("/result_uri", json!("media://prediction/other/result")),
-        ("/task_id", json!(TaskId::new())),
-        ("/task_id", json!("0195dabe-7777-4abc-8def-000000000001")),
+        ("/schema", json!("veoveo.ai/media-generation/v1")),
+        ("/resultUri", json!("media://prediction/other/result")),
+        ("/taskId", json!(TaskId::new())),
+        ("/taskId", json!("0195dabe-7777-4abc-8def-000000000001")),
         ("/prediction/id", json!("other")),
-        ("/prediction/model_id", json!("different/model")),
+        ("/prediction/modelId", json!("different/model")),
         ("/prediction/status", json!("processing")),
-        ("/prediction/output_count", json!(1)),
+        ("/prediction/outputCount", json!(1)),
         (
-            "/artifacts/0/artifact_uri",
+            "/artifacts/0/artifactUri",
             json!("artifact://0195dabe-8888-7abc-8def-000000000001"),
         ),
-        ("/artifacts/0/metadata/task_id", json!(TaskId::new())),
-        ("/artifacts/0/metadata/job_id", json!("other")),
-        ("/artifacts/0/metadata/model_id", json!("different/model")),
-        ("/artifacts/0/metadata/output_index", json!(1)),
+        ("/artifacts/0/metadata/taskId", json!(TaskId::new())),
+        ("/artifacts/0/metadata/jobId", json!("other")),
+        ("/artifacts/0/metadata/modelId", json!("different/model")),
+        ("/artifacts/0/metadata/outputIndex", json!(1)),
     ] {
         let mut bad = wire.clone();
         *bad.pointer_mut(path).unwrap() = replacement;
@@ -114,17 +125,17 @@ fn canonical_result_rejects_inconsistent_identity_and_output_attribution() {
         );
     }
     let mut bad = wire.clone();
-    bad["artifacts"][1]["artifact_id"] = bad["artifacts"][0]["artifact_id"].clone();
-    bad["artifacts"][1]["artifact_uri"] = bad["artifacts"][0]["artifact_uri"].clone();
+    bad["artifacts"][1]["artifactId"] = bad["artifacts"][0]["artifactId"].clone();
+    bad["artifacts"][1]["artifactUri"] = bad["artifacts"][0]["artifactUri"].clone();
     assert!(serde_json::from_value::<MediaGenerationResult>(bad).is_err());
     let mut bad = wire.clone();
     bad["artifacts"].as_array_mut().unwrap().swap(0, 1);
     assert!(serde_json::from_value::<MediaGenerationResult>(bad).is_err());
     let mut bad = wire;
-    bad["artifacts"][0]["download_url"] = json!("https://provider.test/output");
+    bad["artifacts"][0]["downloadUrl"] = json!("https://provider.test/output");
     assert!(serde_json::from_value::<MediaGenerationResult>(bad).is_err());
     let mut artifacts = result.artifacts().to_vec();
-    artifacts[0].metadata["output_index"] = json!(3);
+    artifacts[0].metadata["outputIndex"] = json!(3);
     assert!(
         MediaGenerationResult::new(result.task_id(), result.prediction().clone(), artifacts)
             .is_err()
@@ -158,9 +169,36 @@ fn generation_result_requires_the_current_complete_profile() {
     );
     let unversioned = json!({"prediction": result.prediction(), "artifacts":result.artifacts()});
     assert!(serde_json::from_value::<MediaGenerationResult>(unversioned).is_err());
-    for schema in ["veoveo.ai/media-generation/v2", "unexpected"] {
+    for schema in ["veoveo.ai/media-generation/v1", "unexpected"] {
         let mut bad = current.clone();
         bad["schema"] = json!(schema);
         assert!(serde_json::from_value::<MediaGenerationResult>(bad).is_err());
+    }
+}
+
+#[test]
+fn current_generation_refuses_retired_and_mixed_owned_fields() {
+    let result = fixture::generation(TaskId::new(), MediaPredictionId::new("job").unwrap());
+    let wire = serde_json::to_value(&result).unwrap();
+    assert_eq!(wire["schema"], "veoveo.ai/media-generation/v2");
+    for (label, bad) in fixture::retired_spellings(&wire) {
+        assert!(
+            serde_json::from_value::<MediaGenerationResult>(bad).is_err(),
+            "accepted {label}"
+        );
+    }
+    for occurrence in 0..2 {
+        for retired in ["task_id", "job_id", "model_id", "output_index"] {
+            let mut artifacts = result.artifacts().to_vec();
+            artifacts[occurrence].metadata[retired] = json!("retired-conflict");
+            assert!(
+                MediaGenerationResult::new(
+                    result.task_id(),
+                    result.prediction().clone(),
+                    artifacts
+                )
+                .is_err()
+            );
+        }
     }
 }

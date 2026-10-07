@@ -7,7 +7,7 @@
 use std::{fs, path::PathBuf};
 
 use veoveo_mcp_contract::docs::{
-    CHECKLIST_IDS, ComplianceStatus, REQUIRED_AGENT_SECTIONS, parse_compliance,
+    ComplianceProfile, ComplianceStatus, REQUIRED_AGENT_SECTIONS, RequirementId, verify_manual,
 };
 
 /// Well-Known Surface items every server must implement, not merely declare
@@ -160,7 +160,15 @@ fn every_rust_streamable_server_enforces_the_serialized_response_budget() {
 #[test]
 fn every_server_crate_carries_its_contract_documents() {
     let mut dirs = discovered_server_dirs();
-    dirs.push(repository_root().join("templates/python-mcp"));
+    for path in [
+        "templates/python-mcp",
+        "templates/rust-mcp",
+        "showcase/sumo/sumo-mcp",
+        "testing/fixtures/modular-mcp",
+        "testing/fixtures/fork-workload",
+    ] {
+        dirs.push(repository_root().join(path));
+    }
     assert!(
         !dirs.is_empty(),
         "server discovery found nothing under servers/; the glob is broken"
@@ -189,9 +197,23 @@ fn every_server_crate_carries_its_contract_documents() {
             }
         }
 
-        let items = parse_compliance(&manual);
-        for id in CHECKLIST_IDS {
-            match items.iter().find(|item| item.id == id) {
+        let profile: ComplianceProfile = match fs::read(dir.join("contract-compliance.json"))
+            .map_err(|error| error.to_string())
+            .and_then(|bytes| serde_json::from_slice(&bytes).map_err(|error| error.to_string()))
+        {
+            Ok(profile) => profile,
+            Err(error) => {
+                failures.push(format!("{name}: invalid owner profile: {error}"));
+                continue;
+            }
+        };
+        if let Err(error) = verify_manual(&manual, &profile) {
+            failures.push(format!("{name}: {error}"));
+        }
+        let items = profile.compliance();
+        for requirement in <RequirementId as veoveo_types::Vocabulary>::ALL {
+            let id = requirement.as_str();
+            match items.iter().find(|item| item.id.as_str() == id) {
                 None => failures.push(format!("{name}: Contract Compliance does not declare {id}")),
                 Some(item) => {
                     if item.status == ComplianceStatus::Pending && item.note.is_none() {

@@ -12,8 +12,12 @@ use veoveo_platform_store::{
     task_record_id,
 };
 use veoveo_reason_mcp::{
-    contract::{AnalysisId, AnalysisUri, AnalyzeRecordingOutput, ReasonTaskKind, ResultsUri},
+    contract::{
+        AnalysisId, AnalysisUri, AnalyzeRecordingOutput, DecodePolicy, FindingData, ReasonTaskKind,
+        ReasoningResults, ResultsUri,
+    },
     knowledge::{FindingSelection, observe, readable_findings},
+    task_request::{DurableReasonRequest, ReasonTaskInput},
 };
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime};
 use veoveo_types::{
@@ -75,7 +79,25 @@ async fn finding(
     tasks: &TaskRuntime,
     owner: TaskOwner,
 ) -> (AnalysisId, ArtifactId) {
+    finding_with_decode(store, tasks, owner, DecodePolicy::Greedy).await
+}
+
+async fn finding_with_decode(
+    store: &PlatformStore,
+    tasks: &TaskRuntime,
+    owner: TaskOwner,
+    decode: DecodePolicy,
+) -> (AnalysisId, ArtifactId) {
     let id = AnalysisId::try_from(TaskId::new()).unwrap();
+    let mut request: DurableReasonRequest =
+        serde_json::from_str(include_str!("../testdata/task-request.json")).unwrap();
+    let ReasonTaskInput::Analyze(input) = &mut request.input;
+    input.decode = decode;
+    let results: ReasoningResults =
+        serde_json::from_str(include_str!("../testdata/reason-results-v2.json")).unwrap();
+    let mut results = results.into_builder();
+    results.decode = decode;
+    let results = results.build().unwrap();
     let actor = identity(
         store,
         &owner.principal_key,
@@ -88,7 +110,7 @@ async fn finding(
             owner: owner.clone(),
             server: "reason".into(),
             task_type: ReasonTaskKind::AnalyzeRecording.name(),
-            request: serde_json::from_str(include_str!("../testdata/task-request.json")).unwrap(),
+            request: serde_json::to_value(&request).unwrap(),
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,
             ttl_ms: None,
@@ -100,11 +122,12 @@ async fn finding(
     let output: AnalyzeRecordingOutput =
         serde_json::from_str(include_str!("../testdata/analysis-output-v1.json")).unwrap();
     let mut output = output.into_builder();
+    output.finding = FindingData::from_results(&results).unwrap();
     output.analysis_uri = AnalysisUri::new(id);
     output.result_uri = ResultsUri::new(id);
-    output.annotations_artifact.metadata["provenance"]["analysis_id"] = id.to_string().into();
+    output.annotations_artifact.metadata["provenance"]["analysisId"] = id.to_string().into();
     let mut metadata = output.results_artifact.metadata.clone();
-    metadata["provenance"]["analysis_id"] = id.to_string().into();
+    metadata["provenance"]["analysisId"] = id.to_string().into();
     let artifact = ArtifactId::new();
     let receipt = store
         .create_artifact_occurrence(ArtifactOccurrenceDraft {
@@ -140,9 +163,13 @@ async fn finding(
     output.results_artifact.artifact_uri = ArtifactUri::plane(artifact);
     output.results_artifact.created_at = receipt.occurrence.created_at;
     output.results_artifact.metadata = serde_json::to_value(&receipt.occurrence.metadata).unwrap();
-    output.annotations_artifact.metadata["provenance"]["results_artifact_uri"] =
+    output.annotations_artifact.metadata["provenance"]["resultsArtifactUri"] =
         serde_json::to_value(&output.results_artifact.artifact_uri).unwrap();
     let output = output.build().unwrap();
+    let ReasonTaskInput::Analyze(input) = &request.input;
+    output
+        .check_results(input, &output.results_artifact, &results)
+        .unwrap();
     tasks
         .claim(id.task_id(), Duration::from_secs(30))
         .await
@@ -290,7 +317,26 @@ async fn lookup_admission_rejects_closed_corruption_and_observes_owner_changes()
         .unwrap();
         let actor = identity(&db.a, "alice", "findings").await;
         let reader = scope(&actor, Some("operations"));
-        let (id, _) = finding(&db.a, &tasks, owner("alice", "findings")).await;
+        let sampled = DecodePolicy::Sampled {
+            temperature: 0.5,
+            top_p: 0.9,
+            seed: 42,
+        };
+        let (id, _) = finding_with_decode(&db.a, &tasks, owner("alice", "findings"), sampled).await;
+        let admitted = readable_findings(&db.b, &reader, FindingSelection::Member(id))
+            .await
+            .unwrap();
+        assert_eq!(admitted.len(), 1);
+        assert_eq!(admitted[0].data.decode(), sampled);
+        let snapshot = tasks
+            .for_owner(&owner("alice", "findings"))
+            .get(id.task_id())
+            .await
+            .unwrap()
+            .expect("sampled owner Task must be readable");
+        let retained: DurableReasonRequest = serde_json::from_value(snapshot.request).unwrap();
+        let ReasonTaskInput::Analyze(retained) = retained.input;
+        assert_eq!(retained.decode, sampled);
         let lookup = RecordId::new("reason_analysis", id.task_id().to_string());
         let before: Value =
             db.a.client()
@@ -302,7 +348,7 @@ async fn lookup_admission_rejects_closed_corruption_and_observes_owner_changes()
                 .unwrap()
                 .take(0)
                 .unwrap();
-        for case in 0..12 {
+        for case in 0..22 {
             let Value::Object(mut row) = before.clone() else {
                 panic!("lookup missing");
             };
@@ -360,7 +406,7 @@ async fn lookup_admission_rejects_closed_corruption_and_observes_owner_changes()
                         else {
                             panic!("provenance missing");
                         };
-                        provenance.remove("pipeline_id");
+                        provenance.remove("pipelineId");
                     } else {
                         let Value::Object(finding) = settlement.get_mut("finding").unwrap() else {
                             panic!("finding missing");
@@ -386,6 +432,72 @@ async fn lookup_admission_rejects_closed_corruption_and_observes_owner_changes()
                             nested.remove(if case == 9 { "text" } else { "start" });
                         }
                     }
+                }
+                12..=21 => {
+                    // Retired-only and mixed spellings both refuse at the database
+                    // boundary; a failed write must preserve the admitted row.
+                    let Value::Object(settlement) = row.get_mut("settlement").unwrap() else {
+                        panic!("settlement missing");
+                    };
+                    let (fields, current, retired) = match case {
+                        12 | 13 => {
+                            let Value::Object(metadata) =
+                                settlement.get_mut("expected_metadata").unwrap()
+                            else {
+                                panic!("metadata missing");
+                            };
+                            let Value::Object(provenance) = metadata.get_mut("provenance").unwrap()
+                            else {
+                                panic!("provenance missing");
+                            };
+                            (provenance, "analysisId", "analysis_id")
+                        }
+                        14..=19 => {
+                            let Value::Object(finding) = settlement.get_mut("finding").unwrap()
+                            else {
+                                panic!("finding missing");
+                            };
+                            if case < 16 {
+                                (finding, "pipelineId", "pipeline_id")
+                            } else if case < 18 {
+                                (finding, "requestedRange", "requested_range")
+                            } else {
+                                let Value::Object(decode) = finding.get_mut("decode").unwrap()
+                                else {
+                                    panic!("decode missing");
+                                };
+                                // Exercise the sampled variant's renamed child.
+                                decode.insert("mode", "sampled".into_value());
+                                decode.insert("temperature", 0.5_f64.into_value());
+                                decode.insert("topP", 0.9_f64.into_value());
+                                decode.insert("seed", 42_i64.into_value());
+                                (decode, "topP", "top_p")
+                            }
+                        }
+                        20 | 21 => {
+                            let Value::Object(finding) = settlement.get_mut("finding").unwrap()
+                            else {
+                                panic!("finding missing");
+                            };
+                            let Value::Object(answer) = finding.get_mut("answer").unwrap() else {
+                                panic!("answer missing");
+                            };
+                            let Value::Array(events) = answer.get_mut("events").unwrap() else {
+                                panic!("events missing");
+                            };
+                            let Value::Object(event) = events.first_mut().unwrap() else {
+                                panic!("event missing");
+                            };
+                            (event, "trackIds", "track_ids")
+                        }
+                        _ => unreachable!(),
+                    };
+                    let value = if case % 2 == 0 {
+                        fields.remove(current).unwrap()
+                    } else {
+                        fields.get(current).unwrap().clone()
+                    };
+                    fields.insert(retired, value);
                 }
                 _ => unreachable!(),
             }

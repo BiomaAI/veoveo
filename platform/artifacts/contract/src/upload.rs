@@ -71,7 +71,7 @@ impl From<UploadSha256> for String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateArtifactUpload {
     pub filename: String,
     pub mime_type: String,
@@ -159,7 +159,12 @@ pub enum ArtifactUploadNotificationState {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "op",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ArtifactUploadNotification {
     Changed {
         // Notifications emit the canonical ID spelling; other ledger profiles retain their aliases.
@@ -178,7 +183,7 @@ fn notification_upload_id_schema(_: &mut schemars::SchemaGenerator) -> schemars:
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UploadPartReceipt {
     pub part_number: NonZeroU32,
     pub byte_len: u64,
@@ -186,7 +191,7 @@ pub struct UploadPartReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CompleteArtifactUpload {
     pub byte_len: u64,
     pub part_count: NonZeroU32,
@@ -195,7 +200,7 @@ pub struct CompleteArtifactUpload {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactUploadReceipt {
     pub upload_id: ArtifactUploadId,
     pub artifact_id: ArtifactId,
@@ -204,11 +209,12 @@ pub struct ArtifactUploadReceipt {
     pub byte_len: u64,
     pub mime_type: String,
     pub filename: String,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactUploadSession {
     pub upload_id: ArtifactUploadId,
     pub state: ArtifactUploadState,
@@ -219,7 +225,9 @@ pub struct ArtifactUploadSession {
     pub parts: Vec<UploadPartReceipt>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next_part_cursor: Option<NonZeroU32>,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     pub created_at: DateTime<Utc>,
+    #[schemars(with = "veoveo_types::ChronoUtcTimestampSchema")]
     pub expires_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub receipt: Option<ArtifactUploadReceipt>,
@@ -229,7 +237,7 @@ pub struct ArtifactUploadSession {
 
 /// Gateway-only envelope. Public callers never select authority or policy.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactUploadAuthority {
     pub control_plane_sha256: UploadSha256,
     pub context_digest: UploadSha256,
@@ -282,7 +290,7 @@ impl UploadErrorCode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactUploadError {
     pub code: UploadErrorCode,
     /// Safe, bounded operator-independent copy; never a backend error string.
@@ -297,6 +305,7 @@ pub struct ArtifactUploadError {
 /// Source-owner Artifact transfer and access contracts consumed by browser clients.
 #[derive(JsonSchema)]
 #[expect(dead_code, reason = "schema-only bundle selects owner contracts")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ArtifactTransferSchema {
     notification: ArtifactUploadNotification,
     descriptor: CreateArtifactUpload,
@@ -329,7 +338,7 @@ mod notification_tests {
         );
         for id in fixture["invalid_ids"].as_array().unwrap() {
             let mut wire = fixture["emitted"].clone();
-            wire["upload_id"] = id.clone();
+            wire["uploadId"] = id.clone();
             assert!(serde_json::from_value::<ArtifactUploadNotification>(wire).is_err());
         }
     }
@@ -344,16 +353,16 @@ mod notification_tests {
             };
             let wire = serde_json::to_value(&value).unwrap();
             assert_eq!(wire["op"], "changed");
-            assert_eq!(wire["upload_id"], upload_id.to_string());
+            assert_eq!(wire["uploadId"], upload_id.to_string());
             assert_eq!(wire["state"], state.as_str());
             assert_eq!(wire.as_object().unwrap().len(), 3);
             assert!(serde_json::from_value::<ArtifactUploadNotification>(wire).is_ok());
         }
         for wire in [
-            serde_json::json!({"op":"changed","upload_id":upload_id,"state":"open"}),
-            serde_json::json!({"op":"changed","upload_id":upload_id,"state":"completed","receipt":{}}),
-            serde_json::json!({"op":"unknown","upload_id":upload_id,"state":"completed"}),
-            serde_json::json!({"op":"changed","upload_id":"invalid","state":"completed"}),
+            serde_json::json!({"op":"changed","uploadId":upload_id,"state":"open"}),
+            serde_json::json!({"op":"changed","uploadId":upload_id,"state":"completed","receipt":{}}),
+            serde_json::json!({"op":"unknown","uploadId":upload_id,"state":"completed"}),
+            serde_json::json!({"op":"changed","uploadId":"invalid","state":"completed"}),
         ] {
             assert!(serde_json::from_value::<ArtifactUploadNotification>(wire).is_err());
         }

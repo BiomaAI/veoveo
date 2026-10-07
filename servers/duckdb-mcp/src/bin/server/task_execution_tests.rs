@@ -29,7 +29,7 @@ async fn execution_and_recovered_query_keep_native_ids_in_results_and_usage() {
         let identity = crate::test_support::identity("operator", "native-test");
         let owner = runtime_owner(&identity);
         let operations = [
-            ("execute", json!({"db":"metrics","sql":"CREATE TABLE facts AS SELECT 42 AS answer","create_if_missing":true}), false),
+            ("execute", json!({"db":"metrics","sql":"CREATE TABLE facts AS SELECT 42 AS answer","createIfMissing":true}), false),
             ("query", json!({"db":"metrics","sql":"SELECT answer FROM facts"}), false),
             ("query", json!({"db":"metrics","sql":"SELECT * FROM must_not_execute"}), true),
         ];

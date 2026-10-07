@@ -106,7 +106,12 @@ impl WorkerProcess {
                 revision,
             } => {
                 ensure!(
-                    protocol == PROTOCOL && device.starts_with("cuda:NVIDIA"),
+                    protocol == PROTOCOL,
+                    "unsupported Speech worker protocol; coordinated upgrade to {} required",
+                    PROTOCOL
+                );
+                ensure!(
+                    device.starts_with("cuda:NVIDIA"),
                     "hardware speech worker required"
                 );
                 ensure!(

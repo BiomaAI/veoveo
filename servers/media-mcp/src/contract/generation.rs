@@ -7,6 +7,7 @@ use super::MediaPredictionId;
 
 /// Public, provider-neutral summary of the provider job behind a completed task.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GenerationPredictionSummary {
     #[schemars(with = "String")]
     pub id: MediaPredictionId,

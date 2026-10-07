@@ -20,7 +20,7 @@ version.
 | [`ai.veoveo/knowledge-source`](../mcp/knowledge-extension/DESIGN.md) | Repository-owned MCP extension with RFC 9110 strong-validator semantics, RFC 9111 freshness lifetimes and RFC 8246 immutability. Typed read observations bind resource bytes to revisions and access descriptors; Phase 6 owns consumer integration and qualification. |
 | W3C DCAT 3 | [Knowledge catalog contract](../servers/knowledge-mcp/DESIGN.md#catalog) uses DCAT-aligned JSON field names for sources and collections; authenticated hosted reads pass native checks. It does not serialize RDF. |
 | SurrealDB 3.3 `FULLTEXT` BM25 and HNSW cosine indexes | [Knowledge storage](../platform/store/src/knowledge/DESIGN.md) creates separate chunk tables and indexes for each typed embedding-space generation, with current approval and access selection in SQL. Retrieval uses filtered HNSW and native reciprocal rank fusion in the same transaction; library and hosted HTTP qualification pass against isolated databases. Installed qualification remains open. |
-| vLLM 0.30.0 pooling and Qwen3 Embedding 0.6B | The [shared runtime](../platform/runtimes/embedding/DESIGN.md) serves a verified offline checkpoint on CUDA through an internal OpenAI Embeddings API subset. Its typed client binds vectors to an embedding space and gives interactive queries priority over bulk indexing. |
+| vLLM 0.31.0 pooling and Qwen3 Embedding 0.6B | The [shared runtime](../platform/runtimes/embedding/DESIGN.md) serves a verified offline checkpoint on CUDA through an internal OpenAI Embeddings API subset. Its typed client binds vectors to an embedding space and gives interactive queries priority over bulk indexing. |
 | OpenID Connect and OAuth 2.0 | OIDC Core login; S256 PKCE; Client Credentials and JWT Bearer grants; RFC 8414 authorization-server metadata; RFC 9728 protected-resource metadata; RFC 8707 resource indicators; signed JWT/JWS/JWK tokens and key discovery. |
 | MCP Enterprise-Managed Authorization / ID-JAG | Explicit enterprise grant profile with durable replay protection, client binding, tenant mapping, and scope reduction. |
 | HTTPS and HTTP range semantics | External acquisition, MCP transport, provider webhooks, and artifact delivery. Cleartext HTTP is used only inside declared cluster trust boundaries. |
@@ -30,7 +30,7 @@ version.
 | Veoveo recording ingest | Version `2026-09-23`; authenticated protobuf batches and separate Blueprint publications preserve native Rerun 0.38.1 stores, ordering, idempotency, decoder-safe rollover markers, and policy-scoped replacement of a single recording. |
 | Rerun 0.38.1 gRPC, RRD, Rerun Data Protocol, and `VideoStream` | Producer-local log ingestion, immutable records over time and space, lazy per-recording viewer playback, and H.264 Annex B video with exact timeline indices. |
 | S3-compatible object API | Artifact bytes and audit block archives. The bundled store is digest-pinned RustFS `1.0.0`; SurrealDB holds domain identity and authorization. Optional audit Object Lock requires a provider qualified for compliance mode. |
-| NVIDIA cuOpt 26.08 and CUDA 13.3 | Digest-pinned hardware-GPU execution for heterogeneous routing, BatchSolve scenarios, continuous LP/QP/QCQP/SOCP, and linear MILP. `veoveo.ai/travel-model-artifact/v1` is the repository-owned Map handoff; `veoveo.ai/cuopt-executor/v1` is a private pod-local adapter protocol, not a public contract. |
+| NVIDIA cuOpt 26.08 and CUDA 13.3 | Digest-pinned hardware-GPU execution for heterogeneous routing, BatchSolve scenarios, continuous LP/QP/QCQP/SOCP, and linear MILP. `veoveo.ai/travel-model-artifact/v2` is the repository-owned Map handoff; `veoveo.ai/cuopt-executor/v2` is a private pod-local adapter protocol, not a public contract. |
 | Kubernetes, Helm, and OCI images | Workload graph, declarative installation configuration, registry-first delivery, GitOps reconciliation, and offline bundle material. |
 | Domain standards | Map, Optimization, Time, Frames, View, UAV, Recording, Perception, and Reason designs each pin their own geospatial, solver, temporal, 3D, vehicle, and media profiles. |
 
@@ -876,7 +876,7 @@ Coverage includes:
 - k3d with GPUs, headed hardware browser runs, Helm and schema checks, the offline
   manifest and loader, and the Console build.
 
-The full behavior matrix lives in `testing/smoke` and the focused crate tests. These
+The full behavior matrix lives in the owning smoke harnesses and focused crate tests. These
 checks, not this document, are the evidence that the behavior works.
 
 ## Identity Declaration Mechanics

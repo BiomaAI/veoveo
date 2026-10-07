@@ -13,8 +13,8 @@ pub(super) fn require_cursor_presence(schema: &mut Schema) {
     let required = required
         .as_array_mut()
         .expect("page required fields are an array");
-    if !required.iter().any(|field| field == "next_cursor") {
-        required.push(serde_json::json!("next_cursor"));
+    if !required.iter().any(|field| field == "nextCursor") {
+        required.push(serde_json::json!("nextCursor"));
     }
 }
 
@@ -25,6 +25,7 @@ fn required_nullable_cursor(generator: &mut SchemaGenerator) -> Schema {
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(transform = require_cursor_presence)]
+#[serde(rename_all = "camelCase")]
 pub struct OwnedPage<T> {
     pub items: Vec<T>,
     pub limit: usize,
@@ -35,6 +36,7 @@ pub struct OwnedPage<T> {
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(transform = require_cursor_presence)]
+#[serde(rename_all = "camelCase")]
 pub struct ReleasePage {
     pub items: Vec<DatasetRelease>,
     pub limit: usize,

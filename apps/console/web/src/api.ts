@@ -1,6 +1,7 @@
-import type { AgentWakeReceipt as AgentWakeReceiptWire, AgentInputRequestView as AgentInputRequestWire, AgentConversationView as AgentConversationWire } from "./generated/agent-control";
+import { recordingPlaybackValue } from "./recordingPlayback";
+import type { AgentWakeReceipt as AgentWakeReceiptWire } from "./generated/agent-control";
 import type { ArtifactAccessRequest as ArtifactAccessRequestWire, ArtifactAccessRequestPage as ArtifactAccessRequestPageWire } from "./generated/artifact-transfer";
-import { parseConsole } from "./generatedContracts";
+import { parseAgentControl, parseConsole } from "./generatedContracts";
 import { demoSnapshot } from "./demo";
 import { agentInputRequestDecisionPath, agentInputRequestsApiPath } from "./agentControl";
 import type {
@@ -148,11 +149,11 @@ export async function cancelTask(task: Pick<TaskSummary, "server" | "id">): Prom
 
 function agentWakeReceipt(wire: AgentWakeReceiptWire): AgentWakeReceipt {
   return {
-    requestId: wire.request_id,
-    wakeId: wire.wake_id,
-    agentId: wire.agent_id,
-    workContext: wire.work_context,
-    acceptedAt: wire.accepted_at,
+    requestId: wire.requestId,
+    wakeId: wire.wakeId,
+    agentId: wire.agentId,
+    workContext: wire.workContext,
+    acceptedAt: wire.acceptedAt,
   };
 }
 
@@ -165,10 +166,10 @@ export async function sendAgentMessage(
     `agents/${encodeURIComponent(agentId)}/messages`,
     {
       method: "POST",
-      body: JSON.stringify({ request_id: requestId, message }),
+      body: JSON.stringify({ requestId: requestId, message }),
     },
   );
-  return agentWakeReceipt(wire);
+  return agentWakeReceipt(parseAgentControl("receipt", wire));
 }
 
 export async function loadAgentConversation(
@@ -190,20 +191,20 @@ export async function loadAgentConversation(
     throw new Error(forbiddenMessage("view this agent's conversation"));
   }
   if (!response.ok) throw new Error(httpErrorMessage(response.status, { action: "load the conversation", thing: "This agent" }));
-  const wire = (await response.json()) as AgentConversationWire;
+  const wire = parseAgentControl("conversation", await response.json());
   return {
-    agentId: wire.agent_id,
+    agentId: wire.agentId,
     entries: wire.entries.map((entry) => ({
-      entryId: entry.entry_id,
+      entryId: entry.entryId,
       role: entry.role,
-      actorId: entry.actor_id,
+      actorId: entry.actorId,
       content: entry.content,
       state: entry.state,
-      occurredAt: entry.occurred_at,
-      requestId: entry.request_id,
-      wakeId: entry.wake_id,
-      episodeId: entry.episode_id,
-      inReplyToRequestIds: entry.in_reply_to_request_ids ?? [],
+      occurredAt: entry.occurredAt,
+      requestId: entry.requestId,
+      wakeId: entry.wakeId,
+      episodeId: entry.episodeId,
+      inReplyToRequestIds: entry.inReplyToRequestIds ?? [],
     })),
   };
 }
@@ -227,12 +228,13 @@ export async function loadAgentInputRequests(
     throw new Error(forbiddenMessage("view this agent's questions"));
   }
   if (!response.ok) throw new Error(httpErrorMessage(response.status, { action: "load the agent's questions", thing: "This agent" }));
-  const values = (await response.json()) as AgentInputRequestWire[];
-  return values.map((wire) => ({
-    inputRequestId: wire.input_request_id,
+  const values: unknown = await response.json();
+  if (!Array.isArray(values)) throw new Error("Invalid agent question list");
+  return values.map(value => parseAgentControl("inputRequest", value)).map((wire) => ({
+    inputRequestId: wire.inputRequestId,
     message: wire.message,
-    requestedSchema: wire.requested_schema,
-    requestedAt: wire.requested_at,
+    requestedSchema: wire.requestedSchema,
+    requestedAt: wire.requestedAt,
   }));
 }
 
@@ -246,16 +248,16 @@ export async function decideAgentInputRequest(
     agentInputRequestDecisionPath(agentId, inputRequestId),
     {
       method: "POST",
-      body: JSON.stringify({ request_id: requestId, ...decision }),
+      body: JSON.stringify({ requestId: requestId, ...decision }),
     },
   );
-  return agentWakeReceipt(wire);
+  return agentWakeReceipt(parseAgentControl("receipt", wire));
 }
 
 export async function setArtifactReleaseState(artifactId: string, releaseState: ReleaseState): Promise<void> {
   await consoleMutation(`artifacts/${encodeURIComponent(artifactId)}/release-state`, {
     method: "PUT",
-    body: JSON.stringify({ release_state: releaseState })
+    body: JSON.stringify({ releaseState })
   });
 }
 
@@ -283,17 +285,17 @@ export async function revokeArtifactGrant(
 function artifactAccessRequest(wire: ArtifactAccessRequestWire): ArtifactAccessRequest {
   return {
     id: wire.id,
-    artifactId: wire.artifact_id,
-    workContext: wire.work_context,
+    artifactId: wire.artifactId,
+    workContext: wire.workContext,
     requester: wire.requester,
-    requestedLevel: wire.requested_level,
+    requestedLevel: wire.requestedLevel,
     justification: wire.justification,
     state: wire.state,
-    decidedBy: wire.decided_by,
-    decisionNote: wire.decision_note,
-    createdAt: wire.created_at,
-    updatedAt: wire.updated_at,
-    decidedAt: wire.decided_at,
+    decidedBy: wire.decidedBy,
+    decisionNote: wire.decisionNote,
+    createdAt: wire.createdAt,
+    updatedAt: wire.updatedAt,
+    decidedAt: wire.decidedAt,
   };
 }
 
@@ -321,7 +323,7 @@ export async function loadArtifactAccessRequests(
   const page = (await response.json()) as ArtifactAccessRequestPageWire;
   return {
     requests: page.requests.map(artifactAccessRequest),
-    nextCursor: page.next_cursor,
+    nextCursor: page.nextCursor,
   };
 }
 
@@ -335,7 +337,7 @@ export async function requestArtifactAccess(
     {
       method: "POST",
       body: JSON.stringify({
-        requested_level: requestedLevel,
+        requestedLevel,
         justification,
       }),
     }
@@ -376,8 +378,8 @@ export async function createArtifactShareLink(
   return consoleMutation(`artifacts/${encodeURIComponent(artifactId)}/share-links`, {
     method: "POST",
     body: JSON.stringify({
-      expires_at: expiresAt,
-      ...(maxDownloads ? { max_downloads: maxDownloads } : {})
+      expiresAt,
+      ...(maxDownloads ? { maxDownloads } : {})
     })
   });
 }
@@ -414,7 +416,7 @@ export async function loadRecordingPlayback(
   if (!response.ok) {
     throw new Error(httpErrorMessage(response.status, { action: "start playback", thing: "This recording" }));
   }
-  return response.json() as Promise<RecordingPlaybackManifest>;
+  return recordingPlaybackValue(await response.json(), recordingId);
 }
 
 export function recordingLiveRrdStreamRoute(recordingId: string): string {

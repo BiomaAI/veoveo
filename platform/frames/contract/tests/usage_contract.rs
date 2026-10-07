@@ -29,7 +29,7 @@ fn usage_builders_preserve_native_task_identity_and_wire_shape() {
     assert_eq!(entry.usage_uri(), &usage);
     assert_eq!(
         serde_json::to_value(&entry).unwrap(),
-        json!({"task_id": task_id, "usage_uri": usage})
+        json!({"taskId": task_id, "usageUri": usage})
     );
     let cursor = FrameUsageCursor::new(task_id).unwrap();
     assert_eq!(
@@ -131,7 +131,7 @@ fn usage_pages_and_entries_reject_inconsistent_construction_and_decoding() {
         assert!(FrameUsagePage::from_task_ids(ids, next).is_err());
     }
     let mut wrong_entry = encoded["items"][0].clone();
-    wrong_entry["task_id"] = json!(task(9));
+    wrong_entry["taskId"] = json!(task(9));
     assert!(serde_json::from_value::<FrameUsageEntry>(wrong_entry).is_err());
     let mut wrong_page = encoded;
     wrong_page["limit"] = json!(200);

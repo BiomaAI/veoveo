@@ -12,11 +12,73 @@ use surrealdb::types::SurrealValue;
 use veoveo_platform_store::TaskRequestRecord;
 use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{TaskRecord, TaskStatus as StoreTaskStatus};
+mod observation;
+pub use observation::TaskRecoveryStream;
+
 impl TaskRuntime {
+    /// Trusted recovery observation: only physical absence returns `None`.
+    /// A foreign server is rejected in SQL selection before its payload is decoded.
+    /// Public visibility and ordinary `get` selection use their existing APIs.
+    pub async fn get_for_recovery(
+        &self,
+        task_id: veoveo_types::TaskId,
+    ) -> Result<Option<TaskSnapshot>, TaskError> {
+        #[derive(SurrealValue)]
+        struct Observation {
+            server: surrealdb::types::RecordId,
+            snapshot: Option<TaskRecord>,
+        }
+        let task_id = crate::types::validate_task_id(task_id)?;
+        let server = surrealdb::types::RecordId::new("mcp_server", self.server().to_owned());
+        let mut response = self
+            .platform_store()
+            .client()
+            .query(include_str!("../queries/recovery/current.surql"))
+            .bind(("task", task_record_id(task_id)))
+            .bind(("server", server.clone()))
+            .await?
+            .check()?;
+        let observations: Vec<Observation> = response.take(0)?;
+        let Some(observation) = observations.into_iter().next() else {
+            return Ok(None);
+        };
+        if observation.server != server {
+            return Err(TaskError::WrongServer(task_id.to_string()));
+        }
+        let record = observation.snapshot.ok_or_else(|| {
+            TaskError::InvalidRecord("recovery observation omitted owned Task".into())
+        })?;
+        let snapshot = record_to_snapshot(record)?;
+        self.check_contribution(&snapshot.task_type)?;
+        Ok(Some(snapshot))
+    }
+
     pub async fn recover(&self) -> Result<RecoveryReport, TaskError> {
         self.check_required_contributions()?;
+        let mut response = self
+            .platform_store()
+            .client()
+            .query(include_str!("../queries/recovery/one_shot.surql"))
+            .bind((
+                "server",
+                surrealdb::types::RecordId::new("mcp_server", self.server().to_owned()),
+            ))
+            .bind(("now", Utc::now()))
+            .await?
+            .check()?;
+        let records: Vec<TaskRecord> = response.take(0)?;
+        let tasks = records
+            .into_iter()
+            .map(record_to_snapshot)
+            .collect::<Result<_, _>>()?;
+        self.recover_selected(tasks).await
+    }
+
+    async fn recover_selected(
+        &self,
+        tasks: Vec<TaskSnapshot>,
+    ) -> Result<RecoveryReport, TaskError> {
         let mut report = RecoveryReport::default();
-        let tasks = self.list().await?;
         for task in tasks {
             self.check_contribution(&task.task_type)?;
             if task
@@ -158,8 +220,18 @@ impl TaskRuntime {
             ));
         let mut response = contribution
             .bind(query, task.task_id, &task.task_type, task.created_at)
-            .await?
-            .check()?;
+            .await?;
+        if let Some(error) =
+            veoveo_platform_store::primary_transaction_error(response.take_errors())
+        {
+            if matches!(
+                error.query_details(),
+                Some(surrealdb::types::QueryError::TransactionConflict)
+            ) {
+                return Err(TaskError::Conflict(task.task_id.to_string()));
+            }
+            return Err(error.into());
+        }
         let updated: Option<TaskRecord> = response.take(3)?;
         let snapshot = updated
             .map(record_to_snapshot)

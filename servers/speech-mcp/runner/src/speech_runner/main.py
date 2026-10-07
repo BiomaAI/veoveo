@@ -8,7 +8,8 @@ import os
 from pathlib import Path
 import struct
 
-from .protocol import MAX_FRAME_BYTES, MODEL, PROTOCOL, REVISION, Request, encode, transcript
+from .cache_model import MODEL, REVISION, verified_checkpoint
+from .protocol import MAX_FRAME_BYTES, PROTOCOL, Request, encode, provider_transcript
 
 
 class Worker:
@@ -90,10 +91,10 @@ class Worker:
             try:
                 async for update in updates:
                     await self.emit(writer, {"kind": "transcript", "complete": False,
-                        "transcript": transcript(update, request.max_duration_seconds)})
+                        "transcript": provider_transcript(update, request.max_duration_seconds)})
                 result = await updates.aresult()
                 await self.emit(writer, {"kind": "transcript", "complete": True,
-                    "transcript": transcript(result, request.max_duration_seconds)})
+                    "transcript": provider_transcript(result, request.max_duration_seconds)})
             finally:
                 await updates.aclose()
 
@@ -145,15 +146,16 @@ async def serve(args):
     import numpy as np
     import torch
     import moondream as md
-    from kestrel.models.parakeet_tdt.weights import ULTRA_REVISION
-    if not torch.cuda.is_available() or ULTRA_REVISION != REVISION:
-        raise RuntimeError("qualified CUDA runtime and model revision required")
+    if not torch.cuda.is_available():
+        raise RuntimeError("qualified CUDA runtime required")
     work = args.work_dir.resolve(strict=True)
     socket = args.socket.absolute()
     if socket.exists() or not socket.parent.resolve().is_relative_to(work):
         raise ValueError("socket must be new and inside the private workspace")
+    checkpoint = verified_checkpoint(local_files_only=True)
     os.umask(0o077)
-    with md.photon(MODEL, device="cuda", single_pass_batch_capacity=args.capacity) as model:
+    with md.photon(MODEL, device="cuda", model_path=checkpoint,
+                   single_pass_batch_capacity=args.capacity) as model:
         # Warm up actual acoustic inference before opening the readiness boundary.
         model.transcribe(audio=np.zeros(1600, dtype=np.float32), sample_rate=16000)
         torch.cuda.synchronize()

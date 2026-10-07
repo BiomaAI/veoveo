@@ -62,7 +62,7 @@ export function useConsoleLiveStream(cursor: string | undefined, reconcileUpload
         } catch { /* Rejected events leave the snapshot unchanged. */ }
       });
     }
-    source.addEventListener("access_request", (event) => {
+    source.addEventListener("accessRequest", (event) => {
       try {
         parseConsole("accessRequestEvent", JSON.parse((event as MessageEvent<string>).data));
         void client.invalidateQueries({ queryKey: queryKeys.accessRequests });
@@ -71,7 +71,7 @@ export function useConsoleLiveStream(cursor: string | undefined, reconcileUpload
     source.addEventListener("artifact_upload", (event) => {
       try {
         const notification = uploadNotificationSchema.safeParse(JSON.parse((event as MessageEvent<string>).data));
-        if (notification.success) reconcileUploads?.(notification.data.upload_id);
+        if (notification.success) reconcileUploads?.(notification.data.uploadId);
       } catch { /* A malformed event cannot establish an upload receipt. */ }
     });
     source.addEventListener("reset", (event) => {

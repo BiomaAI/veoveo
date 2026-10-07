@@ -59,7 +59,9 @@ installed source conformance.
 
 ## Contract Compliance
 
-Target contract revision: `veoveo.ai/hosted-mcp/v3`.
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met — the shared hosted checker qualifies the native HTTP surface; domain HTTP checks cover tools, resources, completion and subscriptions. C31 tracks installed qualification.
 - C02: met — direct tools declare generated input and output schemas.
@@ -93,3 +95,5 @@ Target contract revision: `veoveo.ai/hosted-mcp/v3`.
 - C30: met — source consumers reuse the gateway's shared upstream transport.
 - C31: pending — installed discovery and readiness qualification for the completed catalog surface.
 - C32: pending — installed K01–K10 qualification for `knowledge.docs`.
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

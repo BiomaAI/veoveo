@@ -382,46 +382,46 @@ async fn matching_retained_documents_must_agree_with_selection_fields() {
         let at = Utc::now();
         let families = BTreeSet::from([MapFamily::RoadStreet]);
         for (n, (target, field, value)) in [
-            ("source", "source_id", serde_json::json!(key("source", 999))),
+            ("source", "sourceId", serde_json::json!(key("source", 999))),
             (
                 "source",
-                "dataset_id",
+                "datasetId",
                 serde_json::json!(key("dataset", 999)),
             ),
             ("source", "enabled", serde_json::json!(false)),
             (
                 "source",
-                "map_families",
+                "mapFamilies",
                 serde_json::json!(["rail_transit"]),
             ),
-            ("source", "record_version", serde_json::json!(2)),
+            ("source", "recordVersion", serde_json::json!(2)),
             (
                 "release",
-                "release_id",
+                "releaseId",
                 serde_json::json!(key("release", 999)),
             ),
             (
                 "release",
-                "source_id",
+                "sourceId",
                 serde_json::json!(key("source", 999)),
             ),
             (
                 "release",
-                "dataset_id",
+                "datasetId",
                 serde_json::json!(key("dataset", 999)),
             ),
             ("release", "state", serde_json::json!("quarantined")),
             (
                 "release",
-                "valid_from",
+                "validFrom",
                 serde_json::json!("2000-01-01T00:00:00Z"),
             ),
             (
                 "release",
-                "valid_until",
+                "validUntil",
                 serde_json::json!("2100-01-01T00:00:00Z"),
             ),
-            ("release", "record_version", serde_json::json!(3)),
+            ("release", "recordVersion", serde_json::json!(3)),
         ]
         .into_iter()
         .enumerate()

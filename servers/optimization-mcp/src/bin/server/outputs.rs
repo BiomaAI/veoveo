@@ -348,8 +348,8 @@ async fn record_usage(
             recorded_at: now_utc(),
             metadata: OpenObject::new(BTreeMap::from([
                 ("family".into(), json!(problem.record.family)),
-                ("problem_id".into(), json!(problem.record.problem_id)),
-                ("solution_id".into(), json!(solution.solution_id)),
+                ("problemId".into(), json!(problem.record.problem_id)),
+                ("solutionId".into(), json!(solution.solution_id)),
                 ("verified".into(), json!(solution.verification.verified)),
                 ("feasibility".into(), json!(solution.feasibility)),
                 ("termination".into(), json!(solution.termination)),
@@ -422,6 +422,6 @@ mod terminal_status_tests {
             "independent verification completed; verified: false; findings: 2"
         );
         assert!(!status.contains("://"));
-        assert!(!status.contains("result_uri"));
+        assert!(!status.contains("resultUri"));
     }
 }

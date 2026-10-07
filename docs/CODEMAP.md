@@ -83,7 +83,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/audit/DESIGN.md`](../platform/audit/DESIGN.md) | unified audit writer implementation, group acknowledgements, persisted indexing windows and retry receipts, transaction append and integrity services; foundations qualification in progress |
 | [`platform/audit/measurements/2026-09-30.md`](../platform/audit/measurements/2026-09-30.md) | paired native audit timings, batching selection, raw samples and limits of the development measurement |
 | [`platform/audit/src/export/DESIGN.md`](../platform/audit/src/export/DESIGN.md) | typed OCSF mapping, S3/OTLP completion and recovery, persisted delivery receipts and export-gated retention |
-| [`platform/audit/contract/DESIGN.md`](../platform/audit/contract/DESIGN.md) | protocol-independent checked audit records, closed details, typed identities and partition-scoped reads; `src/knowledge.rs` admits source observations without external navigation URLs |
+| [`platform/audit/contract/DESIGN.md`](../platform/audit/contract/DESIGN.md) | protocol-independent checked audit records, closed details, typed identities and partition-scoped reads; `src/knowledge.rs` admits source observations without external navigation URLs, and `src/knowledge/frozen_access.rs` owns the audit access wire vocabulary |
 | [`platform/modules/DESIGN.md`](../platform/modules/DESIGN.md) | dependency-free checked module ownership declarations and installation identities, generated composition plans, and optional SurrealQL admission/native lane execution |
 | [`platform/store/src/changefeed/DESIGN.md`](../platform/store/src/changefeed/DESIGN.md) | checked owner observation declarations, LIVE invalidation, complete transaction replay and consumer checkpoints |
 | [`platform/recordings/store/DESIGN.md`](../platform/recordings/store/DESIGN.md) | Recording-owned schema, identities, repository queries, grants, ingest and projection receipts over shared Store connections |
@@ -107,6 +107,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | shared hardware-GPU Isaac Sim and Isaac Lab runtime, pinned dependency profile, and conformance probes |
 | [`platform/runtimes/embedding/DESIGN.md`](../platform/runtimes/embedding/DESIGN.md) | shared vLLM GPU embedding runtime, typed HTTP client, checkpoint verification, namespace access, priorities and model selection; hardware qualification in progress |
 | [`platform/runtimes/embedding/client/DESIGN.md`](../platform/runtimes/embedding/client/DESIGN.md) | qualified-runtime vLLM adapter, model-name discovery, Qwen query formatting, shared request limits, deadlines and vector validation; verification-only candidate transport shares those mechanics without production publication |
+| `platform/runtimes/embedding/verification/capture.py` | typed candidate-capture admission before model loading: current peer fields, selected member/vector relationships and a 512 MiB input limit; original capture bytes supply the report digest |
 | `platform/runtimes/embedding/verification/` and `client/tests/gpu.rs` | CUDA reference-vector generation, checkpoint manifests, native runtime comparison and scheduling acceptance; [retrieval measurements](../platform/runtimes/embedding/verification/retrieval-2026-10-02.md) retain model selection and its corpus limits; Helm ownership checks live in `testing/deployment-smoke/tests/embedding_helm.rs` |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and data import/export |
 | [`platform/frames/contract/DESIGN.md`](../platform/frames/contract/DESIGN.md) | lightweight public Frames types and URI builders shared below Frames and Recording runtimes |
@@ -184,7 +185,7 @@ designs above.
 | `configs/stream/` | admitted GStreamer graph, typed profile, TensorRT model, and live-ingress catalog example |
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
-| `deploy/contract/` | multi-source deployment v7 profiles and locks, component ownership, platform-image and managed DRA closure, rendered Secret-reference closure, split source/installation Helm values, registry transport, physical-GPU topology, publication collision preflight, schema generation, and side-effect-free validation |
+| `deploy/contract/` | multi-source deployment profiles and locks, component ownership, platform-image and managed DRA closure, rendered Secret-reference closure, split source/installation Helm values, registry transport, physical-GPU topology, publication collision preflight, schema generation, and side-effect-free validation |
 | `deploy/contract/src/components/` | component ownership catalog, provenance and deployable-content digests, dependency expansion, side-effect-free mutation planning, and the receipts the component-selected installer consumes |
 | `deploy/contract/src/components/bindings.rs` | full-catalog profile permissions and source/image/chart binding checks, including retained unselected inventories |
 | `deploy/contract/tests/fixtures/` and `tests/support/lock.rs` | explicitly synthetic deployment locks for schema and development-image transformation checks; real installation locks are generated outputs |
@@ -257,12 +258,13 @@ designs above.
 | [`platform/gateway/composition/src/bin/gateway/console/`](../platform/gateway/composition/src/bin/gateway/console/DESIGN.md) | authenticated session bootstrap that does not depend on administrator inventory, navigation permissions, and shared branding and identity display |
 | [`apps/console/bff/src/bootstrap/`](../apps/console/bff/src/bootstrap/DESIGN.md) | fixed-profile, cookie-authenticated Console session routes with typed responses and token refresh |
 | [`apps/console/bff/src/workspace/`](../apps/console/bff/src/workspace/DESIGN.md) | shared browser edge for Workspace: typed chat routes, cookie credentials, CSRF, event streams and static assets |
-| `platform/gateway/contract/` | authenticated Console bootstrap and health/route/transport values, lightweight App declarations, discovery failures, kernel action vocabulary, catalog action/target/section registration, projected tool names, authorization-resource identities and HTTP/TLS configuration; owner contracts, browser contracts and MCP adapters import this owner directly |
+| `platform/gateway/contract/` | authenticated Console bootstrap and health/route/transport values, lightweight App declarations, discovery failures and degradation, kernel action vocabulary, catalog action/target/section registration, projected tool names, authorization-resource identities and HTTP/TLS configuration; owner contracts, browser contracts and MCP adapters import this owner directly |
 | `platform/task-runtime/contract/` | pure Task status/recovery vocabularies; optional native SDK hook selected by Store; runtime recovery uses the same owner values |
 | [`platform/task-runtime/contract/DESIGN.md`](../platform/task-runtime/contract/DESIGN.md) | Task lifecycle declaration order, wire/native profiles and dependency-light consumer contract |
 | `apps/console/bff/src/contract/installation.rs` and `events.rs` | nineteen installation snapshot records, checked browser byte length, typed grant subjects and entity-specific SSE/reset/access-request profiles |
 | `platform/gateway/contract/src/console.rs` and `presentation.rs` | authenticated Console bootstrap, installation/session identity and Gateway health/transport/HTTP purpose vocabularies |
 | `platform/gateway/contract/src/oauth.rs` | admitted OAuth request/code identities, PKCE values and client display names shared by Gateway, MCP adapters and native Store records |
+| `platform/gateway/contract/src/discovery.rs` and `mcp/contract/src/catalog.rs` | Gateway owns transport-independent catalog failure/degradation values; MCP owns their metadata conversion trait |
 | `platform/gateway/catalog/` | installation catalog registration recipe using owner contract features; runtime libraries receive the resulting registry explicitly |
 | [`tools/xtask/src/commands/client_types/`](../tools/xtask/src/commands/client_types/DESIGN.md) | owner-schema export and pinned TypeScript conversion, including agent control, Artifact transfer, Recording playback, App catalog and cluster inventory; `release client-types --check` detects generated-model drift |
 | `apps/console/web/tools/client-types.mjs`, `client-types.test.mjs` | TypeScript rendering of closed and boolean schemas with a generated-code compiler regression |
@@ -283,6 +285,7 @@ designs above.
 | `apps/console/bff/src/mcp_client/resources.rs` | shared App/native resource subscriptions, acknowledgment, capacity limits, cancellation cleanup and source-loss retirement |
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection and access inventory/revocation schemas, and terminal controls shared by the Console and MCP surfaces |
 | `platform/computers/contract/src/value_admission.rs` | portable grant-name and permission checks shared by public contract decoding, native hydration and service admission |
+| `platform/computers/contract/src/terminal_version.rs` | admitted numeric terminal profile shared by typed controls, their decoders and generated schema |
 | `platform/computers/src/task_references.rs` and `platform/computers/queries/` | closed domain Task payloads shared by admission and workers; SQL admission for private journal, retry-receipt and Task-link recovery reads |
 | `platform/computers/contract/src/ids.rs`, `resources.rs`, `scopes.rs` | distinct resource, request and provider IDs; checked template names in `template_id.rs`; the complete resource vocabulary and builders; the empty domain scope vocabulary exposed by the MCP library |
 | `servers/computers-mcp/src/protocol/setup.rs` | checked hosted capabilities, fixed discovery, templates and embedded documents composed from the Computers public contract |
@@ -358,24 +361,28 @@ designs above.
 | `testing/deployment-smoke/src/module_installation/managed/` | real gateway, manager and idle kernel fixture; production authoring setup, typed workload watches, database lease recovery, retained identity and volume content, and zero-episode checks through teardown |
 | `testing/deployment-smoke/src/helm_config/object_store.rs` | bundled RustFS worker configuration, schema rejection and separate process liveness/storage readiness probes |
 | `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation, mandatory Console and standalone App host preflights, and live-view recovery checks across container restarts |
-| `testing/browser-smoke/src/browser/artifact_upload.rs` | public Console upload preflight and real large-file selection, pause/reload/reselection, navigation, durable receipt, and hardware-browser evidence |
-| `testing/browser-smoke/src/browser/artifact_upload/resume.rs` | continuation of an interrupted large-upload acceptance fixture with the same upload identity, independent SHA-256, and public HEAD/Range checks |
-| `testing/browser-smoke/src/browser/artifact_upload/ux.rs` | installed upload keyboard/clipboard actions, receipt recovery behind filters, narrow/desktop transfer/error states, and acknowledged cancellation |
+| `examples/bioma/acceptance/src/browser/browser/artifact_upload.rs` | public Console upload preflight and real large-file selection, pause/reload/reselection, navigation, durable receipt, and hardware-browser evidence |
+| `examples/bioma/acceptance/src/browser/browser/artifact_upload/resume.rs` | continuation of an interrupted large-upload acceptance fixture with the same upload identity, independent SHA-256, and public HEAD/Range checks |
+| `examples/bioma/acceptance/src/browser/browser/artifact_upload/ux.rs` | installed upload keyboard/clipboard actions, receipt recovery behind filters, narrow/desktop transfer/error states, and acknowledged cancellation |
 | `platform/gateway/composition/src/bin/gateway/admin/console/artifact.rs` | direct artifact detail lookup outside the latest catalog window |
 | `deploy/helm/common/` | internal labels, image pins, security and GPU helpers bundled into application charts |
-| `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
+| [`deploy/offline/`](../deploy/offline/DESIGN.md) | pinned image manifest, bundle builder/loader, offline values and current-format admission |
+| `deploy/offline/admission.jq` | shared lock and bundle revision-2 decoding, closed nested image declarations and complete selected image-reference agreement before runtime import or destination writes |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
+| `showcase/sumo/sumo-mcp/src/server/docs.rs`, `AGENTS.md`, `DESIGN.md`, `contract-compliance.json` | embedded owner profile and documentation, authenticated MCP well-known reads and administrative projections using the existing SUMO identity middleware |
 | `showcase/uav-sim/` | Google 3D Tiles UAV simulation showcase over Isaac, Cesium, Newton, Warp, and PX4 |
 | `examples/bioma/` | executable enterprise GitOps reference with Bioma-owned desired state |
 | `examples/bioma/platform/flux/` | pinned Flux controller fixture for the local Bioma cluster; it is installed before the installation's desired state, and Veoveo's runtime does not own it |
 | `examples/bioma/gitops/` | Flux Git source, OCI chart sources, platform and workload Helm releases, and installation-owned edge resources |
 | `examples/bioma/gateway.json` | the reference installation's complete control plane: 16-server MCP catalog, OAuth clients, policy rules, and routes |
 | [`examples/bioma/acceptance/`](../examples/bioma/acceptance/DESIGN.md) | owner-local compiled composition checks; `tests/record_restore.rs` and `tests/queries/record_restore/` qualify bound record insertion and atomic restoration |
+| `examples/bioma/acceptance/src/reports/artifact_upload.rs` | smoke-gated complete browser upload report shared by browser and installation binaries, canonical Artifact receipt admission, selected occurrence/URI agreement and declared hardware identity |
+| `agents/manager/src/tests/installation_capture.rs` | actual Manager and UAV chart wiring capture, complete nonsecret ConfigMap/template/model inputs and typed revision comparisons; production installation pins require the selected composition |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | Python server template (`datasheet`) |
 | `templates/rust-mcp/` | Rust server template (`glossary`): a library with isolated `contract` and `runtime` features, and a binary built on `veoveo_mcp_contract::hosting` with in-process gateway tests |
 | `testing/fixtures/chart-library-consumer/` | anonymous cross-release Helm library acceptance fixture |
-| `testing/fixtures/platform-selection/` | anonymous deployment v5 platform selection and Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
+| `testing/fixtures/platform-selection/` | anonymous deployment v5 platform selection and Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance; `gpu_scheduling.rs` supplies the typed Full-selection topology for native chart tests, without installing an allocator or qualifying hardware |
 | `testing/fixtures/fork-workload/` | in-repository Python simulation protocol fixture with typed camera and render-product declarations; it is not visual GPU evidence |
 | `testing/fixtures/fork-installation/` | local fork workload selection, complete gateway configuration and protocol-only deployment closure |
 | `testing/fixtures/catalog-installation/` | disposable Recording catalog installation with a separate HTTPS origin, tenant and machine-client keys for native SDK acceptance |
@@ -390,6 +397,7 @@ designs above.
 | `tools/xtask/src/commands/image/browser_compilation_tests.rs` | real Bake and Cargo planning regression for a stable browser compiler action across standalone and platform selections |
 | `tools/xtask/src/commands/identifiers.rs` | tracked-text identifier namespace enforcement with section-scoped migration documentation exceptions |
 | `tools/xtask/src/commands/macro_policy.rs` | Maintained Rust syntax traversal and exact six-entry macro catalog; `enforce rust --macros-only` shares the default Rust gate and the [macro design](../platform/macros/DESIGN.md#macro-catalog-and-enforcement) |
+| [`tools/xtask/src/commands/contract_docs.rs`](../tools/xtask/src/commands/contract_docs/DESIGN.md) | package discovery reconciled with Rust document selections, checked profile/manual projection and identical catalog/schema plus versioned coverage export; `release contract-docs --check` detects drift |
 | `tools/xtask/` | compiled repository command, enforcement, typed smoke prerequisite builds and dispatch, image planning, profile-registry builder configuration, and release orchestration |
 
 ## Placement Rules
@@ -492,6 +500,7 @@ and server library features.
 `src/https_url.rs` owns canonical network URL parsing and redacted diagnostics; download
 policies own DNS and access checks.
 `src/vocabulary.rs` owns the public closed-spelling trait and scope-token/schema helpers.
+`src/chrono_timestamp.rs` owns the explicitly selected, schema-only `ChronoUtcTimestampSchema` carrier for Chrono UTC JSON timestamps; Artifact and Recording playback reuse it without changing runtime DateTime or frozen profiles.
 `src/naming.rs` owns the protocol-independent naming profiles, explicit schema context
 and local classification. `src/naming/dictionary.rs` checks captured key and map schemas
 against existing generator definitions without applying generator transforms.
@@ -517,7 +526,10 @@ owns explicit required/optional field serialization for declared bare-hex profil
 data-label, and policy-version types. `src/provenance.rs` owns invocation attribution.
 `src/authority.rs` owns capability levels, Work Context membership levels, resolved
 invocation authority and output policies. MCP retains Work Context configuration,
-principal membership matching and access decisions.
+principal membership matching and access decisions. Its `configuration` feature
+exports the existing control-plane and Work Context models with registry validation
+for installed clients; `declaration` remains the smaller document/profile surface.
+Hosted services select `runtime`, which includes configuration.
 `src/task_type.rs` owns validated operation names, the open `TaskTypeDefinition` trait
 and the `Vocabulary` derive's `task_type` hook. Server contract libraries
 own their enums in `contract/task_kind.rs`; Speech uses its separate contract crate,
@@ -579,7 +591,9 @@ Each domain owns its tool schemas and pure wire models in its library.
 | `access.rs` | artifact access levels, grants and decision composition using foundational subjects and Artifact-plane identities |
 | `artifact_service.rs` | verified Artifact callers and read authority, live policy and transport errors, and the async plane interface; pure wire values belong to the Artifact contract |
 | `internal_auth/upload.rs` | dedicated signed upload assertions bound to the checked control-plane and Work Context |
-| `docs.rs` | build-embedded server documents, once-built revision/compliance declarations, compliance parsing, and llms.txt rendering; observed capabilities come from Discover and list methods |
+| `docs.rs` | build-embedded server documents, admitted owner profile/manual agreement, once-built complete declarations and llms.txt rendering; observed capabilities come from Discover and list methods |
+| `docs/catalog.rs`, `docs/profile.rs` and `catalog/` | closed C01–C33 metadata, immutable complete revision-bound owner profiles, exact manual rendering and generated language-neutral catalog/schema exports |
+| `testdata/compliance-*.json` and `testdata/compliance-*.md` | shared profile admission and complete generated manual fixtures, including conditional knowledge applicability |
 | `docs/knowledge.rs` | docs collection declaration, typed index pages and authenticated ordinary/conditional document reads shared by hosted servers |
 | `server_contract.rs` | open MCP associations for server-owned scopes and resources; typed concrete and RFC 6570 template descriptors, document checks and discovery setup consumed by hosted handlers |
 | `uri.rs` | hosted-server resource URI construction and shared one-segment document URI parsing |
@@ -670,6 +684,8 @@ Domain runtimes can own private queries and driver records over these connection
 | `platform/recordings/store/src/recording_catalog.rs` | recording datasets and layers, expiry, and cleanup |
 | `platform/recordings/store/src/recording_catalog/access.rs` and `platform/recordings/store/src/recording_catalog/grants.rs` | shared typed caller authority, checked grant selections, transactional creation, SQL reuse and Redap class admission |
 | `platform/recordings/store/src/recording_catalog/projections.rs` | typed projection requests, transactional reservation and state transitions, and SQL download admission over caller authority, source visibility and grant relationships |
+| `platform/recordings/store/src/manifest_publication.rs` and `src/schema/migrations/0001_manifest_publication.surql` | immutable manifest publication intent before Artifact transport, original source epochs and publisher context, checked body/descriptor recovery, and the Recording-owned table prerequisite |
+| `platform/recordings/store/src/properties_preparation.rs` | complete checked properties preimage in its native layer journal before file effects, preserving original seal time and source epoch through Writing and Staged recovery |
 | `administration.rs` | explicit database-scoped runtime credential administration; connection startup applies no schema |
 | `identity.rs`, `queries/identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
 | `schema/identity.rs`, `schema/identity/migrations/` | Identity-owned SQL exports for admission, principal summaries, directory facts, context snapshots, OAuth collisions and service-principal creation inside caller transactions; retained tenant matching supports worker recovery after revocation |
@@ -685,6 +701,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `artifact_uploads/parts.rs` and its SurrealQL statements | immutable part descriptors, generation-fenced receipts, shared transfer budgets, and unknown-length reservation windows |
 | `artifact_uploads/lifecycle.rs` and `artifact_uploads/publication.rs` | fenced initialization/finalization, manifest freeze, atomic occurrence and receipt publication, cancellation, and retained cleanup accounting |
 | `schema/artifacts/migrations/0000_current.surql` | durable upload/part state, storage accounting, and repository-owned current-authority digest functions |
+| `schema/artifacts/migrations/0001_request_format.surql` | required current Artifact write-request format in retained reservation/redemption state; receiving transactions admit it before rebind and finalization |
 | `artifact_reads.rs`, `artifact_reads/` | task-bound read delegation, current policy identity, and atomic distinct-occurrence quotas; specified in the Artifact service design |
 | `servers/map-mcp/src/persistence/map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
 | `servers/map-mcp/src/persistence/map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, a domain commit counter, heads and publications |
@@ -734,6 +751,7 @@ observation lease and cancellation epoch in one transaction.
 | File | Responsibility |
 |---|---|
 | `types.rs` | runtime configuration, recovery classes, pins, claims, outcomes |
+| `src/recovery.rs`, `src/recovery/observation.rs`, `queries/recovery/` | one-shot recovery and finite startup lease observation through shared native wakes, deadline timers and current SQL admission |
 | `../types/src/task.rs` and `../store/src/task_ids.rs` | foundational native Task identity and explicit Store record conversion |
 | [`DESIGN.md`](../platform/task-runtime/DESIGN.md) | durable Task and recovery-class contract, provider observation, migration and rollback |
 | `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune; native APIs carry foundational Task IDs and admit RFC UUIDv7 before Store access |
@@ -853,7 +871,7 @@ transport-facing service interface live in `mcp/contract`.
 | `src/uri.rs` | typed neutral and server-presented addresses and construction |
 | `src/metadata.rs` and `src/snapshot.rs` | public metadata, checked metadata and read-access snapshots |
 | `src/provenance.rs` | foundational invocation attribution mapped to Artifact's flat wire profile |
-| `src/capabilities.rs` | typed task-bound capability requests, issuance results and redacted bearer values |
+| `src/capabilities.rs` | typed task-bound capability requests, issuance results, redacted bearer values and the admitted write-request hash format |
 | `src/plane.rs` | control-plane and streaming wire descriptors |
 | `src/access_requests.rs` | mutable access-request progress with shared state, actor and timestamp checks |
 | `src/upload.rs` and `src/upload/policy.rs` | resumable upload identities, descriptors, receipts, notifications, errors, quotas and multipart admission |
@@ -883,6 +901,7 @@ plane and task-read delegation.
 | `http/disposition.rs` | occurrence-owned UTF-8 download filenames for full, range and HEAD responses |
 | `http/uploads.rs` | upload assertion verification, size-limited control bodies, and streamed part transport |
 | `config.rs` | fail-closed store/database/audience configuration |
+| `startup.rs` | typed installation identity and read-only preparation/history admission for Artifact, audit and Task lanes before object-store effects, recovery and HTTP binding |
 
 ### `platform/artifacts/client`
 
@@ -942,8 +961,10 @@ Current MCP crates under `servers/` are indexed here:
 | `platform/frames/contract/src/tree.rs` and `metadata.rs` | complete-tree admission and hashing, immutable revision construction, checked world heads and source identities shared by producers and consumers |
 | `platform/frames/contract/src/streams.rs` | typed concrete producer references and bounded entity selectors for dynamic frame transforms; producer route ownership stays outside Frames |
 | `servers/frames-mcp/src/contract/resources.rs`, `scopes.rs`, `src/uris.rs` | server-owned resource vocabulary, empty domain scope declaration and fixed templates available without hosted features |
-| `servers/frames-mcp/src/state/worlds.rs`, `state/worlds/`, and `state/records.rs` | typed world mutations, private driver records, transactional owner/label/head checks, immutable publication and replay; Store owns connections and schemas |
+| `servers/frames-mcp/src/state/worlds.rs`, `state/worlds/`, and `state/records.rs` | typed world mutations, private driver records, transactional owner/label/head checks, immutable publication and replay; Store supplies connections |
 | `servers/frames-mcp/src/state/storage_codec.rs` | world-tree and operation-provenance driver adapters, strict native JSON admission and retained identity/address agreement |
+| `servers/frames-mcp/src/schema.rs` and `src/schema/migrations/` | Frames-owned tables and append-only migrations; stored public tree fields follow the owner wire model, while native operation projections keep their database profile |
+| `servers/frames-mcp/src/startup.rs` and `startup_tests.rs` | read-only module-plan, preparation, account and compiled-history admission before Task recovery or HTTP binding, with owning native refusal controls |
 | `platform/frames/contract/src/catalog.rs` | typed world-page cursor, collection response, and query-address construction |
 | `platform/frames/contract/src/usage.rs` | native Task usage addresses, typed collection cursors, and checked page/entry construction without runtime dependencies |
 | `servers/frames-mcp/src/state/reads.rs` | typed world/revision/frame queries; SQL tenant and label visibility, linked-parent integrity, and consistent head selection through the shared Store connection |
@@ -953,16 +974,19 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/map-mcp/src/contract/geodetic_ids.rs` | CRS, datum, and ellipsoid IDs shared through Map's contract feature |
 | `servers/frames-mcp/src/bin/server/subscriptions.rs` | mutable world and usage admission, shared Store LIVE observation, and shutdown of the resource observer |
 | `servers/map-mcp` | Earth geography, feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, logistics routing, and immutable cuOpt travel models |
+| `servers/map-mcp/src/contract/catalog_summaries.rs` and `product_uri.rs` | portable route/matrix catalog summaries, immutable checked ID/address relationships and nominal product URI builders; runtime catalog readers construct these owner values |
 | `servers/knowledge-mcp/src/composition.rs` | selects the explicit static or Agent-owned authority adapter from admitted plan lanes after read-only Modules prerequisite validation |
 | `servers/media-mcp` | webhook-completed provider media work and artifact outputs |
 | `servers/speech-mcp/src/dictation/audit.rs` | private dictation open, denial and terminal counts with verified request attribution |
 | `servers/speech-mcp/contract/src/identity.rs`, `resources.rs`, `dictation.rs` | distinct transcription/dictation identities, typed resource families and checked receipt identity shared by Speech, Gateway and Console |
 | `servers/speech-mcp/src/server/setup.rs`, `mcp.rs` | checked hosted declarations and typed resource read/subscription admission; application code owns source/session authorization |
 | `servers/speech-mcp/src/server/tool_input_tests.rs`, `tests/support/context.rs` | hosted argument admission and transcript listener delivery/cancellation controls, with the Work Context fixture shared by the owning native Task tests |
+| `servers/speech-mcp/runner/src/speech_runner/cache_model.py`, `main.py` | immutable checkpoint identity and three-file integrity admission shared by build caching and offline runtime; verified model directory supplied to the released Photon CUDA loader before warmup and socket readiness |
 | `servers/optimization-mcp` | typed cuOpt routing and route-scenario problems, convex and MILP models, GPU execution, independent verification, and immutable problem/run/solution records |
 | `servers/stream-mcp` | isolated `contract` feature for replay and live-session models; `runtime` and `mcp` enable admitted GStreamer execution, encoded preview, and the Stream MCP App |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/reason-mcp/src/bin/server/index.rs` | Store-backed analysis pages, versioned cursors and bounded identity completions |
+| `servers/reason-mcp/src/schema.rs` and `src/schema/migrations/` | Reason-owned lookup schema and append-only history; nested checked documents follow the public JSON profile while physical owner columns keep their database names |
 | `servers/recording-mcp` | recording catalog, queries, subscriptions, and sealing |
 | `servers/recording-mcp/src/service/views.rs` | fallible Store-to-domain catalog, layer and seal metadata admission using Artifact owner types |
 | `servers/recording-mcp/src/service/index.rs`, `servers/recording-mcp/src/index.rs` | authorized catalog pages and completion, with versioned cursors and SQL layer counts |
@@ -975,6 +999,8 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp/src/usage.rs` | Timeseries usage pages and exact reads through TaskRuntime's SQL owner policy before grouping and limits |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
+| `servers/view-mcp/src/server/recovery.rs` | hosted deferred-recovery lifetime, cancellation/drain and error propagation; capture admission and scheduling stay in `server/tasks.rs` |
+| `servers/view-mcp/src/renderer` | serial NVIDIA Vulkan/CUDA JPEG ownership, GPU stored-byte RGB packing, pinned generated nvJPEG bindings and native completion deadlines; runtime-only |
 | `servers/uav-sim-mcp/src/server/resources.rs`, `index.rs`, `task_index.rs`, `control_authority/reads.rs`, `bootstrap.rs` | service construction and shutdown, static domain discovery, SQL-scoped pages and completions, direct mission/Task reads, and resource invalidation |
 | `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, principal-to-vehicle grants, Map route admission, exclusive command leases, missions, telemetry, tasks, recording references, simulator-owned logical cameras, one shared tiled GPU product, authenticated H.264 fanout, and the UAV App |
 
@@ -982,7 +1008,8 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 
 | Path | Responsibility |
 |---|---|
-| `servers/chart-mcp/server.mjs` | mounted Streamable HTTP lifecycle, hosted identity, well-known resources, and derived declaration over the pinned upstream chart server |
+| `servers/chart-mcp/server.mjs`, `well-known.mjs` | mounted Streamable HTTP lifecycle, hosted identity and shared authenticated well-known document registration over the pinned upstream chart server |
+| `servers/chart-mcp/compliance.mjs`, `documents.mjs`, `contract-compliance.json` | generated-schema/catalog profile admission, immutable packaged document/manual agreement and complete served declaration |
 | `servers/chart-mcp/internal-auth.mjs` | fail-closed Ed25519 gateway-token verification shared by the chart MCP and admin docs routes |
 
 ### UAV Simulation Integration
@@ -1023,21 +1050,23 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured GPU simulator workload, four identity- and storage-isolated generic pilot workloads, shared H.264 ingress, continuous camera products, versioned persistent cache, typed sensor configuration, and network policy |
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
 | `examples/bioma/uav-sim-values.yaml` | reference camera, product, public gateway origin, and recording tenant binding |
-| `testing/flight-smoke/src/domain.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
-| `testing/flight-smoke/src/domain/world_publication.rs` | Frames publication, readback and typed installation world document with content digest for fresh/reset installations |
-| `testing/flight-smoke/src/domain/route.rs` | Map-owned route requests and current aviation admission before flight, also exposed as the lightweight `uav-route-verify` command |
-| `testing/flight-smoke/src/domain/stream.rs` | typed live Stream reads, preview admission and owned cleanup; `uav-stream-verify` isolates inference acceptance from flight and replay |
-| `testing/flight-smoke/src/domain/readiness.rs` | typed UAV world, terrain, PX4 and camera readiness; transient startup shares one deadline while invalid state fails immediately |
-| `testing/flight-smoke/src/domain/recording.rs` | shared typed live-part Stream replay and grounded Reason assertions; focused recording acceptance without flight commands |
-| `testing/flight-smoke/src/domain/control_grants.rs` | client-only UAV grant page decoding, Map-owned profile references and bounded authority qualification |
-| `testing/flight-smoke/src/domain/showcase.rs` | showcase UAV cameras and products, authenticated Console checkpoints, Rerun playback, and evidence tied to a revision |
-| `testing/browser-smoke/src/browser.rs` | shared headed Chrome attachment, hardware WebGPU-or-WebGL enforcement, opaque-origin App hosting, Map workspace viewport acceptance, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
-| `testing/flight-smoke/src/cli.rs`, `src/domain/` | focused flight CLI, scenario validation, authenticated MCP client, world admission, live Stream assertions, and artifact checks; contains no service implementations |
-| `testing/browser-smoke/src/main.rs` | focused headed-browser commands and versioned evidence manifests for the Map workspace and UAV visual workflows; token requests consume UAV's contract-only scope vocabulary |
-| `testing/browser-smoke/src/source_timeline.rs` | shared focused/composed browser timing: admitted running-source samples, ten-second observation bracketing and interpolation without extrapolation |
-| `testing/browser-smoke/src/restart.rs` | focused same-document native live-view recovery across independent MCP-pod and simulator-container restarts, including proof that MCP replacement leaves the GPU pod unchanged |
-| `testing/browser-smoke/src/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, archive-request rejection, and nonblank Rerun viewport measurement |
-| `testing/browser-smoke/src/browser/frame_content.rs`, `app_video_state.js` | typed luminance observations and spatial contrast checks for live-camera canvas content; dark or bright scenes must contain detail across the image |
+| `examples/bioma/flight/src/domain.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
+| `examples/bioma/flight/src/domain/world_publication.rs` | Frames publication, readback and typed installation world document with content digest for fresh/reset installations |
+| `examples/bioma/flight/src/domain/route.rs` | Map-owned route requests and current aviation admission before flight, also exposed as the lightweight `uav-route-verify` command |
+| `examples/bioma/flight/src/domain/stream.rs` | typed live Stream reads, preview admission and owned cleanup; `uav-stream-verify` isolates inference acceptance from flight and replay |
+| `examples/bioma/flight/src/domain/readiness.rs` | typed UAV world, terrain, PX4 and camera readiness; transient startup shares one deadline while invalid state fails immediately |
+| `examples/bioma/flight/src/domain/recording.rs` | shared typed live-part Stream replay and grounded Reason assertions; focused recording acceptance without flight commands |
+| `examples/bioma/flight/src/domain/control_grants.rs` | client-only UAV grant page decoding, Map-owned profile references and bounded authority qualification |
+| `examples/bioma/flight/src/domain/showcase.rs` | showcase UAV cameras and products, authenticated Console checkpoints, Rerun playback, and evidence tied to a revision |
+| `testing/browser-smoke/src/lib.rs` | shared headed CDP transport, owned target cleanup and hardware WebGPU-or-WebGL admission |
+| `examples/bioma/acceptance/src/browser/browser.rs` | opaque-origin App hosting, Map workspace viewport acceptance, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
+| `examples/bioma/acceptance/src/browser/browser/map_workspace.rs` | Map-owned typed fixture resources and copied query admission for the existing browser HTTP shim; pure receiving controls qualify request behavior, while Map rendering requires its declared HTTPS basemap origin and headed hardware graphics |
+| `examples/bioma/flight/src/cli.rs`, `src/domain/` | focused flight CLI, scenario validation, authenticated MCP client, world admission, live Stream assertions, and artifact checks; contains no service implementations |
+| `examples/bioma/acceptance/src/browser/main.rs` | focused headed-browser commands and versioned evidence manifests for the Map workspace and UAV visual workflows; token requests consume UAV's contract-only scope vocabulary |
+| `examples/bioma/acceptance/src/browser/source_timeline.rs` | shared focused/composed browser timing: the UAV-owned checked `SimulationState` admits running-source samples before ten-second observation bracketing and interpolation without extrapolation |
+| `examples/bioma/acceptance/src/browser/restart.rs` | focused same-document native live-view recovery across independent MCP-pod and simulator-container restarts, including proof that MCP replacement leaves the GPU pod unchanged |
+| `examples/bioma/acceptance/src/browser/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, archive-request rejection, and nonblank Rerun viewport measurement |
+| `examples/bioma/acceptance/src/browser/browser/frame_content.rs`, `app_video_state.js` | typed luminance observations and spatial contrast checks for live-camera canvas content; dark or bright scenes must contain detail across the image |
 
 ### Geospatial Domains
 
@@ -1081,6 +1110,9 @@ Map authoring is split by responsibility. `src/contract/features.rs` owns featur
 types and bounds, while `src/contract/compositions.rs` owns publication products and
 composition contracts. `src/contract/relationships.rs` supplies portable product
 identity, parent and revision checks for immutable admitted models.
+`src/contract/catalog_summaries.rs` owns checked route and matrix summary builders;
+`src/contract/product_uri.rs` supplies their typed addresses. Runtime catalog readers
+construct these public values after SQL selection.
 `src/contract/feature_references.rs` admits generic related-resource references
 with the shared URI parser and Map's allowed schemes and size limits.
 `src/contract/transfers.rs` owns durable import, export, and
@@ -1097,6 +1129,8 @@ DuckDB. `src/mcp/knowledge.rs` owns conditional summary reads. Its native tests 
 through `MapAccessContext`. `src/authoring/pages.rs` executes metadata queries and
 `src/mcp/metadata.rs` dispatches those resources. `src/mcp/resources.rs` owns resource
 read dispatch; `src/mcp/discovery.rs` owns descriptors and templates.
+`src/contract/naming.rs` declares narrow schema roles for standard GeoJSON and CQL2
+scalar vocabularies and owner format tags; surrounding DTO fields stay inspected.
 `src/contract/resources.rs` owns direct Map and authoring addresses plus fixed discovery
 and document identities. `src/mcp/setup.rs` binds these types to checked startup and
 discovery; `src/uris.rs` exposes typed construction and parsing helpers.
@@ -1156,7 +1190,9 @@ committed-head recovery with current owner fixtures.
 
 Immutable acquisition products use a separate analytical path.
 `src/contract/source_products.rs` owns complete source-feature, raster-product,
-query, and derivation contracts. `src/release_products.rs` projects activated
+query, and derivation contracts. Its source-query digest method owns the cursor-cleared
+version-3 preimage and returns a typed SHA-256 value for analytics and contract-only
+consumers. `src/release_products.rs` projects activated
 GeoJSON, GeoJSON Sequence, and raster metadata into DuckDB Spatial.
 `data/src/map_data/adapters/` owns source normalization, while
 `data/src/map_data/raster_ops.py` performs the controlled GDAL derivations.
@@ -1216,7 +1252,7 @@ domain vocabulary.
 
 | Path | Responsibility |
 |---|---|
-| `servers/map-mcp/src/contract/travel_models.rs` | `veoveo.ai/travel-model-artifact/v1` cross-server wire profile, controlled location and vehicle-type IDs, bounds, provenance, and Map record |
+| `servers/map-mcp/src/contract/travel_models.rs` | `veoveo.ai/travel-model-artifact/v2` cross-server wire profile, controlled location and vehicle-type IDs, bounds, provenance, and Map record |
 | `servers/map-mcp/src/contract/travel_model_uri.rs` and `travel_model_page.rs` | Map-owned travel-model addresses, canonical UUIDv5/v7 identities, native Task cursors and typed collection pages shared with Optimization through the contract feature |
 | `servers/map-mcp/src/contract/product_uri.rs` | typed dataset release, source feature, raster, derivation and route addresses shared with View; domain ID admission, parent components and discovery templates |
 | `servers/map-mcp/src/contract/task_product.rs` | retained Map Task product envelopes, with owner-derived canonical addresses and structured output metadata |
@@ -1225,10 +1261,12 @@ domain vocabulary.
 | `servers/map-mcp/src/task_lookup.rs` and `src/schema/migrations/0000_travel_model_task.surql` | Map-owned travel-model Task lookup and transactional creation/terminal contributions; typed product validation follows kernel Task admission |
 | `servers/map-mcp/src/task_lookup/records.rs` | admitted travel-model request and result records preserve original JSON for whole-value integrity comparisons and expose typed owner values |
 | `servers/optimization-mcp/tests/map_travel_model.rs` | cross-server artifact wire compatibility and consumption of Map-owned addresses and collection templates |
-| `servers/map-mcp/src/routes/service.rs` | route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.ai/map-route-handoff/v1` cross-server handoff |
+| `servers/map-mcp/src/routes/service.rs` | route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.ai/map-route-handoff/v2` cross-server handoff |
 | `servers/map-mcp/src/server/tasks.rs` | travel-model publication task, owner visibility, neutral artifact manifest identity, and resource notifications |
 | `servers/optimization-mcp/src/contract/` | isolated contract feature: public solver models, checked usage and collection positions, domain ID admission, typed addresses, exhaustive resource variants, empty domain scope vocabulary and fixed URI declarations |
+| `servers/optimization-mcp/src/contract/map_travel_model.rs` | production admission of Map's owned travel-model exchange into Optimization's model, with selected-resource attestation, typed ID conversion and matrix relationships |
 | `servers/optimization-mcp/src/contract/value_admission.rs` | portable family, dimension, resource and digest relationships checked before compilation and publication; owner hash preimages stay explicit |
+| `servers/optimization-mcp/src/contract/naming.rs` | owner format-tag schema annotations for the problem families and private executor revision; instance validation stays with their typed decoders |
 | `servers/optimization-mcp/src/composition.rs` and `tests/startup.rs` | read-only revisioned installation identity, committed preparation and Optimization/Tasks history gate before recovery and HTTP readiness |
 | `servers/optimization-mcp/src/compiler/` | deterministic conversion into cuOpt routing arrays and sparse mathematical structures |
 | `servers/optimization-mcp/src/verification/` | cuOpt-independent routing feasibility, mathematical feasibility, integrality, and objective checks |
@@ -1246,7 +1284,7 @@ domain vocabulary.
 | `deploy/contract/src/lib.rs` | portable Optimization capability, Optimization image closure, and mandatory `cuopt-executor` GPU scheduling declaration |
 | `deploy/helm/veoveo/definitions/domain-services.yaml` | single Optimization Pod, CPU control container, one-GPU cuOpt sidecar, shared socket, memory-backed shared memory, and persistent workspace |
 | `examples/bioma/images/` | independent platform and UAV image locks, each matching its release’s rendered image closure |
-| `testing/smoke/src/bin/smoke/scenarios/agent_kernel.rs` | full Pilot mission flow through gateway task dispatch, cuOpt MILP execution, independent verification, wake delivery, and durable memory |
+| `examples/bioma/acceptance/src/smoke/scenarios/agent_kernel.rs` | full Pilot mission flow through gateway task dispatch, cuOpt MILP execution, independent verification, wake delivery, and durable memory |
 
 ### Temporal Domain
 
@@ -1294,6 +1332,7 @@ Media-specific ownership:
 | `servers/media-mcp/src/task_results.rs` | Media-owned current MCP completion handoff and authorization/parent checks for Task reads and subscriptions |
 | `servers/media-mcp/src/state/cancellation.rs` | typed cancellation receipt encoding preserves JSON timestamps and provider outcomes at the domain-neutral Tasks journal handoff |
 | `servers/media-mcp/src/state/usage.rs` | ledger writes, retention and paged SQL billing recovery |
+| `servers/media-mcp/src/contract/usage_metadata.rs` | closed Media estimate and billing metadata shared by actual ledger writers and read admission; the generic platform usage metadata contract stays open |
 | `servers/media-mcp/src/bin/server/setup.rs` | checked MCP startup, fixed discovery and typed resource templates |
 | `servers/media-mcp/src/bin/server/resources.rs` and `subscriptions.rs` | owner resource dispatch and SQL-backed subscription admission |
 | `servers/media-mcp/src/provider.rs` | provider-neutral registry/submission adapter |
@@ -1337,7 +1376,7 @@ Simulation runtime ownership:
 | `tools/xtask/src/commands/image/benchmark.rs` | controlled compiler source-edit comparisons, temporary input variants, CPU quota experiments under the shared lease, and compiler-only evidence |
 | `tools/xtask/src/commands/image/cache_benchmark.rs` | fresh Cargo target comparisons against a pinned compiler cache, ordinary artifact identity, and typed cache hit/miss evidence |
 | `tools/xtask/src/commands/image/worker_benchmark.rs` and `tools/image-build/control/src/experiment.rs` | exported compiler-result reuse, same-host worker isolation, source-edit comparisons, and disposable worker cleanup |
-| `testing/smoke/src/bin/smoke/scenarios/simulation.rs` | deployment-lock registry authorization, published environment invariants, local image materialization, GPU certification, and retained transcripts |
+| `examples/bioma/acceptance/src/smoke/scenarios/simulation.rs` | deployment-lock registry authorization, published environment invariants, local image materialization, GPU certification, and retained transcripts |
 
 Simulation live-view ownership:
 
@@ -1462,7 +1501,9 @@ quarantine and restart recovery.
 
 `src/contract.rs` owns the `RecordingVideoSelection`/`IndexRange`/`VideoTimelineKind`
 selection contract; `contract/source_snapshot.rs` owns checked source identity and
-snapshot builders with typed Recording IDs and integrity digests. `src/runtime.rs` owns `VideoSourceLimits`, authorized materialization,
+snapshot builders with typed Recording IDs and integrity digests. Their public JSON
+uses camelCase. The source digest hashes the declared member and source order,
+including the owner's omission of absent optional fields. `src/runtime.rs` owns `VideoSourceLimits`, authorized materialization,
 MP4 remux. Selection decoding uses the Recording owner’s contract-only `RecordingUri`.
 `runtime/source_snapshot.rs` admits private reader facts into the public snapshot
 before extraction, without exposing source paths. Contract-only consumers exclude the reader,
@@ -1508,7 +1549,7 @@ dependencies, forces checked setup and starts the listener.
 | `src/contract/ids.rs`, `cursor.rs`, `resources.rs`, `src/uris.rs` | Stream-owned catalog and execution IDs, typed collection continuations, and resource parsing/building available to contract-only consumers |
 | `src/contract/catalog_views.rs`, `run_view.rs`, `output.rs`, `live/start.rs`, `live/view.rs` | Stream response builders and wire admission for repeated identities, related addresses and parent-bound run products |
 | `src/bin/server/setup.rs` and `setup_tests.rs` | checked Stream MCP declarations, typed catalog descriptors and registration validation |
-| `src/bin/server/resources.rs` | typed Stream resource dispatch; run reads select the authorized Task in SQL |
+| `src/bin/server/resources.rs`, `replay_resource_tests.rs` | typed Stream resource dispatch; run reads select the authorized Task in SQL, and replay reads admit the current body against the selected source, terminal product and actual Artifact through `RunView::check_replay` |
 | `src/bin/server/task_results.rs`, `task_results_tests.rs` | typed tool-product handoffs and current Task result validation after SQL authorization; native cross-instance delivery and reconnect qualification |
 | `src/schema.rs`, `src/schema/migrations/`, `src/task_lookup.rs` | Stream-owned schema lane and transactional Task lookup contributions for run and output Artifact completion |
 | `src/task_request.rs` | persisted replay request and capability types shared by Task execution and lookup writers |
@@ -1517,6 +1558,7 @@ dependencies, forces checked setup and starts the listener.
 | `src/bin/server/test_support.rs` | inert capabilities and current products shared by native Task delivery and subscription fixtures |
 | `src/contract/artifact.rs`, `results.rs`, `tests/contract/replay.rs` | contract-only Stream Artifact addresses, replay version and portable result validation; shared by the producer and Reason grounding |
 | `src/contract/artifact_provenance.rs`, `output_relationships.rs` | publication provenance and visible terminal-output relationships across result, annotation and optional clip descriptors |
+| `src/contract.rs`, `src/bin/server/outputs.rs` | closed `StreamUsageMetadata` facts constructed by the recorded-run producer and converted at the platform's open usage metadata interface |
 | `src/catalog.rs` | validated admitted GStreamer graphs, typed profiles, live ingress, and immutable model catalog |
 | `src/executor.rs` | native replay-runner protocol and response validation |
 | `src/annotation.rs` | derived Rerun bounding-box annotation layers |
@@ -1527,7 +1569,7 @@ dependencies, forces checked setup and starts the listener.
 | `src/bin/server/app.rs`, `assets/live.html` | self-contained Stream MCP App resource for actual encoded video, typed overlays, and decode-path reporting |
 | `apps/console/web/tests/stream-pagination.test.mjs` (repository root) | headless behavioral checks for Stream App page navigation using the Console's maintained Playwright dependency |
 | `src/bin/server/` | auth, replay tasks, live sessions, prompts, resources, notifications, and composition |
-| `gst-runner/` | native operator-admitted GStreamer graph execution with NVIDIA decode/inference and typed event output |
+| `gst-runner/` | native operator-admitted GStreamer graph execution with NVIDIA decode/inference and typed event output; the same executable's `--validate-request` admits private requests before GStreamer, socket and GPU effects |
 | `Dockerfile` | DeepStream 9 development/runtime multi-stage image |
 
 `platform/recordings/reader` owns the Artifact-backed read plan, and
@@ -1584,11 +1626,15 @@ shape and schema, and this package follows it.
 
 | Module | Responsibility |
 |---|---|
-| `types.py` | protocol-independent nominal scope/URI types, owner scope and resource interfaces, and URI component builder |
+| `types.py` | protocol-independent nominal scope/URI types, public Chrono timestamp export, owner scope and resource interfaces, and URI component builder |
+| `timestamp.py` | immutable Chrono JSON timestamp admission with original wire precision, signed-year/leap/calendar checks and explicit datetime conversion; native Task timestamp profiles stay separate |
 | `contract/server.py` | generic MCP owner associations, checked discovery setup, scope membership and document declaration validation |
 | `contract/` | identity, artifact-plane, and usage wire models |
+| `contract/artifacts.py` | nominal Artifact and upload identities, canonical upload receipts and selected occurrence admission reused by SDK and installation consumers |
+| `contract/wire.py` | shared controlled-wire key admission from owning Pydantic field aliases for Python and JSON decoding; open payload values keep their owner policy |
 | `contract/knowledge.py`, `contract/docs.py` | typed knowledge observations, authorized conditional document reads and shared document paging |
-| `build_docs.py` | Hatch build hook for embedded documents and build-time SHA-256 manifests |
+| `_compliance.py`, `catalog/` | dependency-free immutable catalog/profile admission and manual agreement shared by runtime and isolated Hatch loading; generated packaged catalog/schema supplies IDs and metadata |
+| `build_docs.py` | Hatch build hook for embedded documents, checked owner profile/catalog packaging and build-time SHA-256 manifests |
 | `internal_auth.py` | gateway Ed25519 assertion verification and ASGI middleware |
 | `host.py` | host-authority validation and 421 rejection |
 | `deployment.py`, `pagination.py` | mount identities and cursor pagination |
@@ -1720,6 +1766,8 @@ dispatch preflights and budgeted execution.
 | `browserApp.ts`, `browserHttp.ts`, `artifactUrls.ts` | Console/Workspace entrypoint selection, shared cookie/CSRF transport and fixed file URLs; shared capability components do not choose their own profile |
 | `appHost.tsx`, `StandaloneAppHost.tsx`, `standaloneBootstrap.ts` | minimal standalone App entry, authorized same-path bootstrap, shared OAuth/CSRF settlement, authorized title, and Console return link |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
+| `recordingPlayback.ts`, `api.ts` | generated-schema admission, selected Recording, archive and lifecycle checks, and manifest timestamp ordering before playback enters the view or renderer |
+| `chronoTimestamp.ts` | shared browser Chrono scalar admission preserves original spelling, Gregorian calendar validity, UTC range, nanoseconds and leap-second ordering for Recording playback and Artifact uploads |
 | `tests/recording-playback.test.mjs` | headless behavioral receiver ownership across catalog rollover and recording completion; renderer is a test double |
 | `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `rerunLiveChannel.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | recording-scoped Redap archive or recent-history live playback, persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, same-origin RRD authorization, duplicate-free current-head reconnect, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |
 | `views/Agents.tsx`, `agentControl.ts` | reactive agent state, actor-attributed conversation, idempotent message submission, pending input-request decisions, and client-owned UUIDv7 retry identity |
@@ -1743,6 +1791,10 @@ dispatch preflights and budgeted execution.
 
 | Path | Responsibility |
 |---|---|
+| `mcp/conformance/src/requirements.rs`, `catalog/coverage.json` | exhaustive separately versioned requirement-to-runtime-check mapping with explicit runtime/review/mixed modes; missing or skipped checks cannot establish success |
+| `mcp/conformance/src/naming.rs`, `naming/discovery.rs` | bounded discovery and input/output schema traversal with naming-role admission, contextual references and mixed-verification reporting |
+| `mcp/conformance/src/naming/literal.rs` | associates controlled literal values with contributing schema constraints through maintained JSON Schema validation and evaluation footprints; preserves owner naming contexts across references and applicators |
+| `mcp/conformance/src/schema_evidence.rs` | typed in-memory owner body schemas and safe observations with distinct remote, observed and source-only origins |
 | `mcp/conformance` | `knowledge_probes.rs` supplies typed creation, update, removal and search drivers to live K07/K08 checks; `src/runner/knowledge/creation.rs` verifies newly assigned members across restart; `knowledge_source.rs` selects direct or gateway source checks without a domain registry; `src/bin/conformance/source_checks.rs` exposes the same checker through the CLI; reusable MCP certification library, profiles, schemas and standalone image |
 | [`testing/installed/`](../testing/installed/DESIGN.md) | shared public-gateway transport, private credential/report files and installation-selected Deployment restart helpers; source owners keep fixture mutations and assertions |
 | `servers/artifact-mcp/tests/gateway_source_conformance.rs`, `tests/support/read_grant_probe.rs` | installed metadata source conformance and the Artifact-owned temporary grant driver reused by Reason |
@@ -1756,20 +1808,22 @@ dispatch preflights and budgeted execution.
 | `testing/fixtures/tool_inputs.rs` and Computers, Map, Optimization and View `testdata/controlled-inputs.json` | owner fixture cases reused by typed wire decoding, schema validation and authenticated hosted rejection; the helper mutates controlled fields while preserving declared open maps |
 | [`testing/fixtures/modular-mcp/`](../testing/fixtures/modular-mcp/DESIGN.md) | independent scope/resource library with isolated contract and MCP features; `mcp/conformance/tests/modular_server.rs` owns hosted qualification and fixture cleanup |
 | [`testing/fixtures/server-contract-consumer/`](../testing/fixtures/server-contract-consumer/DESIGN.md) | independently resolved consumer of all sixteen Rust server contracts; `tests/tool_inputs.rs` checks generated input closure and selected decoder/schema pairs; `tests/controlled_inputs.rs` and its owner cases qualify controlled variants through wire decoders; optional Map/Reason knowledge descriptors; rejects service dependencies in both feature profiles |
-| `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |
-| `testing/flight-smoke/src/domain/stream/notifications.rs` | installed live GPU resource updates through the public Gateway, typed uncached reads, reconnected baselines and request cancellation |
-| `testing/browser-smoke/src/cli.rs` and `main.rs` | installation-selected browser acceptance arguments and scenario dispatch; `support.rs` reuses the shared installed-target loader; `browser.rs` owns headed hardware checks and browser assertions shared with flight acceptance |
-| [`testing/smoke/DESIGN.md`](../testing/smoke/DESIGN.md) and `src/bin/smoke.rs` | smoke ownership, installed cross-replica acceptance, command dispatch and digest-addressed simulation certification |
-| `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
-| `testing/smoke/src/bin/smoke/scenarios/stream/replicas.rs`, `stream/replica_pods.rs` | installed Stream GPU replay with distinct Pod admission, cross-replica Task/result observation, subscription reconnect/cancellation, and a machine-readable outcome |
-| `testing/smoke/src/bin/smoke/scenarios/artifact_consumers.rs`, `artifact_consumers/python.rs` | installed public known/unknown-length uploads, CSV/Parquet MCP interoperability, and full-size Python SDK streaming observations asserted by Rust; direct-plane fixture identities stay separate from public OAuth evidence |
-| `testing/smoke/src/bin/smoke/support/installation.rs` and `scenarios/installation.rs` | shared installed-target control-plane validation, typed operator/administrator identities and separate credential selection, plus installation-selected public, identity, GPU and artifact checks |
-| `testing/smoke/src/bin/smoke/scenarios/recording_catalog_sdk.rs`, `testing/recording-catalog-sdk/` | installed service-token grant and native Rerun Python Catalog SDK query against k3d, including fresh-grant reconnect |
-| `testing/smoke/src/bin/smoke/scenarios/candidate.rs` | Stream and Reason compiler candidates in their installed NVIDIA runtimes, executable and payload identities, private listeners, and verified process cleanup |
-| `testing/smoke/src/bin/smoke/scenarios/recording_fixture.rs` | authenticated completion of explicitly selected video-test recording fixtures; production recordings are rejected |
-| `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |
-| `testing/smoke/src/bin/smoke/support/audit.rs` and `queries/audit/` | fixture-partition SQL assertions over typed audit activities, complete query variants and public scoped CLI checks |
-| `testing/smoke/tests/` | static deployment/offline contract tests |
+| `examples/bioma/flight/` | [focused composed-flight harness](../examples/bioma/flight/DESIGN.md), with server-owned wire types and client-only dependency closure |
+| `examples/bioma/flight/src/domain/stream/notifications.rs` | installed live GPU resource updates through the public Gateway, typed uncached reads, reconnected baselines and request cancellation |
+| `examples/bioma/acceptance/src/browser/cli.rs` and `main.rs` | installation-selected browser acceptance arguments and scenario dispatch; `support.rs` reuses the shared installed-target loader; `browser.rs` owns headed hardware checks and browser assertions shared with flight acceptance |
+| [`examples/bioma/acceptance/DESIGN.md`](../examples/bioma/acceptance/DESIGN.md) and `src/smoke/installation_smoke.rs` | installation smoke ownership, installed cross-replica acceptance, command dispatch and digest-addressed simulation certification |
+| `examples/bioma/acceptance/src/smoke/scenarios/` | Rust process/deployment scenarios |
+| `examples/bioma/acceptance/src/smoke/scenarios/stream/replicas.rs`, `stream/replica_pods.rs` | installed Stream GPU replay with distinct Pod admission, cross-replica Task/result observation, subscription reconnect/cancellation, and a machine-readable outcome |
+| `examples/bioma/acceptance/src/smoke/scenarios/artifact_consumers.rs`, `artifact_consumers/python.rs` | installed public known/unknown-length uploads, CSV/Parquet MCP interoperability, and full-size Python SDK streaming observations asserted by Rust; direct-plane fixture identities stay separate from public OAuth evidence |
+| `platform/gateway/composition/src/smoke_support/installation.rs` and `scenarios/installation.rs` | shared installed-target control-plane validation, typed operator/administrator identities and separate credential selection, plus installation-selected public, identity, GPU and artifact checks |
+| `examples/bioma/acceptance/src/smoke/scenarios/recording_catalog_sdk.rs`, `testing/recording-catalog-sdk/` | installed service-token grant and native Rerun Python Catalog SDK query against k3d, including fresh-grant reconnect |
+| `examples/bioma/acceptance/src/smoke/scenarios/candidate.rs` | Stream and Reason compiler candidates in their installed NVIDIA runtimes, executable and payload identities, private listeners, and verified process cleanup |
+| `examples/bioma/acceptance/src/smoke/scenarios/recording_fixture.rs` | authenticated completion of explicitly selected video-test recording fixtures; production recordings are rejected |
+| `testing/support/` | generic process, HTTP, bearer transport and lifecycle helpers; Gateway composition owns issuer, fixture, usage and audit assertions |
+| `tools/xtask/src/discovery/`, `testing/support/src/artifacts.rs`, `framework.rs`, `descriptor.rs` | owner scenario declarations, Cargo feature and package admission, compiler artifact identities and maintained framework dispatch |
+| `testing/deployment-smoke/src/gpu_allocation.rs`, `platform/gateway/composition/src/smoke_support/gpu.rs` | deployment acceptance composes one installation-owned GPU identity parser without a Gateway package dependency |
+| `platform/gateway/composition/src/smoke_support/audit.rs` and `queries/audit/` | fixture-partition SQL assertions over typed audit activities, complete query variants and public scoped CLI checks |
+| `testing/deployment-smoke/tests/` | static deployment/offline contract tests |
 | component-local `tests/` | focused live SurrealDB and service integration tests |
 
 Smoke lifecycle, retry, assertion, and cleanup logic belongs in the Rust harness, not in shell recipes.

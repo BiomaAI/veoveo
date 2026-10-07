@@ -29,35 +29,35 @@ fn check<T: DeserializeOwned + Serialize + JsonSchema>(mut wire: Value, field: &
 }
 
 fn source() -> Value {
-    json!({"source_id":"time-source-fixture", "name":"fixture", "dataset_kind":"tzdb",
-        "url":"https://example.test/data", "expected_content_type":"application/gzip",
-        "enabled":true, "record_version":1})
+    json!({"sourceId":"time-source-fixture", "name":"fixture", "datasetKind":"tzdb",
+        "url":"https://example.test/data", "expectedContentType":"application/gzip",
+        "enabled":true, "recordVersion":1})
 }
 
 fn instant() -> Value {
-    json!({"tai_seconds_since_1970":0, "nanosecond":0, "uncertainty_nanoseconds":0,
-        "authority":{"tzdb_release_id":"time-release-tzdb", "leap_seconds_release_id":"time-release-leaps"}})
+    json!({"taiSecondsSince1970":0, "nanosecond":0, "uncertaintyNanoseconds":0,
+        "authority":{"tzdbReleaseId":"time-release-tzdb", "leapSecondsReleaseId":"time-release-leaps"}})
 }
 
 #[test]
 fn lifecycle_metadata_admits_only_positive_storage_versions() {
     check::<TimeSource>(source(), "record_version");
     check::<AuthorityRelease>(
-        json!({"release_id":"time-release-fixture", "source_id":"time-source-fixture",
-        "dataset_kind":"tzdb", "version_label":"fixture", "source_url":"https://example.test/data",
-        "source_digest_sha256":"a".repeat(64), "artifact_path":"/tmp/fixture", "state":"staged",
-        "retrieved_at":"2026-01-01T00:00:00Z", "validated_at":"2026-01-01T00:00:00Z", "record_version":1}),
+        json!({"releaseId":"time-release-fixture", "sourceId":"time-source-fixture",
+        "datasetKind":"tzdb", "versionLabel":"fixture", "sourceUrl":"https://example.test/data",
+        "sourceDigestSha256":"a".repeat(64), "artifactPath":"/tmp/fixture", "state":"staged",
+        "retrievedAt":"2026-01-01T00:00:00Z", "validatedAt":"2026-01-01T00:00:00Z", "recordVersion":1}),
         "record_version",
     );
     check::<TimeAcquisition>(
-        json!({"acquisition_id":"time-acquisition-fixture", "source_id":"time-source-fixture",
-        "expected_source_digest_sha256":null, "status":"queued", "phase":"queued", "staged_release_id":null,
-        "message":"", "created_at":"2026-01-01T00:00:00Z", "updated_at":"2026-01-01T00:00:00Z", "record_version":1}),
+        json!({"acquisitionId":"time-acquisition-fixture", "sourceId":"time-source-fixture",
+        "expectedSourceDigestSha256":null, "status":"queued", "phase":"queued", "stagedReleaseId":null,
+        "message":"", "createdAt":"2026-01-01T00:00:00Z", "updatedAt":"2026-01-01T00:00:00Z", "recordVersion":1}),
         "record_version",
     );
     check::<TemporalEvent>(
-        json!({"event_id":"event-fixture", "name":"fixture", "due":instant(),
-        "state":"scheduled", "record_version":1}),
+        json!({"eventId":"event-fixture", "name":"fixture", "due":instant(),
+        "state":"scheduled", "recordVersion":1}),
         "record_version",
     );
 }
@@ -65,12 +65,12 @@ fn lifecycle_metadata_admits_only_positive_storage_versions() {
 #[test]
 fn immutable_calendar_and_epoch_versions_share_the_checked_type() {
     check::<OperationalCalendar>(
-        json!({"calendar_id":"calendar-fixture", "version":1,
-        "name":"fixture", "zone_id":"UTC", "windows":[], "excluded_dates":[]}),
+        json!({"calendarId":"calendar-fixture", "version":1,
+        "name":"fixture", "zoneId":"UTC", "windows":[], "excludedDates":[]}),
         "version",
     );
     check::<MissionEpoch>(
-        json!({"epoch_id":"epoch-fixture", "name":"fixture", "instant":instant(), "version":1}),
+        json!({"epochId":"epoch-fixture", "name":"fixture", "instant":instant(), "version":1}),
         "version",
     );
 }
@@ -78,13 +78,13 @@ fn immutable_calendar_and_epoch_versions_share_the_checked_type() {
 #[test]
 fn source_creation_keeps_zero_and_cannot_decode_persisted_metadata() {
     let mut wire = source();
-    wire["record_version"] = 0.into();
+    wire["recordVersion"] = 0.into();
     let value: NewTimeSource = serde_json::from_value(wire.clone()).unwrap();
     assert_eq!(value.record_version, SourceCreationVersion);
     assert_eq!(serde_json::to_value(value).unwrap(), wire);
     assert!(serde_json::from_value::<TimeSource>(wire.clone()).is_err());
     let schema = serde_json::to_value(schemars::schema_for!(NewTimeSource)).unwrap();
-    assert_eq!(schema["properties"]["record_version"]["const"], 0);
+    assert_eq!(schema["properties"]["recordVersion"]["const"], 0);
     for version in [
         json!(1),
         json!(-1),
@@ -92,15 +92,15 @@ fn source_creation_keeps_zero_and_cannot_decode_persisted_metadata() {
         json!("0"),
         Value::Null,
     ] {
-        wire["record_version"] = version;
+        wire["recordVersion"] = version;
         assert!(serde_json::from_value::<NewTimeSource>(wire.clone()).is_err());
         assert!(
             serde_json::from_value::<CreateSourceRequest>(
-                json!({"source":wire, "idempotency_key":"fixture"})
+                json!({"source":wire, "idempotencyKey":"fixture"})
             )
             .is_err()
         );
     }
-    wire.as_object_mut().unwrap().remove("record_version");
+    wire.as_object_mut().unwrap().remove("recordVersion");
     assert!(serde_json::from_value::<NewTimeSource>(wire).is_err());
 }

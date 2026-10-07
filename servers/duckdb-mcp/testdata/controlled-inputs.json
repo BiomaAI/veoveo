@@ -20,7 +20,7 @@
     ],
     "defaults": {
       "/source/options": {},
-      "/create_db_if_missing": false
+      "/createDbIfMissing": false
     },
     "open_objects": [],
     "error_profile": "untagged"
@@ -47,7 +47,7 @@
     ],
     "defaults": {
       "/source/options": {},
-      "/create_db_if_missing": false
+      "/createDbIfMissing": false
     },
     "open_objects": [],
     "error_profile": "untagged"
@@ -76,7 +76,7 @@
     ],
     "defaults": {
       "/source/options": {},
-      "/create_db_if_missing": false
+      "/createDbIfMissing": false
     },
     "open_objects": [],
     "error_profile": "untagged"
@@ -103,7 +103,7 @@
     ],
     "defaults": {
       "/source/options": {},
-      "/create_db_if_missing": false
+      "/createDbIfMissing": false
     },
     "open_objects": [],
     "error_profile": "untagged"
@@ -285,7 +285,7 @@
         "options": {
           "header": true,
           "delimiter": ",",
-          "timestamp_format": "%Y",
+          "timestampFormat": "%Y",
           "extra": {
             "sample": true
           }
@@ -327,7 +327,7 @@
         "options": {
           "header": true,
           "delimiter": ",",
-          "timestamp_format": "%Y",
+          "timestampFormat": "%Y",
           "extra": {
             "sample": 3
           }
@@ -369,7 +369,7 @@
         "options": {
           "header": true,
           "delimiter": ",",
-          "timestamp_format": "%Y",
+          "timestampFormat": "%Y",
           "extra": {
             "sample": "x"
           }
@@ -411,7 +411,7 @@
         "options": {
           "header": true,
           "delimiter": ",",
-          "timestamp_format": "%Y",
+          "timestampFormat": "%Y",
           "extra": {
             "sample": [
               true,

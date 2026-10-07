@@ -18,7 +18,7 @@ pub(super) fn upstream(capture: Arc<Mutex<Vec<Observed>>>) -> Router {
         async move {
             ws.on_upgrade(|mut socket| async move {
                 let ready = veoveo_computers_contract::TerminalReady {
-                    version: 2,
+                    version: veoveo_computers_contract::TERMINAL_VERSION,
                     kind: veoveo_computers_contract::TerminalReadyKind::Ready,
                     expires_at: Utc::now() + chrono::TimeDelta::seconds(20),
                 };

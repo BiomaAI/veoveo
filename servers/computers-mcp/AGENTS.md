@@ -34,16 +34,9 @@ qualified binaries and image; its synthetic policy is not installed-user evidenc
 
 ## Contract Compliance
 
-Contract revision: 3
-
-The library implements shared lifecycle admission, its worker, and authenticated MCP
-and HTTP projections. The executable uses validated installation configuration.
-Browser and restricted stock CLI transport compose with the native runtime and share
-current authority enforcement. Browser and stock CLI pairing are installed. Public
-command admission and grant management have real-store/Artifact HTTP qualification.
-Installed owner and agent file movement now pass public MCP and headed Console checks,
-including exact bytes, retained environment updates and revoked access. The remaining
-installed acceptance matrix stays active. Fixture evidence is not installed-user qualification.
+<!-- veoveo:contract-compliance:start -->
+Contract revision: 4
+Catalog revision: 2
 
 - C01: met
 - C02: met
@@ -77,3 +70,5 @@ installed acceptance matrix stays active. Fixture evidence is not installed-user
 - C30: met
 - C31: pending — installed readiness against the declared catalog is pending
 - C32: pending — installed docs pass K01–K06; K07/K08 do not apply to these collections; K09/K10 require owner qualification
+- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+<!-- veoveo:contract-compliance:end -->

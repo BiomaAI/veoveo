@@ -9,6 +9,8 @@ use veoveo_mcp_knowledge_extension::{
 };
 use veoveo_types::Sha256Digest;
 
+mod frozen_access;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct KnowledgeExternalIdentity {
@@ -30,6 +32,8 @@ pub struct KnowledgeReadObservation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modified_by: Option<ModifiedBy>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, with = "frozen_access")]
+    #[schemars(with = "Option<frozen_access::FrozenAccess>")]
     pub access: Option<AccessDescriptor>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external: Option<KnowledgeExternalIdentity>,

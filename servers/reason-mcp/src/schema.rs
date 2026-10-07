@@ -25,6 +25,21 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
                     version: MigrationVersion::new(0),
                 },
             ])?,
+            Migration::new(
+                MigrationVersion::new(1),
+                MigrationName::new("controlled_documents")?,
+                include_str!("schema/migrations/0001_controlled_documents.surql"),
+            )?
+            .with_requirements(vec![
+                LaneRequirement::AtLeast {
+                    module: ModuleName::new("tasks")?,
+                    version: MigrationVersion::new(0),
+                },
+                LaneRequirement::AtLeast {
+                    module: ModuleName::new("artifacts")?,
+                    version: MigrationVersion::new(0),
+                },
+            ])?,
         ])?)
         .requires(vec![
             LaneRequirement::AtLeast {

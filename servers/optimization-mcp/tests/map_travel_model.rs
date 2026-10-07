@@ -1,17 +1,13 @@
 use veoveo_map_mcp::contract::{
-    MapTravelModelUri, OptimizationTravelModel, TRAVEL_MODEL_ARTIFACT_VERSION, TravelLocationId,
-    TravelModelArtifact, TravelModelId, TravelModelMatrix, TravelVehicleTypeId,
+    MapTravelModelUri, OptimizationTravelModel, TravelLocationId, TravelModelArtifact,
+    TravelModelId, TravelModelMatrix, TravelVehicleTypeId,
 };
-use veoveo_optimization_mcp::contract::{
-    TRAVEL_MODEL_ARTIFACT_VERSION as OPTIMIZATION_ARTIFACT_VERSION,
-    TravelModelArtifact as OptimizationArtifact,
-};
+use veoveo_optimization_mcp::contract::decode_map_travel_model;
 
 #[test]
 fn map_package_is_the_optimization_wire_contract() {
-    assert_eq!(TRAVEL_MODEL_ARTIFACT_VERSION, OPTIMIZATION_ARTIFACT_VERSION);
     let package = TravelModelArtifact {
-        version: TRAVEL_MODEL_ARTIFACT_VERSION.to_owned(),
+        version: veoveo_map_mcp::TravelModelArtifactVersion::V2,
         map_resource_uri: Some(MapTravelModelUri::new(
             TravelModelId::parse("travel-model-018f6c6e-7b8a-7c01-8000-000000000001").unwrap(),
         )),
@@ -25,12 +21,88 @@ fn map_package_is_the_optimization_wire_contract() {
         },
     };
 
-    let optimization: OptimizationArtifact =
-        serde_json::from_value(serde_json::to_value(package).unwrap()).unwrap();
-    assert_eq!(optimization.version, OPTIMIZATION_ARTIFACT_VERSION);
-    assert_eq!(optimization.model.location_ids.len(), 2);
+    let optimization = decode_map_travel_model(
+        &serde_json::to_vec(&package).unwrap(),
+        package.map_resource_uri.as_ref(),
+    )
+    .unwrap();
+    assert_eq!(optimization.location_ids.len(), 2);
+    let current = serde_json::to_value(&package).unwrap();
+    for pointer in [
+        "/mapResourceUri",
+        "/model/locationIds",
+        "/model/costMatrices/0/vehicleTypeId",
+        "/model/costMatrices/0/unavailableCells",
+    ] {
+        if let Some(original) = current.pointer(pointer) {
+            let (parent, key) = pointer.rsplit_once('/').unwrap();
+            let retired = match key {
+                "mapResourceUri" => "map_resource_uri",
+                "locationIds" => "location_ids",
+                "vehicleTypeId" => "vehicle_type_id",
+                "unavailableCells" => "unavailable_cells",
+                _ => unreachable!(),
+            };
+            for mixed in [false, true] {
+                let mut invalid = current.clone();
+                let object = if parent.is_empty() {
+                    invalid.as_object_mut().unwrap()
+                } else {
+                    invalid
+                        .pointer_mut(parent)
+                        .unwrap()
+                        .as_object_mut()
+                        .unwrap()
+                };
+                object.insert(retired.to_owned(), original.clone());
+                if !mixed {
+                    object.remove(key);
+                }
+                assert!(
+                    decode_map_travel_model(
+                        &serde_json::to_vec(&invalid).unwrap(),
+                        package.map_resource_uri.as_ref()
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
+    for (pointer, bad) in [
+        (
+            "/version",
+            serde_json::json!("veoveo.ai/travel-model-artifact/v1"),
+        ),
+        ("/model/locationIds", serde_json::json!(["depot", "depot"])),
+        ("/model/costMatrices/0/dimension", serde_json::json!(1)),
+        ("/model/costMatrices/0/values/0", serde_json::json!(-1)),
+        (
+            "/model/costMatrices/0/unavailableCells",
+            serde_json::json!([4]),
+        ),
+    ] {
+        let mut invalid = current.clone();
+        if let Some(field) = invalid.pointer_mut(pointer) {
+            *field = bad;
+        } else {
+            invalid["model"]["costMatrices"][0]["unavailableCells"] = bad;
+        }
+        assert!(
+            decode_map_travel_model(
+                &serde_json::to_vec(&invalid).unwrap(),
+                package.map_resource_uri.as_ref()
+            )
+            .is_err()
+        );
+    }
+    let wrong_parent = MapTravelModelUri::new(TravelModelId::new());
+    assert!(
+        decode_map_travel_model(&serde_json::to_vec(&package).unwrap(), Some(&wrong_parent))
+            .is_err()
+    );
+
     assert_eq!(
-        optimization.model.cost_matrices[0].values,
+        optimization.cost_matrices[0].values,
         vec![0.0, 12.0, 10.0, 0.0]
     );
 }

@@ -31,7 +31,7 @@ fn checked_setup_owns_the_declared_resources_templates_and_capabilities() {
         Some(true)
     );
     assert_eq!(
-        setup.documents().contract_declaration().contract_revision,
+        setup.documents().contract_declaration().contract_revision(),
         veoveo_mcp_contract::docs::CONTRACT_REVISION
     );
     assert!(ReasonScope::try_from(&ScopeName::parse("operator:use").unwrap()).is_err());
@@ -105,7 +105,7 @@ fn finding_collections_declare_typed_roots_members_and_subscription_admission() 
     };
     let id: AnalysisId = "01983da0-0000-7000-8000-000000000001".parse().unwrap();
     let time = "2026-10-01T00:00:00Z".parse().unwrap();
-    for collection in FindingCollection::ALL {
+    for collection in FindingCollection::ALL.iter().copied() {
         let expected = collection.descriptor();
         let descriptor = SERVER_SETUP
             .resource_templates()

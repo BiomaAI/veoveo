@@ -17,7 +17,7 @@ export type WorldFrameUri = string;
  * This interface was referenced by `WorkbenchContracts`'s JSON-Schema
  * via the `definition` "RecordingProjectionHandleSchema".
  */
-export type RecordingProjectionHandleSchema = "veoveo.ai/recording-projection-handle/v1";
+export type RecordingProjectionHandleSchema = "veoveo.ai/recording-projection-handle/v2";
 /**
  * This interface was referenced by `WorkbenchContracts`'s JSON-Schema
  * via the `definition` "RecordingProjectionSampling".
@@ -103,10 +103,10 @@ export interface WorkbenchTool {
  * via the `definition` "RecordingProjectionHandle".
  */
 export interface RecordingProjectionHandle {
-  dataset_id: string;
-  expires_at: string;
-  projection_id: string;
-  recording_id: string;
+  datasetId: string;
+  expiresAt: string;
+  projectionId: string;
+  recordingId: string;
   result: RecordingProjectionResultMetadata;
   schema: RecordingProjectionHandleSchema;
 }
@@ -117,18 +117,18 @@ export interface RecordingProjectionHandle {
  * via the `definition` "RecordingProjectionResultMetadata".
  */
 export interface RecordingProjectionResultMetadata {
-  arrow_schema_sha256: string;
-  byte_len: number;
-  catalog_revision: string;
+  arrowSchemaSha256: string;
+  byteLen: number;
+  catalogRevision: string;
   /**
    * @maxItems 64
    */
-  coordinate_frame_refs: WorldFrameUri[];
-  omitted_sample_count: number;
-  payload_sha256: string;
-  query_digest: string;
-  row_count: number;
-  sample_grid: number[];
+  coordinateFrameRefs: WorldFrameUri[];
+  omittedSampleCount: number;
+  payloadSha256: string;
+  queryDigest: string;
+  rowCount: number;
+  sampleGrid: number[];
   timeline: string;
   units: {
     [k: string]: string;
@@ -151,27 +151,27 @@ export interface CreateRecordingProjectionRequest {
    * @minItems 1
    * @maxItems 64
    */
-  component_ids: [string, ...string[]];
+  componentIds: [string, ...string[]];
   /**
    * @maxItems 64
    */
-  coordinate_frame_refs: WorldFrameUri[];
-  dataset_id: string;
-  deadline_ms: number;
+  coordinateFrameRefs: WorldFrameUri[];
+  datasetId: string;
+  deadlineMs: number;
   /**
    * @minItems 1
    * @maxItems 64
    */
-  entity_paths: [string, ...string[]];
-  idempotency_key: string;
-  maximum_bytes: number;
-  maximum_columns: number;
-  maximum_entities: number;
-  maximum_rows: number;
-  maximum_samples: number;
-  recording_id: string;
+  entityPaths: [string, ...string[]];
+  idempotencyKey: string;
+  maximumBytes: number;
+  maximumColumns: number;
+  maximumEntities: number;
+  maximumRows: number;
+  maximumSamples: number;
+  recordingId: string;
   sampling: RecordingProjectionSampling;
-  sparse_fill: RecordingProjectionSparseFill;
+  sparseFill: RecordingProjectionSparseFill;
   timeline: string;
   units: {
     [k: string]: string;

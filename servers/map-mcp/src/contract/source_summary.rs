@@ -14,6 +14,7 @@ pub struct SourceSummary(veoveo_types::Checked<SummaryWire>);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct SummaryWire {
     source_id: MapSourceId,
     dataset_id: MapDatasetId,

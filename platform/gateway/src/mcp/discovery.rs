@@ -1,4 +1,5 @@
 use std::{collections::BTreeMap, time::Duration};
+use veoveo_gateway_contract::GatewayDiscoveryDegradation;
 use veoveo_gateway_contract::{
     GatewayDiscoveryFailure, GatewayDiscoveryFailureCode, GatewayDiscoverySurface,
 };
@@ -10,7 +11,7 @@ use tokio::{
     time::Instant,
 };
 use uuid::Uuid;
-use veoveo_mcp_contract::{DiscoveryFailureMode, GatewayDiscoveryDegradation, ServerSlug};
+use veoveo_mcp_contract::{DiscoveryFailureMode, ServerSlug};
 use veoveo_types::{PrincipalId, ResourceUri};
 
 pub(super) const MAX_CONCURRENT_DISCOVERY: usize = 8;

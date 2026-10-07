@@ -103,7 +103,7 @@ mod tests {
         .unwrap();
 
         let value = serde_json::to_value(output).unwrap();
-        assert!(value["artifact"].get("download_url").is_none());
+        assert!(value["artifact"].get("downloadUrl").is_none());
     }
 
     #[test]

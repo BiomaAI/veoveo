@@ -2,7 +2,7 @@ use veoveo_reason_mcp::contract::*;
 
 pub fn results() -> ReasoningResults {
     veoveo_reason_mcp::contract::ReasoningResultsBuilder {
-        schema: "veoveo.reason-results/v1".into(),
+        schema: "veoveo.ai/reason-results/v2".into(),
         pipeline_id: "video-reasoning".parse().unwrap(),
         model_id: "world-model".parse().unwrap(),
         recording_uri: "recording://recordings/01983da0-0000-7000-8000-000000000000"

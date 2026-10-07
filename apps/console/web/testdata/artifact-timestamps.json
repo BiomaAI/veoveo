@@ -1,0 +1,590 @@
+[
+  {
+    "name": "whole_seconds",
+    "receipt": {
+      "uploadId": "01a11437-a080-7630-82dc-06f3ddbe9bcc",
+      "artifactId": "01a11437-a080-7630-82dc-06e9ea98875d",
+      "artifactUri": "artifact://01a11437-a080-7630-82dc-06e9ea98875d",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLen": 1,
+      "mimeType": "application/octet-stream",
+      "filename": "fixture.bin",
+      "createdAt": "2026-10-05T12:34:56Z"
+    },
+    "metadata": {
+      "artifactId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "byteLen": 3,
+      "mimeType": "text/plain",
+      "filename": "informe-ñ.txt",
+      "artifactUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "downloadUrl": "https://example.test/download",
+      "createdAt": "2026-10-05T12:34:56Z",
+      "releaseState": "private",
+      "compliance": {
+        "classification": "cui",
+        "tenantId": "enterprise",
+        "owner": {
+          "kind": "group",
+          "id": "operators"
+        },
+        "workContext": "operations",
+        "provenance": {
+          "invocationMode": "delegated",
+          "producer": "issuer#worker",
+          "initiator": "issuer#operator",
+          "delegationId": "delegation/17",
+          "policyRevision": "v1"
+        },
+        "dataLabels": [
+          "cui"
+        ],
+        "retentionExpiresAt": "2026-10-05T12:34:56Z"
+      },
+      "metadata": {
+        "producer_annotation": [
+          1,
+          "open metadata"
+        ]
+      }
+    }
+  },
+  {
+    "name": "nanoseconds",
+    "receipt": {
+      "uploadId": "01a11437-a080-7630-82dc-06f3ddbe9bcc",
+      "artifactId": "01a11437-a080-7630-82dc-06e9ea98875d",
+      "artifactUri": "artifact://01a11437-a080-7630-82dc-06e9ea98875d",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLen": 1,
+      "mimeType": "application/octet-stream",
+      "filename": "fixture.bin",
+      "createdAt": "2026-10-05T12:34:56.123456789Z"
+    },
+    "metadata": {
+      "artifactId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "byteLen": 3,
+      "mimeType": "text/plain",
+      "filename": "informe-ñ.txt",
+      "artifactUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "downloadUrl": "https://example.test/download",
+      "createdAt": "2026-10-05T12:34:56.123456789Z",
+      "releaseState": "private",
+      "compliance": {
+        "classification": "cui",
+        "tenantId": "enterprise",
+        "owner": {
+          "kind": "group",
+          "id": "operators"
+        },
+        "workContext": "operations",
+        "provenance": {
+          "invocationMode": "delegated",
+          "producer": "issuer#worker",
+          "initiator": "issuer#operator",
+          "delegationId": "delegation/17",
+          "policyRevision": "v1"
+        },
+        "dataLabels": [
+          "cui"
+        ],
+        "retentionExpiresAt": "2026-10-05T12:34:56.123456789Z"
+      },
+      "metadata": {
+        "producer_annotation": [
+          1,
+          "open metadata"
+        ]
+      }
+    }
+  },
+  {
+    "name": "adjacent_nanosecond_a",
+    "receipt": {
+      "uploadId": "01a11437-a080-7630-82dc-06f3ddbe9bcc",
+      "artifactId": "01a11437-a080-7630-82dc-06e9ea98875d",
+      "artifactUri": "artifact://01a11437-a080-7630-82dc-06e9ea98875d",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLen": 1,
+      "mimeType": "application/octet-stream",
+      "filename": "fixture.bin",
+      "createdAt": "2026-10-05T12:34:56.123456001Z"
+    },
+    "metadata": {
+      "artifactId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "byteLen": 3,
+      "mimeType": "text/plain",
+      "filename": "informe-ñ.txt",
+      "artifactUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "downloadUrl": "https://example.test/download",
+      "createdAt": "2026-10-05T12:34:56.123456001Z",
+      "releaseState": "private",
+      "compliance": {
+        "classification": "cui",
+        "tenantId": "enterprise",
+        "owner": {
+          "kind": "group",
+          "id": "operators"
+        },
+        "workContext": "operations",
+        "provenance": {
+          "invocationMode": "delegated",
+          "producer": "issuer#worker",
+          "initiator": "issuer#operator",
+          "delegationId": "delegation/17",
+          "policyRevision": "v1"
+        },
+        "dataLabels": [
+          "cui"
+        ],
+        "retentionExpiresAt": "2026-10-05T12:34:56.123456001Z"
+      },
+      "metadata": {
+        "producer_annotation": [
+          1,
+          "open metadata"
+        ]
+      }
+    }
+  },
+  {
+    "name": "adjacent_nanosecond_b",
+    "receipt": {
+      "uploadId": "01a11437-a080-7630-82dc-06f3ddbe9bcc",
+      "artifactId": "01a11437-a080-7630-82dc-06e9ea98875d",
+      "artifactUri": "artifact://01a11437-a080-7630-82dc-06e9ea98875d",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLen": 1,
+      "mimeType": "application/octet-stream",
+      "filename": "fixture.bin",
+      "createdAt": "2026-10-05T12:34:56.123456002Z"
+    },
+    "metadata": {
+      "artifactId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "byteLen": 3,
+      "mimeType": "text/plain",
+      "filename": "informe-ñ.txt",
+      "artifactUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "downloadUrl": "https://example.test/download",
+      "createdAt": "2026-10-05T12:34:56.123456002Z",
+      "releaseState": "private",
+      "compliance": {
+        "classification": "cui",
+        "tenantId": "enterprise",
+        "owner": {
+          "kind": "group",
+          "id": "operators"
+        },
+        "workContext": "operations",
+        "provenance": {
+          "invocationMode": "delegated",
+          "producer": "issuer#worker",
+          "initiator": "issuer#operator",
+          "delegationId": "delegation/17",
+          "policyRevision": "v1"
+        },
+        "dataLabels": [
+          "cui"
+        ],
+        "retentionExpiresAt": "2026-10-05T12:34:56.123456002Z"
+      },
+      "metadata": {
+        "producer_annotation": [
+          1,
+          "open metadata"
+        ]
+      }
+    }
+  },
+  {
+    "name": "leap_second",
+    "receipt": {
+      "uploadId": "01a11437-a080-7630-82dc-06f3ddbe9bcc",
+      "artifactId": "01a11437-a080-7630-82dc-06e9ea98875d",
+      "artifactUri": "artifact://01a11437-a080-7630-82dc-06e9ea98875d",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLen": 1,
+      "mimeType": "application/octet-stream",
+      "filename": "fixture.bin",
+      "createdAt": "2016-12-31T23:59:60.123456789Z"
+    },
+    "metadata": {
+      "artifactId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "byteLen": 3,
+      "mimeType": "text/plain",
+      "filename": "informe-ñ.txt",
+      "artifactUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "downloadUrl": "https://example.test/download",
+      "createdAt": "2016-12-31T23:59:60.123456789Z",
+      "releaseState": "private",
+      "compliance": {
+        "classification": "cui",
+        "tenantId": "enterprise",
+        "owner": {
+          "kind": "group",
+          "id": "operators"
+        },
+        "workContext": "operations",
+        "provenance": {
+          "invocationMode": "delegated",
+          "producer": "issuer#worker",
+          "initiator": "issuer#operator",
+          "delegationId": "delegation/17",
+          "policyRevision": "v1"
+        },
+        "dataLabels": [
+          "cui"
+        ],
+        "retentionExpiresAt": "2016-12-31T23:59:60.123456789Z"
+      },
+      "metadata": {
+        "producer_annotation": [
+          1,
+          "open metadata"
+        ]
+      }
+    }
+  },
+  {
+    "name": "year_zero",
+    "receipt": {
+      "uploadId": "01a11437-a080-7630-82dc-06f3ddbe9bcc",
+      "artifactId": "01a11437-a080-7630-82dc-06e9ea98875d",
+      "artifactUri": "artifact://01a11437-a080-7630-82dc-06e9ea98875d",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLen": 1,
+      "mimeType": "application/octet-stream",
+      "filename": "fixture.bin",
+      "createdAt": "0000-01-01T00:00:00.000000001Z"
+    },
+    "metadata": {
+      "artifactId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "byteLen": 3,
+      "mimeType": "text/plain",
+      "filename": "informe-ñ.txt",
+      "artifactUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "downloadUrl": "https://example.test/download",
+      "createdAt": "0000-01-01T00:00:00.000000001Z",
+      "releaseState": "private",
+      "compliance": {
+        "classification": "cui",
+        "tenantId": "enterprise",
+        "owner": {
+          "kind": "group",
+          "id": "operators"
+        },
+        "workContext": "operations",
+        "provenance": {
+          "invocationMode": "delegated",
+          "producer": "issuer#worker",
+          "initiator": "issuer#operator",
+          "delegationId": "delegation/17",
+          "policyRevision": "v1"
+        },
+        "dataLabels": [
+          "cui"
+        ],
+        "retentionExpiresAt": "0000-01-01T00:00:00.000000001Z"
+      },
+      "metadata": {
+        "producer_annotation": [
+          1,
+          "open metadata"
+        ]
+      }
+    }
+  },
+  {
+    "name": "negative_year",
+    "receipt": {
+      "uploadId": "01a11437-a080-7630-82dc-06f3ddbe9bcc",
+      "artifactId": "01a11437-a080-7630-82dc-06e9ea98875d",
+      "artifactUri": "artifact://01a11437-a080-7630-82dc-06e9ea98875d",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLen": 1,
+      "mimeType": "application/octet-stream",
+      "filename": "fixture.bin",
+      "createdAt": "-0001-01-01T00:00:00.000000001Z"
+    },
+    "metadata": {
+      "artifactId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "byteLen": 3,
+      "mimeType": "text/plain",
+      "filename": "informe-ñ.txt",
+      "artifactUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "downloadUrl": "https://example.test/download",
+      "createdAt": "-0001-01-01T00:00:00.000000001Z",
+      "releaseState": "private",
+      "compliance": {
+        "classification": "cui",
+        "tenantId": "enterprise",
+        "owner": {
+          "kind": "group",
+          "id": "operators"
+        },
+        "workContext": "operations",
+        "provenance": {
+          "invocationMode": "delegated",
+          "producer": "issuer#worker",
+          "initiator": "issuer#operator",
+          "delegationId": "delegation/17",
+          "policyRevision": "v1"
+        },
+        "dataLabels": [
+          "cui"
+        ],
+        "retentionExpiresAt": "-0001-01-01T00:00:00.000000001Z"
+      },
+      "metadata": {
+        "producer_annotation": [
+          1,
+          "open metadata"
+        ]
+      }
+    }
+  },
+  {
+    "name": "extended_positive_year",
+    "receipt": {
+      "uploadId": "01a11437-a080-7630-82dc-06f3ddbe9bcc",
+      "artifactId": "01a11437-a080-7630-82dc-06e9ea98875d",
+      "artifactUri": "artifact://01a11437-a080-7630-82dc-06e9ea98875d",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLen": 1,
+      "mimeType": "application/octet-stream",
+      "filename": "fixture.bin",
+      "createdAt": "+10000-01-01T00:00:00.000000001Z"
+    },
+    "metadata": {
+      "artifactId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "byteLen": 3,
+      "mimeType": "text/plain",
+      "filename": "informe-ñ.txt",
+      "artifactUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "downloadUrl": "https://example.test/download",
+      "createdAt": "+10000-01-01T00:00:00.000000001Z",
+      "releaseState": "private",
+      "compliance": {
+        "classification": "cui",
+        "tenantId": "enterprise",
+        "owner": {
+          "kind": "group",
+          "id": "operators"
+        },
+        "workContext": "operations",
+        "provenance": {
+          "invocationMode": "delegated",
+          "producer": "issuer#worker",
+          "initiator": "issuer#operator",
+          "delegationId": "delegation/17",
+          "policyRevision": "v1"
+        },
+        "dataLabels": [
+          "cui"
+        ],
+        "retentionExpiresAt": "+10000-01-01T00:00:00.000000001Z"
+      },
+      "metadata": {
+        "producer_annotation": [
+          1,
+          "open metadata"
+        ]
+      }
+    }
+  },
+  {
+    "name": "minimum_year",
+    "receipt": {
+      "uploadId": "01a11437-a080-7630-82dc-06f3ddbe9bcc",
+      "artifactId": "01a11437-a080-7630-82dc-06e9ea98875d",
+      "artifactUri": "artifact://01a11437-a080-7630-82dc-06e9ea98875d",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLen": 1,
+      "mimeType": "application/octet-stream",
+      "filename": "fixture.bin",
+      "createdAt": "-262143-01-01T00:00:00Z"
+    },
+    "metadata": {
+      "artifactId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "byteLen": 3,
+      "mimeType": "text/plain",
+      "filename": "informe-ñ.txt",
+      "artifactUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "downloadUrl": "https://example.test/download",
+      "createdAt": "-262143-01-01T00:00:00Z",
+      "releaseState": "private",
+      "compliance": {
+        "classification": "cui",
+        "tenantId": "enterprise",
+        "owner": {
+          "kind": "group",
+          "id": "operators"
+        },
+        "workContext": "operations",
+        "provenance": {
+          "invocationMode": "delegated",
+          "producer": "issuer#worker",
+          "initiator": "issuer#operator",
+          "delegationId": "delegation/17",
+          "policyRevision": "v1"
+        },
+        "dataLabels": [
+          "cui"
+        ],
+        "retentionExpiresAt": "-262143-01-01T00:00:00Z"
+      },
+      "metadata": {
+        "producer_annotation": [
+          1,
+          "open metadata"
+        ]
+      }
+    }
+  },
+  {
+    "name": "maximum_year",
+    "receipt": {
+      "uploadId": "01a11437-a080-7630-82dc-06f3ddbe9bcc",
+      "artifactId": "01a11437-a080-7630-82dc-06e9ea98875d",
+      "artifactUri": "artifact://01a11437-a080-7630-82dc-06e9ea98875d",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLen": 1,
+      "mimeType": "application/octet-stream",
+      "filename": "fixture.bin",
+      "createdAt": "+262142-12-31T23:59:59.999999999Z"
+    },
+    "metadata": {
+      "artifactId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "byteLen": 3,
+      "mimeType": "text/plain",
+      "filename": "informe-ñ.txt",
+      "artifactUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "downloadUrl": "https://example.test/download",
+      "createdAt": "+262142-12-31T23:59:59.999999999Z",
+      "releaseState": "private",
+      "compliance": {
+        "classification": "cui",
+        "tenantId": "enterprise",
+        "owner": {
+          "kind": "group",
+          "id": "operators"
+        },
+        "workContext": "operations",
+        "provenance": {
+          "invocationMode": "delegated",
+          "producer": "issuer#worker",
+          "initiator": "issuer#operator",
+          "delegationId": "delegation/17",
+          "policyRevision": "v1"
+        },
+        "dataLabels": [
+          "cui"
+        ],
+        "retentionExpiresAt": "+262142-12-31T23:59:59.999999999Z"
+      },
+      "metadata": {
+        "producer_annotation": [
+          1,
+          "open metadata"
+        ]
+      }
+    }
+  },
+  {
+    "name": "positive_offset",
+    "receipt": {
+      "uploadId": "01a11437-a080-7630-82dc-06f3ddbe9bcc",
+      "artifactId": "01a11437-a080-7630-82dc-06e9ea98875d",
+      "artifactUri": "artifact://01a11437-a080-7630-82dc-06e9ea98875d",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLen": 1,
+      "mimeType": "application/octet-stream",
+      "filename": "fixture.bin",
+      "createdAt": "2026-10-05T12:34:56.123456789Z"
+    },
+    "metadata": {
+      "artifactId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "byteLen": 3,
+      "mimeType": "text/plain",
+      "filename": "informe-ñ.txt",
+      "artifactUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "downloadUrl": "https://example.test/download",
+      "createdAt": "2026-10-05T12:34:56.123456789Z",
+      "releaseState": "private",
+      "compliance": {
+        "classification": "cui",
+        "tenantId": "enterprise",
+        "owner": {
+          "kind": "group",
+          "id": "operators"
+        },
+        "workContext": "operations",
+        "provenance": {
+          "invocationMode": "delegated",
+          "producer": "issuer#worker",
+          "initiator": "issuer#operator",
+          "delegationId": "delegation/17",
+          "policyRevision": "v1"
+        },
+        "dataLabels": [
+          "cui"
+        ],
+        "retentionExpiresAt": "2026-10-05T12:34:56.123456789Z"
+      },
+      "metadata": {
+        "producer_annotation": [
+          1,
+          "open metadata"
+        ]
+      }
+    }
+  },
+  {
+    "name": "negative_offset",
+    "receipt": {
+      "uploadId": "01a11437-a080-7630-82dc-06f3ddbe9bcc",
+      "artifactId": "01a11437-a080-7630-82dc-06e9ea98875d",
+      "artifactUri": "artifact://01a11437-a080-7630-82dc-06e9ea98875d",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLen": 1,
+      "mimeType": "application/octet-stream",
+      "filename": "fixture.bin",
+      "createdAt": "2026-10-05T12:34:56.123456789Z"
+    },
+    "metadata": {
+      "artifactId": "0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "byteLen": 3,
+      "mimeType": "text/plain",
+      "filename": "informe-ñ.txt",
+      "artifactUri": "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
+      "downloadUrl": "https://example.test/download",
+      "createdAt": "2026-10-05T12:34:56.123456789Z",
+      "releaseState": "private",
+      "compliance": {
+        "classification": "cui",
+        "tenantId": "enterprise",
+        "owner": {
+          "kind": "group",
+          "id": "operators"
+        },
+        "workContext": "operations",
+        "provenance": {
+          "invocationMode": "delegated",
+          "producer": "issuer#worker",
+          "initiator": "issuer#operator",
+          "delegationId": "delegation/17",
+          "policyRevision": "v1"
+        },
+        "dataLabels": [
+          "cui"
+        ],
+        "retentionExpiresAt": "2026-10-05T12:34:56.123456789Z"
+      },
+      "metadata": {
+        "producer_annotation": [
+          1,
+          "open metadata"
+        ]
+      }
+    }
+  }
+]

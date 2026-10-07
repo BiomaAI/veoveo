@@ -1,25 +1,25 @@
 use veoveo_stream_mcp::contract::*;
 
 fn results() -> AnalysisResults {
-    serde_json::from_str(include_str!("../../testdata/replay-results-v1.json")).unwrap()
+    serde_json::from_str(include_str!("../../testdata/replay-results-v2.json")).unwrap()
 }
 
 #[test]
 fn replay_profile_and_intrinsic_checks_are_owned_by_the_contract() {
     let value = results();
-    assert_eq!(value.schema, StreamResultsSchema::V1);
+    assert_eq!(value.schema, StreamResultsSchema::V2);
     value.validate().unwrap();
     let mut wire = serde_json::to_value(value).unwrap();
     wire["schema"] = "unsupported/v2".into();
     assert!(serde_json::from_value::<AnalysisResults>(wire).is_err());
     let mut invalid = serde_json::to_value(results()).unwrap();
-    invalid["recording_uri"] = "recording://recordings/private?token=secret".into();
+    invalid["recordingUri"] = "recording://recordings/private?token=secret".into();
     assert!(serde_json::from_value::<AnalysisResults>(invalid).is_err());
     for field in [
-        "source_snapshot",
-        "recording_uri",
-        "timeline_kind",
-        "processed_frames",
+        "sourceSnapshot",
+        "recordingUri",
+        "timelineKind",
+        "processedFrames",
     ] {
         let mut wire = serde_json::to_value(results()).unwrap();
         wire.as_object_mut().unwrap().remove(field);
@@ -111,11 +111,11 @@ fn ordinary_replay_decoding_rejects_portable_relationship_failures() {
     let wire = serde_json::to_value(results()).unwrap();
     for (pointer, value) in [
         (
-            "/recording_uri",
+            "/recordingUri",
             serde_json::json!("recording://recordings/01983da0-0000-7000-8000-000000000001"),
         ),
-        ("/entity_path", serde_json::json!("relative")),
-        ("/processed_frames", serde_json::json!(0)),
+        ("/entityPath", serde_json::json!("relative")),
+        ("/processedFrames", serde_json::json!(0)),
         ("/frames/1/index", serde_json::json!(0)),
         ("/frames/0/index", serde_json::json!(-1)),
         ("/frames/0/detections/0/confidence", serde_json::json!(1.1)),
@@ -136,4 +136,50 @@ fn ordinary_replay_decoding_rejects_portable_relationship_failures() {
     assert!(
         serde_json::from_value::<AnalysisResults>(serde_json::to_value(admitted).unwrap()).is_ok()
     );
+}
+
+#[test]
+fn replay_receiver_refuses_every_changed_member_and_retired_marker() {
+    let current = serde_json::to_value(results()).unwrap();
+    for (pointer, field, retired) in [
+        ("", "pipelineId", "pipeline_id"),
+        ("", "modelId", "model_id"),
+        ("", "recordingUri", "recording_uri"),
+        ("", "entityPath", "entity_path"),
+        ("", "timelineKind", "timeline_kind"),
+        ("", "requestedRange", "requested_range"),
+        ("", "sourceSnapshot", "source_snapshot"),
+        ("", "processedFrames", "processed_frames"),
+        ("", "elapsedMs", "elapsed_ms"),
+        ("/sourceSnapshot", "recordingId", "recording_id"),
+        ("/sourceSnapshot", "datasetId", "dataset_id"),
+        ("/sourceSnapshot", "capturedAt", "captured_at"),
+        ("/sourceSnapshot/sources/0", "layerId", "layer_id"),
+        ("/sourceSnapshot/sources/0", "layerName", "layer_name"),
+        ("/sourceSnapshot/sources/0", "layerOrdinal", "layer_ordinal"),
+        ("/sourceSnapshot/sources/0", "byteLen", "byte_len"),
+        ("/frames/0/detections/0", "classId", "class_id"),
+        ("/frames/0/detections/0", "trackId", "track_id"),
+    ] {
+        for mode in 0..3 {
+            let mut wire = current.clone();
+            let object = wire.pointer_mut(pointer).unwrap().as_object_mut().unwrap();
+            let value = if mode == 2 {
+                serde_json::json!("retired-conflict")
+            } else {
+                object[field].clone()
+            };
+            if mode == 0 {
+                object.remove(field);
+            }
+            object.insert(retired.into(), value);
+            assert!(
+                serde_json::from_value::<AnalysisResults>(wire).is_err(),
+                "{pointer}/{retired} mode {mode}"
+            );
+        }
+    }
+    let mut retired = current;
+    retired["schema"] = "veoveo.stream-results/v1".into();
+    assert!(serde_json::from_value::<AnalysisResults>(retired).is_err());
 }

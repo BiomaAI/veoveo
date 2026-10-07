@@ -40,19 +40,38 @@
       ]
     },
     "ArtifactId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_artifact_contract::identity"
+              },
+              "profile": "ArtifactId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
       "type": "string"
     },
     "ArtifactMetadata": {
+      "additionalProperties": false,
       "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
       "properties": {
-        "artifact_id": {
+        "artifactId": {
           "$ref": "#/$defs/ArtifactId"
         },
-        "artifact_uri": {
+        "artifactUri": {
           "$ref": "#/$defs/ArtifactUri"
         },
-        "byte_len": {
+        "byteLen": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -61,11 +80,12 @@
           "$ref": "#/$defs/ComplianceMetadata",
           "default": {}
         },
-        "created_at": {
-          "format": "date-time",
+        "createdAt": {
+          "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
+          "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$",
           "type": "string"
         },
-        "download_url": {
+        "downloadUrl": {
           "type": [
             "string",
             "null"
@@ -81,23 +101,23 @@
         "metadata": {
           "default": null
         },
-        "mime_type": {
+        "mimeType": {
           "default": null,
           "type": [
             "string",
             "null"
           ]
         },
-        "release_state": {
+        "releaseState": {
           "$ref": "#/$defs/ArtifactReleaseState",
           "default": "private"
         }
       },
       "required": [
-        "artifact_id",
-        "byte_len",
-        "artifact_uri",
-        "created_at"
+        "artifactId",
+        "byteLen",
+        "artifactUri",
+        "createdAt"
       ],
       "type": "object"
     },
@@ -105,8 +125,9 @@
       "description": "Immutable explanation of how an artifact came into being.",
       "oneOf": [
         {
+          "additionalProperties": false,
           "properties": {
-            "delegation_id": {
+            "delegationId": {
               "anyOf": [
                 {
                   "$ref": "#/$defs/NoIdentity"
@@ -119,11 +140,11 @@
             "initiator": {
               "$ref": "#/$defs/PrincipalId"
             },
-            "invocation_mode": {
+            "invocationMode": {
               "const": "direct",
               "type": "string"
             },
-            "policy_revision": {
+            "policyRevision": {
               "$ref": "#/$defs/PolicyVersion"
             },
             "producer": {
@@ -131,26 +152,27 @@
             }
           },
           "required": [
-            "invocation_mode",
+            "invocationMode",
             "producer",
             "initiator",
-            "policy_revision"
+            "policyRevision"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "properties": {
-            "delegation_id": {
+            "delegationId": {
               "$ref": "#/$defs/DelegationId"
             },
             "initiator": {
               "$ref": "#/$defs/PrincipalId"
             },
-            "invocation_mode": {
+            "invocationMode": {
               "const": "delegated",
               "type": "string"
             },
-            "policy_revision": {
+            "policyRevision": {
               "$ref": "#/$defs/PolicyVersion"
             },
             "producer": {
@@ -158,17 +180,18 @@
             }
           },
           "required": [
-            "invocation_mode",
+            "invocationMode",
             "producer",
             "initiator",
-            "delegation_id",
-            "policy_revision"
+            "delegationId",
+            "policyRevision"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "properties": {
-            "delegation_id": {
+            "delegationId": {
               "anyOf": [
                 {
                   "$ref": "#/$defs/NoIdentity"
@@ -188,11 +211,11 @@
                 }
               ]
             },
-            "invocation_mode": {
+            "invocationMode": {
               "const": "automated",
               "type": "string"
             },
-            "policy_revision": {
+            "policyRevision": {
               "$ref": "#/$defs/PolicyVersion"
             },
             "producer": {
@@ -200,9 +223,9 @@
             }
           },
           "required": [
-            "invocation_mode",
+            "invocationMode",
             "producer",
-            "policy_revision"
+            "policyRevision"
           ],
           "type": "object"
         }
@@ -221,6 +244,7 @@
       "type": "string"
     },
     "ComplianceMetadata": {
+      "additionalProperties": false,
       "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
       "properties": {
         "classification": {
@@ -233,7 +257,7 @@
             }
           ]
         },
-        "data_labels": {
+        "dataLabels": {
           "items": {
             "$ref": "#/$defs/DataLabelId"
           },
@@ -260,14 +284,15 @@
             }
           ]
         },
-        "retention_expires_at": {
-          "format": "date-time",
+        "retentionExpiresAt": {
+          "description": "RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.",
+          "pattern": "^([+-][0-9]{4,6}|[0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?([Zz]|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$",
           "type": [
             "string",
             "null"
           ]
         },
-        "tenant_id": {
+        "tenantId": {
           "anyOf": [
             {
               "$ref": "#/$defs/TenantId"
@@ -277,7 +302,7 @@
             }
           ]
         },
-        "work_context": {
+        "workContext": {
           "anyOf": [
             {
               "$ref": "#/$defs/WorkContextId"
@@ -291,10 +316,46 @@
       "type": "object"
     },
     "DataLabelId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "DataLabelId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
       "type": "string"
     },
     "DelegationId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "DelegationId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Auditable identity of authority delegated by an initiator to another actor.",
       "type": "string"
     },
@@ -311,6 +372,24 @@
       "type": "object"
     },
     "DictationSessionId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_speech_contract::identity"
+              },
+              "profile": "DictationSessionId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "format": "uuid",
       "maxLength": 36,
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
@@ -322,17 +401,17 @@
         "id": {
           "$ref": "#/$defs/DictationSessionId"
         },
-        "max_duration_seconds": {
+        "maxDurationSeconds": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
-        "next_sequence": {
+        "nextSequence": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
-        "result_uri": {
+        "resultUri": {
           "$ref": "#/$defs/DictationUri"
         },
         "status": {
@@ -351,10 +430,10 @@
       },
       "required": [
         "id",
-        "result_uri",
+        "resultUri",
         "status",
-        "next_sequence",
-        "max_duration_seconds"
+        "nextSequence",
+        "maxDurationSeconds"
       ],
       "type": "object"
     },
@@ -369,19 +448,91 @@
       "type": "string"
     },
     "DictationUri": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar resource schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_speech_contract::resources"
+              },
+              "profile": "DictationUri",
+              "version": "unversioned"
+            },
+            "kind": "owner_resource"
+          }
+        }
+      },
       "pattern": "^speech://dictation/[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])",
       "type": "string"
     },
     "GroupId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "GroupId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Identity-provider group identifier used by gateway policy.",
       "type": "string"
     },
     "NoIdentity": false,
     "PolicyVersion": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "PolicyVersion",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Immutable policy version identifier emitted with decisions and audit records.",
       "type": "string"
     },
     "PrincipalId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "PrincipalId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Stable authenticated user or service-principal identity.",
       "type": "string"
     },
@@ -420,7 +571,7 @@
         "id": {
           "$ref": "#/$defs/DictationSessionId"
         },
-        "sample_rate": {
+        "sampleRate": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -428,31 +579,49 @@
       },
       "required": [
         "id",
-        "sample_rate"
+        "sampleRate"
       ],
       "type": "object"
     },
     "TenantId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "TenantId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Tenant, organization, or customer boundary identifier.",
       "type": "string"
     },
     "TranscribeRequest": {
       "additionalProperties": false,
       "properties": {
-        "artifact_uri": {
+        "artifactUri": {
           "$ref": "#/$defs/ArtifactUri",
           "description": "`artifact://` URI of an uploaded audio or video file you can read."
         }
       },
       "required": [
-        "artifact_uri"
+        "artifactUri"
       ],
       "type": "object"
     },
     "Transcript": {
       "additionalProperties": false,
       "properties": {
-        "duration_seconds": {
+        "durationSeconds": {
           "format": "double",
           "type": "number"
         },
@@ -468,7 +637,7 @@
       },
       "required": [
         "text",
-        "duration_seconds",
+        "durationSeconds",
         "segments"
       ],
       "type": "object"
@@ -479,16 +648,27 @@
         "model": {
           "type": "string"
         },
-        "model_revision": {
+        "modelRevision": {
           "type": "string"
         },
         "schema": {
+          "ai.veoveo/naming-profile": {
+            "revision": 1,
+            "role": {
+              "kind": "scalar",
+              "profile": {
+                "grammar": "format_tag",
+                "kind": "builtin"
+              }
+            }
+          },
+          "const": "veoveo.ai/speech-transcript/v2",
           "type": "string"
         },
-        "source_artifact_uri": {
+        "sourceArtifactUri": {
           "$ref": "#/$defs/ArtifactUri"
         },
-        "source_sha256": {
+        "sourceSha256": {
           "$ref": "#/$defs/UploadSha256"
         },
         "transcript": {
@@ -497,10 +677,10 @@
       },
       "required": [
         "schema",
-        "source_artifact_uri",
-        "source_sha256",
+        "sourceArtifactUri",
+        "sourceSha256",
         "model",
-        "model_revision",
+        "modelRevision",
         "transcript"
       ],
       "type": "object"
@@ -511,14 +691,14 @@
         "captions": {
           "$ref": "#/$defs/ArtifactMetadata"
         },
-        "duration_seconds": {
+        "durationSeconds": {
           "format": "double",
           "type": "number"
         },
-        "result_uri": {
+        "resultUri": {
           "$ref": "#/$defs/TranscriptionUri"
         },
-        "source_artifact_uri": {
+        "sourceArtifactUri": {
           "$ref": "#/$defs/ArtifactUri"
         },
         "transcript": {
@@ -526,15 +706,33 @@
         }
       },
       "required": [
-        "result_uri",
-        "source_artifact_uri",
+        "resultUri",
+        "sourceArtifactUri",
         "transcript",
         "captions",
-        "duration_seconds"
+        "durationSeconds"
       ],
       "type": "object"
     },
     "TranscriptionUri": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar resource schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_speech_contract::resources"
+              },
+              "profile": "TranscriptionUri",
+              "version": "unversioned"
+            },
+            "kind": "owner_resource"
+          }
+        }
+      },
       "pattern": "^speech://transcript/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])",
       "type": "string"
     },
@@ -565,6 +763,24 @@
       "type": "object"
     },
     "WorkContextId": {
+      "ai.veoveo/naming-profile": {
+        "revision": 1,
+        "role": {
+          "kind": "scalar",
+          "profile": {
+            "declaration": {
+              "applicability": "the declared scalar identity schema",
+              "authority": {
+                "kind": "owner",
+                "module": "veoveo_types::identity"
+              },
+              "profile": "WorkContextId",
+              "version": "unversioned"
+            },
+            "kind": "owner_identity"
+          }
+        }
+      },
       "description": "Tenant-local boundary that governs related work and every output it produces.",
       "type": "string"
     }
@@ -574,7 +790,7 @@
     "dictation": {
       "$ref": "#/$defs/DictationSnapshot"
     },
-    "dictation_id": {
+    "dictationId": {
       "$ref": "#/$defs/DictationId"
     },
     "document": {
@@ -583,7 +799,7 @@
     "output": {
       "$ref": "#/$defs/TranscriptionOutput"
     },
-    "start_dictation": {
+    "startDictation": {
       "$ref": "#/$defs/StartDictation"
     },
     "transcribe": {
@@ -591,8 +807,8 @@
     }
   },
   "required": [
-    "start_dictation",
-    "dictation_id",
+    "startDictation",
+    "dictationId",
     "dictation",
     "transcribe",
     "output",

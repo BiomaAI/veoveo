@@ -4,7 +4,7 @@ use veoveo_types::Sha256Digest;
 fn builder() -> MapRouteHandoffBuilder {
     let now = "2026-10-04T00:00:00Z".parse().unwrap();
     MapRouteHandoffBuilder {
-        schema_profile: MapRouteHandoffSchema::V1,
+        schema_profile: MapRouteHandoffSchema::V2,
         route_uri: MapRouteUri::new(RouteId::new()),
         route_digest_sha256: Sha256Digest::from_bytes([0xab; 32]),
         route_status: RouteStatus::Validated,
@@ -36,12 +36,32 @@ fn handoff_keeps_owner_types_and_the_existing_wire_profile() {
         &input.operational_snapshot_id
     );
     let wire = serde_json::to_value(&handoff).unwrap();
-    assert_eq!(wire["schema_profile"], MAP_ROUTE_HANDOFF_SCHEMA);
-    assert_eq!(wire["route_digest_sha256"], "ab".repeat(32));
+    assert_eq!(wire["schemaProfile"], MAP_ROUTE_HANDOFF_SCHEMA);
+    assert_eq!(wire["routeDigestSha256"], "ab".repeat(32));
     assert_eq!(
         serde_json::from_value::<MapRouteHandoff>(wire).unwrap(),
         handoff
     );
+    let current = serde_json::to_value(&handoff).unwrap();
+    let schema = serde_json::to_value(schemars::schema_for!(MapRouteHandoff)).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&current));
+    for (canonical, retired) in [
+        ("schemaProfile", "schema_profile"),
+        ("routeUri", "route_uri"),
+        ("routeDigestSha256", "route_digest_sha256"),
+        ("preparedAt", "prepared_at"),
+    ] {
+        for mixed in [false, true] {
+            let mut invalid = current.clone();
+            invalid[retired] = invalid[canonical].clone();
+            if !mixed {
+                invalid.as_object_mut().unwrap().remove(canonical);
+            }
+            assert!(serde_json::from_value::<MapRouteHandoff>(invalid.clone()).is_err());
+            assert!(!validator.is_valid(&invalid));
+        }
+    }
     // Map supports ground routes; UAV alone requires ellipsoidal height for actuation.
     assert!(
         handoff
@@ -60,38 +80,38 @@ fn handoff_decode_rejects_forged_identity_provenance_and_relationships() {
     let wire = serde_json::to_value(&handoff).unwrap();
     for (field, bad) in [
         (
-            "schema_profile",
-            serde_json::json!("veoveo.ai/map-route-handoff/v2"),
+            "schemaProfile",
+            serde_json::json!("veoveo.ai/map-route-handoff/v1"),
         ),
         (
-            "route_uri",
+            "routeUri",
             serde_json::json!(format!("{}?extra=true", handoff.route_uri())),
         ),
         (
-            "route_uri",
+            "routeUri",
             serde_json::json!(MapRasterUri::new(RasterProductId::new())),
         ),
-        ("route_digest_sha256", serde_json::json!("AB".repeat(32))),
+        ("routeDigestSha256", serde_json::json!("AB".repeat(32))),
         (
-            "route_digest_sha256",
+            "routeDigestSha256",
             serde_json::json!(handoff.route_digest_sha256()),
         ),
-        ("validation_id", serde_json::json!(RouteId::new())),
+        ("validationId", serde_json::json!(RouteId::new())),
         (
-            "operational_snapshot_id",
+            "operationalSnapshotId",
             serde_json::json!(DatasetReleaseId::new()),
         ),
-        ("base_release_ids", serde_json::json!([])),
+        ("baseReleaseIds", serde_json::json!([])),
         (
-            "base_release_ids",
+            "baseReleaseIds",
             serde_json::json!([handoff.base_release_ids()[0], handoff.base_release_ids()[0]]),
         ),
         (
-            "restriction_ids",
+            "restrictionIds",
             serde_json::json!([handoff.restriction_ids()[0], handoff.restriction_ids()[0]]),
         ),
-        ("prepared_at", serde_json::json!("2026-10-03T23:59:59Z")),
-        ("route_status", serde_json::json!("stale")),
+        ("preparedAt", serde_json::json!("2026-10-03T23:59:59Z")),
+        ("routeStatus", serde_json::json!("stale")),
         ("unexpected", serde_json::json!(true)),
     ] {
         let mut invalid = wire.clone();
@@ -141,6 +161,6 @@ fn handoff_builder_checks_geometry_and_route_status_before_use() {
         assert_eq!(input.build().unwrap_err(), MapRouteHandoffError::Path);
     }
     let mut invalid = serde_json::to_value(builder().build().unwrap()).unwrap();
-    invalid["path"][0]["latitude_deg"] = 91.into();
+    invalid["path"][0]["latitudeDeg"] = 91.into();
     assert!(serde_json::from_value::<MapRouteHandoff>(invalid).is_err());
 }

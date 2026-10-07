@@ -34,11 +34,14 @@ tower-http.workspace = true
 traci-rs.workspace = true
 tracing.workspace = true
 uuid.workspace = true
-veoveo-mcp-contract.workspace = true
+veoveo-mcp-contract = { workspace = true, features = ["runtime"] }
 veoveo-artifact-client = { path = "../../../platform/artifacts/client" }
 veoveo-task-runtime = { path = "../../../platform/task-runtime" }
 
 [dev-dependencies]
+veoveo-mcp-contract = { workspace = true, features = ["runtime", "testing"] }
 veoveo-gateway-catalog.workspace = true
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }
+
+[features]

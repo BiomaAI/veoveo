@@ -138,19 +138,19 @@ fn occurrence_admission_requires_version_seven_and_the_rfc_variant() {
 #[test]
 fn metadata_identity_is_derived_and_conflicting_wire_identity_is_rejected() {
     let wire = json!({
-        "artifact_id": ID,
-        "artifact_uri": format!("artifact://{ID}"),
-        "byte_len": 1,
-        "created_at": "2026-09-27T00:00:00Z"
+        "artifactId": ID,
+        "artifactUri": format!("artifact://{ID}"),
+        "byteLen": 1,
+        "createdAt": "2026-09-27T00:00:00Z"
     });
     let metadata: ArtifactMetadata = serde_json::from_value(wire.clone()).unwrap();
     let scheme = ResourceScheme::parse("independent-domain").unwrap();
     let presented = metadata.presented_under_scheme(&scheme);
     assert_eq!(presented.artifact_id(), ArtifactId::parse(ID).unwrap());
     let encoded = serde_json::to_value(&presented).unwrap();
-    assert_eq!(encoded["artifact_id"], ID);
+    assert_eq!(encoded["artifactId"], ID);
     assert_eq!(
-        encoded["artifact_uri"],
+        encoded["artifactUri"],
         format!("independent-domain://artifact/{ID}")
     );
     let schema = serde_json::to_value(schemars::schema_for!(ArtifactMetadata)).unwrap();
@@ -164,23 +164,23 @@ fn metadata_identity_is_derived_and_conflicting_wire_identity_is_rejected() {
         presented
     );
     let mut mismatched = wire.clone();
-    mismatched["artifact_id"] = json!("0197f78e-f2f0-7a6e-8a5d-f41c691e4472");
+    mismatched["artifactId"] = json!("0197f78e-f2f0-7a6e-8a5d-f41c691e4472");
     assert_eq!(
         serde_json::from_value::<ArtifactMetadata>(mismatched)
             .unwrap_err()
             .to_string(),
         "artifact metadata id and URI must identify the same occurrence"
     );
-    for field in ["artifact_id", "artifact_uri"] {
+    for field in ["artifactId", "artifactUri"] {
         let mut missing = wire.clone();
         missing.as_object_mut().unwrap().remove(field);
         assert!(serde_json::from_value::<ArtifactMetadata>(missing).is_err());
     }
     let mut alias = wire;
-    alias["artifact_uri"] = json!(format!("artifact://{}", ID.to_ascii_uppercase()));
+    alias["artifactUri"] = json!(format!("artifact://{}", ID.to_ascii_uppercase()));
     let value: ArtifactMetadata = serde_json::from_value(alias.clone()).unwrap();
     assert_eq!(
-        serde_json::to_value(value).unwrap()["artifact_uri"],
-        alias["artifact_uri"]
+        serde_json::to_value(value).unwrap()["artifactUri"],
+        alias["artifactUri"]
     );
 }

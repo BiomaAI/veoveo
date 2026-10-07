@@ -90,7 +90,12 @@ impl From<&KubernetesObjectKey> for ObjectIdentity {
 
 /// One indivisible target understood by an installation mutation tool.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum AtomicTarget {
     HelmRelease {
         namespace: String,
@@ -104,7 +109,12 @@ pub enum AtomicTarget {
 
 /// Non-secret evidence identifying every image, values file and chart input.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ComponentInput {
     Image {
         source: ComponentSource,
@@ -210,8 +220,7 @@ pub enum ObservedUnitState {
     RequiresApply { objects: Vec<RenderedObject> },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum ComponentMutationVerb {
     HelmUpgradeInstall,
     ApplyExplicitObjects,

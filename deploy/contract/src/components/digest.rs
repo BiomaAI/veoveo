@@ -32,7 +32,7 @@ pub fn atomic_unit_digest(
         objects: Vec<&'a RenderedObject>,
     }
     hash(&Identity {
-        format: "veoveo.ai/atomic-deployment-unit/v3",
+        format: "veoveo.ai/atomic-deployment-unit/v4",
         component: &component.id,
         role: component.role,
         source: &component.source,
@@ -67,7 +67,7 @@ pub fn atomic_unit_content_digest(
         objects: Vec<&'a RenderedObject>,
     }
     hash(&Identity {
-        format: "veoveo.ai/atomic-deployment-content/v3",
+        format: "veoveo.ai/atomic-deployment-content/v4",
         component: &component.id,
         role: component.role,
         source: (&component.source).into(),

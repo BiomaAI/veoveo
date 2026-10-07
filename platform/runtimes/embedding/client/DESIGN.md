@@ -5,7 +5,7 @@
 | Standard or format | Supported profile |
 |---|---|
 | HTTP and JSON | Internal authenticated `GET /v1/models` and `POST /v1/embeddings`; no redirects or proxy routing |
-| [vLLM 0.30.0 pooling API](https://github.com/vllm-project/vllm/blob/v0.30.0/vllm/entrypoints/pooling/base/protocol.py) | String batches, native-dimension float output, `use_activation` and scalar request priority |
+| [vLLM 0.31.0 pooling API](https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/entrypoints/pooling/base/protocol.py) | String batches, native-dimension float output, `use_activation` and scalar request priority |
 | [Qwen3 Embedding model card](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/blob/97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3/README.md) | Document text unchanged; queries use the model's instruction prefix and `Query:` without an added space |
 | [Veoveo embedding contract](../contract/DESIGN.md) | Typed input bounds, model identity, embedding spaces and finite normalized vectors |
 
@@ -93,6 +93,12 @@ member ranking. Report admission checks profile, space, checkpoint and corpus
 identities, recomputes reported recall and requires explicit throughput and latency
 thresholds. Capacity identifies the scheduling report's bytes. Qualification
 identities include the digests of the original four report files.
+
+Reference reports declare the closed embedding precision vocabulary. The implemented
+GPU reference profiles are `bfloat16` and `float16`; admission requires the reference
+precision to match the selected embedding space and its checked serving configuration.
+Other precisions fail report admission. A supported precision still requires measured
+reference, ranking, scheduling and capacity reports for that execution profile.
 
 Candidate ranking establishes runtime vector compatibility. Installation selection
 also requires the existing production Knowledge hybrid retrieval, rebuild and

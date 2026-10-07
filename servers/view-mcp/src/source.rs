@@ -23,13 +23,13 @@ use crate::{
 pub const GOOGLE_P3DT_ROOT_URL: &str = "https://tile.googleapis.com/v1/3dtiles/root.json";
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LayerCatalogFile {
     pub layers: Vec<LayerDefinition>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LayerDefinition {
     pub layer_id: LayerId,
     pub label: String,
@@ -37,7 +37,12 @@ pub struct LayerDefinition {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum LayerSourceDefinition {
     GooglePhotorealistic {
         #[serde(default = "default_google_root")]
@@ -679,6 +684,12 @@ mod tests {
         let fixture: serde_json::Value =
             serde_json::from_slice(include_bytes!("../../../configs/view/layers.json")).unwrap();
         serde_json::from_value::<LayerCatalogFile>(fixture.clone()).unwrap();
+        for (case, invalid) in crate::contract::test_support::retired_field_cases(&fixture) {
+            assert!(
+                serde_json::from_value::<LayerCatalogFile>(invalid).is_err(),
+                "admitted {case} before source setup"
+            );
+        }
         for pointer in ["", "/layers/0", "/layers/0/source"] {
             let mut invalid = fixture.clone();
             invalid

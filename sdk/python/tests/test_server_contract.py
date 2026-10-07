@@ -6,7 +6,8 @@ import mcp.types as types
 import pytest
 from mcp.server import Server
 
-from veoveo_mcp.contract.docs import ServerDoc, ServerDocs
+from pathlib import Path
+from veoveo_mcp.contract.docs import ComplianceProfile, ServerDoc, ServerDocs, requirement_catalog
 from veoveo_mcp.contract.knowledge import EXTENSION_ID
 from veoveo_mcp.contract.server import McpResource, McpResourceTemplate, McpServerSetup
 from veoveo_mcp.types import ResourceScheme, ResourceTemplateUri, ResourceUri, ScopeEnum
@@ -34,10 +35,12 @@ class IndependentContract:
     scheme = ResourceScheme("independent")
     scope_type = FixtureScope
     scopes = (FixtureScope.READ,)
+    _profile_bytes = (Path(__file__).resolve().parents[3] / "mcp/contract/testdata/compliance-example.json").read_text().replace('"example"', '"independent"')
+    _profile = ComplianceProfile(_profile_bytes, requirement_catalog())
     documents = ServerDocs(name, (
-        ServerDoc("agents", "Agents", "# Agents"),
+        ServerDoc("agents", "Agents", "## Contract Compliance\n\n<!-- veoveo:contract-compliance:start -->\n" + _profile.render() + "<!-- veoveo:contract-compliance:end -->\n"),
         ServerDoc("design", "Design", "# Design"),
-    ))
+    ), _profile)
 
     def __init__(self):
         self.entries = tuple(McpResource.build(address, lambda uri: types.Resource(uri=uri, name=uri))
@@ -94,8 +97,8 @@ def test_checked_setup_rejects_broken_owner_contract(fault):
         case "docs_root": owner.entries = tuple(e for e in owner.entries if e.address != FixtureResource.DOCS)
         case "contract": owner.entries = tuple(e for e in owner.entries if e.address != FixtureResource.CONTRACT)
         case "document": owner.entries = tuple(e for e in owner.entries if e.address != FixtureResource.DESIGN)
-        case "missing_doc": owner.documents = ServerDocs(owner.name, owner.documents.docs[:1])
-        case "duplicate_doc": owner.documents = ServerDocs(owner.name, owner.documents.docs + owner.documents.docs[:1])
+        case "missing_doc": owner.documents = ServerDocs(owner.name, owner.documents.docs[:1], owner.documents.profile)
+        case "duplicate_doc": owner.documents = ServerDocs(owner.name, owner.documents.docs + owner.documents.docs[:1], owner.documents.profile)
         case "template_missing": owner.templates = ()
         case "template_duplicate": owner.templates += owner.templates
         case "template_descriptor": owner.templates[0].descriptor.uri_template = "independent://other/{doc_id}"

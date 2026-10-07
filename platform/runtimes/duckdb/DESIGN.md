@@ -82,3 +82,7 @@ download denial, private-address rejection, redirect profiles and Artifact byte 
 A compile-fail example rejects an unchecked string at the download API. Tests use
 temporary directories and perform no visual or GPU workload. Domain services qualify
 their policy and public contracts separately.
+
+## Analytical Harness Delivery
+
+The nondefault `smoke` feature selects the analytical fixture and its native build prerequisite. Its build script stages the actual linked DuckDB runtime library into Cargo's observed target/profile dependencies directory and fails if the required provider library is absent. Dispatcher receipts hash staged libraries together with each actual executable, including hashed test targets and external target directories. Generic certification and support do not enable this feature.

@@ -381,17 +381,17 @@ mod well_known_tests {
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
         let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
-        assert_eq!(declaration.server, "duckdb");
-        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        assert_eq!(declaration.server().as_str(), "duckdb");
+        assert_eq!(declaration.contract_revision(), CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
             let item = declaration
-                .compliance
+                .compliance()
                 .iter()
-                .find(|item| item.id == id)
+                .find(|item| item.id.as_str() == id)
                 .expect("declared checklist item");
             assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
         }
-        for item in &declaration.compliance {
+        for item in declaration.compliance() {
             if item.status == ComplianceStatus::Pending {
                 assert!(item.note.is_some(), "pending items must state a reason");
             }

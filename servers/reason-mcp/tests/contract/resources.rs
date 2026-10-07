@@ -190,10 +190,16 @@ fn routes_reject_aliases_wrong_parents_and_unsupported_parameters() {
 }
 
 #[test]
-fn analyses_cursor_preserves_version_one_bytes_and_exact_collection_identity() {
-    let expected = include_str!("../../testdata/analyses-cursor.txt").trim();
+fn analyses_cursor_preserves_version_two_bytes_and_exact_collection_identity() {
     let id = AnalysisId::parse(ID).unwrap();
     let cursor = AnalysisCursor::new("2026-09-28T00:00:00Z".parse().unwrap(), id);
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata/analyses-cursor.txt");
+    if std::env::var_os("UPDATE_REASON_SOURCE_FIXTURES").is_some() {
+        std::fs::write(&path, cursor.as_str().to_owned() + "\n").unwrap();
+    }
+    let captured = std::fs::read_to_string(path).unwrap();
+    let expected = captured.trim();
     assert_eq!(cursor.as_str(), expected);
     assert_eq!(AnalysisCursor::parse(expected).unwrap(), cursor);
     assert_eq!(serde_json::to_value(&cursor).unwrap(), expected);
@@ -204,7 +210,7 @@ fn analyses_cursor_preserves_version_one_bytes_and_exact_collection_identity() {
     for invalid in ["", "a", "%%%%", &"a".repeat(1025)] {
         assert!(AnalysisCursor::parse(invalid).is_err());
     }
-    // These are published v1 bodies for another collection and an unknown v2 body.
+    // Prior envelopes cannot satisfy the current version and position profile.
     for body in [
         include_str!("../../testdata/analyses-cursor-wrong-collection.txt"),
         include_str!("../../testdata/analyses-cursor-wrong-version.txt"),

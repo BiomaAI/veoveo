@@ -69,12 +69,14 @@ pub struct RrdEntityPath(String);
 pub struct RrdTimeline(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RrdTimePoint {
     pub timeline: RrdTimeline,
     pub sequence: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RrdTimeRange {
     pub timeline: RrdTimeline,
     pub start_sequence: i64,
@@ -82,13 +84,23 @@ pub struct RrdTimeRange {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum RrdRecordingRef {
-    Live { recording_id: String },
-    Artifact { uri: String },
+    Live {
+        recording_id: veoveo_recording_contract::RecordingId,
+    },
+    Artifact {
+        uri: veoveo_artifact_contract::ArtifactUri,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RrdSelection {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recording: Option<RrdRecordingRef>,
@@ -98,6 +110,7 @@ pub struct RrdSelection {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RrdGeoPoint {
     pub latitude_deg: f64,
     pub longitude_deg: f64,
@@ -136,6 +149,7 @@ impl From<RrdGeoPoint> for LatLon {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RrdLocalPoint3 {
     pub frame_id: RrdFrameId,
     pub xyz_m: [f64; 3],
@@ -182,6 +196,7 @@ impl From<RrdViewDirection> for ViewDir {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RrdViewCoordinates {
     pub x: RrdViewDirection,
     pub y: RrdViewDirection,
@@ -231,6 +246,7 @@ impl RrdViewCoordinates {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RrdFrameDefinition {
     pub frame_id: RrdFrameId,
     pub kind: FrameKind,
@@ -290,6 +306,7 @@ impl From<RrdFrameId> for TransformFrameId {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RrdLocalLineString2 {
     pub frame_id: RrdFrameId,
     pub coordinates: Vec<[f64; 2]>,
@@ -307,6 +324,7 @@ impl RrdLocalLineString2 {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RrdGeoLineString {
     pub coordinates: Vec<[f64; 2]>,
 }
@@ -320,6 +338,7 @@ impl RrdGeoLineString {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RrdLocalPolygon2 {
     pub frame_id: RrdFrameId,
     pub exterior: Vec<[f64; 2]>,
@@ -337,6 +356,7 @@ impl RrdLocalPolygon2 {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RrdGeofenceGeometry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub geofence_id: Option<GeofenceId>,
@@ -396,10 +416,56 @@ mod tests {
     }
 
     #[test]
+    fn public_recording_selection_refuses_retired_fields_and_wrong_owner_addresses() {
+        let recording = veoveo_recording_contract::RecordingId::new();
+        let live = RrdRecordingRef::Live {
+            recording_id: recording,
+        };
+        let wire = serde_json::to_value(live).unwrap();
+        assert_eq!(
+            wire,
+            serde_json::json!({"kind":"live", "recordingId": recording})
+        );
+        serde_json::from_value::<RrdRecordingRef>(wire.clone()).unwrap();
+        for mode in ["replacement", "mixed", "conflicting"] {
+            let mut invalid = wire.clone();
+            invalid["recording_id"] = if mode == "conflicting" {
+                serde_json::json!("retired-conflict")
+            } else {
+                invalid["recordingId"].clone()
+            };
+            if mode == "replacement" {
+                invalid.as_object_mut().unwrap().remove("recordingId");
+            }
+            assert!(serde_json::from_value::<RrdRecordingRef>(invalid).is_err());
+        }
+        for uri in [
+            "artifact://rrd/abc123",
+            "recording://recordings/019fa000-0000-7000-8000-000000000001",
+            "artifact://artifacts/019fa000-0000-4000-8000-000000000001",
+        ] {
+            assert!(
+                serde_json::from_value::<RrdRecordingRef>(
+                    serde_json::json!({"kind":"artifact", "uri":uri})
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            serde_json::from_value::<RrdRecordingRef>(
+                serde_json::json!({"kind":"live", "recordingId":"invalid"})
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn selection_json_round_trip_preserves_recording_and_time_range() {
         let selection = RrdSelection {
             recording: Some(RrdRecordingRef::Artifact {
-                uri: "artifact://rrd/abc123".to_string(),
+                uri: veoveo_artifact_contract::ArtifactUri::plane(
+                    veoveo_artifact_contract::ArtifactId::new(),
+                ),
             }),
             entity_path: RrdEntityPath::parse("/mission/agent-a").unwrap(),
             time_range: Some(RrdTimeRange {

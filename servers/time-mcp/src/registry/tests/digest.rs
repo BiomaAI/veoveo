@@ -105,7 +105,7 @@ async fn retained_digest_spelling_preserves_idempotency_and_canonical_provenance
         // Corrupt both representations identically: equality alone must not admit
         // malformed hashes. Errors must neither echo the digest nor leak the row.
         let mut body = serde_json::to_value(&retained).unwrap();
-        body["source_digest_sha256"] = "PRIVATE_INVALID_DIGEST".into();
+        body["sourceDigestSha256"] = "PRIVATE_INVALID_DIGEST".into();
         set(
             &db.a,
             record.clone(),
@@ -128,7 +128,7 @@ async fn retained_digest_spelling_preserves_idempotency_and_canonical_provenance
                 .is_none()
         );
         let mut body = serde_json::to_value(&created).unwrap();
-        body["expected_source_digest_sha256"] = "PRIVATE_INVALID_DIGEST".into();
+        body["expectedSourceDigestSha256"] = "PRIVATE_INVALID_DIGEST".into();
         let record = RecordId::new("time_acquisition", created.acquisition_id.to_string());
         set(
             &db.a,

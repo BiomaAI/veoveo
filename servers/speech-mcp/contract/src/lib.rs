@@ -21,8 +21,10 @@ pub static ARTIFACT_SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
 
 pub const MAX_SOURCE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 pub const TRANSCRIPT_MIME: &str = "application/json";
+pub const TRANSCRIPT_SCHEMA: &str = "veoveo.ai/speech-transcript/v2";
 
 #[derive(JsonSchema)]
+#[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 struct SchemaBundle {
     start_dictation: dictation::StartDictation,
@@ -38,7 +40,7 @@ pub fn schema_bundle() -> schemars::Schema {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TranscribeRequest {
     /// `artifact://` URI of an uploaded audio or video file you can read.
     pub artifact_uri: ArtifactUri,
@@ -55,7 +57,7 @@ impl TranscribeRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(rename = "TranscriptionOutput")]
 pub struct TranscriptionOutputValue {
     pub result_uri: TranscriptionUri,
@@ -66,9 +68,10 @@ pub struct TranscriptionOutputValue {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(rename = "TranscriptDocument")]
 pub struct TranscriptDocumentValue {
+    #[schemars(schema_with = "transcript_format_schema")]
     pub schema: String,
     pub source_artifact_uri: ArtifactUri,
     pub source_sha256: veoveo_artifact_contract::UploadSha256,
@@ -171,8 +174,8 @@ impl veoveo_types::Check for TranscriptDocumentValue {
     type Error = anyhow::Error;
     fn check(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.speech-transcript/v1",
-            "invalid transcript document schema"
+            self.schema == TRANSCRIPT_SCHEMA,
+            "unsupported Speech transcript format; coordinated upgrade to veoveo.ai/speech-transcript/v2 required"
         );
         self.transcript.validate(transcript::MAX_RECORDING_SECONDS)
     }
@@ -207,6 +210,7 @@ impl veoveo_types::Check for TranscriptionOutputValue {
             );
         }
         #[derive(Deserialize, PartialEq)]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
         struct Attribution {
             source_artifact_uri: ArtifactUri,
             source_sha256: veoveo_artifact_contract::UploadSha256,
@@ -235,7 +239,7 @@ mod tests {
         ] {
             assert!(
                 serde_json::from_value::<TranscribeRequest>(
-                    serde_json::json!({"artifact_uri": uri})
+                    serde_json::json!({"artifactUri": uri})
                 )
                 .is_err()
             );
@@ -250,4 +254,159 @@ mod tests {
             id
         );
     }
+    #[test]
+    fn transcription_attribution_refuses_retired_fields_in_each_occurrence() {
+        let source = ArtifactId::new();
+        let metadata = |mime| {
+            let id = ArtifactId::new();
+            serde_json::json!({"artifactId":id, "artifactUri":format!("speech://artifact/{id}"),
+                "mimeType":mime, "byteLen":1, "createdAt":"2026-09-29T00:00:00Z",
+                "metadata":{"sourceArtifactUri":source.plane_uri(), "sourceSha256":"a".repeat(64),
+                    "model":"fixture", "modelRevision":"fixture-revision"}})
+        };
+        let current = serde_json::json!({"resultUri":TranscriptionUri::new(TranscriptionId::new()),
+            "sourceArtifactUri":source.plane_uri(), "durationSeconds":1,
+            "transcript":metadata("application/json"), "captions":metadata("text/vtt")});
+        assert!(serde_json::from_value::<TranscriptionOutput>(current.clone()).is_ok());
+        assert!(
+            serde_json::from_value::<TranscriptionOutputValue>(current.clone())
+                .unwrap()
+                .build()
+                .is_ok()
+        );
+        let mut admitted = Vec::new();
+        for occurrence in ["transcript", "captions"] {
+            for (wire, retired, conflicting) in [
+                (
+                    "sourceArtifactUri",
+                    "source_artifact_uri",
+                    serde_json::json!(ArtifactId::new().plane_uri()),
+                ),
+                (
+                    "sourceSha256",
+                    "source_sha256",
+                    serde_json::json!("b".repeat(64)),
+                ),
+                (
+                    "modelRevision",
+                    "model_revision",
+                    serde_json::json!("retired-revision"),
+                ),
+            ] {
+                for mode in ["replacement", "mixed", "conflicting"] {
+                    let mut invalid = current.clone();
+                    let attribution = invalid[occurrence]["metadata"].as_object_mut().unwrap();
+                    let original = attribution[wire].clone();
+                    attribution.insert(
+                        retired.into(),
+                        if mode == "conflicting" {
+                            conflicting.clone()
+                        } else {
+                            original
+                        },
+                    );
+                    if mode == "replacement" {
+                        attribution.remove(wire);
+                    }
+                    // Generic Artifact maps admit owner metadata; Speech owns this refusal.
+                    assert!(
+                        serde_json::from_value::<ArtifactMetadata>(invalid[occurrence].clone())
+                            .is_ok()
+                    );
+                    if serde_json::from_value::<TranscriptionOutput>(invalid.clone()).is_ok() {
+                        admitted.push(format!("decoder {occurrence}/{retired}/{mode}"));
+                    }
+                    if serde_json::from_value::<TranscriptionOutputValue>(invalid)
+                        .unwrap()
+                        .build()
+                        .is_ok()
+                    {
+                        admitted.push(format!("constructor {occurrence}/{retired}/{mode}"));
+                    }
+                }
+            }
+        }
+        assert!(
+            admitted.is_empty(),
+            "retired attribution admitted: {admitted:?}"
+        );
+    }
+
+    #[test]
+    fn current_transcript_format_rejects_retired_tags_and_field_spellings() {
+        let schema = schemars::schema_for!(TranscriptDocument);
+        let tag =
+            schemars::Schema::try_from(schema.as_value()["properties"]["schema"].clone()).unwrap();
+        assert_eq!(
+            veoveo_types::naming_profile(&tag, veoveo_types::NamingSchemaContext::new(&tag))
+                .unwrap()
+                .unwrap()
+                .role(),
+            &veoveo_types::NamingRole::Scalar {
+                profile: veoveo_types::ScalarNaming::builtin(
+                    veoveo_types::ScalarGrammar::FormatTag
+                )
+            }
+        );
+        assert_eq!(tag.as_value()["const"], TRANSCRIPT_SCHEMA);
+
+        let document = TranscriptDocumentValue {
+            schema: TRANSCRIPT_SCHEMA.into(),
+            source_artifact_uri: ArtifactId::new().plane_uri(),
+            source_sha256: veoveo_artifact_contract::UploadSha256::parse(&"a".repeat(64)).unwrap(),
+            model: "fixture".into(),
+            model_revision: "fixture-revision".into(),
+            transcript: transcript::TranscriptValue {
+                text: String::new(),
+                duration_seconds: 0.0,
+                segments: vec![],
+            }
+            .build()
+            .unwrap(),
+        }
+        .build()
+        .unwrap();
+        let current = serde_json::to_value(document).unwrap();
+        assert!(serde_json::from_value::<TranscriptDocument>(current.clone()).is_ok());
+        for tag in [
+            "veoveo.speech-transcript/v1",
+            "veoveo.ai/speech-transcript/v1",
+        ] {
+            let mut retired = current.clone();
+            retired["schema"] = tag.into();
+            let error = serde_json::from_value::<TranscriptDocument>(retired).unwrap_err();
+            assert!(error.to_string().contains("coordinated upgrade"));
+        }
+        for (wire, retired) in [
+            ("sourceArtifactUri", "source_artifact_uri"),
+            ("sourceSha256", "source_sha256"),
+            ("modelRevision", "model_revision"),
+        ] {
+            for mixed in [false, true] {
+                let mut invalid = current.clone();
+                invalid[retired] = invalid[wire].clone();
+                if !mixed {
+                    invalid.as_object_mut().unwrap().remove(wire);
+                }
+                assert!(serde_json::from_value::<TranscriptDocument>(invalid).is_err());
+            }
+        }
+        let input = TranscribeRequest {
+            artifact_uri: ArtifactId::new().plane_uri(),
+        };
+        let current = serde_json::to_value(input).unwrap();
+        assert!(current.get("artifactUri").is_some());
+        let mut mixed = current.clone();
+        mixed["artifact_uri"] = current["artifactUri"].clone();
+        assert!(serde_json::from_value::<TranscribeRequest>(mixed).is_err());
+    }
+}
+
+fn transcript_format_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    veoveo_types::scalar_schema(
+        schemars::Schema::try_from(serde_json::json!({"type":"string","const":TRANSCRIPT_SCHEMA}))
+            .expect("current Speech transcript format"),
+        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
+    )
+    .expect("current Speech transcript naming profile")
 }

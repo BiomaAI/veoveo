@@ -34,6 +34,11 @@ normalization changes only the disposable copies. Analysis consumers derive Reru
 Store IDs from the plan's typed catalog IDs. Producer names stay inside source validation.
 The plan holds cache leases for its lifetime.
 
+`RecordingReadSourceKind`, `RecordingReadSource` and `RecordingReadSnapshot` are
+native runtime values. Video's checked `TryFrom` adapters admit their facts into
+the public `RecordingSourceSnapshot` contract before serialization. That contract
+owns wire names, source ordering and the snapshot digest, and excludes local paths.
+
 Acknowledged parts remain readable while a layer is Writing or Staged, including
 the interval when its final file exists and upload is in progress. The reader checks
 parts-directory confinement even when that final file is present. Hub removes the
@@ -73,8 +78,8 @@ Successful hits then run the identity validator again without downloading bytes.
 Cache misses retain the download client's authorization path.
 Cache APIs, validators, read plans and snapshots carry `Sha256Digest`. Store and RRD
 inspection adapters admit text before those values enter the reader. Cache filenames
-serialize the digest as bare lowercase hex; captured snapshot fields use the shared
-`veoveo_types::sha256_hex` adapter.
+serialize the digest as bare lowercase hex. Video's public snapshot fields use the
+shared `veoveo_types::sha256_hex` adapter.
 The default recording-layer validator binds both canonical
 Store UUIDs, length and SHA-256. Recording MCP supplies its Blueprint validator from
 `blueprint_cache.rs`, which binds application, Blueprint ID and message count with the

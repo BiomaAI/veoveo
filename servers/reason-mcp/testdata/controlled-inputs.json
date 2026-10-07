@@ -4,31 +4,31 @@
     "tool": "analyze_recording",
     "arguments": {
       "video": {
-        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
-        "entity_path": "/camera/front",
         "timeline": "sensor_time",
         "range": {
           "start": 10,
           "end": 20
-        }
+        },
+        "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entityPath": "/camera/front"
       },
-      "pipeline_id": "preview",
+      "pipelineId": "preview",
       "task": {
         "kind": "describe_segment"
       }
     },
     "tag": "/task/kind",
     "required": [
-      "/video/entity_path",
+      "/video/entityPath",
       "/video/range/start",
-      "/pipeline_id"
+      "/pipelineId"
     ],
     "defaults": {
-      "/sampling/max_frames": 32,
+      "/sampling/maxFrames": 32,
       "/decode": {
         "mode": "greedy"
       },
-      "/include_source_clip": false
+      "/includeSourceClip": false
     },
     "open_objects": []
   },
@@ -37,15 +37,15 @@
     "tool": "analyze_recording",
     "arguments": {
       "video": {
-        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
-        "entity_path": "/camera/front",
         "timeline": "sensor_time",
         "range": {
           "start": 10,
           "end": 20
-        }
+        },
+        "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entityPath": "/camera/front"
       },
-      "pipeline_id": "preview",
+      "pipelineId": "preview",
       "task": {
         "kind": "detect_events",
         "prompt": "detect traffic"
@@ -53,17 +53,17 @@
     },
     "tag": "/task/kind",
     "required": [
-      "/video/entity_path",
+      "/video/entityPath",
       "/video/range/start",
-      "/pipeline_id",
+      "/pipelineId",
       "/task/prompt"
     ],
     "defaults": {
-      "/sampling/max_frames": 32,
+      "/sampling/maxFrames": 32,
       "/decode": {
         "mode": "greedy"
       },
-      "/include_source_clip": false
+      "/includeSourceClip": false
     },
     "open_objects": []
   },
@@ -72,15 +72,15 @@
     "tool": "analyze_recording",
     "arguments": {
       "video": {
-        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
-        "entity_path": "/camera/front",
         "timeline": "sensor_time",
         "range": {
           "start": 10,
           "end": 20
-        }
+        },
+        "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entityPath": "/camera/front"
       },
-      "pipeline_id": "preview",
+      "pipelineId": "preview",
       "task": {
         "kind": "answer_question",
         "question": "what happened?"
@@ -88,17 +88,17 @@
     },
     "tag": "/task/kind",
     "required": [
-      "/video/entity_path",
+      "/video/entityPath",
       "/video/range/start",
-      "/pipeline_id",
+      "/pipelineId",
       "/task/question"
     ],
     "defaults": {
-      "/sampling/max_frames": 32,
+      "/sampling/maxFrames": 32,
       "/decode": {
         "mode": "greedy"
       },
-      "/include_source_clip": false
+      "/includeSourceClip": false
     },
     "open_objects": []
   },
@@ -107,15 +107,15 @@
     "tool": "analyze_recording",
     "arguments": {
       "video": {
-        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
-        "entity_path": "/camera/front",
         "timeline": "sensor_time",
         "range": {
           "start": 10,
           "end": 20
-        }
+        },
+        "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entityPath": "/camera/front"
       },
-      "pipeline_id": "preview",
+      "pipelineId": "preview",
       "task": {
         "kind": "describe_segment"
       },
@@ -123,14 +123,14 @@
         "mode": "greedy"
       },
       "sampling": {
-        "max_frames": 4
+        "maxFrames": 4
       }
     },
     "tag": "/decode/mode",
     "required": [
       "/video",
-      "/pipeline_id",
-      "/sampling/max_frames"
+      "/pipelineId",
+      "/sampling/maxFrames"
     ],
     "defaults": {},
     "open_objects": []
@@ -140,35 +140,35 @@
     "tool": "analyze_recording",
     "arguments": {
       "video": {
-        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
-        "entity_path": "/camera/front",
         "timeline": "sensor_time",
         "range": {
           "start": 10,
           "end": 20
-        }
+        },
+        "recordingUri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entityPath": "/camera/front"
       },
-      "pipeline_id": "preview",
+      "pipelineId": "preview",
       "task": {
         "kind": "describe_segment"
       },
       "decode": {
         "mode": "sampled",
         "temperature": 0.5,
-        "top_p": 0.9,
+        "topP": 0.9,
         "seed": 1
       },
       "sampling": {
-        "max_frames": 4
+        "maxFrames": 4
       }
     },
     "tag": "/decode/mode",
     "required": [
       "/video",
-      "/pipeline_id",
-      "/sampling/max_frames",
+      "/pipelineId",
+      "/sampling/maxFrames",
       "/decode/temperature",
-      "/decode/top_p",
+      "/decode/topP",
       "/decode/seed"
     ],
     "defaults": {},

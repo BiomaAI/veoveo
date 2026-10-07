@@ -88,17 +88,20 @@ fn statistics_decode_checks_count_and_timestamp_relationships() {
 #[cfg(feature = "runtime")]
 #[test]
 fn contract_declaration_exposes_every_compliance_status() {
-    use veoveo_mcp_contract::{docs::CHECKLIST_IDS, server_contract::McpServerContract};
+    use veoveo_mcp_contract::{docs::RequirementId, server_contract::McpServerContract};
     let declaration =
         veoveo_knowledge_mcp::mcp::KnowledgeContract::documents().contract_declaration();
-    assert_eq!(declaration.server, "knowledge");
-    assert_eq!(declaration.contract_revision, 3);
+    assert_eq!(declaration.server().as_str(), "knowledge");
+    assert_eq!(declaration.contract_revision(), 4);
     assert_eq!(
         declaration
-            .compliance
+            .compliance()
             .iter()
             .map(|item| item.id.as_str())
             .collect::<Vec<_>>(),
-        CHECKLIST_IDS
+        <RequirementId as veoveo_types::Vocabulary>::ALL
+            .iter()
+            .map(|id| id.as_str())
+            .collect::<Vec<_>>()
     );
 }

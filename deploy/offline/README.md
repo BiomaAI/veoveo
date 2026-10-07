@@ -1,5 +1,9 @@
 # Offline installation bundle
 
+Revision 2 lock and bundle metadata use camelCase keys. The builder and loader
+share the closed admission profile in [DESIGN.md](DESIGN.md); incompatible metadata
+is refused before image import or installation writes.
+
 `images.lock.json` lists every runtime image in the bundle. External images are
 pinned by registry digest. Veoveo images use exact release tags and are recorded
 by image id when a bundle is created.

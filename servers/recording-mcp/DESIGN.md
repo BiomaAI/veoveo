@@ -11,12 +11,12 @@ repository-wide ingest, storage, publication, activation, and operations contrac
 | Model Context Protocol `2026-07-28` | JSON-RPC 2.0 over Streamable HTTP for recording discovery, layer inspection, sealing, projection control, resources, prompts, subscriptions, and notifications. |
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | `ui://recording/explorer.html` is the server-owned Recording Explorer. |
 | RFC 3986, RFC 6570 and RFC 9562 | Shared URI components and discovery templates; recording routes require lowercase hyphenated RFC UUIDv7 identities. |
-| Recording catalog cursor version 1 | Collection-bound JSON encoded as lowercase hexadecimal, limited to 2048 input bytes, with a timestamp and typed recording identity. |
+| Recording catalog cursor version 2 | Collection-bound JSON encoded as lowercase hexadecimal, limited to 2048 input bytes, with a timestamp and typed recording identity. |
 | JSON Schema Draft 2020-12 | Closed tool inputs, views, playback manifest, grants, projection handles, and storage diagnostics. |
 | Rerun `0.38.1` RRD | Immutable Artifact-backed capture, properties, and derived layers. Dataset UUID is the Rerun application ID, and recording UUID is the Rerun recording and segment ID. |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only WebViewer and Catalog SDK subset over HTTP/2 or gRPC-Web. The service does not claim complete Redap conformance. |
 | Apache Arrow IPC stream | Deterministic bounded projection payload produced from exact admitted RRD layers. |
-| Veoveo playback manifest v10 | `veoveo.ai/recording-playback/v10` is the only accepted manifest. |
+| Veoveo playback manifest v11 | `veoveo.ai/recording-playback/v11` is the only accepted manifest. |
 | Veoveo framed RRD stream v2 | Same-origin live channel adapter using one complete RRD per big-endian length frame. |
 | OAuth service authentication and JWT | Gateway internal assertions, short-lived host-limited Redap grants, and separate Artifact-read credentials. |
 | H.264 Annex B and SHA-256 | Decoder-reentrant live continuity and immutable byte identity. |
@@ -111,6 +111,55 @@ lifecycle facts pass the domain builders before public output. Seal admission ch
 committed metadata before advancing state, and constructs the checked result before
 completing the seal. A sealed retry validates its output before removing local static
 context. The domain imports Artifact types through the lightweight owner contract.
+
+`seal_recording` requires `x-veoveo-artifact-read-authorization` from the current
+RequestContext. The handler acquires this call-scoped prerequisite before seal
+mutations; it never persists the bearer. Scope and SQL visibility checks precede
+selection of the manifest occurrence. The retained-manifest receiver uses the
+canonical Artifact client's authenticated metadata and content readers, limits the
+operation to 30 seconds and 8 MiB, and verifies selected occurrence metadata,
+length and SHA-256 before decoding current v10 JSON. It binds the manifest's
+ordered layer and Blueprint facts to native selected records, and binds the
+original manifest revision to its owned publication provenance. The later sealed
+catalog revision does not assert equality with that original revision. An unavailable
+or denied read preserves the existing seal fence and authorizes no new publication.
+Acquiring the request header establishes no Artifact-service permission before the
+actual read; Artifact policy evaluates the fresh credential at that receiver.
+Original `datasetRevision`, `recordingRevision` and `sealedAt` accompany the
+manifest's catalog revision and digest in closed publication provenance. Retained
+admission recomputes that catalog preimage from the original epochs and selected
+immutable layer rows, then rebuilds and compares the complete current pretty JSON.
+The Recording repository persists the current typed body, full canonical Artifact
+descriptor, original source snapshots and publisher configuration before Artifact
+HTTP effects. Artifact first verifies object content, then persists occurrence
+metadata. Staged recovery reads the original intent before properties admission and
+uses its original seal time for completion. A local pretty JSON file is derivative
+and survives until durable completion.
+
+Publication uses Artifact's create-only same-occurrence recovery profile. An exact
+retry carries the same occurrence, descriptor and body; the canonical Artifact
+service compares tenant, original producer, full effective authority, labels, SHA,
+length, MIME, filename, classification, retention and metadata. A conflict refuses
+publication. Existing occurrences are reused only after the fresh authenticated
+body receiver agrees with the intent. A denied or unavailable confirmed-body read
+never falls through to a write. A replacement can replay an intent's original
+create-only operation across a changed dataset epoch without allocating another
+occurrence or treating absence as evidence of failure.
+
+The intent records the initiating actor's full native authority and the selected
+Recording owner/Work Context. Source parent and publisher configuration comparisons
+preserve operation identity. Current caller scope, visibility and mutation permission
+remain independent; an old policy revision is not a settlement permission or an
+automatic refusal when current permission still admits a confirmed outcome.
+
+Console's `recordingPlayback.ts` interprets the generated current owner schema,
+binds the selected Recording, archive parents, revision and lifecycle, and checks
+the selected Redap route with URL components and the owner's UUID-to-TUID codec
+before mounting a viewer. It validates RFC3339 schema formats and refuses timestamps
+that JavaScript Date cannot represent. Chrono supports leap seconds and nanosecond
+ordering beyond this browser receiver's Date profile; complete chronology parity
+requires a maintained instant implementation. The current behavioral harness does
+not establish that parity or hardware playback.
 
 Projection coordinate metadata carries Frames-owned revision-scoped URIs. The domain
 admits at most 64 distinct references and preserves their order in request identity
@@ -315,7 +364,7 @@ Recording Explorer descriptor. It transfers a `ReadableStream` through a dedicat
 
 ## Playback Manifest And Live Stream
 
-Manifest v10 contains the durable dataset ID, recording segment ID, catalog revision,
+Playback manifest v11 contains the durable dataset ID, recording segment ID, catalog revision,
 short-lived viewer grant, optional archive descriptor, optional live receiver, and
 governed Blueprint. An active recording exposes the live receiver without prewarming its
 committed archive. The receiver describes the recording channel, independent of the
@@ -340,9 +389,10 @@ durable capture bytes are not modified by this browser adapter.
 
 | Path | Responsibility |
 |---|---|
-| `contract.rs` | recording, layer, seal, playback manifest v10, and manifest-occurrence views |
+| `contract.rs` | recording, layer, seal, playback manifest v11, and manifest-occurrence views |
 | `contract.rs`, `uris.rs` | public access to the shared Recording domain contract and its resource factories |
 | `service.rs` | playback plans, sealing, properties publication, and catalog revision |
+| `service/manifest.rs` | bounded current manifest publication bytes and retained Artifact admission |
 | `service/index.rs`, `index.rs` | SQL-authorized catalog assembly, completions, direct reads, and versioned resource cursors |
 | `platform/recordings/reader` | shared governed analysis plans, task-local live-part snapshots and bounded cache |
 | `service/projection.rs` | RRD query preparation, receipt transitions, result construction and Arrow download |
@@ -370,10 +420,11 @@ complete native stage facts and seal time before installing even an absent desti
 Matching Staged facts permit deterministic missing-file recovery. Other unfinished, failed or contradictory
 layers fail without repair.
 
-Opening properties leaves the Sealing recording's revision and timestamp unchanged;
-staging updates those fields only for Live recordings, and commitment updates the layer
-and dataset. The source properties snapshot therefore stays stable through publication
-retry. Layer UUID reserves the same Artifact occurrence on every attempt. Artifact
+Opening a new properties layer advances the Recording revision and timestamp in the
+same transaction that stores its preparation. Recovery admits the stored original
+properties body and seal time despite later catalog updates. Exact duplicate opens
+and stages leave the parent unchanged; commitment updates the layer and dataset.
+Layer UUID reserves the same Artifact occurrence on every attempt. Artifact
 streaming returns an existing occurrence only when tenant, producer, complete authority,
 labels, digest, length and immutable metadata agree. An unknown response leaves that
 reserved identity fenced; retry does not allocate another occurrence or conclude that
@@ -388,7 +439,7 @@ SurrealDB image and no GPU. Shared workbench tests provide browser behavioral ev
 for page navigation and notification refresh.
 
 Focused component evidence includes deterministic RRD normalization and Arrow bytes,
-cache corruption and eviction behavior, scratch cleanup, playback manifest v10 rejection of other
+cache corruption and eviction behavior, scratch cleanup, playback manifest v11 rejection of other
 schemas, durable grant transactions, and selected official Redap assertions. Console
 tests prove that no bearer, URL, local path, RRD bytes, or whole `ArrayBuffer` crosses the
 projection bridge.
@@ -450,3 +501,67 @@ independent of these public gateway adapters.
 Store-backed native fixture statements live in `tests/queries/`, grouped by the
 calling harness. Colocated fixtures include those files with their existing bindings
 and result slots. Complete static statements cover finite SQL grammar choices.
+
+## Controlled Recording Formats
+
+The shared Recording contract owns camelCase DTO fields, snake_case ordinary enum
+values and current manifest/grant/projection/cursor versions. Seal publication uses
+manifest v10 pretty JSON and derives the digest and `recording-v10.json` filename
+from those bytes. Playback emits v11; catalog grants and projection handles emit v2.
+The service's SQL adapters keep native column names and convert admitted rows into
+these owner builders after visibility selection. Redap, Arrow IPC, framed RRD v2,
+JWT claims and deterministic sealed RRD properties keep their declared profiles.
+
+Projection scratch reuse decodes the current owner handle before comparing request,
+receipt, payload length and SHA-256. Browser and SDK receivers reject unsupported
+versions and retired or mixed owned members before opening their data plane. The
+Recording Explorer's actual tool defaults serialize current owned request fields;
+MCP prompt argument and URI template parameter names retain their declaration profile.
+
+### Seal Source Preparation And Outcome Admission
+
+The properties layer journals its checked original RecordingProperties body before
+file creation. Recovery binds that body to selected Recording/dataset identities,
+source layer digest, keys and start/end timestamps. Its original seal time flows
+through the manifest and completion. Current source revision and wall-clock changes
+do not regenerate Writing or Staged bytes. A properties row without preparation
+version 1 refuses; capture and derived rows have no preparation.
+The service re-reads source layers after beginning Sealing. Properties reservation
+admits the complete committed source snapshot transactionally, and the producer checks
+the stored body against the selected source again before Properties Artifact publication
+and manifest reservation. A pending Derived layer refuses before Properties effects.
+
+Local manifest staging writes and syncs an owned partial before promoting its complete
+inode to the final name without clobbering. The maintained tempfile implementation uses
+Linux no-replace rename or exclusive hard-link creation. Interrupted partial debris can
+be ignored during recovery; a differing installed final refuses publication. The durable
+intent supplies the bytes and occurrence for a fresh derivative, with no catalog inference.
+
+The Recording lane freezes new source selections after manifest intent reservation.
+Source writers use named optimistic read dependencies and update the parent revision
+for genuine new layer, Blueprint or Blueprint-Artifact selection. Reservation checks
+the complete layer set and optional current Blueprint under the same dependencies.
+Conflicting commits refuse before publication; exact duplicate no-ops preserve the
+revision. The existing native harness overlaps actual owner queries on two SDK
+transactions in both commit orders. These controls require native execution and do
+not establish installed recovery by compilation alone.
+
+Seal output names the immutable manifest's selected layer and Blueprint occurrences.
+Retained reads require every selected layer to exist and match the intent; unselected
+rows must be Derived on a Sealed Recording. Writing and failed unselected derivations
+do not invalidate the original manifest. Catalog and playback views continue to use
+the full current layer catalog, including committed post-seal Derived layers.
+Their aggregate counts include pending and failed Derived rows. Sealed view admission
+requires positive committed membership and the manifest UUID selected by the
+Recording ID. The retained receiver checks each original selected member and the
+whole-parent extra-row predicate before reading the immutable manifest bytes.
+
+Manifest reply and retained-read admission bind the complete descriptor to the
+selected native Artifact occurrence. Explicit classification, MIME, filename,
+retention and owned provenance must agree. Canonical Artifact `effective_labels`
+normalizes classification with labels across fresh and retained metadata; requested
+labels must be included, and observed effective labels must equal the native row.
+Artifact may supply its declared classification default and authority labels.
+Recording computes no policy defaults. The current Artifact implementation preserves
+request retention without augmentation. Tenant, owner, Work Context and typed publisher
+provenance bind to the native occurrence, independently of the seal initiator.

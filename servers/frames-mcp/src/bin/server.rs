@@ -54,7 +54,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, DurableTasks, RecoveryClass, TaskError, TaskFailure,
-    TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
+    TaskRetentionPin, TaskRuntime, TaskSnapshot, TaskTransition,
 };
 use veoveo_types::TaskId;
 
@@ -631,19 +631,25 @@ async fn main() -> anyhow::Result<()> {
         Cli::Serve(args) => *args,
     };
     let public_deployment = args.public_deployment()?;
-    let tasks = TaskRuntime::connect(
-        TaskRuntimeConfig::new(
-            args.surreal_endpoint.clone(),
-            args.surreal_namespace.clone(),
-            args.surreal_database.clone(),
+    let store_config = veoveo_platform_store::StoreConfig::builder(
+        args.surreal_endpoint.clone(),
+        args.surreal_namespace.clone(),
+        args.surreal_database.clone(),
+        veoveo_platform_store::StoreCredentials::new(
             args.surreal_auth_level,
             args.surreal_username.clone(),
             args.surreal_password.clone(),
         ),
+    )
+    .build()?;
+    let startup = veoveo_frames_mcp::startup::FramesStartup::from_env(&store_config)?;
+    let store = veoveo_platform_store::PlatformStore::connect(store_config).await?;
+    startup.require(&store).await?;
+    let tasks = TaskRuntime::new(
+        store,
         SERVER_SLUG,
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
-    )
-    .await?;
+    );
     let recovery = tasks.recover().await?;
     let frames = FramesState::new(tasks.platform_store().clone());
     let state = Arc::new(AppState {
@@ -720,17 +726,17 @@ mod well_known_tests {
     #[test]
     fn contract_declaration_resolves_from_the_embedded_manual() {
         let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
-        assert_eq!(declaration.server, "frames");
-        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        assert_eq!(declaration.server().as_str(), "frames");
+        assert_eq!(declaration.contract_revision(), CONTRACT_REVISION);
         for id in ["C18", "C19", "C20", "C21"] {
             let item = declaration
-                .compliance
+                .compliance()
                 .iter()
-                .find(|item| item.id == id)
+                .find(|item| item.id.as_str() == id)
                 .expect("declared checklist item");
             assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
         }
-        for item in &declaration.compliance {
+        for item in declaration.compliance() {
             if item.status == ComplianceStatus::Pending {
                 assert!(item.note.is_some(), "pending items must state a reason");
             }
@@ -790,7 +796,7 @@ mod task_tests {
         };
         let inline = veoveo_frames_mcp::contract::BatchTransformTaskOutput::new(first.clone());
         let wire = serde_json::to_value(inline).unwrap();
-        assert!(wire.get("result_uri").is_none());
+        assert!(wire.get("resultUri").is_none());
         assert!(
             serde_json::from_value::<veoveo_frames_mcp::contract::BatchTransformTaskOutput>(
                 wire.clone()
@@ -798,7 +804,7 @@ mod task_tests {
             .is_ok()
         );
         let mut null = wire;
-        null["result_uri"] = serde_json::Value::Null;
+        null["resultUri"] = serde_json::Value::Null;
         assert!(
             serde_json::from_value::<veoveo_frames_mcp::contract::BatchTransformTaskOutput>(null)
                 .is_err()
@@ -807,7 +813,7 @@ mod task_tests {
             serde_json::from_value(serde_json::json!({
                 "artifact_id":"01983da0-0000-7000-8000-000000000001",
                 "artifact_uri":"artifact://01983da0-0000-7000-8000-000000000001",
-                "byte_len":1,"created_at":"2026-09-29T00:00:00Z"
+                "byte_len":1,"createdAt":"2026-09-29T00:00:00Z"
             }))
             .unwrap();
         let mut published = first.clone();
@@ -832,10 +838,10 @@ mod task_tests {
             let mut value = wire.clone();
             match invalid {
                 Some(uri) => {
-                    value["result_uri"] = uri;
+                    value["resultUri"] = uri;
                 }
                 None => {
-                    value.as_object_mut().unwrap().remove("result_uri");
+                    value.as_object_mut().unwrap().remove("resultUri");
                 }
             }
             assert!(

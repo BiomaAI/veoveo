@@ -1,0 +1,236 @@
+{
+  "coverageRevision": 2,
+  "catalogRevision": 2,
+  "requirements": [
+    {
+      "id": "C01",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C02",
+      "mode": "mixed",
+      "checks": [
+        "VV-MCP-TOOLS-002",
+        "VV-MCP-TOOLS-003"
+      ]
+    },
+    {
+      "id": "C03",
+      "mode": "mixed",
+      "checks": [
+        "VV-MCP-TASKS-001"
+      ]
+    },
+    {
+      "id": "C04",
+      "mode": "mixed",
+      "checks": [
+        "VV-MCP-RESOURCES-001",
+        "VV-MCP-TEMPLATES-001"
+      ]
+    },
+    {
+      "id": "C05",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C06",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C07",
+      "mode": "runtime",
+      "checks": [
+        "VV-MCP-TOOLS-003"
+      ]
+    },
+    {
+      "id": "C08",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C09",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C10",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C11",
+      "mode": "mixed",
+      "checks": [
+        "VV-MCP-HTTP-001"
+      ]
+    },
+    {
+      "id": "C12",
+      "mode": "mixed",
+      "checks": [
+        "VV-MCP-DOCS-HTTP-000",
+        "VV-MCP-DOCS-HTTP-001",
+        "VV-MCP-DOCS-HTTP-002"
+      ]
+    },
+    {
+      "id": "C13",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C14",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C15",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C16",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C17",
+      "mode": "mixed",
+      "checks": [
+        "VV-MCP-CONTRACT-001"
+      ]
+    },
+    {
+      "id": "C18",
+      "mode": "runtime",
+      "checks": [
+        "VV-MCP-DOCS-001",
+        "VV-MCP-DOCS-002"
+      ]
+    },
+    {
+      "id": "C19",
+      "mode": "runtime",
+      "checks": [
+        "VV-MCP-CONTRACT-001",
+        "VV-MCP-CONTRACT-002"
+      ]
+    },
+    {
+      "id": "C20",
+      "mode": "runtime",
+      "checks": [
+        "VV-MCP-DOCS-HTTP-001",
+        "VV-MCP-DOCS-HTTP-002"
+      ]
+    },
+    {
+      "id": "C21",
+      "mode": "mixed",
+      "checks": [
+        "VV-MCP-DOCS-002"
+      ]
+    },
+    {
+      "id": "C22",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C23",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C24",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C25",
+      "mode": "runtime",
+      "checks": [
+        "VV-MCP-TRANSPORT-001",
+        "VV-MCP-HTTP-001",
+        "VV-MCP-HTTP-002",
+        "VV-MCP-HTTP-003",
+        "VV-MCP-HTTP-004"
+      ]
+    },
+    {
+      "id": "C26",
+      "mode": "runtime",
+      "checks": [
+        "VV-MCP-TRANSPORT-001",
+        "VV-MCP-HTTP-001",
+        "VV-MCP-HTTP-002",
+        "VV-MCP-HTTP-003",
+        "VV-MCP-HTTP-004"
+      ]
+    },
+    {
+      "id": "C27",
+      "mode": "mixed",
+      "checks": [
+        "VV-MCP-SUBSCRIPTIONS-001"
+      ]
+    },
+    {
+      "id": "C28",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C29",
+      "mode": "mixed",
+      "checks": [
+        "VV-MCP-TRANSPORT-001"
+      ]
+    },
+    {
+      "id": "C30",
+      "mode": "review",
+      "checks": []
+    },
+    {
+      "id": "C31",
+      "mode": "mixed",
+      "checks": [
+        "VV-MCP-IDENTITY-001",
+        "VV-MCP-TOOLS-001",
+        "VV-MCP-RESOURCES-001",
+        "VV-MCP-TEMPLATES-001",
+        "VV-MCP-PROMPTS-001"
+      ]
+    },
+    {
+      "id": "C32",
+      "mode": "runtime",
+      "checks": [
+        "VV-MCP-CONTRACT-003",
+        "K01",
+        "K02",
+        "K03",
+        "K04",
+        "K05",
+        "K06",
+        "K07",
+        "K08",
+        "K09",
+        "K10"
+      ]
+    },
+    {
+      "id": "C33",
+      "mode": "mixed",
+      "checks": [
+        "VV-MCP-NAMING-001"
+      ]
+    }
+  ]
+}

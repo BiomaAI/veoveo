@@ -6,7 +6,7 @@ use veoveo_gateway_contract::GatewayDiscoverySurface;
 use veoveo_gateway_contract::{GatewayDiscoveryFailure, GatewayDiscoveryFailureCode};
 
 pub(super) fn missing_status(
-    degradation: &veoveo_mcp_contract::GatewayDiscoveryDegradation,
+    degradation: &veoveo_gateway_contract::GatewayDiscoveryDegradation,
     server: &str,
     surface: GatewayDiscoverySurface,
 ) -> StatusCode {
@@ -24,7 +24,7 @@ pub(super) fn missing_status(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veoveo_mcp_contract::GatewayDiscoveryDegradation;
+    use veoveo_gateway_contract::GatewayDiscoveryDegradation;
 
     #[test]
     fn incomplete_discovery_is_retryable_and_does_not_change_other_permissions() {

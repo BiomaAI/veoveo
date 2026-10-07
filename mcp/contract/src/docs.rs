@@ -11,15 +11,23 @@
 use std::sync::OnceLock;
 
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
+pub mod catalog;
+#[cfg(feature = "runtime")]
 mod knowledge;
+mod profile;
+pub use catalog::{CATALOG_REVISION, RequirementId};
+pub use profile::{
+    COMPLIANCE_END, COMPLIANCE_START, ComplianceError, ComplianceItem, ComplianceProfile,
+    ComplianceStatus, ContractDeclaration, render_compliance, verify_manual,
+};
 #[doc(hidden)]
 pub use veoveo_macros::embedded_document;
 pub use veoveo_mcp_knowledge_extension as knowledge_extension;
 
 /// The normative contract revision this crate implements.
-pub const CONTRACT_REVISION: u32 = 3;
+pub const CONTRACT_REVISION: u32 = 4;
 
 /// Identifier of the required agent manual document.
 pub const DOC_ID_AGENTS: &str = "agents";
@@ -33,13 +41,6 @@ pub const REQUIRED_AGENT_SECTIONS: [&str; 4] = [
     "## Invariants",
     "## Build And Test",
     "## Contract Compliance",
-];
-
-/// Stable identifiers of the compliance checklist in `DESIGN.md`.
-pub const CHECKLIST_IDS: [&str; 32] = [
-    "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13",
-    "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25", "C26",
-    "C27", "C28", "C29", "C30", "C31", "C32",
 ];
 
 /// One document embedded from the server crate at build time.
@@ -59,6 +60,7 @@ pub struct ServerDocs {
     server: &'static str,
     docs: Vec<ServerDoc>,
     declaration: OnceLock<ContractDeclaration>,
+    profile: Option<ComplianceProfile>,
 }
 
 impl ServerDocs {
@@ -67,6 +69,7 @@ impl ServerDocs {
             server,
             docs: Vec::new(),
             declaration: OnceLock::new(),
+            profile: None,
         }
     }
 
@@ -94,6 +97,39 @@ impl ServerDocs {
             digest: veoveo_types::Sha256Digest::from_bytes(embedded.1),
         });
         self
+    }
+
+    /// Admit the owner profile and compare its projection with embedded manual bytes.
+    pub fn with_profile_json(mut self, bytes: &str) -> Result<Self, ComplianceError> {
+        let profile: ComplianceProfile = serde_json::from_str(bytes).map_err(|error| {
+            profile::invalid(format!("owner profile JSON failed admission: {error}"))
+        })?;
+        if profile.server().as_str() != self.server {
+            return Err(profile::invalid("owner profile/server identity mismatch"));
+        }
+        let manual = self
+            .agent_manual()
+            .ok_or_else(|| profile::invalid("missing agent manual"))?;
+        verify_manual(manual, &profile)?;
+        self.declaration = OnceLock::new();
+        self.profile = Some(profile);
+        Ok(self)
+    }
+
+    pub fn admitted_profile(&self) -> Result<&ComplianceProfile, ComplianceError> {
+        let profile = self.profile.as_ref().ok_or_else(|| {
+            profile::invalid("served documents require an admitted owner profile")
+        })?;
+        verify_manual(
+            self.agent_manual()
+                .ok_or_else(|| profile::invalid("missing agent manual"))?,
+            profile,
+        )?;
+        Ok(profile)
+    }
+    pub fn profile(&self) -> &ComplianceProfile {
+        self.admitted_profile()
+            .expect("served documents require an admitted owner profile")
     }
 
     pub fn server(&self) -> &'static str {
@@ -136,86 +172,6 @@ impl ServerDocs {
     }
 }
 
-/// Declared status of one checklist item.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ComplianceStatus {
-    Met,
-    Pending,
-}
-
-/// One checklist item as declared in a server's `Contract Compliance` section.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct ComplianceItem {
-    pub id: String,
-    pub status: ComplianceStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub note: Option<String>,
-}
-
-/// The machine-readable declaration served at `{scheme}://contract` (C19).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct ContractDeclaration {
-    pub server: String,
-    pub contract_revision: u32,
-    pub compliance: Vec<ComplianceItem>,
-}
-
-impl ContractDeclaration {
-    /// Builds the declaration from the embedded agent manual so the served
-    /// declaration and the crate `AGENTS.md` cannot diverge.
-    pub fn from_docs(docs: &ServerDocs) -> Self {
-        let compliance = docs
-            .agent_manual()
-            .map(parse_compliance)
-            .unwrap_or_default();
-        Self {
-            server: docs.server().to_string(),
-            contract_revision: CONTRACT_REVISION,
-            compliance,
-        }
-    }
-}
-
-/// Parses `- Cnn: met` and `- Cnn: pending — reason` lines from the
-/// `## Contract Compliance` section of an agent manual.
-pub fn parse_compliance(manual: &str) -> Vec<ComplianceItem> {
-    let mut in_section = false;
-    let mut items = Vec::new();
-    for line in manual.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("## ") {
-            in_section = trimmed == "## Contract Compliance";
-            continue;
-        }
-        if !in_section {
-            continue;
-        }
-        let Some(entry) = trimmed.strip_prefix("- C") else {
-            continue;
-        };
-        let Some((number, rest)) = entry.split_once(':') else {
-            continue;
-        };
-        let id = format!("C{}", number.trim());
-        let rest = rest.trim();
-        let (status, remainder) = if let Some(remainder) = rest.strip_prefix("met") {
-            (ComplianceStatus::Met, remainder)
-        } else if let Some(remainder) = rest.strip_prefix("pending") {
-            (ComplianceStatus::Pending, remainder)
-        } else {
-            continue;
-        };
-        let note = remainder.trim_start_matches([' ', '\u{2014}', '-']).trim();
-        items.push(ComplianceItem {
-            id,
-            status,
-            note: (!note.is_empty()).then(|| note.to_string()),
-        });
-    }
-    items
-}
-
 /// Embeds the crate's `AGENTS.md` and `DESIGN.md` as its served document set
 /// (C18, C21). Invoke from the server crate so the paths resolve against that
 /// crate's manifest directory.
@@ -233,29 +189,17 @@ macro_rules! server_docs {
                 "Domain design",
                 $crate::docs::embedded_document!("DESIGN.md"),
             )
+            .with_profile_json(include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contract-compliance.json"
+            )))
+            .expect("embedded owner compliance profile and manual must agree")
     };
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const MANUAL: &str = "# Example\n\n## Purpose\n\nText.\n\n## Contract Compliance\n\nContract revision: 3\n\n- C01: met\n- C02: pending — well-known surface not yet wired\n- C03: pending - unverified\n\n## Build And Test\n\n- cargo test\n";
-
-    #[test]
-    fn parses_met_and_pending_items_within_section_bounds() {
-        let items = parse_compliance(MANUAL);
-        assert_eq!(items.len(), 3);
-        assert_eq!(items[0].id, "C01");
-        assert_eq!(items[0].status, ComplianceStatus::Met);
-        assert_eq!(items[0].note, None);
-        assert_eq!(items[1].status, ComplianceStatus::Pending);
-        assert_eq!(
-            items[1].note.as_deref(),
-            Some("well-known surface not yet wired")
-        );
-        assert_eq!(items[2].note.as_deref(), Some("unverified"));
-    }
 
     #[test]
     fn llms_txt_lists_every_document() {
@@ -270,31 +214,31 @@ mod tests {
     }
 
     #[test]
-    fn declaration_derives_from_the_embedded_manual() {
-        let docs = ServerDocs::new("example").with_doc(DOC_ID_AGENTS, "Agent work manual", MANUAL);
-        let declaration = ContractDeclaration::from_docs(&docs);
-        assert_eq!(declaration.server, "example");
-        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
-        assert_eq!(declaration.compliance.len(), 3);
-        let json = serde_json::to_string(&declaration).unwrap();
-        let back: ContractDeclaration = serde_json::from_str(&json).unwrap();
-        assert_eq!(back, declaration);
-    }
-
-    #[test]
-    fn server_docs_builds_the_declaration_once() {
-        let docs = ServerDocs::new("example").with_doc(DOC_ID_AGENTS, "Agent work manual", MANUAL);
-        let first = docs.contract_declaration();
-        let second = docs.contract_declaration();
-        assert!(std::ptr::eq(first, second));
-        assert_eq!(first.contract_revision, 3);
-    }
-
-    #[test]
-    fn checklist_ids_are_dense_and_stable() {
-        assert_eq!(CHECKLIST_IDS.len(), 32);
-        for (index, id) in CHECKLIST_IDS.iter().enumerate() {
-            assert_eq!(*id, format!("C{:02}", index + 1));
-        }
+    fn embedded_profile_and_manual_must_agree() {
+        let bytes = include_str!("../testdata/compliance-example.json");
+        let manual = include_str!("../testdata/compliance-example.md");
+        let docs = ServerDocs::new("example")
+            .with_doc(DOC_ID_AGENTS, "Agent work manual", manual)
+            .with_profile_json(bytes)
+            .unwrap();
+        let declaration = docs.contract_declaration();
+        assert_eq!(declaration.compliance().len(), 32);
+        assert!(std::ptr::eq(declaration, docs.contract_declaration()));
+        assert_eq!(
+            serde_json::to_value(declaration).unwrap(),
+            serde_json::to_value(docs.profile()).unwrap()
+        );
+        assert!(
+            ServerDocs::new("foreign")
+                .with_doc(DOC_ID_AGENTS, "Agent work manual", manual)
+                .with_profile_json(bytes)
+                .is_err()
+        );
+        assert!(
+            ServerDocs::new("example")
+                .with_doc(DOC_ID_AGENTS, "Agent work manual", "altered manual")
+                .with_profile_json(bytes)
+                .is_err()
+        );
     }
 }

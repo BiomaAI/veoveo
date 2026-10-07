@@ -134,6 +134,38 @@ fn declared_sections_targets_and_audit_share_checked_owner_types() {
     assert!(register_catalog(&mut builder).is_err());
     let registry = builder.build().unwrap();
     let admitted = registry.admit_sections(&values, &current).unwrap();
+    for (pointer, current_name, retired_name) in [
+        ("/0", "maximumBatchBytes", "maximum_batch_bytes"),
+        ("/0/producers/0", "oauthClient", "oauth_client"),
+        (
+            "/0/producers/0/quotas",
+            "maximumConcurrentStreams",
+            "maximum_concurrent_streams",
+        ),
+    ] {
+        for mode in ["replacement", "mixed", "conflicting"] {
+            let mut changed = values.clone();
+            let target = changed
+                .get_mut(RECORDING_INGEST_SECTION)
+                .unwrap()
+                .pointer_mut(pointer)
+                .unwrap();
+            let current_value = target.get(current_name).unwrap().clone();
+            target[retired_name] = if mode == "conflicting" {
+                serde_json::json!("retired-conflict")
+            } else {
+                current_value
+            };
+            if mode == "replacement" {
+                target.as_object_mut().unwrap().remove(current_name);
+            }
+            assert!(
+                registry.admit_sections(&changed, &current).is_err(),
+                "{pointer} {mode}"
+            );
+        }
+    }
+
     let section_key = registry
         .section_key::<RecordingCatalogSection>(
             &ExtensionName::parse(RECORDING_INGEST_SECTION).unwrap(),

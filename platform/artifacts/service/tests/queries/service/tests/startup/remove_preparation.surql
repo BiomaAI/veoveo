@@ -1,0 +1,1 @@
+DELETE platform_module_installation;

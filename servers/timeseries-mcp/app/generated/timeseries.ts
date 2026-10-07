@@ -59,24 +59,24 @@ export type GroupId = string;
  */
 export type ArtifactProvenance =
   | {
-      delegation_id?: NoIdentity | null;
+      delegationId?: NoIdentity | null;
       initiator: PrincipalId;
-      invocation_mode: "direct";
-      policy_revision: PolicyVersion;
+      invocationMode: "direct";
+      policyRevision: PolicyVersion;
       producer: PrincipalId;
     }
   | {
-      delegation_id: DelegationId;
+      delegationId: DelegationId;
       initiator: PrincipalId;
-      invocation_mode: "delegated";
-      policy_revision: PolicyVersion;
+      invocationMode: "delegated";
+      policyRevision: PolicyVersion;
       producer: PrincipalId;
     }
   | {
-      delegation_id?: NoIdentity | null;
+      delegationId?: NoIdentity | null;
       initiator?: NoIdentity | null;
-      invocation_mode: "automated";
-      policy_revision: PolicyVersion;
+      invocationMode: "automated";
+      policyRevision: PolicyVersion;
       producer: PrincipalId;
     };
 /**
@@ -282,7 +282,7 @@ export interface TimeseriesForecastOutput {
   artifact: ArtifactMetadata;
   forecast: TimeseriesForecastSummary;
   preview: TimeseriesSeriesPreview[];
-  result_uri: TimeseriesArtifactUri;
+  resultUri: TimeseriesArtifactUri;
 }
 /**
  * Canonical metadata for an artifact managed by a server-owned store.
@@ -295,18 +295,21 @@ export interface TimeseriesForecastOutput {
  * via the `definition` "ArtifactMetadata".
  */
 export interface ArtifactMetadata {
-  artifact_id: ArtifactId;
-  artifact_uri: ArtifactUri;
-  byte_len: number;
+  artifactId: ArtifactId;
+  artifactUri: ArtifactUri;
+  byteLen: number;
   compliance?: ComplianceMetadata;
-  created_at: string;
-  download_url?: string | null;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  createdAt: string;
+  downloadUrl?: string | null;
   filename?: string | null;
   metadata?: {
     [k: string]: unknown;
   };
-  mime_type?: string | null;
-  release_state?: "private" | "releasable" | "released";
+  mimeType?: string | null;
+  releaseState?: "private" | "releasable" | "released";
 }
 /**
  * Compliance and tenancy labels that travel with server-owned artifacts.
@@ -317,12 +320,15 @@ export interface ArtifactMetadata {
  */
 export interface ComplianceMetadata {
   classification?: DataLabelId | null;
-  data_labels?: DataLabelId[];
+  dataLabels?: DataLabelId[];
   owner?: AccessSubject | null;
   provenance?: ArtifactProvenance | null;
-  retention_expires_at?: string | null;
-  tenant_id?: TenantId | null;
-  work_context?: WorkContextId | null;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  retentionExpiresAt?: string | null;
+  tenantId?: TenantId | null;
+  workContext?: WorkContextId | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -332,16 +338,16 @@ export interface TimeseriesForecastSummary {
   horizon: TimeseriesForecastHorizon;
   method: TimeseriesForecastMethod;
   series: TimeseriesSeriesSummary[];
-  source_rows: number;
+  sourceRows: number;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "TimeseriesSeriesSummary".
  */
 export interface TimeseriesSeriesSummary {
-  forecast_rows: number;
-  observed_rows: number;
-  series_id: string;
+  forecastRows: number;
+  observedRows: number;
+  seriesId: string;
 }
 /**
  * Downsampled chartable series shipped in structured output so app views
@@ -359,7 +365,7 @@ export interface TimeseriesSeriesPreview {
    * @maxItems 501
    */
   observed: TimeseriesPreviewObservation[];
-  series_id: string;
+  seriesId: string;
 }
 /**
  * One forecast step in a bounded chart preview.
@@ -380,7 +386,7 @@ export interface TimeseriesPreviewForecastPoint {
  * via the `definition` "TimeseriesPreviewObservation".
  */
 export interface TimeseriesPreviewObservation {
-  event_time?: string | null;
+  eventTime?: string | null;
   value: number;
 }
 /**
@@ -414,22 +420,22 @@ export interface TimeseriesForecastRequest {
   mapping: TimeseriesTableMapping;
   method?: "naive_trend";
   source: DuckDbTabularSource;
-  training_filter?: TimeseriesRowFilter | null;
+  trainingFilter?: TimeseriesRowFilter | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "TimeseriesTableMapping".
  */
 export interface TimeseriesTableMapping {
-  series_column?: DuckDbColumnName | null;
-  time_column?: DuckDbColumnName | null;
+  seriesColumn?: DuckDbColumnName | null;
+  timeColumn?: DuckDbColumnName | null;
   /**
    * Nonblank column name without NUL, preserved verbatim and quoted as one SQL identifier.
    *
    * This interface was referenced by `AppContracts`'s JSON-Schema
    * via the `definition` "DuckDbColumnName".
    */
-  value_column: DuckDbColumnName;
+  valueColumn: DuckDbColumnName;
 }
 /**
  * Every constructed options value can be rendered without a late shape check.
@@ -444,7 +450,7 @@ export interface DuckDbReadOptions {
     [k: string]: DuckDbReadOptionValue;
   };
   header?: boolean | null;
-  timestamp_format?: DuckDbReadOptionText | null;
+  timestampFormat?: DuckDbReadOptionText | null;
 }
 /**
  * Every constructed options value can be rendered without a late shape check.
@@ -459,7 +465,7 @@ export interface DuckDbReadOptions1 {
     [k: string]: DuckDbReadOptionValue;
   };
   header?: boolean | null;
-  timestamp_format?: DuckDbReadOptionText | null;
+  timestampFormat?: DuckDbReadOptionText | null;
 }
 /**
  * Every constructed options value can be rendered without a late shape check.
@@ -474,7 +480,7 @@ export interface DuckDbReadOptions2 {
     [k: string]: DuckDbReadOptionValue;
   };
   header?: boolean | null;
-  timestamp_format?: DuckDbReadOptionText | null;
+  timestampFormat?: DuckDbReadOptionText | null;
 }
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -499,12 +505,15 @@ export interface TimeseriesRowFilter {
  */
 export interface ComplianceMetadata1 {
   classification?: DataLabelId | null;
-  data_labels?: DataLabelId[];
+  dataLabels?: DataLabelId[];
   owner?: AccessSubject | null;
   provenance?: ArtifactProvenance | null;
-  retention_expires_at?: string | null;
-  tenant_id?: TenantId | null;
-  work_context?: WorkContextId | null;
+  /**
+   * RFC3339 timestamps with Chrono signed extended years and leap-second nanoseconds; receiving calendar and chronology admission is required.
+   */
+  retentionExpiresAt?: string | null;
+  tenantId?: TenantId | null;
+  workContext?: WorkContextId | null;
 }
 /**
  * Every constructed options value can be rendered without a late shape check.
@@ -522,5 +531,5 @@ export interface DuckDbReadOptions3 {
     [k: string]: DuckDbReadOptionValue;
   };
   header?: boolean | null;
-  timestamp_format?: DuckDbReadOptionText | null;
+  timestampFormat?: DuckDbReadOptionText | null;
 }

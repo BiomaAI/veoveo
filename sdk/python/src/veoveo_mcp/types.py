@@ -14,6 +14,8 @@ from uri_template import URITemplate
 from uri_template import ExpansionInvalidError, ExpansionReservedError, VariableInvalidError
 from pydantic_core import core_schema
 
+from .timestamp import ChronoTimestamp  # public foundational scalar
+
 
 class CheckedText(str):
     """Nominal string with constructor and Pydantic validation at ingress."""

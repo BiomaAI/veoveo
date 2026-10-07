@@ -62,3 +62,62 @@ impl<'de> serde::Deserializer<'de> for UuidBytes<'de> {
         identifier ignored_any
     }
 }
+
+#[test]
+fn workspace_known_operation_graph_refuses_retired_root_and_nested_keys() {
+    use veoveo_workspace::contract::{
+        OperationId, OperationPhase, OperationSummary, OperationView, TaskState, TaskView,
+    };
+    let current = serde_json::to_value(OperationView {
+        operation: OperationSummary {
+            id: OperationId(uuid::Uuid::now_v7()),
+            chat_id: ChatId(uuid::Uuid::now_v7()),
+            run_id: None,
+            agent: None,
+            tool: "time__resolve_time".into(),
+            phase: OperationPhase::Task,
+            revision: 1,
+            created_at: chrono::Utc::now(),
+        },
+        progress: None,
+        task: Some(TaskView {
+            id: "native-task".into(),
+            state: TaskState::Working,
+            message: None,
+            created_at: "2026-10-06T00:00:00Z".into(),
+            updated_at: "2026-10-06T00:00:00Z".into(),
+            ttl_ms: Some(1000),
+            poll_interval_ms: Some(100),
+        }),
+        inputs: vec![],
+        result: None,
+    })
+    .unwrap();
+    serde_json::from_slice::<OperationView>(&serde_json::to_vec(&current).unwrap()).unwrap();
+    for (parent, key, old) in [
+        ("/operation", "chatId", "chat_id"),
+        ("/operation", "runId", "run_id"),
+        ("/operation", "createdAt", "created_at"),
+        ("/task", "createdAt", "created_at"),
+        ("/task", "updatedAt", "updated_at"),
+        ("/task", "ttlMs", "ttl_ms"),
+        ("/task", "pollIntervalMs", "poll_interval_ms"),
+    ] {
+        for keep in [false, true] {
+            let mut bad = current.clone();
+            let object = bad.pointer_mut(parent).unwrap().as_object_mut().unwrap();
+            object.insert(old.into(), object[key].clone());
+            if !keep {
+                object.remove(key);
+            }
+            assert!(
+                serde_json::from_value::<OperationView>(bad.clone()).is_err(),
+                "{parent}/{old} mixed={keep}"
+            );
+            assert!(
+                serde_json::from_slice::<OperationView>(&serde_json::to_vec(&bad).unwrap())
+                    .is_err()
+            );
+        }
+    }
+}

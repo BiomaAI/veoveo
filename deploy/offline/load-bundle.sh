@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+admission="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/admission.jq"
+
 bundle=""
 runtime=docker
 install_dir="${PWD}/veoveo-offline"
@@ -52,6 +54,21 @@ tar -C "$stage" -xzf "$bundle"
 
 (cd "$stage" && checksum_check SHA256SUMS)
 
+jq -e --slurp --arg profile bundle -f "$admission" "$stage/metadata/bundle.json" >/dev/null || {
+  printf 'invalid or unsupported bundle metadata\n' >&2
+  exit 1
+}
+jq -e --slurp --arg profile lock -f "$admission" "$stage/metadata/images.lock.json" >/dev/null || {
+  printf 'invalid or unsupported bundle lock\n' >&2
+  exit 1
+}
+jq -e --slurpfile lock "$stage/metadata/images.lock.json" '.bundle == $lock[0]' \
+  "$stage/metadata/bundle.json" >/dev/null || {
+  printf 'bundle lock does not match selected metadata\n' >&2
+  exit 1
+}
+
+
 case "$runtime" in
   docker)
     command -v docker >/dev/null || { printf 'missing required command: docker\n' >&2; exit 1; }
@@ -62,7 +79,7 @@ case "$runtime" in
         printf 'image identity mismatch for %s: expected %s, got %s\n' "$ref" "$expected" "$actual" >&2
         exit 1
       }
-    done < <(jq -r '.images[] | [.ref, .image_id] | @tsv' "$stage/metadata/bundle.json")
+    done < <(jq -r '.images[] | [.ref, .imageId] | @tsv' "$stage/metadata/bundle.json")
     ;;
   containerd)
     command -v ctr >/dev/null || { printf 'missing required command: ctr\n' >&2; exit 1; }

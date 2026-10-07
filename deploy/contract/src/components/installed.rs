@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 
-pub const INSTALLED_UNIT_SCHEMA: &str = "veoveo.ai/installed-deployment-unit/v1";
+pub const INSTALLED_UNIT_SCHEMA: &str = "veoveo.ai/installed-deployment-unit/v2";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -38,7 +38,7 @@ pub struct InstalledObjectObservation {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(
     tag = "kind",
-    rename_all = "kebab-case",
+    rename_all = "snake_case",
     rename_all_fields = "camelCase",
     deny_unknown_fields
 )]

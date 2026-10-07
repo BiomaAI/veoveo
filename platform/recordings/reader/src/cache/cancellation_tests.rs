@@ -35,10 +35,18 @@ async fn cancelled_download_releases_disk_reservation_and_partial_file() {
                 headers.push(socket.read_u8().await.unwrap());
             }
             if index == 0 {
-                let metadata = format!(
-                    r#"{{"artifact_id":"{id}","artifact_uri":"{}","byte_len":5,"created_at":"2026-09-08T00:00:00Z"}}"#,
-                    id.plane_uri()
-                );
+                let metadata = serde_json::to_string(&veoveo_artifact_contract::ArtifactMetadata {
+                    artifact_uri: id.plane_uri(),
+                    byte_len: 5,
+                    mime_type: None,
+                    filename: None,
+                    download_url: None,
+                    created_at: "2026-09-08T00:00:00Z".parse().unwrap(),
+                    release_state: Default::default(),
+                    compliance: Default::default(),
+                    metadata: serde_json::Value::Null,
+                })
+                .unwrap();
                 socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{metadata}", metadata.len()).as_bytes()).await.unwrap();
             } else {
                 socket

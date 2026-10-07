@@ -9,10 +9,73 @@ tests do not establish CUDA execution or installed network isolation.
 A first qualification starts with actual effective execution contents, rather than
 a bundle. Record the immutable image/checkpoint manifest, vLLM version, observed
 NVIDIA GPU/CUDA/driver, precision, token/sequence budgets, scheduling policy,
-attention backend, configured graph allowance and observed graph execution.
+attention backend, configured graph allowance and runtime dispatch from a real batch.
 Record an explicit KV-cache override as bytes, or explicit null when none is set.
 These values come from the serving process and its configuration. An omitted
 `--enforce-eager` flag alone cannot establish CUDA graph execution.
+The chart pins vLLM 0.31.0 and starts the production Deployment without profiler
+instrumentation. A temporary isolated local process may use vLLM's [maintained Proton
+graph-attribution profiler](https://docs.vllm.ai/en/v0.31.0/contributing/profiling/#profile-with-triton-proton)
+for this dispatch observation. vLLM 0.31's `/start_profile` and `/stop_profile`
+handlers bypass API-key middleware. Run the temporary process in a no-network
+container, bind vLLM to container loopback, and issue the profile controls and the
+authenticated embedding request from inside that container. Never expose the profile
+routes through a service, host port, or production Deployment.
+The `--cudagraph-metrics` table does not establish pooling-request dispatch:
+vLLM's pooling output constructors omit graph statistics before the logger. The same
+omission exists in 0.31.0. Graph capture and startup warmup alone do not establish
+execution. Before profiling, verify that the live process reports Proton graph
+attribution enabled and uses Triton 3.7 or newer; otherwise stop this observation.
+
+After readiness, start the provider profile, send one ordinary authenticated short
+embedding request, and stop the profile:
+
+```text
+POST /start_profile
+POST /v1/embeddings
+POST /stop_profile
+```
+
+The startup option is:
+
+```text
+--profiler-config '{"profiler":"proton","proton_profiler_dir":"/tmp/vllm-proton","proton_data":"tree","proton_output_format":"hatchet","proton_hook":"triton","proton_graph_attribution":true}'
+```
+
+Inspect the resulting Hatchet tree for CUDA graph-attributed kernels in the request
+profile phase. Proton adds `<captured_at>` between the call path that captured a
+kernel and the call path that replayed it. The `graph_launch` and `graph` names shown
+in Proton's CUDA-graph example are scopes chosen by that example; vLLM need not emit
+those names. A qualifying trace therefore records its actual replay ancestry, the
+automatic `<captured_at>` boundary, the captured kernel ancestry, and a kernel name
+with positive `time/ns` in `proton-viewer -m time/ns`. The exact image's pinned
+[Triton 3.7.1 Proton documentation](https://github.com/triton-lang/triton/blob/v3.7.1/third_party/proton/README.md#cuda-graph)
+defines this path composition, and [vLLM 0.31.0's CUDA-graph replay code](https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/compilation/cuda_graph.py#L359-L363)
+shows the replay boundary in the served runtime.
+
+The request profile phase separates this path from startup graph capture. A capture
+phase alone, an ordinary kernel path, or generic positive CUDA time does not prove
+graph dispatch. A missing path is inconclusive, not evidence of eager execution; a
+zero-time, missing-boundary, or capture-only path does not qualify. Record the actual
+scope labels and request phase. This qualifies only the observed request shape; it
+neither counts low-level replay calls nor attests performance or vector quality.
+The embedding request uses its private API key; the two profile controls are
+unauthenticated and rely on container network isolation. The profile configuration is
+fixed at process startup; each interval starts and stops without restarting the engine.
+Do not profile capacity or vector-quality measurements because profiling adds
+instrumentation. The production chart does not enable this launch option.
+
+The exact serving image includes Triton and `proton-viewer` but omits the viewer's
+analysis packages. Run the viewer in an isolated analysis environment with the exact
+image's Triton package and the trace mounted read-only. Hatchet 2026.1.0 requires
+`pandas<3`, so the current locked analysis environment uses pandas 2.3.3, the latest
+compatible stable release, and NumPy 2.2.6 to match the image. PyPI's pandas 3.0.6 is
+newer but does not satisfy Hatchet's declared constraint. This environment is only for
+trace rendering and does not change the serving image or its runtime dependencies.
+Embedding qualification owns this temporary constraint and will review it at the next
+vLLM qualification, no later than 2026-10-21, by adopting upstream Hatchet support for
+pandas 3 and rerunning the trace analysis.
+
 The existing profile writer computes the content identity and refuses incomplete
 or contradictory contents. It does not measure or attest the process:
 
@@ -40,6 +103,21 @@ cargo test -p veoveo-knowledge-mcp --test gpu_retrieval \
   candidate_measurement::capture_candidate_domain_vectors -- --ignored --exact --nocapture
 ```
 
+The Rust capture writer and Python collector enforce a 512 MiB raw-byte cap. The
+collector admits the complete profile, nested values and member selections before
+CUDA or model access. `captureDigest` covers the original bytes. The count and
+dimension ceilings apply together with this aggregate cap.
+
+Pure receiver controls use the current Rust-produced structural fixture:
+
+```sh
+python -m unittest test_capture
+```
+
+Run that command from this verification directory in the qualified Python runtime
+with Pydantic 2.13. The synthetic fixture verifies receiving admission and never
+establishes model or GPU qualification.
+
 The capture includes original source and judgment fingerprints, member identities,
 selected collections, chunk text and vectors. This target makes no Store connection.
 Run `reference.py` in the pinned NVIDIA image as described below, adding
@@ -54,6 +132,49 @@ chunks by member and applies the captured case collection selection. Candidate
 recall must meet the declared threshold and cannot lose judged recall against the CUDA
 reference. Its report scope is `candidate_vector_ranking`; it grants no SQL,
 source-authorization or production Knowledge acceptance.
+
+Each completed comparison emits one `candidate_reference_diagnostics` JSON log
+before the acceptance decision. The log reports document and query counts, minimum
+cosines and counts below 0.999. It selects at most eight vectors in ascending cosine
+order on CUDA; equal cosines keep the capture's document-then-query order. Each
+entry identifies its capture vector index, SHA-256 of the exact UTF-8 model input,
+token length, padded width and inferred left-padding count from its actual tokenizer
+batch. Documents name their
+member index and collection; queries name their query ID. Query input digests include
+the instruction prefix. The log includes reference Python, Torch, Transformers,
+vLLM, CUDA and cuDNN versions, plus the captured candidate runtime versions.
+It exports no corpus bodies, resource URIs, tokens or embedding components.
+The two acceptance reports keep their existing formats and refuse occupied output
+paths. A failed comparison preserves those reports and fails the command.
+
+For a causal comparison of one or two admitted documents, select their zero-based
+chunk indices with `--document-indices`. This explicit mode writes a separate
+`veoveo.ai/embedding-batch-diagnostic/v1` document to a new `--output` path and
+rejects `--retrieval-report`. It verifies the strict capture, target space and local
+checkpoint before CUDA admission. The model loads once with the full reference's
+admitted precision and cuDNN settings. Each selected document runs in its original group of 16
+chunks, preserving source order and left padding, then as a singleton with the same
+model-default positions. The final source group can contain fewer than 16 chunks.
+The optional `--repeat-singleton` runs that singleton once more.
+
+```sh
+python3 /qualification/verification/reference.py \
+  --checkpoint <local-checkpoint> --manifest <checkpoint-manifest> \
+  --space-file <candidate-space.json> --candidate-capture <original-capture.json> \
+  --document-indices 952 704 --repeat-singleton \
+  --output <new-batch-diagnostic.json>
+```
+
+CUDA computes candidate-versus-original-batch, candidate-versus-singleton and
+original-batch-versus-singleton cosines. A repeat adds the corresponding three
+cosines for that run. The output identifies the selected indices, exact input text
+digests and original batch start/count, with actual token lengths and padding widths
+for each reference run. It includes the original capture and checkpoint digests,
+vector space, execution profile and runtime versions. These bounded facts contain
+no input text, resource URIs, tokens or embedding components. The mode evaluates no
+ranking or full-corpus acceptance and emits no passing report or space-reuse claim.
+The default reference still compares every captured vector and applies its existing
+acceptance conditions.
 
 Set `VEOVEO_EMBEDDING_MINIMUM_INPUTS_PER_SECOND` and
 `VEOVEO_EMBEDDING_MAXIMUM_QUERY_LATENCY_MICROS` to positive installation acceptance
@@ -94,21 +215,59 @@ required fresh-state/drain transition are complete.
 ## Reference Vectors
 
 `reference.py` follows the pinned model card's last-token pooling and L2 normalization.
-It runs Transformers on CUDA with bfloat16 weights. The padded reference batch requires
-cuDNN fused attention because PyTorch Flash Attention rejects its non-null padding
-mask. The script requires that backend and records the installed library versions and
-GPU. The runtime itself selects its supported fused attention implementation.
+It runs Transformers on CUDA and admits two weight precisions. The loaded model's
+dtype must match the target space before inference. The fixed reference, full candidate
+comparison and selected-document diagnostic share this admission.
 
-The committed `reference.json` is generated in the official pinned vLLM image, using
-that image's Transformers and PyTorch packages. This keeps the qualification dependency
-set equal to the runtime image. Stage the checkpoint's ten files and verify
+| `space.precision` | Loaded Torch dtype | Normalization dtype |
+|---|---|---|
+| `bfloat16` | `torch.bfloat16` | `torch.float32` |
+| `float16` | `torch.float16` | `torch.float32` |
+
+The reference rejects `float32`, `int8` and `int4` before CUDA or model loading.
+The padded reference batch requires cuDNN fused attention because PyTorch Flash
+Attention rejects its non-null padding mask. The script requires that backend and
+records the matched weight precision, installed library versions and GPU. The runtime
+itself selects its supported fused attention implementation. The
+[official model card](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B#transformers-usage)
+includes a CUDA FP16 example.
+
+Weight precision forms part of vector-space identity. An FP16 evaluation needs a
+distinct FP16 space, an actual FP16 serving profile and a fresh production capture
+from that profile. Capture admission requires `serving.precision` to equal
+`space.precision`; changing labels cannot qualify retained BF16 vectors. Each precision
+requires its own full-corpus comparison and retrieval reports, scheduling and capacity
+reports, and passing production Knowledge workload. Every report uses a new exclusive
+output path. The all-vector cosine threshold stays 0.999 and the full qualification
+gates apply independently to both precisions. Implemented reference admission and
+pure mock controls establish no GPU or space-reuse qualification.
+
+The collector imports `rfc3986==2.0.0` and `rfc3986-validator==0.1.1`
+from the hash-pinned [verification requirements](requirements.txt). Preparation
+stages their two pure-Python wheels in `EMBEDDING_COLLECTOR_DEPENDENCIES` and
+verifies the pinned wheel hashes. The supported host test environment uses the
+same inputs with its qualified Pydantic 2.13 installation. Native and the
+installation owner prepare those dependencies before qualification.
+
+The GPU invocation mounts the wheels read-only and imports them through
+`PYTHONPATH`. This overlay adds URI admission without installing into the official
+image or changing its CUDA, PyTorch, Transformers or vLLM packages. An absent or
+wrong dependency input refuses qualification. No download occurs in the GPU
+invocation.
+
+The committed `reference.json` contains the actual current v2 four-input CUDA producer
+output for the selected qualified space. Generate it in the official pinned vLLM image
+with that image's Transformers and PyTorch packages. This keeps the qualification
+dependency set equal to the runtime image. Stage the checkpoint's ten files and verify
 `checkpoint.sha256` first. From the repository root:
 
 ```sh
-embedding_image=vllm/vllm-openai@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90
+embedding_image=vllm/vllm-openai@sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3
 timeout 240s docker run --rm --gpus all --network none \
   --user "$(id -u):$(id -g)" --shm-size 1g \
-  -e HOME=/tmp -e HF_HUB_OFFLINE=1 -e UV_CACHE_DIR=/tmp/uv \
+  -e HF_HUB_OFFLINE=1 -e UV_CACHE_DIR=/tmp/uv \
+  -e PYTHONPATH=/qualification-deps/rfc3986-2.0.0-py2.py3-none-any.whl:/qualification-deps/rfc3986_validator-0.1.1-py2.py3-none-any.whl \
+  -v "$EMBEDDING_COLLECTOR_DEPENDENCIES:/qualification-deps:ro" \
   -v "$(command -v uv):/usr/local/bin/veoveo-uv:ro" \
   -v "$EMBEDDING_CHECKPOINT:/models/checkpoint:ro" \
   -v "$PWD/platform/runtimes/embedding:/qualification" \
@@ -120,9 +279,12 @@ timeout 240s docker run --rm --gpus all --network none \
   --output /qualification/verification/reference.generated.json
 ```
 
-The script refuses an existing output. Supply `space.measured.json` from the explicit
-target deployment settings, including effective precision. Preserve historical
-`reference.json`; use the generated current-format file as `VEOVEO_EMBEDDING_REFERENCE_FILE`. Reference generation refuses a missing GPU or invalid checkpoint.
+The script refuses an existing output. Supply `space.measured.json` from the selected
+qualified space and its effective deployment precision. Verify the complete generated
+current v2 output against that space, then promote its original bytes to `reference.json`
+and use it as `VEOVEO_EMBEDDING_REFERENCE_FILE`. Keep historical experiment measurements
+in their separate records. Promotion changes no format marker or retained vector labels.
+Reference generation refuses a missing GPU or invalid checkpoint.
 No package installation or model download occurs in the container.
 
 ## Served Vectors And Scheduling

@@ -3,11 +3,11 @@
     "branch": "TranscribeRequest.object",
     "tool": "transcribe",
     "arguments": {
-      "artifact_uri": "artifact://01983da0-0000-7000-8000-000000000000"
+      "artifactUri": "artifact://01983da0-0000-7000-8000-000000000000"
     },
     "tag": null,
     "required": [
-      "/artifact_uri"
+      "/artifactUri"
     ],
     "defaults": {},
     "open_objects": []
@@ -17,12 +17,12 @@
     "tool": "start_dictation",
     "arguments": {
       "id": "01983da0-0000-7000-8000-000000000000",
-      "sample_rate": 16000
+      "sampleRate": 16000
     },
     "tag": null,
     "required": [
       "/id",
-      "/sample_rate"
+      "/sampleRate"
     ],
     "defaults": {},
     "open_objects": []

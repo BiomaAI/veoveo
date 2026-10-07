@@ -2,9 +2,16 @@
 
 use veoveo_modules::*;
 
-pub const CURRENT_SCHEMA: &str = concat!(
+const BASE_SCHEMA: &str = concat!(
     include_str!("artifacts/migrations/0000_current.surql"),
     include_str!("artifacts/migrations/read_v1.surql")
+);
+
+/// Complete current fresh-installation schema, including append-only receipt admission.
+pub const CURRENT_SCHEMA: &str = concat!(
+    include_str!("artifacts/migrations/0000_current.surql"),
+    include_str!("artifacts/migrations/read_v1.surql"),
+    include_str!("artifacts/migrations/0001_request_format.surql")
 );
 
 fn read_api() -> Result<KernelSqlApi, DeclarationError> {
@@ -45,11 +52,18 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             OwnershipClaim::Function(FunctionName::new("fn::artifact_upload_profile_digest")?),
             OwnershipClaim::Function(FunctionName::new("fn::artifact_upload_authority_matches")?),
         ])
-        .lane(MigrationLane::new(vec![veoveo_modules::Migration::new(
-            veoveo_modules::MigrationVersion::new(0),
-            veoveo_modules::MigrationName::new("current")?,
-            CURRENT_SCHEMA,
-        )?])?)
+        .lane(MigrationLane::new(vec![
+            veoveo_modules::Migration::new(
+                veoveo_modules::MigrationVersion::new(0),
+                veoveo_modules::MigrationName::new("current")?,
+                BASE_SCHEMA,
+            )?,
+            veoveo_modules::Migration::new(
+                veoveo_modules::MigrationVersion::new(1),
+                veoveo_modules::MigrationName::new("request_format")?,
+                include_str!("artifacts/migrations/0001_request_format.surql"),
+            )?,
+        ])?)
         .sql_apis(vec![read_api()?])
         .execution(execution)
         .requires(vec![LaneRequirement::Satisfied(ModuleName::new(

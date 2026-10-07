@@ -289,109 +289,112 @@ async def test_native_rust_python_task_storage_interop(runtime, surreal_platform
             "set VEOVEO_TEST_TASK_RUNTIME_BIN to the prebuilt surreal_integration "
             "test executable containing sdk_task_storage_interop; this fixture does not build it"
         )
-    python_tasks = []
-    python_failures = []
-    for mode, tenant, payload in [
-        ("direct", None, None),
-        ("delegated", "local", [None, {"provider": {"unknown": True, "fraction": 1.5}}]),
-        ("automated", "installation", {"large": 2**64 - 1, "null": None}),
-    ]:
-        caller = owner("storage-interop")
-        authority = caller.authority.model_dump(mode="json")
-        authority["tenant"] = tenant or "installation"
-        authority["output_policy"]["data_labels"] = ["output"]
-        authority["provenance"] = {"mode": mode}
-        if mode != "automated":
-            authority["provenance"]["initiator"] = caller.principal_key
-        if mode == "delegated":
-            authority["provenance"]["delegation_id"] = "delegation-interop"
-        caller = replace(
-            caller, tenant_key=tenant, data_labels=frozenset({"clearance"}),
-            authority=type(caller.authority).model_validate(authority),
-        )
-        created = (await runtime.create(draft(
-            owner=caller, request=payload, poll_interval_ms=2**64 - 1,
-        ))).snapshot
-        await runtime.claim(str(created.task_id), timedelta(seconds=60))
-        await runtime.request_input(str(created.task_id), "interop", TaskInputRequest("owner/input", {"opaque": [None, 2**64 - 1]}))
-        from veoveo_mcp.tasks.types import TaskFailure
-        failure_value = {"code": "owner.extension", "message": "failure"}
-        if mode != "direct":
-            failure_value["details"] = None if mode == "delegated" else {"provider": [None, 2**64 - 1]}
-        failure = TaskFailure.from_json(failure_value)
-        failed = (await runtime.create(draft(owner=caller))).snapshot
-        claimed_failure = (await runtime.claim(str(failed.task_id), timedelta(seconds=60))).snapshot
-        await runtime.transition_if_current(claimed_failure, TaskTransition.failed(failure))
-        python_failures.append({"task_id": str(failed.task_id), "owner": caller.to_json(), "failure": failure_value})
-        python_tasks.append({
-            "task_id": str(created.task_id), "owner": caller.to_json(), "request": payload,
-            "poll_interval_ms": created.poll_interval_ms,
-        })
-    for written in python_tasks:
-        await expire_input_writer_lease(runtime, written["task_id"])
-    with TemporaryDirectory(prefix="veoveo-python-task-interop-") as temporary:
-        directory = Path(temporary)
-        config_path, output_path = directory / "config.json", directory / "output.json"
-        config_path.write_text(json.dumps({
-            **surreal_platform, "server": runtime.server, "python_tasks": python_tasks, "python_failures": python_failures,
-        }), encoding="utf-8")
-        config_path.chmod(0o600)
-        environment = {
-            "VEOVEO_TEST_TASK_INTEROP_CONFIG": str(config_path),
-            "VEOVEO_TEST_TASK_INTEROP_OUTPUT": str(output_path),
-        }
-        if os.environ.get("LD_LIBRARY_PATH"):
-            environment["LD_LIBRARY_PATH"] = os.environ["LD_LIBRARY_PATH"]
-        try:
-            result = await asyncio.to_thread(
-                subprocess.run,
-                [executable, "--ignored", "--exact", "sdk_task_storage_interop", "--nocapture"],
-                env=environment, capture_output=True, text=True, timeout=120,
+    async with asyncio.timeout(180) as budget:
+        python_tasks = []
+        python_failures = []
+        for mode, tenant, payload in [
+            ("direct", None, None),
+            ("delegated", "local", [None, {"provider": {"unknown": True, "fraction": 1.5}}]),
+            ("automated", "installation", {"large": 2**64 - 1, "null": None}),
+        ]:
+            caller = owner("storage-interop")
+            authority = caller.authority.model_dump(mode="json")
+            authority["tenant"] = tenant or "installation"
+            authority["output_policy"]["data_labels"] = ["output"]
+            authority["provenance"] = {"mode": mode}
+            if mode != "automated":
+                authority["provenance"]["initiator"] = caller.principal_key
+            if mode == "delegated":
+                authority["provenance"]["delegation_id"] = "delegation-interop"
+            caller = replace(
+                caller, tenant_key=tenant, data_labels=frozenset({"clearance"}),
+                authority=type(caller.authority).model_validate(authority),
             )
-        except subprocess.TimeoutExpired:
-            pytest.fail("Rust Task storage interop exceeded its 120-second deadline")
-        diagnostic = result.stderr + result.stdout
-        for key in ("username", "password"):
-            diagnostic = diagnostic.replace(surreal_platform[key], "<redacted>")
-        assert result.returncode == 0, f"Rust Task storage interop failed: {diagnostic[-4096:]}"
-        output = json.loads(output_path.read_text(encoding="utf-8"))
-        assert set(output) == {"rust_tasks", "rust_failures"}
-        assert len(output["rust_tasks"]) == len(python_tasks)
-        assert {row["task_id"] for row in output["rust_tasks"]}.isdisjoint(
-            row["task_id"] for row in python_tasks
-        )
-        for expected, written in zip(python_failures, output["rust_failures"], strict=True):
-            assert written["failure"] == expected["failure"]
-            assert (await runtime.get(written["task_id"])).error.to_json() == expected["failure"]
-        for expected, written in zip(python_tasks, output["rust_tasks"], strict=True):
-            assert set(written) == {"task_id", "owner", "request", "poll_interval_ms"}
-            assert (OwnerContextRecord.model_validate(written["owner"]).to_owner()
-                    == OwnerContextRecord.model_validate(expected["owner"]).to_owner())
-            assert written["request"] == expected["request"]
-            assert written["poll_interval_ms"] == expected["poll_interval_ms"]
-            snapshot = await runtime.get(written["task_id"])
-            assert snapshot.owner == OwnerContextRecord.model_validate(written["owner"]).to_owner()
-            assert snapshot.request == written["request"]
-            assert snapshot.poll_interval_ms == written["poll_interval_ms"]
-            inputs = await runtime.outstanding_inputs(written["task_id"])
-            assert inputs["interop"] == TaskInputRequest("owner/input", {"opaque": [None, 2**64 - 1]})
-            from veoveo_mcp.tasks.runtime import _owner_context_record, _request_record
-            comparisons = await runtime.store.query(
-                test_query("test_task_storage/compare_claim_snapshot.surql"), {
-                    "task": task_record(snapshot.task_id),
-                    "expected_updated_at": snapshot._updated_at_exact.driver_value(),
-                    "expected_request": _request_record(snapshot),
-                    "expected_owner_context": _owner_context_record(snapshot.owner),
-                },
-            )
-            assert all(comparisons[0][name] for name in (
-                "timestamp_matches", "request_matches", "owner_matches",
-            )), comparisons[0]
+            created = (await runtime.create(draft(
+                owner=caller, request=payload, poll_interval_ms=2**64 - 1,
+            ))).snapshot
+            await runtime.claim(str(created.task_id), timedelta(seconds=60))
+            await runtime.request_input(str(created.task_id), "interop", TaskInputRequest("owner/input", {"opaque": [None, 2**64 - 1]}))
+            from veoveo_mcp.tasks.types import TaskFailure
+            failure_value = {"code": "owner.extension", "message": "failure"}
+            if mode != "direct":
+                failure_value["details"] = None if mode == "delegated" else {"provider": [None, 2**64 - 1]}
+            failure = TaskFailure.from_json(failure_value)
+            failed = (await runtime.create(draft(owner=caller))).snapshot
+            claimed_failure = (await runtime.claim(str(failed.task_id), timedelta(seconds=60))).snapshot
+            await runtime.transition_if_current(claimed_failure, TaskTransition.failed(failure))
+            python_failures.append({"task_id": str(failed.task_id), "owner": caller.to_json(), "failure": failure_value})
+            python_tasks.append({
+                "task_id": str(created.task_id), "owner": caller.to_json(), "request": payload,
+                "poll_interval_ms": created.poll_interval_ms,
+            })
+        for written in python_tasks:
             await expire_input_writer_lease(runtime, written["task_id"])
-            claimed = (await runtime.claim(written["task_id"], timedelta(seconds=30))).snapshot
-            assert claimed.owner == snapshot.owner
-            assert claimed.request == snapshot.request
-            assert claimed.poll_interval_ms == snapshot.poll_interval_ms
+        with TemporaryDirectory(prefix="veoveo-python-task-interop-") as temporary:
+            directory = Path(temporary)
+            config_path, output_path = directory / "config.json", directory / "output.json"
+            config_path.write_text(json.dumps({
+                **surreal_platform, "server": runtime.server, "python_tasks": python_tasks, "python_failures": python_failures,
+            }), encoding="utf-8")
+            config_path.chmod(0o600)
+            environment = {
+                "VEOVEO_TEST_TASK_INTEROP_CONFIG": str(config_path),
+                "VEOVEO_TEST_TASK_INTEROP_OUTPUT": str(output_path),
+            }
+            if os.environ.get("LD_LIBRARY_PATH"):
+                environment["LD_LIBRARY_PATH"] = os.environ["LD_LIBRARY_PATH"]
+            rust_timeout = min(120, budget.when() - asyncio.get_running_loop().time())
+            assert rust_timeout > 0, "Task storage exchange exceeded its 180-second budget"
+            try:
+                result = await asyncio.to_thread(
+                    subprocess.run,
+                    [executable, "--ignored", "--exact", "sdk_task_storage_interop", "--nocapture"],
+                    env=environment, capture_output=True, text=True, timeout=rust_timeout,
+                )
+            except subprocess.TimeoutExpired:
+                pytest.fail(f"Rust Task storage interop exceeded its {rust_timeout:.1f}-second deadline")
+            diagnostic = result.stderr + result.stdout
+            for key in ("username", "password"):
+                diagnostic = diagnostic.replace(surreal_platform[key], "<redacted>")
+            assert result.returncode == 0, f"Rust Task storage interop failed: {diagnostic[-4096:]}"
+            output = json.loads(output_path.read_text(encoding="utf-8"))
+            assert set(output) == {"rust_tasks", "rust_failures"}
+            assert len(output["rust_tasks"]) == len(python_tasks)
+            assert {row["task_id"] for row in output["rust_tasks"]}.isdisjoint(
+                row["task_id"] for row in python_tasks
+            )
+            for expected, written in zip(python_failures, output["rust_failures"], strict=True):
+                assert written["failure"] == expected["failure"]
+                assert (await runtime.get(written["task_id"])).error.to_json() == expected["failure"]
+            for expected, written in zip(python_tasks, output["rust_tasks"], strict=True):
+                assert set(written) == {"task_id", "owner", "request", "poll_interval_ms"}
+                assert (OwnerContextRecord.model_validate(written["owner"]).to_owner()
+                        == OwnerContextRecord.model_validate(expected["owner"]).to_owner())
+                assert written["request"] == expected["request"]
+                assert written["poll_interval_ms"] == expected["poll_interval_ms"]
+                snapshot = await runtime.get(written["task_id"])
+                assert snapshot.owner == OwnerContextRecord.model_validate(written["owner"]).to_owner()
+                assert snapshot.request == written["request"]
+                assert snapshot.poll_interval_ms == written["poll_interval_ms"]
+                inputs = await runtime.outstanding_inputs(written["task_id"])
+                assert inputs["interop"] == TaskInputRequest("owner/input", {"opaque": [None, 2**64 - 1]})
+                from veoveo_mcp.tasks.runtime import _owner_context_record, _request_record
+                comparisons = await runtime.store.query(
+                    test_query("test_task_storage/compare_claim_snapshot.surql"), {
+                        "task": task_record(snapshot.task_id),
+                        "expected_updated_at": snapshot._updated_at_exact.driver_value(),
+                        "expected_request": _request_record(snapshot),
+                        "expected_owner_context": _owner_context_record(snapshot.owner),
+                    },
+                )
+                assert all(comparisons[0][name] for name in (
+                    "timestamp_matches", "request_matches", "owner_matches",
+                )), comparisons[0]
+                await expire_input_writer_lease(runtime, written["task_id"])
+                claimed = (await runtime.claim(written["task_id"], timedelta(seconds=30))).snapshot
+                assert claimed.owner == snapshot.owner
+                assert claimed.request == snapshot.request
+                assert claimed.poll_interval_ms == snapshot.poll_interval_ms
 
         from surrealdb import Datetime
         import uuid

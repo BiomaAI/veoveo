@@ -1,10 +1,10 @@
 {
   "branding": {
     "name": "Veoveo",
-    "product_label": "Catalog fixture",
-    "accent_color": "#4fa87d"
+    "productLabel": "Catalog fixture",
+    "accentColor": "#4fa87d"
   },
-  "identity_providers": [
+  "identityProviders": [
     {
       "id": "enterprise",
       "issuer": "https://idp.enterprise.example",
@@ -12,7 +12,7 @@
         "source": "file",
         "path": "/etc/veoveo/gateway/jwks.json"
       },
-      "claim_mapping": {
+      "claimMapping": {
         "subject": "sub",
         "tenant": {
           "claim": "tenant",
@@ -21,14 +21,14 @@
           }
         }
       },
-      "authorization_endpoint": "https://idp.enterprise.example/oauth2/authorize",
-      "token_endpoint": "https://idp.enterprise.example/oauth2/token",
+      "authorizationEndpoint": "https://idp.enterprise.example/oauth2/authorize",
+      "tokenEndpoint": "https://idp.enterprise.example/oauth2/token",
       "metadata": {
         "provider": "external_oidc"
       }
     }
   ],
-  "authorization_servers": [
+  "authorizationServers": [
     {
       "id": "veoveo",
       "issuer": "https://localhost:8785/oauth",
@@ -36,11 +36,11 @@
         "source": "file",
         "path": "/etc/veoveo/gateway/jwks.json"
       },
-      "access_token_key_id": "catalog-authorization",
-      "access_token_signing_key": "veoveo_access_token_private_key",
-      "identity_provider": "enterprise",
-      "authorization_endpoint": "https://localhost:8785/oauth/authorize",
-      "token_endpoint": "https://localhost:8785/oauth/token",
+      "accessTokenKeyId": "catalog-authorization",
+      "accessTokenSigningKey": "veoveo_access_token_private_key",
+      "identityProvider": "enterprise",
+      "authorizationEndpoint": "https://localhost:8785/oauth/authorize",
+      "tokenEndpoint": "https://localhost:8785/oauth/token",
       "metadata": {
         "deployment": "enterprise"
       }
@@ -49,24 +49,24 @@
   "servers": [
     {
       "slug": "recording",
-      "uri_scheme": "recording",
-      "mount_path": "/recording",
-      "mcp_path": "/recording/mcp",
+      "uriScheme": "recording",
+      "mountPath": "/recording",
+      "mcpPath": "/recording/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://recording-mcp:8796/mcp",
-        "health_url": "http://recording-mcp:8796/healthz",
+        "healthUrl": "http://recording-mcp:8796/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": true,
-        "resource_subscriptions": true,
+        "resourceTemplates": true,
+        "resourceSubscriptions": true,
         "prompts": true,
         "completions": true,
         "tasks": false,
-        "resources_list_changed": false,
+        "resourcesListChanged": false,
         "apps": true
       },
       "tools": [
@@ -78,10 +78,10 @@
         "recording-project",
         "recording-seal"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
-      "owned_routes": [
+      "ownedRoutes": [
         {
           "path": "/recordings",
           "purpose": "artifact_bytes"
@@ -91,20 +91,20 @@
         "raw_ingest": "internal_only",
         "contract_revision": 3
       },
-      "resource_projection": "server_owned"
+      "resourceProjection": "server_owned"
     }
   ],
   "profiles": [
     {
       "id": "operator",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://localhost:8785/mcp/operator",
-      "policy_version": "2026-07-02",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://localhost:8785/mcp/operator",
+      "policyVersion": "2026-07-02",
+      "authModes": [
         "oauth_client_credentials"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "servers": [
@@ -143,7 +143,7 @@
       "metadata": {
         "tenant": "enterprise"
       },
-      "artifact_upload": {
+      "artifactUpload": {
         "max_object_bytes": 107374182400,
         "tenant_quota_bytes": 214748364800,
         "max_active_uploads_per_tenant": 8,
@@ -177,14 +177,14 @@
     },
     {
       "id": "recording-publish",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://localhost:8785/recordings/publish",
-      "policy_version": "2026-07-02",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://localhost:8785/recordings/publish",
+      "policyVersion": "2026-07-02",
+      "authModes": [
         "oauth_client_credentials"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "recording:publish"
       ],
       "servers": [
@@ -218,18 +218,18 @@
       }
     }
   ],
-  "work_contexts": [
+  "workContexts": [
     {
       "id": "operations",
       "tenant": "enterprise",
       "title": "Fixture operations",
-      "policy_revision": "2026-07-02",
-      "output_policy": {
+      "policyRevision": "2026-07-02",
+      "outputPolicy": {
         "owner": {
           "kind": "group",
           "id": "operations"
         },
-        "initial_grants": []
+        "initialGrants": []
       },
       "memberships": [
         {
@@ -238,7 +238,7 @@
             "https://veoveo.local/services#recording-hub",
             "https://veoveo.local/services#recording-mcp-publisher"
           ],
-          "oauth_clients": [
+          "oauthClients": [
             "recording-producer",
             "recording-hub",
             "recording-mcp-publisher",
@@ -262,16 +262,16 @@
             "recording_blueprint_publish",
             "recording_stream_finish"
           ],
-          "protected_resources": [
+          "protectedResources": [
             "https://localhost:8785/ingest/recordings"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://localhost:8785/oauth#recording-producer"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "enterprise"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "recording:ingest"
           ],
           "metadata": {}
@@ -288,14 +288,14 @@
           "servers": [
             "recording"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://localhost:8785/oauth#recording-hub",
             "https://localhost:8785/oauth#recording-mcp-publisher"
           ],
-          "tenant_ids": [
+          "tenantIds": [
             "enterprise"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "recording:publish"
           ],
           "metadata": {}
@@ -324,7 +324,7 @@
           "tools": [
             "create_recording_projection"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "recording",
             "ui"
           ],
@@ -332,10 +332,10 @@
             "recording-inspect",
             "recording-project"
           ],
-          "principal_ids": [
+          "principalIds": [
             "https://localhost:8785/oauth#operator-service"
           ],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
           "metadata": {}
@@ -344,7 +344,7 @@
       "metadata": {}
     }
   ],
-  "data_labels": [
+  "dataLabels": [
     {
       "id": "cui",
       "title": "Controlled Unclassified Information",
@@ -364,24 +364,24 @@
       "metadata": {}
     }
   ],
-  "oauth_clients": [
+  "oauthClients": [
     {
       "id": "recording-producer",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Recording Producer",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Recording Producer",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://localhost:8785/ingest/recordings"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "recording:ingest"
       ],
       "jwks": {
@@ -395,21 +395,21 @@
     },
     {
       "id": "recording-hub",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Recording Hub Publisher",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Recording Hub Publisher",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://localhost:8785/recordings/publish"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "recording:publish"
       ],
       "jwks": {
@@ -423,21 +423,21 @@
     },
     {
       "id": "recording-mcp-publisher",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Recording MCP Properties Publisher",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Recording MCP Properties Publisher",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://localhost:8785/recordings/publish"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "recording:publish"
       ],
       "jwks": {
@@ -451,21 +451,21 @@
     },
     {
       "id": "operator-service",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Veoveo Operator Service",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Veoveo Operator Service",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://localhost:8785/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use"
       ],
       "metadata": {
@@ -478,7 +478,7 @@
       "tenant": "enterprise"
     }
   ],
-  "oidc_clients": [],
+  "oidcClients": [],
   "secrets": [
     {
       "id": "enterprise_oidc_client_secret",
@@ -517,16 +517,16 @@
   "recording_ingest_resources": [
     {
       "id": "recording-ingest",
-      "protected_resource": "https://localhost:8785/ingest/recordings",
-      "authorization_server": "veoveo",
-      "policy_version": "2026-07-02",
+      "protectedResource": "https://localhost:8785/ingest/recordings",
+      "authorizationServer": "veoveo",
+      "policyVersion": "2026-07-02",
       "upstream": {
         "url": "http://recording-hub:9878",
-        "health_url": "http://recording-hub:9878/healthz",
+        "healthUrl": "http://recording-hub:9878/healthz",
         "security": "cluster_internal_http"
       },
       "maximum_batch_bytes": 8388608,
-      "required_scopes": [
+      "requiredScopes": [
         "recording:ingest"
       ],
       "producers": [

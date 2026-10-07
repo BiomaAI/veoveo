@@ -30,6 +30,7 @@ use crate::{
 };
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ControlPlaneReadResult {
     status: &'static str,
     revision_id: Option<GatewayControlPlaneRevisionId>,
@@ -40,6 +41,7 @@ struct ControlPlaneReadResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ControlPlaneApplyResult {
     status: &'static str,
     revision_id: GatewayControlPlaneRevisionId,

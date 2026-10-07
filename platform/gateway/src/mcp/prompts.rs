@@ -9,6 +9,7 @@ use rmcp::{
 };
 use veoveo_gateway_contract::GatewayAction;
 use veoveo_gateway_contract::GatewayDiscoverySurface;
+use veoveo_mcp_contract::GatewayDiscoveryMetadata;
 use veoveo_mcp_contract::{DiscoveryFailureMode, Exposure, PromptName, ServerSlug};
 
 use crate::{

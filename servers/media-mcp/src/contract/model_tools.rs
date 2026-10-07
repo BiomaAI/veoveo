@@ -28,7 +28,7 @@ pub struct ModelSchemaArgs {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(rename = "ModelCatalogItem")]
 pub struct ModelCatalogItemValue {
     pub model_id: MediaModelId,
@@ -42,7 +42,7 @@ pub struct ModelCatalogItemValue {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(rename = "ModelCatalogOutput", transform = require_cursor_presence)]
 pub struct ModelCatalogOutputValue {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -62,7 +62,7 @@ pub struct ModelCatalogOutputValue {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(rename = "ModelSchemaOutput")]
 pub struct ModelSchemaOutputValue {
     pub model_id: MediaModelId,
@@ -77,6 +77,24 @@ pub struct ModelSchemaOutputValue {
     pub schema_uri: MediaModelUri,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_schema: Option<Value>,
+}
+
+impl TryFrom<super::ModelEntry> for ModelSchemaOutput {
+    type Error = super::ModelCatalogError;
+    fn try_from(model: super::ModelEntry) -> Result<Self, Self::Error> {
+        let request_schema = model.request_schema().cloned();
+        ModelSchemaOutputValue {
+            schema_uri: MediaModelUri::new(model.model_id.clone()),
+            model_id: model.model_id,
+            name: model.name,
+            model_type: model.model_type,
+            description: model.description,
+            base_price: model.base_price,
+            formula: model.formula,
+            request_schema,
+        }
+        .build()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -234,15 +252,15 @@ fn nullable_cursor(generator: &mut schemars::SchemaGenerator) -> schemars::Schem
     <Option<super::MediaModelCursor>>::json_schema(generator)
 }
 
-fn require_cursor_presence(schema: &mut schemars::Schema) {
+pub(super) fn require_cursor_presence(schema: &mut schemars::Schema) {
     let required = schema
         .as_object_mut()
         .expect("model page schema is an object")
         .entry("required")
         .or_insert_with(|| serde_json::json!([]));
     let fields = required.as_array_mut().expect("required is an array");
-    if !fields.iter().any(|field| field == "next_cursor") {
-        fields.push(serde_json::json!("next_cursor"));
+    if !fields.iter().any(|field| field == "nextCursor") {
+        fields.push(serde_json::json!("nextCursor"));
     }
 }
 
@@ -265,7 +283,7 @@ mod tests {
         let schema = serde_json::to_value(schemars::schema_for!(ModelCatalogOutput)).unwrap();
         let validator = jsonschema::validator_for(&schema).unwrap();
         assert!(validator.is_valid(&wire));
-        assert_eq!(wire["next_cursor"], serde_json::Value::Null);
+        assert_eq!(wire["nextCursor"], serde_json::Value::Null);
         assert_eq!(
             serde_json::from_value::<ModelCatalogOutput>(wire.clone()).unwrap(),
             page
@@ -274,7 +292,7 @@ mod tests {
             let mut bad = wire.clone();
             match control {
                 0 => {
-                    bad.as_object_mut().unwrap().remove("next_cursor");
+                    bad.as_object_mut().unwrap().remove("nextCursor");
                 }
                 1 => bad["limit"] = 101.into(),
                 _ => bad["unknown"] = true.into(),

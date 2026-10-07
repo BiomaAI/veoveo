@@ -1,0 +1,138 @@
+[
+  {
+    "uri": "map://features/a%2Fb?value=%26%3D#part%2f1",
+    "admitted": true
+  },
+  {
+    "uri": "a+1.-://owner/path:segment!$&'()*+,;=@?a=b/c?d#part",
+    "admitted": true
+  },
+  {
+    "uri": "https://EXAMPLE.com:00443/a/../b?x=%41#fragment",
+    "admitted": true
+  },
+  {
+    "uri": "https://[2001:db8::1]:8042/path#fragment",
+    "admitted": true
+  },
+  {
+    "uri": "custom://user:password@owner:123456789/path",
+    "admitted": true
+  },
+  {
+    "uri": "file:///absolute/path",
+    "admitted": true
+  },
+  {
+    "uri": "custom:///path?#",
+    "admitted": true
+  },
+  {
+    "uri": "custom://owner:",
+    "admitted": true
+  },
+  {
+    "uri": "custom://owner?#",
+    "admitted": true
+  },
+  {
+    "uri": "custom://[v1.a]/path",
+    "admitted": true
+  },
+  {
+    "uri": "custom://[V1.a]/path",
+    "admitted": true
+  },
+  {
+    "uri": "custom://[::ffff:192.168.1.1]:123456789/path",
+    "admitted": true
+  },
+  {
+    "uri": "custom://192.168.001.1/path",
+    "admitted": true
+  },
+  {
+    "uri": "custom://[::ffff:192.168.001.1]/path",
+    "admitted": false
+  },
+  {
+    "uri": "custom://[::ffff:256.168.1.1]/path",
+    "admitted": false
+  },
+  {
+    "uri": "custom://owner/%",
+    "admitted": false
+  },
+  {
+    "uri": "custom://owner/%2",
+    "admitted": false
+  },
+  {
+    "uri": "custom://owner/%GG",
+    "admitted": false
+  },
+  {
+    "uri": "custom://owner/空",
+    "admitted": false
+  },
+  {
+    "uri": "custom://owner/a b",
+    "admitted": false
+  },
+  {
+    "uri": "custom://owner/a\n",
+    "admitted": false
+  },
+  {
+    "uri": "custom://owner/\u0000",
+    "admitted": false
+  },
+  {
+    "uri": "custom://owner/",
+    "admitted": false
+  },
+  {
+    "uri": "mailto:user@example.com",
+    "admitted": false
+  },
+  {
+    "uri": "custom:/path",
+    "admitted": false
+  },
+  {
+    "uri": "custom:relative",
+    "admitted": false
+  },
+  {
+    "uri": "//owner/path",
+    "admitted": false
+  },
+  {
+    "uri": "relative/path",
+    "admitted": false
+  },
+  {
+    "uri": "custom://",
+    "admitted": false
+  },
+  {
+    "uri": "custom://?#fragment",
+    "admitted": false
+  },
+  {
+    "uri": "Custom://owner/path",
+    "admitted": false
+  },
+  {
+    "uri": "1custom://owner/path",
+    "admitted": false
+  },
+  {
+    "uri": "custom_name://owner/path",
+    "admitted": false
+  },
+  {
+    "uri": "custom://[2001:::1]/path",
+    "admitted": false
+  }
+]

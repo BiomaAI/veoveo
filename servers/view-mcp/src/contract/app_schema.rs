@@ -17,3 +17,6 @@ pub struct AppContracts {
 pub fn schema_bundle() -> Schema {
     schemars::schema_for!(AppContracts)
 }
+
+#[cfg(test)]
+mod tests;

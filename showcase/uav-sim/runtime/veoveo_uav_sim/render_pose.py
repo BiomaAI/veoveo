@@ -20,14 +20,14 @@ class RenderPoseAgreement:
 
     def as_dict(self) -> dict[str, object]:
         return {
-            "position_error_m": self.position_error_m,
-            "forward_error_degrees": self.forward_error_degrees,
-            "rendered_position_enu_m": {
-                "east_m": self.rendered_position_m.x,
-                "north_m": self.rendered_position_m.y,
-                "up_m": self.rendered_position_m.z,
+            'positionErrorM': self.position_error_m,
+            'forwardErrorDegrees': self.forward_error_degrees,
+            'renderedPositionEnuM': {
+                'eastM': self.rendered_position_m.x,
+                'northM': self.rendered_position_m.y,
+                'upM': self.rendered_position_m.z,
             },
-            "rendered_forward_enu": {
+            'renderedForwardEnu': {
                 "east": self.rendered_forward.x,
                 "north": self.rendered_forward.y,
                 "up": self.rendered_forward.z,

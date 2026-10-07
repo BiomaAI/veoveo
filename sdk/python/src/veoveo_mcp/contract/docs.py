@@ -26,8 +26,10 @@ from veoveo_mcp.types import ResourceScheme, ResourceTemplateUri, ResourceUri, R
 from .knowledge import (AccessModel, ChangeSignal, CollectionDescriptor, CollectionId,
     ContentDigest, EntityKind, ImmutableFreshness, IndexingMode, docs_observation, member_result)
 
-CONTRACT_REVISION = 3
-"""The normative contract revision this package implements."""
+from veoveo_mcp._compliance import (
+    CONTRACT_REVISION, CATALOG_REVISION, ComplianceItem, ComplianceProfile, ComplianceStatus,
+    ProfileError, RequirementCatalog, decode_json,
+)
 
 DOC_ID_AGENTS = "agents"
 """Identifier of the required agent manual document."""
@@ -46,13 +48,11 @@ REQUIRED_AGENT_SECTIONS: tuple[str, ...] = (
 )
 """Section headers every server `AGENTS.md` must contain (C23)."""
 
-CHECKLIST_IDS: tuple[str, ...] = (
-    "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10",
-    "C11", "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20",
-    "C21", "C22", "C23", "C24", "C25", "C26", "C27", "C28", "C29", "C30",
-    "C31", "C32",
-)
-"""Stable identifiers of the compliance checklist in `DESIGN.md`."""
+def requirement_catalog() -> RequirementCatalog:
+    return RequirementCatalog(files("veoveo_mcp").joinpath("catalog/requirements.json").read_bytes())
+
+
+RequirementId = Enum("RequirementId", {item: item for item in requirement_catalog().ids}, type=str)
 
 
 class ServerDocsError(ValueError):
@@ -103,10 +103,13 @@ class ServerDocs:
 
     server: str
     docs: tuple[ServerDoc, ...]
+    profile: ComplianceProfile | None = None
 
     def __post_init__(self) -> None:
         if not self.server.strip():
             raise ServerDocsError("server name must be non-empty")
+        if self.profile is not None and (not isinstance(self.profile, ComplianceProfile) or self.profile.server != self.server):
+            raise ServerDocsError("document profile/server mismatch")
 
     def doc(self, doc_id: str) -> ServerDoc | None:
         for doc in self.docs:
@@ -119,9 +122,9 @@ class ServerDocs:
 
     def collection(self, scheme: str | None = None) -> CollectionDescriptor:
         return CollectionDescriptor(
-            collection=CollectionId(f"{self.server}.docs"), entity_kind=EntityKind("document"),
+            collection=CollectionId(f"{self.server}.docs"), entityKind=EntityKind("document"),
             enumerate=ResourceUriBuilder(ResourceScheme(scheme or self.server), UriAuthority("docs")).build(),
-            freshness=ImmutableFreshness(immutable=True), change_signal=ChangeSignal.IMMUTABLE,
+            freshness=ImmutableFreshness(immutable=True), changeSignal=ChangeSignal.IMMUTABLE,
             access=AccessModel.PROFILE, indexing=IndexingMode.CONTENT,
         )
 
@@ -204,86 +207,50 @@ class ServerDocs:
         return doc.body if doc is not None else None
 
 
-class ComplianceStatus(str, Enum):
-    """Declared status of one checklist item."""
-
-    MET = "met"
-    PENDING = "pending"
-
-
-@dataclass(frozen=True)
-class ComplianceItem:
-    """One checklist item as declared in a server's `Contract Compliance` section."""
-
-    id: str
-    status: ComplianceStatus
-    note: str | None = None
-
-    def wire(self) -> dict[str, str]:
-        item: dict[str, str] = {"id": self.id, "status": self.status.value}
-        if self.note is not None:
-            item["note"] = self.note
-        return item
-
-
-@dataclass(frozen=True)
 class ContractDeclaration:
-    """The machine-readable declaration served at `{scheme}://contract` (C19)."""
+    """An admitted complete profile, verified against the exact served manual."""
+    __slots__ = ("_profile",)
 
-    server: str
-    contract_revision: int
-    compliance: tuple[ComplianceItem, ...]
+    def __init__(self, profile: ComplianceProfile):
+        if not isinstance(profile, ComplianceProfile):
+            raise ServerDocsError("contract declaration requires an admitted profile")
+        object.__setattr__(self, "_profile", profile)
+
+    def __setattr__(self, name, value):
+        raise AttributeError("contract declarations are immutable")
+
     @classmethod
     def from_docs(cls, docs: ServerDocs) -> "ContractDeclaration":
-        """Builds the declaration from the embedded agent manual so the served
-        declaration and the package `AGENTS.md` cannot diverge."""
+        if docs.profile is None:
+            raise ServerDocsError("server documents require a complete compliance profile")
         manual = docs.agent_manual()
-        compliance = tuple(parse_compliance(manual)) if manual is not None else ()
-        return cls(
-            server=docs.server,
-            contract_revision=CONTRACT_REVISION,
-            compliance=compliance,
-        )
+        if manual is None or docs.profile.server != docs.server:
+            raise ServerDocsError("compliance profile/server mismatch or missing manual")
+        try:
+            docs.profile.check_manual(manual)
+            docs.profile.check_applicability(knowledge_source=True)
+        except ProfileError as error:
+            raise ServerDocsError(str(error)) from error
+        return cls(docs.profile)
+
+    @property
+    def server(self):
+        return self._profile.server
+
+    @property
+    def contract_revision(self):
+        return self._profile.contract_revision
+
+    @property
+    def catalog_revision(self):
+        return self._profile.catalog_revision
+
+    @property
+    def compliance(self):
+        return self._profile.compliance
 
     def wire(self) -> dict[str, Any]:
-        return {
-            "server": self.server,
-            "contract_revision": self.contract_revision,
-            "compliance": [item.wire() for item in self.compliance],
-        }
-
-
-def parse_compliance(manual: str) -> list[ComplianceItem]:
-    """Parses `- Cnn: met` and `- Cnn: pending — reason` lines from the
-    `## Contract Compliance` section of an agent manual."""
-    in_section = False
-    items: list[ComplianceItem] = []
-    for line in manual.splitlines():
-        trimmed = line.strip()
-        if trimmed.startswith("## "):
-            in_section = trimmed == "## Contract Compliance"
-            continue
-        if not in_section:
-            continue
-        if not trimmed.startswith("- C"):
-            continue
-        entry = trimmed[len("- C") :]
-        number, separator, rest = entry.partition(":")
-        if not separator:
-            continue
-        item_id = f"C{number.strip()}"
-        rest = rest.strip()
-        if rest.startswith("met"):
-            status, remainder = ComplianceStatus.MET, rest[len("met") :]
-        elif rest.startswith("pending"):
-            status, remainder = ComplianceStatus.PENDING, rest[len("pending") :]
-        else:
-            continue
-        note = remainder.lstrip(" —-").strip()
-        items.append(
-            ComplianceItem(id=item_id, status=status, note=note if note else None)
-        )
-    return items
+        return self._profile.wire()
 
 
 def server_docs(
@@ -300,44 +267,37 @@ def server_docs(
     incomplete manual fails at import instead."""
     package_root = files(package)
     manifest_file = package_root.joinpath("_documents.json")
-    manifest = json.loads(manifest_file.read_text(encoding="utf-8")) if manifest_file.is_file() else None
-    if manifest is not None:
-        if not isinstance(manifest, dict) or set(manifest) != {DOC_ID_AGENTS, DOC_ID_DESIGN}:
+    packaged = manifest_file.is_file()
+    root = package_root if packaged else source_root
+    if root is None:
+        raise ServerDocsError("packaged documents require build digests or an explicit source root")
+    try:
+        manifest = decode_json(manifest_file.read_bytes()) if packaged else None
+        artifact_names = {DOC_ID_AGENTS: "AGENTS.md", DOC_ID_DESIGN: "DESIGN.md",
+                          "profile": "contract-compliance.json", "catalog": "requirements.json",
+                          "schema": "compliance-profile.schema.json"}
+        if packaged and (not isinstance(manifest, dict) or set(manifest) != set(artifact_names)):
             raise ServerDocsError("invalid packaged document manifest")
-        manifest = {doc_id: ContentDigest.model_validate(value) for doc_id, value in manifest.items()}
-    return ServerDocs(
-        server=server,
-        docs=(
-            _load_doc(DOC_ID_AGENTS, DOC_TITLE_AGENTS, package, "AGENTS.md", source_root, manifest),
-            _load_doc(DOC_ID_DESIGN, DOC_TITLE_DESIGN, package, "DESIGN.md", source_root, manifest),
-        ),
-    )
-
-
-def _load_doc(
-    doc_id: str,
-    title: str,
-    package: str,
-    filename: str,
-    source_root: Path | None,
-    manifest: dict[str, ContentDigest] | None,
-) -> ServerDoc:
-    candidates: list[Any] = [files(package).joinpath(filename)]
-    if source_root is not None:
-        candidates.append(source_root / filename)
-    for candidate in candidates:
-        if candidate.is_file():
-            packaged = candidate == candidates[0]
-            if packaged and manifest is None:
-                raise ServerDocsError("packaged documents require build digests; enable the document build hook")
-            body = candidate.read_bytes().decode("utf-8")
-            if not body.strip():
-                raise ServerDocsError(
-                    f"server document `{doc_id}` at `{candidate}` is empty"
-                )
-            return ServerDoc(id=doc_id, title=title, body=body,
-                digest=manifest[doc_id] if packaged and manifest else None)
-    searched = ", ".join(str(candidate) for candidate in candidates)
-    raise ServerDocsError(
-        f"server document `{doc_id}` ({filename}) not found; searched: {searched}"
-    )
+        from hashlib import sha256
+        data = {}
+        for key, filename in artifact_names.items():
+            # Source author roots share the SDK's generated catalog export.
+            candidate = root.joinpath(filename)
+            if not packaged and key in {"catalog", "schema"}:
+                candidate = files("veoveo_mcp").joinpath("catalog", filename)
+            data[key] = candidate.read_bytes()
+            if packaged and manifest[key] != sha256(data[key]).hexdigest():
+                raise ServerDocsError("packaged artifact digest mismatch; rebuild the package")
+        if not isinstance(decode_json(data["schema"]), dict):
+            raise ServerDocsError("invalid generated compliance schema")
+        catalog = RequirementCatalog(data["catalog"])
+        profile = ComplianceProfile(data["profile"], catalog)
+        if profile.server != server:
+            raise ServerDocsError("compliance profile/server mismatch")
+        documents = tuple(ServerDoc(id=key, title=title, body=data[key].decode("utf-8"))
+                          for key, title in ((DOC_ID_AGENTS, DOC_TITLE_AGENTS), (DOC_ID_DESIGN, DOC_TITLE_DESIGN)))
+        docs = ServerDocs(server, documents, profile)
+        ContractDeclaration.from_docs(docs)
+        return docs
+    except (OSError, UnicodeError, ProfileError) as error:
+        raise ServerDocsError(f"server document/profile loading failed: {error}") from error

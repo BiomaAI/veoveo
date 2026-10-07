@@ -63,7 +63,7 @@ impl SurrealValue for GenerationResultRecord {
     }
     fn from_value(value: Value) -> Result<Self, Error> {
         Self::new(native_json_from_value_strict(value)?)
-            .map_err(|_| Error::internal("invalid Media retained result".into()))
+            .map_err(|_| Error::internal("invalid Media retained result: requires veoveo.ai/media-generation/v2; drain writers and upgrade Media and consumers together".into()))
     }
 }
 
@@ -77,8 +77,8 @@ mod tests {
         let generation = MediaGenerationResult::new(
             veoveo_types::TaskId::new(),
             serde_json::from_value(json!({
-                "id":"codec-prediction", "model_id":"owner/model", "status":"completed",
-                "output_count":0, "timings":{"opaque":null}, "error":null
+                "id":"codec-prediction", "modelId":"owner/model", "status":"completed",
+                "outputCount":0, "timings":{"opaque":null}, "error":null
             }))
             .unwrap(),
             vec![],
@@ -173,6 +173,56 @@ mod tests {
         let mut wrong = original;
         wrong["content"][1]["uri"] = "media://generation/other".into();
         assert!(GenerationResultRecord::new(wrong).is_err());
+    }
+
+    #[test]
+    fn native_retained_result_refuses_old_and_mixed_owner_fields() {
+        let current = result();
+        let _ =
+            GenerationResultRecord::from_value(native_json_into_value(current.clone())).unwrap();
+        for (path, field, retired) in [
+            ("/structuredContent", "taskId", "task_id"),
+            ("/structuredContent", "resultUri", "result_uri"),
+            ("/structuredContent/prediction", "modelId", "model_id"),
+            (
+                "/structuredContent/prediction",
+                "outputCount",
+                "output_count",
+            ),
+            (
+                "/structuredContent/prediction",
+                "executionMs",
+                "execution_ms",
+            ),
+            ("/structuredContent/prediction", "createdAt", "created_at"),
+        ] {
+            for mode in ["replacement", "mixed", "conflicting"] {
+                let mut bad = current.clone();
+                let object = bad.pointer_mut(path).unwrap().as_object_mut().unwrap();
+                let value = object
+                    .get(field)
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null);
+                if mode == "replacement" {
+                    object.remove(field);
+                }
+                object.insert(
+                    retired.into(),
+                    if mode == "conflicting" {
+                        json!("retired-conflict")
+                    } else {
+                        value
+                    },
+                );
+                assert!(
+                    GenerationResultRecord::from_value(native_json_into_value(bad)).is_err(),
+                    "accepted {path}/{retired}:{mode}"
+                );
+            }
+        }
+        let mut old = current;
+        old["structuredContent"]["schema"] = "veoveo.ai/media-generation/v1".into();
+        assert!(GenerationResultRecord::new(old).is_err());
     }
 
     #[test]

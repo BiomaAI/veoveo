@@ -10,7 +10,11 @@ Model Context Protocol `2026-07-28` over JSON-RPC 2.0 and stateless Streamable
 HTTP, JSON terminal responses, request-scoped subscription streams, JSON
 Schema 2020-12, and MCP Apps per
 [`mcp/apps-extension/DESIGN.md`](../../mcp/apps-extension/DESIGN.md). The
-official TypeScript server and Node packages are pinned to `2.0.0`.
+official TypeScript server/core packages are pinned to `2.3.1`; the independently
+released Node transport is pinned to `2.1.1`. Profile JSON Schema admission uses
+`@cfworker/json-schema` `4.1.1` against Rust-generated Draft2020-12 artifacts.
+Microsoft `jsonc-parser` `3.3.1` inspects raw JSON members with comments and trailing
+commas disabled. Duplicate decoded property names fail before profile admission.
 The [knowledge-source extension](../../mcp/knowledge-extension/DESIGN.md) declares
 the `charts.docs` collection using SHA-256 document revisions and RFC 9110
 conditional-read semantics. Documents are immutable for the running image.
@@ -47,7 +51,10 @@ The Composer App remains at `ui://charts/composer.html`.
 
 ## Knowledge Documents
 
-`build-docs.mjs` hashes the original UTF-8 document bytes during image construction.
+`build-docs.mjs` admits the complete owner profile and compares its marked manual
+section with the Rust-catalog rendering before hashing original UTF-8 artifact bytes
+during image construction. The profile, catalog and schema join both documents in
+the digest manifest.
 `documents.mjs` requires the resulting `_documents.json` manifest at startup and
 rejects missing, altered, empty, oversized or invalid UTF-8 documents. The document
 budget reserves 1 KiB for provenance within the kernel's 64 KiB item limit.
@@ -85,3 +92,22 @@ as open values. This admission does not claim domain output-schema parity.
 The final-protocol adapter owns tool envelopes, inline-row limits and disabled file
 references. The App build keeps scripts local and enforces the host's 2 MiB cap.
 Its existing composer harness qualifies those controls without rendering charts.
+
+## Compliance And SDK Packaging
+
+`compliance.mjs` admits the owner profile against the generated schema and complete
+revision-2 catalog, preserves explanations and sorts entries by requirement identity.
+The generated catalog supplies the actual Rust note-whitespace rule.
+The checked profile is immutable; public wire copies cannot change it. `well-known.mjs`
+registers that declaration and the document collection for both the production launcher
+and authenticated native fixtures. The loader checks profile/manual agreement and
+knowledge-source applicability before serving. Installed artifacts contain every input;
+loading performs no repository reads or Markdown declaration parsing.
+
+The owner `package.json` and lock describe the pinned upstream 0.5.1 distribution with
+its Veoveo server/core 2.3.1 and Node 2.1.1 transport dependencies. Docker preserves the
+upstream assets/render exports, replaces package metadata and runs `npm ci` from the
+reviewed lock. Its package entry exports the final-protocol server factory and its
+CLI invokes the Veoveo launcher; `./render` keeps the upstream rendering export. The unused upstream legacy SDK/Apps edges are absent from that final
+closure. SDK qualification covers authenticated stateless HTTP and exact packaged
+well-known bytes; it does not establish chart rendering or hardware acceptance.

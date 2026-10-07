@@ -6,9 +6,11 @@ edition.workspace = true
 [features]
 default = ["persistence"]
 schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
-persistence = ["dep:tokio", "schema", "dep:veoveo-platform-store", "dep:chrono", "dep:serde_json", "dep:surrealdb", "dep:uuid", "dep:thiserror", "dep:sha2", "dep:hex"]
+persistence = ["dep:veoveo-artifact-contract", "dep:veoveo-recording-contract", "dep:tokio", "schema", "dep:veoveo-platform-store", "dep:chrono", "dep:serde_json", "dep:surrealdb", "dep:uuid", "dep:thiserror", "dep:sha2", "dep:hex"]
 
 [dependencies]
+veoveo-artifact-contract = { workspace = true, default-features = false, optional = true }
+veoveo-recording-contract = { workspace = true, default-features = false, optional = true }
 tokio = { workspace = true, features = ["time"], optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 veoveo-types = { workspace = true, optional = true }

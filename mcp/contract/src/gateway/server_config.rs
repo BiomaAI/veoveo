@@ -9,6 +9,7 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ServerManifest {
     pub slug: ServerSlug,
     pub uri_scheme: ResourceScheme,
@@ -56,6 +57,7 @@ pub enum ResourceProjectionMode {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct GatewayProfile {
     pub id: GatewayProfileId,
     pub identity_provider: IdentityProviderId,
@@ -87,6 +89,7 @@ pub enum DiscoveryFailureMode {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ProfileServerExposure {
     pub server: ServerSlug,
     pub tools: Exposure<LocalToolName>,
@@ -112,7 +115,12 @@ pub enum Exposure<T> {
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Exposure<T> {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(rename_all = "snake_case", tag = "mode", deny_unknown_fields)]
+        #[serde(
+            rename_all = "snake_case",
+            rename_all_fields = "camelCase",
+            tag = "mode",
+            deny_unknown_fields
+        )]
         enum Wire<T> {
             All {},
             Listed { items: Vec<T> },
@@ -320,6 +328,7 @@ impl From<JwksFilePath> for String {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct UpstreamEndpoint {
     pub transport: UpstreamTransport,
     pub url: UpstreamUrl,
@@ -335,6 +344,7 @@ pub struct UpstreamEndpoint {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct OwnedRoute {
     pub path: MountPath,
     pub purpose: OwnedRoutePurpose,
@@ -342,6 +352,7 @@ pub struct OwnedRoute {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct McpSurfaceCapabilities {
     pub tools: bool,
     pub resources: bool,

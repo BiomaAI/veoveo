@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-import json
 import shutil
 
-from map_data.contract import NormalizeCommand
+from map_data.contract import NormalizeCommand, QualityReport
 
 
 def copy_as_normalized(command: NormalizeCommand, suffix: str) -> tuple[Path, ...]:
@@ -20,18 +19,12 @@ def write_quality_report(
     checks: list[dict[str, object]],
 ) -> Path:
     report = command.output_dir / "quality-report.json"
-    report.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "acquisition_id": command.acquisition_id,
-                "adapter": adapter,
-                "passed": all(bool(check["passed"]) for check in checks),
-                "checks": checks,
-            },
-            indent=2,
-            sort_keys=True,
-        ),
-        encoding="utf-8",
-    )
+    admitted = QualityReport.model_validate({
+        "schemaVersion": 2,
+        "acquisitionId": command.acquisition_id,
+        "adapter": adapter,
+        "passed": all(check["passed"] for check in checks),
+        "checks": checks,
+    })
+    report.write_text(admitted.model_dump_json(by_alias=True, indent=2), encoding="utf-8")
     return report

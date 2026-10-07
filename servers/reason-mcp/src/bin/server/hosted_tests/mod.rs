@@ -27,9 +27,9 @@ async fn unknown_tool_arguments_complete_before_analysis_admission() {
         let server = fixture.reason(None).await;
         let client = fixture.sdk(server.address, &fixture.owner).await;
         let mut arguments = serde_json::json!({
-            "video": {"recording_uri":"recording://recordings/01983da0-0000-7000-8000-000000000000",
-                "entity_path":"/camera/front", "timeline":"sensor_time", "range":{"start":10,"end":20}},
-            "pipeline_id":"traffic-events",
+            "video": {"recordingUri":"recording://recordings/01983da0-0000-7000-8000-000000000000",
+                "entityPath":"/camera/front", "timeline":"sensor_time", "range":{"start":10,"end":20}},
+            "pipelineId":"traffic-events",
             "task":{"kind":"detect_events","prompt":"Vehicles entering the intersection"}
         });
         let valid: AnalyzeRecordingRequest = serde_json::from_value(arguments.clone()).unwrap();
@@ -38,6 +38,24 @@ async fn unknown_tool_arguments_complete_before_analysis_admission() {
         validate_decode(valid.decode).unwrap();
         let tasks = veoveo_reason_mcp::task_lookup::bind(veoveo_task_runtime::TaskRuntime::new(db.a.clone(), "reason", "strict-input")).unwrap();
         assert!(tasks.list().await.unwrap().is_empty());
+        for (path, current, retired) in [
+            ("", "pipelineId", "pipeline_id"),
+            ("/video", "recordingUri", "recording_uri"),
+            ("/video", "entityPath", "entity_path"),
+        ] {
+            for mode in ["replacement", "mixed", "conflicting"] {
+                let mut changed = arguments.clone();
+                let fields = changed.pointer_mut(path).unwrap().as_object_mut().unwrap();
+                let value = fields[current].clone();
+                if mode == "replacement" { fields.remove(current); }
+                fields.insert(retired.into(), if mode == "conflicting" {serde_json::Value::Null} else {value});
+                let response = client.call_tool_once(CallToolRequestParams::new("analyze_recording").with_arguments(changed.as_object().unwrap().clone())).await.unwrap();
+                let CallToolResponse::Complete(result) = response else {panic!("retired/mixed arguments must complete before admission")};
+                assert_eq!(result.is_error, Some(true), "{path}/{retired} {mode}");
+                assert!(tasks.list().await.unwrap().is_empty());
+                assert_eq!(fixture.content_reads.load(std::sync::atomic::Ordering::Relaxed), 0);
+            }
+        }
         arguments["undeclared"] = true.into();
         let response = client.call_tool_once(CallToolRequestParams::new("analyze_recording").with_arguments(arguments.as_object().unwrap().clone())).await.unwrap();
         let CallToolResponse::Complete(result) = response else { panic!("malformed input must complete"); };
@@ -231,7 +249,7 @@ async fn findings_conform_across_service_restarts_and_artifact_grant_revocation(
         assert!(serde_json::to_vec(&large_results).unwrap().len() > 1024 * 1024);
         let large = fixture.finding_with_results(large_results.build().unwrap()).await;
         fixture.grant(large.artifact, "reader").await.unwrap();
-        for collection in FindingCollection::ALL {
+        for collection in FindingCollection::ALL.iter().copied() {
             let uri = FindingResource::Member { collection, analysis: large.analysis }.to_uri().unwrap();
             let response = read(&client, &uri, None).await.unwrap();
             extension::client::validate_read(&response, &uri, None).unwrap().unwrap();

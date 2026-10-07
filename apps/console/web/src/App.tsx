@@ -137,8 +137,8 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
   const setSelectedArtifact = (artifact?: ArtifactSummary) => setArtifactSelection(artifact ? { artifact, scope: artifactScope } : undefined);
   const receiveUpload = useCallback((receipt: Receipt) => {
     queryClient.setQueryData<InstallationSnapshot>(queryKeys.snapshot, (current) => current && ({
-      ...current, artifacts: current.artifacts.map((artifact) => artifact.id === receipt.artifact_id ? {
-        ...artifact, byteLength: receipt.byte_len, filename: receipt.filename, mediaType: receipt.mime_type,
+      ...current, artifacts: current.artifacts.map((artifact) => artifact.id === receipt.artifactId ? {
+        ...artifact, byteLength: receipt.byteLen, filename: receipt.filename, mediaType: receipt.mimeType,
       } : artifact),
     }));
     void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
@@ -152,7 +152,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
   }, [uploadQueue]);
   const uploadState = useSyncExternalStore(uploadQueue?.subscribe ?? noUploadSubscription, uploadQueue?.snapshot ?? (() => EMPTY_UPLOAD_QUEUE));
   const viewUpload = async (receipt: Receipt) => {
-    const artifact = await loadArtifact(receipt.artifact_id);
+    const artifact = await loadArtifact(receipt.artifactId);
     setSelectedArtifact(artifact); setUploadsOpen(false);
   };
   const apps = useMemo(() => appsCatalog?.apps ?? [], [appsCatalog?.apps]);

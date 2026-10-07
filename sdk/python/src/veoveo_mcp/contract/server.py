@@ -12,7 +12,7 @@ from veoveo_mcp.types import (
     ResourceAddress, ResourceScheme, ResourceTemplateUri, ResourceUri,
     ResourceUriBuilder, ScopeDefinition, ScopeName, UriAuthority, UriSegment,
 )
-from .docs import DOC_ID_AGENTS, DOC_ID_DESIGN, ServerDocs
+from .docs import DOC_ID_AGENTS, DOC_ID_DESIGN, ContractDeclaration, ServerDocs
 from .knowledge import EXTENSION_ID
 
 A = TypeVar("A", bound=ResourceAddress)
@@ -121,6 +121,7 @@ class McpServerSetup(Generic[S, A]):
         if not {well_known("docs"), well_known("contract")} <= resources.keys():
             raise ValueError("server must declare docs and contract resources")
         documents = contract.documents
+        ContractDeclaration.from_docs(documents)
         if any(documents.doc(name) is None for name in (DOC_ID_AGENTS, DOC_ID_DESIGN)):
             raise ValueError("server must embed agents and design documents")
         document_ids: set[str] = set()

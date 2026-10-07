@@ -19,6 +19,7 @@ fn task_identity(id: TaskId) -> Result<TaskId, OptimizationUsageError> {
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CursorWire {
     version: u8,
     task_id: TaskId,
@@ -26,6 +27,7 @@ struct CursorWire {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OptimizationUsageCursor {
     #[schemars(with = "String")]
     cursor: veoveo_types::OpaqueCursor<OptimizationUsageCursorCodec>,
@@ -42,7 +44,7 @@ impl veoveo_types::CursorCodec for OptimizationUsageCursorCodec {
     }
     fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
         let bytes = serde_json::to_vec(&CursorWire {
-            version: 1,
+            version: 2,
             task_id: *position,
         })
         .expect("closed owner cursor fields serialize");
@@ -57,7 +59,7 @@ impl veoveo_types::CursorCodec for OptimizationUsageCursorCodec {
             .map_err(|_| OptimizationUsageError)?;
         let decoded: CursorWire =
             serde_json::from_slice(&bytes).map_err(|_| OptimizationUsageError)?;
-        if decoded.version != 1 {
+        if decoded.version != 2 {
             return Err(OptimizationUsageError);
         }
         let position = decoded.task_id;
@@ -136,12 +138,14 @@ impl ResourceFieldCodec<TaskId> for UsageTaskCodec {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "EntryWire", into = "EntryWire")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OptimizationUsageEntry {
     usage_uri: OptimizationTaskUsageUri,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct EntryWire {
     task_id: TaskId,
     usage_uri: OptimizationTaskUsageUri,
@@ -190,6 +194,7 @@ impl From<OptimizationUsageEntry> for EntryWire {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "PageWire", into = "PageWire")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OptimizationUsagePage {
     usage: Vec<OptimizationUsageEntry>,
     next_cursor: Option<OptimizationUsageCursor>,
@@ -197,6 +202,7 @@ pub struct OptimizationUsagePage {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct PageWire {
     #[schemars(length(max = 100))]
     usage: Vec<OptimizationUsageEntry>,

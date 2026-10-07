@@ -40,7 +40,7 @@ impl HttpArtifactPlane {
                 "/artifact-read-capabilities/{}",
                 capability.capability_id
             )))
-            .query(&[("task_id", task_id.to_string())])
+            .query(&[("taskId", task_id.to_string())])
             .bearer_auth(capability.secret.expose_secret())
             .send()
             .await
@@ -89,7 +89,7 @@ impl HttpArtifactPlane {
                 "/artifact-read-capabilities/{}/artifacts/{artifact}/{operation}",
                 capability.capability_id
             )),
-            &[("task_id", task_id.to_string())],
+            &[("taskId", task_id.to_string())],
         )
         .map_err(transport)
     }

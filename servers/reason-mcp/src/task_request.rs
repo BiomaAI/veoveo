@@ -6,7 +6,12 @@ use veoveo_artifact_contract::{IssuedArtifactReadCapability, IssuedArtifactWrite
 use veoveo_task_runtime::RecoveryClass;
 use veoveo_types::TaskTypeDefinition;
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "operation",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ReasonTaskInput {
     Analyze(AnalyzeRecordingRequest),
 }
@@ -38,7 +43,7 @@ impl ReasonTaskInput {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct DurableReasonRequest {
     pub input: ReasonTaskInput,
     /// Bounded grounding subset resolved with the caller's authority at

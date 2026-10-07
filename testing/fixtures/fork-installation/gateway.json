@@ -1,10 +1,10 @@
 {
   "branding": {
     "name": "Veoveo",
-    "product_label": "Operations",
-    "accent_color": "#4fa87d"
+    "productLabel": "Operations",
+    "accentColor": "#4fa87d"
   },
-  "identity_providers": [
+  "identityProviders": [
     {
       "id": "enterprise",
       "issuer": "https://idp.enterprise.example",
@@ -12,7 +12,7 @@
         "source": "file",
         "path": "/etc/veoveo/gateway/jwks.json"
       },
-      "claim_mapping": {
+      "claimMapping": {
         "subject": "sub",
         "tenant": {
           "claim": "tenant",
@@ -21,14 +21,14 @@
           }
         }
       },
-      "authorization_endpoint": "https://idp.enterprise.example/oauth2/authorize",
-      "token_endpoint": "https://idp.enterprise.example/oauth2/token",
+      "authorizationEndpoint": "https://idp.enterprise.example/oauth2/authorize",
+      "tokenEndpoint": "https://idp.enterprise.example/oauth2/token",
       "metadata": {
         "provider": "external_oidc"
       }
     }
   ],
-  "authorization_servers": [
+  "authorizationServers": [
     {
       "id": "veoveo",
       "issuer": "https://localhost:8783/oauth",
@@ -36,11 +36,11 @@
         "source": "file",
         "path": "/etc/veoveo/gateway/jwks.json"
       },
-      "access_token_key_id": "veoveo-self-hosted-2026-07",
-      "access_token_signing_key": "veoveo_access_token_private_key",
-      "identity_provider": "enterprise",
-      "authorization_endpoint": "https://localhost:8783/oauth/authorize",
-      "token_endpoint": "https://localhost:8783/oauth/token",
+      "accessTokenKeyId": "veoveo-self-hosted-2026-07",
+      "accessTokenSigningKey": "veoveo_access_token_private_key",
+      "identityProvider": "enterprise",
+      "authorizationEndpoint": "https://localhost:8783/oauth/authorize",
+      "tokenEndpoint": "https://localhost:8783/oauth/token",
       "metadata": {
         "deployment": "enterprise"
       }
@@ -49,29 +49,29 @@
   "servers": [
     {
       "slug": "anonymous-simulation",
-      "uri_scheme": "anonymous-simulation",
-      "mount_path": "/anonymous-simulation",
-      "mcp_path": "/anonymous-simulation/mcp",
+      "uriScheme": "anonymous-simulation",
+      "mountPath": "/anonymous-simulation",
+      "mcpPath": "/anonymous-simulation/mcp",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://anonymous-simulation-mcp:8812/anonymous-simulation/mcp",
-        "health_url": "http://anonymous-simulation-mcp:8812/anonymous-simulation/healthz",
+        "healthUrl": "http://anonymous-simulation-mcp:8812/anonymous-simulation/healthz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
         "resources": true,
         "apps": true,
-        "resource_templates": false,
-        "resource_subscriptions": false,
+        "resourceTemplates": false,
+        "resourceSubscriptions": false,
         "prompts": false,
         "completions": false,
         "tasks": false,
-        "tools_list_changed": false,
-        "prompts_list_changed": false,
-        "resources_list_changed": false
+        "toolsListChanged": false,
+        "promptsListChanged": false,
+        "resourcesListChanged": false
       },
-      "resource_projection": "server_owned",
+      "resourceProjection": "server_owned",
       "tools": [
         "list_live_cameras",
         "open_live_view",
@@ -79,7 +79,7 @@
         "close_live_view",
         "get_fixture_state"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "metadata": {
@@ -91,14 +91,14 @@
   "profiles": [
     {
       "id": "operator",
-      "identity_provider": "enterprise",
-      "authorization_server": "veoveo",
-      "protected_resource": "https://localhost:8783/mcp/operator",
-      "policy_version": "2026-07-02",
-      "auth_modes": [
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://localhost:8783/mcp/operator",
+      "policyVersion": "2026-07-02",
+      "authModes": [
         "oauth_client_credentials"
       ],
-      "required_scopes": [
+      "requiredScopes": [
         "operator:use"
       ],
       "servers": [
@@ -144,18 +144,18 @@
       }
     }
   ],
-  "work_contexts": [
+  "workContexts": [
     {
       "id": "operations",
       "tenant": "enterprise",
       "title": "Operations",
-      "policy_revision": "2026-07-02",
-      "output_policy": {
+      "policyRevision": "2026-07-02",
+      "outputPolicy": {
         "owner": {
           "kind": "group",
           "id": "operations"
         },
-        "initial_grants": [
+        "initialGrants": [
           {
             "subject": {
               "kind": "group",
@@ -168,7 +168,7 @@
       "memberships": [
         {
           "level": "contributor",
-          "oauth_clients": [
+          "oauthClients": [
             "operator-service"
           ]
         }
@@ -191,7 +191,7 @@
           "profiles": [
             "operator"
           ],
-          "protected_resources": [],
+          "protectedResources": [],
           "servers": [
             "anonymous-simulation"
           ],
@@ -202,27 +202,27 @@
             "open_live_view",
             "renew_live_view"
           ],
-          "resource_schemes": [
+          "resourceSchemes": [
             "anonymous-simulation",
             "ui"
           ],
           "prompts": [],
-          "principal_ids": [],
-          "tenant_ids": [],
+          "principalIds": [],
+          "tenantIds": [],
           "groups": [],
           "roles": [],
-          "required_scopes": [
+          "requiredScopes": [
             "operator:use"
           ],
-          "required_data_labels": [],
-          "required_assurances": [],
+          "requiredDataLabels": [],
+          "requiredAssurances": [],
           "metadata": {}
         }
       ],
       "metadata": {}
     }
   ],
-  "data_labels": [
+  "dataLabels": [
     {
       "id": "cui",
       "title": "Controlled Unclassified Information",
@@ -242,24 +242,24 @@
       "metadata": {}
     }
   ],
-  "oauth_clients": [
+  "oauthClients": [
     {
       "id": "operator-service",
-      "authorization_server": "veoveo",
-      "default_work_context": "operations",
-      "invocation_mode": "automated",
-      "display_name": "Veoveo Operator Service",
-      "client_surface": "full_mcp",
-      "allowed_resources": [
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "displayName": "Veoveo Operator Service",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
         "https://localhost:8783/mcp/operator"
       ],
-      "grant_types": [
+      "grantTypes": [
         "client_credentials"
       ],
-      "auth_methods": [
+      "authMethods": [
         "private_key_jwt"
       ],
-      "allowed_scopes": [
+      "allowedScopes": [
         "operator:use"
       ],
       "jwks": {
@@ -272,7 +272,7 @@
       }
     }
   ],
-  "oidc_clients": [],
+  "oidcClients": [],
   "secrets": [
     {
       "id": "enterprise_oidc_client_secret",

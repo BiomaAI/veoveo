@@ -6,51 +6,16 @@ use std::{
 };
 
 use anyhow::{Context, Result, ensure};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
 use crate::process;
 mod selection;
 
-#[derive(Debug, Deserialize)]
-pub(super) struct CargoMetadata {
-    pub packages: Vec<CargoPackage>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(super) struct CargoPackage {
-    pub name: String,
-    version: String,
-    pub targets: Vec<CargoTarget>,
-    id: String,
-    manifest_path: PathBuf,
-    source: Option<String>,
-    metadata: Option<PackageMetadata>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(super) struct CargoTarget {
-    pub name: String,
-    pub kind: Vec<String>,
-    src_path: PathBuf,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct PackageMetadata {
-    #[serde(default)]
-    veoveo: VeoveoMetadata,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct VeoveoMetadata {
-    #[serde(default)]
-    image_build_inputs: Vec<PathBuf>,
-    #[serde(default)]
-    image_asset_inputs: Vec<PathBuf>,
-}
-
+pub(super) use crate::discovery::cargo::{CargoMetadata, CargoPackage};
+#[cfg(test)]
+use crate::discovery::cargo::{PackageMetadata, VeoveoMetadata};
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct InputIdentity {

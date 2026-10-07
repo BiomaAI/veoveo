@@ -10,6 +10,7 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct TransformCrsRequest {
     pub source_crs: CrsId,
     pub target_crs: CrsId,
@@ -19,6 +20,8 @@ pub struct TransformCrsRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct TransformCrsOutput {
     pub positions: Vec<ProjectedPosition>,
     pub engine: String,
@@ -29,12 +32,15 @@ pub struct TransformCrsOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct GeodesicInverseRequest {
     pub start: Wgs84Position,
     pub end: Wgs84Position,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct GeodesicInverseOutput {
     pub distance: Meters,
     pub initial_azimuth: Degrees,
@@ -44,6 +50,7 @@ pub struct GeodesicInverseOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct GeodesicDirectRequest {
     pub start: Wgs84Position,
     pub initial_azimuth: Degrees,
@@ -51,6 +58,8 @@ pub struct GeodesicDirectRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct GeodesicDirectOutput {
     pub end: Wgs84Position,
     pub final_azimuth: Degrees,
@@ -67,6 +76,7 @@ pub enum GeofenceRule {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ValidateGeofenceRequest {
     pub geofence: Wgs84Polygon,
     pub path: Wgs84LineString,
@@ -74,6 +84,8 @@ pub struct ValidateGeofenceRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct GeofenceViolation {
     pub segment_index: u32,
     pub position: Wgs84Position,
@@ -81,6 +93,8 @@ pub struct GeofenceViolation {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ValidateGeofenceOutput {
     pub valid: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -89,6 +103,7 @@ pub struct ValidateGeofenceOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchLocationsRequest {
     pub query: String,
     pub coverage: Wgs84BoundingBox,
@@ -99,6 +114,7 @@ pub struct SearchLocationsRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct InspectLocationRequest {
     pub location_id: LocationId,
     pub nearby_radius: Meters,
@@ -106,6 +122,8 @@ pub struct InspectLocationRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct InspectLocationOutput {
     pub location: MapLocation,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -118,6 +136,7 @@ pub struct InspectLocationOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct InspectPositionRequest {
     pub position: Wgs84Position,
     #[serde(default = "default_position_inspection_radius")]
@@ -137,18 +156,24 @@ const fn default_position_inspection_limit() -> u32 {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct NearbyLocation {
     pub location: MapLocation,
     pub distance: Meters,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct NearbyFacility {
     pub facility: Facility,
     pub distance: Meters,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct InspectPositionOutput {
     pub position: Wgs84Position,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -165,6 +190,7 @@ pub struct InspectPositionOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CorridorInspectionRequest {
     pub corridor: Wgs84LineString,
     pub width: Meters,
@@ -172,6 +198,8 @@ pub struct CorridorInspectionRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct CorridorInspectionOutput {
     pub restrictions: Vec<Restriction>,
     pub facilities: Vec<Facility>,
@@ -183,11 +211,14 @@ pub struct CorridorInspectionOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ValidateRouteRequest {
     pub route: RoutePlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct RouteValidation {
     pub validation_id: ValidationId,
     pub valid: bool,
@@ -198,18 +229,21 @@ pub struct RouteValidation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct PrepareRouteHandoffRequest {
     pub route_id: RouteId,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct PublishRestrictionRequest {
     pub restriction: Restriction,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct WithdrawRestrictionRequest {
     pub restriction_id: RestrictionId,
     pub expected_record_version: u64,
@@ -218,6 +252,8 @@ pub struct WithdrawRestrictionRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct RestrictionMutationOutput {
     pub restriction: Restriction,
     pub invalidated_route_count: u64,
@@ -231,8 +267,8 @@ mod tests {
     fn position_inspection_has_bounded_useful_defaults() {
         let request: InspectPositionRequest = serde_json::from_value(serde_json::json!({
             "position": {
-                "longitude_deg": -73.97267,
-                "latitude_deg": 40.70571
+                "longitudeDeg": -73.97267,
+                "latitudeDeg": 40.70571
             }
         }))
         .unwrap();

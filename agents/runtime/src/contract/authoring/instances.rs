@@ -7,16 +7,14 @@ use super::{AgentDefinitionId, AgentManagedInstanceId, AgentTemplateId};
 use veoveo_gateway_contract::OAuthClientId;
 use veoveo_types::{Sha256Digest, WorkContextId};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum InstanceDesired {
     Running,
     Paused,
     Archived,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum InstancePhase {
     Queued,
     Credentials,

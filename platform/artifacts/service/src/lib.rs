@@ -11,6 +11,7 @@ pub mod config;
 pub mod http;
 pub mod ledger;
 pub mod service;
+pub mod startup;
 pub mod store;
 pub mod uploads;
 
@@ -22,3 +23,7 @@ pub use service::{
     ArtifactByteRange, ArtifactDownload, ArtifactService, DownloadBody, ResolvedArtifactByteRange,
 };
 pub use store::{ArtifactObjectStore, BlobStore};
+
+#[cfg(feature = "smoke")]
+#[path = "smoke/output.rs"]
+pub mod smoke_output;

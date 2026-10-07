@@ -8,6 +8,8 @@ generations are internal Veoveo contracts. Native MCP `2026-07-28` Tasks keep
 their canonical gateway identity and retention pin; this crate owns delivery to
 the agent, not the MCP transport or provider completion protocol.
 
+Public operator messages, decisions, wake receipts and conversation projections use closed camelCase members. Input decision tags and conversation vocabularies use snake_case. Private Surreal records and AgentContent digest inputs keep their native field names. The public authoring adapter converts those records; the content digest hashes the internal typed serialization, rather than the public DTO. Runtime template and ModelConnection revisions bind their current public serialized forms.
+
 ## Contract Policy Declaration
 
 The lightweight `contract` feature owns fourteen closed Agent actions and their

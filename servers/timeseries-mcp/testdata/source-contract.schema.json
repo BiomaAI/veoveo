@@ -1,55 +1,132 @@
 {
-  "$defs": {
-    "DuckDbColumnName": {
-      "allOf": [
-        {
-          "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
-        },
-        {
-          "pattern": "^[^\\u0000]*$"
-        }
-      ],
-      "description": "Nonblank column name without NUL, preserved verbatim and quoted as one SQL identifier.",
-      "type": "string"
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TimeseriesForecastRequest",
+  "description": "Forecast requests use only the implemented inline/HTTPS source profile.\n\n```compile_fail\nuse veoveo_timeseries_mcp::contract::TimeseriesTableMapping;\nTimeseriesTableMapping::new(\"value\".to_owned());\n```\n```compile_fail\nuse veoveo_timeseries_mcp::contract::{TimeseriesForecastRequest, TimeseriesForecastHorizon, TimeseriesTableMapping};\nuse veoveo_duckdb_mcp::contract::DuckDbSource;\nfn forecast(source: DuckDbSource, mapping: TimeseriesTableMapping, horizon: TimeseriesForecastHorizon) {\n    TimeseriesForecastRequest::new(source, mapping, horizon);\n}\n```\n```compile_fail\nuse veoveo_timeseries_mcp::contract::{TimeseriesForecastRequest, TimeseriesTableMapping};\nuse veoveo_duckdb_mcp::contract::DuckDbTabularSource;\nlet source = DuckDbTabularSource::InlineCsv {\n    csv: \"value\\n1\\n\".into(), filename: None, options: Default::default(),\n};\nTimeseriesForecastRequest::new(source, TimeseriesTableMapping::new(\"value\".parse().unwrap()), 0);\n```",
+  "type": "object",
+  "properties": {
+    "source": {
+      "$ref": "#/$defs/DuckDbTabularSource"
     },
-    "DuckDbFormat": {
-      "enum": [
-        "auto",
-        "csv",
-        "parquet",
-        "json",
-        "ndjson"
-      ],
-      "type": "string"
+    "mapping": {
+      "$ref": "#/$defs/TimeseriesTableMapping"
     },
-    "DuckDbReadOptionText": {
-      "pattern": "^[^\\u0000]*$",
-      "type": "string"
-    },
-    "DuckDbReadOptionValue": {
+    "trainingFilter": {
       "anyOf": [
         {
-          "type": "boolean"
+          "$ref": "#/$defs/TimeseriesRowFilter"
         },
         {
-          "type": "number"
-        },
-        {
-          "$ref": "#/$defs/DuckDbReadOptionText"
-        },
-        {
-          "items": {
-            "$ref": "#/$defs/DuckDbReadOptionValue"
-          },
-          "type": "array"
+          "type": "null"
         }
-      ],
-      "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning."
+      ]
+    },
+    "horizon": {
+      "$ref": "#/$defs/TimeseriesForecastHorizon"
+    },
+    "method": {
+      "$ref": "#/$defs/TimeseriesForecastMethod",
+      "default": "naive_trend"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "source",
+    "mapping",
+    "horizon"
+  ],
+  "$defs": {
+    "DuckDbTabularSource": {
+      "description": "Inline and HTTPS tabular inputs; consumers own network admission and execution.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "csv": {
+              "type": "string"
+            },
+            "filename": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "options": {
+              "$ref": "#/$defs/DuckDbReadOptions",
+              "default": {}
+            },
+            "kind": {
+              "type": "string",
+              "const": "inline_csv"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "csv"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "uri": {
+              "$ref": "#/$defs/HttpsUrl"
+            },
+            "format": {
+              "$ref": "#/$defs/DuckDbFormat"
+            },
+            "options": {
+              "$ref": "#/$defs/DuckDbReadOptions",
+              "default": {}
+            },
+            "kind": {
+              "type": "string",
+              "const": "uri"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "uri",
+            "format"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "uris": {
+              "$ref": "#/$defs/DuckDbSourceUris"
+            },
+            "format": {
+              "$ref": "#/$defs/DuckDbFormat"
+            },
+            "options": {
+              "$ref": "#/$defs/DuckDbReadOptions",
+              "default": {}
+            },
+            "kind": {
+              "type": "string",
+              "const": "uris"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "uris",
+            "format"
+          ]
+        }
+      ]
     },
     "DuckDbReadOptions": {
-      "additionalProperties": false,
       "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```",
+      "type": "object",
       "properties": {
+        "header": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "delimiter": {
           "anyOf": [
             {
@@ -60,7 +137,18 @@
             }
           ]
         },
+        "timestampFormat": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuckDbReadOptionText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "extra": {
+          "type": "object",
           "additionalProperties": false,
           "patternProperties": {
             "^[a-z_]": {
@@ -69,6 +157,8 @@
           },
           "propertyNames": {
             "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
+            "type": "string",
+            "pattern": "^[a-z_]",
             "not": {
               "anyOf": [
                 {
@@ -86,21 +176,96 @@
                 }
               ]
             },
-            "pattern": "^[a-z_]",
-            "type": "string"
-          },
-          "type": "object"
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "standard",
+                  "declaration": {
+                    "authority": {
+                      "kind": "standard",
+                      "document": "https://duckdb.org/docs/stable/data/csv/overview.html"
+                    },
+                    "profile": "DuckDB reader option names",
+                    "version": "1.5.6",
+                    "applicability": "only extra reader-option dictionary names"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "DuckDbReadOptionText": {
+      "type": "string",
+      "pattern": "^[^\\u0000]*$"
+    },
+    "DuckDbReadOptionValue": {
+      "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning.",
+      "anyOf": [
+        {
+          "type": "boolean"
         },
-        "header": {
-          "type": [
-            "boolean",
-            "null"
-          ]
+        {
+          "type": "number"
         },
-        "timestamp_format": {
+        {
+          "$ref": "#/$defs/DuckDbReadOptionText"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DuckDbReadOptionValue"
+          }
+        }
+      ]
+    },
+    "HttpsUrl": {
+      "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$"
+    },
+    "DuckDbFormat": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "csv",
+        "parquet",
+        "json",
+        "ndjson"
+      ]
+    },
+    "DuckDbSourceUris": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HttpsUrl"
+      },
+      "minItems": 1
+    },
+    "TimeseriesTableMapping": {
+      "type": "object",
+      "properties": {
+        "timeColumn": {
           "anyOf": [
             {
-              "$ref": "#/$defs/DuckDbReadOptionText"
+              "$ref": "#/$defs/DuckDbColumnName"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "valueColumn": {
+          "$ref": "#/$defs/DuckDbColumnName"
+        },
+        "seriesColumn": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuckDbColumnName"
             },
             {
               "type": "null"
@@ -108,195 +273,131 @@
           ]
         }
       },
-      "type": "object"
+      "additionalProperties": false,
+      "required": [
+        "valueColumn"
+      ]
     },
-    "DuckDbSourceUris": {
-      "items": {
-        "$ref": "#/$defs/HttpsUrl"
-      },
-      "minItems": 1,
-      "type": "array"
-    },
-    "DuckDbTabularSource": {
-      "description": "Inline and HTTPS tabular inputs; consumers own network admission and execution.",
-      "oneOf": [
+    "DuckDbColumnName": {
+      "description": "Nonblank column name without NUL, preserved verbatim and quoted as one SQL identifier.",
+      "type": "string",
+      "allOf": [
         {
-          "additionalProperties": false,
-          "properties": {
-            "csv": {
-              "type": "string"
-            },
-            "filename": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "kind": {
-              "const": "inline_csv",
-              "type": "string"
-            },
-            "options": {
-              "$ref": "#/$defs/DuckDbReadOptions",
-              "default": {}
-            }
-          },
-          "required": [
-            "kind",
-            "csv"
-          ],
-          "type": "object"
+          "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
         },
         {
-          "additionalProperties": false,
-          "properties": {
-            "format": {
-              "$ref": "#/$defs/DuckDbFormat"
-            },
-            "kind": {
-              "const": "uri",
-              "type": "string"
-            },
-            "options": {
-              "$ref": "#/$defs/DuckDbReadOptions",
-              "default": {}
-            },
-            "uri": {
-              "$ref": "#/$defs/HttpsUrl"
-            }
-          },
-          "required": [
-            "kind",
-            "uri",
-            "format"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "format": {
-              "$ref": "#/$defs/DuckDbFormat"
-            },
-            "kind": {
-              "const": "uris",
-              "type": "string"
-            },
-            "options": {
-              "$ref": "#/$defs/DuckDbReadOptions",
-              "default": {}
-            },
-            "uris": {
-              "$ref": "#/$defs/DuckDbSourceUris"
-            }
-          },
-          "required": [
-            "kind",
-            "uris",
-            "format"
-          ],
-          "type": "object"
+          "pattern": "^[^\\u0000]*$"
         }
       ]
     },
-    "HttpsUrl": {
-      "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
-      "format": "uri",
-      "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$",
-      "type": "string"
+    "TimeseriesRowFilter": {
+      "type": "object",
+      "properties": {
+        "combination": {
+          "$ref": "#/$defs/TimeseriesFilterCombination",
+          "default": "all"
+        },
+        "predicates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TimeseriesFilterPredicate"
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "predicates"
+      ]
     },
     "TimeseriesFilterCombination": {
+      "type": "string",
       "enum": [
         "all",
         "any"
-      ],
-      "type": "string"
-    },
-    "TimeseriesFilterNumber": {
-      "format": "double",
-      "type": "number"
+      ]
     },
     "TimeseriesFilterPredicate": {
       "oneOf": [
         {
-          "additionalProperties": false,
+          "type": "object",
           "properties": {
             "column": {
               "$ref": "#/$defs/DuckDbColumnName"
             },
-            "op": {
-              "const": "eq",
-              "type": "string"
-            },
             "value": {
               "$ref": "#/$defs/TimeseriesFilterValue"
+            },
+            "op": {
+              "type": "string",
+              "const": "eq"
             }
           },
+          "additionalProperties": false,
           "required": [
             "op",
             "column",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
+          "type": "object",
           "properties": {
             "column": {
               "$ref": "#/$defs/DuckDbColumnName"
             },
-            "op": {
-              "const": "ne",
-              "type": "string"
-            },
             "value": {
               "$ref": "#/$defs/TimeseriesFilterValue"
+            },
+            "op": {
+              "type": "string",
+              "const": "ne"
             }
           },
+          "additionalProperties": false,
           "required": [
             "op",
             "column",
             "value"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
+          "type": "object",
           "properties": {
             "column": {
               "$ref": "#/$defs/DuckDbColumnName"
-            },
-            "op": {
-              "const": "in",
-              "type": "string"
             },
             "values": {
               "$ref": "#/$defs/TimeseriesFilterValues"
+            },
+            "op": {
+              "type": "string",
+              "const": "in"
             }
           },
+          "additionalProperties": false,
           "required": [
             "op",
             "column",
             "values"
-          ],
-          "type": "object"
+          ]
         },
         {
-          "additionalProperties": false,
+          "type": "object",
           "properties": {
             "column": {
               "$ref": "#/$defs/DuckDbColumnName"
             },
             "op": {
-              "const": "is_not_null",
-              "type": "string"
+              "type": "string",
+              "const": "is_not_null"
             }
           },
+          "additionalProperties": false,
           "required": [
             "op",
             "column"
-          ],
-          "type": "object"
+          ]
         }
       ]
     },
@@ -309,123 +410,40 @@
           "type": "boolean"
         },
         {
-          "format": "int64",
-          "type": "integer"
+          "type": "integer",
+          "format": "int64"
         },
         {
+          "type": "integer",
           "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
+          "minimum": 0
         },
         {
           "$ref": "#/$defs/TimeseriesFilterNumber"
         }
       ]
     },
+    "TimeseriesFilterNumber": {
+      "type": "number",
+      "format": "double"
+    },
     "TimeseriesFilterValues": {
+      "type": "array",
       "items": {
         "$ref": "#/$defs/TimeseriesFilterValue"
       },
-      "minItems": 1,
-      "type": "array"
+      "minItems": 1
     },
     "TimeseriesForecastHorizon": {
-      "maximum": 100000,
+      "type": "integer",
       "minimum": 1,
-      "type": "integer"
+      "maximum": 100000
     },
     "TimeseriesForecastMethod": {
+      "type": "string",
       "enum": [
         "naive_trend"
-      ],
-      "type": "string"
-    },
-    "TimeseriesRowFilter": {
-      "additionalProperties": false,
-      "properties": {
-        "combination": {
-          "$ref": "#/$defs/TimeseriesFilterCombination",
-          "default": "all"
-        },
-        "predicates": {
-          "items": {
-            "$ref": "#/$defs/TimeseriesFilterPredicate"
-          },
-          "minItems": 1,
-          "type": "array"
-        }
-      },
-      "required": [
-        "predicates"
-      ],
-      "type": "object"
-    },
-    "TimeseriesTableMapping": {
-      "additionalProperties": false,
-      "properties": {
-        "series_column": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DuckDbColumnName"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "time_column": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DuckDbColumnName"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "value_column": {
-          "$ref": "#/$defs/DuckDbColumnName"
-        }
-      },
-      "required": [
-        "value_column"
-      ],
-      "type": "object"
-    }
-  },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "description": "Forecast requests use only the implemented inline/HTTPS source profile.\n\n```compile_fail\nuse veoveo_timeseries_mcp::contract::TimeseriesTableMapping;\nTimeseriesTableMapping::new(\"value\".to_owned());\n```\n```compile_fail\nuse veoveo_timeseries_mcp::contract::{TimeseriesForecastRequest, TimeseriesForecastHorizon, TimeseriesTableMapping};\nuse veoveo_duckdb_mcp::contract::DuckDbSource;\nfn forecast(source: DuckDbSource, mapping: TimeseriesTableMapping, horizon: TimeseriesForecastHorizon) {\n    TimeseriesForecastRequest::new(source, mapping, horizon);\n}\n```\n```compile_fail\nuse veoveo_timeseries_mcp::contract::{TimeseriesForecastRequest, TimeseriesTableMapping};\nuse veoveo_duckdb_mcp::contract::DuckDbTabularSource;\nlet source = DuckDbTabularSource::InlineCsv {\n    csv: \"value\\n1\\n\".into(), filename: None, options: Default::default(),\n};\nTimeseriesForecastRequest::new(source, TimeseriesTableMapping::new(\"value\".parse().unwrap()), 0);\n```",
-  "properties": {
-    "horizon": {
-      "$ref": "#/$defs/TimeseriesForecastHorizon"
-    },
-    "mapping": {
-      "$ref": "#/$defs/TimeseriesTableMapping"
-    },
-    "method": {
-      "$ref": "#/$defs/TimeseriesForecastMethod",
-      "default": "naive_trend"
-    },
-    "source": {
-      "$ref": "#/$defs/DuckDbTabularSource"
-    },
-    "training_filter": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/TimeseriesRowFilter"
-        },
-        {
-          "type": "null"
-        }
       ]
     }
-  },
-  "required": [
-    "source",
-    "mapping",
-    "horizon"
-  ],
-  "title": "TimeseriesForecastRequest",
-  "type": "object"
+  }
 }

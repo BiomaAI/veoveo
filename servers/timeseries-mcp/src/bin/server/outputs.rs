@@ -94,11 +94,11 @@ async fn record_usage(
             recorded_at: now_utc(),
             metadata: OpenObject::new(BTreeMap::from([
                 (
-                    "series_count".into(),
+                    "seriesCount".into(),
                     serde_json::json!(summary.series.len()),
                 ),
                 ("horizon".into(), serde_json::json!(summary.horizon)),
-                ("artifact_format".into(), serde_json::json!("rerun_rrd")),
+                ("artifactFormat".into(), serde_json::json!("rerun_rrd")),
             ])),
         })
         .await?;

@@ -21,6 +21,7 @@ use crate::{RecordingContractError, RecordingDatasetId, RecordingId};
 /// }
 /// ```
 #[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateRecordingProjectionRequestBuilder {
     pub dataset_id: RecordingDatasetId,
     pub recording_id: RecordingId,
@@ -92,6 +93,7 @@ impl CreateRecordingProjectionRequest {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ProjectionQueryIdentity<'a> {
     dataset_id: &'a RecordingDatasetId,
     recording_id: &'a RecordingId,
@@ -142,7 +144,7 @@ impl<'de> Deserialize<'de> for CreateRecordingProjectionRequest {
 
 // A closed flat decoder avoids combining Serde flatten with deny_unknown_fields.
 #[derive(Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 #[schemars(rename = "CreateRecordingProjectionRequest")]
 struct ProjectionRequestWire {
     dataset_id: RecordingDatasetId,
@@ -167,6 +169,7 @@ struct ProjectionRequestWire {
     #[schemars(range(min = 1, max = 15000))]
     deadline_ms: u64,
     idempotency_key: String,
+    #[schemars(schema_with = "crate::projection_units_schema")]
     units: BTreeMap<String, String>,
     #[schemars(length(max = 64))]
     coordinate_frame_refs: Vec<WorldFrameUri>,

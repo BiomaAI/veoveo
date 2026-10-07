@@ -97,7 +97,7 @@ fn resources() -> Result<Vec<McpResource<ReasonResource>>, McpSetupError> {
             .with_description("Authorized durable analysis index.")
             .with_mime_type("application/json"),
     ];
-    for collection in FindingCollection::ALL {
+    for collection in FindingCollection::ALL.iter().copied() {
         resources.push(
             Resource::new(
                 FindingResource::root(collection)
@@ -155,7 +155,7 @@ fn resource_templates() -> Result<Vec<McpResourceTemplate>, McpSetupError> {
             .with_mime_type("application/vnd.veoveo.reason-results+json"),
         ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact").with_title("Reason artifact"),
     ];
-    for collection in FindingCollection::ALL {
+    for collection in FindingCollection::ALL.iter().copied() {
         templates.push(
             ResourceTemplate::new(
                 collection.page_template(),

@@ -24,6 +24,7 @@ pub struct FrameWorldSummary {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct SummaryWire {
     world_id: FrameWorldId,
     world_uri: FrameWorldUri,
@@ -125,6 +126,7 @@ pub struct FrameWorldRevision {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct RevisionWire {
     world_id: FrameWorldId,
     world_uri: FrameWorldUri,
@@ -270,6 +272,7 @@ pub struct FrameSourceReference {
 }
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct SourceWire {
     revision_uri: FrameWorldRevisionUri,
     revision_id: FrameWorldRevisionId,
