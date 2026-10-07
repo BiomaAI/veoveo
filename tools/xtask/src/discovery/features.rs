@@ -104,6 +104,8 @@ pub(crate) fn decode(metadata: &CargoMetadata, bytes: &[u8]) -> Result<Effective
         .lines()
         .filter(|l| !l.is_empty())
     {
+        // Cargo appends this marker when the same dependency subtree was already shown.
+        let line = line.strip_suffix(" (*)").unwrap_or(line);
         let (label, features) = line.rsplit_once("|veoveo-features|").with_context(|| {
             format!(
                 "malformed Cargo feature receipt line: {:?}",
@@ -142,8 +144,14 @@ pub(crate) fn decode(metadata: &CargoMetadata, bytes: &[u8]) -> Result<Effective
             .split(',')
             .map(str::trim)
             .filter(|f| !f.is_empty())
-            .map(str::to_owned)
-            .collect();
+            .map(|feature| {
+                ensure!(
+                    !feature.contains(['(', ')', '*']) && !feature.chars().any(char::is_whitespace),
+                    "malformed Cargo feature receipt suffix"
+                );
+                Ok(feature.to_owned())
+            })
+            .collect::<Result<_>>()?;
         result.entry(id.clone()).or_default().insert(features);
     }
     ensure!(!result.is_empty(), "empty effective Cargo closure");
@@ -167,7 +175,6 @@ fn resolve(
         "--locked",
         "--prefix",
         "none",
-        "--no-dedupe",
         "--format",
         "{p}|veoveo-features|{f}",
         "--edges",
@@ -356,6 +363,32 @@ mod tests {
         }
     }
     #[test]
+    fn repeat_markers_admit_only_the_exact_terminal_cargo_suffix() {
+        let metadata = metadata(vec![git_package("rmcp", false, GIT_REVISION)]);
+        let label = format!("rmcp v3.5.0 ({GIT_URL}#917e7914)");
+        for features in ["", "server"] {
+            let plain = format!("{label}|veoveo-features|{features}");
+            let repeated = format!("{plain} (*)");
+            assert_eq!(
+                decode(&metadata, plain.as_bytes()).unwrap(),
+                decode(&metadata, repeated.as_bytes()).unwrap()
+            );
+        }
+        for receipt in [
+            format!("{label}|veoveo-features|server (*) (*)"),
+            format!("{label}|veoveo-features|server (*) trailing"),
+            format!("{label}|veoveo-features|server (* )"),
+            format!("{label}|veoveo-features|server (**)"),
+            format!("{label}|veoveo-features|server(*)"),
+            format!("{label}|veoveo-features|server (*"),
+            format!("{label} (*)|veoveo-features|server"),
+            format!("{label} (*)"),
+        ] {
+            assert!(decode(&metadata, receipt.as_bytes()).is_err(), "{receipt}");
+        }
+    }
+
+    #[test]
     fn git_tree_labels_refuse_foreign_sources_and_invalid_revisions() {
         let metadata = metadata(vec![git_package("rmcp", false, GIT_REVISION)]);
         for label in [
@@ -495,13 +528,55 @@ mod native_graph_tests {
             profile: BuildProfile::Dev,
         }
     }
+    fn assert_deduplicated_tree_matches_expanded(
+        root: &Path,
+        metadata: &CargoMetadata,
+        budget: &Budget,
+        roots: &[(CargoSelection, bool)],
+    ) {
+        for target_projection in [false, true] {
+            let edges = match (roots[0].1, target_projection) {
+                (true, true) => "normal,dev,no-proc-macro",
+                (false, true) => "normal,no-proc-macro",
+                (true, false) => "normal,build,dev",
+                (false, false) => "normal,build",
+            };
+            let tree = |expanded: bool| {
+                let mut command = Command::new("cargo");
+                command.current_dir(root).args([
+                    "tree",
+                    "--offline",
+                    "--locked",
+                    "--prefix",
+                    "none",
+                    "--format",
+                    "{p}|veoveo-features|{f}",
+                    "--edges",
+                    edges,
+                ]);
+                if expanded {
+                    command.arg("--no-dedupe");
+                }
+                command.args(root_arguments(metadata, roots));
+                crate::process::remove_parent_cargo_package_environment(&mut command);
+                budget.output(command).unwrap().stdout
+            };
+            let normal = tree(false);
+            let expanded = tree(true);
+            assert!(std::str::from_utf8(&normal).unwrap().contains(" (*)"));
+            assert_eq!(
+                decode(metadata, &normal).unwrap(),
+                decode(metadata, &expanded).unwrap()
+            );
+        }
+    }
     #[test]
     fn wired_plan_groups_real_default_transitive_roots_and_separates_isolated_runtime_union() {
         let temporary = tempfile::tempdir().unwrap();
         let root = temporary.path();
         std::fs::write(
             root.join("Cargo.toml"),
-            "[workspace]\nresolver='3'\nmembers=['leaf','friend','other','bridge','runtime']\n",
+            "[workspace]\nresolver='3'\nmembers=['leaf','friend','other','bridge','runtime','descendant']\n",
         )
         .unwrap();
         package(
@@ -525,10 +600,11 @@ mod native_graph_tests {
         package(
             root,
             "bridge",
-            "[features]\ndefault=[]\ndeclaration=[]\nruntime=['dep:runtime']\n[dependencies]\nruntime={path='../runtime',optional=true}",
+            "[features]\ndefault=[]\ndeclaration=[]\nruntime=['dep:runtime']\n[dependencies]\ndescendant={path='../descendant'}\nruntime={path='../runtime',optional=true}",
             false,
         );
         package(root, "runtime", "", false);
+        package(root, "descendant", "", false);
         let budget = Budget::new(
             &std::env::var_os("CARGO_TARGET_DIR")
                 .map(std::path::PathBuf::from)
@@ -563,6 +639,12 @@ mod native_graph_tests {
             )
             .is_err()
         );
+        assert_deduplicated_tree_matches_expanded(
+            root,
+            &metadata,
+            &budget,
+            &[(selection("leaf"), false), (selection("friend"), false)],
+        );
         assert!(!root.join("preparation-effect").exists());
         budget.completed();
     }
@@ -572,19 +654,26 @@ mod native_graph_tests {
         let root = temporary.path();
         std::fs::write(
             root.join("Cargo.toml"),
-            "[workspace]\nresolver='3'\nmembers=['probe','shared']\n",
+            "[workspace]\nresolver='3'\nmembers=['probe','shared','derive_probe','descendant']\n",
         )
         .unwrap();
         package(
             root,
             "shared",
-            "[features]\ndefault=[]\ntarget=[]\nhost=[]\ndev=[]",
+            "[features]\ndefault=[]\ntarget=[]\nhost=[]\ndev=[]\n[dependencies]\ndescendant={path='../descendant'}",
+            false,
+        );
+        package(root, "descendant", "", false);
+        package(
+            root,
+            "derive_probe",
+            "[lib]\nproc-macro=true\n[dependencies]\nshared={path='../shared',default-features=false,features=['host']}",
             false,
         );
         package(
             root,
             "probe",
-            "[dependencies]\nshared={path='../shared',default-features=false,features=['target']}\n[build-dependencies]\nshared={path='../shared',default-features=false,features=['host']}\n[dev-dependencies]\nshared={path='../shared',default-features=false,features=['dev']}\n[[test]]\nname='probe'\npath='tests/probe.rs'",
+            "[dependencies]\nshared={path='../shared',default-features=false,features=['target']}\nderive_probe={path='../derive_probe'}\n[build-dependencies]\nshared={path='../shared',default-features=false,features=['host']}\n[dev-dependencies]\nshared={path='../shared',default-features=false,features=['dev']}\n[[test]]\nname='probe'\npath='tests/probe.rs'",
             true,
         );
         std::fs::create_dir(root.join("probe/tests")).unwrap();
@@ -613,6 +702,12 @@ mod native_graph_tests {
             BTreeSet::from([BTreeSet::from(["dev".into(), "target".into()])])
         );
         assert!(groups[0].effective[id].contains(&BTreeSet::from(["host".into()])));
+        assert_deduplicated_tree_matches_expanded(
+            root,
+            &metadata,
+            &budget,
+            &[(selection("probe"), true)],
+        );
         budget.completed();
     }
 }
