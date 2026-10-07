@@ -212,19 +212,17 @@ fn native_cargo_home(
 ) -> Result<std::path::PathBuf> {
     // Match Cargo's home resolver: ignore an empty override, preserve relative paths,
     // and use the platform home lookup (including its account-database fallback).
-    match configured.filter(|home| !home.is_empty()) {
-        Some(home) => {
-            let home = std::path::PathBuf::from(home);
-            Ok(if home.is_absolute() {
-                home
-            } else {
-                repository.join(home)
-            })
-        }
+    let home = match configured.filter(|home| !home.is_empty()) {
+        Some(home) => std::path::PathBuf::from(home),
         None => user_home
             .map(|home| home.join(".cargo"))
-            .context("native smoke cannot resolve the user's Cargo home"),
-    }
+            .context("native smoke cannot resolve the user's Cargo home")?,
+    };
+    Ok(if home.is_absolute() {
+        home
+    } else {
+        repository.join(home)
+    })
 }
 fn admit_native_profile(repository: &Path) -> Result<()> {
     let configured = std::env::var_os("CARGO_HOME");
@@ -599,6 +597,17 @@ mod tests {
             native_cargo_home(&repository, Some(global.as_os_str()), None).unwrap(),
             global
         );
+        for configured in [None, Some(std::ffi::OsStr::new(""))] {
+            assert_eq!(
+                native_cargo_home(
+                    &repository,
+                    configured,
+                    Some("relative-user/../home".into())
+                )
+                .unwrap(),
+                repository.join("relative-user/../home/.cargo")
+            );
+        }
         assert!(native_cargo_home(&repository, Some(std::ffi::OsStr::new("")), None).is_err());
     }
 
