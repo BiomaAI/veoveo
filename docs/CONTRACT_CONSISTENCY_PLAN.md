@@ -58,7 +58,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33, shared Artifact and SDK controls pass; selected Map and Time native controls, Speech's Rust/Python protocol and Media's current receiver checks pass. Knowledge's collector, Video's current receivers and UAV's repaired private protocol pass. Computers' focused contract, private-byte and hosted file-admission controls pass. Selected Agents/Workspace native and generated-receiver checks pass. Recording's selected native and producer comparisons, Stream's actual SDK parser controls and gateway/deployment preflight pass. Optimization native reads expose the pending shared-host result-key correction | Complete remaining owner repairs and the full producer/consumer cut, qualify generated artifacts, drain incompatible writers and prepare fresh reference state |
-| 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners; relocated harnesses compile, contract-only onboarding and all 73 CLI scenario declarations pass. Both normal conformance binaries compile with shared declaration dependencies and no domain or runtime implementations. Flight/Candidate repairs are source-accepted; selected locked environments and actual Node/pytest selection controls pass | Complete remaining owner/enforcement gates and the protected shared-host fixture |
+| 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases | Reconcile stale owner-document revision claims, complete remaining owner/enforcement gates and qualify the protected shared-host fixture |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
@@ -131,6 +131,15 @@ The published tree at `9ccd95fae` passes whole-workspace formatting, the shared-
 catalog over 2,569 tracked Rust sources, and identifier enforcement over 6,426
 tracked text files. The naming suite passes all 28 cases. These checks do not close
 the remaining native, dependency-graph or installed gates.
+
+The final conformance batch qualifies both actual normal certification binaries
+independently of hosted development fixtures. It also passes all six conformance
+integration cases, current owner-document discovery and the independent contract
+scenario through the dispatcher. Its original prerequisite cache miss is resolved
+by admitting the exact locked archive; preparation remains offline. Deployment
+fixtures use the current policy spelling and supply Knowledge's required embedding
+runtime key while preserving the owning refusal assertions. The dispatcher reports
+the retained private diagnostics directory when preparation exits unsuccessfully.
 
 The latest source checkpoints implement Map repository/product admission and the
 recorded video, Stream, Reason and Timeseries result relationships in F10, F12,
