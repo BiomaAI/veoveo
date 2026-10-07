@@ -1525,39 +1525,22 @@ the user's approval under the installed-acceptance handover.
 The installation cut must drain the previous callback profile; missing binding
 credentials fail rather than selecting an older handler.
 
-Knowledge's reusable runtime must validate current client authority through a typed
-resolver port. Its current unconditional `AgentRepository` lookup fails even for
-static clients when the Agents lane is absent. Follow Gateway's resolver pattern,
-with an input contract for authenticated internal assertions. Agents owns the
-managed-registration adapter; a composition boundary binds it when selected.
-Place the resolver interface and typed authority result in a new `internal_clients`
-module in the existing Policy crate. Its interface declares delegated freshness
-checks; the adapter owns database access. Policy may use the dependency-free Modules
-observation declarations and must not depend on Store or Agents. Gate the Agents
-implementation separately from its full Gateway and runtime features. Knowledge's
-runtime accepts an explicit resolver; its server composition binds the managed
-adapter through a separately qualified feature or package. No Agent-to-Knowledge
-dependency is required.
-The static-only implementation must reject managed attribution and work with kernel
-lanes alone. A bound adapter must still check static/managed client collisions,
-instance generation, dispatch epoch, enabled state, tenant, Work Context, scopes,
-roles and allowed tools. Repeat current-authority validation before delivery.
-The adapter also contributes its owner observation tables: Knowledge currently
-subscribes directly to `ManagedAgent` and `AgentDefinition`, which makes its listener
-depend on Agents even when requests use static clients. Kernel-only listeners must
-start without those tables. Managed listeners must wake and revalidate when a
-registration or definition changes, preserving revocation and reconnect behavior.
-Qualify both HTTP and subscription profiles and the isolated Knowledge runtime
-dependency graph; installing Agents in every fixture does not satisfy these gates.
-The server chooses its resolver from the effective lanes in the admitted installation
-`ModulePlanDocument`, using the existing revisioned plan mount and `VEOVEO_MODULE_PLAN`
-input. A compile feature makes the adapter available; selection of the Agents lane
-binds it. Modules needs a read-only readiness API for the selected prerequisites,
-reusing committed installation and migration identity checks. Its existing full-registry
-runner status rejects a partial compiled registry and must keep that behavior.
-Knowledge must reject unavailable selected prerequisites with a configuration
-diagnostic rather than fall back to static-only authority or infer readiness from
-table existence. Kernel-only selection binds the static resolver without Agent access.
+Knowledge's reusable runtime receives Policy's typed internal-client resolver and
+has no normal Agent persistence dependency. Agents owns the separately gated managed
+adapter. The static resolver rejects managed attribution, and its observation tables
+exclude Agents. Kernel-only HTTP and subscription fixtures assert that Agent tables
+are absent. Current-authority checks run before delivery.
+Server composition selects the resolver from the admitted `ModulePlanDocument`
+through `VEOVEO_MODULE_PLAN`. The `managed-clients` feature makes the adapter available;
+selecting the Agents lane binds it. Modules supplies read-only prerequisite admission
+over committed installation and migration identities. Missing selected adapters or
+drifting preparation fail configuration before workers start. The existing full-registry
+runner status still rejects a partial registry.
+Preserve collision, instance generation, dispatch epoch, enabled-state, tenant,
+Work Context, scope, role and tool checks, plus managed registration-change observation.
+These source checkpoints do not qualify installed HTTP/subscription authority or
+current-generation recovery. Phase 10 must exercise both kernel-only and managed
+selection without inferring readiness from table existence.
 
 Artifact's subscription deadline query runs through its owning Store API, which
 applies Artifact admission to retention and grant-expiry selection before returning
@@ -1667,13 +1650,12 @@ directly. Preserve current authority and parent checks before ordering or limits
 and qualify the native query plan without a Task table scan before retiring
 `task_uav_plan`. This prerequisite does not complete Phase 4's payload-column work.
 
-Computers declares `computer.owner_context.authority` as a required FLEXIBLE object
-before defining the existing ownership index. The writer's `TaskOwner` already
-requires this `InvocationAuthority`; declaring the intermediate path lets schema
-admission prove the index without weakening its checks. This narrow Phase 4
-prerequisite preserves the payload's existing child fields. Qualify a real Computer
-write, indexed ownership lookup and rejection of absent or record-valued authority.
-The full nested authority declarations remain Phase 4 work.
+Computers' composed schema declares `computer.owner_context.authority` as a required
+closed object, including its nested authority, output-policy and provenance fields.
+The controlled-fields migration replaces the initial FLEXIBLE declaration before
+index installation. Keep real Computer writes, indexed ownership selection and
+rejection of absent or record-valued authority in the native and installed gates;
+the nested declarations are implemented rather than pending Phase 4 work.
 
 Audit's Computer target also crosses this dependency cut. Computers must own its
 typed target codec and lookup-reference projection. Composition binds that codec to
