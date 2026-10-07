@@ -1,4 +1,5 @@
 //! Checks run inside the owned host fixture after its retained-image upgrade.
+use crate::fixture::images;
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use std::{fs, path::Path};
@@ -28,6 +29,7 @@ struct Labels {
 #[serde(rename_all = "PascalCase")]
 struct Inspection {
     id: String,
+    image: veoveo_types::Sha256Digest,
     state: State,
     config: Config,
     host_config: HostConfig,
@@ -42,7 +44,6 @@ struct State {
 #[serde(rename_all = "PascalCase")]
 struct Config {
     labels: Labels,
-    image: String,
     user: String,
 }
 #[derive(Deserialize)]
@@ -142,6 +143,19 @@ fn admit_pair(workload: &Inspection, supervisor: &Inspection) -> Result<()> {
     );
     Ok(())
 }
+fn admit_companion_image(
+    supervisor: &Inspection,
+    image: &images::Inspection,
+    reference: &str,
+    authority: &str,
+) -> Result<veoveo_types::Sha256Digest> {
+    let id = image.admit(reference, authority)?;
+    ensure!(
+        supervisor.image == id,
+        "supervisor container uses another local image identity"
+    );
+    Ok(id)
+}
 fn child_cgroup(value: &Inspection) -> Result<()> {
     let relative = format!("/docker/{}", value.id);
     ensure!(
@@ -225,13 +239,30 @@ pub fn check(directory: &Path, after: bool) -> Result<()> {
     #[serde(rename_all = "camelCase")]
     struct HostImages {
         supervisor_image: String,
+        registry: Registry,
     }
-    let images: HostImages =
+    #[derive(Deserialize)]
+    struct Registry {
+        authority: String,
+    }
+    let configured: HostImages =
         serde_json::from_slice(&fs::read("/etc/veoveo/computers/host-config/host.json")?)?;
-    ensure!(
-        supervisor.config.image == images.supervisor_image,
-        "supervisor does not use the admitted preload image"
-    );
+    let image = images::decode(
+        docker(&[
+            "image",
+            "inspect",
+            &configured.supervisor_image,
+            "--format",
+            "{{json .}}",
+        ])?
+        .as_bytes(),
+    )?;
+    let supervisor_image_id = admit_companion_image(
+        &supervisor,
+        &image,
+        &configured.supervisor_image,
+        &configured.registry.authority,
+    )?;
     child_cgroup(&workload)?;
     child_cgroup(&supervisor)?;
     for namespace in ["mnt", "pid", "ipc", "cgroup"] {
@@ -272,11 +303,13 @@ pub fn check(directory: &Path, after: bool) -> Result<()> {
         workload_container_id: String,
         supervisor_container_id: String,
         supervisor_image: String,
+        supervisor_image_id: veoveo_types::Sha256Digest,
     }
     let evidence = Evidence {
         workload_container_id: workload.id,
         supervisor_container_id: supervisor.id,
-        supervisor_image: supervisor.config.image,
+        supervisor_image: configured.supervisor_image,
+        supervisor_image_id,
     };
     fs::write(
         directory.join("limits-containers.json"),
@@ -295,6 +328,7 @@ mod tests {
                 Role::Supervisor => "b",
             }
             .repeat(64),
+            image: veoveo_types::Sha256Digest::from_bytes([4; 32]),
             state: State {
                 pid: 1,
                 running: true,
@@ -306,7 +340,6 @@ mod tests {
                     name: "owned-computer".into(),
                     role,
                 },
-                image: "admitted-image".into(),
                 user: "65534:65534".into(),
             },
             host_config: HostConfig {
@@ -331,6 +364,24 @@ mod tests {
                 security_opt: Some(vec!["no-new-privileges:true".into()]),
             },
         }
+    }
+    #[test]
+    fn companion_uses_local_image_id_not_the_registry_manifest_digest() {
+        let (reference, value) = images::tests::source_image();
+        let image = images::decode(&serde_json::to_vec(&value).unwrap()).unwrap();
+        let mut supervisor = child(Role::Supervisor);
+        supervisor.image = image.id.clone();
+        admit_companion_image(&supervisor, &image, &reference, "registry.internal").unwrap();
+        assert_ne!(
+            supervisor.image.hex(),
+            reference.split_once("@sha256:").unwrap().1
+        );
+        supervisor.image =
+            veoveo_types::Sha256Digest::from_hex(reference.split_once("@sha256:").unwrap().1)
+                .unwrap();
+        assert!(
+            admit_companion_image(&supervisor, &image, &reference, "registry.internal").is_err()
+        );
     }
     #[test]
     fn companion_selection_rejects_another_instance_namespace_or_workload_identity() {

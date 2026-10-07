@@ -1,6 +1,6 @@
 use super::{
     config::{Config, PLUGIN, PROVIDER_PORT, RUN, RegistryTransport, SOCKET, STATE},
-    files,
+    files, images,
     process::{self, Process},
 };
 use anyhow::{Context, Result, ensure};
@@ -200,7 +200,7 @@ async fn serve(config: &Config, retained: bool, children: &mut Children) -> Resu
     // Preload only the declared installation registry closure. The provider
     // never downloads an image in response to a user's lifecycle request.
     for image in &config.images {
-        let url = format!("http://localhost/v1.53/images/{image}/json");
+        let url = images::inspection_url(image)?;
         let present = docker_client()?.get(url).send().await?;
         if present.status() == reqwest::StatusCode::NOT_FOUND {
             process::finite(
@@ -221,6 +221,14 @@ async fn serve(config: &Config, retained: bool, children: &mut Children) -> Resu
         }
         children.check()?;
     }
+    // A successful preload does not prove the companion's source provenance.
+    let _supervisor_image_id = images::inspect(
+        &docker_client()?,
+        &config.supervisor_image,
+        &config.registry.authority,
+    )
+    .await?;
+    children.check()?;
     let mut provider = process::command("/usr/local/bin/openshell-gateway");
     provider
         .env("XDG_STATE_HOME", format!("{STATE}/provider/state"))

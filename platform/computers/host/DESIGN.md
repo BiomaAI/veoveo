@@ -93,10 +93,13 @@ installation registry using image digests. Registry credential injection and cus
 CA roots are not yet admitted profiles. Startup checks the private image inventory and
 pulls only missing catalog entries, with a five-minute deadline per image. The provider
 uses `image_pull_policy=Never`. The installation selects the qualified supervisor
-image and includes its digest in the catalog. Production admission checks pinned
-references and the local inventory. The native fixture also binds the image's
-provider-profile, source-manifest SHA-256 and supervisor source-tree labels to
-its included source declarations. It rejects an unmatched or unpatched image.
+image and includes its digest in the catalog. Before starting the provider, the
+launcher inspects that reference through the private engine with a two-second
+deadline and a 64 KiB response limit. Shared image admission requires the exact
+RepoDigest, provider-profile, source-manifest SHA-256 and supervisor source-tree
+labels from the included source declarations. The native fixture uses the same
+admission and compares the companion's local image ID with the admitted image ID;
+Docker's local image ID differs from the registry manifest digest.
 The supervisor and static sandbox come from the same patched tree. An offline
 installation includes that local registry closure and the Host image; retained
 Start requires no upstream Internet download.

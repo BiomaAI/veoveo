@@ -1,5 +1,6 @@
 mod config;
 mod files;
+mod images;
 mod isolation;
 mod process;
 mod runtime;

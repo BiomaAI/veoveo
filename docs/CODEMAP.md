@@ -295,6 +295,7 @@ designs above.
 | `platform/computers/storage/src/abandonment.rs` and `journal/abandonment.rs` | physical fencing and durable retirement of never-claimed instance admissions; preserves the home, rejects late mounts and shares immutable target identity with claimed handoff |
 | `platform/computers/images/` | candidate Computer user environment with pinned Ubuntu base/archive inputs and numeric process identity; separate from the privileged provider and retained allocator |
 | `platform/computers/host/` | private compute-host launcher and composite OCI image; fixed configuration and trust files, ordered process startup/shutdown and isolated topology tests |
+| `platform/computers/host/src/images.rs` | private-engine companion image admission by registry digest and provider source profile, shared with the owning Host fixture |
 | `platform/runtimes/computers/tests/native_volume_plugin.rs` and `tests/native_support/docker_daemon.rs` | native registered-writer probe with a disposable Docker daemon, pinned image import and daemon-scoped plugin cleanup |
 | `platform/runtimes/computers/src/retained_writer.rs` | matches Docker engine, provider namespace and Computer instance before admitting a retained volume; the allocator owns persisted physical handoff |
 | `platform/runtimes/computers/src/retirement.rs` | one guarded provider deletion for a stopped resource/run; the deletion acknowledgement is separate from allocator proof and maintenance admission |

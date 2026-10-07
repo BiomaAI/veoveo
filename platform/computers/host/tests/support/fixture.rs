@@ -1,5 +1,4 @@
 use anyhow::{Context, Result, ensure};
-use sha2::{Digest, Sha256};
 use std::{
     fs,
     os::unix::fs::PermissionsExt,
@@ -36,95 +35,8 @@ fn bridge() -> (String, String) {
         fs::read_to_string("/sys/class/net/docker0/address").unwrap(),
     )
 }
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct ImageInspection {
-    id: veoveo_types::Sha256Digest,
-    repo_digests: Vec<String>,
-    config: ImageConfig,
-}
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct ImageConfig {
-    labels: std::collections::BTreeMap<String, String>,
-}
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ProviderProfile {
-    gateway_version: String,
-    binaries: Vec<ProfileBinary>,
-}
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ProfileBinary {
-    name: BinaryName,
-    source_tree: String,
-    target: String,
-}
-#[derive(Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
-enum BinaryName {
-    #[vocabulary(rename = "openshell")]
-    Cli,
-    #[vocabulary(rename = "openshell-gateway")]
-    Gateway,
-    #[vocabulary(rename = "openshell-driver-docker")]
-    Driver,
-    #[vocabulary(rename = "openshell-supervisor")]
-    Supervisor,
-    #[vocabulary(rename = "openshell-sandbox")]
-    Sandbox,
-}
-fn admit_supervisor(reference: &str, authority: &str, image: &ImageInspection) -> Result<()> {
-    let (repository, digest) = reference
-        .split_once("@sha256:")
-        .context("digest-pinned supervisor image required")?;
-    veoveo_types::Sha256Digest::from_hex(digest)?;
-    ensure!(
-        repository
-            .split_once('/')
-            .is_some_and(|(registry, name)| registry == authority && !name.is_empty()),
-        "supervisor image must use the Computer installation registry"
-    );
-    ensure!(
-        image.repo_digests.iter().any(|value| value == reference),
-        "supervisor image digest is not locally admitted"
-    );
-    let bytes = include_bytes!("../../../../runtimes/computers/provider-patches/manifest.json");
-    let profile: ProviderProfile = serde_json::from_slice(bytes)?;
-    let supervisor: Vec<_> = profile
-        .binaries
-        .iter()
-        .filter(|binary| binary.name == BinaryName::Supervisor)
-        .collect();
-    let sandbox: Vec<_> = profile
-        .binaries
-        .iter()
-        .filter(|binary| binary.name == BinaryName::Sandbox)
-        .collect();
-    ensure!(
-        supervisor.len() == 1 && sandbox.len() == 1,
-        "matched supervisor and sandbox source declarations required"
-    );
-    ensure!(
-        supervisor[0].source_tree == sandbox[0].source_tree
-            && supervisor[0].target == "x86_64-unknown-linux-gnu"
-            && sandbox[0].target == "x86_64-unknown-linux-musl",
-        "matched GNU supervisor and static musl sandbox profile required"
-    );
-    let digest = veoveo_types::Sha256Digest::from_bytes(Sha256::digest(bytes).into());
-    let labels = &image.config.labels;
-    ensure!(
-        profile.gateway_version == veoveo_computers_runtime::GATEWAY_VERSION
-            && labels.get("ai.veoveo.provider.profile") == Some(&profile.gateway_version)
-            && labels
-                .get("ai.veoveo.provider.manifest-sha256")
-                .is_some_and(|value| value == &digest.hex())
-            && labels.get("ai.veoveo.provider.supervisor-source-tree")
-                == Some(&supervisor[0].source_tree),
-        "supervisor image differs from the compiled provider source profile"
-    );
-    Ok(())
-}
+#[path = "../../src/images.rs"]
+pub(crate) mod images;
 pub struct Fixture {
     pub dir: PathBuf,
     pub provider: veoveo_computers_runtime::ProviderInstanceId,
@@ -173,8 +85,8 @@ impl Fixture {
             "{{json .}}",
         ]))
         .await?;
-        let supervisor: ImageInspection = serde_json::from_str(&inspected)?;
-        admit_supervisor(&supervisor_image, authority, &supervisor)?;
+        let supervisor = images::decode(inspected.as_bytes())?;
+        supervisor.admit(&supervisor_image, authority)?;
         let provider = veoveo_computers_runtime::ProviderInstanceId::new();
         let name = format!("veoveo-host-probe-{}", provider.as_uuid().simple());
         let dir = PathBuf::from(
@@ -563,65 +475,6 @@ impl Drop for Fixture {
                 "compute host cleanup requires recovery at {}",
                 self.dir.display()
             );
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn companion_image_rejects_foreign_digest_and_unmatched_source_before_allocation() {
-        let bytes = include_bytes!("../../../../runtimes/computers/provider-patches/manifest.json");
-        let profile: ProviderProfile = serde_json::from_slice(bytes).unwrap();
-        let tree = profile
-            .binaries
-            .iter()
-            .find(|binary| binary.name == BinaryName::Supervisor)
-            .unwrap()
-            .source_tree
-            .clone();
-        let digest = veoveo_types::Sha256Digest::from_bytes(Sha256::digest(bytes).into());
-        let reference = format!("registry.internal/provider@sha256:{}", "a".repeat(64));
-        let mut image = ImageInspection {
-            id: veoveo_types::Sha256Digest::from_bytes([0; 32]),
-            repo_digests: vec![reference.clone()],
-            config: ImageConfig {
-                labels: std::collections::BTreeMap::from([
-                    ("ai.veoveo.provider.profile".into(), profile.gateway_version),
-                    (
-                        "ai.veoveo.provider.manifest-sha256".into(),
-                        digest.hex().to_owned(),
-                    ),
-                    ("ai.veoveo.provider.supervisor-source-tree".into(), tree),
-                ]),
-            },
-        };
-        admit_supervisor(&reference, "registry.internal", &image).unwrap();
-        assert!(admit_supervisor(&reference, "foreign.internal", &image).is_err());
-        assert!(
-            admit_supervisor(
-                "registry.internal/provider:latest",
-                "registry.internal",
-                &image
-            )
-            .is_err()
-        );
-        image.repo_digests.clear();
-        assert!(admit_supervisor(&reference, "registry.internal", &image).is_err());
-        image.repo_digests.push(reference.clone());
-        for name in [
-            "ai.veoveo.provider.profile",
-            "ai.veoveo.provider.manifest-sha256",
-            "ai.veoveo.provider.supervisor-source-tree",
-        ] {
-            let previous = image
-                .config
-                .labels
-                .insert(name.into(), "unpatched-or-foreign-source".into())
-                .unwrap();
-            assert!(admit_supervisor(&reference, "registry.internal", &image).is_err());
-            image.config.labels.insert(name.into(), previous);
         }
     }
 }
