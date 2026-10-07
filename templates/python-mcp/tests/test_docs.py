@@ -30,7 +30,7 @@ def test_docs_index_lists_the_embedded_documents():
 def test_llms_txt_renders_the_contract_format():
     assert LLMS_TXT == (
         "# datasheet\n\n"
-        "> Veoveo MCP server documents. Contract revision 3.\n\n"
+        "> Veoveo MCP server documents. Contract revision 4.\n\n"
         "## Docs\n\n"
         "- [Agent work manual](agents)\n"
         "- [Domain design](design)\n"
@@ -44,9 +44,9 @@ def test_agent_manual_contains_the_required_sections():
         assert section in manual
 
 
-def test_declaration_states_revision_3_with_a_dense_checklist():
+def test_declaration_states_revision_4_with_a_dense_checklist():
     assert CONTRACT_DECLARATION.server == "datasheet"
-    assert CONTRACT_DECLARATION.contract_revision == CONTRACT_REVISION == 3
+    assert CONTRACT_DECLARATION.contract_revision == CONTRACT_REVISION == 4
     declared = [item.id for item in CONTRACT_DECLARATION.compliance]
     assert declared == [item.value for item in RequirementId]
 
@@ -62,9 +62,9 @@ def test_declaration_meets_the_well_known_surface_items():
 
 def test_declaration_wire_shape_defers_runtime_surface_to_discover():
     wire = CONTRACT_DECLARATION.wire()
-    assert set(wire) == {"server", "contract_revision", "catalog_revision", "compliance"}
+    assert set(wire) == {"server", "contractRevision", "catalogRevision", "compliance"}
     assert wire["server"] == "datasheet"
-    assert wire["contract_revision"] == 3
+    assert wire["contractRevision"] == 4
     assert json.loads(json.dumps(wire)) == wire
 
 

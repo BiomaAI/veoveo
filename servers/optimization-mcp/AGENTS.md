@@ -1,7 +1,7 @@
 # Optimization MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 4.
 
 ## Purpose
 

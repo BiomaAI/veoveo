@@ -172,7 +172,7 @@ avoid the Frames-to-RRD-to-Recording dependency cycle.
 `mcp_setup::RecordingContract` implements the shared `McpServerContract` trait with
 Recording's resource and scope types. Startup forces its checked setup before Store,
 cache or Redap initialization. Discovery serves the six admitted resources and four
-parsed templates from that setup. Reference, local and catalog-fixture registrations declare revision 3 and
+parsed templates from that setup. Reference, local and catalog-fixture registrations declare revision 4 and
 static discovery. Subscription admission accepts the catalog root, recording metadata
 and layer addresses; it excludes documents, catalog pages and unrelated Task handles.
 

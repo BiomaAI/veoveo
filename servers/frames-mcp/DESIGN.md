@@ -18,7 +18,7 @@ port        8793
 ## Standards And Protocols
 
 Frames implements Model Context Protocol `2026-07-28` under Veoveo hosted MCP
-contract revision 3. Resource and tool payloads use closed camelCase JSON objects with snake_case controlled vocabulary values. MCP prompt names and argument identifiers use snake_case. Geodetic positions
+contract revision 4. Resource and tool payloads use closed camelCase JSON objects with snake_case controlled vocabulary values. MCP prompt names and argument identifiers use snake_case. Geodetic positions
 use WGS84, while ECEF positions use the EPSG:4978 coordinate reference system.
 MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` defines the
 server-owned `ui://frames/workspace.html` Frame Editor application.

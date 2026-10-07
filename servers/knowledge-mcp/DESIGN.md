@@ -12,7 +12,7 @@ collection approvals and signing credentials.
 
 | Standard or interface | Profile |
 |---|---|
-| MCP `2026-07-28` | Required hosted profile under [contract revision 3](../../mcp/contract/DESIGN.md); transport qualification pending |
+| MCP `2026-07-28` | Required hosted profile under [contract revision 4](../../mcp/contract/DESIGN.md); transport qualification pending |
 | `ai.veoveo/knowledge-source` | [Collection declarations and observed reads](../../mcp/knowledge-extension/DESIGN.md), with 100-member enumeration pages |
 | W3C DCAT 3 | Required JSON catalog shape; no RDF serialization or full DCAT conformance claim |
 | SurrealDB 3.3.0 | BM25, filtered HNSW cosine search and native `search::rrf` with k=60 |

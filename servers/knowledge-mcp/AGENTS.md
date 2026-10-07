@@ -79,7 +79,7 @@ Catalog revision: 2
 - C14: met — no byte routes.
 - C15: met — OCI and Helm publications exist.
 - C16: met — registration and caller policy expose search, embedding, resources, catalog completion and subscriptions; installed acceptance is tracked by C31.
-- C17: met — the typed registration and crate documents declare revision 3.
+- C17: met — the typed registration and crate documents declare revision 4.
 - C18: met — shared document resources.
 - C19: met — the shared declaration includes every checklist status.
 - C20: met — authenticated document index and bodies.

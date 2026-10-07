@@ -54,7 +54,7 @@ Map owns the v2 travel-model artifact wire type. Optimization decodes that owner
 | Veoveo Optimization catalog profile | Collection-bound version 2 Base64 cursors over creation time and native UUIDv7 Task identity; concrete addresses use the shared URI component builder. |
 | RFC 9562 and the Veoveo concrete URI profile | Output identities use lowercase hyphenated RFC-variant UUIDv7 values with domain prefixes. Resource constructors and parsers use the foundation's URL 2.5.8 component implementation. Profile names use bounded ASCII unreserved characters and exclude relative path segments. |
 | RFC 6570 | Discovery templates use checked declarations; iri-string 0.7.14 expansion is qualified against each typed resource family. |
-| Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, the 8 MiB final serialized-response cap, the hosted runtime, artifact plane, platform store, documentation resources, and gateway registration. |
+| Veoveo MCP server contract | Revision 4, including canonical result handoff, bounded discovery, the 8 MiB final serialized-response cap, the hosted runtime, artifact plane, platform store, documentation resources, and gateway registration. |
 
 ## Installation Prerequisites
 
@@ -381,7 +381,7 @@ The stable roots are:
 | `optimization://solutions` | First bounded page of visible completed-solution discriminators. |
 | `optimization://usage` | First bounded page of visible task usage identities. |
 | `optimization://docs` | Embedded server documents. |
-| `optimization://contract` | Machine-readable revision-3 compliance declaration and capability inventory. |
+| `optimization://contract` | Machine-readable revision-4 compliance declaration and capability inventory. |
 
 Resource templates provide:
 
@@ -726,12 +726,12 @@ or mocked CUDA result cannot satisfy this test.
 
 ## Contract Compliance
 
-Contract revision: 3.
+Contract revision: 4.
 
 C09 has remaining DTO relationship admission work.
 Checked MCP setup and the read-only installation guard are implemented; installed qualification for C31 is pending. The knowledge-source extension
 (C32) is planned. C06 is satisfied by the single canonical surface. The gateway
-registration states revision 3 and the cuOpt 26.08 engine. Documentation and
+registration states revision 4 and the cuOpt 26.08 engine. Documentation and
 contract resources are embedded at build time and served through MCP and the
 canonical administrative mount.
 

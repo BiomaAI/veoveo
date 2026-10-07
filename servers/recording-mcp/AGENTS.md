@@ -1,7 +1,7 @@
 # Recording MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative hosted-server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3. The complete
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 4. The complete
 recording contract is [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 
 ## Purpose
@@ -119,7 +119,7 @@ Catalog revision: 2
 - C14: met
 - C15: met
 - C16: met
-- C17: met — reference, local and catalog-fixture registrations declare revision 3 and static discovery
+- C17: met — reference, local and catalog-fixture registrations declare revision 4 and static discovery
 - C18: met
 - C19: met
 - C20: met

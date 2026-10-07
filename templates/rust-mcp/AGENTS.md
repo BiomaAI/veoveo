@@ -1,7 +1,7 @@
 # Glossary MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3. This crate is
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 4. This crate is
 the Rust server template; [`README.md`](README.md) describes how to copy it.
 
 ## Purpose

@@ -961,8 +961,8 @@ PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src \
 
 ## Contract Compliance
 
-The normative target is MCP contract revision 3. The [agent manual](AGENTS.md#contract-compliance)
-records each requirement. Local and reference gateway registrations declare revision 3.
+The normative target is MCP contract revision 4. The [agent manual](AGENTS.md#contract-compliance)
+records each requirement. Local and reference gateway registrations declare revision 4.
 Installed readiness qualification is pending.
 
 Mission admission retains its exact Task identity before dispatch. Unknown outcomes

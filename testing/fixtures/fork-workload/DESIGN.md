@@ -55,9 +55,9 @@ and governance only. They cannot satisfy the repository's hardware visual gate.
 
 ## Packaged Contract Declaration
 
-The owner profile supplies every requirement in Rust's revision-1 catalog. The shared
+The owner profile supplies every requirement in Rust's revision-2 catalog. The shared
 SDK loader validates that profile and its marked manual rendering before constructing
-the declaration; hosted revision3 is unchanged. Hatch packages the exact manuals,
+the hosted revision 4 declaration. Hatch packages the exact manuals,
 profile and generated catalog/schema with their digests. Installed loading uses only
 package artifacts and refuses stale or altered bytes. A declaration records owner
 status; pending qualification is not converted into a runtime pass.

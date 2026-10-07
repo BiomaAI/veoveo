@@ -117,7 +117,7 @@ Catalog revision: 2
 - C14: met
 - C15: met
 - C16: met
-- C17: met — both gateway registrations declare revision 3
+- C17: met — both gateway registrations declare revision 4
 - C18: met
 - C19: met
 - C20: met

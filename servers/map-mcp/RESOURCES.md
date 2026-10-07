@@ -9,7 +9,7 @@ features. The MCP adapter exposes these contracts through checked declarations.
 |---|---|
 | RFC 3986 and the foundational URL 2.5.8 component profile | Concrete Map addresses use checked scheme, authority, path and query components. Direct addresses require the spelling produced by their owner builder. |
 | RFC 6570 | Advertised templates use the shared `ResourceTemplateUri` validator and scalar expansion. Domain parsers validate the expanded identity and route. |
-| Veoveo MCP server contract revision 3 | `McpServerContract` and `McpServerSetup` validate startup and discovery declarations for MCP `2026-07-28`. |
+| Veoveo MCP server contract revision 4 | `McpServerContract` and `McpServerSetup` validate startup and discovery declarations for MCP `2026-07-28`. |
 | RFC 9562 | Map identity types own their generated UUIDv7 and stable UUIDv5 profiles. |
 | JSON Schema Draft 2020-12 | Public Rust types supply the schemas used by the MCP adapter. |
 | Veoveo Map cursor profiles | Mobility and travel-model pages use version 2 camelCase JSON envelopes. The unchanged metadata, source, restriction and ID-only operational envelopes use version 1; each binds its admitted collection and parent. |

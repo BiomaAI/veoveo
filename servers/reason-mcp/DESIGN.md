@@ -402,7 +402,7 @@ reason://artifact/{artifact_id}
 Startup assembles `McpServerSetup<ReasonContract>` before accessing the Store or
 recovering Tasks. The setup checks the declared documents, capabilities, resources
 and templates. Catalog descriptors also pass typed address checks. Both gateway
-registrations declare contract revision 3.
+registrations declare contract revision 4.
 
 `resources/list` publishes collection roots, the embedded documents and the fixed
 pipeline and model catalogs. Analysis and result identities use templates and the

@@ -16,7 +16,7 @@ structured output.
 | CSV, JSON/NDJSON, and Apache Parquet | Inline CSV and HTTPS sources are materialized through the shared DuckDB runtime; forecast does not materialize Artifact inputs. |
 | [Rerun 0.38.1](https://rerun.io/docs/) RRD | Full-resolution observations, forecast quantiles, and provenance are encoded into an immutable recording artifact. |
 | SVG | The MCP App renders its bounded preview as inline vector graphics without external network access. |
-| Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, and the 8 MiB final serialized-response cap. |
+| Veoveo MCP server contract | Revision 4, including canonical result handoff, bounded discovery, and the 8 MiB final serialized-response cap. |
 | Veoveo usage resource profile | `timeseries://usage` pages and native UUIDv7 Task addresses; the shared URI component profile and version 2 Base64 cursor described under Usage Reads. |
 
 The forecast request imports `DuckDbTabularSource` and read SQL rendering from the DuckDB

@@ -3,7 +3,7 @@
 ## Purpose
 
 Follow root instructions, this component's DESIGN.md and `mcp/contract/DESIGN.md`
-revision 3. Keep worker execution, protocol projection, grants and transport in
+revision 4. Keep worker execution, protocol projection, grants and transport in
 focused modules. The domain owns lifecycle state and fencing. Only this service
 composes the domain with the private native provider runtime.
 
@@ -54,7 +54,7 @@ Catalog revision: 2
 - C14: met
 - C15: met — digest-pinned OCI image and versioned Helm chart
 - C16: met — installed typed registration declares routes, capabilities and policy
-- C17: met — registration and crate documents declare contract revision 3
+- C17: met — registration and crate documents declare contract revision 4
 - C18: met
 - C19: met
 - C20: met

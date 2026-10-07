@@ -1,7 +1,7 @@
 # Artifact MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 4.
 
 ## Purpose
 
@@ -96,7 +96,7 @@ Catalog revision: 2
 - C14: met
 - C15: met
 - C16: met
-- C17: met — local and reference registrations and crate documents declare revision 3
+- C17: met — local and reference registrations and crate documents declare revision 4
 - C18: met
 - C19: met
 - C20: met
