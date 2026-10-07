@@ -146,8 +146,17 @@ prints the validated fingerprint; it does not create capacity or issue credentia
 Readiness checks the configured provider workspace as well as the provider version
 and driver. The workspace must exist, echo its exact name and be active. A missing
 or terminating workspace cannot advertise available capacity. The packaged host
-currently enrolls the provider's `default` workspace; additional workspaces require
-explicit provider provisioning before workers select them.
+enrolls the provider's `default` workspace. Its retained volume approval profile,
+`RetainedVolumeAdmission::DEFAULT`, requires `openshell.ai/sandbox-attachable=true`
+and `openshell.ai/sandbox-attachable-workspace=default`. The allocator and native
+physical-home fixture share these claims and require them on reuse; unrelated labels
+may coexist. These operator claims approve attachment; they do not authorize a
+principal or prove physical writer exclusion. Neither owner relabels an unadmitted
+existing volume. The Host's instance
+namespace does not identify this provider workspace. Computers MCP refuses another
+workspace for its packaged retained Host backend before trust or effects. Generic
+Gateway configuration and runtime calls preserve explicitly provisioned workspaces;
+qualifying another retained workspace needs a matching storage profile.
 
 ## Lifecycle Correlation
 

@@ -60,7 +60,7 @@ impl Files {
         )
         .unwrap();
         let mut config = unconfigured(address);
-        config["capacity"] = json!({"kind":"openshell_docker","gateway":{"transport":self.tls(),"workspace":"computers"},"allocator":self.tls(),"limits":{"perOwner":1,"perTenant":4,"provider":4},"defaultTemplate":template.fingerprint(),"templates":[{"id":"development","fingerprint":template.fingerprint(),"image":image,"cpus":2,"memoryMib":2048,"homeCapacityMib":512,"temporaryMib":32,"policy":policy}]});
+        config["capacity"] = json!({"kind":"openshell_docker","gateway":{"transport":self.tls(),"workspace":"default"},"allocator":self.tls(),"limits":{"perOwner":1,"perTenant":4,"provider":4},"defaultTemplate":template.fingerprint(),"templates":[{"id":"development","fingerprint":template.fingerprint(),"image":image,"cpus":2,"memoryMib":2048,"homeCapacityMib":512,"temporaryMib":32,"policy":policy}]});
         config["capacity"]["execution"] = json!({
             "policy": {"maxGrants":2,"maximumLifetimeSeconds":3600,"maximumExecutionSeconds":60,"maximumOutputBytes":65536},
             "artifactEndpoint":"http://127.0.0.1:1", "activeKeyId":Uuid::from_u128(1),

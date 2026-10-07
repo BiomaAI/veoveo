@@ -1,6 +1,6 @@
 use crate::{Result, RuntimeFailure, canonical, protocol::sandbox::v1::SandboxPolicy};
 use prost_types::{ListValue, Struct, Value, value::Kind};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 pub const PERSISTENT_HOME: &str = "/sandbox/persistent";
 pub const PERSISTENT_COMMAND: [&str; 4] = [
@@ -40,6 +40,71 @@ fn list(values: Vec<Value>) -> Value {
         kind: Some(Kind::ListValue(ListValue { values })),
     }
 }
+/// Operator approval for volumes in the packaged retained Host profile.
+/// This profile names a provider workspace, independently of the Host namespace.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RetainedVolumeAdmission {
+    _private: (),
+}
+impl RetainedVolumeAdmission {
+    pub const DEFAULT: Self = Self { _private: () };
+
+    pub const fn workspace(self) -> &'static str {
+        "default"
+    }
+
+    pub fn labels(self) -> BTreeMap<String, String> {
+        BTreeMap::from([
+            ("openshell.ai/sandbox-attachable".into(), "true".into()),
+            (
+                "openshell.ai/sandbox-attachable-workspace".into(),
+                self.workspace().into(),
+            ),
+        ])
+    }
+
+    /// Other operator labels may coexist; every required claim must agree.
+    pub fn matches(self, labels: &BTreeMap<String, String>) -> bool {
+        self.labels()
+            .iter()
+            .all(|(key, value)| labels.get(key) == Some(value))
+    }
+}
+
+#[cfg(test)]
+mod volume_admission_tests {
+    use super::*;
+
+    #[test]
+    fn retained_volume_claims_require_operator_approval_and_exact_workspace() {
+        let profile = RetainedVolumeAdmission::DEFAULT;
+        let labels = profile.labels();
+        assert_eq!(profile.workspace(), "default");
+        assert_eq!(labels.len(), 2);
+        assert!(profile.matches(&labels));
+        let mut extra = labels.clone();
+        extra.insert("example.com/fixture".into(), "owned".into());
+        assert!(profile.matches(&extra));
+        for (key, value) in &labels {
+            let mut missing = labels.clone();
+            missing.remove(key);
+            assert!(!profile.matches(&missing));
+            let mut wrong = labels.clone();
+            wrong.insert(
+                key.clone(),
+                if value == "true" {
+                    "false"
+                } else {
+                    "computers"
+                }
+                .into(),
+            );
+            assert!(!profile.matches(&wrong));
+        }
+        assert!(!profile.matches(&BTreeMap::new()));
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PersistentHome {
     capacity_mib: u32,

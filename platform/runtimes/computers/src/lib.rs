@@ -67,7 +67,10 @@ pub use recovery::{LifecycleCheckpoint, LifecycleObservation, LifecycleOperation
 pub use remote_access::OpenShellAccess;
 pub use retained_writer::{RegisteredConsumer, RetainedWriter};
 pub use retirement::RetirementAcknowledgement;
-pub use storage::{PERSISTENT_BUILD_COMMAND, PERSISTENT_COMMAND, PERSISTENT_HOME, PersistentHome};
+pub use storage::{
+    PERSISTENT_BUILD_COMMAND, PERSISTENT_COMMAND, PERSISTENT_HOME, PersistentHome,
+    RetainedVolumeAdmission,
+};
 pub use terminal::{Terminal, TerminalInput};
 pub use terminal_output::TerminalOutput;
 

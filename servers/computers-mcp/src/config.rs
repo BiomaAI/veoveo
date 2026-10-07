@@ -52,6 +52,10 @@ pub enum ConfigurationError {
     ExecutionKey,
     #[error("Computer provider endpoint, workspace and mTLS file references must be valid")]
     ProviderTrust,
+    #[error(
+        "the packaged retained Host profile requires provider workspace default; select default or qualify a matching retained-storage workspace profile"
+    )]
+    RetainedWorkspace,
     #[error("Computer allocator endpoint and mTLS file references must be valid")]
     StorageTrust,
     #[error("Computer configuration validation exceeded ten seconds")]
@@ -219,6 +223,11 @@ impl Configuration {
                 execution,
                 maintenance_transitions,
             } => {
+                if gateway.workspace
+                    != veoveo_computers_runtime::RetainedVolumeAdmission::DEFAULT.workspace()
+                {
+                    return Err(ConfigurationError::RetainedWorkspace);
+                }
                 let templates = templates::catalog(&templates, &default_template)?;
                 let maintenance =
                     MaintenanceProfiles::new(templates.runtimes(), maintenance_transitions)

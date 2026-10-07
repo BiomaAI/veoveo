@@ -5,7 +5,7 @@ use reqwest::{Client, Response, StatusCode};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{collections::BTreeMap, path::Path, time::Duration};
 use uuid::Uuid;
-use veoveo_computers_runtime::RegisteredConsumer;
+use veoveo_computers_runtime::{RegisteredConsumer, RetainedVolumeAdmission};
 
 /// This proof only establishes Docker removal. Filesystem detachment is separate.
 pub(crate) struct RemovedWriter {
@@ -51,12 +51,14 @@ struct Volume {
     name: String,
     driver: String,
     options: Option<BTreeMap<String, String>>,
+    labels: Option<BTreeMap<String, String>>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "PascalCase")]
 struct Create<'a> {
     name: &'a str,
     driver: &'a str,
+    labels: BTreeMap<String, String>,
 }
 impl Docker {
     pub(crate) async fn prove_unclaimed(&self, volume: &str) -> Result<UnclaimedVolume> {
@@ -157,7 +159,7 @@ impl Docker {
     }
     /// Called without the filesystem mutex: Create calls this plugin back.
     /// A lost mutation reply returns uncertainty. A later call first reads the
-    /// exact name, and cannot adopt a volume using another driver or options.
+    /// exact name, and cannot adopt another driver, options or external-resource claims.
     pub async fn ensure_volume(&self, name: &str) -> Result<()> {
         crate::service::volume_id(name)?;
         self.verify_engine().await?;
@@ -174,6 +176,7 @@ impl Docker {
                 .json(&Create {
                     name,
                     driver: &self.driver,
+                    labels: RetainedVolumeAdmission::DEFAULT.labels(),
                 })
                 .send()
                 .await
@@ -185,6 +188,10 @@ impl Docker {
         if volume.name != name
             || volume.driver != self.driver
             || volume.options.is_some_and(|options| !options.is_empty())
+            || volume
+                .labels
+                .as_ref()
+                .is_none_or(|labels| !RetainedVolumeAdmission::DEFAULT.matches(labels))
         {
             return Err(StorageError::IdentityMismatch);
         }

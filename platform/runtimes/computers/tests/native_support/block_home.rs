@@ -1,7 +1,7 @@
 //! Isolated physical storage evidence. This is not the production allocator.
 use std::{fs, path::PathBuf, process::Command};
 use uuid::Uuid;
-use veoveo_computers_runtime::PersistentHome;
+use veoveo_computers_runtime::{PersistentHome, RetainedVolumeAdmission};
 
 pub struct BlockHome {
     dir: PathBuf,
@@ -121,9 +121,26 @@ impl BlockHome {
                 "o=rw,nodev,nosuid",
                 "--opt",
             ])
-            .arg(format!("device={device}"))
-            .arg(&self.volume);
+            .arg(format!("device={device}"));
+        for (key, value) in RetainedVolumeAdmission::DEFAULT.labels() {
+            command.arg("--label").arg(format!("{key}={value}"));
+        }
+        command.arg(&self.volume);
         assert_eq!(checked(command), self.volume);
+        let mut inspect = self.docker();
+        inspect.args([
+            "volume",
+            "inspect",
+            "--format",
+            "{{json .Labels}}",
+            &self.volume,
+        ]);
+        let labels: std::collections::BTreeMap<String, String> =
+            serde_json::from_str(&checked(inspect)).expect("native volume approval labels");
+        assert!(
+            RetainedVolumeAdmission::DEFAULT.matches(&labels),
+            "retained volume approval or workspace differs"
+        );
     }
     /// Native deletion of every fixture-owned container fences its physical writer.
     /// Production replacement must obtain equivalent evidence through its service.

@@ -351,7 +351,10 @@ core collection available with Setup Required. It creates no capacity policy.
 The qualified local variant uses `kind: "openshell_docker"`. Its fields are `gateway`,
 `allocator`, `limits`, `templates`, `defaultTemplate`, `execution` and
 `maintenanceTransitions`. Gateway contains `workspace`
-and `transport`; allocator is itself a transport. Each transport provides `endpoint`
+and `transport`; the packaged retained Host backend admits only workspace `default`
+and rejects another selection before opening trust material or creating capacity.
+The Host namespace is a separate instance identity. Allocator is itself a transport.
+Each transport provides `endpoint`
 as a private host:port plus absolute `caFile`, `certificateFile` and `keyFile` paths.
 Provider and allocator trust are separate installation inputs. No credential belongs
 in the JSON document. Kubernetes supplies the referenced secrets through mounted files.

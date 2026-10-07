@@ -66,6 +66,26 @@ async fn bioma_reference_configuration_admits_its_selected_execution_template() 
 }
 
 #[tokio::test]
+async fn retained_host_workspace_refuses_unqualified_capacity_before_trust_or_effects() {
+    let files = configuration::Files::new();
+    let mut selected = files.configured("127.0.0.1:8787".parse().unwrap());
+    selected["capacity"]["gateway"]["workspace"] = "computers".into();
+    // The profile refusal must precede opening execution keys or provider trust.
+    selected["capacity"]["execution"]["keys"][0]["file"] = files
+        .0
+        .join("missing.key")
+        .to_string_lossy()
+        .into_owned()
+        .into();
+    let config: Configuration = serde_json::from_value(selected).unwrap();
+    match config.prepare().await {
+        Err(veoveo_computers_mcp::config::ConfigurationError::RetainedWorkspace) => {}
+        Err(error) => panic!("expected retained workspace admission, got {error}"),
+        Ok(_) => panic!("unqualified retained workspace advertised capacity"),
+    }
+}
+
+#[tokio::test]
 async fn selected_configuration_validates_pins_and_trust_before_provider_connection() {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let files = configuration::Files::new();

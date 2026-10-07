@@ -9,7 +9,7 @@ admission. The [Computers design](../DESIGN.md#qualification-limits) records qua
 |---|---|
 | `veoveo.ai/computer-storage/v1` | Private bounded JSON frames over TLS 1.3 with worker client authentication; exact provider, Computer, template and instance identity |
 | Docker volume-plugin API v1 | Named retained volumes, local scope and a private Unix socket; notifications do not transfer writer authority |
-| Docker Engine API `1.53` | Exact engine identity and registered-container observation; provider mutations remain with the Computers worker |
+| Docker Engine API `1.53` | Exact engine identity, retained-volume approval labels and registered-container observation; provider lifecycle mutations remain with the Computers worker |
 | Linux ext4 and loop devices | Fixed logical-size sparse backing files, `nodev,nosuid`, numeric UID/GID 10001 and a confined `home` subdirectory |
 | `veoveo.ai/retained-storage-host/v1` and `veoveo.ai/retained-home/v1` | Closed local JSON records, atomic publication, explicit incomplete-allocation state and host/engine binding |
 | Linux file locks and filesystem durability | One helper owns the metadata root; file and parent-directory synchronization precede success |
@@ -107,6 +107,23 @@ An allocation record is outside the user's mounted `home` subdirectory. File pub
 uses a private temporary file, a synchronized file and an atomic directory operation,
 followed by parent synchronization. A failed acknowledgement preserves uncertainty;
 subsequent reads determine which complete record is present.
+
+## Provider Volume Admission
+
+The packaged retained backend uses the runtime's fixed `RetainedVolumeAdmission::DEFAULT`
+profile. Its Docker volumes carry `openshell.ai/sandbox-attachable=true` and
+`openshell.ai/sandbox-attachable-workspace=default`, which permit the matched provider
+workspace to select an external retained volume. These approval claims do not prove
+physical storage identity or grant a user's current authorization.
+
+Creation includes both labels. Before adopting a created or inspected volume, the
+allocator requires both claims, its exact volume name and plugin driver, empty
+volume options and the recorded engine identity. Extra labels may coexist with the
+required claims. Missing, null, false or foreign-workspace approval claims produce
+`IdentityMismatch`. The helper never relabels or recreates a rejected existing volume.
+A lost Create reply preserves uncertainty; the next invocation first inspects the
+original name and applies the same admission. No historical volume conversion or
+nondefault retained-workspace profile is supported.
 
 ## Writer Handoff And Retention
 
