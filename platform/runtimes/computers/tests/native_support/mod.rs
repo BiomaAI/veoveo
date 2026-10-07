@@ -34,6 +34,9 @@ bind_address = "{gateway_ip}:{port}"
 compute_driver = "docker"
 log_level = "{log_level}"
 ssh_session_ttl_secs = {ssh_session_ttl_secs}
+guest_tls_ca = {ca}
+guest_tls_cert = {cert}
+guest_tls_key = {key}
 [openshell.gateway.mtls_auth]
 enabled = true
 user_common_names = ["veoveo-computers-worker"]
@@ -52,9 +55,6 @@ allow_driver_config = true
 sandbox_label = "{namespace}"
 grpc_endpoint = "https://{gateway_ip}:{port}"
 supervisor_bin = {sandbox}
-guest_tls_ca = {ca}
-guest_tls_cert = {cert}
-guest_tls_key = {key}
 sandbox_pids_limit = 256
 enable_bind_mounts = false
 "#,

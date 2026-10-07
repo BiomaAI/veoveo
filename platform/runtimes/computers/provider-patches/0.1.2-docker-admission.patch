@@ -1286,12 +1286,29 @@ diff --git a/crates/openshell-server/src/config_file.rs b/crates/openshell-serve
 index 87180766..9f8a205d 100644
 --- a/crates/openshell-server/src/config_file.rs
 +++ b/crates/openshell-server/src/config_file.rs
-@@ -663,6 +663,44 @@ mod tests {
+@@ -663,6 +663,135 @@ mod tests {
          }
      }
  
 +    #[test]
 +    fn veoveo_generated_configs_pass_actual_gateway_loader() {
++        use crate::compute::driver_config::{
++            DriverStartupContext, GuestTlsPaths, driver_config_from_context,
++        };
++        fn context<'a>(
++            file: &'a ConfigFile,
++            overrides: &'a std::collections::BTreeMap<String, std::path::PathBuf>,
++            port: u16,
++        ) -> DriverStartupContext<'a> {
++            DriverStartupContext {
++                file: Some(file),
++                guest_tls: None,
++                gateway_port: port,
++                gateway_tls_enabled: true,
++                endpoint_overrides: overrides,
++            }
++        }
++        let overrides = std::collections::BTreeMap::new();
 +        for (name, source, bind) in [
 +            (
 +                "host",
@@ -1304,22 +1321,96 @@ index 87180766..9f8a205d 100644
 +                "172.30.0.1:18805",
 +            ),
 +        ] {
-+            let file = write_raw_tmp(source);
-+            let loaded = load(file.path()).unwrap_or_else(|error| panic!("{name}: {error}"));
-+            assert_eq!(loaded.openshell.version, Some(SCHEMA_VERSION));
-+            assert_eq!(
-+                loaded.openshell.gateway.bind_address,
-+                Some(bind.parse().unwrap())
-+            );
-+            let mtls = loaded.openshell.gateway.mtls_auth.expect("mandatory mTLS");
-+            assert!(mtls.enabled);
-+            assert_eq!(mtls.user_common_names, vec!["veoveo-computers-worker"]);
-+            assert_eq!(
-+                loaded.openshell.gateway.compute_driver.as_deref(),
-+                Some("docker")
-+            );
-+            assert_eq!(loaded.openshell.drivers.len(), 1);
-+            assert!(loaded.openshell.drivers.contains_key("docker"));
++            for guest_enabled in [true, false] {
++                let mut wire: toml::Value = toml::from_str(source).expect("generated TOML");
++                if !guest_enabled {
++                    let gateway = wire["openshell"]["gateway"].as_table_mut().unwrap();
++                    for field in ["guest_tls_ca", "guest_tls_cert", "guest_tls_key"] {
++                        assert!(gateway.remove(field).is_some());
++                    }
++                }
++                let file = write_raw_tmp(&toml::to_string(&wire).unwrap());
++                let mut loaded = load(file.path())
++                    .unwrap_or_else(|error| panic!("{name}, guest TLS {guest_enabled}: {error}"));
++                assert_eq!(loaded.openshell.version, Some(SCHEMA_VERSION));
++                assert_eq!(
++                    loaded.openshell.gateway.bind_address,
++                    Some(bind.parse().unwrap())
++                );
++                let mtls = loaded
++                    .openshell
++                    .gateway
++                    .mtls_auth
++                    .as_ref()
++                    .expect("mandatory mTLS");
++                assert!(mtls.enabled);
++                assert_eq!(mtls.user_common_names, vec!["veoveo-computers-worker"]);
++                assert_eq!(
++                    loaded.openshell.gateway.compute_driver.as_deref(),
++                    Some("docker")
++                );
++                assert_eq!(loaded.openshell.drivers.len(), 1);
++                for path in [
++                    &loaded.openshell.gateway.guest_tls_ca,
++                    &loaded.openshell.gateway.guest_tls_cert,
++                    &loaded.openshell.gateway.guest_tls_key,
++                ] {
++                    assert_eq!(path.is_some(), guest_enabled);
++                }
++                GuestTlsPaths::validate_configuration(Some(&loaded.openshell.gateway), false)
++                    .expect("complete or absent gateway-owned guest TLS before effects");
++                let port = bind.parse::<std::net::SocketAddr>().unwrap().port();
++                driver_config_from_context::<toml::Table>(
++                    context(&loaded, &overrides, port),
++                    "docker",
++                )
++                .expect("actual effective driver config admission before effects");
++                for field in ["guest_tls_ca", "guest_tls_cert", "guest_tls_key"] {
++                    loaded
++                        .openshell
++                        .drivers
++                        .get_mut("docker")
++                        .unwrap()
++                        .as_table_mut()
++                        .unwrap()
++                        .insert(
++                            field.into(),
++                            toml::Value::String("/misplaced/guest.pem".into()),
++                        );
++                    let error = driver_config_from_context::<toml::Table>(
++                        context(&loaded, &overrides, port),
++                        "docker",
++                    )
++                    .expect_err("driver-owned guest TLS must reject before effects");
++                    assert!(error.to_string().contains(field));
++                    assert!(error.to_string().contains("belongs in [openshell.gateway]"));
++                    loaded
++                        .openshell
++                        .drivers
++                        .get_mut("docker")
++                        .unwrap()
++                        .as_table_mut()
++                        .unwrap()
++                        .remove(field);
++                }
++                if guest_enabled {
++                    assert!(
++                        GuestTlsPaths::validate_configuration(
++                            Some(&loaded.openshell.gateway),
++                            true
++                        )
++                        .is_err()
++                    );
++                    loaded.openshell.gateway.guest_tls_key = None;
++                    assert!(
++                        GuestTlsPaths::validate_configuration(
++                            Some(&loaded.openshell.gateway),
++                            false
++                        )
++                        .is_err()
++                    );
++                }
++            }
 +            let old = write_raw_tmp(&source.replacen("version = 2", "version = 1", 1));
 +            assert!(matches!(
 +                load(old.path()),

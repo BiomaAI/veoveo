@@ -30,8 +30,8 @@
       "branch": "gateway",
       "authoringOwner": "Veoveo",
       "expectedBaseTree": "724881f23873db5b42d760bc65945bace2bf71b8",
-      "expectedSourceTree": "6522e3a5e22af1c83bc695cd60f1d931626b13bf",
-      "packagedPatchSha256": "731c5ee5de209ae29291c8474a0ae443a25a575e80d029ec67d44bd1316ef990"
+      "expectedSourceTree": "ac4ef95a3773e50a11f158b009ae14825b2fff8c",
+      "packagedPatchSha256": "9b1ed0b4fbe34fb58726b7cc218829c0ca8de8735dfc74d05eca4cf9e7101c84"
     },
     {
       "order": 3,
@@ -54,14 +54,14 @@
     {
       "name": "openshell-gateway",
       "version": "0.1.2-veoveo.1",
-      "sourceTree": "6522e3a5e22af1c83bc695cd60f1d931626b13bf",
+      "sourceTree": "ac4ef95a3773e50a11f158b009ae14825b2fff8c",
       "target": "x86_64-unknown-linux-gnu",
       "imagePath": "/usr/local/bin/openshell-gateway"
     },
     {
       "name": "openshell-driver-docker",
       "version": "0.1.2-veoveo.1",
-      "sourceTree": "6522e3a5e22af1c83bc695cd60f1d931626b13bf",
+      "sourceTree": "ac4ef95a3773e50a11f158b009ae14825b2fff8c",
       "target": "x86_64-unknown-linux-gnu",
       "imagePath": "/usr/local/bin/openshell-driver-docker"
     },
@@ -91,17 +91,17 @@
   "generatedConfigurations": [
     {
       "file": "host.toml",
-      "sha256": "1730912842c4f7cbd6532539920d3f64f946e9ee32056cef4a0f68bcaff6fbc6",
+      "sha256": "74ef9e39bd69c962733dec23a6cca75504cf0b1b4530d17b46fe3ac8e4082936",
       "producer": "host.rs",
       "producerSource": "platform/computers/host/src/config.rs",
-      "producerSha256": "6e3655fa0b363f6e76c664508d039199c51393a81090d361f9e604b4602d95ac"
+      "producerSha256": "9cc354cd0a4a0207569715f77828006db14273f4186dc18c0128e939a1685027"
     },
     {
       "file": "native.toml",
-      "sha256": "b3c51d94f7d0e037af21a09049391a59872977896b1e5947cf4ff02fdd894341",
+      "sha256": "3153a6d04c0b68f2c5e0b2098b9e626bf847f0d5027d852c11fc7846c5ad018b",
       "producer": "native.rs",
       "producerSource": "platform/runtimes/computers/tests/native_support/mod.rs",
-      "producerSha256": "45df10b88ec2c220cd13cd2a61142e67c15bb0ece6940bc30adde71f504e6424"
+      "producerSha256": "0e4417ccb9843cbb3d19e0a84f1ded9f5fc073b3a1a18bd5a423ae0760116610"
     }
   ],
   "cxx": {

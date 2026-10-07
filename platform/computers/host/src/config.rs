@@ -225,6 +225,9 @@ bind_address = "0.0.0.0:{PROVIDER_PORT}"
 compute_driver = "docker"
 log_level = "warn"
 ssh_session_ttl_secs = 3600
+guest_tls_ca = "{RUN}/trust/provider-ca.pem"
+guest_tls_cert = "{RUN}/trust/guest.pem"
+guest_tls_key = "{RUN}/trust/guest-key.pem"
 [openshell.gateway.mtls_auth]
 enabled = true
 user_common_names = ["veoveo-computers-worker"]
@@ -243,9 +246,6 @@ allow_driver_config = true
 sandbox_label = "{namespace}"
 grpc_endpoint = "https://127.0.0.1:{PROVIDER_PORT}"
 supervisor_bin = "/usr/local/bin/openshell-sandbox"
-guest_tls_ca = "{RUN}/trust/provider-ca.pem"
-guest_tls_cert = "{RUN}/trust/guest.pem"
-guest_tls_key = "{RUN}/trust/guest-key.pem"
 sandbox_pids_limit = 256
 enable_bind_mounts = false
 "#,

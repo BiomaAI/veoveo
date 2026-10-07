@@ -296,6 +296,6 @@ COPY --from=source /gateway/LICENSE /usr/share/doc/veoveo-computer-provider/LICE
 COPY platform/runtimes/computers/provider-patches /usr/share/veoveo-computer-provider/source
 RUN cd /usr/local/bin && sha256sum openshell openshell-gateway openshell-driver-docker openshell-supervisor openshell-sandbox > /usr/share/veoveo-computer-provider/binaries.sha256
 LABEL ai.veoveo.provider.profile="0.1.2-veoveo.1" \
-      ai.veoveo.provider.manifest-sha256="61cb3d5c1e391875a8ea53fbc74eb9d2e000454c44d670652036b3cbfb729a14" \
+      ai.veoveo.provider.manifest-sha256="018318fc728aa04b3c2bed5a9ae5bccec45205e6e1631d3530019a4ca47e961c" \
       ai.veoveo.provider.supervisor-source-tree="0020919d2c5d2c61230a0a188edaf4469ba9d0f1"
 ENTRYPOINT ["/usr/local/bin/openshell-gateway"]
