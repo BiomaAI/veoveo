@@ -105,23 +105,25 @@ artifacts, typed selectors and a drained private checkpoint cut. Its source-buil
 GCC 16.2 profile passes the C++20 format execution and static C++ runtime probe
 against glibc 2.36. The current gateway and driver pass Cargo artifact admission,
 static Z3/C++ dependency checks and the glibc ceiling; both require at most GLIBC
-2.34. The selected mTLS, driver and gateway controls and maintained local image
-assembly pass. The digest-staged image's five packaged commands report their
-expected versions and match the recorded hashes. Current Computers native fixture
-profiles, full native journeys and installed execution remain unqualified.
-Previous-profile results do not qualify this candidate.
-The current native volume-writer exclusion passes. File-transfer setup rejects
-guest TLS fields emitted under the Docker driver table; the Native and Host
-generators must place them in the gateway table before the remaining journeys run.
+2.34. The corrected Native and Host generators place guest TLS credentials in the
+gateway table and pass their generated-input comparisons and effective-loader
+admission. The maintained image controls pass 20 driver, eight gateway and two mTLS
+cases. Its five packaged commands report their expected versions and match the
+recorded hashes. The current native volume-writer exclusion passes. File transfer,
+the complete current native journeys, Host replacement and installed execution
+remain unqualified. Previous-profile results do not qualify this candidate.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
 
-View's CUDA 13.3.1 hardware run passes actual device admission, the 16×16 nvJPEG
-warmup, four 256×256 PNG/JPEG captures and their byte and encoder-completion checks.
+View's CUDA 13.3.1 local NVIDIA hardware smoke passes device and GPU JPEG
+admission, four PNG/JPEG captures and their byte and encoder-completion checks.
 The [owning smoke](../examples/bioma/acceptance/src/smoke/scenarios/view.rs)
-reached its lifecycle interruption after capture had already completed. The
-synchronization repair is underway; that run does not qualify interrupted-capture
-recovery. Restart, cancellation, process drain and installed consumers remain open.
+interrupts an actual MCP-created capture under its live 180-second claim, starts
+one replacement before expiry, preserves that claim until expiry and then reads
+its recovered JPEG bytes. The GPU UUID stays unchanged. Caller isolation,
+cancellation and graceful process drain pass, and the owned fixtures are cleaned.
+Installed consumers, cross-context Task delivery and pod termination-grace
+acceptance remain open. This local run includes no Google or billed provider work.
 
 Linux Map qualification includes the current travel-model product cases after
 the shared C02 writer correction. Optimization's nine native read cases pass.
@@ -327,7 +329,9 @@ CUDA user-space bundle; the shared host driver must satisfy each selected image.
 View owns the exception to the newer upstream CUDA 13.4 profile. Review it by
 2026-11-06; upgrading requires a compatible host driver and complete image and GPU
 qualification. The selected 13.3 profile requires no desktop interruption.
-Hardware warmup, image bytes, installed cancellation and process drain stay open.
+Local hardware and lifecycle qualification passes as described in
+[Current Status](#current-status). Installed consumers, cross-context Task delivery
+and pod termination-grace acceptance remain open.
 Most module, lookup and consumer mechanisms are implemented. The remaining phase
 gates require final source coverage and composition checks followed by installation
 qualification; an open owner row does not by itself establish missing code.
@@ -3005,7 +3009,7 @@ reason rather than growing an unbounded generic typing task.
 | F62 | Task-backed resource notifications | Speech now uses the Stream/Reason shared Task watch; owning delivery, current-policy refusal, context cancellation and affected source consumers pass. Retain independent domain-change sources and qualify installed consumers and coordinated replacement. |
 | F63 | Stream | Qualify installed replay/live results and browser consumers; preserve source-qualified replay/detection, visible terminal provenance and browser admission before state effects |
 | F64 | Shared recorded video | Qualify installed snapshot digests and Stream/Reason consumers; preserve signed timeline indices and source-qualified shared construction/decoder admission |
-| F65 | View | Qualify interrupted-capture recovery after retained lease expiry, cancellation, process drain, installed consumers and cross-context Task delivery with the source-qualified Vulkan/CUDA path. Current hardware byte/completion results and lifecycle synchronization condition appear in Current Status. |
+| F65 | View | Local NVIDIA captures, retained-lease restart and recovery, cancellation and process drain pass. Qualify installed consumers, cross-context Task delivery and pod termination-grace acceptance with the selected Vulkan/CUDA profile. See Current Status. |
 | F66 | Recording | Typed IDs, sealed-property recovery and immutable publication pass locally. Native controls qualify the manifest body and descriptor, RRD nonrewrite, retained Reader authority, Video snapshots, Hub diagnostics, cross-segment encoded payloads and Redap's URI/manifest profile. Store-backed framed-RRD delivery qualifies actual bytes, bootstrap, reconnect, updates, rollover and SQL refusal at admission and layer transitions. Qualify Redap live delivery, final installed ingest and grants, mandatory GPU decode and headed Rerun playback |
 | F67 | Shared consumers | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | F68 | SDKs, clients, templates, and showcase servers | SDK Artifact metadata/address/compliance and usage parent/finite/derived-total admission pass affected SDK and template callers locally. Preserve explicit external/native Task profiles and qualify installed multi-page consumers |
@@ -3111,12 +3115,11 @@ when the caller cancels first, including an original owner with a grace below on
 second. Its added owner-still-running control passes, and independent review accepts
 the narrow correction. The earlier full Support selection is reused for unchanged
 branches; current process and gate controls qualify the affected paths.
-The existing owning GPU smoke must interrupt a real capture process, retain its
-actual 180-second lease, restart before expiry and read the completed frame afterward.
-Preserve the CUDA vendor check and installed graceful-exit requirement. The current
-hardware results and remaining lifecycle condition are recorded in
-[Current Status](#current-status); encoder completion cannot establish interrupted
-capture recovery or process drain.
+The existing owning GPU smoke passes the local F65 hardware and lifecycle
+requirements recorded in [Current Status](#current-status). Installed consumers,
+cross-context Task delivery and pod termination-grace acceptance remain required.
+The local run preserves NVIDIA admission and includes no Google provider execution.
+
 
 The real Media generation check is explicitly unqualified under the user's restriction.
 It must appear as such in the final acceptance report; the fake-provider pass cannot
