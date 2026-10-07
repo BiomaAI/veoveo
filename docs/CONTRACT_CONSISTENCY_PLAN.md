@@ -109,9 +109,14 @@ static Z3/C++ dependency checks and the glibc ceiling; both require at most GLIB
 gateway table and pass their generated-input comparisons and effective-loader
 admission. The maintained image controls pass 20 driver, eight gateway and two mTLS
 cases. Its five packaged commands report their expected versions and match the
-recorded hashes. The current native volume-writer exclusion passes. File transfer,
-the complete current native journeys, Host replacement and installed execution
-remain unqualified. Previous-profile results do not qualify this candidate.
+recorded hashes. The current native volume-writer exclusion passes. Retained-volume
+provisioning claims and the packaged default-workspace guard pass source qualification while
+generic runtime workspaces keep their supported interface. The current file fixture
+passes volume admission and reaches guest readiness, then stops when its mount
+inspection decoder requires the optional Docker `Subpath` field. The reviewed fixture repair admits the omitted field; the current native retry
+is pending. File transfer, the complete current native journeys, Host replacement
+and installed execution remain unqualified. Previous-profile results do not qualify
+this candidate.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
 
@@ -313,7 +318,13 @@ source passes and pass grouped compiler checks. Their fifty selected library cas
 pass; sixteen Optimization Python protocol cases pass without executing a solver.
 The current Optimization native read suite passes all nine cases through the
 shared C02 writer and reader. Its authorization and retained-result assertions run
-with the canonical `resultUri` product field. View's actual App producer comparison, maintained
+with the canonical `resultUri` product field. The two owning
+[cuOpt GPU tests](../servers/optimization-mcp/tests/cuopt_gpu.rs) pass in 1.42 seconds
+on the NVIDIA RTX 4090 with driver 610.57.04 and the pinned cuOpt 26.8.0/CUDA 13.3
+executor. They qualify routing, LP, QP, QCQP, SOCP, MILP and empty-matrix model
+execution; the isolated executor and its socket are removed after the run. Installed
+MCP hosting, durable Tasks, route scenarios and `agent-pilot` are unqualified.
+View's actual App producer comparison, maintained
 schema generation, three consumer cases and App build pass. View's GPU JPEG source
 passes independent review, compiler checks and isolated contract consumers. Its
 exportable Vulkan buffer supplies RGB bytes to CUDA and the explicit nvJPEG GPU
@@ -360,8 +371,9 @@ a thirty-millisecond owner grace during delayed admission. They also cover fixtu
 failure under an inherited dispatcher environment. The caller-first correction
 latches the first effective minimum while the original owner is still running;
 the added late-handoff control, six process controls and seven gate controls pass.
-Independent review accepts that correction. Actual GPU process-restart acceptance
-remains open. UAV's complete owner and
+Independent review accepts that correction. View's local GPU restart and recovery
+pass; its installed, cross-context and pod termination-grace gates are recorded in
+[Current Status](#current-status). UAV's complete owner and
 direct-consumer source pass covers fifty-four paths and passes the grouped compiler
 and isolated contract checks. The three missing nested camelCase declarations are
 repaired. The final Rust-produced schema capture and normal comparison pass, and
@@ -470,8 +482,9 @@ Reader snapshots are native values; the checked Video contract owns serializatio
 Independent review accepts these repairs. Recording's Store-backed framed-RRD
 controls pass with actual SDK bytes, bootstrap, current-head reconnect, durable
 updates and layer rollover. SQL visibility refusal precedes decoding at admission
-and layer transitions. Redap live delivery, installed ingest and grants, mandatory
-GPU decode and headed playback stay open.
+and layer transitions. The maintained Redap archive/catalog wire test is being
+implemented. Installed ingest and grants, mandatory GPU decode and headed playback
+stay open.
 Computers' public vocabulary, typed terminal profile and decoder source batch compiles
 with its BFF callers. Its isolated contract all-target check passes after making the
 Artifact service's runtime dependency explicit. Twenty-six owning contract cases,
@@ -3010,7 +3023,7 @@ reason rather than growing an unbounded generic typing task.
 | F63 | Stream | Qualify installed replay/live results and browser consumers; preserve source-qualified replay/detection, visible terminal provenance and browser admission before state effects |
 | F64 | Shared recorded video | Qualify installed snapshot digests and Stream/Reason consumers; preserve signed timeline indices and source-qualified shared construction/decoder admission |
 | F65 | View | Local NVIDIA captures, retained-lease restart and recovery, cancellation and process drain pass. Qualify installed consumers, cross-context Task delivery and pod termination-grace acceptance with the selected Vulkan/CUDA profile. See Current Status. |
-| F66 | Recording | Typed IDs, sealed-property recovery and immutable publication pass locally. Native controls qualify the manifest body and descriptor, RRD nonrewrite, retained Reader authority, Video snapshots, Hub diagnostics, cross-segment encoded payloads and Redap's URI/manifest profile. Store-backed framed-RRD delivery qualifies actual bytes, bootstrap, reconnect, updates, rollover and SQL refusal at admission and layer transitions. Qualify Redap live delivery, final installed ingest and grants, mandatory GPU decode and headed Rerun playback |
+| F66 | Recording | Typed IDs, sealed-property recovery and immutable publication pass locally. Native controls qualify the manifest body and descriptor, RRD nonrewrite, retained Reader authority, Video snapshots, Hub diagnostics, cross-segment encoded payloads and Redap's URI/manifest profile. Store-backed framed-RRD delivery qualifies actual bytes, bootstrap, reconnect, updates, rollover and SQL refusal at admission and layer transitions. Qualify the maintained Redap archive/catalog wire path, final installed ingest and grants, mandatory GPU decode and headed Rerun playback |
 | F67 | Shared consumers | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | F68 | SDKs, clients, templates, and showcase servers | SDK Artifact metadata/address/compliance and usage parent/finite/derived-total admission pass affected SDK and template callers locally. Preserve explicit external/native Task profiles and qualify installed multi-page consumers |
 
