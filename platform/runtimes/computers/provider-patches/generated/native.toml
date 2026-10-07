@@ -1,0 +1,30 @@
+[openshell]
+version = 2
+[openshell.gateway]
+bind_address = "172.30.0.1:18805"
+compute_driver = "docker"
+log_level = "warn"
+ssh_session_ttl_secs = 3600
+[openshell.gateway.mtls_auth]
+enabled = true
+user_common_names = ["veoveo-computers-worker"]
+[openshell.gateway.gateway_jwt]
+signing_key_path = "/run/veoveo-native/trust/jwt-key.pem"
+public_key_path = "/run/veoveo-native/trust/jwt-public.pem"
+kid_path = "/run/veoveo-native/trust/jwt-kid"
+gateway_id = "private-native"
+ttl_secs = 3600
+[openshell.drivers.docker]
+socket_path = "/run/veoveo-native/docker.sock"
+default_image = "registry.internal:5000/computer@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+image_pull_policy = "Never"
+supervisor_image = "registry.internal:5000/provider@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+allow_driver_config = true
+sandbox_label = "private-native"
+grpc_endpoint = "https://172.30.0.1:18805"
+supervisor_bin = "/usr/local/bin/openshell-sandbox"
+guest_tls_ca = "/run/veoveo-native/trust/ca.pem"
+guest_tls_cert = "/run/veoveo-native/trust/guest.pem"
+guest_tls_key = "/run/veoveo-native/trust/guest-key.pem"
+sandbox_pids_limit = 256
+enable_bind_mounts = false

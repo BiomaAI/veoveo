@@ -543,7 +543,7 @@ index 00000000..97d19fc7
 +    }
 +}
 diff --git a/crates/openshell-driver-docker/src/tests.rs b/crates/openshell-driver-docker/src/tests.rs
-index caefe483..edf5d5c6 100644
+index caefe483..a61b25cc 100644
 --- a/crates/openshell-driver-docker/src/tests.rs
 +++ b/crates/openshell-driver-docker/src/tests.rs
 @@ -221,6 +221,292 @@ fn json_struct(value: serde_json::Value) -> prost_types::Struct {
@@ -921,7 +921,7 @@ index caefe483..edf5d5c6 100644
  
      assert_eq!(host.extra_hosts, None);
      assert_eq!(
-@@ -3501,3 +3835,65 @@ fn admission_provisioning_failure_distinguishes_denials_from_lookup_failures() {
+@@ -3501,3 +3835,122 @@ fn admission_provisioning_failure_distinguishes_denials_from_lookup_failures() {
      assert_eq!(lookup.reason, "ResourceAdmissionLookupFailed");
      assert_eq!(lookup.message, "inspect docker volume failed");
  }
@@ -987,6 +987,63 @@ index caefe483..edf5d5c6 100644
 +        assert!(validate_pinned_runtime_image(image).is_err());
 +    }
 +}
++
++#[test]
++fn veoveo_generated_configs_pass_actual_docker_schema() {
++    for (source, label, endpoint) in [
++        (
++            include_str!("../../../veoveo-config/host.toml"),
++            "private-computers",
++            "https://127.0.0.1:8805",
++        ),
++        (
++            include_str!("../../../veoveo-config/native.toml"),
++            "private-native",
++            "https://172.30.0.1:18805",
++        ),
++    ] {
++        let root: toml::Value = toml::from_str(source).expect("generated TOML");
++        let raw = root["openshell"]["drivers"]["docker"].clone();
++        let config: DockerComputeConfig =
++            raw.clone().try_into().expect("actual strict driver schema");
++        config
++            .validate_configuration(
++                root["openshell"]["gateway"]["bind_address"]
++                    .as_str()
++                    .unwrap()
++                    .parse()
++                    .unwrap(),
++            )
++            .expect("driver startup configuration admission");
++        assert_eq!(config.sandbox_label, label);
++        assert_eq!(config.grpc_endpoint, endpoint);
++        assert_eq!(config.image_pull_policy, ImagePullPolicy::Never);
++        assert!(config.allow_driver_config);
++        assert!(!config.enable_bind_mounts);
++        assert_eq!(
++            config.supervisor_bin.as_deref(),
++            Some(std::path::Path::new("/usr/local/bin/openshell-sandbox"))
++        );
++        assert_eq!(
++            config.supervisor_image.as_deref(),
++            Some(concat!(
++                "registry.internal:5000/provider@sha256:",
++                "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
++            ))
++        );
++        for retired in ["host_gateway_ip", "sandbox_namespace", "network_name"] {
++            let mut unsupported = raw.clone();
++            unsupported
++                .as_table_mut()
++                .unwrap()
++                .insert(retired.into(), "retired".into());
++            assert!(
++                unsupported.try_into::<DockerComputeConfig>().is_err(),
++                "retired {retired}"
++            );
++        }
++    }
++}
 diff --git a/crates/openshell-server/src/cli.rs b/crates/openshell-server/src/cli.rs
 index f531d88c..9b4cad0b 100644
 --- a/crates/openshell-server/src/cli.rs
@@ -1004,6 +1061,55 @@ index f531d88c..9b4cad0b 100644
      config.mtls_auth.enabled = mtls_auth_enabled;
  
      // Listener addresses for the health and metrics endpoints. The file may
+diff --git a/crates/openshell-server/src/config_file.rs b/crates/openshell-server/src/config_file.rs
+index 87180766..9f8a205d 100644
+--- a/crates/openshell-server/src/config_file.rs
++++ b/crates/openshell-server/src/config_file.rs
+@@ -663,6 +663,44 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn veoveo_generated_configs_pass_actual_gateway_loader() {
++        for (name, source, bind) in [
++            (
++                "host",
++                include_str!("../../../veoveo-config/host.toml"),
++                "0.0.0.0:8805",
++            ),
++            (
++                "native",
++                include_str!("../../../veoveo-config/native.toml"),
++                "172.30.0.1:18805",
++            ),
++        ] {
++            let file = write_raw_tmp(source);
++            let loaded = load(file.path()).unwrap_or_else(|error| panic!("{name}: {error}"));
++            assert_eq!(loaded.openshell.version, Some(SCHEMA_VERSION));
++            assert_eq!(
++                loaded.openshell.gateway.bind_address,
++                Some(bind.parse().unwrap())
++            );
++            let mtls = loaded.openshell.gateway.mtls_auth.expect("mandatory mTLS");
++            assert!(mtls.enabled);
++            assert_eq!(mtls.user_common_names, vec!["veoveo-computers-worker"]);
++            assert_eq!(
++                loaded.openshell.gateway.compute_driver.as_deref(),
++                Some("docker")
++            );
++            assert_eq!(loaded.openshell.drivers.len(), 1);
++            assert!(loaded.openshell.drivers.contains_key("docker"));
++            let old = write_raw_tmp(&source.replacen("version = 2", "version = 1", 1));
++            assert!(matches!(
++                load(old.path()),
++                Err(ConfigFileError::UnsupportedVersion { version: 1 })
++            ));
++        }
++    }
++
+     #[test]
+     fn empty_file_requires_schema_version() {
+         let tmp = write_raw_tmp("");
 diff --git a/crates/openshell-server/src/multiplex.rs b/crates/openshell-server/src/multiplex.rs
 index 8988542b..4f841085 100644
 --- a/crates/openshell-server/src/multiplex.rs

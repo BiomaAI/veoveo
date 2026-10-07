@@ -34,8 +34,18 @@ RUN git init --quiet \
     && git fetch --depth=1 https://github.com/NVIDIA/OpenShell.git 6648bd0c290efbc41ba131ee9831ee45cd431f94 \
     && test "$(git rev-parse FETCH_HEAD)" = 6648bd0c290efbc41ba131ee9831ee45cd431f94
 COPY platform/runtimes/computers/provider-patches/manifest.json platform/runtimes/computers/provider-patches/*.patch /patches/
+COPY platform/runtimes/computers/provider-patches/generated /generated-config
+COPY platform/computers/host/src/config.rs /configuration-producers/host.rs
+COPY platform/runtimes/computers/tests/native_support/mod.rs /configuration-producers/native.rs
 RUN <<'EOF'
 set -eu
+test "$(jq '.generatedConfigurations | length' /patches/manifest.json)" = 2
+jq -e '[.generatedConfigurations[].file] | sort == ["host.toml", "native.toml"]' /patches/manifest.json > /dev/null
+jq -r '.generatedConfigurations[] | [.file,.sha256,.producer,.producerSha256] | @tsv' /patches/manifest.json > /tmp/config-list
+while read -r file digest producer producer_digest; do
+    printf '%s  /generated-config/%s\n' "$digest" "$file" | sha256sum --check --status
+    printf '%s  /configuration-producers/%s\n' "$producer_digest" "$producer" | sha256sum --check --status
+done < /tmp/config-list
 test "$(jq -r .upstreamRevision /patches/manifest.json)" = 6648bd0c290efbc41ba131ee9831ee45cd431f94
 test "$(git rev-parse FETCH_HEAD^{tree})" = "$(jq -r .upstreamSourceTree /patches/manifest.json)"
 mkdir /cli
@@ -55,6 +65,7 @@ for branch in gateway supervisor; do
     version=$(jq -r ".${branch}Version" /patches/manifest.json)
     sed -i "s/^version = \"0.0.0\"$/version = \"$version\"/" "/$branch/Cargo.toml" "/$branch/Cargo.lock"
 done
+cp -r /generated-config /gateway/veoveo-config
 EOF
 
 FROM compiler AS gateway-build
@@ -64,8 +75,8 @@ WORKDIR /gateway
 RUN --mount=type=cache,id=veoveo-openshell-rust195-bookworm-cargo,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=veoveo-openshell-rust199-bookworm-target,target=/provider-target,sharing=locked \
     cargo test --locked --release -p openshell-core --test mtls_user_admission \
-    && provider-control openshell-driver-docker --lib log_limits supervisor_logs retained_volume_no_copy docker_identity_resolution lifecycle_fence start_generation provider_runtime_images \
-    && provider-control openshell-server --lib stop_and_start_follow_durable_state_machine authenticated_start_commits_identity_with_starting_phase request_cancellation_does_not_cancel_start_worker failed_start_reconciles_backend_that_already_started stale_container_exit_queued_before_start_cannot_regress_restart live_container_exit_during_start_still_transitions_to_error start_persisted_sandboxes_supplies_fresh_authentication \
+    && provider-control openshell-driver-docker --lib log_limits supervisor_logs retained_volume_no_copy docker_identity_resolution lifecycle_fence start_generation provider_runtime_images veoveo_generated_configs_pass_actual_docker_schema \
+    && provider-control openshell-server --lib stop_and_start_follow_durable_state_machine authenticated_start_commits_identity_with_starting_phase request_cancellation_does_not_cancel_start_worker failed_start_reconciles_backend_that_already_started stale_container_exit_queued_before_start_cannot_regress_restart live_container_exit_during_start_still_transitions_to_error start_persisted_sandboxes_supplies_fresh_authentication veoveo_generated_configs_pass_actual_gateway_loader \
     && cargo build --locked --release --features openshell-server/bundled-z3 -p openshell-server -p openshell-driver-docker \
     && mkdir /binaries \
     && cp /provider-target/release/openshell-gateway /provider-target/release/openshell-driver-docker /binaries/ \
@@ -79,6 +90,7 @@ RUN --mount=type=cache,id=veoveo-openshell-rust195-bookworm-cargo,target=/usr/lo
     --mount=type=cache,id=veoveo-openshell-rust199-bookworm-target,target=/provider-target,sharing=locked \
     provider-control openshell-supervisor-process --lib main_session::tests ssh::tests \
     && provider-control openshell-sandbox --lib process::tests landlock::tests \
+    && provider-control openshell-sandbox --lib process::tests::child_can_reopen_owned_terminal_after_numeric_privilege_drop process::tests::explicit_numeric_identity_drops_inherited_supplementary_groups --ignored --exact \
     && cargo build --locked --release -p openshell-supervisor \
     && cargo build --locked --release -p openshell-sandbox --target x86_64-unknown-linux-musl \
     && readelf -l /provider-target/x86_64-unknown-linux-musl/release/openshell-sandbox > /tmp/sandbox-program-headers \
@@ -121,6 +133,6 @@ COPY --from=source /gateway/LICENSE /usr/share/doc/veoveo-computer-provider/LICE
 COPY platform/runtimes/computers/provider-patches /usr/share/veoveo-computer-provider/source
 RUN cd /usr/local/bin && sha256sum openshell openshell-gateway openshell-driver-docker openshell-supervisor openshell-sandbox > /usr/share/veoveo-computer-provider/binaries.sha256
 LABEL ai.veoveo.provider.profile="0.1.2-veoveo.1" \
-      ai.veoveo.provider.manifest-sha256="8afa01e58b616a0e242cb16291cf1d833078cbf569cbb4a6b85c6396125f939f" \
+      ai.veoveo.provider.manifest-sha256="bce33c87c76fc7676572de27fee3b204ef7567eeb602314389db031eeeec8588" \
       ai.veoveo.provider.supervisor-source-tree="0020919d2c5d2c61230a0a188edaf4469ba9d0f1"
 ENTRYPOINT ["/usr/local/bin/openshell-gateway"]

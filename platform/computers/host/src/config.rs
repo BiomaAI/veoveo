@@ -48,6 +48,22 @@ mod tests {
         assert!(config.validate().is_err());
     }
     #[test]
+    fn generated_host_provider_config_matches_packaged_loader_input() {
+        let generated = valid().provider_config().unwrap();
+        if let Some(directory) = std::env::var_os("VEOVEO_PROVIDER_CONFIG_EXPORT") {
+            std::fs::write(
+                std::path::PathBuf::from(directory).join("host.toml"),
+                &generated,
+            )
+            .unwrap();
+        } else {
+            assert_eq!(
+                generated,
+                include_str!("../../../runtimes/computers/provider-patches/generated/host.toml")
+            );
+        }
+    }
+    #[test]
     fn supervisor_requires_installation_pinned_preloaded_image() {
         let mut config = valid();
         let encoded = config.provider_config().unwrap();
@@ -203,10 +219,10 @@ impl Config {
         let supervisor_image = serde_json::to_string(&self.supervisor_image)?;
         Ok(format!(
             r#"[openshell]
-version = 1
+version = 2
 [openshell.gateway]
 bind_address = "0.0.0.0:{PROVIDER_PORT}"
-compute_drivers = ["docker"]
+compute_driver = "docker"
 log_level = "warn"
 ssh_session_ttl_secs = 3600
 [openshell.gateway.mtls_auth]

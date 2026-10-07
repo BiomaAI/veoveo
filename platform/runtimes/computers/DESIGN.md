@@ -15,6 +15,7 @@ and installed acceptance belong to [Computers](../../computers/DESIGN.md#qualifi
 | `veoveo.ai/computer-storage/v1` | Bounded mTLS prepare/restore/handoff/abandon adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
+| OpenShell gateway TOML schema 2 | Host and isolated native generators use the current gateway loader and strict Docker driver schema; package controls consume their generated TOML inputs |
 | Veoveo private policy checkpoint protobuf v2 | `protocol/maintenance.proto`; canonical Prost encoding of exact provider/source/run and selected gateway version with the generated provider configuration. Encrypted journal storage is required; this format grants no authority |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
 | `veoveo.ai/computer-files/v1` | Private framed JSON header with raw binary file stream and typed SHA-256 receipt; regular files up to 64 MiB, no archive extraction, fixed guest helper command |

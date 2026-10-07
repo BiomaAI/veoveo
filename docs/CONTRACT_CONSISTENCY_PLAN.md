@@ -2786,7 +2786,10 @@ and matched `0.1.2-veoveo.1` provider candidate. The deployer must build and qua
 the gateway, driver, supervisor, static sandbox, stock CLI and affected template/host
 images with Rust 1.99.0 and the selected static Z3 5.1.0 source. Existing native
 fixtures admit the matched executable/image receipt before effects and use their
-private DinD daemon. Preserve containment, replay, retained writers and recovery
+private DinD daemon. The Host admits the companion's registry digest and source
+profile before provider startup. The provider build must run its actual loader on
+both Rust-generated configuration inputs and execute the selected privileged
+identity and terminal controls. Preserve containment, replay, retained writers and recovery
 through the coordinated checkpoint-version drain in the
 [runtime design](../platform/runtimes/computers/DESIGN.md#installation-and-persistence-compatibility).
 Qualify the upgraded profile before closing F23 or A09; older profile evidence does

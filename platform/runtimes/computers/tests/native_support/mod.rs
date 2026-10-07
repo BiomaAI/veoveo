@@ -13,6 +13,96 @@ mod guest_authority;
 pub mod profile;
 pub use profile::preflight;
 
+fn provider_config(
+    dir: &std::path::Path,
+    host: &ComputeHost,
+    port: u16,
+    image: &str,
+    supervisor_image: &str,
+    sandbox: &std::path::Path,
+    ssh_session_ttl_secs: u64,
+    log_level: &str,
+) -> String {
+    let gateway_ip = host.gateway_ip;
+    let namespace = &host.namespace;
+    let socket = &host.socket;
+    format!(
+        r#"[openshell]
+version = 2
+[openshell.gateway]
+bind_address = "{gateway_ip}:{port}"
+compute_driver = "docker"
+log_level = "{log_level}"
+ssh_session_ttl_secs = {ssh_session_ttl_secs}
+[openshell.gateway.mtls_auth]
+enabled = true
+user_common_names = ["veoveo-computers-worker"]
+[openshell.gateway.gateway_jwt]
+signing_key_path = {jwt_key}
+public_key_path = {jwt_public}
+kid_path = {jwt_kid}
+gateway_id = "{namespace}"
+ttl_secs = 3600
+[openshell.drivers.docker]
+socket_path = {socket}
+default_image = {image}
+image_pull_policy = "Never"
+supervisor_image = {supervisor_image}
+allow_driver_config = true
+sandbox_label = "{namespace}"
+grpc_endpoint = "https://{gateway_ip}:{port}"
+supervisor_bin = {sandbox}
+guest_tls_ca = {ca}
+guest_tls_cert = {cert}
+guest_tls_key = {key}
+sandbox_pids_limit = 256
+enable_bind_mounts = false
+"#,
+        image = serde_json::to_string(&image).unwrap(),
+        socket = quoted(&socket),
+        sandbox = quoted(&sandbox),
+        supervisor_image = serde_json::to_string(&supervisor_image).unwrap(),
+        ca = quoted(&dir.join("ca.pem")),
+        cert = quoted(&dir.join("guest.pem")),
+        key = quoted(&dir.join("guest-key.pem")),
+        jwt_key = quoted(&dir.join("jwt-key.pem")),
+        jwt_public = quoted(&dir.join("jwt-public.pem")),
+        jwt_kid = quoted(&dir.join("jwt-kid")),
+    )
+}
+
+#[cfg(test)]
+mod generated_config_tests {
+    use super::*;
+    #[test]
+    fn generated_native_provider_config_matches_packaged_loader_input() {
+        let host = ComputeHost {
+            socket: "/run/veoveo-native/docker.sock".into(),
+            output: "/run/veoveo-native/output".into(),
+            namespace: "private-native".into(),
+            gateway_ip: "172.30.0.1".parse().unwrap(),
+        };
+        let generated = provider_config(
+            std::path::Path::new("/run/veoveo-native/trust"),
+            &host,
+            18805,
+            &format!("registry.internal:5000/computer@sha256:{}", "a".repeat(64)),
+            &format!("registry.internal:5000/provider@sha256:{}", "c".repeat(64)),
+            std::path::Path::new("/usr/local/bin/openshell-sandbox"),
+            3600,
+            "warn",
+        );
+        if let Some(directory) = std::env::var_os("VEOVEO_PROVIDER_CONFIG_EXPORT") {
+            fs::write(PathBuf::from(directory).join("native.toml"), &generated).unwrap();
+        } else {
+            assert_eq!(
+                generated,
+                include_str!("../../provider-patches/generated/native.toml")
+            );
+        }
+    }
+}
+
 pub struct ComputeHost {
     pub socket: PathBuf,
     pub output: PathBuf,
@@ -190,48 +280,15 @@ impl Provider {
         certificates(&dir, gateway_ip);
         let listener = TcpListener::bind((gateway_ip, 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
-        let config = format!(
-            r#"[openshell]
-version = 1
-[openshell.gateway]
-bind_address = "{gateway_ip}:{port}"
-compute_drivers = ["docker"]
-log_level = "{log_level}"
-ssh_session_ttl_secs = {ssh_session_ttl_secs}
-[openshell.gateway.mtls_auth]
-enabled = true
-user_common_names = ["veoveo-computers-worker"]
-[openshell.gateway.gateway_jwt]
-signing_key_path = {jwt_key}
-public_key_path = {jwt_public}
-kid_path = {jwt_kid}
-gateway_id = "{namespace}"
-ttl_secs = 3600
-[openshell.drivers.docker]
-socket_path = {socket}
-default_image = {image}
-image_pull_policy = "Never"
-supervisor_image = {supervisor_image}
-allow_driver_config = true
-sandbox_label = "{namespace}"
-grpc_endpoint = "https://{gateway_ip}:{port}"
-supervisor_bin = {sandbox}
-guest_tls_ca = {ca}
-guest_tls_cert = {cert}
-guest_tls_key = {key}
-sandbox_pids_limit = 256
-enable_bind_mounts = false
-"#,
-            image = serde_json::to_string(&image).unwrap(),
-            socket = quoted(&socket),
-            sandbox = quoted(&sandbox),
-            supervisor_image = serde_json::to_string(&supervisor_image).unwrap(),
-            ca = quoted(&dir.join("ca.pem")),
-            cert = quoted(&dir.join("guest.pem")),
-            key = quoted(&dir.join("guest-key.pem")),
-            jwt_key = quoted(&dir.join("jwt-key.pem")),
-            jwt_public = quoted(&dir.join("jwt-public.pem")),
-            jwt_kid = quoted(&dir.join("jwt-kid")),
+        let config = provider_config(
+            &dir,
+            &host,
+            port,
+            &image,
+            &supervisor_image,
+            &sandbox,
+            ssh_session_ttl_secs,
+            log_level,
         );
         fs::write(dir.join("gateway.toml"), config).unwrap();
         let log = fs::File::create(dir.join("gateway.log")).unwrap();
