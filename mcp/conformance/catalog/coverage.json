@@ -1,5 +1,5 @@
 {
-  "coverageRevision": 2,
+  "coverageRevision": 3,
   "catalogRevision": 2,
   "requirements": [
     {
@@ -210,7 +210,7 @@
     },
     {
       "id": "C32",
-      "mode": "runtime",
+      "mode": "mixed",
       "checks": [
         "VV-MCP-CONTRACT-003",
         "K01",
@@ -220,9 +220,7 @@
         "K05",
         "K06",
         "K07",
-        "K08",
-        "K09",
-        "K10"
+        "K08"
       ]
     },
     {

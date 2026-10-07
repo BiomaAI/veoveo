@@ -308,14 +308,22 @@ offline bundle and execute it against extension endpoints.
 ## Requirement Verification Coverage
 
 `src/requirements.rs` maps the closed catalog IDs to existing VV-MCP and K-series
-checks. Coverage revision 2 evolves separately from catalog revision 2. The generated
+checks. Coverage revision 3 evolves separately from catalog revision 2. The generated
 `catalog/coverage.json` records runtime, review and mixed verification modes. A missing
 or skipped required check produces an incomplete outcome; a failed check produces
 failure. Review and mixed requirements require review even when their runtime checks
 pass. C12 HTTP probes do not prove all private surfaces are authorized; C31 catalog
 probes do not prove installation readiness policy. Both require review after their
-selected runtime checks pass. Owner declarations do not supply results. K09 and K10 remain explicit coverage
-gaps until the runner implements their checks.
+selected runtime checks pass. Owner declarations do not supply results.
+
+C32 uses mixed verification. `VV-MCP-CONTRACT-003` checks adoption against Discover
+in both directions; K01–K08 qualify the implemented runtime source profile.
+Passing all nine runtime checks produces `ReviewRequired`. For K09, the owner
+reviews observation construction from domain records and exclusion of caller input
+from provenance. For K10, the owner reviews revision changes when returned text or
+member access descriptors change, including notifications for `listen` collections.
+Runtime results named K09 or K10 cannot replace that review or compensate for a
+missing runtime probe.
 
 ## Declaration And Runtime Selection
 

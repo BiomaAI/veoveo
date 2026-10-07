@@ -3,7 +3,7 @@ use crate::{CheckResult, CheckStatus};
 use veoveo_mcp_contract::docs::{CATALOG_REVISION, RequirementId};
 
 /// Mapping changes evolve independently of hosted and requirement catalog revisions.
-pub const COVERAGE_REVISION: u32 = 2;
+pub const COVERAGE_REVISION: u32 = 3;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -124,7 +124,7 @@ pub fn requirement_verification(id: RequirementId) -> RequirementVerification {
         ),
         C33 => (Mixed, &["VV-MCP-NAMING-001"]),
         C32 => (
-            Runtime,
+            Mixed,
             &[
                 "VV-MCP-CONTRACT-003",
                 "K01",
@@ -135,8 +135,6 @@ pub fn requirement_verification(id: RequirementId) -> RequirementVerification {
                 "K06",
                 "K07",
                 "K08",
-                "K09",
-                "K10",
             ],
         ),
     };
@@ -190,5 +188,51 @@ mod tests {
                 .collect();
             assert_eq!(mapping.assess(&results), RequirementOutcome::ReviewRequired);
         }
+    }
+
+    #[test]
+    fn knowledge_runtime_qualification_requires_owner_review_and_complete_probes() {
+        let mapping = requirement_verification(RequirementId::C32);
+        assert_eq!(mapping.mode, VerificationMode::Mixed);
+        let check = |id: &str, status| CheckResult {
+            requirement_id: id.into(),
+            status,
+            summary: "knowledge qualification probe".into(),
+            evidence: None,
+        };
+        let passed: Vec<_> = mapping
+            .checks
+            .iter()
+            .map(|id| check(id, CheckStatus::Passed))
+            .collect();
+        assert_eq!(mapping.assess(&passed), RequirementOutcome::ReviewRequired);
+
+        for index in 0..passed.len() {
+            let mut missing = passed.clone();
+            missing.remove(index);
+            assert_eq!(mapping.assess(&missing), RequirementOutcome::Incomplete);
+            missing.extend([
+                check("K09", CheckStatus::Passed),
+                check("K10", CheckStatus::Passed),
+            ]);
+            assert_eq!(mapping.assess(&missing), RequirementOutcome::Incomplete);
+
+            let mut skipped = passed.clone();
+            skipped[index].status = CheckStatus::Skipped;
+            assert_eq!(mapping.assess(&skipped), RequirementOutcome::Incomplete);
+
+            let mut failed = passed.clone();
+            failed[index].status = CheckStatus::Failed;
+            assert_eq!(mapping.assess(&failed), RequirementOutcome::Failed);
+        }
+        let mut purported_review = passed;
+        purported_review.extend([
+            check("K09", CheckStatus::Passed),
+            check("K10", CheckStatus::Passed),
+        ]);
+        assert_eq!(
+            mapping.assess(&purported_review),
+            RequirementOutcome::ReviewRequired
+        );
     }
 }
