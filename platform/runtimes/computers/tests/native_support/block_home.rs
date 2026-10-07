@@ -20,6 +20,69 @@ fn checked(mut command: Command) -> String {
     );
     String::from_utf8(output.stdout).unwrap().trim().to_owned()
 }
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct Mount {
+    source: Option<String>,
+    target: String,
+    volume_options: Option<VolumeOptions>,
+}
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct VolumeOptions {
+    no_copy: bool,
+    subpath: Option<String>,
+}
+fn admit_retained_mount(body: &str, volume: &str) -> Result<(), String> {
+    let mounts: Vec<Mount> = serde_json::from_str(body)
+        .map_err(|error| format!("decode inspected Docker mounts: {error}"))?;
+    let home = mounts
+        .iter()
+        .find(|mount| mount.source.as_deref() == Some(volume))
+        .ok_or("registered retained-home mount absent")?;
+    if home.target != "/sandbox/persistent" {
+        return Err("retained-home mount target differs".into());
+    }
+    let options = home
+        .volume_options
+        .as_ref()
+        .ok_or("retained-home VolumeOptions absent")?;
+    if !options.no_copy {
+        return Err("retained provider mount must skip pre-registration copy".into());
+    }
+    if options.subpath.as_deref() != Some("home") {
+        return Err("retained-home mount requires Subpath home".into());
+    }
+    Ok(())
+}
+// Inspect only mounts, and omit arbitrary driver configuration from failure output.
+fn mount_excerpt(body: &str) -> String {
+    let Ok(serde_json::Value::Array(mounts)) = serde_json::from_str(body) else {
+        return format!("unavailable: invalid mount JSON ({} bytes)", body.len());
+    };
+    let diagnostic: Vec<_> = mounts
+        .iter()
+        .map(|mount| {
+            serde_json::json!({
+                "Source": mount.get("Source"), "Target": mount.get("Target"),
+                "VolumeOptions": {
+                    "NoCopy": mount.pointer("/VolumeOptions/NoCopy"),
+                    "Subpath": mount.pointer("/VolumeOptions/Subpath")
+                }
+            })
+        })
+        .collect();
+    let mut excerpt = serde_json::to_string(&diagnostic).expect("serialize mount diagnostic");
+    if excerpt.len() > 2048 {
+        let mut end = 2048;
+        while !excerpt.is_char_boundary(end) {
+            end -= 1;
+        }
+        excerpt.truncate(end);
+        excerpt.push_str(" [truncated]");
+    }
+    excerpt
+}
 impl BlockHome {
     pub fn create(dir: PathBuf, image: String, computer: Uuid, socket: PathBuf) -> Self {
         assert!(
@@ -156,19 +219,6 @@ impl BlockHome {
         }
     }
     pub fn assert_registered_no_copy(&self) {
-        #[derive(serde::Deserialize)]
-        #[serde(rename_all = "PascalCase")]
-        struct Mount {
-            source: Option<String>,
-            target: String,
-            volume_options: Option<Options>,
-        }
-        #[derive(serde::Deserialize)]
-        #[serde(rename_all = "PascalCase")]
-        struct Options {
-            no_copy: bool,
-            subpath: String,
-        }
         let mut list = self.docker();
         list.args(["ps", "--all", "--quiet", "--filter"])
             .arg(format!("volume={}", self.volume));
@@ -177,18 +227,9 @@ impl BlockHome {
         assert_eq!(ids.len(), 1, "expected one registered provider container");
         let mut inspect = self.docker();
         inspect.args(["inspect", "--format", "{{json .HostConfig.Mounts}}", ids[0]]);
-        let mounts: Vec<Mount> = serde_json::from_str(&checked(inspect)).unwrap();
-        let home = mounts
-            .iter()
-            .find(|mount| mount.source.as_deref() == Some(&self.volume))
-            .unwrap();
-        assert_eq!(home.target, "/sandbox/persistent");
-        let options = home.volume_options.as_ref().unwrap();
-        assert!(
-            options.no_copy,
-            "retained provider mount must skip pre-registration copy"
-        );
-        assert_eq!(options.subpath, "home");
+        let body = checked(inspect);
+        admit_retained_mount(&body, &self.volume)
+            .unwrap_or_else(|error| panic!("{error}; inspected mounts: {}", mount_excerpt(&body)));
     }
     fn detach(&mut self) {
         self.remove_consumers();
@@ -240,5 +281,76 @@ impl Drop for BlockHome {
                 let _ = fs::remove_file(self.dir.join("backup.ext4"));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod mount_tests {
+    use super::*;
+    use serde_json::{Value, json};
+
+    fn mounts() -> Value {
+        json!([
+            {"Source":"retained-home", "Target":"/sandbox/persistent",
+             "VolumeOptions":{"NoCopy":true,"Subpath":"home"}},
+            {"Source":"owned-channel", "Target":"/.openshell/channel",
+             "VolumeOptions":{"NoCopy":true}},
+            {"Type":"tmpfs", "Target":"/tmp"}
+        ])
+    }
+    #[test]
+    fn channel_without_subpath_preserves_retained_home_admission() {
+        admit_retained_mount(&mounts().to_string(), "retained-home").unwrap();
+    }
+    #[test]
+    fn retained_home_requires_present_exact_subpath() {
+        for subpath in [None, Some(Value::Null), Some(json!("other"))] {
+            let mut body = mounts();
+            body[0]["VolumeOptions"]
+                .as_object_mut()
+                .unwrap()
+                .remove("Subpath");
+            if let Some(value) = subpath {
+                body[0]["VolumeOptions"]["Subpath"] = value;
+            }
+            assert!(
+                admit_retained_mount(&body.to_string(), "retained-home")
+                    .unwrap_err()
+                    .contains("Subpath home")
+            );
+        }
+        assert!(admit_retained_mount(&mounts().to_string(), "absent-home").is_err());
+    }
+    #[test]
+    fn retained_home_target_and_no_copy_remain_mandatory() {
+        for (field, value) in [
+            ("Target", json!("/wrong")),
+            ("VolumeOptions", json!({"NoCopy":false,"Subpath":"home"})),
+            ("VolumeOptions", Value::Null),
+        ] {
+            let mut body = mounts();
+            body[0][field] = value;
+            assert!(admit_retained_mount(&body.to_string(), "retained-home").is_err());
+        }
+    }
+    #[test]
+    fn decode_failure_retains_bounded_mount_fields_without_driver_secrets() {
+        let mut body = mounts();
+        body[0]["VolumeOptions"]["Subpath"] = json!(42);
+        body[0]["VolumeOptions"]["DriverConfig"] =
+            json!({"Options":{"password":"private-driver-secret"}});
+        let raw = body.to_string();
+        assert!(
+            admit_retained_mount(&raw, "retained-home")
+                .unwrap_err()
+                .contains("decode inspected Docker mounts")
+        );
+        let excerpt = mount_excerpt(&raw);
+        assert!(excerpt.contains("retained-home") && excerpt.contains("42"));
+        assert!(!excerpt.contains("private-driver-secret"));
+        body[1]["Target"] = json!("é".repeat(4096));
+        let excerpt = mount_excerpt(&body.to_string());
+        assert!(excerpt.len() <= 2048 + " [truncated]".len());
+        assert!(excerpt.ends_with(" [truncated]"));
     }
 }
