@@ -118,13 +118,19 @@ The current source checkpoints are:
 These revisions qualify their implemented source concerns. They do not close the
 wider F-register or the hardware and installed gates.
 
-The uncommitted catalog batch passes 101 unique Rust cases, 449 Python SDK cases
+The catalog batch published in `17517f9d1` passes 101 unique Rust cases, 449 Python SDK cases
 and 37 Charts cases. Template and independent-fork checks, local Charts image API
 checks, generated documents and strict all-target lint over 22 packages also pass.
+The development checkpoint captures the integrated source before full qualification.
 Those counts cover the affected source checks, not every server's domain suite or
 installed acceptance. The shared-host module suite awaits approval to update its
 old document fixture under the protected hosting path. Its prepared change leaves
 the transport and authorization assertions intact.
+
+The published tree at `9ccd95fae` passes whole-workspace formatting, the shared-macro
+catalog over 2,569 tracked Rust sources, and identifier enforcement over 6,426
+tracked text files. The naming suite passes all 28 cases. These checks do not close
+the remaining native, dependency-graph or installed gates.
 
 The latest source checkpoints implement Map repository/product admission and the
 recorded video, Stream, Reason and Timeseries result relationships in F10, F12,
@@ -133,7 +139,7 @@ the caller and relationship repairs. The affected graph passes 358 unique native
 cases, strict all-target lint over twelve packages, five isolated owner contracts
 and both independent consumer profiles. The generated Apps pass 23 cases and their
 type checks and builds; Reason's private protocol passes 21 Python cases. Formatting
-and generation checks pass. These checkpoints preserve the pending catalog batch.
+and generation checks pass. The catalog batch is included in the published checkpoint.
 Installed and hardware conditions stay open. The Artifact source pass in F25 and
 the Rust portion of F27 moves pure wire values to its existing lightweight
 contract and carries typed Task identities through callers and database drivers.
@@ -159,7 +165,7 @@ decode all 34 Optimization input branches before exercising their schema, defaul
 and negative controls. Generated schemas and client types agree with their actual
 producers. Console, Workspace, the UAV App and Workbench pass their affected checks;
 the headed-GPU and installed gates remain open. Qualification also passes against
-the current main contract independently of the staged catalog: both consumer
+the main contract independently of the catalog batch: both consumer
 profiles, seventeen document/setup controls, SDK and template callers, and repository
 policy checks pass. The catalog's protected shared-host fixture remains separate.
 
@@ -247,9 +253,12 @@ worker refusal before effects. Independent source review accepts the finite attr
 Python admission and final schema annotations. Generated consumers and fresh NVIDIA
 qualification remain open. Frames' complete owner and
 direct-consumer cut passes compiler and
-contract/schema isolation checks. The repaired fixture, shared wildcard-removal
-admission and real startup guard pass their affected controls; full owner-native,
-hosted and generated checks remain open. Optimization/cuOpt and View complete their
+contract/schema isolation checks. Its native library, server and contract suites
+pass all 43 cases after the Artifact metadata fixture repair in `c68ab4850`.
+The shared wildcard-removal admission and real startup guard pass their affected
+controls; installed hosted checks remain open. Time's batch in `b3a2006d7` passes
+114 distinct native cases, with one installed gateway-source check still unrun.
+Optimization/cuOpt and View complete their
 source passes and pass grouped compiler checks. Their fifty selected library cases
 pass; sixteen Optimization Python protocol cases pass without executing a solver.
 The current Optimization native read suite passes one case and fails eight during
