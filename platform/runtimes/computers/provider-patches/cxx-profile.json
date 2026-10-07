@@ -1,0 +1,68 @@
+{
+  "schema": "veoveo.ai/openshell-cxx-build/v1",
+  "compiler": "gcc",
+  "version": "16.2.0",
+  "baseAbi": "glibc 2.36",
+  "languages": [
+    "c",
+    "c++"
+  ],
+  "bootstrap": false,
+  "multilib": false,
+  "cxxStandard": 20,
+  "z3CxxRuntime": "static=stdc++",
+  "inputs": [
+    {
+      "component": "gcc",
+      "version": "16.2.0",
+      "url": "https://gcc.gnu.org/ftp/gcc/releases/gcc-16.2.0/gcc-16.2.0.tar.xz",
+      "sha512": "c51c30ca7422d0cbecf504b2e0f33c3aca31e0f90a76b65217f465163fa6fa17b3f5de39e145c47e5bab90ac0ce7fff3b03c8d553ae36e01faaea5a50f8648d1",
+      "file": "gcc-16.2.0.tar.xz",
+      "release": "https://gcc.gnu.org/releases.html"
+    },
+    {
+      "component": "gmp",
+      "version": "6.3.0",
+      "url": "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz",
+      "sha512": "e85a0dab5195889948a3462189f0e0598d331d3457612e2d3350799dba2e244316d256f8161df5219538eb003e4b5343f989aaa00f96321559063ed8c8f29fd2",
+      "file": "gmp-6.3.0.tar.xz",
+      "release": "https://gmplib.org/"
+    },
+    {
+      "component": "mpfr",
+      "version": "4.2.2",
+      "url": "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz",
+      "sha512": "eb9e7f51b5385fb349cc4fba3a45ffdf0dd53be6dfc74932dc01258158a10514667960c530c47dd9dfc5aa18be2bd94859d80499844c5713710581e6ac6259a9",
+      "file": "mpfr-4.2.2.tar.xz",
+      "release": "https://www.mpfr.org/mpfr-current/"
+    },
+    {
+      "component": "mpc",
+      "version": "1.4.1",
+      "url": "https://ftp.gnu.org/gnu/mpc/mpc-1.4.1.tar.xz",
+      "sha512": "cdfbe64e80e30df64dbd536e8104a6bb10471582415d5b45a1dd30eb2a312781b38389a9531243413c14e0f88866a35159b20e77900718f28c1030253a1305b9",
+      "file": "mpc-1.4.1.tar.xz",
+      "release": "https://www.multiprecision.org/mpc/download.html"
+    }
+  ],
+  "release": "https://gcc.gnu.org/releases.html",
+  "gccChecksums": "https://gcc.gnu.org/ftp/gcc/releases/gcc-16.2.0/sha512.sum",
+  "compilerBase": "docker.io/library/rust:1.99.0-slim-bookworm@sha256:452176c0cefca88c0b3184ce85a4eb03e3d4fa05d2afb5366abcba853221019e",
+  "packageSnapshot": "20260910T000000Z",
+  "solver": {
+    "crate": "z3-src",
+    "crateVersion": "501.0.0",
+    "version": "5.1.0",
+    "linkage": "static",
+    "feature": "openshell-server/bundled-z3",
+    "linkHookCrate": "z3-sys",
+    "linkHookVersion": "0.13.0",
+    "linkHookSha256": "96975839f50a909f6ec19671e5c06d7f0d6fc67287a120e1b010c5f8d91944d6"
+  },
+  "bootstrapPackages": [
+    "build-essential",
+    "m4",
+    "cmake",
+    "python3"
+  ]
+}

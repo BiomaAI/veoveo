@@ -103,5 +103,13 @@
       "producerSource": "platform/runtimes/computers/tests/native_support/mod.rs",
       "producerSha256": "45df10b88ec2c220cd13cd2a61142e67c15bb0ece6940bc30adde71f504e6424"
     }
-  ]
+  ],
+  "cxx": {
+    "profile": "cxx-profile.json",
+    "profileSha256": "4f5f0923913d52943e2b6bc5c1108fb1c6bc7bbd5bbbfef53dd620bda89d1ad9",
+    "compiler": "GCC16.2.0",
+    "stdlibLinkage": "static",
+    "maximumGlibc": "2.36",
+    "probeTarget": "cxx-probe-evidence"
+  }
 }

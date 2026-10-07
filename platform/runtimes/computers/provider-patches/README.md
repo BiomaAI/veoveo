@@ -86,10 +86,40 @@ artifacts occupy that cache's target subdirectory. Registry sources keep the exi
 compiler-independent cache identity. There is no additional upstream host target.
 
 Gateway compilation selects upstream `openshell-server/bundled-z3`: locked
-`z3-src` 501.0.0 builds stable Z3 5.1.0 as a static library. CMake >=3.16, Python3
-and C++20 build inputs come from the selected Bookworm compiler snapshot. The gateway
-ELF check rejects a dynamic libz3 dependency before the runtime omits system Z3. The
-GNU binaries use the selected glibc 2.36 ABI; no glibc 2.39 release archive enters it.
+`z3-src` 501.0.0 builds stable Z3 5.1.0 as a static library. CMake >=3.16 and
+Python3 come from the selected Bookworm compiler snapshot. `cxx-profile.json`
+pins source-built [GCC 16.2.0](https://gcc.gnu.org/releases.html),
+[GMP 6.3.0](https://gmplib.org/),
+[MPFR 4.2.2](https://www.mpfr.org/mpfr-current/) and
+[MPC 1.4.1](https://www.multiprecision.org/mpc/download.html) by source URL and
+SHA-512. The GCC pin agrees with its upstream SHA-512 release list. GMP, MPFR
+and MPC build as static compiler prerequisites in a separate prefix. GCC enables
+C and C++, disables bootstrap and multilib, and builds against glibc 2.36. This
+compiler supplies the C++20 `<format>` implementation required by Z3 without
+raising the runtime ABI. Building the compiler adds a cached source-build stage;
+it does not change the Rust 1.99.0 or static-musl sandbox profiles.
+
+The gateway build sets `CXX` to this compiler and uses locked `z3-sys` 0.13.0's
+`CXXSTDLIB=static=stdc++` link hook. Its native search path contains only the
+selected `libstdc++.a`. The gateway ELF check rejects dynamic libz3 and libstdc++
+dependencies and any required GLIBC symbol version above 2.36. The runtime keeps
+its Bookworm libraries for other GNU executables. Ubuntu 24.04's glibc 2.39 can
+satisfy the admitted gateway baseline; the actual native executable suites must
+still qualify the complete provider. The runtime exports the C++ profile,
+compiler version, static archive hash, GCC license and Runtime Library Exception
+beside the dependency and symbol-version receipts.
+
+Ops first builds the Dockerfile's `cxx-probe-evidence` target on the maintained
+BuildKit builder with a 2400-second outer deadline and a local output directory.
+That target compiles and executes a C++20 `std::format` program, checks its
+static C++ runtime and GLIBC ceiling, and exports only the receipts. It builds
+no OpenShell Rust target and imports no image. Each source archive has a
+256 MiB read limit, a 180-second deadline and a SHA-512 check. After the probe
+passes and the source checkpoint is committed, Ops runs the maintained complete
+`computer-provider` build using the same cached C++ stage and existing provider
+Cargo caches. The probe does not qualify Z3, gateway controls, or native provider
+behavior; the complete build must pass its solver controls and gateway ELF
+checks before native acceptance.
 
 The build checks that the sandbox has neither an ELF interpreter nor a DT_NEEDED
 closure and records its file classification. It records the GNU supervisor's dynamic
