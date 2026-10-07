@@ -67,14 +67,15 @@ fn package_label(package: &CargoPackage) -> Result<String> {
                 .display()
         )
     } else if let Some(source) = package.source.as_ref().and_then(|s| s.strip_prefix("git+")) {
-        // Cargo's maintained display uses its source URL and abbreviated commit.
+        // Keep the full metadata identity; Cargo may display a revision prefix.
         let (url, commit) = source
             .rsplit_once('#')
             .context("git source lacks revision")?;
-        format!(
-            " ({url}#{})",
-            commit.get(..7).context("short git revision")?
-        )
+        ensure!(
+            !commit.is_empty() && commit.bytes().all(|c| c.is_ascii_hexdigit()),
+            "invalid metadata git revision"
+        );
+        format!(" ({url}#{commit})")
     } else {
         String::new()
     };
@@ -84,14 +85,19 @@ fn package_label(package: &CargoPackage) -> Result<String> {
     ))
 }
 pub(crate) fn decode(metadata: &CargoMetadata, bytes: &[u8]) -> Result<EffectiveFeatures> {
-    let mut labels = BTreeMap::new();
+    let mut identities = BTreeSet::new();
+    let mut ids = BTreeSet::new();
+    let mut candidates: BTreeMap<String, Vec<(&CargoPackage, String)>> = BTreeMap::new();
     for package in &metadata.packages {
+        let identity = package_label(package)?;
         ensure!(
-            labels
-                .insert(package_label(package)?, &package.id)
-                .is_none(),
+            identities.insert(identity.clone()) && ids.insert(&package.id),
             "ambiguous Cargo source identity"
         );
+        candidates
+            .entry(format!("{} v{}", package.name, package.version))
+            .or_default()
+            .push((package, identity));
     }
     let mut result = EffectiveFeatures::new();
     for line in std::str::from_utf8(bytes)?
@@ -104,16 +110,41 @@ pub(crate) fn decode(metadata: &CargoMetadata, bytes: &[u8]) -> Result<Effective
                 line.chars().take(256).collect::<String>()
             )
         })?;
-        let id = labels
-            .get(label)
+        let name_version = label.split_once(" (").map_or(label, |(head, _)| head);
+        let mut matching =
+            candidates
+                .get(name_version)
+                .into_iter()
+                .flatten()
+                .filter(|(package, identity)| {
+                    let Some(source) = package.source.as_ref().and_then(|s| s.strip_prefix("git+"))
+                    else {
+                        return identity == label;
+                    };
+                    // package_label has already admitted the full metadata revision.
+                    let (_, revision) = source.rsplit_once('#').unwrap();
+                    let prefix = identity.strip_suffix(&format!("{revision})")).unwrap();
+                    let Some(displayed) =
+                        label.strip_prefix(prefix).and_then(|s| s.strip_suffix(')'))
+                    else {
+                        return false;
+                    };
+                    !displayed.is_empty()
+                        && displayed.bytes().all(|c| c.is_ascii_hexdigit())
+                        && revision.starts_with(displayed)
+                });
+        let (package, _) = matching
+            .next()
             .context("Cargo tree package identity disagrees with metadata")?;
+        ensure!(matching.next().is_none(), "ambiguous Cargo source identity");
+        let id = &package.id;
         let features: BTreeSet<String> = features
             .split(',')
             .map(str::trim)
             .filter(|f| !f.is_empty())
             .map(str::to_owned)
             .collect();
-        result.entry((*id).clone()).or_default().insert(features);
+        result.entry(id.clone()).or_default().insert(features);
     }
     ensure!(!result.is_empty(), "empty effective Cargo closure");
     Ok(result)
@@ -274,6 +305,147 @@ pub(crate) fn plan(
 #[cfg(test)]
 mod tests {
     use super::*;
+    const GIT_URL: &str =
+        "https://github.com/rozgo/rust-sdk?rev=917e7914c93975fc1eddbff8792f1e2de933bc17";
+    const GIT_REVISION: &str = "917e7914c93975fc1eddbff8792f1e2de933bc17";
+
+    fn git_package(name: &str, procedural_macro: bool, revision: &str) -> CargoPackage {
+        serde_json::from_value(serde_json::json!({
+            "name": name,
+            "version": "3.5.0",
+            "id": format!("{name}@{revision}"),
+            "source": format!("git+{GIT_URL}#{revision}"),
+            "manifest_path": format!("/fixture/{name}/Cargo.toml"),
+            "targets": [{
+                "name": name,
+                "kind": [if procedural_macro { "proc-macro" } else { "lib" }],
+                "src_path": format!("/fixture/{name}/src/lib.rs")
+            }]
+        }))
+        .unwrap()
+    }
+
+    fn metadata(packages: Vec<CargoPackage>) -> CargoMetadata {
+        CargoMetadata {
+            packages,
+            target_directory: Default::default(),
+        }
+    }
+
+    #[test]
+    fn git_tree_labels_bind_abbreviated_and_full_revisions_for_library_and_macro() {
+        let metadata = metadata(vec![
+            git_package("rmcp", false, GIT_REVISION),
+            git_package("rmcp-macros", true, GIT_REVISION),
+        ]);
+        for revision in [&GIT_REVISION[..7], &GIT_REVISION[..8], GIT_REVISION] {
+            let receipt = format!(
+                "rmcp v3.5.0 ({GIT_URL}#{revision})|veoveo-features|server\n\
+                 rmcp-macros v3.5.0 (proc-macro) ({GIT_URL}#{revision})|veoveo-features|default\n"
+            );
+            let admitted = decode(&metadata, receipt.as_bytes()).unwrap();
+            assert_eq!(admitted.len(), 2);
+            assert_eq!(
+                admitted[&metadata.packages[0].id],
+                BTreeSet::from([BTreeSet::from(["server".to_owned()])])
+            );
+            assert_eq!(
+                admitted[&metadata.packages[1].id],
+                BTreeSet::from([BTreeSet::from(["default".to_owned()])])
+            );
+        }
+    }
+    #[test]
+    fn git_tree_labels_refuse_foreign_sources_and_invalid_revisions() {
+        let metadata = metadata(vec![git_package("rmcp", false, GIT_REVISION)]);
+        for label in [
+            format!("rmcp v3.5.0 ({GIT_URL}#deadbeef)"),
+            format!("rmcp v3.5.0 ({GIT_URL}#{GIT_REVISION}0)"),
+            format!("rmcp v3.5.0 ({GIT_URL}#)"),
+            format!("rmcp v3.5.0 ({GIT_URL}#917e791z)"),
+            format!("rmcp v3.5.0 (https://foreign.invalid/rust-sdk?rev={GIT_REVISION}#917e7914)"),
+            "rmcp v3.5.0 (https://github.com/rozgo/rust-sdk?branch=main#917e7914)".into(),
+            format!("rmcp v3.5.0 (proc-macro) ({GIT_URL}#917e7914)"),
+            format!("rmcp v3.5.1 ({GIT_URL}#917e7914)"),
+            format!("other v3.5.0 ({GIT_URL}#917e7914)"),
+        ] {
+            assert!(
+                decode(
+                    &metadata,
+                    format!("{label}|veoveo-features|server").as_bytes()
+                )
+                .is_err(),
+                "{label}"
+            );
+        }
+    }
+
+    #[test]
+    fn git_tree_labels_refuse_ambiguous_prefixes_and_duplicate_metadata() {
+        let other = "917e7914c93975fc1eddbff8792f1e2de933bc18";
+        let metadata = metadata(vec![
+            git_package("rmcp", false, GIT_REVISION),
+            git_package("rmcp", false, other),
+        ]);
+        assert!(
+            decode(
+                &metadata,
+                format!("rmcp v3.5.0 ({GIT_URL}#917e7914)|veoveo-features|server").as_bytes()
+            )
+            .is_err()
+        );
+        assert!(
+            decode(
+                &metadata,
+                format!("rmcp v3.5.0 ({GIT_URL}#{GIT_REVISION})|veoveo-features|server").as_bytes()
+            )
+            .is_ok()
+        );
+        let mut duplicate = git_package("rmcp", false, GIT_REVISION);
+        duplicate.id = "different-id".into();
+        let duplicate_metadata =
+            super::tests::metadata(vec![git_package("rmcp", false, GIT_REVISION), duplicate]);
+        assert!(
+            decode(
+                &duplicate_metadata,
+                format!("rmcp v3.5.0 ({GIT_URL}#917e7914)|veoveo-features|server").as_bytes()
+            )
+            .is_err()
+        );
+        let mut duplicate_id = git_package("rmcp", false, other);
+        duplicate_id.id = format!("rmcp@{GIT_REVISION}");
+        let duplicate_metadata =
+            super::tests::metadata(vec![git_package("rmcp", false, GIT_REVISION), duplicate_id]);
+        assert!(
+            decode(
+                &duplicate_metadata,
+                format!("rmcp v3.5.0 ({GIT_URL}#{GIT_REVISION})|veoveo-features|server").as_bytes()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn local_tree_labels_require_the_exact_source_path() {
+        let mut package = git_package("local", false, GIT_REVISION);
+        package.source = None;
+        let metadata = metadata(vec![package]);
+        assert!(
+            decode(
+                &metadata,
+                b"local v3.5.0 (/fixture/local)|veoveo-features|default"
+            )
+            .is_ok()
+        );
+        assert!(
+            decode(
+                &metadata,
+                b"local v3.5.0 (/foreign/local)|veoveo-features|default"
+            )
+            .is_err()
+        );
+    }
+
     #[test]
     fn dispatcher_union_admission_refuses_indirect_and_two_root_contamination() {
         let leaf: EffectiveFeatures = [(
