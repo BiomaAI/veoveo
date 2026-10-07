@@ -1851,44 +1851,37 @@ execution-kind constraint as well.
 The Agent instance HTTP projection hydrates the full retained revision through the
 repository's checked decoder and reads its declared `execution.template`. Native
 checks cover definition and tenant agreement, corrupt revisions and private reads.
-The owner function `fn::agent_chat_revision` still aliases `revision.content` and
-reads its execution kind. Select the declared revision execution fields instead;
-preserve the function's tenant, audience, publication, revision digest and chat-kind
-checks.
+The owner function `fn::agent_chat_revision` selects the declared revision execution
+field at `e878b4d3a`. It requires the chat kind alongside tenant, audience, publication
+and revision-digest checks, without inspecting the FLEXIBLE content.
 
 Audit view admission and list filtering use declared profile, whole-target and
 whole-detail lookup fields derived from the admitted draft in the same write.
 Native checks cover lookup agreement, filtered paging, view admission and rollback.
 Registered target admission and frozen draft bytes and hashes are preserved.
-Audit export delivery also compares the retained block head hash. Give that value
-a declared same-write lookup and check its agreement with the admitted block;
-the delivery transaction must not inspect `audit_block.block.head_hash` inside
-the FLEXIBLE block.
+Audit export delivery compares the declared block head hash and complete expected
+block. The writer derives the lookup in the same write, and the reader checks its
+agreement with the admitted block. The delivery transaction does not inspect a
+path inside the FLEXIBLE block.
 
-Optimization's catalog queries still inspect the selected Task input kind and
-nested MCP result fields. Use the existing declared catalog operation, terminal
-status and product address for eligibility after kernel caller admission and before
-limits. Hydrate selected Tasks in the same read transaction and reject inconsistent
-requests, results or product addresses. An authorized corrupt row must produce an
-integrity error instead of a silently shortened page. Denied rows stay excluded in
-SQL. Do not duplicate complete requests, solver models or capability secrets into
-the catalog to compare them.
+Optimization's catalog queries select the declared operation, terminal status and
+product address after kernel caller admission and before limits. The reader hydrates
+selected Tasks in the same transaction and checks catalog/request/result agreement.
+Authorized corrupt rows produce integrity errors; SQL excludes denied rows. The
+catalog does not duplicate complete requests, solver models or capability secrets.
+Current native reads remain blocked by the protected shared product-result helper,
+as recorded in [Deferred Work](#deferred-work).
 
-Knowledge queries read `knowledge_collection.document.approval` and descriptor
-fields `requiredScopes`, `changeSignal` and `entityKind`. Both catalog writers must
-derive declared lookups from the validated `CollectionRegistration` in the same
-write. Update catalog, completion, observation, statistics and every search-depth
-query together. Preserve whole approval equality, current source leases and scope
-selection before ranking and limits. Search result hydration must use checked
-registration data without selecting nested fields from the FLEXIBLE document.
-The controlled `Observation` envelope belongs in the declared schema of both
-`knowledge_member` and the generation-specific chunk tables. Statistics reads its
-declared observation and modification timestamps and returns scalar aggregates;
-it must not transfer every observed member to Rust for validation. Preserve the
-existing observation wire shape, source-policy admission and revalidation semantics.
-Knowledge activation also reads `record` and `revision` from persisted generation
-collection requirements. Declare that element shape with the typed requirement
-driver record; the current FLEXIBLE array does not establish these queried fields.
+Both Knowledge catalog writers derive declared approval, scope, change-signal and
+entity-kind lookups from validated `CollectionRegistration` values. Catalog,
+completion, observation, statistics and search-depth queries consume those fields.
+Whole approval equality, current source leases and scope selection precede ranking
+and limits. Hydration admits complete registrations without querying paths inside
+the FLEXIBLE document. Members and generation-specific chunk tables declare the
+controlled observation envelope. SQL returns scalar statistics after caller and
+source-policy selection. Generation collection requirements declare their record
+links and revisions through the owner driver record. These source changes preserve
+observation wire forms and revalidation; installed qualification remains open.
 
 Gateway writes the profile's policy version as declared metadata alongside the
 admitted profile. Artifact's SQL guard selects the policy through that field and
