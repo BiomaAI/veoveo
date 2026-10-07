@@ -16,6 +16,8 @@ use veoveo_types::{
     WorkContextId,
 };
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
+#[path = "view/lifecycle.rs"]
+mod lifecycle;
 #[path = "view/readiness.rs"]
 mod readiness;
 #[path = "view/schema.rs"]
@@ -798,19 +800,6 @@ async fn lifecycle_task_row(
     row.context("owned capture Task disappeared")
 }
 
-fn unfinished_claim(row: &veoveo_platform_store::TaskRecord) -> bool {
-    use veoveo_platform_store::TaskStatus;
-    matches!(
-        row.status,
-        TaskStatus::Queued | TaskStatus::Running | TaskStatus::Waiting
-    ) && row.lease_owner.is_some()
-        && row
-            .lease_expires_at
-            .is_some_and(|expiry| expiry > Utc::now())
-        && row.result.is_none()
-        && row.completed_at.is_none()
-}
-
 fn retain_task_observation(path: &Path, row: &veoveo_platform_store::TaskRecord) -> Result<()> {
     // Capture input contains the deterministic local scene, never a caller token.
     // Keep only the lifecycle fields required for diagnosing this owned Task.
@@ -865,12 +854,17 @@ async fn qualify_view_lifecycle(
         false,
     )?;
     request["policy"]["encoding"] = json!("jpeg");
+    let expectation = lifecycle::CaptureExpectation::new(&request, view, composition)?;
     let mut replacement = None;
     let deadline = tokio::time::Instant::now() + Duration::from_secs(360);
     let result: Result<()> = tokio::time::timeout_at(deadline, async {
+        let cid = view_container_id(original)?;
+        let freeze = lifecycle::OwnedEngineFreeze::prepare(&cid, deadline).await?;
         let created = futures::future::join_all((0..8).map(|_| {
             call_tool_as_task(&owner, "capture_frame", request.clone())
         })).await.into_iter().collect::<Result<Vec<_>>>()?;
+        // Freeze before any Store observation or evidence write can consume the capture window.
+        freeze.freeze(deadline).await?;
         let tasks = created.iter().map(|task| veoveo_types::TaskId::parse(&task.task_id))
             .collect::<Result<Vec<_>, _>>()?;
         let mut candidate = None;
@@ -880,16 +874,15 @@ async fn qualify_view_lifecycle(
             ).bind(("task", veoveo_platform_store::task_record_id(task))).await?.check()?;
             let rows: Vec<veoveo_platform_store::TaskRecord> = selected.take(0)?;
             if let Some(row) = rows.into_iter().next() {
+                expectation.admit(&row, task)?;
                 retain_task_observation(&evidence.join(format!("task-{task}-before.json")), &row)?;
-                if unfinished_claim(&row) { candidate = Some((task, row)); break; }
+                candidate = Some((task, row)); break;
             }
         }
-        let (task, observed) = candidate.context("eight production captures left no claimed unfinished Task; restart qualification did not run")?;
-        let cid = view_container_id(&original)?;
-        lifecycle_docker(["kill".into(), "--signal=STOP".into(), cid.clone().into()], deadline).await?;
+        let (task, observed) = candidate.context("frozen production captures left no claimed unfinished Task; restart qualification did not run")?;
         let retained = lifecycle_task_row(&store, task).await?;
         retain_task_observation(&evidence.join("restart-retained-task.json"), &retained)?;
-        ensure!(unfinished_claim(&retained), "observed capture finished before the process was frozen; restart qualification did not run");
+        expectation.admit(&retained, task)?;
         ensure!(retained.request.input == observed.request.input
             && retained.lease_owner == observed.lease_owner
             && retained.lease_expires_at == observed.lease_expires_at,
