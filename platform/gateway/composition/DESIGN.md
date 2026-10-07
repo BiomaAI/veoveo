@@ -57,8 +57,20 @@ Ordinary executable tests accompany their route modules. The binary integration
 harnesses under `tests` exercise the real command process and preserve their declared
 native prerequisites. Reusable library integration tests stay in the parent package.
 Image selection tests prove the Bake target builds this package and includes the
-kernel library through its normal dependency graph. Installed lifecycle qualification
-belongs to [deployment smoke](../../../testing/deployment-smoke/DESIGN.md).
+kernel library through its normal dependency graph.
+
+The schema-lanes harness compares two independently fresh full compositions. Typed
+captures include every table's fields, indexes, events, child tables and empty LIVE
+map, alongside database table/function/analyzer definitions and checked table
+ownership. Field DDL preserves types, assertions and record-reference policies.
+Separate field and index mutations in the second fixture must change the comparison
+while its outer inventory and ownership stay equal. Independent capture controls
+also require the comparison to detect event, function, analyzer and ownership drift.
+Runtime credentials, namespace
+names and migration receipt timestamps describe installation instances; they are
+outside this schema capture. No captured schema definition is normalized or omitted.
+
+Installed lifecycle qualification belongs to [deployment smoke](../../../testing/deployment-smoke/DESIGN.md).
 
 ## Optional HTTP Routes
 

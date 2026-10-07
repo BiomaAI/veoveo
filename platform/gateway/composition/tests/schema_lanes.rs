@@ -26,7 +26,7 @@ fn optional_modules() -> Vec<ModuleSetup> {
         veoveo_optimization_mcp::schema::module_setup(execution("optimization")).unwrap(),
     ]
 }
-#[derive(Debug, PartialEq, serde::Serialize, SurrealValue)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, SurrealValue)]
 struct Inventory {
     tables: BTreeMap<String, String>,
     functions: BTreeMap<String, String>,
@@ -44,35 +44,247 @@ async fn inventory(store: &PlatformStore) -> Inventory {
         .unwrap()
         .unwrap()
 }
-/// Optional diagnostic output from this test's owned fresh fixture; no runtime credentials.
-async fn capture_installed_schema(store: &PlatformStore, current: &Inventory) {
-    let Some(output) = std::env::var_os("VEOVEO_TEST_SCHEMA_INFO_SNAPSHOT") else {
-        return;
-    };
+/// SurrealDB's complete per-table DDL maps. Field definitions include types,
+/// assertions and record-reference policies; no field or child map is projected away.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, SurrealValue)]
+struct TableSchema {
+    fields: BTreeMap<String, String>,
+    indexes: BTreeMap<String, String>,
+    events: BTreeMap<String, String>,
+    tables: BTreeMap<String, String>,
+    lives: BTreeMap<String, String>,
+}
+#[derive(Clone, Debug, PartialEq)]
+struct InstalledSchema {
+    database: Inventory,
+    tables: BTreeMap<TableName, TableSchema>,
+    ownership: BTreeMap<TableName, ModuleName>,
+}
+async fn capture_installed_schema(
+    store: &PlatformStore,
+    registry: &ModuleRegistry,
+) -> InstalledSchema {
+    let current = inventory(store).await;
     let mut tables = BTreeMap::new();
-    for table in current.tables.keys() {
-        let mut response = store
+    let mut ownership = BTreeMap::new();
+    for name in current.tables.keys() {
+        let table = TableName::new(name).expect("installed table name");
+        let owner = registry
+            .owner_of_table(&table)
+            .expect("installed table owner");
+        let info = store
             .client()
             .query(include_str!(
                 "../../../../testing/fixtures/queries/store/table_info.surql"
             ))
-            .bind(("table", table.clone()))
+            .bind(("table", table.as_str().to_owned()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap()
+            .take::<Option<TableSchema>>(0)
+            .unwrap()
+            .expect("installed table schema");
+        // A fresh schema has no instance-specific LIVE subscriptions. Keep this
+        // map in equality as well, rather than silently removing unexpected lives.
+        assert!(
+            info.lives.is_empty(),
+            "fresh table {table} has LIVE subscriptions"
+        );
+        ownership.insert(table.clone(), owner.name().clone());
+        tables.insert(table, info);
+    }
+    assert_eq!(tables.len(), current.tables.len());
+    assert_eq!(ownership.len(), tables.len());
+    InstalledSchema {
+        database: current,
+        tables,
+        ownership,
+    }
+}
+/// Optional diagnostic output from this test's owned fresh fixture; no runtime credentials.
+fn write_schema_snapshot(schema: &InstalledSchema) {
+    if let Some(output) = std::env::var_os("VEOVEO_TEST_SCHEMA_INFO_SNAPSHOT") {
+        // Names become text only at this optional JSON diagnostic boundary.
+        let tables = schema
+            .tables
+            .iter()
+            .map(|(name, body)| (name.as_str(), body))
+            .collect::<BTreeMap<_, _>>();
+        let ownership = schema
+            .ownership
+            .iter()
+            .map(|(table, owner)| (table.as_str(), owner.as_str()))
+            .collect::<BTreeMap<_, _>>();
+        std::fs::write(output, serde_json::to_vec_pretty(&serde_json::json!({"database":schema.database,"tables":tables,"ownership":ownership})).unwrap()).unwrap();
+    }
+}
+fn assert_other_member_drift_is_detected(expected: &InstalledSchema) {
+    let mut changed = expected.clone();
+    changed
+        .tables
+        .values_mut()
+        .flat_map(|table| table.events.values_mut())
+        .next()
+        .expect("installed event")
+        .push_str(" /* changed event */");
+    assert_eq!(changed.database, expected.database);
+    assert_eq!(changed.ownership, expected.ownership);
+    assert_eq!(changed.tables.len(), expected.tables.len());
+    assert_ne!(
+        changed, *expected,
+        "event definition drift was not detected"
+    );
+
+    let mut changed = expected.clone();
+    changed
+        .database
+        .functions
+        .values_mut()
+        .next()
+        .expect("installed function")
+        .push_str(" /* changed function */");
+    assert_eq!(
+        changed.database.functions.len(),
+        expected.database.functions.len()
+    );
+    assert_eq!(changed.tables, expected.tables);
+    assert_eq!(changed.ownership, expected.ownership);
+    assert_ne!(
+        changed, *expected,
+        "function definition drift was not detected"
+    );
+
+    let mut changed = expected.clone();
+    changed
+        .database
+        .analyzers
+        .values_mut()
+        .next()
+        .expect("installed analyzer")
+        .push_str(" /* changed analyzer */");
+    assert_eq!(
+        changed.database.analyzers.len(),
+        expected.database.analyzers.len()
+    );
+    assert_eq!(changed.tables, expected.tables);
+    assert_eq!(changed.ownership, expected.ownership);
+    assert_ne!(
+        changed, *expected,
+        "analyzer definition drift was not detected"
+    );
+
+    let mut changed = expected.clone();
+    let table = TableName::new("reason_analysis").unwrap();
+    assert_eq!(
+        changed.ownership[&table],
+        ModuleName::new("reason").unwrap()
+    );
+    changed
+        .ownership
+        .insert(table, ModuleName::new("store").unwrap());
+    assert_eq!(changed.ownership.len(), expected.ownership.len());
+    assert_eq!(changed.database, expected.database);
+    assert_eq!(changed.tables, expected.tables);
+    assert_ne!(changed, *expected, "table ownership drift was not detected");
+}
+async fn compare_independent_fresh_schema(
+    first: &PlatformStore,
+    registry: &ModuleRegistry,
+    prepared: &runner::PreparedInstallation<'_>,
+) {
+    let expected = capture_installed_schema(first, registry).await;
+    // TestDb allocates a distinct database and owned container, not another
+    // connection to the first installation or a replay of its applied receipts.
+    let second = fixture::TestDb::new().await;
+    assert_ne!(first.config().database(), second.a.config().database());
+    assert_ne!(first.config().endpoint(), second.a.config().endpoint());
+    let admin = second.admin().await;
+    prepared.apply(admin.client()).await.unwrap();
+    let actual = capture_installed_schema(&second.a, registry).await;
+    assert_eq!(
+        actual, expected,
+        "independently fresh composed schemas differ"
+    );
+    assert!(!actual.database.functions.is_empty());
+    assert!(!actual.database.analyzers.is_empty());
+    for marker in [" TYPE ", " ASSERT ", " REFERENCE "] {
+        assert!(
+            actual
+                .tables
+                .values()
+                .flat_map(|table| table.fields.values())
+                .any(|definition| definition.contains(marker)),
+            "missing captured {marker} definitions"
+        );
+    }
+    assert!(
+        actual
+            .tables
+            .values()
+            .any(|table| !table.indexes.is_empty())
+    );
+    assert!(actual.tables.values().any(|table| !table.events.is_empty()));
+    write_schema_snapshot(&expected);
+    assert_other_member_drift_is_detected(&expected);
+    // Real schema edits in only the second disposable installation demonstrate
+    // comparison of child definitions, while the outer object inventory stays equal.
+    let mut previous = actual;
+    let reason = TableName::new("reason_analysis").unwrap();
+    for (index, mutation) in [
+        include_str!("queries/schema_lanes/changed_field.surql"),
+        include_str!("queries/schema_lanes/missing_index.surql"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        admin
+            .client()
+            .query(mutation)
             .await
             .unwrap()
             .check()
             .unwrap();
-        let info: serde_json::Value = response
-            .take::<Option<serde_json::Value>>(0)
-            .unwrap()
-            .expect("installed table schema");
-        tables.insert(table.clone(), info);
+        let changed = capture_installed_schema(&second.a, registry).await;
+        assert_eq!(changed.database, expected.database);
+        assert_eq!(changed.ownership, expected.ownership);
+        assert_eq!(changed.tables.len(), expected.tables.len());
+        if index == 0 {
+            assert_eq!(
+                changed.tables[&reason].fields.len(),
+                previous.tables[&reason].fields.len()
+            );
+            assert_ne!(
+                changed.tables[&reason].fields["task_type"],
+                previous.tables[&reason].fields["task_type"]
+            );
+            assert_eq!(
+                changed.tables[&reason].indexes,
+                previous.tables[&reason].indexes
+            );
+        } else {
+            assert_eq!(
+                changed.tables[&reason].fields,
+                previous.tables[&reason].fields
+            );
+            assert!(
+                previous.tables[&reason]
+                    .indexes
+                    .contains_key("reason_analysis_task")
+            );
+            assert!(
+                !changed.tables[&reason]
+                    .indexes
+                    .contains_key("reason_analysis_task")
+            );
+            assert_eq!(
+                changed.tables[&reason].indexes.len() + 1,
+                previous.tables[&reason].indexes.len()
+            );
+        }
+        assert_ne!(changed, previous, "child schema drift was not detected");
+        previous = changed;
     }
-    std::fs::write(
-        output,
-        serde_json::to_vec_pretty(&serde_json::json!({"database": current, "tables": tables}))
-            .unwrap(),
-    )
-    .unwrap();
 }
 
 async fn receipt_count(store: &PlatformStore) -> usize {
@@ -237,7 +449,7 @@ async fn fresh_selected_lanes_exclude_disabled_owners_and_replay_without_reapply
             }
             if status.lanes.iter().filter(|lane| lane.selected).count() == registry.modules().len()
             {
-                capture_installed_schema(&db.a, &current).await;
+                compare_independent_fresh_schema(&db.a, &registry, &prepared).await;
                 let originals = current
                     .tables
                     .iter()
@@ -264,6 +476,7 @@ async fn fresh_selected_lanes_exclude_disabled_owners_and_replay_without_reapply
                         "wake",
                         "recording",
                         "recording_layer",
+                        "recording_manifest_publication",
                         "computer_automation_grant",
                         "computer_session_grant",
                         "computer_cli_grant",

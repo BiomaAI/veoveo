@@ -32,7 +32,16 @@ fn every_owner_exports_an_independent_lane_and_keeps_supplied_execution() {
         7
     );
     for owner in &owners {
-        assert_eq!(owner.lane().latest().unwrap().get(), 0);
+        let expected_latest = match owner.name().as_str() {
+            "artifacts" | "knowledge" | "reason" | "recordings" | "frames" => 1,
+            _ => 0,
+        };
+        assert_eq!(
+            owner.lane().latest().unwrap().get(),
+            expected_latest,
+            "{}",
+            owner.name()
+        );
         assert_eq!(
             owner.execution(),
             &execution(owner.name().as_str()).unwrap()
