@@ -67,7 +67,7 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         &schemas.join("gateway-control-plane-revision.schema.json"),
         "GatewayControlPlaneRevision",
     )?;
-    for property in ["revision_id", "sha256", "source", "control_plane"] {
+    for property in ["revisionId", "sha256", "source", "controlPlane"] {
         if !control_plane_revision
             .get("properties")
             .and_then(|properties| properties.get(property))
@@ -130,11 +130,11 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         "SelfHostedDeploymentProfile",
     )?;
     for property in [
-        "service_to_service",
-        "platform_store",
-        "analytical_runtime",
+        "serviceToService",
+        "platformStore",
+        "analyticalRuntime",
         "telemetry",
-        "tenant_model",
+        "tenantModel",
     ] {
         if !deployment_profile
             .get("properties")
@@ -151,10 +151,10 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
     for property in [
         "engine",
         "version",
-        "storage_engine",
+        "storageEngine",
         "topology",
-        "database_ha",
-        "changefeed_source_of_truth",
+        "databaseHa",
+        "changefeedSourceOfTruth",
     ] {
         if !platform_store
             .get("properties")
