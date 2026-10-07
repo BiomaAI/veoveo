@@ -226,11 +226,11 @@ server uses the protocol surface that matches its domain:
 | cross-server identity | canonical URI and resource link |
 
 A successful terminal task that creates an addressable product returns one
-top-level `result_uri` in `structuredContent`. The value is the canonical URI
+top-level `resultUri` in `structuredContent`. The value is the canonical URI
 owned by the producing domain. The adjacent human-readable content is a short,
 identity-free status and contains one resource link for that result. Typed
 provenance and artifact metadata remain in structured content. A task that does
-not create an addressable product omits `result_uri` and does not invent a
+not create an addressable product omits `resultUri` and does not invent a
 resource identity.
 
 The product rule also applies when an MCP tool result sets `isError` and retains
@@ -546,7 +546,7 @@ only endpoints that verify their own callers, such as a signed provider webhook.
 Inside a domain method, `gateway_identity`, `forwarded_bearer` and `plane_caller`
 return the verified caller. `json_read`, `structured_result`, `product_result`,
 `completion` and `rank_completions` build the common results. `product_result`
-rejects output whose `result_uri` differs from its resource link (C02), and
+rejects output whose `resultUri` differs from its resource link (C02), and
 `completion` omits `total` when it cuts candidates at 100 values.
 
 The host gives every server the same behavior:
@@ -672,7 +672,7 @@ Server crates are named `*-mcp`.
 | ID | Level | Requirement |
 |---|---|---|
 | C01 | MUST | Each capability uses the canonical MCP surface for its need per the Protocol Surface table. |
-| C02 | MUST | Every tool declares input and output JSON Schemas; an addressable terminal product has one top-level canonical `result_uri`, while a no-product task omits it. |
+| C02 | MUST | Every tool declares input and output JSON Schemas; an addressable terminal product has one top-level canonical `resultUri`, while a no-product task omits it. |
 | C03 | MUST | Durable operations are task-augmented tools on the shared task runtime. |
 | C04 | MUST | Addressable state is exposed as resources or resource templates under the server's canonical scheme; growing collections use bounded domain-owned pages and exact reads do not scan the full collection. |
 | C05 | MUST | The server is not flattened to a tool-only convenience surface. |

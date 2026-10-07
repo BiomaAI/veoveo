@@ -41,8 +41,9 @@ domain's JSON result with an explicit typed `ResourceUri` or `None`. The address
 requires a successful retained result and commits in the same Task transaction.
 MCP producers use `mcp_task_completion(message, CallToolResult)` before storing
 opaque JSON. It admits one declared nonnull product address and one matching
-resource link, including addressable tool errors. No-product completions omit the
-MCP `result_uri` field and retain `None` in the Task snapshot.
+resource link, including addressable tool errors. It rejects the retired
+`result_uri` spelling, including mixed declarations and explicit null values. No-product completions omit the
+MCP `resultUri` field and retain `None` in the Task snapshot.
 Snapshots expose it as `TaskResult`, whose `payload` may itself be `None` for JSON
 null. `snapshot.result is None` means that the Task has no result. Snapshot JSON omits
 an absent result and includes a completed null, following the shared

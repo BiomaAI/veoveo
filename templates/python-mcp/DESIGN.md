@@ -28,7 +28,7 @@ dataset is materialized while the gateway identity is live and embedded in the
 durable request, so `resume` recovery re-runs the profile from persisted state
 alone. The full report is stored on the shared artifact plane through a write
 capability reserved at submission, usage is recorded per task, and the result
-is a typed `CallToolResult`. An Artifact-backed report declares one `result_uri`
+is a typed `CallToolResult`. An Artifact-backed report declares one `resultUri`
 matching its nested Artifact metadata and one resource link. An inline profile
 omits the address and link. The output decoder rejects a present null address;
 wire serialization excludes absent optional fields. The shared MCP completion

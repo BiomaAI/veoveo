@@ -143,6 +143,7 @@ pub struct OfflineOperationResult(veoveo_types::Checked<OfflineOperationResultWi
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct OfflineOperationResultWire {
+    #[serde(rename = "resultUri")]
     result_uri: veoveo_artifact_contract::ArtifactUri,
     operation: OfflineOperation,
     artifact: veoveo_artifact_contract::ArtifactMetadata,

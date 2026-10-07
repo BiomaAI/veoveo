@@ -329,8 +329,7 @@ mod product_results {
         case: Case,
     }
 
-    #[derive(Clone, Copy, serde::Deserialize, schemars::JsonSchema)]
-    #[serde(rename_all = "snake_case")]
+    #[derive(Clone, Copy, Eq, PartialEq, veoveo_types::Vocabulary)]
     enum Case {
         Current,
         Retired,
@@ -338,6 +337,8 @@ mod product_results {
         Mismatch,
         Missing,
         WrongType,
+        Null,
+        InvalidUri,
     }
 
     #[rmcp::tool_router]
@@ -351,7 +352,17 @@ mod product_results {
             Parameters(request): Parameters<Request>,
         ) -> Result<CallToolResult, ErrorData> {
             let output = match request.case {
-                Case::Current => serde_json::json!({"resultUri":"independent://products/1"}),
+                Case::Current => {
+                    #[derive(serde::Serialize)]
+                    #[serde(rename_all = "camelCase")]
+                    struct Product {
+                        result_uri: ResourceUri,
+                    }
+                    serde_json::to_value(Product {
+                        result_uri: ResourceUri::new("independent://products/1").unwrap(),
+                    })
+                    .unwrap()
+                }
                 Case::Retired => serde_json::json!({"result_uri":"independent://products/1"}),
                 Case::Mixed => {
                     serde_json::json!({"resultUri":"independent://products/1", "result_uri":"independent://products/1"})
@@ -359,6 +370,8 @@ mod product_results {
                 Case::Mismatch => serde_json::json!({"resultUri":"independent://products/2"}),
                 Case::Missing => serde_json::json!({}),
                 Case::WrongType => serde_json::json!({"resultUri":42}),
+                Case::Null => serde_json::json!({"resultUri":null}),
+                Case::InvalidUri => serde_json::json!({"resultUri":"not a resource URI"}),
             };
             product_result(
                 "Product ready",
@@ -398,7 +411,7 @@ mod product_results {
                 .handler(|| Hosted::new(ProductDomain { router: ProductDomain::tool_router() })).build());
             let bearer = gateway.token();
             let mut violations = Vec::new();
-            for (case, succeeds) in [("current", true), ("retired", false), ("mixed", false), ("mismatch", false), ("missing", false), ("wrong_type", false)] {
+            for (case, succeeds) in [("current", true), ("retired", false), ("mixed", false), ("mismatch", false), ("missing", false), ("wrong_type", false), ("null", false), ("invalid_uri", false)] {
                 let request = serde_json::json!({"name":"produce_product", "arguments":{"case":case}});
                 let (status, response) = gateway.rpc_with("tools/call", request.clone(), Some(&bearer)).await;
                 let success = response.get("result").is_some_and(|result| result.get("isError") != Some(&serde_json::Value::Bool(true)));

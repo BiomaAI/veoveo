@@ -737,7 +737,9 @@ def test_creation_timestamp_wire_and_page_cursor_are_lossless(stored_task):
         TaskPageCursor(snapshot.created_at, snapshot.task_id)
 
 
-def test_mcp_completion_admits_product_plain_and_addressable_tool_error():
+@pytest.mark.parametrize("typed", [False, True])
+def test_mcp_completion_admits_product_plain_and_addressable_tool_error(typed):
+    from mcp.types import CallToolResult
     from veoveo_mcp.tasks import mcp_task_completion
     from veoveo_mcp.types import ResourceUri
 
@@ -745,15 +747,16 @@ def test_mcp_completion_admits_product_plain_and_addressable_tool_error():
     product = {
         "content": [{"type": "text", "text": "done"},
                     {"type": "resource_link", "uri": str(uri), "name": "item"}],
-        "structuredContent": {"result_uri": str(uri)}, "isError": False,
+        "structuredContent": {"resultUri": str(uri)}, "isError": False,
     }
-    assert mcp_task_completion("done", product).result_uri() == uri
+    admitted = CallToolResult.model_validate(product) if typed else product
+    assert mcp_task_completion("done", admitted).result_uri() == uri
     assert mcp_task_completion("done", {**product, "isError": True}).result_uri() == uri
     for error in [False, True]:
         assert mcp_task_completion("done", {"content": [], "isError": error}).result_uri() is None
     for malformed in [None, 42, "not a resource address", "fixture://items/2"]:
         with pytest.raises(InvalidRecord):
-            mcp_task_completion("done", {**product, "structuredContent": {"result_uri": malformed}})
+            mcp_task_completion("done", {**product, "structuredContent": {"resultUri": malformed}})
     with pytest.raises(InvalidRecord):
         mcp_task_completion("done", {**product, "content": []})
     with pytest.raises(InvalidRecord):
@@ -765,7 +768,7 @@ def test_mcp_completion_preserves_open_nulls_and_rejects_explicit_null_addresses
     from veoveo_mcp.tasks import mcp_task_completion
 
     for typed in [False, True]:
-        payload = {"content": [], "structuredContent": {"result_uri": None}, "isError": True}
+        payload = {"content": [], "structuredContent": {"resultUri": None}, "isError": True}
         result = CallToolResult.model_validate(payload) if typed else payload
         with pytest.raises(InvalidRecord):
             mcp_task_completion("done", result)
@@ -776,6 +779,24 @@ def test_mcp_completion_preserves_open_nulls_and_rejects_explicit_null_addresses
         assert transition.result().payload["structuredContent"] == payload["structuredContent"]
     with pytest.raises(InvalidRecord):
         mcp_task_completion("done", {"content": [{"type": "resource_link", "name": "item", "uri": "fixture://items/1"}]})
+
+
+@pytest.mark.parametrize("typed", [False, True])
+@pytest.mark.parametrize("structured", [
+    {"result_uri": "fixture://items/1"},
+    {"result_uri": None},
+    {"resultUri": "fixture://items/1", "result_uri": "fixture://items/1"},
+    {"resultUri": "fixture://items/1", "result_uri": None},
+])
+def test_mcp_completion_rejects_retired_and_mixed_product_keys(typed, structured):
+    from mcp.types import CallToolResult
+    from veoveo_mcp.tasks import mcp_task_completion
+
+    payload = {"content": [{"type": "resource_link", "uri": "fixture://items/1", "name": "item"}],
+               "structuredContent": structured, "isError": True}
+    result = CallToolResult.model_validate(payload) if typed else payload
+    with pytest.raises(InvalidRecord):
+        mcp_task_completion("done", result)
 
 
 def test_task_completion_requires_explicit_typed_product_address(stored_task):
@@ -800,6 +821,26 @@ def test_task_completion_requires_explicit_typed_product_address(stored_task):
             _record_to_snapshot({**stored_task, **mutation})
 
 
+@pytest.mark.parametrize("is_error", [False, True])
+def test_current_mcp_product_survives_stored_snapshot_roundtrip(stored_task, is_error):
+    from mcp.types import CallToolResult
+    from veoveo_mcp.tasks import TaskSnapshot, mcp_task_completion
+    from veoveo_mcp.tasks.store import task_result_to_store
+    from veoveo_mcp.types import ResourceUri
+
+    uri = ResourceUri("fixture://items/1")
+    payload = {"content": [{"type": "resource_link", "uri": str(uri), "name": "item"}],
+               "structuredContent": {"resultUri": str(uri), "metadata": {"null": None}},
+               "isError": is_error}
+    transition = mcp_task_completion("done", CallToolResult.model_validate(payload))
+    stored_task.update(status="succeeded", result=_json_after_driver_cbor(task_result_to_store(transition.result())),
+                       result_uri=str(transition.result_uri()))
+    retained = _record_to_snapshot(stored_task)
+    replay = TaskSnapshot.from_json(retained.to_json())
+    assert retained.result_uri == replay.result_uri == uri
+    assert retained.result.payload == replay.result.payload == {**payload, "resultType": "complete"}
+
+
 @pytest.mark.parametrize("selection", ["trusted", "owner", "context", "types", "context_types"])
 @pytest.mark.parametrize("is_error", [False, True])
 async def test_product_completion_persists_address_with_result_in_every_transition_profile(runtime, selection, is_error):
@@ -817,7 +858,7 @@ async def test_product_completion_persists_address_with_result_in_every_transiti
             query = query.of_type(TaskTypeName(request.task_type))
         uri = ResourceUri("fixture://items/1")
         payload = {"content": [{"type": "resource_link", "uri": str(uri), "name": "item"}],
-                   "structuredContent": {"result_uri": str(uri), "metadata": {"null": None}}, "isError": is_error}
+                   "structuredContent": {"resultUri": str(uri), "metadata": {"null": None}}, "isError": is_error}
         completed = await runtime.transition_if_current(claimed, mcp_task_completion("done", payload), owner_query=query)
         retained = await runtime.get(str(created.task_id)) if query is None else await query.get(created.task_id)
         assert completed.result_uri == retained.result_uri == uri

@@ -17,9 +17,11 @@ def mcp_task_completion(message: str, result: dict[str, Any] | CallToolResult) -
         # must never become an omitted no-product declaration during dumping.
         structured = model.structured_content
         links = [item for item in payload["content"] if item["type"] == "resource_link"]
-        declared = isinstance(structured, dict) and "result_uri" in structured
+        if isinstance(structured, dict) and "result_uri" in structured:
+            raise ValueError("obsolete product address field")
+        declared = isinstance(structured, dict) and "resultUri" in structured
         if declared:
-            raw = structured["result_uri"]
+            raw = structured["resultUri"]
             if not isinstance(raw, str):
                 raise ValueError("invalid product address")
             uri = ResourceUri(raw)

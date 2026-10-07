@@ -73,8 +73,14 @@ impl ResourceAddress for FixtureResource {
 
 static DOCS: LazyLock<ServerDocs> = LazyLock::new(|| {
     ServerDocs::new("fixture")
-        .with_doc("agents", "Agent manual", "# Manual")
+        .with_doc(
+            "agents",
+            "Agent manual",
+            include_str!("../../testdata/compliance-hosting.md"),
+        )
         .with_doc("design", "Design", "# Design")
+        .with_profile_json(include_str!("../../testdata/compliance-hosting.json"))
+        .expect("complete fixture profile matches its embedded manual")
 });
 
 struct FixtureContract;

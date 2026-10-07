@@ -250,7 +250,7 @@ async def _run_task_inner(
             return
         artifact = metadata.without_download_url()
         output = ProfileDatasetOutput(
-            profile=profile, artifact=artifact, result_uri=ResourceUri(artifact.artifact_uri)
+            profile=profile, artifact=artifact, resultUri=ResourceUri(artifact.artifact_uri)
         )
 
     try:
@@ -296,7 +296,7 @@ async def _run_task_inner(
         )
     result = {
         "content": content,
-        "structuredContent": output.model_dump(mode="json", exclude_none=True),
+        "structuredContent": output.model_dump(mode="json", by_alias=True, exclude_none=True),
         "isError": False,
     }
     await update_task(

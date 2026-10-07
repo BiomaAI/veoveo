@@ -57,8 +57,8 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33, shared Artifact and SDK controls pass; selected Map and Time native controls, Speech's Rust/Python protocol and Media's current receiver checks pass. Knowledge's collector, Video's current receivers and UAV's repaired private protocol pass. Computers' focused contract, private-byte and hosted file-admission controls pass. Selected Agents/Workspace native and generated-receiver checks pass. Recording's selected native and producer comparisons, Stream's actual SDK parser controls and gateway/deployment preflight pass. Optimization native reads expose the pending shared-host result-key correction | Complete remaining owner repairs and the full producer/consumer cut, qualify generated artifacts, drain incompatible writers and prepare fresh reference state |
-| 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Complete remaining owner/enforcement gates and qualify the protected shared-host fixture |
+| 8 — Installation and naming cut | C33, shared Artifact and SDK controls pass; selected Map and Time native controls, Speech's Rust/Python protocol and Media's current receiver checks pass. Knowledge's collector, Video's current receivers and UAV's repaired private protocol pass. Computers' focused contract, private-byte and hosted file-admission controls pass. Selected Agents/Workspace native and generated-receiver checks pass. Recording's selected native and producer comparisons, Stream's actual SDK parser controls and gateway/deployment preflight pass. The shared C02 writer and Rust/Python admission now use `resultUri`; the current Map travel-model and Optimization native read controls pass | Complete remaining owner repairs and the full producer/consumer cut, qualify generated artifacts, drain incompatible writers and prepare fresh reference state |
+| 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Complete remaining owner/enforcement gates; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
@@ -98,8 +98,9 @@ artifacts, typed selectors and a drained private checkpoint cut. Its provider bu
 affected native suites and installed execution remain unqualified; previous-profile
 results do not qualify this candidate.
 
-Linux Map qualification has 175 distinct passing cases; five product cases require
-the protected shared-host result writer correction. Recording's 31 normal native
+Linux Map qualification includes the current travel-model product cases after
+the shared C02 writer correction. Optimization's nine native read cases pass.
+Recording's 31 normal native
 cases pass after aligning its registration and shared catalog fixtures.
 
 The accepted Foundations installation covered sixteen Rust servers, eighteen
@@ -131,9 +132,8 @@ and 37 Charts cases. Template and independent-fork checks, local Charts image AP
 checks, generated documents and strict all-target lint over 22 packages also pass.
 The development checkpoint captures the integrated source before full qualification.
 Those counts cover the affected source checks, not every server's domain suite or
-installed acceptance. The shared-host module suite awaits approval to update its
-old document fixture under the protected hosting path. Its prepared change leaves
-the transport and authorization assertions intact.
+installed acceptance. The shared-host module suite passes with the complete current compliance
+fixture. Its transport, authorization and Host assertions are preserved.
 
 The published tree at `9ccd95fae` passes whole-workspace formatting, the shared-macro
 catalog over 2,569 tracked Rust sources, and identifier enforcement over 6,426
@@ -284,9 +284,9 @@ controls; installed hosted checks remain open. Time's batch in `b3a2006d7` passe
 Optimization/cuOpt and View complete their
 source passes and pass grouped compiler checks. Their fifty selected library cases
 pass; sixteen Optimization Python protocol cases pass without executing a solver.
-The current Optimization native read suite passes one case and fails eight during
-fixture setup because the shared host still reads `result_uri`. The domain assertions
-in those eight cases have not run. View's actual App producer comparison, maintained
+The current Optimization native read suite passes all nine cases through the
+shared C02 writer and reader. Its authorization and retained-result assertions run
+with the canonical `resultUri` product field. View's actual App producer comparison, maintained
 schema generation, three consumer cases and App build pass. View's GPU JPEG source
 passes independent review, compiler checks and isolated contract consumers. Its
 exportable Vulkan buffer supplies RGB bytes to CUDA and the explicit nvJPEG GPU
@@ -353,7 +353,8 @@ SQL catalog recovery and invalidation, closed summary admission and Chrono schem
 agreement. Its route and matrix summaries now belong to the lightweight contract
 with checked typed ID/address relationships; the contract-only build and normal
 dependency graph pass. Independent review accepts that batch and its prompt repair.
-Five Map travel cases still stop at the protected shared-host product helper.
+Map's current travel-model selection passes all ten cases, including the five
+product paths that use the shared C02 helper.
 Document checks prove the authorized Knowledge read and source-byte limit; Kernel
 model-read accounting needs separate qualification. Stream passes all three repaired
 native controls. Reason's schema correction installs with preserved migration history
@@ -1858,8 +1859,8 @@ product address after kernel caller admission and before limits. The reader hydr
 selected Tasks in the same transaction and checks catalog/request/result agreement.
 Authorized corrupt rows produce integrity errors; SQL excludes denied rows. The
 catalog does not duplicate complete requests, solver models or capability secrets.
-Current native reads remain blocked by the protected shared product-result helper,
-as recorded in [Deferred Work](#deferred-work).
+Current native reads pass through the shared product-result helper with canonical
+`resultUri` admission. Installed GPU readiness and resource reads remain required.
 
 Both Knowledge catalog writers derive declared approval, scope, change-signal and
 entity-kind lookups from validated `CollectionRegistration` values. Catalog,
@@ -2995,27 +2996,17 @@ existing `TODO(foundations)` entries until resolved; use this register rather th
 creating a second active plan. The open F-register and phase gates still prevent
 completion.
 
-The user-directed shared-host review gates three prepared changes. C02's writer in
-`mcp/contract/src/hosting/results.rs` must admit canonical `resultUri` alongside
-the updated Task reader and product DTOs; until that writer changes, the producer
-and receiver cut is incomplete. The fixture in `hosting/tests.rs` needs its checked
-compliance profile and matching embedded manual. The tracing change in
-`hosting/server.rs` must omit query credentials while preserving route handling.
-Report these host changes for review before editing the protected paths, then run
-their owning controls and affected shared-host suite. Unprotected source work can
-proceed; these gates prevent claiming a qualified installation cut.
-The current Optimization native read suite reaches this writer with an admitted
-camelCase product and fails eight fixture setups with `-32603` and
-`product result_uri must match its resource link`. Correct the shared helper and
-qualify a TestGateway reproduction; do not add an old-key adapter to Optimization.
-The new TestGateway reproduction confirms three violations through authenticated
-`tools/call`: current `resultUri` fails, while the old key and mixed keys succeed.
-It also checks mismatched, absent and wrongly typed addresses, HTTP status and
-resource-link agreement under a twenty-second deadline. The narrow helper and C02
-prose patch is prepared and unapplied pending specific user approval.
-The current shared-host health/readiness control fails during fixture setup with
-`InvalidComplianceProfile`, before dispatching HTTP or reaching the probe assertions.
-Its prepared fixture correction preserves the original authentication and Host checks.
+The C02 writer and Rust/Python completion readers now admit only canonical
+`resultUri`, reject obsolete and mixed spellings, and validate the product's typed
+address against its resource link. The focused TestGateway product matrix passes.
+SUMO and Datasheet own the same spelling in their producer schemas. Native Task
+APIs, snapshots and database columns keep their declared `result_uri` profile.
+Map's travel-model and Optimization's native read selections pass after the shared
+writer correction. The hosting fixture supplies its complete current compliance
+profile and embedded manual; the original transport, authorization and Host
+controls pass. These source results do not close final installed acceptance.
+
+The host-tracing correction remains under the user-directed review.
 The separate TestGateway tracing control confirms that the current default span
 records synthetic query values, including a token and signature. The route receives
 the original query. Its prepared replacement records method, path and HTTP version;
@@ -3030,8 +3021,7 @@ Optimization's catalog-startup implementation deferral is resolved. Its
 [`RuntimeInstallation`](../servers/optimization-mcp/src/composition.rs) gate verifies
 preparation, installation identity and both Tasks and Optimization histories before
 recovery or HTTP startup. The native startup matrix and nine read cases passed for
-their qualified pre-cut source checkpoint. The current naming-cut read suite is
-unqualified until the shared product helper is corrected. Phase 8
+their qualified pre-cut source checkpoint. The current naming-cut native read suite passes. Phase 8
 and F44 still require the prepared installation to become ready with its mandatory
 GPU executor. This native result does not close their installed checks.
 

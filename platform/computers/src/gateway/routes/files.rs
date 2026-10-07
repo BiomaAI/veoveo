@@ -131,7 +131,7 @@ mod tests {
         let result = json!({"taskId":task,"computerId":computer,"direction":"import","stage":"completed",
             "message":"File transferred","canCancel":false,"cancellationRequestedAt":null,
             "createdAt":now,"updatedAt":now,"completedAt":now,
-            "result":{"result_uri":format!("computer://transfers/{task}"),"computerId":computer,"transferId":task,
+            "result":{"resultUri":format!("computer://transfers/{task}"),"computerId":computer,"transferId":task,
                 "direction":"import","artifactId":Uuid::now_v7(),"bytes":1024,"sha256":"07".repeat(32)}});
         let bytes = serde_json::to_vec(&result).unwrap();
         assert!(receipt(&bytes, computer, Some(task)).is_ok());

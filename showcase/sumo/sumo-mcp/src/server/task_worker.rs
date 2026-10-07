@@ -571,10 +571,13 @@ mod tests {
         let artifact_id = veoveo_artifact_contract::ArtifactId::new();
         let artifact: veoveo_artifact_contract::ArtifactMetadata =
             serde_json::from_value(serde_json::json!({
-                "artifact_id":artifact_id,"artifact_uri":artifact_id.plane_uri(),
-                "byte_len":1,"created_at":"2026-09-29T00:00:00Z"
+                "artifactId":artifact_id,"artifactUri":artifact_id.plane_uri(),
+                "byteLen":1,"createdAt":"2026-09-29T00:00:00Z"
             }))
             .unwrap();
+        let schema = serde_json::to_value(schemars::schema_for!(OfflineOperationResult)).unwrap();
+        assert!(schema["properties"].get("resultUri").is_some());
+        assert!(schema["properties"].get("result_uri").is_none());
         for operation in [
             OfflineOperation::GenerateNetwork,
             OfflineOperation::ComputeRoutes,
@@ -582,7 +585,7 @@ mod tests {
         ] {
             let product = OfflineOperationResult::new(operation, artifact.clone());
             let wire = serde_json::to_value(&product).unwrap();
-            assert_eq!(wire["result_uri"], wire["artifact"]["artifact_uri"]);
+            assert_eq!(wire["resultUri"], wire["artifact"]["artifactUri"]);
             assert_eq!(
                 serde_json::from_value::<OfflineOperationResult>(wire.clone()).unwrap(),
                 product
@@ -605,15 +608,29 @@ mod tests {
                 };
                 assert_eq!(result_uri.unwrap().as_str(), product.result_uri().as_str());
             }
-            for invalid in ["missing", "null", "mismatch", "unknown"] {
+            for invalid in [
+                "missing",
+                "null",
+                "wrong_type",
+                "retired",
+                "mixed",
+                "mismatch",
+                "unknown",
+            ] {
                 let mut value = wire.clone();
                 match invalid {
                     "missing" => {
-                        value.as_object_mut().unwrap().remove("result_uri");
+                        value.as_object_mut().unwrap().remove("resultUri");
                     }
-                    "null" => value["result_uri"] = serde_json::Value::Null,
+                    "null" => value["resultUri"] = serde_json::Value::Null,
+                    "wrong_type" => value["resultUri"] = serde_json::json!(42),
+                    "retired" => {
+                        let address = value.as_object_mut().unwrap().remove("resultUri").unwrap();
+                        value["result_uri"] = address;
+                    }
+                    "mixed" => value["result_uri"] = value["resultUri"].clone(),
                     "mismatch" => {
-                        value["result_uri"] = serde_json::json!(
+                        value["resultUri"] = serde_json::json!(
                             veoveo_artifact_contract::ArtifactId::new().plane_uri()
                         )
                     }

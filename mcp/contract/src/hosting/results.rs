@@ -2,7 +2,7 @@
 //!
 //! Hosted servers build the same few result shapes. These helpers build them
 //! once, and [`product_result`] enforces contract rule C02: a tool result that
-//! creates an addressable product carries one top-level `result_uri` in its
+//! creates an addressable product carries one top-level `resultUri` in its
 //! structured content and one resource link with the same URI.
 
 use rmcp::{
@@ -42,7 +42,7 @@ pub fn structured_result<T: Serialize + ?Sized>(
 }
 
 /// A tool result for an addressable product (contract C02). `output` must
-/// serialize to an object whose top-level `result_uri` equals `link.uri`;
+/// serialize to an object whose top-level `resultUri` equals `link.uri`;
 /// anything else is an internal error, because it would publish a product the
 /// caller cannot follow.
 pub fn product_result<T: Serialize>(
@@ -50,22 +50,17 @@ pub fn product_result<T: Serialize>(
     link: Resource,
     output: &T,
 ) -> Result<CallToolResult, ErrorData> {
-    let structured = serialize(output)?;
-    if structured
-        .get("result_uri")
-        .and_then(serde_json::Value::as_str)
-        != Some(link.uri.as_str())
-    {
-        return Err(ErrorData::internal_error(
-            "product result_uri must match its resource link",
-            None,
-        ));
-    }
     let mut result = CallToolResult::success(vec![
         ContentBlock::text(status.into()),
         ContentBlock::ResourceLink(link),
     ]);
-    result.structured_content = Some(structured);
+    result.structured_content = Some(serialize(output)?);
+    if !matches!(crate::task_completion::result_uri(&result), Ok(Some(_))) {
+        return Err(ErrorData::internal_error(
+            "product resultUri must match its resource link",
+            None,
+        ));
+    }
     Ok(result)
 }
 
@@ -111,8 +106,9 @@ mod tests {
     use super::*;
 
     #[derive(Serialize)]
-    struct Product<'a> {
-        result_uri: &'a str,
+    #[serde(rename_all = "camelCase")]
+    struct Product {
+        result_uri: veoveo_types::ResourceUri,
     }
 
     #[test]
@@ -122,13 +118,22 @@ mod tests {
             "done",
             link.clone(),
             &Product {
-                result_uri: "fixture://items/1",
+                result_uri: veoveo_types::ResourceUri::new("fixture://items/1").unwrap(),
             },
         )
         .unwrap();
         assert_eq!(result.content.len(), 2);
         assert_eq!(
-            result.structured_content.unwrap()["result_uri"],
+            crate::task_completion::result_uri(&result)
+                .unwrap()
+                .unwrap()
+                .as_str(),
+            "fixture://items/1"
+        );
+        let plain = structured_result("done", &serde_json::json!({"count":1})).unwrap();
+        assert_eq!(crate::task_completion::result_uri(&plain).unwrap(), None);
+        assert_eq!(
+            result.structured_content.as_ref().unwrap()["resultUri"],
             "fixture://items/1"
         );
         assert!(
@@ -136,12 +141,24 @@ mod tests {
                 "done",
                 link.clone(),
                 &Product {
-                    result_uri: "fixture://items/2"
+                    result_uri: veoveo_types::ResourceUri::new("fixture://items/2").unwrap()
                 }
             )
             .is_err()
         );
-        assert!(product_result("done", link, &serde_json::json!({})).is_err());
+        for output in [
+            serde_json::json!({}),
+            serde_json::json!({"result_uri":"fixture://items/1"}),
+            serde_json::json!({"resultUri":"fixture://items/1", "result_uri":"fixture://items/1"}),
+            serde_json::json!({"resultUri":null}),
+            serde_json::json!({"resultUri":42}),
+            serde_json::json!({"resultUri":"not a resource URI"}),
+        ] {
+            assert!(
+                product_result("done", link.clone(), &output).is_err(),
+                "{output}"
+            );
+        }
     }
 
     #[test]

@@ -121,21 +121,21 @@ class DatasetProfile(BaseModel):
 
 def _profile_product_schema(schema: dict[str, Any]) -> None:
     # Presence is conditional; an explicit null result address is never admitted.
-    address = schema["properties"]["result_uri"]
+    address = schema["properties"]["resultUri"]
     address.update(next(item for item in address.pop("anyOf") if item.get("type") != "null"))
     address.pop("default", None)
     schema["allOf"] = [{
         "if": {"properties": {"artifact": {"type": "object"}}, "required": ["artifact"]},
-        "then": {"required": ["result_uri"]},
-        "else": {"not": {"required": ["result_uri"]}},
+        "then": {"required": ["resultUri"]},
+        "else": {"not": {"required": ["resultUri"]}},
     }]
 
 
 class ProfileDatasetOutput(BaseModel):
-    model_config = ConfigDict(frozen=True, json_schema_extra=_profile_product_schema)
+    model_config = ConfigDict(frozen=True, extra="forbid", json_schema_extra=_profile_product_schema)
     profile: DatasetProfile
     artifact: ArtifactMetadata | None = None
-    result_uri: ResourceUri | None = None
+    result_uri: ResourceUri | None = Field(default=None, alias="resultUri")
 
     @field_validator("result_uri", mode="before")
     @classmethod

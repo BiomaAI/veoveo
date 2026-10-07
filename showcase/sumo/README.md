@@ -25,7 +25,7 @@ images declare that architecture explicitly.
 - `generate_network`, `compute_routes`, and `optimize_signals` run SUMO
   programs as resumable durable tasks. Outputs enter the shared artifact plane
   through task-bound write capabilities. Each completion declares the Artifact's
-  typed `result_uri` and one matching resource link; decoding checks URI/metadata
+  typed `resultUri` and one matching resource link; decoding checks URI/metadata
   agreement. `run_batch` reports inline simulation state without a product address.
 - `sumo://state` and `sumo://scenario` are typed resources.
 - `sumo://congestion` supports subscriptions and resource-update notifications.
