@@ -14,7 +14,7 @@ fn render(values: Value) -> Result<std::process::Output> {
         .args(["25s", "helm", "template", "speech-test", "deploy/helm/veoveo",
             "--set", "gateway.controlPlaneRevision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "--set", "gateway.auditRetentionDays=1",
-            "--set", "knowledge.existingConfigMap=knowledge-test,knowledge.existingSigningSecret=knowledge-test,knowledge.configurationRevision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"])
+            "--set", "knowledge.existingConfigMap=knowledge-test,knowledge.existingSigningSecret=knowledge-test,knowledge.embeddingRuntimeConfigKey=qualified-runtime.json,knowledge.configurationRevision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"])
         .arg("--set-file")
         .arg(format!("moduleInstallation.planJson={}", plan.path().display()))
         .arg("--values").arg(file.path())

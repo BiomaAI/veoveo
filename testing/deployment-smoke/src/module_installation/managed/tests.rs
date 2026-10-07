@@ -54,7 +54,7 @@ fn generated_configuration_is_admitted_and_der_key_signs_gateway_assertion() {
         invalid.policies[0].rules.push(
             serde_json::from_value(json!({
                 "id":"invalid-fixture-discovery", "effect":"allow", "actions":[action],
-                "profiles":["operator"], "required_scopes":["operator:use"]
+                "profiles":["operator"], "requiredScopes":["operator:use"]
             }))
             .unwrap(),
         );

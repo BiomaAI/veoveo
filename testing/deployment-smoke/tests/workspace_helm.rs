@@ -14,7 +14,7 @@ fn render(values: &Value) -> Result<std::process::Output> {
     Command::new("timeout").args(["25s", "helm", "template", "workspace-test", "deploy/helm/veoveo", "--namespace", "workspace-test",
         "--set", "gateway.controlPlaneRevision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "--set", "gateway.auditRetentionDays=1",
-            "--set", "knowledge.existingConfigMap=knowledge-test,knowledge.existingSigningSecret=knowledge-test,knowledge.configurationRevision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"])
+            "--set", "knowledge.existingConfigMap=knowledge-test,knowledge.existingSigningSecret=knowledge-test,knowledge.embeddingRuntimeConfigKey=qualified-runtime.json,knowledge.configurationRevision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"])
         .arg("--set-file")
         .arg(format!("moduleInstallation.planJson={}", plan.path().display()))
         .arg("--values").arg(file.path())
