@@ -2,7 +2,7 @@
 # This runtime provides NVIDIA's CUDA user-space baseline. The host driver and
 # Vulkan ICD are injected by NVIDIA Container Toolkit through the graphics
 # driver capability; no Mesa Vulkan ICD or CPU rendering fallback is installed.
-FROM nvidia/cuda:13.4.1-runtime-ubuntu24.04@sha256:cdfca8f2adfd99287ebbd4a86b3ad6470425c731aea023ca1d4c653a0d7fec7b
+FROM nvidia/cuda:13.3.1-runtime-ubuntu24.04@sha256:63da350831208559df18c7b8f3e0d5d1c984eaa815cdde690aacd6606cd0cb11
 
 USER root
 RUN apt-get update \
@@ -10,8 +10,8 @@ RUN apt-get update \
         ca-certificates \
         curl \
         libegl1 \
-        cuda-cudart-13-4=13.4.92-1 \
-        libnvjpeg-13-4=13.2.3.58-1 \
+        cuda-cudart-13-3=13.3.29-1 \
+        libnvjpeg-13-3=13.2.1.68-1 \
         libvulkan1 \
         libx11-6 \
         libxext6 \

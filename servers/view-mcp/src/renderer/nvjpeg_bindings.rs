@@ -51,8 +51,8 @@
 
 pub const NVJPEG_VER_MAJOR: u32 = 13;
 pub const NVJPEG_VER_MINOR: u32 = 2;
-pub const NVJPEG_VER_PATCH: u32 = 3;
-pub const NVJPEG_VER_BUILD: u32 = 58;
+pub const NVJPEG_VER_PATCH: u32 = 1;
+pub const NVJPEG_VER_BUILD: u32 = 68;
 #[repr(C)]
 #[derive(Debug)]
 pub struct CUstream_st {

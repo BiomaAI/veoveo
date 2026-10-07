@@ -30,7 +30,12 @@ pub enum GpuJpegError {
     Layout,
     #[error("GPU JPEG library unavailable: {0}")]
     Library(#[from] libloading::Error),
-    #[error("GPU JPEG requires nvJPEG 13.2.3")]
+    #[error(
+        "GPU JPEG requires nvJPEG {}.{}.{}",
+        sys::NVJPEG_VER_MAJOR,
+        sys::NVJPEG_VER_MINOR,
+        sys::NVJPEG_VER_PATCH
+    )]
     LibraryVersion,
     #[error("nvJPEG {operation} failed: {status:?}")]
     Nvjpeg {
@@ -100,9 +105,18 @@ impl GpuJpeg {
         // the library stays live until all native handles have been destroyed.
         let api = unsafe { sys::Nvjpeg::new("libnvjpeg.so.13")? };
         for (property, expected) in [
-            (sys::libraryPropertyType_t_MAJOR_VERSION, 13),
-            (sys::libraryPropertyType_t_MINOR_VERSION, 2),
-            (sys::libraryPropertyType_t_PATCH_LEVEL, 3),
+            (
+                sys::libraryPropertyType_t_MAJOR_VERSION,
+                sys::NVJPEG_VER_MAJOR as i32,
+            ),
+            (
+                sys::libraryPropertyType_t_MINOR_VERSION,
+                sys::NVJPEG_VER_MINOR as i32,
+            ),
+            (
+                sys::libraryPropertyType_t_PATCH_LEVEL,
+                sys::NVJPEG_VER_PATCH as i32,
+            ),
         ] {
             let mut value = 0;
             check("version", unsafe {
