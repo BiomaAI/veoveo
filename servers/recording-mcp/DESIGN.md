@@ -438,6 +438,14 @@ rechecks, bounded SQL completion, and layer counts. It requires the pinned dispo
 SurrealDB image and no GPU. Shared workbench tests provide browser behavioral evidence
 for page navigation and notification refresh.
 
+The playback fixture generates scalar RRD data with the maintained Rerun SDK and
+decodes each complete framed payload. It compares sensor row identities across
+bootstrap, current-head reconnect, new-channel bootstrap, durable part updates and
+Store-notified layer rollover. SQL visibility refusal precedes spool decoding at
+fresh admission, reconnect and layer transitions. These controls qualify byte
+delivery and authorization at those transitions; mid-layer delivery uses the
+authority admitted for that layer. Redap grants have separate qualification.
+
 Focused component evidence includes deterministic RRD normalization and Arrow bytes,
 cache corruption and eviction behavior, scratch cleanup, playback manifest v11 rejection of other
 schemas, durable grant transactions, and selected official Redap assertions. Console
