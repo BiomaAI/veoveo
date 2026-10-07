@@ -58,7 +58,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33, shared Artifact and SDK controls pass; selected Map and Time native controls, Speech's Rust/Python protocol and Media's current receiver checks pass. Knowledge's collector, Video's current receivers and UAV's repaired private protocol pass. Computers' focused contract, private-byte and hosted file-admission controls pass. Selected Agents/Workspace native and generated-receiver checks pass. Recording's selected native and producer comparisons, Stream's actual SDK parser controls and gateway/deployment preflight pass. Optimization native reads expose the pending shared-host result-key correction | Complete remaining owner repairs and the full producer/consumer cut, qualify generated artifacts, drain incompatible writers and prepare fresh reference state |
-| 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases | Reconcile stale owner-document revision claims, complete remaining owner/enforcement gates and qualify the protected shared-host fixture |
+| 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Complete remaining owner/enforcement gates and qualify the protected shared-host fixture |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
@@ -91,8 +91,9 @@ and fresh state before rollout.
 
 Media publication requires the reviewed host-tracing correction in Phase 3. The
 patch is unapplied pending the user's required host-contract approval, and real
-provider generation is unqualified. Computers' real provider-process suites also
-require a configured, qualified native execution profile before publication.
+provider generation is unqualified. Computers' isolated native maintenance profile
+passes upgrade, recovery and rollback. The wider provider-process suites and
+installed execution profile remain unqualified.
 
 The accepted Foundations installation covered sixteen Rust servers, eighteen
 participating knowledge sources and the composed flight at `6d4cd2c5`. Headed
@@ -141,6 +142,12 @@ fixtures use the current policy spelling and supply Knowledge's required embeddi
 runtime key while preserving the owning refusal assertions. The dispatcher reports
 the retained private diagnostics directory when preparation exits unsuccessfully.
 
+The owner-document checkpoint at `f4215919c` corrects revision references and
+regenerates compliance notes without changing requirement statuses or independent
+formats. Four owner-document/profile integration cases, nine Python template docs
+cases and two isolated packaging cases pass. The generated manuals agree with all
+22 profiles. The protected shared-host documents and fixtures remain separate.
+
 The latest source checkpoints implement Map repository/product admission and the
 recorded video, Stream, Reason and Timeseries result relationships in F10, F12,
 F39, F45–F49, F61, F63 and F64. Independent review accepts both source batches after
@@ -160,7 +167,7 @@ profiles pass. Generated outputs are unchanged; Console and Workspace tests and
 builds pass, alongside Console lint. The Artifact owner's normal dependencies
 exclude MCP and runtime adapters. The current SDK batch qualifies metadata and
 address admission in F27 and F68 locally; installed multi-page consumers stay open.
-Computers provider workers, Speech GPU execution, external byte
+The remaining Computers provider suites, Speech GPU execution, external byte
 stores and installed consumers remain separate unqualified gates.
 
 The source checkpoint covers Time, Computers, Speech, Media, Optimization,
@@ -486,11 +493,16 @@ belong to the coordinated fresh-state cut; old rows and bytes stay protected unt
 replacement qualification. This repair does not establish GPU execution.
 
 Computers' normal Linux selection passes 144 cases across execution, storage, host,
-runtime and MCP packages. Seventeen container, provider and privileged cases remain
-ignored by that selection. They require admitted images, isolated storage and a real
-source/target maintenance profile before execution; the current reference profile
-has one template and no maintenance transition. Installed grant, pairing and recovery
-checks remain open.
+runtime and MCP packages. That selection ignores seventeen container, provider and
+privileged cases. One of them now passes against the staged template from
+`9ccd95fae`: the native maintenance fixture performs upgrade, initial-create
+recovery and rollback while retaining its 8 GiB home. It admits candidate image
+`sha256:0a17f61a5713fe05a006517b598d6df53c4c1b4a0c7b69f20409b1501f08d105`
+in a private two-template configuration and preserves the source image. Owned
+containers and the fixture home are removed after the run; baseline stores and
+retained homes are unchanged. The other sixteen native cases and installed grant,
+pairing and recovery checks remain open. Production configuration still selects
+one template and has no maintenance transition.
 The conformance repairs cover direct-hosted callers, observed authorization failures,
 effective Cargo features, package ownership, exact framework selections and cleanup
 under cancellation. Naming repairs cover dictionary shape and key agreement, annotated
