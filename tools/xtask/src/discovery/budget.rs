@@ -152,7 +152,8 @@ impl Budget {
         })?;
         ensure!(
             status.success(),
-            "preparation failed with {status}; private diagnostics retained by dispatcher"
+            "preparation failed with {status}; private diagnostics retained at {}",
+            self.path().display()
         );
         Ok(Output {
             status,
@@ -176,6 +177,25 @@ impl Drop for Budget {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn failed_preparation_identifies_retained_private_diagnostics() {
+        let root = tempfile::tempdir().unwrap();
+        let budget = Budget::new(root.path(), 5, 1).unwrap();
+        let retained = budget.path().to_owned();
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "printf 'owned failure diagnostic' >&2; exit 23"]);
+        let error = budget.output(command).unwrap_err().to_string();
+        assert!(error.contains("23"), "original exit status: {error}");
+        assert!(
+            error.contains(&retained.display().to_string()),
+            "retained directory must be actionable: {error}"
+        );
+        drop(budget);
+        assert_eq!(
+            std::fs::read_to_string(retained.join("preparation-0.stderr")).unwrap(),
+            "owned failure diagnostic"
+        );
+    }
     #[test]
     fn preparations_and_execution_share_deadline_and_cancel_prevents_next_effect() {
         let root = tempfile::tempdir().unwrap();
