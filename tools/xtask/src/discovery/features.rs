@@ -157,6 +157,70 @@ pub(crate) fn decode(metadata: &CargoMetadata, bytes: &[u8]) -> Result<Effective
     ensure!(!result.is_empty(), "empty effective Cargo closure");
     Ok(result)
 }
+#[derive(Default, serde::Deserialize)]
+struct NativeBuildConfig {
+    target: Option<serde::de::IgnoredAny>,
+}
+#[derive(serde::Deserialize)]
+struct NativeCargoConfig {
+    #[serde(default)]
+    build: NativeBuildConfig,
+    include: Option<serde::de::IgnoredAny>,
+}
+fn admit_native_configuration(
+    repository: &Path,
+    cargo_home: &Path,
+    target_environment_present: bool,
+) -> Result<()> {
+    ensure!(
+        !target_environment_present,
+        "native smoke requires Cargo's implicit host target; unset CARGO_BUILD_TARGET or declare and qualify an explicit execution profile"
+    );
+    let repository = repository
+        .canonicalize()
+        .context("native Cargo repository is unavailable")?;
+    let mut directories: BTreeSet<_> = repository.ancestors().map(|p| p.join(".cargo")).collect();
+    directories.insert(cargo_home.to_owned());
+    for directory in directories {
+        // Cargo prefers the extensionless file when both spellings exist.
+        let legacy = directory.join("config");
+        let path = if legacy.is_file() {
+            legacy
+        } else {
+            directory.join("config.toml")
+        };
+        if !path.exists() {
+            continue;
+        }
+        let bytes = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading native Cargo configuration {}", path.display()))?;
+        let config: NativeCargoConfig = toml::from_str(&bytes).map_err(|_| anyhow::anyhow!(
+            "cannot parse native Cargo configuration {}; repair its syntax before smoke preparation", path.display()
+        ))?;
+        ensure!(
+            config.build.target.is_none() && config.include.is_none(),
+            "native smoke requires Cargo's implicit host target without configuration includes; remove build.target/include from {} or declare and qualify an explicit execution profile",
+            path.display()
+        );
+    }
+    Ok(())
+}
+fn admit_native_profile(repository: &Path) -> Result<()> {
+    let cargo_home = std::env::var_os("CARGO_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|p| std::path::PathBuf::from(p).join(".cargo")))
+        .context("native smoke requires HOME or CARGO_HOME to admit Cargo configuration")?;
+    let cargo_home = if cargo_home.is_absolute() {
+        cargo_home
+    } else {
+        repository.join(cargo_home)
+    };
+    admit_native_configuration(
+        repository,
+        &cargo_home,
+        std::env::var_os("CARGO_BUILD_TARGET").is_some(),
+    )
+}
 fn resolve(
     repository: &Path,
     metadata: &CargoMetadata,
@@ -173,6 +237,8 @@ fn resolve(
         "tree",
         "--offline",
         "--locked",
+        "--target",
+        "host-tuple",
         "--prefix",
         "none",
         "--format",
@@ -256,6 +322,9 @@ pub(crate) fn plan(
     budget: &Budget,
     roots: Vec<(CargoSelection, bool)>,
 ) -> Result<Vec<BuildGroup>> {
+    if !roots.is_empty() {
+        admit_native_profile(repository)?;
+    }
     let mut identities = BTreeMap::new();
     for (root, test) in &roots {
         let key = (root.package.clone(), root.target.clone(), *test);
@@ -480,6 +549,59 @@ mod tests {
     }
 
     #[test]
+    fn native_profile_refuses_configured_targets_and_includes_before_preparation() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().join("repository/child");
+        let home = temporary.path().join("cargo-home");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&home).unwrap();
+        assert!(admit_native_configuration(&root, &home, false).is_ok());
+        let error = admit_native_configuration(&root, &home, true).unwrap_err();
+        assert!(error.to_string().contains("CARGO_BUILD_TARGET"));
+        for directory in [
+            root.join(".cargo"),
+            root.parent().unwrap().join(".cargo"),
+            home.clone(),
+        ] {
+            std::fs::create_dir_all(&directory).unwrap();
+            for filename in ["config", "config.toml"] {
+                let path = directory.join(filename);
+                for body in [
+                    "[build]\ntarget='host-tuple'\n",
+                    "[build]\ntarget='wasm32-unknown-unknown'\n",
+                    "[build]\ntarget=['x86_64-unknown-linux-gnu']\n",
+                    "include=['another.toml']\n",
+                ] {
+                    std::fs::write(&path, body).unwrap();
+                    let error = admit_native_configuration(&root, &home, false).unwrap_err();
+                    assert!(error.to_string().contains("explicit execution profile"));
+                }
+                std::fs::remove_file(path).unwrap();
+            }
+        }
+        assert!(!root.join("preparation-effect").exists());
+    }
+
+    #[test]
+    fn native_profile_preserves_cargo_config_precedence_and_redacts_parse_errors() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().join("repository");
+        let home = temporary.path().join("cargo-home");
+        let directory = root.join(".cargo");
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(directory.join("config"), "[build]\njobs=2\n").unwrap();
+        std::fs::write(directory.join("config.toml"), "[build]\ntarget='foreign'\n").unwrap();
+        assert!(admit_native_configuration(&root, &home, false).is_ok());
+        std::fs::write(directory.join("config"), "secret-value = 'fixture-secret").unwrap();
+        let message = admit_native_configuration(&root, &home, false)
+            .unwrap_err()
+            .to_string();
+        assert!(message.contains("cannot parse native Cargo configuration"));
+        assert!(!message.contains("fixture-secret"));
+    }
+
+    #[test]
     fn dispatcher_union_admission_refuses_indirect_and_two_root_contamination() {
         let leaf: EffectiveFeatures = [(
             "bridge".into(),
@@ -547,6 +669,8 @@ mod native_graph_tests {
                     "tree",
                     "--offline",
                     "--locked",
+                    "--target",
+                    "host-tuple",
                     "--prefix",
                     "none",
                     "--format",
@@ -660,10 +784,10 @@ mod native_graph_tests {
         package(
             root,
             "shared",
-            "[features]\ndefault=[]\ntarget=[]\nhost=[]\ndev=[]\n[dependencies]\ndescendant={path='../descendant'}",
+            "[features]\ndefault=[]\ntarget=['descendant/target']\nhost=[]\ndev=[]\n[dependencies]\ndescendant={path='../descendant'}",
             false,
         );
-        package(root, "descendant", "", false);
+        package(root, "descendant", "[features]\ntarget=[]", false);
         package(
             root,
             "derive_probe",
@@ -702,6 +826,21 @@ mod native_graph_tests {
             BTreeSet::from([BTreeSet::from(["dev".into(), "target".into()])])
         );
         assert!(groups[0].effective[id].contains(&BTreeSet::from(["host".into()])));
+        let descendant_id = &metadata
+            .packages
+            .iter()
+            .find(|p| p.name == "descendant")
+            .unwrap()
+            .id;
+        assert_eq!(
+            groups[0].effective[descendant_id],
+            BTreeSet::from([BTreeSet::new(), BTreeSet::from(["target".into()]),])
+        );
+        assert_eq!(
+            groups[0].target_features[descendant_id],
+            BTreeSet::from([BTreeSet::from(["target".into()]),])
+        );
+
         assert_deduplicated_tree_matches_expanded(
             root,
             &metadata,
