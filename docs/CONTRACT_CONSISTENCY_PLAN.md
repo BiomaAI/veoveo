@@ -66,6 +66,13 @@ module prerequisites, Media cancellation receipts and Task cleanup, Recording
 completion admission, and the expanded input matrix. These checkpoints do not close
 all required rows in phases 1–4 or qualify the installation cut.
 
+C32's verification map separates the implemented runtime source checks from K09
+and K10 owner review. Complete runtime results require that review; missing or
+skipped probes cannot establish success. Document generation admits a real,
+nonempty Standards And Protocols section for every discovered owner before writes.
+The assessment, adoption and document controls pass, and generated projections
+agree across all 22 owners.
+
 The browser checkpoint passes 115 Console cases and 22 Workspace cases, with
 builds and Console lint on MCP SDK 2.3.1. Six App entrypoints pass their actual
 JavaScript type checks, owner-schema cases and asset builds. Their controlled
@@ -440,8 +447,11 @@ and manifest profile. The H.264 restart control compares extracted source units 
 both normal and discontinuous MP4 payloads with the fixed fixture. Hub diagnostics
 declare v2 for their camelCase JSON while the ingest protobuf and route keep v1.
 Reader snapshots are native values; the checked Video contract owns serialization.
-Independent review accepts these repairs. Store-backed Redap live delivery,
-installed ingest and grants, mandatory GPU decode and headed playback stay open.
+Independent review accepts these repairs. Recording's Store-backed framed-RRD
+controls pass with actual SDK bytes, bootstrap, current-head reconnect, durable
+updates and layer rollover. SQL visibility refusal precedes decoding at admission
+and layer transitions. Redap live delivery, installed ingest and grants, mandatory
+GPU decode and headed playback stay open.
 Computers' public vocabulary, typed terminal profile and decoder source batch compiles
 with its BFF callers. Its isolated contract all-target check passes after making the
 Artifact service's runtime dependency explicit. Twenty-six owning contract cases,
@@ -702,7 +712,7 @@ CE register or owning designs by appearing in this plan.
 | D12 | Embedding device profiles | Keep the qualified NVIDIA cluster profile required. Preserve Metal as deferred proposal X1 for separate Apple hardware qualification. No CPU profile or automatic fallback. Do not advertise Metal support or change GPU rules before it is qualified |
 | D13 | Embedding space identity | Model, checkpoint revision, dimension, pooling, normalization, numeric precision and maximum input tokens. The runtime image, vLLM version and device leave the identity. Keep runtime image, version and device in execution provenance. Space reuse requires reference-vector and retrieval qualification on the declared model/configuration; a failed qualification needs an explicitly distinct space or rejection, not a fabricated setting change |
 | D14 | Macros | Veoveo defines five core macros: the `resource_address` and `id` attributes, the `Vocabulary` derive and `embedded_document!` in `platform/macros`, and `server_docs!` in `mcp/contract`. Their generated code calls ordinary traits in `platform/types`. Checked models and opaque cursors are generic types, and error types use `thiserror`. Any other macro is a declared exception. No new third-party crate: strum, nutype, parse-display and serde_with were evaluated in [phase 0](#evaluated-crates) |
-| D15 | View GPU JPEG ownership | Keep Vulkan/CUDA interop and generated nvJPEG bindings with View's serial renderer. Match device UUIDs, preserve stored sRGB bytes, and warm the explicit GPU encoder before readiness. Runtime-only dependencies stay outside the contract feature. Share a completion deadline across submitted stages; release memory only after completion. A native completion failure terminates the existing View process without destructors or a core dump, preserving interrupted Task recovery. Qualify the selected latest runtime on the host driver before claiming support |
+| D15 | View GPU JPEG ownership | Keep Vulkan/CUDA interop and generated nvJPEG bindings with View's serial renderer. Match device UUIDs, preserve stored sRGB bytes, and warm the explicit GPU encoder before readiness. Runtime-only dependencies stay outside the contract feature. Share a completion deadline across submitted stages; release memory only after completion. A native completion failure terminates the existing View process without destructors or a core dump, preserving interrupted Task recovery. Qualify the selected runtime on its required host driver before claiming support |
 
 ## Kernel And Modules
 
@@ -2980,7 +2990,7 @@ reason rather than growing an unbounded generic typing task.
 | F63 | Stream | Qualify installed replay/live results and browser consumers; preserve source-qualified replay/detection, visible terminal provenance and browser admission before state effects |
 | F64 | Shared recorded video | Qualify installed snapshot digests and Stream/Reason consumers; preserve signed timeline indices and source-qualified shared construction/decoder admission |
 | F65 | View | Complete the Vulkan/CUDA GPU JPEG path and qualify encoder readiness, image bytes, cancellation and process drain. Recover interrupted captures after their retained leases expire without another process restart. Qualify installed consumers and cross-context Task delivery. |
-| F66 | Recording | Typed IDs, sealed-property recovery and immutable publication pass locally. Current native controls qualify the generated manifest body and descriptor, RRD nonrewrite, retained Reader sources and authority, Video snapshots, Hub diagnostics and cross-segment encoded payloads, and Redap's URI/manifest profile. Qualify Store-backed live delivery, final installed ingest and grants, mandatory GPU decode and headed Rerun playback |
+| F66 | Recording | Typed IDs, sealed-property recovery and immutable publication pass locally. Native controls qualify the manifest body and descriptor, RRD nonrewrite, retained Reader authority, Video snapshots, Hub diagnostics, cross-segment encoded payloads and Redap's URI/manifest profile. Store-backed framed-RRD delivery qualifies actual bytes, bootstrap, reconnect, updates, rollover and SQL refusal at admission and layer transitions. Qualify Redap live delivery, final installed ingest and grants, mandatory GPU decode and headed Rerun playback |
 | F67 | Shared consumers | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | F68 | SDKs, clients, templates, and showcase servers | SDK Artifact metadata/address/compliance and usage parent/finite/derived-total admission pass affected SDK and template callers locally. Preserve explicit external/native Task profiles and qualify installed multi-page consumers |
 
