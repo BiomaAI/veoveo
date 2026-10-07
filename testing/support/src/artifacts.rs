@@ -10,6 +10,7 @@ pub enum ArtifactFormat {
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
+    io::Read,
     path::{Path, PathBuf},
 };
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -65,6 +66,21 @@ pub struct ArtifactManifest {
     pub target_root: PathBuf,
     pub entries: Vec<ArtifactEntry>,
 }
+/// Seven selected native artifacts currently occupy about 1.4 MiB with full graphs.
+const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
+
+fn read_manifest(reader: impl Read) -> Result<ArtifactManifest> {
+    let mut bytes = Vec::new();
+    reader
+        .take((MAX_MANIFEST_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)?;
+    ensure!(
+        bytes.len() <= MAX_MANIFEST_BYTES,
+        "artifact manifest exceeds 4 MiB"
+    );
+    Ok(serde_json::from_slice(&bytes)?)
+}
+
 impl ArtifactManifest {
     pub fn admit(&self, repository: &Path) -> Result<()> {
         ensure!(
@@ -199,12 +215,7 @@ impl ArtifactManifest {
     pub fn from_environment(repository: &Path) -> Result<Self> {
         let path = std::env::var_os("VEOVEO_SMOKE_ARTIFACTS")
             .context("VEOVEO_SMOKE_ARTIFACTS is required")?;
-        let bytes = std::fs::read(path)?;
-        ensure!(
-            bytes.len() <= 1024 * 1024,
-            "artifact manifest exceeds 1 MiB"
-        );
-        let manifest: Self = serde_json::from_slice(&bytes)?;
+        let manifest = read_manifest(std::fs::File::open(path)?)?;
         manifest.admit(repository)?;
         Ok(manifest)
     }
@@ -275,6 +286,38 @@ mod tests {
     fn digest(path: &Path) -> veoveo_types::Sha256Digest {
         veoveo_types::Sha256Digest::from_bytes(Sha256::digest(std::fs::read(path).unwrap()).into())
     }
+    #[test]
+    fn manifest_reader_admits_current_shape_and_limits_consumption_before_parsing() {
+        let entry = serde_json::json!({
+            "targetKind":"bin",
+            "selection":{"owner":"testing/fixtures/owner","package":"independent-owner",
+                "target":"probe","features":[],"defaultFeatures":false,"profile":"dev"},
+            "packageId":"path+file:///owner#independent-owner@0.1.0",
+            "executable":"/target/probe","sha256":veoveo_types::Sha256Digest::from_bytes([0;32]),
+            "runtimeLibraries":[],"compilerGraph":[],"effectiveFeatures":{},"targetFeatures":{}
+        });
+        let value = serde_json::json!({"format":"veoveo.ai/smoke-artifacts/v1",
+            "repository":"/source","targetRoot":"/target","entries":vec![entry;7]});
+        let mut bytes = serde_json::to_vec(&value).unwrap();
+        // Match the real seven-artifact descriptor receipt size without copying executables.
+        bytes.resize(1_440_812, b' ');
+        assert_eq!(read_manifest(bytes.as_slice()).unwrap().entries.len(), 7);
+        bytes.resize(MAX_MANIFEST_BYTES, b' ');
+        assert_eq!(read_manifest(bytes.as_slice()).unwrap().entries.len(), 7);
+        bytes.resize(MAX_MANIFEST_BYTES + 4096, b' ');
+        let mut reader = std::io::Cursor::new(bytes);
+        let error = read_manifest(&mut reader).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("artifact manifest exceeds 4 MiB")
+        );
+        assert_eq!(reader.position(), (MAX_MANIFEST_BYTES + 1) as u64);
+        // Size admission does not replace the existing semantic artifact checks.
+        let manifest = read_manifest(serde_json::to_vec(&value).unwrap().as_slice()).unwrap();
+        assert!(manifest.admit(Path::new("/source")).is_err());
+    }
+
     #[test]
     fn initial_artifact_protocol_rejects_old_keys_and_unknown_revision() {
         let value = serde_json::json!({"format":"veoveo.ai/smoke-artifacts/v1","repository":"/source","targetRoot":"/target","entries":[]});
