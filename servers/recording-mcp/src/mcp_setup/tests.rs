@@ -68,7 +68,7 @@ fn registrations_and_admin_clients_require_the_recording_seal_permission() {
             .unwrap();
         assert!(!server.capabilities.resources_list_changed);
         assert_eq!(
-            serde_json::to_value(&server.metadata).unwrap()["contract_revision"],
+            serde_json::to_value(&server.metadata).unwrap()["contractRevision"],
             veoveo_mcp_contract::docs::CONTRACT_REVISION
         );
 

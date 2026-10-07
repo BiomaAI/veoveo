@@ -89,7 +89,7 @@
       ],
       "metadata": {
         "raw_ingest": "internal_only",
-        "contract_revision": 3
+        "contractRevision": 4
       },
       "resourceProjection": "server_owned"
     }
@@ -144,18 +144,18 @@
         "tenant": "enterprise"
       },
       "artifactUpload": {
-        "max_object_bytes": 107374182400,
-        "tenant_quota_bytes": 214748364800,
-        "max_active_uploads_per_tenant": 8,
-        "part_bytes": 16777216,
-        "max_part_bytes": 67108864,
-        "max_parts": 10000,
-        "parallel_parts": 4,
-        "max_inflight_bytes": 134217728,
-        "inactivity_seconds": 86400,
-        "lifetime_seconds": 604800,
-        "part_timeout_seconds": 120,
-        "allowed_mime_types": [
+        "maxObjectBytes": 107374182400,
+        "tenantQuotaBytes": 214748364800,
+        "maxActiveUploadsPerTenant": 8,
+        "partBytes": 16777216,
+        "maxPartBytes": 67108864,
+        "maxParts": 10000,
+        "parallelParts": 4,
+        "maxInflightBytes": 134217728,
+        "inactivitySeconds": 86400,
+        "lifetimeSeconds": 604800,
+        "partTimeoutSeconds": 120,
+        "allowedMimeTypes": [
           "application/json",
           "application/octet-stream",
           "application/pdf",
@@ -525,36 +525,36 @@
         "healthUrl": "http://recording-hub:9878/healthz",
         "security": "cluster_internal_http"
       },
-      "maximum_batch_bytes": 8388608,
+      "maximumBatchBytes": 8388608,
       "requiredScopes": [
         "recording:ingest"
       ],
       "producers": [
         {
           "id": "recording-producer",
-          "oauth_client": "recording-producer",
+          "oauthClient": "recording-producer",
           "tenant": "enterprise",
           "dataset": "recordings",
-          "allowed_application_ids": [
+          "allowedApplicationIds": [
             "veoveo-catalog-fixture"
           ],
-          "single_recording_application_ids": [],
+          "singleRecordingApplicationIds": [],
           "classification": "unclassified",
           "labels": [],
           "quotas": {
-            "maximum_concurrent_streams": 8,
-            "maximum_batches_per_minute": 1200,
-            "maximum_bytes_per_day": 68719476736,
-            "maximum_stream_bytes": 2147483648
+            "maximumConcurrentStreams": 8,
+            "maximumBatchesPerMinute": 1200,
+            "maximumBytesPerDay": 68719476736,
+            "maximumStreamBytes": 2147483648
           },
           "blueprints": {
             "enabled": true,
-            "maximum_bytes": 2097152,
-            "maximum_messages": 10000,
-            "maximum_revisions": 32
+            "maximumBytes": 2097152,
+            "maximumMessages": 10000,
+            "maximumRevisions": 32
           },
           "retention": {
-            "open_stream_days": 7
+            "openStreamDays": 7
           },
           "enabled": true,
           "metadata": {}

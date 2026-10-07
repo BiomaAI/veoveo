@@ -71,10 +71,10 @@ fn workspace_is_permission_aware() {
     assert!(WORKSPACE_APP.contains("map://workspace"));
     for capability in [
         "administration",
-        "dataset_read",
-        "feature_read",
-        "feature_write",
-        "feature_publish",
+        "datasetRead",
+        "featureRead",
+        "featureWrite",
+        "featurePublish",
     ] {
         assert!(WORKSPACE_APP.contains(capability));
     }
@@ -107,14 +107,14 @@ fn workspace_is_a_persistent_hardware_map_with_bounded_synchronized_previews() {
         "hardware-backed WebGL2",
         "WEBGL_debug_renderer_info",
         "swiftshader",
-        "publication_id",
+        "publicationId",
         "query_features",
         "query_source_features",
         "Persistent map",
         "Data preview",
         "preview cap reached",
-        "light_style_url",
-        "dark_style_url",
+        "lightStyleUrl",
+        "darkStyleUrl",
         "subscriptions/listen",
         "maplibre-gl@6.6.0",
         "maplibre-worker.cjs",
