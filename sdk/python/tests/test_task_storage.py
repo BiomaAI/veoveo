@@ -941,3 +941,99 @@ def test_native_writers_keep_controlled_native_values_out_of_open_json(payload):
     with pytest.raises(ValidationError):
         TaskInputRecord.from_request(task_record(request.task_id), "answer",
                                      TaskInputRequest("elicitation/create", {"provider": payload}), now)
+
+
+@pytest.mark.parametrize("case", ["timeout_created", "missing", "malformed", "mismatch", "cleanup_failed"])
+def test_surreal_fixture_cleanup_uses_only_its_created_cid(tmp_path, monkeypatch, case):
+    import json
+    import subprocess
+    import conftest as fixtures
+
+    directory = tmp_path / "private-fixture"
+    directory.mkdir()
+    cid = "a" * 64
+    calls = []
+    monkeypatch.setattr(fixtures, "_docker_available", lambda: True)
+    monkeypatch.setattr(fixtures, "_gateway_binary", lambda: tmp_path / "gateway")
+    monkeypatch.setattr(fixtures.tempfile, "mkdtemp", lambda **kwargs: str(directory))
+
+    def docker(arguments, **kwargs):
+        calls.append(arguments)
+        assert kwargs["timeout"] in (30, 60)
+        if arguments[1] == "run":
+            assert "--cidfile" in arguments and "--rm" not in arguments
+            if case != "missing":
+                (directory / "created.cid").write_text("bad" if case == "malformed" else cid)
+            if case == "timeout_created":
+                raise subprocess.TimeoutExpired(arguments, 60, stderr=fixtures.RUNTIME_PASSWORD.encode())
+            return subprocess.CompletedProcess(arguments, 1, "b" * 64 if case == "mismatch" else "", fixtures.RUNTIME_PASSWORD)
+        assert arguments == ["docker", "rm", "--force", "--volumes", cid]
+        return subprocess.CompletedProcess(arguments, 1 if case == "cleanup_failed" else 0,
+                                           "" if case == "cleanup_failed" else cid + "\n", fixtures.RUNTIME_PASSWORD)
+
+    monkeypatch.setattr(fixtures.subprocess, "run", docker)
+    fixture = fixtures.surreal_platform.__wrapped__()
+    with pytest.raises(RuntimeError, match="receipt:"):
+        next(fixture)
+    receipt = json.loads((directory / "receipt.json").read_text())
+    assert fixtures.RUNTIME_PASSWORD not in json.dumps(receipt)
+    assert (directory.stat().st_mode & 0o777) == 0o700
+    assert ((directory / "receipt.json").stat().st_mode & 0o777) == 0o600
+    if case in ("missing", "malformed"):
+        assert len(calls) == 1
+        assert receipt["cleanup"] == "unresolved"
+    else:
+        assert len(calls) == 2
+        assert receipt["cid"] == cid
+        assert receipt["cleanup"] == ("unresolved" if case == "cleanup_failed" else "settled")
+
+
+@pytest.mark.parametrize("stage", ["readiness", "kernel_installation"])
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+def test_surreal_fixture_setup_failure_retains_primary_and_cleanup_diagnostics(
+    tmp_path, monkeypatch, stage, cleanup_fails,
+):
+    import json
+    import subprocess
+    import conftest as fixtures
+
+    directory = tmp_path / "private-fixture"
+    directory.mkdir()
+    cid = "c" * 64
+    calls = []
+    monkeypatch.setattr(fixtures, "_docker_available", lambda: True)
+    monkeypatch.setattr(fixtures, "_gateway_binary", lambda: tmp_path / "gateway")
+    monkeypatch.setattr(fixtures.tempfile, "mkdtemp", lambda **kwargs: str(directory))
+
+    def setup_failure(*args):
+        raise RuntimeError(f"primary {stage} failure {fixtures.RUNTIME_PASSWORD}")
+
+    monkeypatch.setattr(fixtures, "_wait_ready", setup_failure if stage == "readiness" else lambda *args: None)
+    monkeypatch.setattr(fixtures, "_install_kernel_lanes", setup_failure)
+
+    def docker(arguments, **kwargs):
+        calls.append(arguments)
+        if arguments[1] == "run":
+            (directory / "created.cid").write_text(cid)
+            return subprocess.CompletedProcess(arguments, 0, cid + "\n", "")
+        assert arguments == ["docker", "rm", "--force", "--volumes", cid]
+        return subprocess.CompletedProcess(
+            arguments, 1 if cleanup_fails else 0, "" if cleanup_fails else cid + "\n",
+            f"cleanup failure {fixtures.RUNTIME_PASSWORD}" if cleanup_fails else "",
+        )
+
+    monkeypatch.setattr(fixtures.subprocess, "run", docker)
+    with pytest.raises(RuntimeError, match="receipt:") as raised:
+        next(fixtures.surreal_platform.__wrapped__())
+    receipt = json.loads((directory / "receipt.json").read_text())
+    assert len(calls) == 2 and receipt["launch"] == "admitted" and receipt["cid"] == cid
+    assert receipt["setupStage"] == stage
+    assert f"primary {stage} failure" in receipt["setupDiagnostic"]
+    assert fixtures.RUNTIME_PASSWORD not in json.dumps(receipt)
+    assert fixtures.RUNTIME_PASSWORD not in str(raised.value)
+    assert receipt["cleanup"] == ("unresolved" if cleanup_fails else "settled")
+    if cleanup_fails:
+        assert "cleanup failure" in receipt["cleanupDiagnostic"]
+    else:
+        assert "cleanupDiagnostic" not in receipt
+        assert f"SurrealDB {stage} failed" in str(raised.value)

@@ -130,7 +130,11 @@ binary to generate an empty optional-module selection, prepare the installation
 and migrate its planned kernel lanes. `VEOVEO_TEST_GATEWAY_BIN` selects that
 executable; the default is the repository's `target/debug/gateway`. Tests fail
 with a build prerequisite diagnostic when it is unavailable. They neither build
-the binary nor publish an installation control plane.
+the binary nor publish an installation control plane. Docker creation writes
+an invocation-private CID file before the fixture admits the returned identity.
+Cleanup removes only that CID and requires Docker to confirm removal within 30
+seconds. An uncertain launch or removal keeps its private receipt and redacted
+diagnostics; a container name never authorizes cleanup.
 
 ## Stored Task Records
 
