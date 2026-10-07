@@ -192,7 +192,9 @@ async fn claim_error_handoff_requires_current_settlement_or_another_live_worker(
                 .unwrap();
         }
         db.a.client()
-            .query("DELETE $task")
+            .query(include_str!(
+                "../../../queries/server/tasks/recovery_tests/delete.surql"
+            ))
             .bind(("task", veoveo_platform_store::task_record_id(id)))
             .await
             .unwrap()
