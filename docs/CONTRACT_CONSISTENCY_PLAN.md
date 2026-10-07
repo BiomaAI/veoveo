@@ -53,7 +53,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | Phase | Current state | Remaining gate |
 |---|---|---|
 | 0 — Shared declarations | Source qualification passes; owner admission, wire forms and schema metadata are preserved | Qualify affected installed consumers with the final cut |
-| 1–4 — Modules, extension points and storage | Qualified checkpoints cover selected lanes, owner SQL, native records, authority and recovery | Reconcile required owner coverage, qualify the final composed graph, query paths and typed binds, then run installation lifecycle acceptance |
+| 1–4 — Modules, extension points and storage | Qualified checkpoints cover selected lanes, owner SQL, native records, authority and recovery. Current native rollback and concurrent-lane controls pass; the current installed gateway migration Job fails without a matching committed winner | Preserve safe database causes, resolve the installed failure, reconcile required owner coverage and qualify the final installation lifecycle |
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
@@ -66,9 +66,11 @@ module prerequisites, Media cancellation receipts and Task cleanup, Recording
 completion admission, and the expanded input matrix. These checkpoints do not close
 all required rows in phases 1–4 or qualify the installation cut.
 
-C32's verification map separates the implemented runtime source checks from K09
-and K10 owner review. Complete runtime results require that review; missing or
-skipped probes cannot establish success. Document generation admits a real,
+C32's K09 and K10 source review covers all 22 participating owners. Map's authored
+Knowledge queries now check parent classification in SQL before pagination or
+decoding; the native control also verifies access revisions and invalidation after
+a classification change. Complete C32 qualification still requires its runtime and
+installed probes; missing or skipped probes cannot establish success. Document generation admits a real,
 nonempty Standards And Protocols section for every discovered owner before writes.
 The assessment, adoption and document controls pass, and generated projections
 agree across all 22 owners.
@@ -111,12 +113,15 @@ admission. The maintained image controls pass 20 driver, eight gateway and two m
 cases. Its five packaged commands report their expected versions and match the
 recorded hashes. The current native volume-writer exclusion passes. Retained-volume
 provisioning claims and the packaged default-workspace guard pass source qualification while
-generic runtime workspaces keep their supported interface. The current file fixture
-passes volume admission and reaches guest readiness, then stops when its mount
-inspection decoder requires the optional Docker `Subpath` field. The reviewed fixture repair admits the omitted field; the current native retry
-is pending. File transfer, the complete current native journeys, Host replacement
-and installed execution remain unqualified. Previous-profile results do not qualify
-this candidate.
+generic runtime workspaces keep their supported interface. The corrected file fixture
+passes mount admission, transfer, retention and refusal controls, then fails on Start
+after Stop with `LifecycleUnknown`. The provider returns gRPC `INVALID_ARGUMENT`;
+its retained runtime observation does not expose the companion's original failure.
+The committed diagnostic fixture captures one authenticated event tail before
+cleanup without settling or retrying the uncertain operation. Its compiler and four
+privacy controls pass. A fresh diagnostic run must establish the cause before the
+remaining native journeys, Host replacement and installed execution can qualify.
+Previous-profile results do not qualify this candidate.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
 
@@ -482,9 +487,11 @@ Reader snapshots are native values; the checked Video contract owns serializatio
 Independent review accepts these repairs. Recording's Store-backed framed-RRD
 controls pass with actual SDK bytes, bootstrap, current-head reconnect, durable
 updates and layer rollover. SQL visibility refusal precedes decoding at admission
-and layer transitions. The maintained Redap archive/catalog wire test is being
-implemented. Installed ingest and grants, mandatory GPU decode and headed playback
-stay open.
+and layer transitions. The maintained Redap archive/catalog wire check passes through
+the production scoped gRPC service with actual SDK bytes, selected catalog grants,
+excluded keys and expired-token refusal. All three playback controls and four
+upstream read-profile controls pass. Installed ingest and grants, mandatory GPU
+decode and headed playback stay open.
 Computers' public vocabulary, typed terminal profile and decoder source batch compiles
 with its BFF callers. Its isolated contract all-target check passes after making the
 Artifact service's runtime dependency explicit. Twenty-six owning contract cases,
@@ -1272,6 +1279,12 @@ The scenario reports no execution or cleanup failure, and the disposable cluster
 private kubeconfig and owned network are removed. This qualification uses an idle
 kernel and selected chart resources; full Helm lifecycle, hosted domain startup and
 reference activation remain open.
+The final-cut installation run at `003353fb8` fails in gateway migration 0 without
+a matching committed winner. The original runner discarded the database cause.
+Current native rollback/redaction and concurrent production-lane controls pass,
+so they do not reproduce or resolve that installed failure. Safe typed diagnostics
+must identify the cause on the actual image path before installation acceptance
+can pass. The failed run's disposable cluster and owned resources are removed.
 Production SQL redistribution belongs to Phase 3.
 
 | Work | Detail |
@@ -3023,7 +3036,7 @@ reason rather than growing an unbounded generic typing task.
 | F63 | Stream | Qualify installed replay/live results and browser consumers; preserve source-qualified replay/detection, visible terminal provenance and browser admission before state effects |
 | F64 | Shared recorded video | Qualify installed snapshot digests and Stream/Reason consumers; preserve signed timeline indices and source-qualified shared construction/decoder admission |
 | F65 | View | Local NVIDIA captures, retained-lease restart and recovery, cancellation and process drain pass. Qualify installed consumers, cross-context Task delivery and pod termination-grace acceptance with the selected Vulkan/CUDA profile. See Current Status. |
-| F66 | Recording | Typed IDs, sealed-property recovery and immutable publication pass locally. Native controls qualify the manifest body and descriptor, RRD nonrewrite, retained Reader authority, Video snapshots, Hub diagnostics, cross-segment encoded payloads and Redap's URI/manifest profile. Store-backed framed-RRD delivery qualifies actual bytes, bootstrap, reconnect, updates, rollover and SQL refusal at admission and layer transitions. Qualify the maintained Redap archive/catalog wire path, final installed ingest and grants, mandatory GPU decode and headed Rerun playback |
+| F66 | Recording | Typed IDs, sealed-property recovery and immutable publication pass locally. Native controls qualify the manifest body and descriptor, RRD nonrewrite, retained Reader authority, Video snapshots, Hub diagnostics, cross-segment encoded payloads and Redap's URI/manifest profile. Store-backed framed-RRD delivery qualifies actual bytes, bootstrap, reconnect, updates, rollover and SQL refusal at admission and layer transitions. The scoped Redap archive/catalog wire check passes. Qualify final installed ingest and grants, mandatory GPU decode and headed Rerun playback |
 | F67 | Shared consumers | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | F68 | SDKs, clients, templates, and showcase servers | SDK Artifact metadata/address/compliance and usage parent/finite/derived-total admission pass affected SDK and template callers locally. Preserve explicit external/native Task profiles and qualify installed multi-page consumers |
 
