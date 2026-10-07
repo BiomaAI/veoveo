@@ -103,9 +103,25 @@ isolated native maintenance upgrade, recovery and rollback, plus its command and
 file journeys. The current source selects OpenShell 0.1.2 with matched provider
 artifacts, typed selectors and a drained private checkpoint cut. Its source-built
 GCC 16.2 profile passes the C++20 format execution and static C++ runtime probe
-against glibc 2.36. The complete Z3 and provider build,
-affected native suites and installed execution remain unqualified; previous-profile
-results do not qualify this candidate.
+against glibc 2.36. The current gateway and driver pass Cargo artifact admission,
+static Z3/C++ dependency checks and the glibc ceiling; both require at most GLIBC
+2.34. The selected mTLS, driver and gateway controls and maintained local image
+assembly pass. The digest-staged image's five packaged commands report their
+expected versions and match the recorded hashes. Current Computers native fixture
+profiles, full native journeys and installed execution remain unqualified.
+Previous-profile results do not qualify this candidate.
+The current native volume-writer exclusion passes. File-transfer setup rejects
+guest TLS fields emitted under the Docker driver table; the Native and Host
+generators must place them in the gateway table before the remaining journeys run.
+The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
+binds each copied executable to the selected Cargo package and emitted artifact.
+
+View's CUDA 13.3.1 hardware run passes actual device admission, the 16×16 nvJPEG
+warmup, four 256×256 PNG/JPEG captures and their byte and encoder-completion checks.
+The [owning smoke](../examples/bioma/acceptance/src/smoke/scenarios/view.rs)
+reached its lifecycle interruption after capture had already completed. The
+synchronization repair is underway; that run does not qualify interrupted-capture
+recovery. Restart, cancellation, process drain and installed consumers remain open.
 
 Linux Map qualification includes the current travel-model product cases after
 the shared C02 writer correction. Optimization's nine native read cases pass.
@@ -2925,21 +2941,21 @@ reason rather than growing an unbounded generic typing task.
 
 | ID | Surface | Remaining condition |
 |---|---|---|
-| F01 | Foundational primitives | Complete the owner-specific builders and relationship admission listed below |
-| F02 | Independent extension traits | Preserve domain-owned authorization and complete the remaining owner-specific type gaps |
+| F01 | Foundational primitives | Qualify the finite owner conditions in F13, F15, F23, F25, F27, F29, F44 and F59; accepted owner builders and relationship admission need no additional generic type pass |
+| F02 | Independent extension traits | Preserve domain-owned authorization through the installed owner conditions in F13, F23, F27, F29, F44 and F59; any further source repair must identify a concrete owner contract or consumer defect |
 | F03 | Scope declarations | Qualify installed producer admission with the next composed publication; wider field relationships remain in their owner rows |
 | F04 | Resolved invocation authority | Preserve complete authority when extracting domain contracts; qualify installed policy and composition consumers |
 | F05 | Concrete URI components | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | F06 | HTTPS network addresses | Adopt this profile where other domain contracts require HTTPS; qualify installed source consumers |
-| F07 | Resource templates | Extend checked declarations and domain-builder agreement across remaining servers |
+| F07 | Resource templates | Qualify installed current resource-template declarations and their owner builders. Any source repair must name the affected owner, advertised template and concrete builder mismatch; all-template source qualification is not claimed |
 | F08 | Gateway completion and audit targets | Qualify installed completion authorization, owner-registry binding and current-format audit reads; preserve distinct admitted concrete-resource and URI-template profiles |
 | F09 | Platform identity and attribution | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
 | F10 | Map | Qualify remaining installed product-specific consumers and selected body/index agreement; preserve the source-qualified typed repository APIs and immutable DTO admission |
 | F11 | Coordinate vocabulary | Qualify installed consumers with the current absolute frame-ID profile |
 | F12 | Map identity admission | Qualify current-format installed consumption of the specific owner IDs and preserved admitted aliases |
-| F13 | Time | Share expression, projection, calendar, clock and HTTPS-source admission across construction and decoding; preserve the distinct expression/resource zone profiles and advertised reserved-expansion template; qualify installed consumers |
+| F13 | Time | Qualify installed expression, projection, calendar, clock and HTTPS-source consumers using the source-qualified shared construction/decoding admission; preserve distinct zone profiles and the advertised reserved-expansion template |
 | F14 | Time identity admission | Qualify installed admission; use the distinct current public and stored ID profiles when strengthening metadata construction |
-| F15 | Time scalar admission | Admit GPS/Julian and projection scalars, recurrence and acquisition status/phase/staged-release combinations using current engine/producer rules; qualify native selected records and installed numeric boundaries |
+| F15 | Time scalar admission | Qualify installed numeric boundaries, recurrence and acquisition lifecycle consumers with the source-qualified scalar and status/phase/staged-release admission; preserve the current engine and producer rules |
 | F16 | Time intervals | Qualify current-format installed schedule Tasks and restart recovery |
 | F17 | Time active-pointer admission | Qualify installed parent admission and transactional conflict rollback |
 | F18 | Time authority contexts | Qualify installed restart/replica behavior and the declared coordinated upgrade |
@@ -2947,13 +2963,13 @@ reason rather than growing an unbounded generic typing task.
 | F20 | Time resolution metadata | Qualify installed resolve/convert decoding and epoch behavior after authority activation; computed representations remain the engine's responsibility |
 | F21 | Time activation preflight | Qualify installed activation and concurrent conflict rollback |
 | F22 | Digest wire profiles | Preserve each owner's admitted bare-hex spelling and hash preimage through typed Speech, UAV, Optimization and Recording/publication APIs; qualify installed Time and changed consumers |
-| F23 | Computers | Share intrinsic grant/Execute-limit and pairing input/token checks with public decoding; admit collection parents and unique children without freezing live permission; qualify native and installed maintenance, pairing and recovery |
+| F23 | Computers | Qualify the current matched provider image and affected native maintenance, pairing and recovery matrix, then installed grant/Execute-limit and collection consumers; preserve source-qualified shared admission and live permission checks |
 | F24 | Speech | Transcript/source/Task/Artifact admission and the current runner's CUDA transcription, dictation, recovery, cancellation and GPU-host conformance pass their owning controls. Qualify fresh image assembly, offline packaging and installed consumers. |
-| F25 | Artifact plane model | Move pure access/service wire DTOs and admission into the existing lightweight Artifact contract; keep verified caller, policy and transport in their adapters. Qualify changed consumers and reuse unaffected byte-plane/SQL cases. |
+| F25 | Artifact plane model | Qualify installed access/service consumers and external byte stores with the source-qualified lightweight Artifact contract; keep verified caller, policy and transport in their adapters and reuse unaffected byte-plane/SQL controls |
 | F26 | Artifact identity and URI admission | Qualify installed consumption of the current identity and URI contract |
-| F27 | Remaining Artifact references | Keep capability Task and stream digest types through issuance/redemption; admit access-decision relationships and SDK metadata/address agreement; preserve external transfer locations and declare any profile change |
+| F27 | Remaining Artifact references | Qualify installed issuance/redemption, current-format capability recovery and multi-page SDK consumers with the source-qualified Task/digest, access-decision and metadata/address admission; preserve external transfer locations and the declared coordinated profile cut |
 | F28 | Artifact attribution construction | Qualify installed metadata consumption; native construction, schema/decoder and independent-consumer checks already have a passing checkpoint. |
-| F29 | Media public contract and hosted setup | Share model-catalog count/schema-URI and Artifact presentation admission; add tool/resource continuations bound to filters and registry consistency, rejecting duplicate model IDs; qualify registration and provider recovery budgets |
+| F29 | Media public contract and hosted setup | Qualify installed registration, catalog continuation and Artifact presentation consumers with the source-qualified registry snapshot and admission; qualify real provider recovery budgets after the protected host correction and permitted provider execution |
 | F30 | Frames hosted setup | Qualify current resource admission and subscriptions through installed clients |
 | F31 | Frames world reads | Qualify installed paging and completion with current catalog consumers |
 | F32 | Frames mutation inputs | Qualify installed publication and concurrent replay under current writer policy |
@@ -2968,7 +2984,7 @@ reason rather than growing an unbounded generic typing task.
 | F41 | DuckDB usage and discovery | Qualify installed page consumers and headed hardware Workbench acceptance |
 | F42 | Optimization usage and contract | Qualify the coordinated control/executor replacement and installed reads |
 | F43 | Optimization catalogs | Qualify current catalog permissions and installed consumers |
-| F44 | Optimization resource admission | Share intrinsic problem validation and problem/run/solution/output relationships, verification findings and existing digest preimages before publication; preserve contextual feasibility and qualify installed GPU readiness/resource reads |
+| F44 | Optimization resource admission | Qualify installed mandatory GPU readiness and problem/run/solution/output resource reads with the source-qualified admission, verification findings and digest preimages; preserve contextual feasibility |
 | F45 | Map travel-model reads and shared references | Qualify installed page traversal with current consumers and source-qualified identity/manifest admission |
 | F46 | Map restriction reads | Qualify installed summary pages and the declared effect/limit policy with source-qualified geometry, family, record, validity and finite ordered vertical-band admission |
 | F47 | Map product addresses | Qualify installed lineage and derivation consumers with source-qualified parent, revision and Artifact checks; external country/state codes keep their distinct types |
@@ -2983,13 +2999,13 @@ reason rather than growing an unbounded generic typing task.
 | F56 | Native Task identity | Qualify installed consumption; native APIs, changed admission adapters and isolated-contract consumers already have a passing checkpoint. |
 | F57 | Shared public Task reads and notifications | Qualify current-format installed delivery and audit domain-specific adapters for additional policy; preserve transactional owner/context/operation rechecks and the qualified rollback/race cases. |
 | F58 | DuckDB source contract | Qualify installed source consumption, catalog pages, the fresh owner-directory/metadata formats and Artifact publication/recovery |
-| F59 | UAV contract | Check adapter reply parents and accepted/rejected semantics before notifications/startup continuation; share world digest/frame and portable state/child admission with Python producers; qualify installed GPU consumers and recovery |
+| F59 | UAV contract | Qualify installed GPU consumers and recovery with the source-qualified adapter reply parents and accepted/rejected semantics, shared world digest/frame and Rust/Python portable state/child admission |
 | F60 | UAV scopes | Qualify current scope enforcement on every installed UAV replica |
 | F61 | Reason | Qualify installed delivery, restart recovery and GPU behavior with source-qualified full results, visible summary/provenance relationships and owner-derived summaries |
 | F62 | Task-backed resource notifications | Speech now uses the Stream/Reason shared Task watch; owning delivery, current-policy refusal, context cancellation and affected source consumers pass. Retain independent domain-change sources and qualify installed consumers and coordinated replacement. |
 | F63 | Stream | Qualify installed replay/live results and browser consumers; preserve source-qualified replay/detection, visible terminal provenance and browser admission before state effects |
 | F64 | Shared recorded video | Qualify installed snapshot digests and Stream/Reason consumers; preserve signed timeline indices and source-qualified shared construction/decoder admission |
-| F65 | View | Complete the Vulkan/CUDA GPU JPEG path and qualify encoder readiness, image bytes, cancellation and process drain. Recover interrupted captures after their retained leases expire without another process restart. Qualify installed consumers and cross-context Task delivery. |
+| F65 | View | Qualify interrupted-capture recovery after retained lease expiry, cancellation, process drain, installed consumers and cross-context Task delivery with the source-qualified Vulkan/CUDA path. Current hardware byte/completion results and lifecycle synchronization condition appear in Current Status. |
 | F66 | Recording | Typed IDs, sealed-property recovery and immutable publication pass locally. Native controls qualify the manifest body and descriptor, RRD nonrewrite, retained Reader authority, Video snapshots, Hub diagnostics, cross-segment encoded payloads and Redap's URI/manifest profile. Store-backed framed-RRD delivery qualifies actual bytes, bootstrap, reconnect, updates, rollover and SQL refusal at admission and layer transitions. Qualify Redap live delivery, final installed ingest and grants, mandatory GPU decode and headed Rerun playback |
 | F67 | Shared consumers | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | F68 | SDKs, clients, templates, and showcase servers | SDK Artifact metadata/address/compliance and usage parent/finite/derived-total admission pass affected SDK and template callers locally. Preserve explicit external/native Task profiles and qualify installed multi-page consumers |
@@ -3095,17 +3111,12 @@ when the caller cancels first, including an original owner with a grace below on
 second. Its added owner-still-running control passes, and independent review accepts
 the narrow correction. The earlier full Support selection is reused for unchanged
 branches; current process and gate controls qualify the affected paths.
-The existing owning GPU
-smoke has been extended to interrupt a real capture process, retain its actual
-180-second lease, restart before expiry and read the completed frame afterward.
-That hardware restart and installed graceful exit remain unqualified; GPU encoding
-alone cannot close this recovery gate.
-
-View's selected CUDA 13.3.1 image satisfies the loaded 610.57.04 driver's
-advertised CUDA 13.3 capability. Preserve the vendor check and qualify actual
-device admission, encoder warmup and the existing owning smoke with this profile.
-F65/A10 still require hardware image bytes, cancellation and process drain;
-the compiler and generated-binding checks cannot close those gates.
+The existing owning GPU smoke must interrupt a real capture process, retain its
+actual 180-second lease, restart before expiry and read the completed frame afterward.
+Preserve the CUDA vendor check and installed graceful-exit requirement. The current
+hardware results and remaining lifecycle condition are recorded in
+[Current Status](#current-status); encoder completion cannot establish interrupted
+capture recovery or process drain.
 
 The real Media generation check is explicitly unqualified under the user's restriction.
 It must appear as such in the final acceptance report; the fake-provider pass cannot
