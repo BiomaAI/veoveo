@@ -9,10 +9,10 @@
 | Dockerfile frontend 1.25.0 and 1.27.0 | Existing Rust recipes retain their pins; the managed-agent controller uses the current 1.27.0 parser |
 | Docker Buildx Bake | checked-in image catalog and named-context graph |
 | OCI images | `linux/amd64` release output with immutable Git revision tags |
-| `veoveo.ai/image-build-plan/v2` | repository-owned resolved build-plan evidence with the source commit timestamp |
+| `veoveo.ai/image-build-plan/v3` | repository-owned resolved build-plan evidence with the source commit timestamp |
 | `veoveo.ai/image-build-run/v2` | repository-owned immutable execution record with BuildKit phase timings |
 | `veoveo.ai/image-affected-plan/v1` | changed-path to image-consumer closure |
-| `veoveo.ai/image-stage-evidence/v2` | non-release runnable identity from a staged registry publication with explicit host-push and cluster-pull endpoints |
+| `veoveo.ai/image-stage-evidence/v3` | non-release runnable identity from a staged registry publication with explicit host-push and cluster-pull endpoints |
 | `veoveo.ai/development-image-lock/v1` | complete development-only image closure derived from a qualified lock |
 | Cargo metadata version 1 | package, target, and normal/build dependency discovery |
 | `veoveo.ai/rust-source-context/v1` | content identity for a metadata-derived Rust source context |
