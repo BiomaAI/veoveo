@@ -16303,6 +16303,7 @@ dependencies = [
  "glam 0.33.5",
  "hex",
  "image",
+ "jsonschema",
  "jsonwebtoken 11.0.0",
  "re_grpc_server",
  "re_log_encoding",

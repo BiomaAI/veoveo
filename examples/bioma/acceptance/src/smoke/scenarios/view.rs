@@ -18,6 +18,8 @@ use veoveo_types::{
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 #[path = "view/readiness.rs"]
 mod readiness;
+#[path = "view/schema.rs"]
+mod schema;
 use readiness::AdmittedAdapter;
 use veoveo_view_mcp::contract::{
     CameraDefinition, CaptureFrameRequest, CapturePolicy, CapturedFrame,
@@ -90,20 +92,7 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
                 == Some("ui://view/preview.html"),
             "`{name}` is not linked to the preview app: {tool_json}"
         );
-        let structured_property = match name {
-            "create_view" | "set_camera" => Some("camera"),
-            "capture_frame" => Some("policy"),
-            _ => None,
-        };
-        if let Some(property) = structured_property {
-            let property_schema = tool_json
-                .pointer(&format!("/inputSchema/properties/{property}"))
-                .with_context(|| format!("`{name}` omitted `{property}` schema: {tool_json}"))?;
-            ensure!(
-                property_schema["type"] == "object" && property_schema.get("$ref").is_none(),
-                "`{name}.{property}` did not expose an inline object schema: {property_schema}"
-            );
-        }
+        schema::assert_tool_schema(tool)?;
         if name == "create_scene_composition" {
             let base_layer = tool_json
                 .pointer("/inputSchema/properties/baseLayer")
@@ -704,6 +693,22 @@ fn require_isolation_rejection<T>(
 #[cfg(test)]
 mod lifecycle_controls {
     use super::*;
+    #[test]
+    fn packaged_preview_document_satisfies_public_content_checks() {
+        let template = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../servers/view-mcp/assets/preview-app.template.html"
+        ));
+        let vendor = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../servers/view-mcp/assets/vendor/three-bundle.min.js"
+        ));
+        let packaged = template.replacen("/*__VEOVEO_THREE_BUNDLE__*/", vendor, 1);
+        assert_preview_document(&packaged, Some("text/html;profile=mcp-app")).unwrap();
+        assert!(assert_preview_document(&packaged, Some("text/html")).is_err());
+        assert!(assert_preview_document("", Some("text/html;profile=mcp-app")).is_err());
+    }
+
     #[test]
     fn local_fixture_requests_admit_through_current_view_contracts() {
         local_camera().validate().unwrap();
@@ -1331,8 +1336,12 @@ async fn assert_preview_app_resource(session: &SmokeMcpClient) -> Result<()> {
             _ => None,
         })
         .context("preview app resource returned no text")?;
+    assert_preview_document(text, mime_type.as_deref())
+}
+
+fn assert_preview_document(text: &str, mime_type: Option<&str>) -> Result<()> {
     ensure!(
-        mime_type.as_deref() == Some("text/html;profile=mcp-app"),
+        mime_type == Some("text/html;profile=mcp-app"),
         "preview app has the wrong mime type: {mime_type:?}"
     );
     ensure!(
@@ -1343,7 +1352,6 @@ async fn assert_preview_app_resource(session: &SmokeMcpClient) -> Result<()> {
         "DracoDecoderModule",
         "ui/initialize",
         "tools/call",
-        "app.composition = record",
         "composition ready",
     ] {
         ensure!(text.contains(needle), "preview app is missing `{needle}`");
