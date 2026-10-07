@@ -543,10 +543,10 @@ index 00000000..97d19fc7
 +    }
 +}
 diff --git a/crates/openshell-driver-docker/src/tests.rs b/crates/openshell-driver-docker/src/tests.rs
-index caefe483..40e5d105 100644
+index caefe483..e26b47b9 100644
 --- a/crates/openshell-driver-docker/src/tests.rs
 +++ b/crates/openshell-driver-docker/src/tests.rs
-@@ -221,6 +221,320 @@ fn json_struct(value: serde_json::Value) -> prost_types::Struct {
+@@ -221,6 +221,401 @@ fn json_struct(value: serde_json::Value) -> prost_types::Struct {
          .expect("test JSON must convert to a protobuf Struct")
  }
  
@@ -570,13 +570,65 @@ index caefe483..40e5d105 100644
 +}
 +
 +#[test]
-+fn log_limits_absence_preserves_legacy_container_contract() {
-+    let host = build_container_create_body(&test_sandbox(), &runtime_config())
++fn log_limits_absence_preserves_isolated_channel_mount_contract() {
++    let sandbox = test_sandbox();
++    let runtime = runtime_config();
++    let host = build_container_create_body(&sandbox, &runtime)
 +        .unwrap()
 +        .host_config
 +        .unwrap();
 +    assert!(host.log_config.is_none());
-+    assert!(host.mounts.unwrap().is_empty());
++    assert!(
++        host.binds.unwrap().is_empty(),
++        "no host trust or runtime binds"
++    );
++    let mounts = host.mounts.unwrap();
++    assert_eq!(mounts.len(), 1);
++    assert_eq!(
++        serde_json::to_value(&mounts[0]).unwrap(),
++        serde_json::json!({
++            "Type": "volume", "Source": docker_channel_volume_name(&sandbox, &runtime),
++            "Target": "/.openshell/channel", "ReadOnly": false, "VolumeOptions": {"NoCopy": true}
++        })
++    );
++    assert_ne!(
++        mounts[0].source.as_deref(),
++        Some(docker_supervisor_volume_name(&sandbox, &runtime).as_str())
++    );
++    let mut another = sandbox.clone();
++    another.id.push_str("-another");
++    assert_ne!(
++        docker_channel_volume_name(&sandbox, &runtime),
++        docker_channel_volume_name(&another, &runtime)
++    );
++    let mut foreign = runtime_config();
++    foreign.sandbox_namespace.push_str("-another");
++    assert_ne!(
++        docker_channel_volume_name(&sandbox, &runtime),
++        docker_channel_volume_name(&sandbox, &foreign)
++    );
++    for target in [
++        "/.openshell",
++        "/.openshell/channel",
++        "/.openshell/channel/sandbox",
++    ] {
++        let mut masked = test_sandbox();
++        masked
++            .spec
++            .as_mut()
++            .unwrap()
++            .template
++            .as_mut()
++            .unwrap()
++            .driver_config = Some(json_struct(
++            serde_json::json!({"mounts": [{"type": "tmpfs", "target": target}]}),
++        ));
++        let error = build_container_create_body(&masked, &runtime).unwrap_err();
++        assert!(
++            error.message().contains("/.openshell/channel"),
++            "{target}: {error}"
++        );
++    }
 +}
 +
 +#[test]
@@ -584,7 +636,7 @@ index caefe483..40e5d105 100644
 +    let mut config = bounded_log_config();
 +    config["mounts"] = serde_json::json!([
 +        {"type": "volume", "source": "retained-home", "target": "/sandbox/persistent",
-+         "read_only": false, "subpath": "home"},
++         "read_only": false, "subpath": "home", "no_copy": true},
 +        {"type": "tmpfs", "target": "/tmp", "size_bytes": 16_777_216, "mode": 1023}
 +    ]);
 +    let sandbox = sandbox_with_logs(config);
@@ -603,7 +655,18 @@ index caefe483..40e5d105 100644
 +        })
 +    );
 +    let mounts = host.mounts.unwrap();
-+    assert_eq!(mounts.len(), 3);
++    assert_eq!(mounts.len(), 4);
++    assert_eq!(mounts[0].typ, Some(MountTypeEnum::VOLUME));
++    assert_eq!(mounts[0].target.as_deref(), Some("/sandbox/persistent"));
++    assert_eq!(mounts[0].read_only, Some(false));
++    assert_eq!(
++        mounts[0].volume_options.as_ref().unwrap().no_copy,
++        Some(true)
++    );
++    assert_eq!(
++        serde_json::to_value(&mounts[0]).unwrap()["VolumeOptions"]["NoCopy"],
++        true
++    );
 +    assert_eq!(mounts[0].source.as_deref(), Some("retained-home"));
 +    assert_eq!(
 +        mounts[0]
@@ -614,7 +677,12 @@ index caefe483..40e5d105 100644
 +            .as_deref(),
 +        Some("home")
 +    );
-+    assert_eq!(mounts[1].target.as_deref(), Some("/tmp"));
++    assert_eq!(
++        serde_json::to_value(&mounts[1]).unwrap(),
++        serde_json::json!({
++            "Type": "tmpfs", "Target": "/tmp", "TmpfsOptions": {"SizeBytes": 16_777_216, "Mode": 1023}
++        })
++    );
 +    let log_mount = serde_json::to_value(&mounts[2]).unwrap();
 +    assert_eq!(
 +        log_mount,
@@ -623,6 +691,19 @@ index caefe483..40e5d105 100644
 +                "SizeBytes": 33_554_432, "Mode": 448, "Options": [["noexec"]]
 +            }
 +        })
++    );
++    assert_eq!(
++        serde_json::to_value(&mounts[3]).unwrap(),
++        serde_json::json!({
++            "Type": "volume", "Source": docker_channel_volume_name(&sandbox, &runtime_config()),
++            "Target": "/.openshell/channel", "ReadOnly": false, "VolumeOptions": {"NoCopy": true}
++        })
++    );
++    assert!(!mounts.iter().any(|mount| mount.source.as_deref()
++        == Some(docker_supervisor_volume_name(&sandbox, &runtime_config()).as_str())));
++    assert!(
++        host.binds.unwrap().is_empty(),
++        "retained home uses the registered volume, no host trust binds"
 +    );
 +    assert!(host.restart_policy.is_none());
 +}
@@ -867,7 +948,7 @@ index caefe483..40e5d105 100644
  fn inspected_volume(driver: &str, options: HashMap<String, String>) -> bollard::models::Volume {
      bollard::models::Volume {
          name: "openshell-test-volume".to_string(),
-@@ -1740,6 +2054,36 @@ fn build_container_create_body_includes_driver_config_mounts() {
+@@ -1740,6 +2135,36 @@ fn build_container_create_body_includes_driver_config_mounts() {
      );
  }
  
@@ -904,7 +985,7 @@ index caefe483..40e5d105 100644
  #[test]
  fn driver_config_defaults_volume_mounts_to_read_only() {
      let mut sandbox = test_sandbox();
-@@ -2725,7 +3069,13 @@ fn build_container_create_body_disables_docker_networking() {
+@@ -2725,7 +3150,13 @@ fn build_container_create_body_disables_docker_networking() {
  
  #[test]
  fn docker_supervisor_uses_host_network() {
@@ -919,7 +1000,7 @@ index caefe483..40e5d105 100644
  
      assert_eq!(host.network_mode.as_deref(), Some("host"));
      assert_eq!(
-@@ -2741,7 +3091,13 @@ fn docker_supervisor_uses_host_network() {
+@@ -2741,7 +3172,13 @@ fn docker_supervisor_uses_host_network() {
  
  #[test]
  fn docker_supervisor_maps_host_aliases_to_the_gateway_address() {
@@ -934,7 +1015,7 @@ index caefe483..40e5d105 100644
  
      assert_eq!(
          host.extra_hosts,
-@@ -2758,7 +3114,13 @@ fn docker_supervisor_maps_host_aliases_to_the_gateway_address() {
+@@ -2758,7 +3195,13 @@ fn docker_supervisor_maps_host_aliases_to_the_gateway_address() {
  
  #[test]
  fn docker_supervisor_leaves_named_gateway_hosts_to_dns() {
@@ -949,7 +1030,7 @@ index caefe483..40e5d105 100644
  
      assert_eq!(host.extra_hosts, None);
      assert_eq!(
-@@ -3208,23 +3570,85 @@ fn docker_supervisor_image_tag_sanitizes_build_metadata_for_docker() {
+@@ -3208,23 +3651,85 @@ fn docker_supervisor_image_tag_sanitizes_build_metadata_for_docker() {
      );
  }
  
@@ -1052,7 +1133,7 @@ index caefe483..40e5d105 100644
  }
  
  #[test]
-@@ -3501,3 +3925,122 @@ fn admission_provisioning_failure_distinguishes_denials_from_lookup_failures() {
+@@ -3501,3 +4006,131 @@ fn admission_provisioning_failure_distinguishes_denials_from_lookup_failures() {
      assert_eq!(lookup.reason, "ResourceAdmissionLookupFailed");
      assert_eq!(lookup.message, "inspect docker volume failed");
  }
@@ -1161,6 +1242,15 @@ index caefe483..40e5d105 100644
 +                "registry.internal:5000/provider@sha256:",
 +                "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 +            ))
++        );
++        let mut obsolete_case = raw.clone();
++        obsolete_case
++            .as_table_mut()
++            .unwrap()
++            .insert("image_pull_policy".into(), "Never".into());
++        assert!(
++            obsolete_case.try_into::<DockerComputeConfig>().is_err(),
++            "noncanonical policy spelling must reject"
 +        );
 +        for retired in ["host_gateway_ip", "sandbox_namespace", "network_name"] {
 +            let mut unsupported = raw.clone();

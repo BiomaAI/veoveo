@@ -68,7 +68,7 @@ mod tests {
         let mut config = valid();
         let encoded = config.provider_config().unwrap();
         assert!(encoded.contains(&format!("supervisor_image = {:?}", config.supervisor_image)));
-        assert!(encoded.contains("image_pull_policy = \"Never\""));
+        assert!(encoded.contains("image_pull_policy = \"never\""));
         assert!(encoded.contains("supervisor_bin = \"/usr/local/bin/openshell-sandbox\""));
         config.supervisor_image = "registry.internal:5000/provider:latest".into();
         assert!(config.provider_config().is_err());
@@ -237,7 +237,7 @@ ttl_secs = 3600
 [openshell.drivers.docker]
 socket_path = "{SOCKET}"
 default_image = {image}
-image_pull_policy = "Never"
+image_pull_policy = "never"
 supervisor_image = {supervisor_image}
 allow_driver_config = true
 sandbox_label = "{namespace}"

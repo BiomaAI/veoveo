@@ -46,7 +46,7 @@ ttl_secs = 3600
 [openshell.drivers.docker]
 socket_path = {socket}
 default_image = {image}
-image_pull_policy = "Never"
+image_pull_policy = "never"
 supervisor_image = {supervisor_image}
 allow_driver_config = true
 sandbox_label = "{namespace}"

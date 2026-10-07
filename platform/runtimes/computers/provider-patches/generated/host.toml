@@ -17,7 +17,7 @@ ttl_secs = 3600
 [openshell.drivers.docker]
 socket_path = "/run/veoveo-computers/docker.sock"
 default_image = "registry.internal:5000/computer@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-image_pull_policy = "Never"
+image_pull_policy = "never"
 supervisor_image = "registry.internal:5000/provider@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 allow_driver_config = true
 sandbox_label = "private-computers"
