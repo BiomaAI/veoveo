@@ -2,6 +2,8 @@
 #![allow(dead_code)] // Shared fixtures expose other scenarios' operations.
 #[path = "native_support/block_home.rs"]
 mod block_home;
+#[path = "native_support/diagnostics.rs"]
+mod diagnostics;
 mod native_support;
 #[path = "native_support/template.rs"]
 mod template;
@@ -180,7 +182,36 @@ async fn regular_file_transfer_verifies_bytes_retention_and_uncertain_input() {
         &stopped,
     )
     .unwrap();
-    let starting = runtime.start(&binding, &stopped).await.unwrap();
+    let dispatch_began = diagnostics::DispatchWindow::now();
+    let starting = match runtime.start(&binding, &stopped).await {
+        Ok(starting) => starting,
+        Err(error) => {
+            let window = diagnostics::DispatchWindow::finish(dispatch_began);
+            let diagnostic = diagnostics::capture_start_failure(
+                &provider,
+                &binding,
+                &stopped,
+                &start,
+                window,
+                &[
+                    path,
+                    "private-checksum-rejection",
+                    "private-interrupted-transfer",
+                    "private-stale-run-transfer",
+                ],
+            )
+            .await;
+            if diagnostic.is_err() {
+                eprintln!(
+                    "Start failure diagnostic receipt unavailable; lifecycle outcome unchanged"
+                );
+            }
+            panic!(
+                "native Start failed: {error:?}; diagnostic capture attempted before cleanup at {}",
+                provider.dir.display()
+            );
+        }
+    };
     let restarted = runtime
         .wait_for_lifecycle(&start, &starting, Duration::from_secs(30))
         .await

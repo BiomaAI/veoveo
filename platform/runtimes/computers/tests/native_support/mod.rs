@@ -189,6 +189,10 @@ fn quoted(path: &std::path::Path) -> String {
 }
 
 impl Provider {
+    pub fn process_id(&self) -> Option<u32> {
+        self.cleanup.child.as_ref().map(Child::id)
+    }
+
     pub async fn start(test_name: &'static str) -> Self {
         Self::start_with_session_ttl(3600, test_name).await.0
     }
