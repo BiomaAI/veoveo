@@ -605,7 +605,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         // Mutable lifecycle columns supersede an earlier admitted queued body.
         let queued_body = corrupt(&original, "status", json!("queued"));
         let queued_body = corrupt(&queued_body, "phase", json!("queued"));
-        let queued_body = corrupt(&queued_body, "staged_release_id", serde_json::Value::Null);
+        let queued_body = corrupt(&queued_body, "stagedReleaseId", serde_json::Value::Null);
         let queued = serde_json::from_str::<TimeAcquisition>(&queued_body).unwrap();
         set(&db.a, &record, "canonical_json", queued_body.clone()).await;
         let restored = catalog

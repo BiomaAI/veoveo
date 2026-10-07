@@ -59,7 +59,7 @@ fn instant_and_expression_wires_keep_numeric_fractions_and_zero_defaults() {
         let seconds = if format == "unix" {
             "seconds"
         } else {
-            "seconds_since_1970"
+            "secondsSince1970"
         };
         let wire = json!({"format":format, seconds:0});
         let decoded: TimeExpression = serde_json::from_value(wire.clone()).unwrap();

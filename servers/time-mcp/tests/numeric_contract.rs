@@ -50,10 +50,10 @@ fn clock_policy_builder_and_decoder_preserve_valid_wire_fields() {
 fn clock_schema_and_decoder_admit_the_same_numeric_bounds() {
     let schema = serde_json::to_value(schemars::schema_for!(ClockQualityPolicy)).unwrap();
     for (field, max) in [
-        ("maximum_error_nanoseconds", i64::MAX as u64),
-        ("maximum_stratum", 15),
-        ("minimum_source_diversity", u32::MAX as u64),
-        ("maximum_holdover_seconds", i64::MAX as u64),
+        ("maximumErrorNanoseconds", i64::MAX as u64),
+        ("maximumStratum", 15),
+        ("minimumSourceDiversity", u32::MAX as u64),
+        ("maximumHoldoverSeconds", i64::MAX as u64),
     ] {
         assert_eq!(schema["properties"][field]["minimum"], json!(1), "{field}");
         assert_eq!(

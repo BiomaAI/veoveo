@@ -88,12 +88,12 @@ fn reference_decoder_rejects_conflicting_identity_and_blank_labels() {
         assert!(serde_json::from_value::<TimeAuthorityReference>(wire).is_err());
     }
     for field in [
-        "release_uri",
-        "release_id",
-        "dataset_kind",
+        "releaseUri",
+        "releaseId",
+        "datasetKind",
         "source",
-        "source_digest",
-        "version_label",
+        "sourceDigest",
+        "versionLabel",
     ] {
         let mut missing = original.clone();
         missing.as_object_mut().unwrap().remove(field);
@@ -246,13 +246,13 @@ fn resolved_output_preserves_flat_wire_schema_and_read_only_metadata() {
     assert_eq!(
         required,
         vec![
-            "effective_authority",
+            "effectiveAuthority",
             "instant",
-            "julian_day_tai",
-            "military_dtg",
-            "unix_seconds",
-            "utc_is_leap_second",
-            "utc_rfc3339"
+            "julianDayTai",
+            "militaryDtg",
+            "unixSeconds",
+            "utcIsLeapSecond",
+            "utcRfc3339"
         ]
     );
     for field in required {
@@ -264,20 +264,21 @@ fn resolved_output_preserves_flat_wire_schema_and_read_only_metadata() {
         );
     }
     let mut optional = expected;
-    for field in ["gps_week", "gps_seconds_of_week"] {
+    for field in ["gpsWeek", "gpsSecondsOfWeek"] {
         optional.as_object_mut().unwrap().remove(field);
     }
-    optional["extra"] = true.into();
     assert_eq!(
-        serde_json::from_value::<ResolveTimeOutput>(optional).unwrap(),
+        serde_json::from_value::<ResolveTimeOutput>(optional.clone()).unwrap(),
         output
     );
+    optional["extra"] = true.into();
+    assert!(serde_json::from_value::<ResolveTimeOutput>(optional).is_err());
 }
 
 #[test]
 fn resolved_and_converted_outputs_reject_either_mismatched_authority_family() {
     let output = resolution();
-    for family in ["tzdb_release_id", "leap_seconds_release_id"] {
+    for family in ["tzdbReleaseId", "leapSecondsReleaseId"] {
         let mut wire = serde_json::to_value(&output).unwrap();
         wire["instant"]["authority"][family] = "time-release-sensitive-input".into();
         let instant: TimeInstant = serde_json::from_value(wire["instant"].clone()).unwrap();

@@ -1,6 +1,6 @@
 use super::{TimeAccessContext, TimeCatalog};
 use crate::persistence::{TimeClockPolicyDraft, TimeClockPolicyRecord};
-use crate::{ClockQualityPolicy, TimeVersion, TimeWriteGuard};
+use crate::{ClockPolicyField, ClockQualityPolicy, TimeVersion, TimeWriteGuard};
 use anyhow::Result;
 use surrealdb::types::RecordId;
 use veoveo_platform_store::TenantId;
@@ -75,7 +75,14 @@ fn decode(
             record.maximum_holdover_seconds,
         )?)
         .build()
-        .map_err(|error| invalid(error.field().as_str()))?;
+        .map_err(|error| {
+            invalid(match error.field() {
+                ClockPolicyField::MaximumErrorNanoseconds => "maximum_error_nanoseconds",
+                ClockPolicyField::MaximumStratum => "maximum_stratum",
+                ClockPolicyField::MinimumSourceDiversity => "minimum_source_diversity",
+                ClockPolicyField::MaximumHoldoverSeconds => "maximum_holdover_seconds",
+            })
+        })?;
     let version = TimeVersion::new(unsigned("record_version", record.record_version)?)
         .map_err(|_| invalid("record_version"))?;
     Ok((policy, version))
