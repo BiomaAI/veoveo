@@ -133,6 +133,6 @@ COPY --from=source /gateway/LICENSE /usr/share/doc/veoveo-computer-provider/LICE
 COPY platform/runtimes/computers/provider-patches /usr/share/veoveo-computer-provider/source
 RUN cd /usr/local/bin && sha256sum openshell openshell-gateway openshell-driver-docker openshell-supervisor openshell-sandbox > /usr/share/veoveo-computer-provider/binaries.sha256
 LABEL ai.veoveo.provider.profile="0.1.2-veoveo.1" \
-      ai.veoveo.provider.manifest-sha256="bce33c87c76fc7676572de27fee3b204ef7567eeb602314389db031eeeec8588" \
+      ai.veoveo.provider.manifest-sha256="c86e343194d7fdb4b22422cb4320d50d0e25ab3abb08ca8139b24dc29a84fc07" \
       ai.veoveo.provider.supervisor-source-tree="0020919d2c5d2c61230a0a188edaf4469ba9d0f1"
 ENTRYPOINT ["/usr/local/bin/openshell-gateway"]

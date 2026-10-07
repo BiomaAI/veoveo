@@ -543,10 +543,10 @@ index 00000000..97d19fc7
 +    }
 +}
 diff --git a/crates/openshell-driver-docker/src/tests.rs b/crates/openshell-driver-docker/src/tests.rs
-index caefe483..a61b25cc 100644
+index caefe483..40e5d105 100644
 --- a/crates/openshell-driver-docker/src/tests.rs
 +++ b/crates/openshell-driver-docker/src/tests.rs
-@@ -221,6 +221,292 @@ fn json_struct(value: serde_json::Value) -> prost_types::Struct {
+@@ -221,6 +221,320 @@ fn json_struct(value: serde_json::Value) -> prost_types::Struct {
          .expect("test JSON must convert to a protobuf Struct")
  }
  
@@ -803,9 +803,22 @@ index caefe483..a61b25cc 100644
 +                "socket" => runtime.ssh_socket_path = path.to_string(),
 +                _ => unreachable!(),
 +            }
-+            let err =
-+                build_container_create_body_for_image(&sandbox, &runtime, &config, None, &image)
-+                    .unwrap_err();
++            let err = build_container_create_body_for_image(
++                &sandbox,
++                &runtime,
++                &config,
++                None,
++                &image,
++                &ResolvedWorkloadIdentity::new(
++                    998,
++                    998,
++                    Vec::new(),
++                    "test-numeric-image".to_string(),
++                    image.id.clone(),
++                )
++                .unwrap(),
++            )
++            .unwrap_err();
 +            assert!(
 +                err.message().contains("control path '/var/log'")
 +                    || (path == "/var" && err.message().contains("/var/run/netns")),
@@ -833,13 +846,28 @@ index caefe483..a61b25cc 100644
 +    };
 +    let mut runtime = runtime_config();
 +    runtime.ssh_socket_path = "/var/logpipe/ssh.sock".to_string();
-+    build_container_create_body_for_image(&sandbox, &runtime, &config, None, &image).unwrap();
++    build_container_create_body_for_image(
++        &sandbox,
++        &runtime,
++        &config,
++        None,
++        &image,
++        &ResolvedWorkloadIdentity::new(
++            998,
++            998,
++            Vec::new(),
++            "test-numeric-image".to_string(),
++            image.id.clone(),
++        )
++        .unwrap(),
++    )
++    .unwrap();
 +}
 +
  fn inspected_volume(driver: &str, options: HashMap<String, String>) -> bollard::models::Volume {
      bollard::models::Volume {
          name: "openshell-test-volume".to_string(),
-@@ -1740,6 +2026,36 @@ fn build_container_create_body_includes_driver_config_mounts() {
+@@ -1740,6 +2054,36 @@ fn build_container_create_body_includes_driver_config_mounts() {
      );
  }
  
@@ -876,7 +904,7 @@ index caefe483..a61b25cc 100644
  #[test]
  fn driver_config_defaults_volume_mounts_to_read_only() {
      let mut sandbox = test_sandbox();
-@@ -2725,7 +3041,13 @@ fn build_container_create_body_disables_docker_networking() {
+@@ -2725,7 +3069,13 @@ fn build_container_create_body_disables_docker_networking() {
  
  #[test]
  fn docker_supervisor_uses_host_network() {
@@ -891,7 +919,7 @@ index caefe483..a61b25cc 100644
  
      assert_eq!(host.network_mode.as_deref(), Some("host"));
      assert_eq!(
-@@ -2741,7 +3063,13 @@ fn docker_supervisor_uses_host_network() {
+@@ -2741,7 +3091,13 @@ fn docker_supervisor_uses_host_network() {
  
  #[test]
  fn docker_supervisor_maps_host_aliases_to_the_gateway_address() {
@@ -906,7 +934,7 @@ index caefe483..a61b25cc 100644
  
      assert_eq!(
          host.extra_hosts,
-@@ -2758,7 +3086,13 @@ fn docker_supervisor_maps_host_aliases_to_the_gateway_address() {
+@@ -2758,7 +3114,13 @@ fn docker_supervisor_maps_host_aliases_to_the_gateway_address() {
  
  #[test]
  fn docker_supervisor_leaves_named_gateway_hosts_to_dns() {
@@ -921,7 +949,110 @@ index caefe483..a61b25cc 100644
  
      assert_eq!(host.extra_hosts, None);
      assert_eq!(
-@@ -3501,3 +3835,122 @@ fn admission_provisioning_failure_distinguishes_denials_from_lookup_failures() {
+@@ -3208,23 +3570,85 @@ fn docker_supervisor_image_tag_sanitizes_build_metadata_for_docker() {
+     );
+ }
+ 
+-#[test]
+-fn docker_supervisor_image_refreshes_mutable_tags_only() {
+-    assert!(supervisor_image_should_refresh(
+-        "ghcr.io/nvidia/openshell/supervisor:dev"
+-    ));
+-    assert!(supervisor_image_should_refresh(
+-        "ghcr.io/nvidia/openshell/supervisor:latest"
+-    ));
+-    assert!(supervisor_image_should_refresh(
+-        "ghcr.io/nvidia/openshell/supervisor"
+-    ));
+-    assert!(!supervisor_image_should_refresh(
+-        "ghcr.io/nvidia/openshell/supervisor:0.0.47-dev.13-g57b71c68f"
+-    ));
+-    assert!(!supervisor_image_should_refresh(
+-        "ghcr.io/nvidia/openshell/supervisor@sha256:abc123"
+-    ));
++#[tokio::test]
++async fn provider_runtime_images_inspect_preloaded_digest_without_refresh() {
++    use tokio::io::{AsyncReadExt, AsyncWriteExt};
++    let reference = format!("registry.internal/provider@sha256:{}", "a".repeat(64));
++    for (status, body, expected_id) in [
++        ("200 OK", r#"{"Id":"sha256:loaded"}"#, Some("sha256:loaded")),
++        ("404 Not Found", r#"{"message":"No such image"}"#, None),
++        ("200 OK", r#"{"Id":""}"#, None),
++    ] {
++        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
++        let address = listener.local_addr().unwrap();
++        let server = tokio::spawn(async move {
++            let (mut stream, _) = listener.accept().await.unwrap();
++            let mut header = Vec::new();
++            loop {
++                let mut byte = [0];
++                stream.read_exact(&mut byte).await.unwrap();
++                header.push(byte[0]);
++                assert!(header.len() <= 4096, "bounded Engine request header");
++                if header.ends_with(b"\r\n\r\n") {
++                    break;
++                }
++            }
++            let header = String::from_utf8(header).unwrap();
++            assert!(
++                header.starts_with("GET "),
++                "image admission may only inspect: {header}"
++            );
++            assert!(header.lines().next().unwrap().contains("/images/"));
++            assert!(header.lines().next().unwrap().contains("/json "));
++            assert!(header.lines().next().unwrap().contains(&"a".repeat(64)));
++            stream.write_all(format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
++            drop(stream);
++            assert!(
++                tokio::time::timeout(std::time::Duration::from_millis(100), listener.accept())
++                    .await
++                    .is_err(),
++                "runtime image admission must not pull, create or refresh"
++            );
++        });
++        let docker = Docker::connect_with_http(
++            &format!("http://{address}"),
++            1,
++            bollard::API_DEFAULT_VERSION,
++        )
++        .unwrap();
++        let result = tokio::time::timeout(
++            std::time::Duration::from_secs(3),
++            ensure_runtime_image(&docker, &reference, "supervisor"),
++        )
++        .await
++        .unwrap();
++        tokio::time::timeout(std::time::Duration::from_secs(3), server)
++            .await
++            .unwrap()
++            .unwrap();
++        if let Some(id) = expected_id {
++            assert_eq!(result.unwrap(), id);
++        } else {
++            let error = result.unwrap_err();
++            assert!(error.to_string().contains(if status.starts_with("404") {
++                "preload exact Docker supervisor image"
++            } else {
++                "no immutable image ID"
++            }));
++        }
++    }
++    for image in [
++        "ghcr.io/nvidia/openshell/supervisor:dev",
++        "ghcr.io/nvidia/openshell/supervisor:latest",
++        "ghcr.io/nvidia/openshell/supervisor",
++        "ghcr.io/nvidia/openshell/supervisor:0.1.2",
++        "ghcr.io/nvidia/openshell/supervisor@sha256:abc123",
++    ] {
++        assert!(
++            validate_pinned_runtime_image(image).is_err(),
++            "unsupported mutable or malformed image: {image}"
++        );
++    }
+ }
+ 
+ #[test]
+@@ -3501,3 +3925,122 @@ fn admission_provisioning_failure_distinguishes_denials_from_lookup_failures() {
      assert_eq!(lookup.reason, "ResourceAdmissionLookupFailed");
      assert_eq!(lookup.message, "inspect docker volume failed");
  }
