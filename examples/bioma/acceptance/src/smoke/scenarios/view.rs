@@ -16,6 +16,19 @@ use veoveo_types::{
     WorkContextId,
 };
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
+#[path = "view/readiness.rs"]
+mod readiness;
+use readiness::AdmittedAdapter;
+use veoveo_view_mcp::contract::{
+    CameraDefinition, CaptureFrameRequest, CapturePolicy, CapturedFrame,
+    CreateSceneCompositionRequest, CreateViewRequest, DeadlineBehavior, FrameEncoding, FrameRecord,
+    GeodeticCameraPose, GovernedResourceUri, GovernedSceneInput, HeadingPitchRoll, LayerId,
+    OrbitTargetCamera, PreviewScenePolicy, PreviewSceneRecord, SceneComposition,
+    SceneCompositionId, SceneInputId, SceneOverlay, SceneOverlayGeometry,
+    SceneOverlayGeometrySource, SceneOverlayId, ScenePosition, SceneStyleId, SetCameraRequest,
+    ViewId, ViewRecord, ViewSceneUri, ViewUri, Wgs84Position3d,
+};
+
 const LOCAL_LAYER: &str = "gpu-smoke";
 
 const GOOGLE_LAYER: &str = "google-photorealistic";
@@ -34,7 +47,9 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
     let fixture_dir = tmpdir.join("fixtures");
     let catalog = write_local_fixture(&fixture_dir)?;
     let platform = spawn_platform_store_smoke().await?;
-    let running = start_view_container(
+    let token_a = issue_view_token("view-smoke-a")?;
+    let token_b = issue_view_token("view-smoke-b")?;
+    let mut running = start_view_container(
         view_image,
         &catalog,
         Some(&fixture_dir),
@@ -42,16 +57,16 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
         false,
         None,
         None,
+        &tmpdir,
     )
     .await?;
 
-    assert_http_status(
+    let result: Result<()> = async {
+    assert_view_http_status(
         &format!("{}/view/mcp", running.base),
         StatusCode::UNAUTHORIZED,
     )
     .await?;
-    let token_a = issue_view_token("view-smoke-a")?;
-    let token_b = issue_view_token("view-smoke-b")?;
     let session_a = connect_mcp_client(&format!("{}/view/mcp", running.base), &token_a).await?;
     let session_b = connect_mcp_client(&format!("{}/view/mcp", running.base), &token_b).await?;
     let tools = session_a.list_tools(Default::default()).await?;
@@ -118,7 +133,7 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
             ),
         )
         .await
-        .expect_err("an unknown layer identifier must fail");
+        .err().context("an unknown layer identifier unexpectedly succeeded")?;
     let invalid_layer = invalid_layer.to_string();
     ensure!(
         invalid_layer.contains(LOCAL_LAYER) && invalid_layer.contains("view://layers"),
@@ -127,32 +142,26 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
 
     let first_composition = create_composition(&session_a, LOCAL_LAYER, true).await?;
     let second_composition = create_composition(&session_b, LOCAL_LAYER, false).await?;
-    ensure!(
-        read_mcp_resource_json(
-            &session_b,
-            json_string(&first_composition, "/compositionUri")?,
-        )
-        .await
-        .is_err(),
-        "one owner read another owner's scene composition"
-    );
+    require_isolation_rejection(session_b.read_resource(ReadResourceRequestParams::new(
+        json_string(&first_composition, "/compositionUri")?
+    )).await, "unknown View resource")?;
     let first = call_structured(
         &session_a,
         "create_view",
-        json!({
-            "compositionId": first_composition["compositionId"],
-            "camera": local_camera()
-        }),
+        CreateViewRequest {
+            composition_id: SceneCompositionId::parse(json_string(&first_composition, "/compositionId")?)?,
+            camera: local_camera(),
+        },
     )
     .await?;
     let second_camera = local_camera();
     let second = call_structured(
         &session_b,
         "create_view",
-        json!({
-            "compositionId": second_composition["compositionId"],
-            "camera": serde_json::to_string(&second_camera)?
-        }),
+        CreateViewRequest {
+            composition_id: SceneCompositionId::parse(json_string(&second_composition, "/compositionId")?)?,
+            camera: second_camera,
+        },
     )
     .await?;
     let first_id = json_string(&first, "/viewId")?;
@@ -161,16 +170,13 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
         first_id != second_id,
         "two owners received the same view id"
     );
-    ensure!(
-        read_mcp_resource_json(&session_b, &format!("view://view/{first_id}"))
-            .await
-            .is_err(),
-        "one owner read another owner's view"
-    );
+    require_isolation_rejection(session_b.read_resource(ReadResourceRequestParams::new(
+        ViewUri::new(ViewId::parse(first_id)?).to_string()
+    )).await, "unknown View resource")?;
     let first = call_structured(
         &session_a,
         "set_camera",
-        json!({"viewId": first_id, "expectedRevision": 1, "camera": local_camera()}),
+        SetCameraRequest { view_id: ViewId::parse(first_id)?, expected_revision: 1, camera: local_camera() },
     )
     .await?;
     ensure!(
@@ -178,12 +184,12 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
         "camera revision did not advance: {first}"
     );
     let second_resource =
-        read_mcp_resource_json(&session_b, &format!("view://view/{second_id}")).await?;
+        read_view_resource(&session_b, &ViewUri::new(ViewId::parse(second_id)?).to_string()).await?;
     ensure!(second_resource["revision"] == 1);
 
-    let scene_uri =
-        format!("view://view/{first_id}/scene?width_px=256&height_px=256&max_screen_error_px=8");
-    let scene = read_mcp_resource_json(&session_a, &scene_uri).await?;
+    let scene_uri = ViewSceneUri::new(ViewId::parse(first_id)?, PreviewScenePolicy { width_px: 256, height_px: 256, max_screen_error_px: 8.0 })?.to_string();
+    let scene = read_view_resource(&session_a, &scene_uri).await?;
+    let _: PreviewSceneRecord = serde_json::from_value(scene.clone()).context("scene failed View owner admission")?;
     ensure!(
         scene["viewRevision"] == 2,
         "scene revision mismatch: {scene}"
@@ -208,12 +214,8 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
         tile_bytes.starts_with(b"glTF"),
         "preview tile blob is not a GLB container"
     );
-    ensure!(
-        read_mcp_resource_json(&session_b, &scene_uri)
-            .await
-            .is_err(),
-        "one owner read another owner's scene manifest"
-    );
+    require_isolation_rejection(session_b.read_resource(ReadResourceRequestParams::new(&scene_uri)).await,
+        "unknown View resource")?;
 
     let mut first_bytes = None;
     for (index, (session, token, view)) in [
@@ -227,7 +229,7 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
         let revision = view["revision"].as_u64().context("view omitted revision")?;
         let mut reference_pixels = None;
         for (encoding, mime) in [("png", "image/png"), ("jpeg", "image/jpeg")] {
-            let mut request = capture_request(view_id, revision, false);
+            let mut request = capture_request(view_id, revision, false)?;
             request["policy"]["encoding"] = json!(encoding);
             let payload =
                 FinalTaskSmokeClient::new(&format!("{}/view/mcp", running.base), token.clone())
@@ -266,7 +268,9 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
             ensure!(
                 record["compositionId"] == expected_composition["compositionId"]
                     && record["compositionDigestSha256"]
-                        == expected_composition["compositionDigestSha256"],
+                        == expected_composition["compositionDigestSha256"]
+                    && record["viewId"] == view["viewId"]
+                    && record["viewRevision"] == view["revision"],
                 "capture did not retain exact composition provenance: {record}"
             );
             ensure!(
@@ -294,7 +298,7 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
         )?;
         println!("retained local frame: {}", output.display());
     }
-    assert_encoder_completions(&running, 2)?;
+    assert_encoder_completions(&running, 2).await?;
     session_a.cancel().await?;
     session_b.cancel().await?;
     qualify_view_lifecycle(
@@ -302,12 +306,24 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
         &catalog,
         &fixture_dir,
         &platform,
-        running,
+        &mut running,
         &first,
         &first_composition,
         &tmpdir,
     )
     .await?;
+    Ok(())
+    }.await;
+    if let Err(error) = result {
+        return Err(retain_view_failure(
+            &running,
+            &tmpdir,
+            "view-failure",
+            error,
+            &[&token_a, &token_b],
+        )
+        .await);
+    }
     cleanup.remove_on_drop();
     println!(
         "View MCP local hardware fixture ok: NVIDIA capture, ownership, retained-lease restart and graceful shutdown; gateway OAuth acceptance is separate"
@@ -326,75 +342,95 @@ pub(crate) async fn view_google_live(view_image: &str, output: &Path) -> Result<
     println!("smoke workspace: {}", tmpdir.display());
     let catalog = fs::canonicalize("configs/view/layers.json")?;
     let platform = spawn_platform_store_smoke().await?;
-    let running =
-        start_view_container(view_image, &catalog, None, &platform, true, None, None).await?;
     let token = issue_view_token("view-google-live")?;
-    let session = connect_mcp_client(&format!("{}/view/mcp", running.base), &token).await?;
-    let composition = create_composition(&session, GOOGLE_LAYER, false).await?;
-    let view = call_structured(
-        &session,
-        "create_view",
-        json!({
-            "compositionId": composition["compositionId"],
-            "camera": {
-                "kind": "orbit_target",
+    let running = start_view_container(
+        view_image, &catalog, None, &platform, true, None, None, &tmpdir,
+    )
+    .await?;
+    let result: Result<()> = async {
+        let session = connect_mcp_client(&format!("{}/view/mcp", running.base), &token).await?;
+        let composition = create_composition(&session, GOOGLE_LAYER, false).await?;
+        let view = call_structured(
+            &session,
+            "create_view",
+            CreateViewRequest {
+                composition_id: SceneCompositionId::parse(json_string(
+                    &composition,
+                    "/compositionId",
+                )?)?,
+                camera: CameraDefinition::OrbitTarget(OrbitTargetCamera {
+                    target: Wgs84Position3d {
+                        latitude_degrees: STATUE_LATITUDE,
+                        longitude_degrees: STATUE_LONGITUDE,
+                        ellipsoidal_height_meters: STATUE_HEIGHT_METERS,
+                    },
+                    distance_meters: 650.0,
+                    azimuth_degrees: 210.0,
+                    elevation_degrees: 40.0,
+                    vertical_fov_degrees: 45.0,
+                }),
+            },
+        )
+        .await?;
+        let payload =
+            FinalTaskSmokeClient::new(&format!("{}/view/mcp", running.base), token.clone())
+                .run_tool(
+                    "capture_frame",
+                    capture_request(
+                        json_string(&view, "/viewId")?,
+                        view["revision"].as_u64().context("view omitted revision")?,
+                        true,
+                    )?,
+                    Duration::from_secs(300),
+                )
+                .await?;
+        let record = payload
+            .structured_content
+            .as_ref()
+            .context("Google capture omitted frame metadata")?;
+        let bytes = image_bytes(&payload, "image/jpeg")?;
+        admit_captured_frame(record, &bytes, "image/jpeg")?;
+        ensure!(bytes.starts_with(&[0xff, 0xd8, 0xff]));
+        ensure!(record["widthPx"] == 1280 && record["heightPx"] == 720);
+        ensure!(record["visibleTileCount"].as_u64().unwrap_or_default() > 0);
+        ensure!(record["pendingTileCount"].as_u64().unwrap_or_default() == 0);
+        ensure!(materially_different_pixels(&bytes)? > 10_000);
+        let resource_bytes =
+            read_blob_resource(&session, json_string(record, "/frameUri")?, "image/jpeg").await?;
+        ensure!(resource_bytes == bytes);
+        write_retained_frame(output, &bytes)?;
+        let digest = Sha256::digest(&bytes);
+        println!(
+            "{}",
+            serde_json::to_string(&json!({
+                "adapter": running.adapter.name,
+                "backend": running.adapter.backend,
+                "deviceType": running.adapter.device_type,
                 "target": {
                     "latitudeDegrees": STATUE_LATITUDE,
                     "longitudeDegrees": STATUE_LONGITUDE,
                     "ellipsoidalHeightMeters": STATUE_HEIGHT_METERS
                 },
-                "distanceMeters": 650.0,
-                "azimuthDegrees": 210.0,
-                "elevationDegrees": 40.0,
-                "verticalFovDegrees": 45.0
-            }
-        }),
-    )
-    .await?;
-    let payload = FinalTaskSmokeClient::new(&format!("{}/view/mcp", running.base), token.clone())
-        .run_tool(
-            "capture_frame",
-            capture_request(
-                json_string(&view, "/viewId")?,
-                view["revision"].as_u64().context("view omitted revision")?,
-                true,
-            ),
-            Duration::from_secs(300),
+                "frame": record,
+                "bytes": bytes.len(),
+                "sha256": hex::encode(digest),
+                "proofImage": output,
+            }))?
+        );
+        session.cancel().await?;
+        Ok(())
+    }
+    .await;
+    if let Err(error) = result {
+        return Err(retain_view_failure(
+            &running,
+            &tmpdir,
+            "view-google-failure",
+            error,
+            &[&token],
         )
-        .await?;
-    let record = payload
-        .structured_content
-        .as_ref()
-        .context("Google capture omitted frame metadata")?;
-    let bytes = image_bytes(&payload, "image/jpeg")?;
-    ensure!(bytes.starts_with(&[0xff, 0xd8, 0xff]));
-    ensure!(record["widthPx"] == 1280 && record["heightPx"] == 720);
-    ensure!(record["visibleTileCount"].as_u64().unwrap_or_default() > 0);
-    ensure!(record["pendingTileCount"].as_u64().unwrap_or_default() == 0);
-    ensure!(materially_different_pixels(&bytes)? > 10_000);
-    let resource_bytes =
-        read_blob_resource(&session, json_string(record, "/frameUri")?, "image/jpeg").await?;
-    ensure!(resource_bytes == bytes);
-    write_retained_frame(output, &bytes)?;
-    let digest = Sha256::digest(&bytes);
-    println!(
-        "{}",
-        serde_json::to_string(&json!({
-            "adapter": running.adapter["name"],
-            "backend": running.adapter["backend"],
-            "deviceType": running.adapter["deviceType"],
-            "target": {
-                "latitudeDegrees": STATUE_LATITUDE,
-                "longitudeDegrees": STATUE_LONGITUDE,
-                "ellipsoidalHeightMeters": STATUE_HEIGHT_METERS
-            },
-            "frame": record,
-            "bytes": bytes.len(),
-            "sha256": hex::encode(digest),
-            "proofImage": output,
-        }))?
-    );
-    session.cancel().await?;
+        .await);
+    }
     drop(running);
     cleanup.remove_on_drop();
     Ok(())
@@ -410,52 +446,20 @@ fn view_container_id(running: &RunningView) -> Result<String> {
     Ok(cid.to_owned())
 }
 
-fn view_logs(running: &RunningView) -> Result<String> {
-    let logs = run_raw(
-        Path::new("docker"),
-        ["logs".into(), view_container_id(running)?.into()],
-        [],
-    )?;
-    ensure!(logs.status.success(), "owned View logs unavailable");
-    Ok(format!(
-        "{}{}",
-        String::from_utf8_lossy(&logs.stdout),
-        String::from_utf8_lossy(&logs.stderr)
-    ))
-}
-
-fn assert_encoder_completions(running: &RunningView, minimum: usize) -> Result<()> {
-    assert_encoder_completion_logs(running, minimum, &view_logs(running)?)
+async fn assert_encoder_completions(running: &RunningView, minimum: usize) -> Result<()> {
+    assert_encoder_completion_logs(
+        running,
+        minimum,
+        &lifecycle_logs(
+            running,
+            tokio::time::Instant::now() + Duration::from_secs(5),
+        )
+        .await?,
+    )
 }
 
 fn assert_encoder_completion_logs(running: &RunningView, minimum: usize, logs: &str) -> Result<()> {
-    #[derive(serde::Deserialize)]
-    struct EncoderCompletion {
-        message: String,
-        encoder: String,
-        cuda_device_uuid: String,
-        width: u32,
-        height: u32,
-        encoded_frames: u64,
-    }
-    let completed = logs
-        .lines()
-        .filter_map(|line| serde_json::from_str::<EncoderCompletion>(line).ok())
-        .filter(|event| {
-            event.message == "View GPU JPEG completed"
-                && event.encoder == "nvjpeg_cuda_gpu"
-                && Some(event.cuda_device_uuid.as_str())
-                    == running.adapter["cudaDeviceUuid"].as_str()
-                && event.width == 256
-                && event.height == 256
-                && event.encoded_frames > 0
-        })
-        .count();
-    ensure!(
-        completed >= minimum,
-        "View did not report {minimum} completed GPU JPEG encodes on its admitted UUID"
-    );
-    Ok(())
+    readiness::assert_capture_completions(&running.adapter, minimum, logs)
 }
 
 // Each Docker command consumes the remaining lifecycle deadline. The maintained
@@ -492,6 +496,129 @@ fn docker_diagnostics(output: &std::process::Output) -> String {
     text.chars().take(4096).collect()
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HttpObservation {
+    request: String,
+    status: u16,
+    body_excerpt: String,
+}
+
+async fn observe_http(url: &str) -> Result<HttpObservation> {
+    use futures::StreamExt as _;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .with_context(|| format!("GET {url}: no HTTP response"))?;
+    let status = response.status().as_u16();
+    let mut body = Vec::new();
+    let mut chunks = response.bytes_stream();
+    while let Some(chunk) = chunks.next().await {
+        let chunk = chunk
+            .with_context(|| format!("GET {url}: status {status}, incomplete response body"))?;
+        let remaining = 4096 - body.len();
+        body.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
+        if body.len() == 4096 {
+            break;
+        }
+    }
+    Ok(HttpObservation {
+        request: format!("GET {url}"),
+        status,
+        body_excerpt: bounded_redacted(&String::from_utf8_lossy(&body), &[]),
+    })
+}
+
+async fn assert_view_http_status(url: &str, expected: StatusCode) -> Result<()> {
+    let response = observe_http(url).await?;
+    ensure!(
+        response.status == expected.as_u16(),
+        "{}: expected {expected}, got {}; body excerpt: {}",
+        response.request,
+        response.status,
+        response.body_excerpt
+    );
+    Ok(())
+}
+
+fn bounded_redacted(text: &str, secrets: &[&str]) -> String {
+    // Redact before truncation, including the optional provider credential that
+    // can appear only in the explicitly selected Google scenario.
+    let mut redacted = text
+        .replace(SURREAL_RUNTIME_PASSWORD, "[REDACTED]")
+        .replace(INTERNAL_SIGNING_KEY_DER_B64, "[REDACTED]");
+    for secret in secrets.iter().copied().filter(|secret| !secret.is_empty()) {
+        redacted = redacted.replace(secret, "[REDACTED]");
+    }
+    if let Ok(secret) = std::env::var("GOOGLE_MAPS_API_KEY") {
+        if !secret.is_empty() {
+            redacted = redacted.replace(&secret, "[REDACTED]");
+        }
+    }
+    redacted.chars().take(8192).collect()
+}
+
+async fn retain_view_failure(
+    running: &RunningView,
+    evidence: &Path,
+    stem: &str,
+    error: anyhow::Error,
+    secrets: &[&str],
+) -> anyhow::Error {
+    let cid = match view_container_id(running) {
+        Ok(cid) => cid,
+        Err(cid_error) => {
+            return error.context(format!(
+                "failed to identify owned View diagnostics: {cid_error}"
+            ));
+        }
+    };
+    retain_container_failure(cid.into(), &running.base, evidence, stem, error, secrets).await
+}
+
+async fn retain_container_failure(
+    cid: OsString,
+    base: &str,
+    evidence: &Path,
+    stem: &str,
+    error: anyhow::Error,
+    secrets: &[&str],
+) -> anyhow::Error {
+    // This runs while the ContainerGuard is still held. Diagnostic failure cannot
+    // replace the original failure or defer owned-container cleanup.
+    let logs =
+        lifecycle_docker_logs(cid, tokio::time::Instant::now() + Duration::from_secs(5)).await;
+    let logs = bounded_redacted(
+        &logs.unwrap_or_else(|error| {
+            format!("owned startup/log diagnostics unavailable: {error:#}")
+        }),
+        secrets,
+    );
+    let ready = observe_http(&format!("{base}/view/readyz")).await;
+    let failure = bounded_redacted(&format!("{error:#}"), secrets);
+    let diagnostics = json!({
+        "failure": failure,
+        "readiness": match ready {
+            Ok(response) => serde_json::to_value(response).unwrap_or(Value::Null),
+            Err(error) => json!({"request": format!("GET {base}/view/readyz"), "status": null,
+                "bodyExcerpt": bounded_redacted(&format!("{error:#}"), secrets)}),
+        },
+        "startupLogExcerpt": logs,
+    });
+    // A single bounded record goes to both retained evidence and the command error.
+    let text = diagnostics.to_string();
+    let write = fs::write(evidence.join(format!("{stem}.json")), &text);
+    match write {
+        Ok(()) => anyhow!("{text}"),
+        Err(write_error) => anyhow!("{text}; retaining View diagnostics failed: {write_error}"),
+    }
+}
+
 async fn lifecycle_logs(running: &RunningView, deadline: tokio::time::Instant) -> Result<String> {
     lifecycle_docker_logs(view_container_id(running)?.into(), deadline).await
 }
@@ -501,7 +628,7 @@ async fn lifecycle_docker_logs(cid: OsString, deadline: tokio::time::Instant) ->
         .checked_duration_since(tokio::time::Instant::now())
         .context("View lifecycle logs deadline expired")?;
     let mut command = tokio::process::Command::new("docker");
-    command.args(["logs".into(), cid]);
+    command.args(["logs".into(), "--tail=160".into(), cid]);
     let output = veoveo_testing_support::process::output_async(command, remaining).await?;
     ensure!(
         output.status.success(),
@@ -578,6 +705,56 @@ fn require_isolation_rejection<T>(
 mod lifecycle_controls {
     use super::*;
     #[test]
+    fn local_fixture_requests_admit_through_current_view_contracts() {
+        local_camera().validate().unwrap();
+        for overlays in [false, true] {
+            let composition = composition_request(LOCAL_LAYER, overlays).unwrap();
+            composition.validate().unwrap();
+            assert_eq!(composition.overlays.len(), if overlays { 4 } else { 0 });
+            let create = CreateViewRequest {
+                composition_id: SceneCompositionId::parse(
+                    "composition-281b253a-55b2-5b69-8f2b-cc214e0be326",
+                )
+                .unwrap(),
+                camera: local_camera(),
+            };
+            let wire = serde_json::to_value(create).unwrap();
+            assert!(wire["camera"].is_object());
+            let _: CreateViewRequest = serde_json::from_value(wire).unwrap();
+        }
+        let request = capture_request("view-1", 2, false).unwrap();
+        let request: CaptureFrameRequest = serde_json::from_value(request).unwrap();
+        assert_eq!(request.policy.width_px, 256);
+        assert_eq!(request.policy.height_px, 256);
+        let address = ViewSceneUri::new(
+            request.view_id,
+            PreviewScenePolicy {
+                width_px: request.policy.width_px,
+                height_px: request.policy.height_px,
+                max_screen_error_px: request.policy.max_screen_error_px,
+            },
+        )
+        .unwrap();
+        assert_eq!(ViewSceneUri::parse(address.to_string()).unwrap(), address);
+    }
+
+    #[test]
+    fn failure_excerpts_redact_before_bounding_and_preserve_context() {
+        let token = "fixture-bearer-must-not-survive";
+        let input = format!(
+            "GET /view/readyz HTTP 503 body not ready\n{} {token} {}",
+            SURREAL_RUNTIME_PASSWORD,
+            "x".repeat(10_000)
+        );
+        let excerpt = bounded_redacted(&input, &[token]);
+        assert!(excerpt.contains("GET /view/readyz HTTP 503 body not ready"));
+        assert!(excerpt.contains("[REDACTED]"));
+        assert!(!excerpt.contains(token));
+        assert!(!excerpt.contains(SURREAL_RUNTIME_PASSWORD));
+        assert_eq!(excerpt.chars().count(), 8192);
+    }
+
+    #[test]
     fn caller_isolation_requires_domain_peer_rejection() {
         for message in ["unknown task id", "unknown View resource"] {
             require_isolation_rejection::<()>(
@@ -650,7 +827,7 @@ async fn qualify_view_lifecycle(
     catalog: &Path,
     fixtures: &Path,
     platform: &PlatformStoreSmoke,
-    mut original: RunningView,
+    original: &mut RunningView,
     view: &Value,
     composition: &Value,
     evidence: &Path,
@@ -681,7 +858,7 @@ async fn qualify_view_lifecycle(
         json_string(view, "/viewId")?,
         view["revision"].as_u64().context("view omitted revision")?,
         false,
-    );
+    )?;
     request["policy"]["encoding"] = json!("jpeg");
     let mut replacement = None;
     let deadline = tokio::time::Instant::now() + Duration::from_secs(360);
@@ -730,11 +907,12 @@ async fn qualify_view_lifecycle(
         }).await.context("owned interrupted View did not exit within five seconds")??;
         ensure!(interrupted["Running"] == false && interrupted["ExitCode"] == 137,
             "intentional owned-process interruption did not settle: {interrupted}");
-        let next = start_view_container(image, catalog, Some(fixtures), platform, false, Some(original.port), Some(deadline)).await?;
-        ensure!(next.adapter["cudaDeviceUuid"] == original.adapter["cudaDeviceUuid"]
-            && next.adapter["jpegEncoder"] == original.adapter["jpegEncoder"],
-            "replacement changed the admitted GPU UUID or JPEG encoder");
+        let next = start_view_container(image, catalog, Some(fixtures), platform, false, Some(original.port), Some(deadline), evidence).await?;
         replacement = Some(next);
+        let next = replacement.as_ref().context("replacement was not retained")?;
+        ensure!(next.adapter.cuda_device_uuid == original.adapter.cuda_device_uuid
+            && next.adapter.jpeg_encoder == original.adapter.jpeg_encoder,
+            "replacement changed the admitted GPU UUID or JPEG encoder");
         ensure!(Utc::now() < expiry, "replacement became ready after retained lease expired");
         // Reconnect both callers through the maintained client. The endpoint stays the
         // same so existing remote Task cleanup registrations can reconcile this process.
@@ -809,9 +987,37 @@ async fn qualify_view_lifecycle(
             "replacement did not exit normally within 30-second grace: {elapsed:?}, {state}");
         Ok(())
     }).await.unwrap_or_else(|_| Err(anyhow!("View hardware lifecycle qualification exceeded 360 seconds")));
-    // Keep redacted logs on failure; TmpDirGuard preserves this fixture directory.
+    let result = match result {
+        Err(error) => {
+            let error = retain_view_failure(
+                original,
+                evidence,
+                "view-original-lifecycle-failure",
+                error,
+                &[&token_a, &token_b],
+            )
+            .await;
+            let error = match replacement.as_ref() {
+                Some(next) => {
+                    retain_view_failure(
+                        next,
+                        evidence,
+                        "view-replacement-lifecycle-failure",
+                        error,
+                        &[&token_a, &token_b],
+                    )
+                    .await
+                }
+                None => error,
+            };
+            Err(error)
+        }
+        Ok(()) => Ok(()),
+    };
+    // Capture each process before cleanup even on success, since removal itself
+    // can fail. TmpDirGuard preserves these observations on any later failure.
     for (name, running) in [
-        ("view-original-final.log", Some(&original)),
+        ("view-original-final.log", Some(&*original)),
         ("view-replacement-final.log", replacement.as_ref()),
     ] {
         if let Some(running) = running {
@@ -823,11 +1029,19 @@ async fn qualify_view_lifecycle(
             {
                 fs::write(
                     evidence.join(name),
-                    logs.replace(&token_a, "[REDACTED]")
-                        .replace(&token_b, "[REDACTED]")
-                        .replace(SURREAL_RUNTIME_PASSWORD, "[REDACTED]"),
+                    bounded_redacted(&logs, &[&token_a, &token_b]),
                 )?;
             }
+            let ready = observe_http(&format!("{}/view/readyz", running.base)).await;
+            let observation = match ready {
+                Ok(ready) => serde_json::to_value(ready)?,
+                Err(error) => json!({"request": format!("GET {}/view/readyz", running.base),
+                    "status": null, "bodyExcerpt": bounded_redacted(&format!("{error:#}"), &[&token_a, &token_b])}),
+            };
+            fs::write(
+                evidence.join(format!("{name}.http.json")),
+                serde_json::to_vec(&observation)?,
+            )?;
         }
     }
     // Remove both CID-owned containers even if validation failed while the first
@@ -850,7 +1064,7 @@ async fn qualify_view_lifecycle(
 struct RunningView {
     _container: ContainerGuard,
     base: String,
-    adapter: Value,
+    adapter: AdmittedAdapter,
     port: u16,
 }
 
@@ -862,6 +1076,7 @@ async fn start_view_container(
     google: bool,
     reuse_port: Option<u16>,
     lifecycle_deadline: Option<tokio::time::Instant>,
+    evidence: &Path,
 ) -> Result<RunningView> {
     let port = match reuse_port {
         Some(port) => port,
@@ -930,49 +1145,41 @@ async fn start_view_container(
         "--max-captures-in-flight".into(),
         "1".into(),
     ]);
-    let created = match lifecycle_deadline {
-        Some(deadline) => lifecycle_docker(args, deadline).await?,
-        None => run_checked(Path::new("docker"), args, [])?,
-    };
-    container.record_created(&created)?;
-    if let Err(error) = wait_for_http(&format!("{base}/view/readyz")).await {
-        let cid: OsString = fs::read_to_string(container.cid_file())?.trim().into();
-        let logs = match lifecycle_deadline {
-            Some(deadline) => {
-                lifecycle_docker_logs(
-                    cid,
-                    deadline.min(tokio::time::Instant::now() + Duration::from_secs(5)),
-                )
-                .await
-            }
-            None => run_checked(Path::new("docker"), ["logs".into(), cid], []),
-        }
-        .unwrap_or_else(|_| "could not read owned View startup logs".to_owned());
-        if let Some(fixtures) = fixtures {
-            if let Some(directory) = fixtures.parent() {
-                fs::write(
-                    directory.join("view-startup-failure.log"),
-                    logs.replace(SURREAL_RUNTIME_PASSWORD, "[REDACTED]"),
-                )?;
-            }
-        }
-        bail!("View container did not become ready: {error}\n{logs}");
-    }
-    let adapter: Value = reqwest::get(format!("{base}/view/readyz"))
-        .await?
-        .error_for_status()?
-        .json()
+    let startup_deadline =
+        lifecycle_deadline.unwrap_or_else(|| tokio::time::Instant::now() + Duration::from_secs(40));
+    let startup: Result<AdmittedAdapter> = async {
+        let created = lifecycle_docker(args, startup_deadline).await?;
+        container.record_created(&created)?;
+        tokio::time::timeout_at(
+            startup_deadline,
+            wait_for_http(&format!("{base}/view/readyz")),
+        )
+        .await
+        .context("View readiness deadline expired")??;
+        let observed = observe_http(&format!("{base}/view/readyz")).await?;
+        readiness::admit_readiness(observed.status, &observed.body_excerpt)?;
+        let logs = lifecycle_docker_logs(
+            container_name.clone().into(),
+            startup_deadline.min(tokio::time::Instant::now() + Duration::from_secs(5)),
+        )
         .await?;
-    ensure!(
-        adapter["hardwareAccelerated"] == true
-            && adapter["nvidia"] == true
-            && adapter["backend"] == "Vulkan"
-            && adapter["jpegEncoder"] == "nvjpeg_cuda_gpu"
-            && adapter["cudaDeviceUuid"]
-                .as_str()
-                .is_some_and(|uuid| uuid.len() == 32),
-        "View container did not select NVIDIA Vulkan: {adapter}"
-    );
+        readiness::admit_startup_logs(&logs)
+    }
+    .await;
+    let adapter = match startup {
+        Ok(adapter) => adapter,
+        Err(error) => {
+            return Err(retain_container_failure(
+                container_name.into(),
+                &base,
+                evidence,
+                "view-startup-failure",
+                error,
+                &[],
+            )
+            .await);
+        }
+    };
     Ok(RunningView {
         _container: container,
         base,
@@ -1014,22 +1221,71 @@ fn inspect_view_image(image: &str) -> Result<()> {
     Ok(())
 }
 
-async fn call_structured(session: &SmokeMcpClient, name: &str, arguments: Value) -> Result<Value> {
+async fn call_structured(
+    session: &SmokeMcpClient,
+    name: &str,
+    arguments: impl serde::Serialize,
+) -> Result<Value> {
+    let arguments = serde_json::to_value(arguments)?;
+    let request = bounded_redacted(&format!("MCP tools/call {name}: {arguments}"), &[]);
     let arguments = arguments
         .as_object()
         .cloned()
         .context("tool arguments were not an object")?;
     let result = session
         .call_tool(CallToolRequestParams::new(name.to_owned()).with_arguments(arguments))
-        .await?;
+        .await
+        .with_context(|| request.clone())?;
     ensure!(
         result.is_error != Some(true),
         "View tool `{name}` failed: {:?}",
         result.content
     );
-    result
+    let value = result
         .structured_content
-        .context("View tool returned no structured content")
+        .with_context(|| format!("{request}; tool returned no structured response"))?;
+    let response_context = || {
+        format!(
+            "{request}; MCP response failed owner admission; body excerpt: {}",
+            bounded_redacted(&value.to_string(), &[])
+        )
+    };
+    match name {
+        "create_view" | "set_camera" => {
+            let _: ViewRecord =
+                serde_json::from_value(value.clone()).with_context(response_context)?;
+        }
+        "create_scene_composition" => {
+            let _: SceneComposition =
+                serde_json::from_value(value.clone()).with_context(response_context)?;
+        }
+        _ => {}
+    }
+    Ok(value)
+}
+
+async fn read_view_resource(session: &SmokeMcpClient, uri: &str) -> Result<Value> {
+    read_mcp_resource_json(session, uri)
+        .await
+        .with_context(|| format!("MCP resources/read {uri}"))
+}
+
+fn admit_captured_frame(record: &Value, bytes: &[u8], mime: &str) -> Result<()> {
+    // Owner admission checks C02 resultUri, frameUri and their typed parents;
+    // the byte wrapper checks the declared length and SHA-256 together.
+    let record: FrameRecord = serde_json::from_value(record.clone()).with_context(|| {
+        format!(
+            "capture metadata failed View owner admission; body excerpt: {}",
+            bounded_redacted(&record.to_string(), &[])
+        )
+    })?;
+    ensure!(
+        record.mime_type() == mime,
+        "capture MIME does not match the requested format"
+    );
+    CapturedFrame::from_record(record, bytes.to_vec())
+        .context("capture bytes failed View owner admission")?;
+    Ok(())
 }
 
 async fn read_blob_resource(
@@ -1039,18 +1295,25 @@ async fn read_blob_resource(
 ) -> Result<Vec<u8>> {
     let result = session
         .read_resource(ReadResourceRequestParams::new(uri))
-        .await?;
-    let (blob, mime_type) = result
+        .await
+        .with_context(|| format!("MCP resources/read {uri}, expected {expected_mime}"))?;
+    let (blob, mime_type, actual_uri) = result
         .contents
         .iter()
         .find_map(|content| match content {
             ResourceContents::BlobResourceContents {
-                blob, mime_type, ..
-            } => Some((blob, mime_type)),
+                blob,
+                mime_type,
+                uri: actual_uri,
+                ..
+            } => Some((blob, mime_type, actual_uri)),
             _ => None,
         })
         .context("frame resource returned no blob")?;
-    ensure!(mime_type.as_deref() == Some(expected_mime));
+    ensure!(
+        actual_uri == uri && mime_type.as_deref() == Some(expected_mime),
+        "MCP resources/read {uri}: response URI or MIME disagrees: {actual_uri}, {mime_type:?}"
+    );
     Ok(STANDARD.decode(blob)?)
 }
 
@@ -1153,29 +1416,44 @@ fn issue_view_token(subject: &str) -> Result<String> {
         .bearer_token)
 }
 
-fn local_camera() -> Value {
-    json!({
-        "kind": "pose",
-        "position": {"latitudeDegrees": 0.0, "longitudeDegrees": 0.0, "ellipsoidalHeightMeters": 0.0},
-        "orientation": {"headingDegrees": 0.0, "pitchDegrees": 0.0, "rollDegrees": 0.0},
-        "verticalFovDegrees": 60.0
+fn local_camera() -> CameraDefinition {
+    CameraDefinition::Pose(GeodeticCameraPose {
+        position: Wgs84Position3d {
+            latitude_degrees: 0.0,
+            longitude_degrees: 0.0,
+            ellipsoidal_height_meters: 0.0,
+        },
+        orientation: HeadingPitchRoll {
+            heading_degrees: 0.0,
+            pitch_degrees: 0.0,
+            roll_degrees: 0.0,
+        },
+        vertical_fov_degrees: 60.0,
     })
 }
 
-fn capture_request(view_id: &str, revision: u64, google: bool) -> Value {
-    json!({
-        "viewId": view_id,
-        "expectedRevision": revision,
-        "sceneTime": "2026-07-26T12:00:00Z",
-        "policy": {
-            "widthPx": if google { 1280 } else { 256 },
-            "heightPx": if google { 720 } else { 256 },
-            "maxScreenErrorPx": if google { 16.0 } else { 8.0 },
-            "deadlineMs": if google { 180_000 } else { 5_000 },
-            "deadlineBehavior": if google { "return_best_available" } else { "fail" },
-            "encoding": if google { "jpeg" } else { "png" }
-        }
-    })
+fn capture_request(view_id: &str, revision: u64, google: bool) -> Result<Value> {
+    Ok(serde_json::to_value(CaptureFrameRequest {
+        view_id: ViewId::parse(view_id)?,
+        expected_revision: revision,
+        scene_time: "2026-07-26T12:00:00Z".parse()?,
+        policy: CapturePolicy {
+            width_px: if google { 1280 } else { 256 },
+            height_px: if google { 720 } else { 256 },
+            max_screen_error_px: if google { 16.0 } else { 8.0 },
+            deadline_ms: if google { 180_000 } else { 5_000 },
+            deadline_behavior: if google {
+                DeadlineBehavior::ReturnBestAvailable
+            } else {
+                DeadlineBehavior::Fail
+            },
+            encoding: if google {
+                FrameEncoding::Jpeg
+            } else {
+                FrameEncoding::Png
+            },
+        },
+    })?)
 }
 
 async fn create_composition(
@@ -1183,101 +1461,111 @@ async fn create_composition(
     base_layer: &str,
     with_overlays: bool,
 ) -> Result<Value> {
-    let governed_inputs = if with_overlays {
-        vec![json!({
-                "inputId": "smoke-route",
-                "resourceUri": veoveo_map_mcp::contract::MapRouteUri::new(veoveo_map_mcp::contract::RouteId::from_stable_key(b"view-smoke-route")),
-                "digestSha256": "0".repeat(64),
-                "license": "CC0-1.0",
-                "attribution": "Veoveo governed overlay smoke fixture"
-        })]
-    } else {
-        Vec::new()
-    };
-    let position = |latitude_degrees: f64, longitude_degrees: f64| {
-        json!({
-            "kind": "wgs84",
-            "position": {
-                "latitudeDegrees": latitude_degrees,
-                "longitudeDegrees": longitude_degrees,
-                "ellipsoidalHeightMeters": 1.0
-            }
-        })
-    };
-    let overlays = if with_overlays {
-        vec![
-            json!({
-                "overlayId": "marker",
-                "governedInputIds": ["smoke-route"],
-                "geometry": {
-                    "kind": "inline",
-                    "geometry": {"kind": "marker", "position": position(0.00004, 0.0)}
-                }
-            }),
-            json!({
-                "overlayId": "line",
-                "governedInputIds": ["smoke-route"],
-                "geometry": {
-                    "kind": "inline",
-                    "geometry": {
-                        "kind": "polyline",
-                        "positions": [position(0.00003, -0.00001), position(0.00006, 0.00001)]
-                    }
-                }
-            }),
-            json!({
-                "overlayId": "area",
-                "governedInputIds": ["smoke-route"],
-                "geometry": {
-                    "kind": "inline",
-                    "geometry": {
-                        "kind": "polygon",
-                        "positions": [
-                            position(0.00005, -0.00001),
-                            position(0.00007, 0.0),
-                            position(0.00005, 0.00001)
-                        ],
-                        "triangleIndices": [0, 1, 2]
-                    }
-                }
-            }),
-            json!({
-                "overlayId": "label",
-                "governedInputIds": ["smoke-route"],
-                "geometry": {
-                    "kind": "inline",
-                    "geometry": {
-                        "kind": "label",
-                        "position": position(0.00008, 0.0),
-                        "text": "PLAN 1"
-                    }
-                }
-            }),
-        ]
-    } else {
-        Vec::new()
-    };
     call_structured(
         session,
         "create_scene_composition",
-        json!({
-            "schemaVersion": 2,
-            "baseLayer": base_layer,
-            "mapReleases": if with_overlays {
-                vec![veoveo_map_mcp::contract::MapReleaseUri::new(veoveo_map_mcp::contract::MapDatasetId::from_stable_key(b"view-smoke-dataset"), veoveo_map_mcp::contract::DatasetReleaseId::from_stable_key(b"view-smoke-release"))]
-            } else {
-                Vec::new()
-            },
-            "styleId": "smoke:1",
-            "governedInputs": governed_inputs,
-            "overlays": overlays
-        }),
+        composition_request(base_layer, with_overlays)?,
     )
     .await
 }
 
+fn composition_request(
+    base_layer: &str,
+    with_overlays: bool,
+) -> Result<CreateSceneCompositionRequest> {
+    let input_id = SceneInputId::parse("smoke-route")?;
+    let governed_inputs = if with_overlays {
+        vec![GovernedSceneInput {
+            input_id: input_id.clone(),
+            resource_uri: GovernedResourceUri::Route(veoveo_map_mcp::contract::MapRouteUri::new(
+                veoveo_map_mcp::contract::RouteId::from_stable_key(b"view-smoke-route"),
+            )),
+            digest_sha256: veoveo_view_mcp::contract::Sha256Digest::parse("0".repeat(64))?,
+            media_type: None,
+            license: "CC0-1.0".into(),
+            attribution: "Veoveo governed overlay smoke fixture".into(),
+        }]
+    } else {
+        Vec::new()
+    };
+    let position = |latitude_degrees, longitude_degrees| ScenePosition::Wgs84 {
+        position: Wgs84Position3d {
+            latitude_degrees,
+            longitude_degrees,
+            ellipsoidal_height_meters: 1.0,
+        },
+    };
+    let overlays = if with_overlays {
+        [
+            (
+                "marker",
+                SceneOverlayGeometry::Marker {
+                    position: position(0.00004, 0.0),
+                },
+            ),
+            (
+                "line",
+                SceneOverlayGeometry::Polyline {
+                    positions: vec![position(0.00003, -0.00001), position(0.00006, 0.00001)],
+                    closed: false,
+                },
+            ),
+            (
+                "area",
+                SceneOverlayGeometry::Polygon {
+                    positions: vec![
+                        position(0.00005, -0.00001),
+                        position(0.00007, 0.0),
+                        position(0.00005, 0.00001),
+                    ],
+                    triangle_indices: vec![0, 1, 2],
+                },
+            ),
+            (
+                "label",
+                SceneOverlayGeometry::Label {
+                    position: position(0.00008, 0.0),
+                    text: "PLAN 1".into(),
+                },
+            ),
+        ]
+        .into_iter()
+        .map(|(id, geometry)| {
+            Ok(SceneOverlay {
+                overlay_id: SceneOverlayId::parse(id)?,
+                governed_input_ids: BTreeSet::from([input_id.clone()]),
+                geometry: SceneOverlayGeometrySource::Inline { geometry },
+                style: Default::default(),
+                visibility: Default::default(),
+                validity: None,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?
+    } else {
+        Vec::new()
+    };
+    let request = CreateSceneCompositionRequest {
+        schema_version: 2,
+        base_layer: LayerId::parse(base_layer)?,
+        map_releases: if with_overlays {
+            BTreeSet::from([veoveo_map_mcp::contract::MapReleaseUri::new(
+                veoveo_map_mcp::contract::MapDatasetId::from_stable_key(b"view-smoke-dataset"),
+                veoveo_map_mcp::contract::DatasetReleaseId::from_stable_key(b"view-smoke-release"),
+            )])
+        } else {
+            BTreeSet::new()
+        },
+        local_frame: None,
+        style_id: SceneStyleId::parse("smoke:1")?,
+        governed_inputs,
+        overlays,
+    };
+    request.validate()?;
+    Ok(request)
+}
+
 fn assert_local_frame(record: &Value, bytes: &[u8], mime: &str) -> Result<()> {
-    ensure!(record["mimeType"] == mime);
+    admit_captured_frame(record, bytes, mime)?;
     match mime {
         "image/png" => ensure!(bytes.starts_with(b"\x89PNG\r\n\x1a\n")),
         "image/jpeg" => ensure!(bytes.starts_with(&[0xff, 0xd8, 0xff])),

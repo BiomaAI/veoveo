@@ -16355,6 +16355,7 @@ dependencies = [
  "veoveo-testing-support",
  "veoveo-types",
  "veoveo-uav-sim-mcp",
+ "veoveo-view-mcp",
 ]
 
 [[package]]

@@ -52,6 +52,7 @@ veoveo-frames-mcp = { optional = true, path = "../../../servers/frames-mcp", def
 veoveo-recording-forwarder = { optional = true, path = "../../../platform/recordings/forwarder" }
 veoveo-recording-protocol = { optional = true, path = "../../../platform/recordings/protocol" }
 veoveo-stream-mcp = { optional = true, path = "../../../servers/stream-mcp" }
+veoveo-view-mcp = { optional = true, path = "../../../servers/view-mcp", default-features = false, features = ["contract"] }
 veoveo-testing-support = { path="../../../testing/support", optional=true, features=[] }
 veoveo-gateway-composition = { path="../../../platform/gateway/composition", optional=true, features=["smoke"] }
 veoveo-duckdb-runtime = { path="../../../platform/runtimes/duckdb", optional=true, features=["smoke"] }
@@ -77,7 +78,7 @@ veoveo-types.workspace = true
 tokio = { workspace = true, features = ["process", "io-util", "macros", "rt-multi-thread"] }
 
 [features]
-smoke=["dep:schemars","dep:veoveo-mcp-conformance","dep:veoveo-uav-sim-mcp","dep:veoveo-sumo-mcp","dep:veoveo-rrd","dep:veoveo-recording-hub","dep:veoveo-media-mcp","dep:veoveo-deploy-contract","dep:tokio","dep:secrecy","dep:scraper","dep:re_sdk","dep:re_log_encoding","dep:glam","dep:veoveo-types","dep:veoveo-reason-mcp","dep:tokio-tungstenite","dep:sha2","dep:chrono","dep:futures","dep:veoveo-browser-smoke","dep:veoveo-recording-store","dep:veoveo-map-mcp","dep:veoveo-artifact-contract","dep:veoveo-simulation-contract","dep:bytes","dep:base64","dep:clap","dep:dotenvy","dep:duckdb","dep:hex","dep:image","dep:jsonwebtoken","dep:reqwest","dep:re_grpc_server","dep:re_log_types","dep:re_sdk_types","dep:rmcp","dep:rustls","dep:tempfile","dep:url","dep:veoveo-image-build-control","dep:veoveo-frames-mcp","dep:veoveo-recording-forwarder","dep:veoveo-recording-protocol","dep:veoveo-stream-mcp","dep:veoveo-testing-support","dep:veoveo-gateway-composition","dep:veoveo-duckdb-runtime"]
+smoke=["dep:veoveo-view-mcp","dep:schemars","dep:veoveo-mcp-conformance","dep:veoveo-uav-sim-mcp","dep:veoveo-sumo-mcp","dep:veoveo-rrd","dep:veoveo-recording-hub","dep:veoveo-media-mcp","dep:veoveo-deploy-contract","dep:tokio","dep:secrecy","dep:scraper","dep:re_sdk","dep:re_log_encoding","dep:glam","dep:veoveo-types","dep:veoveo-reason-mcp","dep:tokio-tungstenite","dep:sha2","dep:chrono","dep:futures","dep:veoveo-browser-smoke","dep:veoveo-recording-store","dep:veoveo-map-mcp","dep:veoveo-artifact-contract","dep:veoveo-simulation-contract","dep:bytes","dep:base64","dep:clap","dep:dotenvy","dep:duckdb","dep:hex","dep:image","dep:jsonwebtoken","dep:reqwest","dep:re_grpc_server","dep:re_log_types","dep:re_sdk_types","dep:rmcp","dep:rustls","dep:tempfile","dep:url","dep:veoveo-image-build-control","dep:veoveo-frames-mcp","dep:veoveo-recording-forwarder","dep:veoveo-recording-protocol","dep:veoveo-stream-mcp","dep:veoveo-testing-support","dep:veoveo-gateway-composition","dep:veoveo-duckdb-runtime"]
 
 [[bin]]
 name="installation-smoke"

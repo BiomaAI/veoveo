@@ -101,8 +101,8 @@ produces its own current byte digest. Tile source digests, binary GLB, Draco,
 PNG and JPEG bytes, native SQL columns, Task ownership claims and credential
 references keep their declared formats. Prepared overlay caches include current
 composition, style and camera values and cannot share entries with a different
-composition digest. The readiness wrapper uses camelCase fields while adapter
-backend and device descriptions preserve the renderer's external vocabulary.
+composition digest. The shared readiness probe returns plain text. Production
+startup and encoder logs preserve the renderer's backend and device vocabulary.
 
 ## Library Features
 
@@ -530,12 +530,18 @@ renderer thread owns the render world, Vulkan queue and CUDA context. ECS
 systems can still use Bevy's worker pool.
 
 Production requires NVIDIA Vulkan and a CUDA device with the same physical-device
-UUID. There is no optional GPU profile. Readiness includes `jpegEncoder` equal
-to `nvjpeg_cuda_gpu` and the selected `cudaDeviceUuid`. Before reporting readiness,
+UUID. There is no optional GPU profile. The shared probe returns `ready` only
+after renderer startup. Before reporting readiness,
 View renders a GPU clear image and completes the same RGB packing, memory import,
 JPEG encoding and compressed-bitstream retrieval used by captures. Missing native
 libraries, an incompatible version, unavailable GPU backend, mismatched devices
 or unsupported external-memory capabilities refuse startup.
+
+Production startup logs identify the NVIDIA Vulkan adapter and device type. GPU
+JPEG completion logs identify `nvjpeg_cuda_gpu`, the selected CUDA UUID, dimensions
+and completion count. The owning smoke admits these records from its own process,
+then checks captured image bytes and subsequent encoder completions. Probe success
+alone cannot qualify those captures.
 
 `renderer/gpu_jpeg.rs` owns nvJPEG state, quality and 4:4:4 sampling. Its explicit
 `NVJPEG_ENC_BACKEND_GPU` selects CUDA execution on NVIDIA hardware. The Ada profile
