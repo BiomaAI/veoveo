@@ -159,6 +159,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         "veoveo_computers_mcp=debug",
     )
     .unwrap();
+    provider::preflight().await;
     let db = support::database().await;
     support::policy::install(&db.a, support::automation::control()).await;
     let selected = template::retained_template(image);

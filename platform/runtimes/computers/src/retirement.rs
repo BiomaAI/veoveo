@@ -39,18 +39,29 @@ impl OpenShellRuntime {
                 .delete_sandbox(request(
                     api::DeleteSandboxRequest {
                         name: binding.name(),
-                        workspace: self.workspace.clone(),
+                        allow_missing: true,
+                        workspace_scope: crate::client::workspace_scope(&self.workspace),
+                        ..Default::default()
                     },
                     30,
                 ))
                 .await
                 .map_err(|_| RuntimeFailure::LifecycleUnknown)?
                 .into_inner();
-            Ok(if reply.deleted {
-                RetirementAcknowledgement::DeletionAccepted
-            } else {
-                RetirementAcknowledgement::ResourceAlreadyAbsent
-            })
+            if reply.sandbox_id != current.sandbox_id
+                && reply.outcome != api::DeletionOutcome::AlreadyAbsent as i32
+            {
+                return Err(RuntimeFailure::BindingMismatch);
+            }
+            match api::DeletionOutcome::try_from(reply.outcome) {
+                Ok(api::DeletionOutcome::Completed | api::DeletionOutcome::Accepted) => {
+                    Ok(RetirementAcknowledgement::DeletionAccepted)
+                }
+                Ok(api::DeletionOutcome::AlreadyAbsent) => {
+                    Ok(RetirementAcknowledgement::ResourceAlreadyAbsent)
+                }
+                _ => Err(RuntimeFailure::LifecycleUnknown),
+            }
         })
         .await
         .map_err(|_| RuntimeFailure::LifecycleUnknown)?

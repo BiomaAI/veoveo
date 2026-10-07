@@ -4,6 +4,7 @@ package veoveo.computers.maintenance.v1;
 
 import "sandbox.proto";
 
+// Version 2 embeds the OpenShell 0.1.2 configuration profile.
 // Encoded only by the qualified adapter. This is not provider wire traffic,
 // maintenance authority, or proof that a writer has been fenced.
 message PolicyCheckpoint {

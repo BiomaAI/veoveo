@@ -8,7 +8,10 @@ use std::{
 };
 use uuid::Uuid;
 use veoveo_computers_runtime::{GatewayConfig, OpenShellRuntime};
+mod docker_daemon;
 mod guest_authority;
+pub mod profile;
+pub use profile::preflight;
 
 pub struct ComputeHost {
     pub socket: PathBuf,
@@ -32,6 +35,7 @@ struct Cleanup {
     namespace: String,
     network: String,
     socket: PathBuf,
+    owned_daemon: Option<docker_daemon::DockerDaemon>,
 }
 impl Cleanup {
     fn docker(&self) -> Command {
@@ -80,6 +84,7 @@ impl Drop for Cleanup {
         for name in ["state", "data", "config"] {
             let _ = fs::remove_dir_all(self.dir.join(name));
         }
+        drop(self.owned_daemon.take());
     }
 }
 
@@ -94,16 +99,48 @@ fn quoted(path: &std::path::Path) -> String {
 }
 
 impl Provider {
-    pub async fn start() -> Self {
-        Self::start_with_session_ttl(3600).await.0
+    pub async fn start(test_name: &'static str) -> Self {
+        Self::start_with_session_ttl(3600, test_name).await.0
     }
-
-    pub async fn start_with_session_ttl(ssh_session_ttl_secs: u64) -> (Self, String) {
-        Self::start_on(ssh_session_ttl_secs, None, "warn").await
+    pub async fn start_with_session_ttl(
+        ssh_session_ttl_secs: u64,
+        test_name: &'static str,
+    ) -> (Self, String) {
+        Self::start_isolated(ssh_session_ttl_secs, "warn", test_name).await
     }
-    #[allow(dead_code)] // The execution scenario must observe command-preview logging.
-    pub async fn start_with_execution_logging() -> Self {
-        Self::start_on(3600, None, "info").await.0
+    #[allow(dead_code)]
+    pub async fn start_with_execution_logging(test_name: &'static str) -> Self {
+        Self::start_isolated(3600, "info", test_name).await.0
+    }
+    async fn start_isolated(ttl: u64, log_level: &str, test_name: &'static str) -> (Self, String) {
+        let gateway_ip = preflight().await;
+        let output = required_path("VEOVEO_COMPUTERS_NATIVE_OUTPUT");
+        let diagnostics = output.join(format!("private-daemon-{}", Uuid::now_v7().simple()));
+        fs::create_dir_all(&diagnostics).unwrap();
+        fs::set_permissions(&diagnostics, fs::Permissions::from_mode(0o700)).unwrap();
+        let plugins = diagnostics.join("plugins");
+        fs::create_dir(&plugins).unwrap();
+        let image = std::env::var("VEOVEO_COMPUTERS_NATIVE_IMAGE").expect("pinned native image");
+        let daemon = docker_daemon::DockerDaemon::start(
+            &diagnostics,
+            &plugins,
+            &image,
+            docker_daemon::Profile::NativeProvider { test_name },
+            &[],
+        )
+        .await;
+        let host = ComputeHost {
+            socket: daemon.socket.clone(),
+            output: diagnostics,
+            namespace: format!("veoveo-native-{}", Uuid::now_v7().simple()),
+            gateway_ip,
+        };
+        let (mut provider, endpoint) = Self::start_on(ttl, Some(host), log_level).await;
+        provider.cleanup.owned_daemon = Some(daemon);
+        (provider, endpoint)
+    }
+    pub fn docker_socket(&self) -> PathBuf {
+        self.cleanup.socket.clone()
     }
     #[allow(dead_code)] // Used by the shared storage/worker fixture.
     pub async fn start_on_compute_host(host: ComputeHost) -> Self {
@@ -114,12 +151,23 @@ impl Provider {
         host: Option<ComputeHost>,
         log_level: &str,
     ) -> (Self, String) {
+        let admitted_gateway_ip = preflight().await;
+        let host = host.expect("OpenShell 0.1.2 native provider requires an isolated ComputeHost; outer-host sidecar networking is unsupported");
+        assert!(
+            host.socket.is_absolute()
+                && host.socket != PathBuf::from("/var/run/docker.sock")
+                && host.socket.exists(),
+            "isolated native daemon socket required"
+        );
+        assert!(
+            host.gateway_ip == admitted_gateway_ip && host.gateway_ip.is_private(),
+            "native gateway must use the admitted private bridge route"
+        );
         let gateway = required_path("VEOVEO_COMPUTERS_NATIVE_GATEWAY");
-        let supervisor = required_path("VEOVEO_COMPUTERS_NATIVE_SUPERVISOR");
-        let output = host
-            .as_ref()
-            .map(|host| host.output.clone())
-            .unwrap_or_else(|| required_path("VEOVEO_COMPUTERS_NATIVE_OUTPUT"));
+        let sandbox = required_path("VEOVEO_COMPUTERS_NATIVE_SANDBOX");
+        let driver = required_path("VEOVEO_COMPUTERS_NATIVE_DRIVER");
+        let supervisor_image = std::env::var("VEOVEO_COMPUTERS_NATIVE_SUPERVISOR_IMAGE").unwrap();
+        let output = host.output.clone();
         let image = std::env::var("VEOVEO_COMPUTERS_NATIVE_IMAGE")
             .expect("digest-pinned native image is required");
         assert!(image.contains("@sha256:"));
@@ -127,18 +175,9 @@ impl Provider {
         let dir = output.join(&suffix);
         fs::create_dir_all(&dir).unwrap();
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).unwrap();
-        let namespace = host
-            .as_ref()
-            .map(|host| host.namespace.clone())
-            .unwrap_or_else(|| format!("veoveo-native-{suffix}"));
-        let socket = host
-            .as_ref()
-            .map(|host| host.socket.clone())
-            .unwrap_or_else(|| PathBuf::from("/var/run/docker.sock"));
-        let gateway_ip = host
-            .as_ref()
-            .map(|host| host.gateway_ip.to_string())
-            .unwrap_or_default();
+        let namespace = host.namespace.clone();
+        let socket = host.socket.clone();
+        let gateway_ip = host.gateway_ip;
         let network = namespace.clone();
         let mut cleanup = Cleanup {
             child: None,
@@ -146,15 +185,16 @@ impl Provider {
             namespace: namespace.clone(),
             network: network.clone(),
             socket: socket.clone(),
+            owned_daemon: None,
         };
-        certificates(&dir);
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        certificates(&dir, gateway_ip);
+        let listener = TcpListener::bind((gateway_ip, 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
         let config = format!(
             r#"[openshell]
 version = 1
 [openshell.gateway]
-bind_address = "127.0.0.1:{port}"
+bind_address = "{gateway_ip}:{port}"
 compute_drivers = ["docker"]
 log_level = "{log_level}"
 ssh_session_ttl_secs = {ssh_session_ttl_secs}
@@ -169,13 +209,13 @@ gateway_id = "{namespace}"
 ttl_secs = 3600
 [openshell.drivers.docker]
 socket_path = {socket}
-host_gateway_ip = "{gateway_ip}"
 default_image = {image}
 image_pull_policy = "Never"
-sandbox_namespace = "{namespace}"
-network_name = "{network}"
-grpc_endpoint = "https://host.openshell.internal:{port}"
-supervisor_bin = {supervisor}
+supervisor_image = {supervisor_image}
+allow_driver_config = true
+sandbox_label = "{namespace}"
+grpc_endpoint = "https://{gateway_ip}:{port}"
+supervisor_bin = {sandbox}
 guest_tls_ca = {ca}
 guest_tls_cert = {cert}
 guest_tls_key = {key}
@@ -184,7 +224,8 @@ enable_bind_mounts = false
 "#,
             image = serde_json::to_string(&image).unwrap(),
             socket = quoted(&socket),
-            supervisor = quoted(&supervisor),
+            sandbox = quoted(&sandbox),
+            supervisor_image = serde_json::to_string(&supervisor_image).unwrap(),
             ca = quoted(&dir.join("ca.pem")),
             cert = quoted(&dir.join("guest.pem")),
             key = quoted(&dir.join("guest-key.pem")),
@@ -197,7 +238,15 @@ enable_bind_mounts = false
         let mut command = Command::new(gateway);
         command
             .env_clear()
-            .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+            .env(
+                "PATH",
+                std::env::join_paths(
+                    std::iter::once(driver.parent().unwrap().to_path_buf()).chain(
+                        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
+                    ),
+                )
+                .unwrap(),
+            )
             .env("XDG_STATE_HOME", dir.join("state"))
             .env("XDG_DATA_HOME", dir.join("data"))
             .env("XDG_CONFIG_HOME", dir.join("config"))
@@ -225,7 +274,7 @@ enable_bind_mounts = false
             .stderr(log);
         drop(listener);
         cleanup.child = Some(command.spawn().expect("start native provider"));
-        let endpoint = format!("localhost:{port}");
+        let endpoint = format!("{gateway_ip}:{port}");
         let runtime = tokio::time::timeout(Duration::from_secs(30), async {
             loop {
                 if let Some(exit) = cleanup.child.as_mut().unwrap().try_wait().unwrap() {
@@ -278,7 +327,7 @@ enable_bind_mounts = false
     }
 }
 
-fn certificates(dir: &std::path::Path) {
+fn certificates(dir: &std::path::Path, gateway_ip: std::net::Ipv4Addr) {
     use rcgen::{
         BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
         KeyUsagePurpose,
@@ -308,7 +357,7 @@ fn certificates(dir: &std::path::Path) {
             vec![
                 "localhost".into(),
                 "127.0.0.1".into(),
-                "host.openshell.internal".into(),
+                gateway_ip.to_string(),
             ],
             ExtendedKeyUsagePurpose::ServerAuth,
         ),
@@ -335,5 +384,15 @@ fn certificates(dir: &std::path::Path) {
         let path = dir.join(format!("{name}-key.pem"));
         fs::write(&path, key.serialize_pem()).unwrap();
         fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
+    }
+}
+
+/// Existing relay child dispatch belongs to the selected native test executable.
+pub async fn registry_child() -> bool {
+    if std::env::var_os(docker_daemon::registry_relay::CHILD_ENV).is_some() {
+        docker_daemon::registry_relay::child().await.unwrap();
+        true
+    } else {
+        false
     }
 }

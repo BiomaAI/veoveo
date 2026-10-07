@@ -19,7 +19,7 @@ impl ReplacementPolicy {
     /// Zeroizing protects the returned buffer, not every provider-owned string.
     pub fn checkpoint(&self) -> Result<Zeroizing<Vec<u8>>> {
         let message = PolicyCheckpoint {
-            version: 1,
+            version: 2,
             gateway_version: GATEWAY_VERSION.into(),
             provider_instance_id: self.installation_provider_id.as_uuid().as_bytes().to_vec(),
             computer_id: self.source.computer_id().as_bytes().to_vec(),
@@ -42,7 +42,7 @@ impl ReplacementPolicy {
 
     pub(super) fn update_fingerprint(&mut self) -> Result<()> {
         let mut hash = Sha256::new();
-        hash.update(b"veoveo-private-policy-checkpoint-v1\0");
+        hash.update(b"veoveo-private-policy-checkpoint-v2\0");
         hash.update(&*self.checkpoint()?);
         self.fingerprint = hex::encode(hash.finalize());
         Ok(())
@@ -68,7 +68,7 @@ impl OpenShellRuntime {
         // Persist one encoding: reject unknown fields, duplicate map/message
         // fields, alternate order, or other silently normalized input.
         if Zeroizing::new(message.encode_to_vec()).as_slice() != bytes
-            || message.version != 1
+            || message.version != 2
             || message.gateway_version != GATEWAY_VERSION
             || Uuid::from_slice(&message.provider_instance_id).ok()
                 != Some(self.provider_instance_id.as_uuid())

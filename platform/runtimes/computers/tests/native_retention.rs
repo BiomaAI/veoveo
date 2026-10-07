@@ -59,12 +59,20 @@ async fn python(runtime: &OpenShellRuntime, binding: &Binding, program: &str) ->
 #[tokio::test]
 #[ignore = "requires exact native provider binaries/image; owns isolated privileged loop-device helpers and a 512 MiB ext4 volume"]
 async fn native_retention_enospc_and_offline_restore() {
-    let mut provider = Provider::start().await;
+    if native_support::registry_child().await {
+        return;
+    }
+    let mut provider = Provider::start("native_retention_enospc_and_offline_restore").await;
     let runtime = &provider.runtime;
     let computer = Uuid::now_v7();
     let template = retained_template(provider.image.clone());
     let binding = Binding::new(computer, template.fingerprint()).unwrap();
-    let mut home = BlockHome::create(provider.dir.clone(), provider.image.clone(), computer);
+    let mut home = BlockHome::create(
+        provider.dir.clone(),
+        provider.image.clone(),
+        computer,
+        provider.docker_socket(),
+    );
     let original = ready(runtime, &binding, &template).await;
     home.assert_registered_no_copy();
     assert_eq!(

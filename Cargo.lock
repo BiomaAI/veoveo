@@ -16402,8 +16402,10 @@ dependencies = [
  "nix",
  "rcgen",
  "reqwest 0.13.5",
+ "schemars 1.2.2",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "tempfile",
  "tokio",
  "tonic",
@@ -16411,6 +16413,7 @@ dependencies = [
  "veoveo-computer-storage",
  "veoveo-computers-contract",
  "veoveo-computers-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16562,6 +16565,7 @@ dependencies = [
  "reqwest 0.13.5",
  "russh",
  "rustls",
+ "schemars 1.2.2",
  "serde",
  "serde_json",
  "sha2 0.11.0",

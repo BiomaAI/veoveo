@@ -22,9 +22,10 @@ mod tests {
     use super::*;
     fn valid() -> Config {
         let image = format!("registry.internal:5000/computer@sha256:{}", "a".repeat(64));
+        let supervisor = format!("registry.internal:5000/provider@sha256:{}", "c".repeat(64));
         serde_json::from_value(serde_json::json!({
             "schema": "veoveo.ai/computer-host/v1", "providerId": "00000000-0000-7000-8000-000000000064",
-            "namespace": "private-computers", "defaultImage": image, "images": [image],
+            "namespace": "private-computers", "defaultImage": image, "supervisorImage": supervisor, "images": [image, supervisor],
             "templates": [{"fingerprint": "b".repeat(64), "capacityBytes": 536870912}],
             "reserveBytes": 536870912, "registry": {"authority": "registry.internal:5000", "transport": "development_http"},
             "bridgeAddress": "172.30.0.1", "networkPool": "172.31.0.0"
@@ -45,6 +46,22 @@ mod tests {
         let mut config = valid();
         config.templates.push(config.templates[0].clone());
         assert!(config.validate().is_err());
+    }
+    #[test]
+    fn supervisor_requires_installation_pinned_preloaded_image() {
+        let mut config = valid();
+        let encoded = config.provider_config().unwrap();
+        assert!(encoded.contains(&format!("supervisor_image = {:?}", config.supervisor_image)));
+        assert!(encoded.contains("image_pull_policy = \"Never\""));
+        assert!(encoded.contains("supervisor_bin = \"/usr/local/bin/openshell-sandbox\""));
+        config.supervisor_image = "registry.internal:5000/provider:latest".into();
+        assert!(config.provider_config().is_err());
+        config = valid();
+        config.images.pop();
+        assert!(config.provider_config().is_err());
+        config = valid();
+        config.supervisor_image.clear();
+        assert!(config.provider_config().is_err());
     }
     #[test]
     fn private_networks_and_generated_storage_configuration_keep_one_identity() {
@@ -69,6 +86,7 @@ pub struct Config {
     pub provider_id: veoveo_computers_contract::ProviderInstanceId,
     pub namespace: String,
     pub default_image: String,
+    pub supervisor_image: String,
     pub images: Vec<String>,
     pub templates: Vec<Template>,
     pub reserve_bytes: u64,
@@ -146,6 +164,10 @@ impl Config {
             "default image must belong to the preload catalog"
         );
         ensure!(
+            images.contains(&self.supervisor_image),
+            "supervisor image must be digest pinned in the preload catalog"
+        );
+        ensure!(
             !self.templates.is_empty()
                 && self.templates.len() <= 64
                 && self.reserve_bytes >= 536870912,
@@ -176,7 +198,9 @@ impl Config {
         Ok(())
     }
     pub fn provider_config(&self) -> Result<String> {
+        self.validate()?;
         let image = serde_json::to_string(&self.default_image)?;
+        let supervisor_image = serde_json::to_string(&self.supervisor_image)?;
         Ok(format!(
             r#"[openshell]
 version = 1
@@ -196,12 +220,12 @@ gateway_id = "{namespace}"
 ttl_secs = 3600
 [openshell.drivers.docker]
 socket_path = "{SOCKET}"
-host_gateway_ip = "{bridge}"
 default_image = {image}
 image_pull_policy = "Never"
-sandbox_namespace = "{namespace}"
-network_name = "{namespace}"
-grpc_endpoint = "https://host.openshell.internal:{PROVIDER_PORT}"
+supervisor_image = {supervisor_image}
+allow_driver_config = true
+sandbox_label = "{namespace}"
+grpc_endpoint = "https://127.0.0.1:{PROVIDER_PORT}"
 supervisor_bin = "/usr/local/bin/openshell-sandbox"
 guest_tls_ca = "{RUN}/trust/provider-ca.pem"
 guest_tls_cert = "{RUN}/trust/guest.pem"
@@ -209,8 +233,7 @@ guest_tls_key = "{RUN}/trust/guest-key.pem"
 sandbox_pids_limit = 256
 enable_bind_mounts = false
 "#,
-            namespace = self.namespace,
-            bridge = self.bridge_address
+            namespace = self.namespace
         ))
     }
     pub fn storage_config(&self) -> StorageConfig {

@@ -51,6 +51,26 @@ impl DockerDaemon {
         profile: Profile,
         admitted_images: &[String],
     ) -> Self {
+        let mut preload = admitted_images.to_vec();
+        if matches!(profile, Profile::NativeProvider { .. }) {
+            let supervisor_image = std::env::var("VEOVEO_COMPUTERS_NATIVE_SUPERVISOR_IMAGE")
+                .expect("digest-pinned companion image is required before daemon allocation");
+            assert!(
+                supervisor_image
+                    .split_once("@sha256:")
+                    .is_some_and(|(name, digest)| !name.is_empty()
+                        && digest.len() == 64
+                        && digest
+                            .bytes()
+                            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
+            );
+            // Inspect the seeded installation candidate before creating this fixture's daemon.
+            checked(host().args(["image", "inspect", &supervisor_image])).await;
+            if !preload.contains(&supervisor_image) {
+                preload.push(supervisor_image);
+            }
+        }
+        let admitted_images = preload.as_slice();
         let name = format!("veoveo-docker-probe-{}", Uuid::now_v7().simple());
         let root = std::env::temp_dir().join(&name);
         std::fs::create_dir(&root).unwrap();
@@ -141,15 +161,15 @@ impl DockerDaemon {
             ));
         }
         if matches!(profile, Profile::NativeProvider { .. }) {
-            let supervisor = PathBuf::from(
-                std::env::var_os("VEOVEO_COMPUTERS_NATIVE_SUPERVISOR")
-                    .expect("qualified supervisor binary"),
+            let sandbox = PathBuf::from(
+                std::env::var_os("VEOVEO_COMPUTERS_NATIVE_SANDBOX")
+                    .expect("qualified static sandbox binary"),
             );
-            assert!(supervisor.is_absolute());
+            assert!(sandbox.is_absolute());
             command.arg("--mount").arg(format!(
                 "type=bind,source={},target={},readonly",
-                supervisor.display(),
-                supervisor.display()
+                sandbox.display(),
+                sandbox.display()
             ));
         }
         command

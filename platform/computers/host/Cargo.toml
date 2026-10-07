@@ -17,6 +17,9 @@ uuid = { workspace = true, features = ["serde"] }
 veoveo-computer-storage = { path = "../storage" }
 
 [dev-dependencies]
+schemars.workspace = true
+sha2.workspace = true
+veoveo-types.workspace = true
 rcgen.workspace = true
 tempfile.workspace = true
 tonic.workspace = true

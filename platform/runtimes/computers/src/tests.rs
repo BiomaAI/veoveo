@@ -85,6 +85,7 @@ fn sandbox(phase: Phase) -> api::Sandbox {
             main_process_instance_id: "main-1".into(),
             ..Default::default()
         }),
+        ..Default::default()
     }
 }
 #[test]
@@ -394,7 +395,7 @@ impl api::open_shell_server::OpenShell for Fake {
         request: Request<api::CreateSshSessionRequest>,
     ) -> std::result::Result<Response<api::CreateSshSessionResponse>, Status> {
         self.authorize()?;
-        assert_eq!(request.into_inner().sandbox_id, "sandbox-1");
+        assert_eq!(request.into_inner().sandbox, binding().name());
         let mode = self.0.lock().unwrap().session_mode;
         let response = api::CreateSshSessionResponse {
             sandbox_id: if mode == 1 { "wrong" } else { "sandbox-1" }.into(),
@@ -407,12 +408,12 @@ impl api::open_shell_server::OpenShell for Fake {
                     .fingerprint(russh::keys::HashAlg::Sha256)
                     .to_string()
             },
-            expires_at_ms: if mode == 3 {
+            expiration_time: Some(crate::client::timestamp_from_millis(if mode == 3 {
                 1
             } else {
                 (SystemTime::now().duration_since(UNIX_EPOCH).unwrap() + Duration::from_secs(60))
                     .as_millis() as i64
-            },
+            })),
             gateway_host: "forbidden-redirect.invalid".into(),
             gateway_port: 1,
             ..Default::default()
@@ -434,7 +435,7 @@ impl api::open_shell_server::OpenShell for Fake {
             return Err(Status::unavailable("SECRET"));
         }
         Ok(Response::new(api::RevokeSshSessionResponse {
-            revoked: true,
+            outcome: api::DeletionOutcome::Completed as i32,
         }))
     }
     async fn forward_tcp(
@@ -456,7 +457,11 @@ impl api::open_shell_server::OpenShell for Fake {
                 .iter()
                 .map(|name| api::ComputeDriverInfo {
                     name: name.clone(),
-                    ..Default::default()
+                    capabilities: Some(api::ComputeDriverCapabilities {
+                        driver_name: name.clone(),
+                        driver_version: state.version.clone(),
+                        ..Default::default()
+                    }),
                 })
                 .collect(),
             ..Default::default()
@@ -482,7 +487,7 @@ impl api::open_shell_server::OpenShell for Fake {
             tokio::time::sleep(delay).await;
         }
         let request = request.into_inner();
-        assert_eq!(request.workspace, "computers");
+        assert!(request.workspace_scope == crate::client::workspace_scope("computers"));
         let mut state = self.0.lock().unwrap();
         if let Some(fixture) = &mut state.policy_fixture {
             return fixture.get(request);
@@ -503,6 +508,7 @@ impl api::open_shell_server::OpenShell for Fake {
                     .clone()
                     .ok_or_else(|| Status::not_found("absent"))?,
             ),
+            ..Default::default()
         }))
     }
     async fn create_sandbox(
@@ -539,6 +545,7 @@ impl api::open_shell_server::OpenShell for Fake {
         state.created_spec = request.spec;
         Ok(Response::new(api::SandboxResponse {
             sandbox: state.sandbox.clone(),
+            ..Default::default()
         }))
     }
     async fn start_sandbox(
@@ -547,7 +554,7 @@ impl api::open_shell_server::OpenShell for Fake {
     ) -> std::result::Result<Response<api::SandboxResponse>, Status> {
         self.authorize()?;
         let request = request.into_inner();
-        assert_eq!(request.workspace, "computers");
+        assert!(request.workspace_scope == crate::client::workspace_scope("computers"));
         let mut state = self.0.lock().unwrap();
         assert_eq!(
             request.name,
@@ -568,6 +575,7 @@ impl api::open_shell_server::OpenShell for Fake {
             .phase = Phase::Starting as i32;
         Ok(Response::new(api::SandboxResponse {
             sandbox: state.sandbox.clone(),
+            ..Default::default()
         }))
     }
     async fn stop_sandbox(
@@ -576,7 +584,7 @@ impl api::open_shell_server::OpenShell for Fake {
     ) -> std::result::Result<Response<api::SandboxResponse>, Status> {
         self.authorize()?;
         let request = request.into_inner();
-        assert_eq!(request.workspace, "computers");
+        assert!(request.workspace_scope == crate::client::workspace_scope("computers"));
         let mut state = self.0.lock().unwrap();
         assert_eq!(
             request.name,
@@ -597,6 +605,7 @@ impl api::open_shell_server::OpenShell for Fake {
             .phase = Phase::Stopping as i32;
         Ok(Response::new(api::SandboxResponse {
             sandbox: state.sandbox.clone(),
+            ..Default::default()
         }))
     }
     async fn delete_sandbox(
@@ -606,7 +615,7 @@ impl api::open_shell_server::OpenShell for Fake {
         self.authorize()?;
         let request = request.into_inner();
         let mut state = self.0.lock().unwrap();
-        assert_eq!(request.workspace, "computers");
+        assert!(request.workspace_scope == crate::client::workspace_scope("computers"));
         assert_eq!(
             request.name,
             state
@@ -621,7 +630,12 @@ impl api::open_shell_server::OpenShell for Fake {
             return Err(Status::unavailable("SECRET-LOST-DELETE-REPLY"));
         }
         Ok(Response::new(api::DeleteSandboxResponse {
-            deleted: state.deletion_reply != 2,
+            outcome: if state.deletion_reply != 2 {
+                api::DeletionOutcome::Accepted as i32
+            } else {
+                api::DeletionOutcome::AlreadyAbsent as i32
+            },
+            sandbox_id: "sandbox-1".into(),
         }))
     }
     async fn watch_sandbox(
@@ -634,7 +648,14 @@ impl api::open_shell_server::OpenShell for Fake {
         if let Some(fixture) = &mut state.policy_fixture {
             return fixture.watch(request);
         }
-        assert_eq!(request.id, "sandbox-1");
+        let expected_name = state
+            .sandbox
+            .as_ref()
+            .and_then(|sandbox| sandbox.metadata.as_ref())
+            .map(|metadata| metadata.name.clone())
+            .unwrap_or_else(|| binding().name());
+        assert_eq!(request.sandbox, expected_name);
+        assert!(request.workspace_scope == crate::client::workspace_scope("computers"));
         assert!(request.follow_status);
         assert!(!request.follow_logs);
         state.watches += 1;
@@ -691,6 +712,7 @@ impl api::open_shell_server::OpenShell for Fake {
         };
         Ok(Response::new(boxed(vec![Ok(api::SandboxStreamEvent {
             payload: Some(payload),
+            ..Default::default()
         })])))
     }
     async fn get_sandbox_config(
@@ -738,7 +760,7 @@ impl api::open_shell_server::OpenShell for Fake {
     ) -> std::result::Result<Response<BoxStream<api::ExecSandboxEvent>>, Status> {
         self.authorize()?;
         let r = request.into_inner();
-        assert_eq!(r.sandbox_id, "sandbox-1");
+        assert_eq!(r.sandbox, binding().name());
         assert!(!r.tty);
         assert!(r.environment.is_empty());
         let mut state = self.0.lock().unwrap();

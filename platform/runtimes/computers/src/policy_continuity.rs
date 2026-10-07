@@ -188,7 +188,7 @@ impl OpenShellRuntime {
             .get_sandbox(request(
                 api::GetSandboxRequest {
                     name: binding.name(),
-                    workspace: self.workspace.clone(),
+                    workspace_scope: crate::client::workspace_scope(&self.workspace),
                 },
                 10,
             ))
@@ -200,12 +200,13 @@ impl OpenShellRuntime {
         checked(sandbox, binding, &self.workspace, template)
     }
 
-    async fn policy_config(&self, id: &str) -> Result<policy::GetSandboxConfigResponse> {
+    async fn policy_config(&self, binding: &Binding) -> Result<policy::GetSandboxConfigResponse> {
         self.client
             .clone()
             .get_sandbox_config(request(
                 policy::GetSandboxConfigRequest {
-                    sandbox_id: id.into(),
+                    name: binding.name(),
+                    workspace_scope: crate::client::workspace_scope(&self.workspace),
                 },
                 10,
             ))
@@ -225,8 +226,8 @@ impl OpenShellRuntime {
             .clone()
             .get_sandbox_policy_status(request(
                 api::GetSandboxPolicyStatusRequest {
-                    name: binding.name(),
-                    workspace: self.workspace.clone(),
+                    sandbox: binding.name(),
+                    workspace_scope: crate::client::workspace_scope(&self.workspace),
                     version,
                     global: false,
                 },
@@ -258,7 +259,7 @@ impl OpenShellRuntime {
             if before.phase != Phase::Stopped {
                 return Err(FAILURE);
             }
-            let config = self.policy_config(&before.provider_id).await?;
+            let config = self.policy_config(source).await?;
             admitted_config(
                 &config,
                 &before,
@@ -268,7 +269,7 @@ impl OpenShellRuntime {
             )?;
             self.policy_loaded(source, config.version, &config.policy_hash)
                 .await?;
-            if self.policy_config(&before.provider_id).await? != config
+            if self.policy_config(source).await? != config
                 || self.policy_bound(source, template).await? != before
             {
                 return Err(FAILURE);
@@ -386,7 +387,7 @@ impl OpenShellRuntime {
         if bound.phase != Phase::Ready || bound.provider_id == snapshot.provider_id {
             return Err(FAILURE);
         }
-        let before = self.policy_config(&bound.provider_id).await?;
+        let before = self.policy_config(target).await?;
         admitted_config(
             &before,
             &bound,
@@ -418,7 +419,8 @@ impl OpenShellRuntime {
                 .clone()
                 .watch_sandbox(request(
                     api::WatchSandboxRequest {
-                        id: bound.provider_id.clone(),
+                        sandbox: target.name(),
+                        workspace_scope: crate::client::workspace_scope(&self.workspace),
                         follow_status: true,
                         stop_on_terminal: false,
                         ..Default::default()
@@ -453,8 +455,8 @@ impl OpenShellRuntime {
                 .clone()
                 .update_config(request(
                     api::UpdateConfigRequest {
-                        name: target.name(),
-                        workspace: self.workspace.clone(),
+                        sandbox: target.name(),
+                        workspace_scope: crate::client::workspace_scope(&self.workspace),
                         expected_resource_version: bound.resource_version,
                         annotations: [(PROVENANCE.into(), operation.to_string())].into(),
                         merge_operations: operations,
@@ -508,7 +510,7 @@ impl OpenShellRuntime {
         {
             return Err(FAILURE);
         }
-        let after = self.policy_config(&bound.provider_id).await?;
+        let after = self.policy_config(target).await?;
         if after.version != version
             || after.policy_hash != hash
             || after.policy.as_ref() != Some(&expected)

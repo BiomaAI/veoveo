@@ -1,53 +1,17 @@
 diff --git a/Cargo.lock b/Cargo.lock
-index 4368133..c38d2fe 100644
+index c6330b88..8cbef804 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
-@@ -4535,6 +4535,7 @@ dependencies = [
+@@ -4877,6 +4877,7 @@ dependencies = [
   "openshell-core",
+  "openshell-isolation-interface",
   "openshell-ocsf",
-  "openshell-policy",
 + "prost",
   "rand 0.10.2",
   "russh",
-  "rustix 1.1.4",
-diff --git a/architecture/sandbox.md b/architecture/sandbox.md
-index 42b326b..497706b 100644
---- a/architecture/sandbox.md
-+++ b/architecture/sandbox.md
-@@ -417,6 +417,31 @@ sandbox workload directly. The relay supports:
- - Tar-based file sync.
- - Port forwarding where supported by the CLI/TUI surface.
- 
-+Retained-output clients can request typed replay metadata with SSH environment
-+request `OPENSHELL_MAIN_EVENTS=1` before attaching `openshell-main`. The value
-+is not propagated to the sandbox process. Invalid values and requests after
-+attachment fail. Ordinary clients retain raw stdout and stderr without metadata.
-+
-+The output cursor atomically captures a per-attachment sequence fence. Once it
-+has delivered retained events before that fence, it emits one generated
-+`openshell.terminal.v1.MainProcessEvent` containing `replay_complete`. The message travels
-+on SSH extended-data type `0xFE000001`, in the private-use range defined by
-+[RFC 4254 section 5.2](https://www.rfc-editor.org/rfc/rfc4254#section-5.2).
-+This is an OpenShell adapter extension, not a standardized terminal event.
-+The process cannot manufacture metadata by writing escape sequences or stderr.
-+The shared log never stores attachment fences. Empty history completes
-+immediately; output produced during replay remains after the captured fence.
-+Eviction fails the attachment without a completion claim.
-+
-+Renderers must suppress terminal answerbacks while replaying and drain all
-+preceding renderer writes before enabling input or processing live output.
-+Neither elapsed time nor an idle stream establishes replay completion. A
-+client requiring metadata must fail closed if it never arrives, including
-+when an older supervisor acknowledges the generic environment request.
-+This event does not grant input ownership, extend authorization, or replace
-+the canonical process. Raw stdout/stderr ordering, the output bound, the
-+single input lease and disconnect semantics remain unchanged.
-+
- Before dropping identity, full-mode canonical and independent PTY children
- transfer their freshly allocated slave descriptor to the same resolved UID/GID
- used for execution, with owner-only mode 0600. They never chown a workload
+  "serde_json",
 diff --git a/crates/openshell-core/src/proto/mod.rs b/crates/openshell-core/src/proto/mod.rs
-index 7009067..de1dc26 100644
+index c6076620..fe4b2deb 100644
 --- a/crates/openshell-core/src/proto/mod.rs
 +++ b/crates/openshell-core/src/proto/mod.rs
 @@ -40,6 +40,10 @@ pub mod compute {
@@ -58,26 +22,26 @@ index 7009067..de1dc26 100644
 +    pub use super::generated::openshell::terminal::v1;
 +}
 +
- impl std::fmt::Debug for compute::v1::StartSandboxRequest {
-     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-         formatter
+ pub mod extension {
+     pub use super::generated::openshell::extension::v1;
+ }
 diff --git a/crates/openshell-supervisor-process/Cargo.toml b/crates/openshell-supervisor-process/Cargo.toml
-index 2e2120f..7d8013f 100644
+index db56a1fd..34b464f0 100644
 --- a/crates/openshell-supervisor-process/Cargo.toml
 +++ b/crates/openshell-supervisor-process/Cargo.toml
-@@ -14,6 +14,7 @@ rust-version.workspace = true
- openshell-core = { path = "../openshell-core" }
- openshell-ocsf = { path = "../openshell-ocsf" }
- openshell-policy = { path = "../openshell-policy" }
+@@ -22,6 +22,7 @@ bytes = { workspace = true }
+ hex = "0.4"
+ miette = { workspace = true }
+ nix = { workspace = true }
 +prost = { workspace = true }
- 
- anyhow = { workspace = true }
- base64 = { workspace = true }
+ rand = "0.10"
+ russh = "0.62"
+ serde_json = { workspace = true }
 diff --git a/crates/openshell-supervisor-process/src/main_session.rs b/crates/openshell-supervisor-process/src/main_session.rs
-index fc5c969..3ada86c 100644
+index 1e59aa5c..3dad29ce 100644
 --- a/crates/openshell-supervisor-process/src/main_session.rs
 +++ b/crates/openshell-supervisor-process/src/main_session.rs
-@@ -26,13 +26,18 @@ pub enum MainOutput {
+@@ -38,13 +38,18 @@ pub enum MainOutput {
      Stdout(Bytes),
      Stderr(Bytes),
      Exit(i32),
@@ -97,11 +61,19 @@ index fc5c969..3ada86c 100644
          }
      }
  }
-@@ -97,10 +102,12 @@ impl OutputLog {
+@@ -106,17 +111,19 @@ impl OutputLog {
+         self.version.send_replace(version);
+     }
+ 
+-    fn subscribe(self: &Arc<Self>) -> MainOutputCursor {
++    fn subscribe(self: &Arc<Self>, replay: bool) -> MainOutputCursor {
+         let version = self.version.subscribe();
+         let state = self.state.lock().expect("main output log lock poisoned");
+         let next_sequence = state
              .events
              .front()
              .map_or(state.next_sequence, |retained| retained.sequence);
-+        let replay_end = Some(state.next_sequence);
++        let replay_end = replay.then_some(state.next_sequence);
          drop(state);
          MainOutputCursor {
              output: Arc::clone(self),
@@ -110,7 +82,7 @@ index fc5c969..3ada86c 100644
              version,
          }
      }
-@@ -114,6 +121,7 @@ pub struct MainOutputLagged {
+@@ -144,6 +151,7 @@ pub struct MainOutputLagged {
  pub struct MainOutputCursor {
      output: Arc<OutputLog>,
      next_sequence: u64,
@@ -118,7 +90,7 @@ index fc5c969..3ada86c 100644
      version: watch::Receiver<u64>,
  }
  
-@@ -133,8 +141,17 @@ impl MainOutputCursor {
+@@ -163,8 +171,17 @@ impl MainOutputCursor {
                  if self.next_sequence < oldest {
                      let skipped = oldest - self.next_sequence;
                      self.next_sequence = oldest;
@@ -136,29 +108,20 @@ index fc5c969..3ada86c 100644
                  if self.next_sequence >= state.next_sequence {
                      None
                  } else {
-@@ -433,6 +450,10 @@ mod tests {
-         ));
+@@ -536,7 +553,11 @@ impl MainSession {
+     }
  
-         session.publish(MainOutput::Stderr(Bytes::from_static(b"after")));
-+        assert!(matches!(
-+            output.recv().await.expect("attachment replay boundary"),
-+            MainOutput::ReplayComplete { next_sequence: 1 }
-+        ));
-         assert!(matches!(
-             output.recv().await.expect("live output"),
-             MainOutput::Stderr(data) if data == b"after"[..]
-@@ -473,6 +494,10 @@ mod tests {
-         let (session, mut slave) = MainSession::terminal_for_test();
-         set_nonblocking(&slave).expect("set test PTY slave nonblocking");
-         let mut output = session.subscribe();
-+        assert!(matches!(
-+            output.recv().await.expect("empty replay boundary"),
-+            MainOutput::ReplayComplete { next_sequence: 0 }
-+        ));
+     pub fn subscribe(&self) -> MainOutputCursor {
+-        self.output.subscribe()
++        self.output.subscribe(false)
++    }
++
++    pub fn subscribe_with_replay_events(&self) -> MainOutputCursor {
++        self.output.subscribe(true)
+     }
  
-         slave
-             .write_all(b"process output")
-@@ -508,4 +533,81 @@ mod tests {
+     /// Return the bounded output sequence range currently retained for a
+@@ -995,4 +1016,81 @@ mod tests {
          assert_eq!(&received[..read], b"client input\n");
          session.release_input(owner);
      }
@@ -168,7 +131,7 @@ index fc5c969..3ada86c 100644
 +        let session = MainSession::inert();
 +        session.publish(MainOutput::Stdout(Bytes::from_static(b"\x1b[6n")));
 +        session.publish(MainOutput::Stderr(Bytes::from_static(b"retained")));
-+        let mut cursor = session.subscribe();
++        let mut cursor = session.subscribe_with_replay_events();
 +        // Already available when the reader starts, but not part of its history.
 +        session.publish(MainOutput::Stdout(Bytes::from_static(b"live")));
 +        assert!(
@@ -189,7 +152,7 @@ index fc5c969..3ada86c 100644
 +    #[tokio::test]
 +    async fn empty_replay_emits_one_fence_without_waiting_for_process_output() {
 +        let session = MainSession::inert();
-+        let mut cursor = session.subscribe();
++        let mut cursor = session.subscribe_with_replay_events();
 +        assert!(matches!(
 +            cursor.recv().await.unwrap(),
 +            MainOutput::ReplayComplete { next_sequence: 0 }
@@ -208,9 +171,9 @@ index fc5c969..3ada86c 100644
 +    #[tokio::test]
 +    async fn separate_attachments_have_independent_fences_not_stored_events() {
 +        let session = MainSession::inert();
-+        let mut first = session.subscribe();
++        let mut first = session.subscribe_with_replay_events();
 +        session.publish(MainOutput::Stdout(Bytes::from_static(b"one")));
-+        let mut second = session.subscribe();
++        let mut second = session.subscribe_with_replay_events();
 +        assert!(matches!(
 +            first.recv().await.unwrap(),
 +            MainOutput::ReplayComplete { next_sequence: 0 }
@@ -231,7 +194,7 @@ index fc5c969..3ada86c 100644
 +    async fn evicted_replay_never_claims_a_complete_fence() {
 +        let session = MainSession::inert();
 +        session.publish(MainOutput::Stdout(Bytes::from_static(b"history")));
-+        let mut cursor = session.subscribe();
++        let mut cursor = session.subscribe_with_replay_events();
 +        let chunk = Bytes::from(vec![0; 4096]);
 +        for _ in 0..=(OUTPUT_BUFFER_BYTES / chunk.len()) {
 +            session.publish(MainOutput::Stdout(chunk.clone()));
@@ -241,17 +204,16 @@ index fc5c969..3ada86c 100644
 +    }
  }
 diff --git a/crates/openshell-supervisor-process/src/ssh.rs b/crates/openshell-supervisor-process/src/ssh.rs
-index 50203df..c5ee89f 100644
+index 01be34bf..bcb48718 100644
 --- a/crates/openshell-supervisor-process/src/ssh.rs
 +++ b/crates/openshell-supervisor-process/src/ssh.rs
-@@ -19,10 +19,14 @@ use nix::pty::{Winsize, openpty};
- use nix::unistd::setsid;
- use openshell_core::net::set_tcp_nodelay_best_effort;
- use openshell_core::policy::SandboxPolicy;
+@@ -8,9 +8,13 @@ use crate::main_session::{MainOutput, MainSession};
+ use libc;
+ use miette::{IntoDiagnostic, Result};
+ use openshell_core::VERSION;
 +use openshell_core::proto::terminal::v1::{
 +    MainProcessEvent, MainProcessReplayComplete, main_process_event,
 +};
- use openshell_core::provider_credentials::ProviderCredentialState;
  use openshell_ocsf::{
      ActionId, ActivityId, DispositionId, SeverityId, SshActivityBuilder, StatusId, ocsf_emit,
  };
@@ -259,7 +221,22 @@ index 50203df..c5ee89f 100644
  use russh::keys::{Algorithm, PrivateKey};
  use russh::server::{Auth, ChannelOpenHandle, Handle, Session};
  use russh::{ChannelId, ChannelOpenFailure, Sig};
-@@ -389,12 +393,23 @@ struct ChannelState {
+@@ -23,6 +27,14 @@ use tokio::net::UnixListener;
+ use tracing::warn;
+ 
+ const NO_LOGIN_SHELL_ENV: (&str, &str) = ("OPENSHELL_NO_LOGIN_SHELL", "1");
++#[derive(Clone, Copy, Default, Eq, PartialEq)]
++enum MainOutputMode {
++    #[default]
++    Bytes,
++    BytesWithEvents,
++}
++const MAIN_EVENT_EXTENDED_DATA: u32 = 0xfe00_0001;
++
+ const MAIN_DETACH_PREFIX: u8 = 0x10;
+ const MAIN_DETACH_KEY: u8 = 0x11;
+ 
+@@ -335,6 +347,7 @@ struct ChannelState {
      main_input_owner: Option<u64>,
      main_attached: bool,
      main_read_only: bool,
@@ -267,46 +244,44 @@ index 50203df..c5ee89f 100644
      main_detach_prefix_pending: bool,
      main_output_task: Option<tokio::task::AbortHandle>,
  }
- 
- const MAIN_DETACH_PREFIX: u8 = 0x10; // Ctrl-P
- const MAIN_DETACH_KEY: u8 = 0x11; // Ctrl-Q
-+// RFC 4254 section 5.2 private-use extended-data code. Payload is generated
-+// MainProcessEvent, never bytes originating from the sandbox process.
-+const MAIN_EVENT_EXTENDED_DATA: u32 = 0xfe00_0001;
-+
-+#[derive(Clone, Copy, Default, Eq, PartialEq)]
-+enum MainOutputMode {
-+    #[default]
-+    Bytes,
-+    BytesWithEvents,
-+}
- 
- /// Remove the `OpenShell` detach sequence from canonical-main input.
- ///
-@@ -753,6 +768,7 @@ impl russh::server::Handler for SshHandler {
-             state.main_attached = true;
-             state.main_detach_prefix_pending = false;
+@@ -702,7 +715,8 @@ impl russh::server::Handler for SshHandler {
+             };
              state.input_sender = input;
+             state.main_detach_prefix_pending = false;
+-            let mut output = main_session.subscribe();
++            let mut output = main_session.subscribe_with_replay_events();
 +            let main_output_mode = state.main_output_mode;
-             let mut output = self.main_session.subscribe();
+             let terminal_delivery = main_session.clone();
              let handle = session.handle();
              session.channel_success(channel)?;
-@@ -770,7 +786,10 @@ impl russh::server::Handler for SshHandler {
+@@ -720,12 +734,20 @@ impl russh::server::Handler for SshHandler {
                      match output.recv().await {
+                         Ok(MainOutput::Exit(code)) => {
+                             terminal_delivery.wait_for_terminal_reported().await;
+-                            let _ =
+-                                send_main_output(&handle, channel, MainOutput::Exit(code)).await;
++                            let _ = send_main_output(
++                                &handle,
++                                channel,
++                                MainOutput::Exit(code),
++                                main_output_mode,
++                            )
++                            .await;
+                             break;
+                         }
                          Ok(event) => {
-                             let exited = matches!(event, MainOutput::Exit(_));
--                            send_main_output(&handle, channel, event).await;
+-                            let _ = send_main_output(&handle, channel, event).await;
 +                            if !send_main_output(&handle, channel, event, main_output_mode).await {
 +                                let _ = handle.close(channel).await;
 +                                break;
 +                            }
-                             if exited {
-                                 break;
-                             }
-@@ -845,6 +864,17 @@ impl russh::server::Handler for SshHandler {
-         // Accept the env request so the client knows we handled it, but we
-         // don't actually propagate the variables — the sandbox environment is
-         // controlled via policy.  We must reply so VSCode doesn't stall.
+                         }
+                         Err(error) => {
+                             let _ = handle
+@@ -795,6 +817,17 @@ impl russh::server::Handler for SshHandler {
+         // environment is controlled via policy. The login-shell opt-out is a
+         // supervisor signal carried over SSH because the protocol has no
+         // native field for it.
 +        if variable_name == "OPENSHELL_MAIN_EVENTS" {
 +            let Some(state) = self.channels.get_mut(&channel) else {
 +                session.channel_failure(channel)?;
@@ -318,14 +293,14 @@ index 50203df..c5ee89f 100644
 +            }
 +            state.main_output_mode = MainOutputMode::BytesWithEvents;
 +        }
-         if variable_name == "OPENSHELL_MAIN_READ_ONLY"
-             && variable_value == "1"
+         if variable_name == NO_LOGIN_SHELL_ENV.0
              && let Some(state) = self.channels.get_mut(&channel)
-@@ -954,13 +984,28 @@ impl russh::server::Handler for SshHandler {
+         {
+@@ -1102,10 +1135,29 @@ impl SshHandler {
      }
  }
  
--async fn send_main_output(handle: &Handle, channel: ChannelId, event: MainOutput) {
+-async fn send_main_output(handle: &Handle, channel: ChannelId, event: MainOutput) -> bool {
 +async fn send_main_output(
 +    handle: &Handle,
 +    channel: ChannelId,
@@ -333,13 +308,8 @@ index 50203df..c5ee89f 100644
 +    mode: MainOutputMode,
 +) -> bool {
      match event {
--        MainOutput::Stdout(data) => {
--            let _ = handle.data(channel, data).await;
--        }
--        MainOutput::Stderr(data) => {
--            let _ = handle.extended_data(channel, 1, data).await;
-+        MainOutput::Stdout(data) => handle.data(channel, data).await.is_ok(),
-+        MainOutput::Stderr(data) => handle.extended_data(channel, 1, data).await.is_ok(),
+         MainOutput::Stdout(data) => handle.data(channel, data).await.is_ok(),
+         MainOutput::Stderr(data) => handle.extended_data(channel, 1, data).await.is_ok(),
 +        MainOutput::ReplayComplete { next_sequence } => {
 +            if mode == MainOutputMode::Bytes {
 +                return true;
@@ -353,19 +323,12 @@ index 50203df..c5ee89f 100644
 +                .extended_data(channel, MAIN_EVENT_EXTENDED_DATA, event.encode_to_vec())
 +                .await
 +                .is_ok()
-         }
++        }
          MainOutput::Exit(code) => {
-             let _ = handle.eof(channel).await;
-@@ -968,6 +1013,7 @@ async fn send_main_output(handle: &Handle, channel: ChannelId, event: MainOutput
-                 .exit_status_request(channel, code.max(0).unsigned_abs())
-                 .await;
-             let _ = handle.close(channel).await;
-+            true
+             let eof = handle.eof(channel).await.is_ok();
+             let status = handle
+@@ -1271,6 +1323,168 @@ mod tests {
          }
-     }
- }
-@@ -2493,6 +2539,168 @@ mod tests {
-         authenticated_test_client_with_main(MainSession::inert()).await
      }
  
 +    #[tokio::test]
@@ -408,7 +371,7 @@ index 50203df..c5ee89f 100644
 +    #[tokio::test]
 +    async fn main_replay_boundary_separates_exact_pty_history_and_live_bytes() {
 +        let (main, mut slave) = MainSession::terminal_for_test();
-+        let mut observed = main.subscribe();
++        let mut observed = main.subscribe_with_replay_events();
 +        assert!(matches!(
 +            observed.recv().await.unwrap(),
 +            MainOutput::ReplayComplete { .. }
@@ -421,7 +384,7 @@ index 50203df..c5ee89f 100644
 +            .unwrap();
 +        assert!(matches!(retained, MainOutput::Stdout(data) if data.as_ref() == history));
 +
-+        let client = authenticated_test_client_with_main(Arc::clone(&main)).await;
++        let client = main_test_client(Some(Arc::clone(&main))).await;
 +        let mut channel = client.channel_open_session().await.unwrap();
 +        channel
 +            .set_env(true, "OPENSHELL_MAIN_EVENTS", "1")
@@ -467,7 +430,7 @@ index 50203df..c5ee89f 100644
 +    #[tokio::test]
 +    async fn ordinary_main_attachment_keeps_raw_output_without_metadata() {
 +        let (main, mut slave) = MainSession::terminal_for_test();
-+        let client = authenticated_test_client_with_main(main).await;
++        let client = main_test_client(Some(main)).await;
 +        let mut channel = client.channel_open_session().await.unwrap();
 +        channel
 +            .request_subsystem(true, "openshell-main")
@@ -530,12 +493,12 @@ index 50203df..c5ee89f 100644
 +        ));
 +    }
 +
-     #[tokio::test]
-     async fn abrupt_transport_drop_releases_main_input_lease() {
-         let main_session = MainSession::inert();
+     async fn authenticated_test_client() -> russh::client::Handle<AcceptAnyServerKey> {
+         main_test_client(Some(MainSession::inert())).await
+     }
 diff --git a/proto/terminal_events.proto b/proto/terminal_events.proto
 new file mode 100644
-index 0000000..a5b21db
+index 00000000..a5b21db3
 --- /dev/null
 +++ b/proto/terminal_events.proto
 @@ -0,0 +1,25 @@

@@ -10,7 +10,8 @@ use tonic::{
     transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity},
 };
 use zeroize::Zeroizing;
-pub const GATEWAY_VERSION: &str = "0.0.117-veoveo.2";
+pub const GATEWAY_VERSION: &str = env!("VEOVEO_OPENSHELL_GATEWAY_VERSION");
+pub const CLI_VERSION: &str = env!("VEOVEO_OPENSHELL_CLI_VERSION");
 pub(crate) type Client = api::open_shell_client::OpenShellClient<Channel>;
 
 pub struct GatewayConfig {
@@ -170,6 +171,13 @@ impl OpenShellRuntime {
         if response.gateway_version != GATEWAY_VERSION
             || response.compute_drivers.len() != 1
             || response.compute_drivers[0].name != "docker"
+            || response.compute_drivers[0]
+                .capabilities
+                .as_ref()
+                .is_none_or(|capabilities| {
+                    capabilities.driver_name != "docker"
+                        || capabilities.driver_version != GATEWAY_VERSION
+                })
         {
             return Err(RuntimeFailure::VersionMismatch);
         }
@@ -214,7 +222,7 @@ impl OpenShellRuntime {
             .get_sandbox(request(
                 api::GetSandboxRequest {
                     name: binding.name(),
-                    workspace: self.workspace.clone(),
+                    workspace_scope: crate::client::workspace_scope(&self.workspace),
                 },
                 15,
             ))
@@ -247,7 +255,7 @@ impl OpenShellRuntime {
             .create_sandbox(request(
                 api::CreateSandboxRequest {
                     name: binding.name(),
-                    workspace: self.workspace.clone(),
+                    workspace_scope: crate::client::workspace_scope(&self.workspace),
                     labels: binding.labels(),
                     spec: Some(template.bound_spec(binding)?),
                     ..Default::default()
@@ -288,7 +296,8 @@ impl OpenShellRuntime {
             .start_sandbox(request(
                 api::StartSandboxRequest {
                     name: binding.name(),
-                    workspace: self.workspace.clone(),
+                    workspace_scope: crate::client::workspace_scope(&self.workspace),
+                    ..Default::default()
                 },
                 30,
             ))
@@ -320,7 +329,8 @@ impl OpenShellRuntime {
             .stop_sandbox(request(
                 api::StopSandboxRequest {
                     name: binding.name(),
-                    workspace: self.workspace.clone(),
+                    workspace_scope: crate::client::workspace_scope(&self.workspace),
+                    ..Default::default()
                 },
                 30,
             ))
@@ -342,4 +352,33 @@ fn check_source(before: &Observation, phase: Phase) -> Result<()> {
         return Err(RuntimeFailure::BindingMismatch);
     }
     Ok(())
+}
+
+pub(crate) fn workspace_scope(
+    workspace: &str,
+) -> Option<crate::protocol::datamodel::v1::WorkspaceSelector> {
+    Some(crate::protocol::datamodel::v1::WorkspaceSelector {
+        selection: Some(
+            crate::protocol::datamodel::v1::workspace_selector::Selection::Workspace(
+                workspace.into(),
+            ),
+        ),
+    })
+}
+pub(crate) fn timestamp_millis(value: Option<&prost_types::Timestamp>) -> Option<i64> {
+    let value = value?;
+    if !(0..1_000_000_000).contains(&value.nanos) || !(0..=253_402_300_799).contains(&value.seconds)
+    {
+        return None;
+    }
+    value
+        .seconds
+        .checked_mul(1000)?
+        .checked_add(i64::from(value.nanos / 1_000_000))
+}
+pub(crate) fn timestamp_from_millis(value: i64) -> prost_types::Timestamp {
+    prost_types::Timestamp {
+        seconds: value.div_euclid(1000),
+        nanos: (value.rem_euclid(1000) * 1_000_000) as i32,
+    }
 }

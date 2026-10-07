@@ -197,10 +197,15 @@ impl OpenShellRuntime {
             Duration::from_secs(intent.timeout_seconds as u64 + 20),
             async {
                 let start = api::ExecSandboxRequest {
-                    sandbox_id: current.sandbox_id.clone(),
+                    sandbox: binding.name(),
+                    workspace_scope: crate::client::workspace_scope(&self.workspace),
+                    no_login_shell: true,
                     command: intent.command.clone(),
                     workdir: intent.workdir.clone(),
-                    timeout_seconds: intent.timeout_seconds,
+                    execution_timeout: Some(prost_types::Duration {
+                        seconds: i64::from(intent.timeout_seconds),
+                        nanos: 0,
+                    }),
                     stdin: intent.stdin.clone(),
                     tty: false,
                     ..Default::default()

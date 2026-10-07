@@ -60,13 +60,23 @@ async fn export(
 #[tokio::test]
 #[ignore = "requires exact native provider binaries and files/v1 template; owns isolated retained storage"]
 async fn regular_file_transfer_verifies_bytes_retention_and_uncertain_input() {
-    let mut provider = native_support::Provider::start_with_execution_logging().await;
+    if native_support::registry_child().await {
+        return;
+    }
+    let mut provider = native_support::Provider::start_with_execution_logging(
+        "regular_file_transfer_verifies_bytes_retention_and_uncertain_input",
+    )
+    .await;
     let runtime = &provider.runtime;
     let selected = template::retained_template(provider.image.clone());
     let computer = Uuid::now_v7();
     let binding = Binding::new(computer, selected.fingerprint()).unwrap();
-    let home =
-        block_home::BlockHome::create(provider.dir.clone(), provider.image.clone(), computer);
+    let home = block_home::BlockHome::create(
+        provider.dir.clone(),
+        provider.image.clone(),
+        computer,
+        provider.docker_socket(),
+    );
     let create = LifecycleCheckpoint::create(
         "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),

@@ -72,7 +72,10 @@ async fn replay(terminal: &mut Terminal) {
 #[tokio::test]
 #[ignore = "requires exact provider binaries and a digest-pinned Computer image; starts an isolated Docker provider"]
 async fn native_lifecycle_terminal_and_epoch_recovery() {
-    let mut provider = Provider::start().await;
+    if native_support::registry_child().await {
+        return;
+    }
+    let mut provider = Provider::start("native_lifecycle_terminal_and_epoch_recovery").await;
     let runtime = &provider.runtime;
     let template = template(provider.image.clone());
     let binding = Binding::new(Uuid::now_v7(), template.fingerprint()).unwrap();
@@ -182,7 +185,14 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
 #[tokio::test]
 #[ignore = "requires exact provider binaries and native Computer image; exercises renewable Veoveo terminal authority"]
 async fn native_terminal_renews_without_reconnecting_and_revokes_access() {
-    let (mut provider, _) = Provider::start_with_session_ttl(3).await;
+    if native_support::registry_child().await {
+        return;
+    }
+    let (mut provider, _) = Provider::start_with_session_ttl(
+        3,
+        "native_terminal_renews_without_reconnecting_and_revokes_access",
+    )
+    .await;
     let runtime = &provider.runtime;
     let template = template(provider.image.clone());
     let binding = Binding::new(Uuid::now_v7(), template.fingerprint()).unwrap();

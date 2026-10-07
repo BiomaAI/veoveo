@@ -175,6 +175,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
         gateway_ip,
     })
     .await;
+    provider::preflight().await;
     let db = support::database().await;
     let mut control = support::automation::control();
     for name in ["update_template", "resume_update"] {

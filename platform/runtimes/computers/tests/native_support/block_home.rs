@@ -5,6 +5,7 @@ use veoveo_computers_runtime::PersistentHome;
 
 pub struct BlockHome {
     dir: PathBuf,
+    socket: PathBuf,
     image: String,
     pub volume: String,
     device: Option<String>,
@@ -20,9 +21,16 @@ fn checked(mut command: Command) -> String {
     String::from_utf8(output.stdout).unwrap().trim().to_owned()
 }
 impl BlockHome {
-    pub fn create(dir: PathBuf, image: String, computer: Uuid) -> Self {
+    pub fn create(dir: PathBuf, image: String, computer: Uuid, socket: PathBuf) -> Self {
+        assert!(
+            socket.is_absolute()
+                && socket.exists()
+                && socket != PathBuf::from("/var/run/docker.sock"),
+            "isolated retained-home daemon required"
+        );
         let mut home = Self {
             dir,
+            socket,
             image,
             volume: PersistentHome::volume_name(computer).unwrap(),
             device: None,
@@ -49,8 +57,13 @@ impl BlockHome {
         checked(seed);
         home
     }
-    fn helper(&self, args: &[&str]) -> Command {
+    fn docker(&self) -> Command {
         let mut command = Command::new("docker");
+        command.args(["--host", &format!("unix://{}", self.socket.display())]);
+        command
+    }
+    fn helper(&self, args: &[&str]) -> Command {
+        let mut command = self.docker();
         command
             .args([
                 "run",
@@ -71,7 +84,7 @@ impl BlockHome {
         command
     }
     fn container(&self) -> Command {
-        let mut command = Command::new("docker");
+        let mut command = self.docker();
         command
             .args(["run", "--rm", "--network", "none", "--mount"])
             .arg(format!(
@@ -95,7 +108,7 @@ impl BlockHome {
                 .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
         );
         self.device = Some(device.clone());
-        let mut command = Command::new("docker");
+        let mut command = self.docker();
         command
             .args([
                 "volume",
@@ -115,12 +128,12 @@ impl BlockHome {
     /// Native deletion of every fixture-owned container fences its physical writer.
     /// Production replacement must obtain equivalent evidence through its service.
     pub fn remove_consumers(&self) {
-        let mut list = Command::new("docker");
+        let mut list = self.docker();
         list.args(["ps", "--all", "--quiet", "--filter"])
             .arg(format!("volume={}", self.volume));
         for id in checked(list).split_whitespace() {
             assert!((12..=64).contains(&id.len()) && id.bytes().all(|c| c.is_ascii_hexdigit()));
-            let mut remove = Command::new("docker");
+            let mut remove = self.docker();
             remove.args(["rm", "--force", id]);
             checked(remove);
         }
@@ -139,13 +152,13 @@ impl BlockHome {
             no_copy: bool,
             subpath: String,
         }
-        let mut list = Command::new("docker");
+        let mut list = self.docker();
         list.args(["ps", "--all", "--quiet", "--filter"])
             .arg(format!("volume={}", self.volume));
         let consumers = checked(list);
         let ids = consumers.split_whitespace().collect::<Vec<_>>();
         assert_eq!(ids.len(), 1, "expected one registered provider container");
-        let mut inspect = Command::new("docker");
+        let mut inspect = self.docker();
         inspect.args(["inspect", "--format", "{{json .HostConfig.Mounts}}", ids[0]]);
         let mounts: Vec<Mount> = serde_json::from_str(&checked(inspect)).unwrap();
         let home = mounts
@@ -162,7 +175,7 @@ impl BlockHome {
     }
     fn detach(&mut self) {
         self.remove_consumers();
-        let mut remove = Command::new("docker");
+        let mut remove = self.docker();
         remove.args(["volume", "rm", &self.volume]);
         checked(remove);
         let device = self.device.take().unwrap();

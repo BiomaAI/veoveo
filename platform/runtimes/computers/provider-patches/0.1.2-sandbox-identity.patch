@@ -1,45 +1,60 @@
-diff --git a/architecture/sandbox.md b/architecture/sandbox.md
-index 3414de5..42b326b 100644
---- a/architecture/sandbox.md
-+++ b/architecture/sandbox.md
-@@ -417,6 +417,15 @@ sandbox workload directly. The relay supports:
- - Tar-based file sync.
- - Port forwarding where supported by the CLI/TUI surface.
+diff --git a/crates/openshell-driver-docker/src/lib.rs b/crates/openshell-driver-docker/src/lib.rs
+index 1f4c91f5..6e6b1d07 100644
+--- a/crates/openshell-driver-docker/src/lib.rs
++++ b/crates/openshell-driver-docker/src/lib.rs
+@@ -653,7 +653,12 @@ fn resolve_docker_identity_from_accounts(
+         .map_err(|error| Status::failed_precondition(error.to_string()));
+     }
+     let (uid, passwd_entry) = resolve_numeric_or_named_user(user_selector, &passwd)?;
+-    let username = passwd_entry.map(|entry| entry.name.as_str());
++    // Explicit numeric policy identity never inherits image account memberships.
++    let username = if requested_user.parse::<u32>().is_ok() {
++        None
++    } else {
++        passwd_entry.map(|entry| entry.name.as_str())
++    };
+     let group_selector = if requested_group.is_empty() {
+         image_group.trim()
+     } else {
+diff --git a/crates/openshell-driver-docker/src/tests.rs b/crates/openshell-driver-docker/src/tests.rs
+index c5036f45..caefe483 100644
+--- a/crates/openshell-driver-docker/src/tests.rs
++++ b/crates/openshell-driver-docker/src/tests.rs
+@@ -1507,10 +1507,11 @@ fn docker_identity_resolution_honors_policy_selectors_and_rejects_root() {
+         &sandbox,
+         &image,
+         b"agent:x:10001:10002::/sandbox:/bin/sh\n",
+-        b"workers:x:10004:agent\n",
++        b"workers:x:10004:agent\nrender:x:10005:agent\n",
+     )
+     .unwrap();
+     assert_eq!((resolved.uid, resolved.gid), (10001, 10004));
++    assert!(resolved.supplementary_gids.is_empty());
+     assert_eq!(resolved.source, "policy");
  
-+Before dropping identity, full-mode canonical and independent PTY children
-+transfer their freshly allocated slave descriptor to the same resolved UID/GID
-+used for execution, with owner-only mode 0600. They never chown a workload
-+pathname or grant membership in the supervisor's terminal group. A failed
-+transfer aborts spawn. Filesystem policy must separately allow the terminal
-+paths a workload needs. Linux policy preparation opens path-only, close-on-exec
-+descriptors through rustix, including device paths such as `/dev/tty`; it does
-+not activate devices or require the parent to have a controlling terminal.
-+
- Sandbox logs are emitted locally and can also be pushed back to the gateway.
- Security-relevant sandbox behavior uses OCSF structured events; internal
- diagnostics use ordinary tracing.
-diff --git a/crates/openshell-supervisor-process/src/process.rs b/crates/openshell-supervisor-process/src/process.rs
-index b20e950..20b7dab 100644
---- a/crates/openshell-supervisor-process/src/process.rs
-+++ b/crates/openshell-supervisor-process/src/process.rs
-@@ -19,7 +19,7 @@ use std::collections::HashMap;
+     sandbox.spec.as_mut().unwrap().workload_identity = Some(WorkloadIdentityRequest {
+diff --git a/crates/openshell-sandbox/src/process.rs b/crates/openshell-sandbox/src/process.rs
+index 7b61d300..98d0b8b9 100644
+--- a/crates/openshell-sandbox/src/process.rs
++++ b/crates/openshell-sandbox/src/process.rs
+@@ -16,7 +16,7 @@ use openshell_core::policy::SandboxPolicy;
+ use std::collections::HashMap;
  use std::ffi::CString;
  #[cfg(unix)]
- use std::os::fd::AsRawFd;
--#[cfg(target_os = "linux")]
-+#[cfg(unix)]
- use std::os::fd::RawFd;
- #[cfg(target_os = "linux")]
- use std::os::unix::ffi::OsStrExt;
-@@ -48,6 +48,28 @@ fn set_controlling_tty(fd: libc::c_int) -> std::io::Result<()> {
-     Ok(())
- }
- 
+-use std::os::fd::AsRawFd;
++use std::os::fd::{AsRawFd, RawFd};
+ #[cfg(unix)]
+ use std::os::unix::fs::{MetadataExt, PermissionsExt};
+ #[cfg(any(test, unix))]
+@@ -46,6 +46,28 @@ fn set_controlling_tty(fd: libc::c_int) -> std::io::Result<()> {
+ /// must continue through the existing policy identity path. OCI-derived
+ /// components are carried numerically so later filesystem setup and direct/SSH
+ /// privilege drops cannot resolve them differently through NSS.
 +/// Re-own only the freshly allocated terminal descriptor, not a path which
 +/// sandbox code could replace. Mode 0600 prevents access by an inherited tty
 +/// group. Any failure aborts the child before it can execute workload code.
 +#[cfg(unix)]
-+fn assign_terminal_owner(fd: RawFd, uid: Uid, gid: Gid) -> Result<()> {
++pub(crate) fn assign_terminal_owner(fd: RawFd, uid: Uid, gid: Gid) -> Result<()> {
 +    // Callers retain the freshly allocated slave until child exec.
 +    if !nix::unistd::isatty(fd).into_diagnostic()? {
 +        return Err(miette::miette!(
@@ -57,40 +72,36 @@ index b20e950..20b7dab 100644
 +    Ok(())
 +}
 +
- /// Process/filesystem enforcement performed by the process supervisor.
- #[derive(Debug, Clone, Copy, PartialEq, Eq)]
- pub enum ProcessEnforcementMode {
-@@ -880,8 +902,12 @@ impl ProcessHandle {
-                     // /etc/group and /etc/passwd which would be blocked if
-                     // Landlock were already enforced.
-                     if enforcement_mode.uses_privileged_process_setup() {
--                        drop_privileges_with_identity(&policy, resolved_identity)
--                            .map_err(|err| std::io::Error::other(err.to_string()))?;
-+                        drop_privileges_with_terminal(
-+                            &policy,
-+                            resolved_identity,
-+                            terminal_slave_fd,
+ #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+ pub struct ResolvedProcessIdentity {
+     uid: Option<u32>,
+@@ -623,6 +645,12 @@ impl ProcessHandle {
+                             return Err(std::io::Error::last_os_error());
+                         }
+                         set_controlling_tty(slave_fd)?;
++                        assign_terminal_owner(
++                            slave_fd,
++                            nix::unistd::geteuid(),
++                            nix::unistd::getegid(),
 +                        )
-+                        .map_err(|err| std::io::Error::other(err.to_string()))?;
++                        .map_err(|error| std::io::Error::other(error.to_string()))?;
+                     } else if libc::setpgid(0, 0) < 0 {
+                         return Err(std::io::Error::last_os_error());
                      }
- 
-                     harden_child_process().map_err(|err| std::io::Error::other(err.to_string()))?;
-@@ -1037,8 +1063,12 @@ impl ProcessHandle {
-                     // initgroups/setgid/setuid need access to /etc/group and /etc/passwd
-                     // which may be blocked by Landlock.
-                     if enforcement_mode.uses_privileged_process_setup() {
--                        drop_privileges_with_identity(&policy, resolved_identity)
--                            .map_err(|err| std::io::Error::other(err.to_string()))?;
-+                        drop_privileges_with_terminal(
-+                            &policy,
-+                            resolved_identity,
-+                            terminal_slave_fd,
+@@ -769,6 +797,12 @@ impl ProcessHandle {
+                             return Err(std::io::Error::last_os_error());
+                         }
+                         set_controlling_tty(slave_fd)?;
++                        assign_terminal_owner(
++                            slave_fd,
++                            nix::unistd::geteuid(),
++                            nix::unistd::getegid(),
 +                        )
-+                        .map_err(|err| std::io::Error::other(err.to_string()))?;
++                        .map_err(|error| std::io::Error::other(error.to_string()))?;
+                     } else if libc::setpgid(0, 0) < 0 {
+                         return Err(std::io::Error::last_os_error());
                      }
- 
-                     harden_child_process().map_err(|err| std::io::Error::other(err.to_string()))?;
-@@ -2184,6 +2214,19 @@ pub fn drop_privileges(policy: &SandboxPolicy) -> Result<()> {
+@@ -1944,6 +1978,19 @@ pub fn drop_privileges(policy: &SandboxPolicy) -> Result<()> {
  pub fn drop_privileges_with_identity(
      policy: &SandboxPolicy,
      resolved_identity: ResolvedProcessIdentity,
@@ -110,7 +121,7 @@ index b20e950..20b7dab 100644
  ) -> Result<()> {
      let user_name = match policy.process.run_as_user.as_deref() {
          Some(name) if !name.is_empty() => Some(name),
-@@ -2203,7 +2246,10 @@ pub fn drop_privileges_with_identity(
+@@ -1963,7 +2010,10 @@ pub fn drop_privileges_with_identity(
              let mut fallback = policy.clone();
              fallback.process.run_as_user = Some("sandbox".into());
              fallback.process.run_as_group = Some("sandbox".into());
@@ -122,7 +133,7 @@ index b20e950..20b7dab 100644
          }
          return Ok(());
      }
-@@ -2255,6 +2301,10 @@ pub fn drop_privileges_with_identity(
+@@ -2015,6 +2065,10 @@ pub fn drop_privileges_with_identity(
          },
      };
  
@@ -133,7 +144,25 @@ index b20e950..20b7dab 100644
      // Resolve the name for initgroups only for the existing explicit-policy
      // path. OCI-derived users carry a numeric UID from the bounded parser and
      // must not be looked up again through NSS.
-@@ -2803,6 +2853,116 @@ mod tests {
+@@ -2070,6 +2124,17 @@ pub fn drop_privileges_with_identity(
+             {
+                 nix::unistd::initgroups(user_cstr.as_c_str(), target_gid).into_diagnostic()?;
+             }
++        } else if user_name_is_numeric {
++            // An explicit numeric user has no named-account group membership.
++            // Clear the supervisor's groups before dropping UID, just as for
++            // numeric OCI users. Failure must abort before any workload runs.
++            #[cfg(not(any(
++                target_os = "macos",
++                target_os = "ios",
++                target_os = "haiku",
++                target_os = "redox"
++            )))]
++            nix::unistd::setgroups(&[]).into_diagnostic()?;
+         }
+     }
+ 
+@@ -2595,6 +2660,172 @@ mod tests {
          assert!(drop_privileges(&policy).is_ok());
      }
  
@@ -247,14 +276,87 @@ index b20e950..20b7dab 100644
 +        drop(pty.master);
 +    }
 +
++    #[test]
++    #[cfg(target_os = "linux")]
++    fn numeric_identity_group_probe_child() {
++        if std::env::var_os("OPENSHELL_TEST_NUMERIC_GROUP_PROBE").is_none() {
++            return;
++        }
++        assert_eq!(nix::unistd::geteuid().as_raw(), 65_534);
++        assert_eq!(nix::unistd::getegid().as_raw(), 65_534);
++        assert!(
++            nix::unistd::getgroups()
++                .expect("read child groups")
++                .is_empty()
++        );
++        assert!(nix::unistd::setuid(Uid::from_raw(0)).is_err());
++    }
++
++    #[test]
++    #[cfg(target_os = "linux")]
++    #[ignore = "requires isolated root with CAP_SETGID, CAP_SETUID and CAP_SETPCAP"]
++    #[allow(unsafe_code)]
++    fn explicit_numeric_identity_drops_inherited_supplementary_groups() {
++        use std::os::unix::process::CommandExt;
++
++        assert!(
++            nix::unistd::geteuid().is_root(),
++            "run only in an isolated root test container"
++        );
++        let policy = policy_with_process(ProcessPolicy {
++            run_as_user: Some("65534".to_string()),
++            run_as_group: Some("65534".to_string()),
++        });
++        let mut command = std::process::Command::new(std::env::current_exe().expect("test binary"));
++        command
++            .arg("numeric_identity_group_probe_child")
++            .arg("--nocapture")
++            .env("OPENSHELL_TEST_NUMERIC_GROUP_PROBE", "1")
++            .stdin(StdStdio::null())
++            .stdout(StdStdio::piped())
++            .stderr(StdStdio::piped());
++        // Only the child changes identity. The test parent and host retain theirs.
++        unsafe {
++            command.pre_exec(move || {
++                nix::unistd::setgroups(&[Gid::from_raw(0), Gid::from_raw(27)])
++                    .map_err(std::io::Error::from)?;
++                drop_privileges(&policy).map_err(|error| std::io::Error::other(error.to_string()))
++            });
++        }
++        let output = command.output().expect("spawn numeric identity probe");
++        assert!(
++            output.status.success(),
++            "numeric identity child failed: {} {}",
++            String::from_utf8_lossy(&output.stdout),
++            String::from_utf8_lossy(&output.stderr)
++        );
++    }
++
      #[test]
-     #[cfg(target_os = "linux")]
-     fn numeric_identity_group_probe_child() {
-diff --git a/crates/openshell-supervisor-process/src/sandbox/linux/landlock.rs b/crates/openshell-supervisor-process/src/sandbox/linux/landlock.rs
-index bf42fae..de2b3de 100644
---- a/crates/openshell-supervisor-process/src/sandbox/linux/landlock.rs
-+++ b/crates/openshell-supervisor-process/src/sandbox/linux/landlock.rs
-@@ -4,12 +4,12 @@
+     fn drop_privileges_fails_for_nonexistent_user() {
+         let policy = policy_with_process(ProcessPolicy {
+diff --git a/crates/openshell-sandbox/src/pty.rs b/crates/openshell-sandbox/src/pty.rs
+index d8873423..668d5563 100644
+--- a/crates/openshell-sandbox/src/pty.rs
++++ b/crates/openshell-sandbox/src/pty.rs
+@@ -70,6 +70,12 @@ pub fn install_pre_exec(
+         command.pre_exec(move || {
+             setsid().map_err(|error| std::io::Error::other(error.to_string()))?;
+             set_controlling_tty(slave_fd)?;
++            crate::process::assign_terminal_owner(
++                slave_fd,
++                nix::unistd::geteuid(),
++                nix::unistd::getegid(),
++            )
++            .map_err(|error| std::io::Error::other(error.to_string()))?;
+             enter_sandbox(
+                 &policy,
+                 #[cfg(target_os = "linux")]
+diff --git a/crates/openshell-sandbox/src/sandbox/linux/landlock.rs b/crates/openshell-sandbox/src/sandbox/linux/landlock.rs
+index c18b633e..e5760f9c 100644
+--- a/crates/openshell-sandbox/src/sandbox/linux/landlock.rs
++++ b/crates/openshell-sandbox/src/sandbox/linux/landlock.rs
+@@ -4,8 +4,8 @@
  //! Landlock filesystem sandboxing.
  
  use landlock::{
@@ -265,21 +367,7 @@ index bf42fae..de2b3de 100644
  };
  use miette::{IntoDiagnostic, Result};
  use openshell_core::policy::{LandlockCompatibility, SandboxPolicy};
--use std::os::fd::AsFd;
-+use std::os::fd::{AsFd, OwnedFd};
- use std::path::{Path, PathBuf};
- use tracing::debug;
- 
-@@ -353,7 +353,7 @@ pub fn apply(policy: &SandboxPolicy, workdir: Option<&str>) -> Result<()> {
- /// files and device nodes in hard-requirement mode. Classifying through the
- /// same `PathFd` used by the rule avoids a pathname TOCTOU race.
- fn access_for_path_fd(
--    path_fd: &PathFd,
-+    path_fd: &impl AsFd,
-     requested_access: BitFlags<AccessFs>,
-     abi: ABI,
- ) -> Result<BitFlags<AccessFs>> {
-@@ -376,16 +376,22 @@ fn try_open_path(
+@@ -463,16 +463,22 @@ fn try_open_path(
      path: &Path,
      compatibility: &LandlockCompatibility,
      path_open_mode: PathOpenMode,
@@ -310,7 +398,7 @@ index bf42fae..de2b3de 100644
              if matches!(path_open_mode, PathOpenMode::CurrentUser) {
                  if is_not_found {
                      debug!(
-@@ -451,19 +457,6 @@ fn try_open_path(
+@@ -538,19 +544,6 @@ fn try_open_path(
      }
  }
  
@@ -330,7 +418,7 @@ index bf42fae..de2b3de 100644
  /// Classify a `std::io::Error` into a human-readable reason string.
  fn classify_io_error(err: &std::io::Error) -> &'static str {
      match err.kind() {
-@@ -514,7 +507,7 @@ mod tests {
+@@ -601,7 +594,7 @@ mod tests {
  
          let policy = hard_requirement_policy(
              vec![PathBuf::from("/tmp"), PathBuf::from("/dev/urandom")],
@@ -339,8 +427,8 @@ index bf42fae..de2b3de 100644
          );
  
          let result = prepare(&policy, None);
-@@ -523,7 +516,13 @@ mod tests {
-         }
+@@ -712,7 +705,13 @@ mod tests {
+         assert_eq!(std::fs::read(private.join("secret")).unwrap(), b"protected");
      }
      fn tailored_access(path: &Path, requested_access: BitFlags<AccessFs>) -> BitFlags<AccessFs> {
 -        let path_fd = PathFd::new(path).unwrap();
@@ -354,7 +442,7 @@ index bf42fae..de2b3de 100644
          access_for_path_fd(&path_fd, requested_access, ABI::V2).unwrap()
      }
  
-@@ -671,11 +670,29 @@ mod tests {
+@@ -860,11 +859,29 @@ mod tests {
      }
  
      #[test]
@@ -389,66 +477,6 @@ index bf42fae..de2b3de 100644
      }
  
      #[test]
-diff --git a/crates/openshell-supervisor-process/src/ssh.rs b/crates/openshell-supervisor-process/src/ssh.rs
-index 893967b..50203df 100644
---- a/crates/openshell-supervisor-process/src/ssh.rs
-+++ b/crates/openshell-supervisor-process/src/ssh.rs
-@@ -8,8 +8,8 @@ use crate::main_session::{MainOutput, MainSession};
- #[cfg(target_os = "linux")]
- use crate::managed_children;
- use crate::process::{
--    ProcessEnforcementMode, ResolvedProcessIdentity, ResolvedWorkspace,
--    drop_privileges_with_identity, is_supervisor_only_env_var, session_user_and_home,
-+    ProcessEnforcementMode, ResolvedProcessIdentity, ResolvedWorkspace, is_supervisor_only_env_var,
-+    session_user_and_home,
- };
- use crate::sandbox;
- #[cfg(unix)]
-@@ -1535,7 +1535,7 @@ mod unsafe_pty {
-     use super::sandbox;
-     use super::{
-         Command, ProcessEnforcementMode, RawFd, ResolvedProcessIdentity, SandboxPolicy, Winsize,
--        drop_privileges_with_identity, setsid,
-+        setsid,
-     };
-     #[cfg(unix)]
-     use std::os::unix::process::CommandExt;
-@@ -1591,6 +1591,7 @@ mod unsafe_pty {
- 
-                 enter_netns_and_sandbox(
-                     netns_fd,
-+                    Some(slave_fd),
-                     &policy,
-                     resolved_identity,
-                     enforcement_mode,
-@@ -1627,6 +1628,7 @@ mod unsafe_pty {
-             cmd.pre_exec(move || {
-                 enter_netns_and_sandbox(
-                     netns_fd,
-+                    None,
-                     &policy,
-                     resolved_identity,
-                     enforcement_mode,
-@@ -1639,6 +1641,7 @@ mod unsafe_pty {
- 
-     fn enter_netns_and_sandbox(
-         netns_fd: Option<RawFd>,
-+        terminal_slave_fd: Option<RawFd>,
-         policy: &SandboxPolicy,
-         resolved_identity: ResolvedProcessIdentity,
-         enforcement_mode: ProcessEnforcementMode,
-@@ -1663,8 +1666,12 @@ mod unsafe_pty {
-         // Drop privileges. initgroups/setgid/setuid need /etc/group and
-         // /etc/passwd which would be blocked if Landlock were already enforced.
-         if enforcement_mode.uses_privileged_process_setup() {
--            drop_privileges_with_identity(policy, resolved_identity)
--                .map_err(|err| std::io::Error::other(err.to_string()))?;
-+            crate::process::drop_privileges_with_terminal(
-+                policy,
-+                resolved_identity,
-+                terminal_slave_fd,
-+            )
-+            .map_err(|err| std::io::Error::other(err.to_string()))?;
-         }
-         crate::process::harden_child_process()
-             .map_err(|err| std::io::Error::other(err.to_string()))?;
+diff --git a/crates/openshell-sandbox/src/ssh.rs b/crates/openshell-sandbox/src/ssh.rs
+new file mode 100644
+index 00000000..e69de29b

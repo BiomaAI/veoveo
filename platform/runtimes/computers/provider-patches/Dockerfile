@@ -17,24 +17,35 @@ Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 Check-Valid-Until: no
 EOF
 RUN apt-get update --error-on=any \
-    && apt-get install -y --no-install-recommends ca-certificates git jq build-essential pkg-config libz3-dev \
+    && apt-get install -y --no-install-recommends ca-certificates git jq build-essential pkg-config cmake python3 musl-tools file binutils \
     && rm -rf /var/lib/apt/lists/*
 ENV RUSTUP_TOOLCHAIN=1.99.0 CARGO_TARGET_DIR=/provider-target
+RUN rustup target add x86_64-unknown-linux-musl --toolchain 1.99.0 \
+    && test "$(rustc --version | cut -d' ' -f2)" = 1.99.0 \
+    && test "$(cargo --version | cut -d' ' -f2)" = 1.99.0
+
+COPY platform/runtimes/computers/provider-patches/control.sh /usr/local/bin/provider-control
+RUN chmod 0555 /usr/local/bin/provider-control
 
 FROM compiler AS source
 WORKDIR /source
 # Fetch once by immutable object identity; no branch or tag resolves during builds.
 RUN git init --quiet \
-    && git fetch --depth=1 https://github.com/NVIDIA/OpenShell.git d1155aa70042d3e2ee49dbfa15346b108b7c1d92 \
-    && test "$(git rev-parse FETCH_HEAD)" = d1155aa70042d3e2ee49dbfa15346b108b7c1d92
+    && git fetch --depth=1 https://github.com/NVIDIA/OpenShell.git 6648bd0c290efbc41ba131ee9831ee45cd431f94 \
+    && test "$(git rev-parse FETCH_HEAD)" = 6648bd0c290efbc41ba131ee9831ee45cd431f94
 COPY platform/runtimes/computers/provider-patches/manifest.json platform/runtimes/computers/provider-patches/*.patch /patches/
 RUN <<'EOF'
 set -eu
-test "$(jq -r .upstreamRevision /patches/manifest.json)" = d1155aa70042d3e2ee49dbfa15346b108b7c1d92
+test "$(jq -r .upstreamRevision /patches/manifest.json)" = 6648bd0c290efbc41ba131ee9831ee45cd431f94
+test "$(git rev-parse FETCH_HEAD^{tree})" = "$(jq -r .upstreamSourceTree /patches/manifest.json)"
+mkdir /cli
+git archive FETCH_HEAD | tar -x -C /cli
+sed -i 's/^version = "0.0.0"$/version = "0.1.2"/' /cli/Cargo.toml /cli/Cargo.lock
 for branch in gateway supervisor; do
     git read-tree FETCH_HEAD
-    jq -r --arg branch "$branch" '.patches[] | select(.branch == "common" or .branch == $branch) | [.file,.packagedPatchSha256,.expectedSourceTree] | @tsv' /patches/manifest.json > /tmp/patch-list
-    while read -r patch digest tree; do
+    jq -r --arg branch "$branch" '.patches[] | select(.branch == "common" or .branch == $branch) | [.file,.packagedPatchSha256,.expectedBaseTree,.expectedSourceTree] | @tsv' /patches/manifest.json > /tmp/patch-list
+    while read -r patch digest base tree; do
+        test "$(git write-tree)" = "$base"
         printf '%s  /patches/%s\n' "$digest" "$patch" | sha256sum --check --status
         git apply --cached "/patches/$patch"
         test "$(git write-tree)" = "$tree"
@@ -53,28 +64,63 @@ WORKDIR /gateway
 RUN --mount=type=cache,id=veoveo-openshell-rust195-bookworm-cargo,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=veoveo-openshell-rust199-bookworm-target,target=/provider-target,sharing=locked \
     cargo test --locked --release -p openshell-core --test mtls_user_admission \
-    && cargo build --locked --release -p openshell-server -p openshell-driver-docker \
+    && provider-control openshell-driver-docker --lib log_limits supervisor_logs retained_volume_no_copy docker_identity_resolution lifecycle_fence start_generation provider_runtime_images \
+    && provider-control openshell-server --lib stop_and_start_follow_durable_state_machine authenticated_start_commits_identity_with_starting_phase request_cancellation_does_not_cancel_start_worker failed_start_reconciles_backend_that_already_started stale_container_exit_queued_before_start_cannot_regress_restart live_container_exit_during_start_still_transitions_to_error start_persisted_sandboxes_supplies_fresh_authentication \
+    && cargo build --locked --release --features openshell-server/bundled-z3 -p openshell-server -p openshell-driver-docker \
     && mkdir /binaries \
-    && cp /provider-target/release/openshell-gateway /provider-target/release/openshell-driver-docker /binaries/
+    && cp /provider-target/release/openshell-gateway /provider-target/release/openshell-driver-docker /binaries/ \
+    && readelf -d /binaries/openshell-gateway > /binaries/gateway-dependencies.txt \
+    && ! grep -q libz3 /binaries/gateway-dependencies.txt
 
 FROM compiler AS supervisor-build
 COPY --from=source /supervisor /supervisor
 WORKDIR /supervisor
 RUN --mount=type=cache,id=veoveo-openshell-rust195-bookworm-cargo,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=veoveo-openshell-rust199-bookworm-target,target=/provider-target,sharing=locked \
-    cargo build --locked --release -p openshell-sandbox \
+    provider-control openshell-supervisor-process --lib main_session::tests ssh::tests \
+    && provider-control openshell-sandbox --lib process::tests landlock::tests \
+    && cargo build --locked --release -p openshell-supervisor \
+    && cargo build --locked --release -p openshell-sandbox --target x86_64-unknown-linux-musl \
+    && readelf -l /provider-target/x86_64-unknown-linux-musl/release/openshell-sandbox > /tmp/sandbox-program-headers \
+    && ! grep -q INTERP /tmp/sandbox-program-headers \
+    && readelf -d /provider-target/x86_64-unknown-linux-musl/release/openshell-sandbox > /tmp/sandbox-dynamic \
+    && ! grep -q NEEDED /tmp/sandbox-dynamic \
     && mkdir /binaries \
-    && cp /provider-target/release/openshell-sandbox /binaries/
+    && cp /provider-target/release/openshell-supervisor /binaries/ \
+    && cp /provider-target/x86_64-unknown-linux-musl/release/openshell-sandbox /binaries/ \
+    && rustc --version > /binaries/compiler.txt \
+    && cargo --version >> /binaries/compiler.txt \
+    && file /binaries/* > /binaries/abi.txt \
+    && readelf -d /binaries/openshell-supervisor > /binaries/supervisor-dependencies.txt
+
+FROM compiler AS cli-build
+COPY --from=source /cli /cli
+WORKDIR /cli
+RUN --mount=type=cache,id=veoveo-openshell-rust195-bookworm-cargo,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=veoveo-openshell-rust199-bookworm-target,target=/provider-target,sharing=locked \
+    cargo build --locked --release -p openshell-cli \
+    && mkdir /binaries \
+    && cp /provider-target/release/openshell /binaries/
 
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 COPY --from=compiler /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list.d/debian.sources
 RUN apt-get update --error-on=any \
-    && apt-get install -y --no-install-recommends ca-certificates libz3-4 libstdc++6 \
+    && apt-get install -y --no-install-recommends ca-certificates libstdc++6 \
     && dpkg-query -W > /usr/share/veoveo-computer-provider-packages.txt \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=gateway-build /binaries/ /usr/local/bin/
-COPY --from=supervisor-build /binaries/ /usr/local/bin/
+COPY --from=gateway-build /binaries/openshell-gateway /binaries/openshell-driver-docker /usr/local/bin/
+COPY --from=gateway-build /binaries/*.txt /usr/share/veoveo-computer-provider/
+COPY --from=supervisor-build /binaries/openshell-supervisor /usr/local/bin/openshell-supervisor
+COPY --from=supervisor-build /binaries/openshell-sandbox /usr/local/bin/openshell-sandbox
+COPY --from=supervisor-build /binaries/*.txt /usr/share/veoveo-computer-provider/
+COPY --from=cli-build /binaries/ /usr/local/bin/
+# Docker driver executes this fixed sidecar handler path. The sandbox is the static injected workload boundary.
+RUN ln -s /usr/local/bin/openshell-supervisor /openshell-supervisor \
+    && ln -s /usr/local/bin/openshell-sandbox /openshell-sandbox
 COPY --from=source /gateway/LICENSE /usr/share/doc/veoveo-computer-provider/LICENSE
 COPY platform/runtimes/computers/provider-patches /usr/share/veoveo-computer-provider/source
-RUN cd /usr/local/bin && sha256sum openshell-gateway openshell-driver-docker openshell-sandbox > /usr/share/veoveo-computer-provider/binaries.sha256
+RUN cd /usr/local/bin && sha256sum openshell openshell-gateway openshell-driver-docker openshell-supervisor openshell-sandbox > /usr/share/veoveo-computer-provider/binaries.sha256
+LABEL ai.veoveo.provider.profile="0.1.2-veoveo.1" \
+      ai.veoveo.provider.manifest-sha256="8afa01e58b616a0e242cb16291cf1d833078cbf569cbb4a6b85c6396125f939f" \
+      ai.veoveo.provider.supervisor-source-tree="0020919d2c5d2c61230a0a188edaf4469ba9d0f1"
 ENTRYPOINT ["/usr/local/bin/openshell-gateway"]

@@ -106,7 +106,7 @@ async fn run(
     assert!(version.status.success());
     assert_eq!(
         String::from_utf8_lossy(&version.stdout).trim(),
-        "openshell 0.0.116"
+        "openshell 0.1.2"
     );
     support::policy::install(&db.a, support::interactive::control()).await;
     let store = ComputersStore::new(
@@ -308,7 +308,7 @@ async fn run(
         store.get(fresh.owner(), computer).await.unwrap().phase,
         veoveo_computers::api::ComputerPhase::Ready
     );
-    write_private(&directory.join("result.txt"), b"HTTP pairing and one-use confirmation across replicas; stock CLI 0.0.116 retains shell through source-token and initial-lease expiry across two service replicas and two relay hops; owner revocation closes all relay hops within five seconds without stopping Computer; idle stock ProxyCommand may need local input to finish shutdown; public SSO and ingress remain unqualified\n");
+    write_private(&directory.join("result.txt"), b"HTTP pairing and one-use confirmation across replicas; stock CLI 0.1.2 retains shell through source-token and initial-lease expiry across two service replicas and two relay hops; owner revocation closes all relay hops within five seconds without stopping Computer; idle stock ProxyCommand may need local input to finish shutdown; public SSO and ingress remain unqualified\n");
     println!("Native CLI diagnostics: {}", directory.display());
     support::policy::install_default(&db.a).await;
 }

@@ -254,7 +254,8 @@ impl OpenShellRuntime {
                 .clone()
                 .watch_sandbox(request(
                     api::WatchSandboxRequest {
-                        id: current.sandbox_id.clone(),
+                        sandbox: checkpoint.binding.name(),
+                        workspace_scope: crate::client::workspace_scope(&self.workspace),
                         follow_status: true,
                         ..Default::default()
                     },

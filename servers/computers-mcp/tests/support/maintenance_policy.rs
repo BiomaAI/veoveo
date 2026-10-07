@@ -6,7 +6,11 @@ use tonic::{
 };
 use veoveo_computers_runtime::{
     Binding, Phase,
-    protocol::{sandbox::v1 as policy, v1 as api},
+    protocol::{
+        datamodel::v1::{WorkspaceSelector, workspace_selector::Selection},
+        sandbox::v1 as policy,
+        v1 as api,
+    },
 };
 
 pub async fn add_grant(provider: &crate::provider::Provider, binding: &Binding) {
@@ -36,7 +40,9 @@ pub async fn add_grant(provider: &crate::provider::Provider, binding: &Binding) 
         let source = client
             .get_sandbox(api::GetSandboxRequest {
                 name: binding.name(),
-                workspace: "default".into(),
+                workspace_scope: Some(WorkspaceSelector {
+                    selection: Some(Selection::Workspace("default".into())),
+                }),
             })
             .await
             .unwrap()
@@ -47,7 +53,10 @@ pub async fn add_grant(provider: &crate::provider::Provider, binding: &Binding) 
         assert_eq!(metadata.id, before.sandbox_id);
         let mut watch = client
             .watch_sandbox(api::WatchSandboxRequest {
-                id: before.sandbox_id.clone(),
+                sandbox: binding.name(),
+                workspace_scope: Some(WorkspaceSelector {
+                    selection: Some(Selection::Workspace("default".into())),
+                }),
                 follow_status: true,
                 stop_on_terminal: false,
                 ..Default::default()
@@ -58,8 +67,10 @@ pub async fn add_grant(provider: &crate::provider::Provider, binding: &Binding) 
         assert!(watch.message().await.unwrap().is_some());
         let name = "retained-policy-fixture";
         let mut request = Request::new(api::UpdateConfigRequest {
-            name: binding.name(),
-            workspace: "default".into(),
+            sandbox: binding.name(),
+            workspace_scope: Some(WorkspaceSelector {
+                selection: Some(Selection::Workspace("default".into())),
+            }),
             expected_resource_version: metadata.resource_version,
             merge_operations: vec![api::PolicyMergeOperation {
                 operation: Some(api::policy_merge_operation::Operation::AddRule(
@@ -72,9 +83,9 @@ pub async fn add_grant(provider: &crate::provider::Provider, binding: &Binding) 
                                 port: 443,
                                 ports: vec![443],
                                 protocol: "rest".into(),
-                                tls: "terminate".into(),
-                                enforcement: "enforce".into(),
-                                access: "read-only".into(),
+                                tls: policy::NetworkTlsMode::Unspecified.into(),
+                                enforcement: policy::NetworkEnforcementMode::Enforce.into(),
+                                access: policy::NetworkAccessPreset::ReadOnly.into(),
                                 ..Default::default()
                             }],
                             binaries: vec![policy::NetworkBinary {

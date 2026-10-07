@@ -196,7 +196,7 @@ pub(super) async fn forward(
     else {
         return Err(Status::invalid_argument("init required"));
     };
-    assert_eq!(init.sandbox_id, "sandbox-1");
+    assert_eq!(init.sandbox, binding().name());
     assert_eq!(init.service_id, "ssh-proxy:sandbox-1");
     assert_eq!(init.authorization_token, "local-fixture-token");
     assert!(matches!(

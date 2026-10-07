@@ -1,0 +1,1041 @@
+diff --git a/crates/openshell-core/src/config.rs b/crates/openshell-core/src/config.rs
+index c85fc430..155ef3da 100644
+--- a/crates/openshell-core/src/config.rs
++++ b/crates/openshell-core/src/config.rs
+@@ -387,6 +387,27 @@ pub struct MtlsAuthConfig {
+     /// Kubernetes sandbox pods and external users must not share user auth.
+     #[serde(default)]
+     pub enabled: bool,
++    /// Only these exact certificate CNs may become user principals. Other
++    /// trusted clients (including supervisors) still require sandbox JWTs.
++    /// An empty or malformed list admits no mTLS user identities.
++    #[serde(default)]
++    pub user_common_names: Vec<String>,
++}
++
++impl MtlsAuthConfig {
++    #[must_use]
++    pub fn allows_user(&self, subject: &str) -> bool {
++        self.enabled
++            && !self.user_common_names.is_empty()
++            && self.user_common_names.len() <= 64
++            && self.user_common_names.iter().all(|name| {
++                !name.is_empty()
++                    && name.len() <= 128
++                    && name.trim() == name
++                    && !name.chars().any(char::is_control)
++            })
++            && self.user_common_names.iter().any(|name| name == subject)
++    }
+ }
+ 
+ /// Gateway user authentication settings.
+diff --git a/crates/openshell-core/tests/mtls_user_admission.rs b/crates/openshell-core/tests/mtls_user_admission.rs
+new file mode 100644
+index 00000000..251ec76d
+--- /dev/null
++++ b/crates/openshell-core/tests/mtls_user_admission.rs
+@@ -0,0 +1,34 @@
++use openshell_core::config::MtlsAuthConfig;
++
++#[test]
++fn trusted_supervisor_certificate_does_not_become_a_user() {
++    let config = MtlsAuthConfig {
++        enabled: true,
++        user_common_names: vec!["veoveo-computers-worker".into()],
++    };
++    assert!(config.allows_user("veoveo-computers-worker"));
++    for subject in [
++        "veoveo-computer-supervisor",
++        "unknown",
++        "",
++        "VEOVEO-COMPUTERS-WORKER",
++    ] {
++        assert!(!config.allows_user(subject));
++    }
++}
++
++#[test]
++fn unconfigured_disabled_and_malformed_user_admission_fail_closed() {
++    let mut config = MtlsAuthConfig {
++        enabled: true,
++        ..Default::default()
++    };
++    assert!(!config.allows_user("worker"));
++    for names in [vec!["worker".into(), " ".into()], vec!["worker".into(); 65]] {
++        config.user_common_names = names;
++        assert!(!config.allows_user("worker"));
++    }
++    config.user_common_names = vec!["worker".into()];
++    config.enabled = false;
++    assert!(!config.allows_user("worker"));
++}
+diff --git a/crates/openshell-driver-docker/src/lib.rs b/crates/openshell-driver-docker/src/lib.rs
+index 6e6b1d07..637eff25 100644
+--- a/crates/openshell-driver-docker/src/lib.rs
++++ b/crates/openshell-driver-docker/src/lib.rs
+@@ -6,8 +6,11 @@
+ #![allow(clippy::result_large_err)]
+ 
+ mod isolation;
++mod log_limits;
+ pub mod otel_tracing;
+ 
++use log_limits::{DockerLogLimits, deserialize_optional_log_limits};
++
+ use bollard::Docker;
+ use bollard::errors::Error as BollardError;
+ use bollard::models::{
+@@ -28,8 +31,8 @@ use openshell_core::driver_mounts;
+ use openshell_core::driver_utils::{
+     CONDITION_EXITED, CONDITION_RUNTIME_RESTART, LABEL_MANAGED_BY, LABEL_MANAGED_BY_VALUE,
+     LABEL_SANDBOX_ID, LABEL_SANDBOX_NAME, LABEL_SANDBOX_NAMESPACE, LABEL_SANDBOX_WORKSPACE,
+-    SANDBOX_RUNTIME_IMAGE_BINARY_PATH, extract_first_tar_entry, supervisor_image_should_refresh,
+-    temp_extract_container_name, validate_linux_elf_binary,
++    SANDBOX_RUNTIME_IMAGE_BINARY_PATH, extract_first_tar_entry, temp_extract_container_name,
++    validate_linux_elf_binary,
+ };
+ use openshell_core::gpu::{
+     CdiGpuDefaultSelector, CdiGpuInventory, CdiGpuSelectionError, driver_gpu_requirements,
+@@ -712,6 +715,8 @@ struct DockerSandboxDriverConfig {
+     )]
+     cdi_devices: Option<Vec<String>>,
+     mounts: Vec<DockerDriverMountConfig>,
++    #[serde(default, deserialize_with = "deserialize_optional_log_limits")]
++    log_limits: Option<DockerLogLimits>,
+ }
+ 
+ struct ValidatedDockerSandbox<'a> {
+@@ -751,6 +756,8 @@ enum DockerDriverMountConfig {
+         read_only: bool,
+         #[serde(default)]
+         subpath: Option<String>,
++        #[serde(default)]
++        no_copy: bool,
+     },
+     Tmpfs {
+         target: String,
+@@ -901,37 +908,27 @@ impl DockerComputeDriver {
+             ))
+         })?;
+         let supervisor_grpc_endpoint = docker_config.grpc_endpoint.clone();
+-        let supervisor_image = docker_config
+-            .supervisor_image
+-            .clone()
+-            .unwrap_or_else(openshell_core::config::default_supervisor_image);
++        let supervisor_image = docker_config.supervisor_image.as_deref().ok_or_else(|| {
++            Error::config("Veoveo provider requires an installation-pinned supervisor_image")
++        })?;
++        validate_pinned_runtime_image(supervisor_image).map_err(Error::config)?;
++        let path = docker_config.supervisor_bin.as_deref().ok_or_else(|| {
++            Error::config("Veoveo provider requires the exact static sandbox binary")
++        })?;
++        if docker_config.sandbox_runtime_image.is_some() {
++            return Err(Error::config(
++                "Veoveo provider requires supervisor_bin; sandbox_runtime_image is unsupported",
++            ));
++        }
++        validate_linux_elf_binary(path).map_err(Error::config)?;
++        let sandbox_binary = Arc::new(tokio::fs::read(path).await.map_err(|error| {
++            Error::config(format!(
++                "read trusted sandbox binary '{}': {error}",
++                path.display()
++            ))
++        })?);
+         let supervisor_image_id =
+-            ensure_runtime_image(&docker, &supervisor_image, "supervisor").await?;
+-        let sandbox_binary = if let Some(path) = docker_config.supervisor_bin.as_deref() {
+-            validate_linux_elf_binary(path).map_err(Error::config)?;
+-            Arc::new(tokio::fs::read(path).await.map_err(|error| {
+-                Error::config(format!(
+-                    "failed to read trusted sandbox binary '{}': {error}",
+-                    path.display()
+-                ))
+-            })?)
+-        } else {
+-            let sandbox_runtime_image = docker_config
+-                .sandbox_runtime_image
+-                .clone()
+-                .unwrap_or_else(openshell_core::config::default_sandbox_runtime_image);
+-            let sandbox_runtime_image_id =
+-                ensure_runtime_image(&docker, &sandbox_runtime_image, "sandbox runtime").await?;
+-            Arc::new(
+-                extract_sandbox_binary_bytes(&docker, &sandbox_runtime_image_id)
+-                    .await
+-                    .map_err(|error| {
+-                        Error::config(format!(
+-                            "failed to load trusted sandbox binary from Docker image '{sandbox_runtime_image}': {error}"
+-                        ))
+-                    })?,
+-            )
+-        };
++            ensure_runtime_image(&docker, supervisor_image, "supervisor").await?;
+         let guest_tls = docker_guest_tls_paths(&docker_config)?;
+         let driver = Self {
+             docker: Arc::new(docker),
+@@ -1048,10 +1045,11 @@ impl DockerComputeDriver {
+             .ok_or_else(|| Status::invalid_argument("sandbox.spec.template is required"))?;
+ 
+         Self::validate_sandbox_template_base(template)?;
+-        let _ = docker_resource_limits(template)?;
++        let resource_limits = docker_resource_limits(template)?;
+         let driver_config =
+             DockerSandboxDriverConfig::from_template(template).map_err(Status::invalid_argument)?;
+         validate_docker_driver_mounts(&driver_config.mounts, config.enable_bind_mounts)?;
++        driver_config.validate_log_limits(resource_limits.memory_bytes)?;
+         for mount in &driver_config.mounts {
+             if matches!(
+                 mount,
+@@ -3718,9 +3716,28 @@ fn docker_driver_config(
+     let config =
+         DockerSandboxDriverConfig::from_template(template).map_err(Status::invalid_argument)?;
+     validate_docker_driver_mounts(&config.mounts, enable_bind_mounts)?;
++    config.validate_log_limits(docker_resource_limits(template)?.memory_bytes)?;
+     Ok(config)
+ }
+ 
++impl DockerSandboxDriverConfig {
++    fn validate_log_limits(&self, memory_bytes: Option<i64>) -> Result<(), Status> {
++        if let Some(limits) = self.log_limits {
++            limits.validate_memory(memory_bytes)?;
++            for mount in &self.mounts {
++                let target = match mount {
++                    DockerDriverMountConfig::Bind { target, .. }
++                    | DockerDriverMountConfig::Volume { target, .. }
++                    | DockerDriverMountConfig::Tmpfs { target, .. }
++                    | DockerDriverMountConfig::Image { target, .. } => target,
++                };
++                DockerLogLimits::validate_path(target)?;
++            }
++        }
++        Ok(())
++    }
++}
++
+ /// Collect user-supplied bind mounts as string-format binds.
+ ///
+ /// Bind mounts use the legacy `Binds` field (`-v` syntax) rather than the
+@@ -3804,13 +3821,15 @@ fn docker_mount_from_config(config: &DockerDriverMountConfig) -> Result<Option<M
+             target,
+             read_only,
+             subpath,
++            no_copy,
+         } => Ok(Some(Mount {
+             typ: Some(MountTypeEnum::VOLUME),
+             source: Some(source.clone()),
+             target: Some(target.clone()),
+             read_only: Some(*read_only),
+-            volume_options: subpath.as_ref().map(|subpath| MountVolumeOptions {
+-                subpath: Some(subpath.clone()),
++            volume_options: (*no_copy || subpath.is_some()).then(|| MountVolumeOptions {
++                no_copy: Some(*no_copy),
++                subpath: subpath.clone(),
+                 ..Default::default()
+             }),
+             ..Default::default()
+@@ -4957,13 +4976,22 @@ fn docker_auxiliary_container_labels(
+     ])
+ }
+ 
+-fn docker_supervisor_host_config(mounts: Vec<Mount>, grpc_endpoint: &str) -> HostConfig {
++fn docker_supervisor_host_config(
++    mounts: Vec<Mount>,
++    grpc_endpoint: &str,
++    log_limits: Option<DockerLogLimits>,
++    resource_limits: DockerResourceLimits,
++    pids_limit: Option<i64>,
++) -> HostConfig {
+     HostConfig {
+         // The supervisor is trusted infrastructure and originates every
+         // approved upstream connection. Host networking lets it reach the
+         // configured gateway and host-side services directly; the workload
+         // remains fenced by network=none.
+         network_mode: Some("host".to_string()),
++        nano_cpus: resource_limits.nano_cpus,
++        memory: resource_limits.memory_bytes,
++        pids_limit,
+         extra_hosts: docker_supervisor_host_aliases(grpc_endpoint),
+         mounts: Some(mounts),
+         cap_drop: Some(vec!["ALL".to_string()]),
+@@ -4984,10 +5012,12 @@ fn docker_supervisor_host_config(mounts: Vec<Mount>, grpc_endpoint: &str) -> Hos
+             (
+                 "/var/log".to_string(),
+                 format!(
+-                    "rw,noexec,nosuid,size=64m,uid={SUPERVISOR_UID},gid={SUPERVISOR_GID},mode=0700"
++                    "rw,noexec,nosuid,size={},uid={SUPERVISOR_UID},gid={SUPERVISOR_GID},mode=0700",
++                    log_limits.map_or(64 * 1_048_576, DockerLogLimits::supervisor_tmpfs_bytes)
+                 ),
+             ),
+         ])),
++        log_config: log_limits.map(DockerLogLimits::log_config),
+         restart_policy: None,
+         ..Default::default()
+     }
+@@ -5020,6 +5050,16 @@ async fn spawn_docker_control_process(
+     config: &DockerDriverRuntimeConfig,
+     failure_context: DockerRuntimeFailureContext,
+ ) -> Result<DockerControlProcess, Status> {
++    let template = sandbox
++        .spec
++        .as_ref()
++        .and_then(|spec| spec.template.as_ref())
++        .ok_or_else(|| Status::invalid_argument("sandbox.spec.template is required"))?;
++    let driver_config =
++        DockerSandboxDriverConfig::from_template(template).map_err(Status::invalid_argument)?;
++    let resource_limits = docker_resource_limits(template)?;
++    driver_config.validate_log_limits(resource_limits.memory_bytes)?;
++    let pids_limit = docker_pids_limit(config.sandbox_pids_limit)?;
+     let directory = docker_boundary_state_dir(sandbox, config)?;
+     let main_process_spec = tokio::fs::read_to_string(directory.join(MAIN_PROCESS_SPEC_FILE))
+         .await
+@@ -5186,6 +5226,9 @@ async fn spawn_docker_control_process(
+         host_config: Some(docker_supervisor_host_config(
+             supervisor_mounts,
+             &config.supervisor_grpc_endpoint,
++            driver_config.log_limits,
++            resource_limits,
++            pids_limit,
+         )),
+         ..Default::default()
+     };
+@@ -5661,6 +5704,11 @@ fn build_container_create_body_for_image(
+         .map_err(Status::failed_precondition)?;
+     driver_mounts::validate_workspace_control_path(&workspace_root, BOUNDARY_MOUNT_PATH)
+         .map_err(Status::failed_precondition)?;
++    driver_config.validate_log_limits(resource_limits.memory_bytes)?;
++    if driver_config.log_limits.is_some() {
++        DockerLogLimits::validate_path(&workspace_root)?;
++        DockerLogLimits::validate_path(&config.ssh_socket_path)?;
++    }
+     for volume in &image.volumes {
+         driver_mounts::validate_container_mount_target(volume).map_err(|error| {
+             Status::failed_precondition(format!(
+@@ -5674,6 +5722,9 @@ fn build_container_create_body_for_image(
+         })?;
+         driver_mounts::validate_mount_control_path(volume, BOUNDARY_MOUNT_PATH)
+             .map_err(Status::failed_precondition)?;
++        if driver_config.log_limits.is_some() {
++            DockerLogLimits::validate_path(volume)?;
++        }
+     }
+     for mount in &driver_config.mounts {
+         let target = match mount {
+@@ -5686,8 +5737,14 @@ fn build_container_create_body_for_image(
+             .map_err(Status::failed_precondition)?;
+         driver_mounts::validate_mount_control_path(target, BOUNDARY_MOUNT_PATH)
+             .map_err(Status::failed_precondition)?;
++        if driver_config.log_limits.is_some() {
++            DockerLogLimits::validate_path(target)?;
++        }
+     }
+     let mut user_mounts = docker_driver_mounts(driver_config)?;
++    if let Some(limits) = driver_config.log_limits {
++        user_mounts.push(limits.supervisor_mount());
++    }
+     user_mounts.push(Mount {
+         target: Some(BOUNDARY_MOUNT_PATH.to_string()),
+         source: Some(docker_channel_volume_name(sandbox, config)),
+@@ -5776,6 +5833,7 @@ fn build_container_create_body_for_image(
+                 Some(binds)
+             },
+             mounts: Some(user_mounts),
++            log_config: driver_config.log_limits.map(DockerLogLimits::log_config),
+             // Canonical main-process exit is terminal. Runtime restart would
+             // silently create a new process generation behind the gateway.
+             restart_policy: None,
+@@ -6292,48 +6350,30 @@ fn sanitize_docker_name(value: &str) -> String {
+         .to_string()
+ }
+ 
+-async fn pull_runtime_image(docker: &Docker, image: &str, role: &str) -> CoreResult<()> {
+-    let mut stream = docker.create_image(
+-        Some(CreateImageOptions {
+-            from_image: Some(image.to_string()),
+-            ..Default::default()
+-        }),
+-        None,
+-        None,
+-    );
+-    while let Some(result) = stream.next().await {
+-        result.map_err(|err| {
+-            Error::config(format!(
+-                "failed to pull Docker {role} image '{image}': {err}",
+-            ))
+-        })?;
++fn validate_pinned_runtime_image(image: &str) -> Result<(), String> {
++    let Some((repository, digest)) = image.split_once("@sha256:") else {
++        return Err("Veoveo runtime images require an exact SHA-256 manifest digest".into());
++    };
++    if repository.is_empty()
++        || repository.len() > 512
++        || !repository
++            .bytes()
++            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"._-/:".contains(&b))
++        || digest.len() != 64
++        || !digest
++            .bytes()
++            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
++    {
++        return Err("invalid Veoveo runtime image manifest identity".into());
+     }
+     Ok(())
+ }
+ 
+ async fn ensure_runtime_image(docker: &Docker, image: &str, role: &str) -> CoreResult<String> {
+-    let local_image_present = docker.inspect_image(image).await.is_ok();
+-    if supervisor_image_should_refresh(image) {
+-        info!(
+-            image = image,
+-            role, "Refreshing mutable Docker runtime image"
+-        );
+-        if let Err(error) = pull_runtime_image(docker, image, role).await {
+-            if !local_image_present {
+-                return Err(error);
+-            }
+-            warn!(
+-                image = image,
+-                error = %error,
+-                "failed to refresh mutable Docker runtime image; using the local image",
+-            );
+-        }
+-    } else if !local_image_present {
+-        pull_runtime_image(docker, image, role).await?;
+-    }
++    validate_pinned_runtime_image(image).map_err(Error::config)?;
+     let inspect = docker.inspect_image(image).await.map_err(|error| {
+         Error::config(format!(
+-            "failed to inspect Docker {role} image '{image}': {error}"
++            "preload exact Docker {role} image '{image}' before provider startup: {error}"
+         ))
+     })?;
+     inspect.id.filter(|id| !id.is_empty()).ok_or_else(|| {
+diff --git a/crates/openshell-driver-docker/src/log_limits.rs b/crates/openshell-driver-docker/src/log_limits.rs
+new file mode 100644
+index 00000000..97d19fc7
+--- /dev/null
++++ b/crates/openshell-driver-docker/src/log_limits.rs
+@@ -0,0 +1,127 @@
++// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
++// SPDX-License-Identifier: Apache-2.0
++
++//! Explicit, closed log storage limits for newly created Docker sandboxes.
++
++use bollard::models::{HostConfigLogConfig, Mount, MountTmpfsOptions, MountTypeEnum};
++use openshell_core::driver_mounts;
++use serde::Deserialize;
++use std::collections::HashMap;
++use tonic::Status;
++
++const SUPERVISOR_LOG_PATH: &str = "/var/log";
++const MIB: u32 = 1_048_576;
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
++#[serde(try_from = "LogLimitsInput")]
++pub struct DockerLogLimits {
++    max_file_bytes: i64,
++    max_files: i64,
++    supervisor_tmpfs_bytes: i64,
++}
++
++// Protobuf Struct represents numbers as f64, including integral values.
++// All fields are required; accepting null or a partial object would silently
++// restore an unlimited daemon default at a resource-admission boundary.
++#[derive(Deserialize)]
++#[serde(deny_unknown_fields)]
++struct LogLimitsInput {
++    max_file_bytes: f64,
++    max_files: f64,
++    supervisor_tmpfs_bytes: f64,
++}
++
++impl TryFrom<LogLimitsInput> for DockerLogLimits {
++    type Error = String;
++
++    fn try_from(input: LogLimitsInput) -> Result<Self, Self::Error> {
++        Ok(Self {
++            max_file_bytes: bounded_integer(input.max_file_bytes, MIB, 64 * MIB, "max_file_bytes")?,
++            max_files: bounded_integer(input.max_files, 1, 10, "max_files")?,
++            supervisor_tmpfs_bytes: bounded_integer(
++                input.supervisor_tmpfs_bytes,
++                MIB,
++                64 * MIB,
++                "supervisor_tmpfs_bytes",
++            )?,
++        })
++    }
++}
++
++fn bounded_integer(value: f64, minimum: u32, maximum: u32, field: &str) -> Result<i64, String> {
++    if !value.is_finite()
++        || value.fract() != 0.0
++        || value < f64::from(minimum)
++        || value > f64::from(maximum)
++    {
++        return Err(format!(
++            "log_limits.{field} must be an integer from {minimum} through {maximum}"
++        ));
++    }
++    // The integral/range checks above prove an exactly representable u32.
++    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
++    let integer = value as u32;
++    Ok(i64::from(integer))
++}
++
++pub fn deserialize_optional_log_limits<'de, D>(
++    deserializer: D,
++) -> Result<Option<DockerLogLimits>, D::Error>
++where
++    D: serde::Deserializer<'de>,
++{
++    DockerLogLimits::deserialize(deserializer).map(Some)
++}
++
++impl DockerLogLimits {
++    pub fn validate_memory(self, memory_bytes: Option<i64>) -> Result<(), Status> {
++        let Some(memory_bytes) = memory_bytes else {
++            return Err(Status::failed_precondition(
++                "docker log_limits require an explicit template memory limit",
++            ));
++        };
++        if self.supervisor_tmpfs_bytes > memory_bytes / 2 {
++            return Err(Status::failed_precondition(
++                "log_limits.supervisor_tmpfs_bytes must not exceed half the template memory limit",
++            ));
++        }
++        Ok(())
++    }
++
++    pub fn validate_path(path: &str) -> Result<(), Status> {
++        driver_mounts::validate_mount_control_path(path, SUPERVISOR_LOG_PATH)
++            .map_err(Status::failed_precondition)
++    }
++
++    pub fn supervisor_tmpfs_bytes(self) -> i64 {
++        self.supervisor_tmpfs_bytes
++    }
++
++    pub fn log_config(self) -> HostConfigLogConfig {
++        HostConfigLogConfig {
++            typ: Some("json-file".to_string()),
++            config: Some(HashMap::from([
++                ("max-size".to_string(), self.max_file_bytes.to_string()),
++                ("max-file".to_string(), self.max_files.to_string()),
++                ("compress".to_string(), "false".to_string()),
++                ("mode".to_string(), "non-blocking".to_string()),
++                ("max-buffer-size".to_string(), "262144".to_string()),
++            ])),
++        }
++    }
++
++    pub fn supervisor_mount(self) -> Mount {
++        Mount {
++            typ: Some(MountTypeEnum::TMPFS),
++            target: Some(SUPERVISOR_LOG_PATH.to_string()),
++            tmpfs_options: Some(MountTmpfsOptions {
++                size_bytes: Some(self.supervisor_tmpfs_bytes),
++                mode: Some(0o700),
++                // Docker supplies nodev/nosuid for tmpfs. Its structured API
++                // accepts noexec here, not arbitrary fstab mount options.
++                options: Some(vec![vec!["noexec".to_string()]]),
++            }),
++            ..Default::default()
++        }
++    }
++}
+diff --git a/crates/openshell-driver-docker/src/tests.rs b/crates/openshell-driver-docker/src/tests.rs
+index caefe483..edf5d5c6 100644
+--- a/crates/openshell-driver-docker/src/tests.rs
++++ b/crates/openshell-driver-docker/src/tests.rs
+@@ -221,6 +221,292 @@ fn json_struct(value: serde_json::Value) -> prost_types::Struct {
+         .expect("test JSON must convert to a protobuf Struct")
+ }
+ 
++fn bounded_log_config() -> serde_json::Value {
++    serde_json::json!({"log_limits": {
++        "max_file_bytes": 10_485_760,
++        "max_files": 3,
++        "supervisor_tmpfs_bytes": 33_554_432
++    }})
++}
++
++fn sandbox_with_logs(config: serde_json::Value) -> DriverSandbox {
++    let mut sandbox = test_sandbox();
++    let template = sandbox.spec.as_mut().unwrap().template.as_mut().unwrap();
++    template.driver_config = Some(json_struct(config));
++    template.resources = Some(DriverResourceRequirements {
++        memory_limit: "512Mi".to_string(),
++        ..Default::default()
++    });
++    sandbox
++}
++
++#[test]
++fn log_limits_absence_preserves_legacy_container_contract() {
++    let host = build_container_create_body(&test_sandbox(), &runtime_config())
++        .unwrap()
++        .host_config
++        .unwrap();
++    assert!(host.log_config.is_none());
++    assert!(host.mounts.unwrap().is_empty());
++}
++
++#[test]
++fn log_limits_render_exact_rotation_and_protected_tmpfs_with_existing_home() {
++    let mut config = bounded_log_config();
++    config["mounts"] = serde_json::json!([
++        {"type": "volume", "source": "retained-home", "target": "/sandbox/persistent",
++         "read_only": false, "subpath": "home"},
++        {"type": "tmpfs", "target": "/tmp", "size_bytes": 16_777_216, "mode": 1023}
++    ]);
++    let sandbox = sandbox_with_logs(config);
++    DockerComputeDriver::validate_sandbox(&sandbox, &runtime_config()).unwrap();
++    let host = build_container_create_body(&sandbox, &runtime_config())
++        .unwrap()
++        .host_config
++        .unwrap();
++    assert_eq!(
++        serde_json::to_value(host.log_config.unwrap()).unwrap(),
++        serde_json::json!({
++            "Type": "json-file", "Config": {
++                "max-size": "10485760", "max-file": "3", "compress": "false",
++                "mode": "non-blocking", "max-buffer-size": "262144"
++            }
++        })
++    );
++    let mounts = host.mounts.unwrap();
++    assert_eq!(mounts.len(), 3);
++    assert_eq!(mounts[0].source.as_deref(), Some("retained-home"));
++    assert_eq!(
++        mounts[0]
++            .volume_options
++            .as_ref()
++            .unwrap()
++            .subpath
++            .as_deref(),
++        Some("home")
++    );
++    assert_eq!(mounts[1].target.as_deref(), Some("/tmp"));
++    let log_mount = serde_json::to_value(&mounts[2]).unwrap();
++    assert_eq!(
++        log_mount,
++        serde_json::json!({
++            "Type": "tmpfs", "Target": "/var/log", "TmpfsOptions": {
++                "SizeBytes": 33_554_432, "Mode": 448, "Options": [["noexec"]]
++            }
++        })
++    );
++    assert!(host.restart_policy.is_none());
++}
++
++#[test]
++fn log_limits_reject_null_partial_unknown_or_non_object_envelopes() {
++    for value in [
++        serde_json::Value::Null,
++        serde_json::json!({}),
++        serde_json::json!([]),
++        serde_json::json!(false),
++        serde_json::json!("default"),
++    ] {
++        let sandbox = sandbox_with_logs(serde_json::json!({"log_limits": value}));
++        assert_eq!(
++            DockerComputeDriver::validate_sandbox(&sandbox, &runtime_config())
++                .unwrap_err()
++                .code(),
++            tonic::Code::InvalidArgument
++        );
++    }
++    for field in ["max_file_bytes", "max_files", "supervisor_tmpfs_bytes"] {
++        let mut config = bounded_log_config();
++        config["log_limits"].as_object_mut().unwrap().remove(field);
++        assert!(
++            DockerComputeDriver::validate_sandbox(&sandbox_with_logs(config), &runtime_config())
++                .is_err()
++        );
++    }
++    for field in ["driver", "options", "path", "env", "labels", "max_size"] {
++        let mut config = bounded_log_config();
++        config["log_limits"][field] = serde_json::json!("override");
++        let err =
++            DockerComputeDriver::validate_sandbox(&sandbox_with_logs(config), &runtime_config())
++                .unwrap_err();
++        assert!(err.message().contains("unknown field"), "{field}: {err}");
++    }
++}
++
++#[test]
++fn log_limits_reject_invalid_numbers_before_provisioning() {
++    for (field, minimum, maximum) in [
++        ("max_file_bytes", 1_048_576_u32, 67_108_864_u32),
++        ("max_files", 1, 10),
++        ("supervisor_tmpfs_bytes", 1_048_576, 67_108_864),
++    ] {
++        for value in [
++            serde_json::Value::Null,
++            serde_json::json!(true),
++            serde_json::json!("1"),
++            serde_json::json!(-1),
++            serde_json::json!(0),
++            serde_json::json!(minimum - 1),
++            serde_json::json!(maximum + 1),
++            serde_json::json!(f64::from(minimum) + 0.5),
++            serde_json::json!(1e100),
++        ] {
++            let mut config = bounded_log_config();
++            config["log_limits"][field] = value.clone();
++            let err = DockerComputeDriver::validate_sandbox(
++                &sandbox_with_logs(config),
++                &runtime_config(),
++            )
++            .unwrap_err();
++            assert_eq!(
++                err.code(),
++                tonic::Code::InvalidArgument,
++                "{field}={value}: {err}"
++            );
++        }
++        for value in [minimum, maximum] {
++            let mut config = bounded_log_config();
++            config["log_limits"][field] = serde_json::json!(value);
++            DockerComputeDriver::validate_sandbox(&sandbox_with_logs(config), &runtime_config())
++                .unwrap();
++        }
++    }
++}
++
++#[test]
++fn log_limits_reject_nonfinite_protobuf_numbers() {
++    for number in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
++        let mut sandbox = sandbox_with_logs(bounded_log_config());
++        let config = sandbox
++            .spec
++            .as_mut()
++            .unwrap()
++            .template
++            .as_mut()
++            .unwrap()
++            .driver_config
++            .as_mut()
++            .unwrap();
++        let prost_types::value::Kind::StructValue(limits) = config
++            .fields
++            .get_mut("log_limits")
++            .unwrap()
++            .kind
++            .as_mut()
++            .unwrap()
++        else {
++            panic!("log limits must be an object");
++        };
++        limits.fields.get_mut("max_files").unwrap().kind =
++            Some(prost_types::value::Kind::NumberValue(number));
++        assert!(DockerComputeDriver::validate_sandbox(&sandbox, &runtime_config()).is_err());
++    }
++}
++
++#[test]
++fn log_limits_require_memory_and_reserve_at_most_half_for_supervisor_tmpfs() {
++    for (memory, allowed) in [(None, false), (Some("63Mi"), false), (Some("64Mi"), true)] {
++        let mut sandbox = sandbox_with_logs(bounded_log_config());
++        sandbox
++            .spec
++            .as_mut()
++            .unwrap()
++            .template
++            .as_mut()
++            .unwrap()
++            .resources = memory.map(|memory| DriverResourceRequirements {
++            memory_limit: memory.to_string(),
++            ..Default::default()
++        });
++        assert_eq!(
++            DockerComputeDriver::validate_sandbox(&sandbox, &runtime_config()).is_ok(),
++            allowed,
++            "{memory:?}"
++        );
++        assert_eq!(
++            build_container_create_body(&sandbox, &runtime_config()).is_ok(),
++            allowed,
++            "{memory:?}"
++        );
++    }
++}
++
++#[test]
++fn log_limits_reject_mounts_over_under_or_containing_supervisor_logs() {
++    for kind in ["bind", "volume", "tmpfs"] {
++        for target in ["/var", "/var/log", "/var/log/", "/var/log/nested"] {
++            let mut config = bounded_log_config();
++            let mut mount = serde_json::json!({"type": kind, "target": target});
++            if kind != "tmpfs" {
++                mount["source"] = serde_json::json!(if kind == "bind" { "/tmp" } else { "logs" });
++            }
++            config["mounts"] = serde_json::json!([mount]);
++            let mut runtime = runtime_config();
++            runtime.enable_bind_mounts = true;
++            let err = DockerComputeDriver::validate_sandbox(&sandbox_with_logs(config), &runtime)
++                .unwrap_err();
++            assert!(
++                err.message().contains("control path '/var/log'")
++                    || (target == "/var" && err.message().contains("/var/run/netns")),
++                "{kind} {target}: {err}"
++            );
++        }
++    }
++}
++
++#[test]
++fn log_limits_reject_image_volume_workspace_and_socket_collisions() {
++    let sandbox = sandbox_with_logs(bounded_log_config());
++    let template = sandbox.spec.as_ref().unwrap().template.as_ref().unwrap();
++    let config = docker_driver_config(template, false).unwrap();
++    for path in ["/var", "/var/log", "/var/log/nested"] {
++        for collision in ["volume", "workdir", "socket"] {
++            let mut image = DockerImageMetadata {
++                id: "sha256:immutable".to_string(),
++                user: "998:998".to_string(),
++                working_dir: "/sandbox".to_string(),
++                volumes: Vec::new(),
++            };
++            let mut runtime = runtime_config();
++            match collision {
++                "volume" => image.volumes.push(path.to_string()),
++                "workdir" => image.working_dir = path.to_string(),
++                "socket" => runtime.ssh_socket_path = path.to_string(),
++                _ => unreachable!(),
++            }
++            let err =
++                build_container_create_body_for_image(&sandbox, &runtime, &config, None, &image)
++                    .unwrap_err();
++            assert!(
++                err.message().contains("control path '/var/log'")
++                    || (path == "/var" && err.message().contains("/var/run/netns")),
++                "{collision} {path}: {err}"
++            );
++        }
++    }
++}
++
++#[test]
++fn log_limits_allow_non_overlapping_similar_paths() {
++    let mut value = bounded_log_config();
++    value["mounts"] = serde_json::json!([{"type": "tmpfs", "target": "/var/logs"}]);
++    let sandbox = sandbox_with_logs(value);
++    let config = docker_driver_config(
++        sandbox.spec.as_ref().unwrap().template.as_ref().unwrap(),
++        false,
++    )
++    .unwrap();
++    let image = DockerImageMetadata {
++        id: "sha256:immutable".to_string(),
++        user: "998:998".to_string(),
++        working_dir: "/var/logger".to_string(),
++        volumes: vec!["/var/logged".to_string()],
++    };
++    let mut runtime = runtime_config();
++    runtime.ssh_socket_path = "/var/logpipe/ssh.sock".to_string();
++    build_container_create_body_for_image(&sandbox, &runtime, &config, None, &image).unwrap();
++}
++
+ fn inspected_volume(driver: &str, options: HashMap<String, String>) -> bollard::models::Volume {
+     bollard::models::Volume {
+         name: "openshell-test-volume".to_string(),
+@@ -1740,6 +2026,36 @@ fn build_container_create_body_includes_driver_config_mounts() {
+     );
+ }
+ 
++#[test]
++fn retained_volume_no_copy_reaches_engine_with_and_without_subpath() {
++    for subpath in [None, Some("home")] {
++        let mut mount = serde_json::json!({
++            "type": "volume", "source": "retained-home",
++            "target": "/sandbox/persistent", "read_only": false, "no_copy": true
++        });
++        if let Some(subpath) = subpath {
++            mount["subpath"] = serde_json::json!(subpath);
++        }
++        let mut sandbox = test_sandbox();
++        sandbox
++            .spec
++            .as_mut()
++            .unwrap()
++            .template
++            .as_mut()
++            .unwrap()
++            .driver_config = Some(json_struct(serde_json::json!({"mounts": [mount]})));
++        DockerComputeDriver::validate_sandbox(&sandbox, &runtime_config()).unwrap();
++        let body = build_container_create_body(&sandbox, &runtime_config()).unwrap();
++        let mounts = body.host_config.unwrap().mounts.unwrap();
++        let options = mounts[0].volume_options.as_ref().unwrap();
++        assert_eq!(options.no_copy, Some(true));
++        assert_eq!(options.subpath.as_deref(), subpath);
++        let wire = serde_json::to_value(&mounts[0]).unwrap();
++        assert_eq!(wire["VolumeOptions"]["NoCopy"], true);
++    }
++}
++
+ #[test]
+ fn driver_config_defaults_volume_mounts_to_read_only() {
+     let mut sandbox = test_sandbox();
+@@ -2725,7 +3041,13 @@ fn build_container_create_body_disables_docker_networking() {
+ 
+ #[test]
+ fn docker_supervisor_uses_host_network() {
+-    let host = docker_supervisor_host_config(Vec::new(), "https://127.0.0.1:17670");
++    let host = docker_supervisor_host_config(
++        Vec::new(),
++        "https://127.0.0.1:17670",
++        None,
++        DockerResourceLimits::default(),
++        None,
++    );
+ 
+     assert_eq!(host.network_mode.as_deref(), Some("host"));
+     assert_eq!(
+@@ -2741,7 +3063,13 @@ fn docker_supervisor_uses_host_network() {
+ 
+ #[test]
+ fn docker_supervisor_maps_host_aliases_to_the_gateway_address() {
+-    let host = docker_supervisor_host_config(Vec::new(), "https://172.20.0.4:17670");
++    let host = docker_supervisor_host_config(
++        Vec::new(),
++        "https://172.20.0.4:17670",
++        None,
++        DockerResourceLimits::default(),
++        None,
++    );
+ 
+     assert_eq!(
+         host.extra_hosts,
+@@ -2758,7 +3086,13 @@ fn docker_supervisor_maps_host_aliases_to_the_gateway_address() {
+ 
+ #[test]
+ fn docker_supervisor_leaves_named_gateway_hosts_to_dns() {
+-    let host = docker_supervisor_host_config(Vec::new(), "https://gateway.example.com:17670");
++    let host = docker_supervisor_host_config(
++        Vec::new(),
++        "https://gateway.example.com:17670",
++        None,
++        DockerResourceLimits::default(),
++        None,
++    );
+ 
+     assert_eq!(host.extra_hosts, None);
+     assert_eq!(
+@@ -3501,3 +3835,65 @@ fn admission_provisioning_failure_distinguishes_denials_from_lookup_failures() {
+     assert_eq!(lookup.reason, "ResourceAdmissionLookupFailed");
+     assert_eq!(lookup.message, "inspect docker volume failed");
+ }
++
++#[test]
++fn supervisor_logs_share_admitted_rotation_without_expanding_privileges() {
++    let sandbox = sandbox_with_logs(bounded_log_config());
++    let template = sandbox.spec.as_ref().unwrap().template.as_ref().unwrap();
++    let limits = DockerSandboxDriverConfig::from_template(template)
++        .unwrap()
++        .log_limits
++        .unwrap();
++    let host = docker_supervisor_host_config(
++        Vec::new(),
++        "https://127.0.0.1:17670",
++        Some(limits),
++        DockerResourceLimits {
++            nano_cpus: Some(1_000_000_000),
++            memory_bytes: Some(536_870_912),
++        },
++        Some(256),
++    );
++    assert_eq!(host.log_config, Some(limits.log_config()));
++    assert_eq!(
++        host.tmpfs.as_ref().unwrap()["/var/log"],
++        format!(
++            "rw,noexec,nosuid,size=33554432,uid={SUPERVISOR_UID},gid={SUPERVISOR_GID},mode=0700"
++        )
++    );
++    assert_eq!(host.cap_drop, Some(vec!["ALL".into()]));
++    assert!(host.cap_add.is_none());
++    assert_eq!(host.readonly_rootfs, Some(true));
++    assert_eq!(
++        host.security_opt,
++        Some(vec!["no-new-privileges:true".into()])
++    );
++    assert!(host.mounts.unwrap().is_empty());
++    assert!(host.pid_mode.is_none());
++    assert!(host.cgroup_parent.is_none());
++    assert_eq!(host.nano_cpus, Some(1_000_000_000));
++    assert_eq!(host.memory, Some(536_870_912));
++    assert_eq!(host.pids_limit, Some(256));
++    assert!(host.memory_reservation.is_none());
++    assert!(host.cpuset_cpus.is_none());
++    assert!(host.cpu_shares.is_none());
++}
++
++#[test]
++fn provider_runtime_images_require_preloaded_manifest_identity() {
++    assert!(
++        validate_pinned_runtime_image(&format!(
++            "registry.internal/provider@sha256:{}",
++            "a".repeat(64)
++        ))
++        .is_ok()
++    );
++    for image in [
++        "",
++        "nvidia/openshell-supervisor:0.1.2",
++        "provider@sha256:bad",
++        "provider@sha256:AAAA",
++    ] {
++        assert!(validate_pinned_runtime_image(image).is_err());
++    }
++}
+diff --git a/crates/openshell-server/src/cli.rs b/crates/openshell-server/src/cli.rs
+index f531d88c..9b4cad0b 100644
+--- a/crates/openshell-server/src/cli.rs
++++ b/crates/openshell-server/src/cli.rs
+@@ -450,6 +450,12 @@ fn prepare_server_config_with_drivers(
+     if let Some(auth) = file.as_ref().and_then(|f| f.openshell.gateway.auth.clone()) {
+         config.auth = auth;
+     }
++    if let Some(mtls) = file
++        .as_ref()
++        .and_then(|f| f.openshell.gateway.mtls_auth.clone())
++    {
++        config.mtls_auth = mtls;
++    }
+     config.mtls_auth.enabled = mtls_auth_enabled;
+ 
+     // Listener addresses for the health and metrics endpoints. The file may
+diff --git a/crates/openshell-server/src/multiplex.rs b/crates/openshell-server/src/multiplex.rs
+index 8988542b..4f841085 100644
+--- a/crates/openshell-server/src/multiplex.rs
++++ b/crates/openshell-server/src/multiplex.rs
+@@ -257,7 +257,11 @@ impl MultiplexService {
+                 .config
+                 .mtls_auth
+                 .enabled
+-                .then_some(peer_identity)
++                .then(|| {
++                    peer_identity.filter(|identity| {
++                        self.state.config.mtls_auth.allows_user(&identity.subject)
++                    })
++                })
+                 .flatten(),
+             self.state.config.mtls_auth.enabled,
+             self.state.config.auth.allow_unauthenticated_users,
+@@ -1250,12 +1254,11 @@ where
+     let (_, cert) = X509Certificate::from_der(first.as_ref()).ok()?;
+     let subject = cert.subject();
+ 
+-    let cn = subject
+-        .iter_common_name()
+-        .next()
+-        .and_then(|attr| attr.as_str().ok())
+-        .unwrap_or("unknown")
+-        .to_string();
++    let mut common_names = subject.iter_common_name();
++    let cn = common_names.next()?.as_str().ok()?.to_string();
++    if common_names.next().is_some() || cn.is_empty() || cn.trim() != cn {
++        return None;
++    }
+ 
+     let roles: Vec<String> = subject
+         .iter_organizational_unit()

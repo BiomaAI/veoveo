@@ -7,7 +7,7 @@
 | WebSocket RFC 6455 | HTTP/1.1 upgrade with the owning application's TLS trust; no generic tunnel or negotiated extensions |
 | Veoveo terminal v2 | Closed first-frame attach, resize, Ready, replay fence and sequenced lease controls; separate binary terminal bytes |
 | Veoveo private CLI relay v1 | The terminal-v2 Ready/Lease envelope only, plus binary stream bytes; trusted internal hops preserve controls and the public edge removes them |
-| OpenShell `0.0.116` edge tunnel | Stock client binary gRPC transport; no Veoveo controls reach that client, which also interprets received text frames as stream bytes |
+| OpenShell `0.1.2` edge tunnel | Stock client binary gRPC transport; no Veoveo controls reach that client, which also interprets received text frames as stream bytes |
 | RFC 3339 | Absolute service-issued authority deadlines, converted to local monotonic enforcement |
 | [reqwest-websocket 0.6.0](https://docs.rs/reqwest-websocket/0.6.0/reqwest_websocket/) | Current stable adapter verified through crates.io on 2026-09-10; uses its upstream-selected Tungstenite 0.28 configuration and wire engine |
 

@@ -20,7 +20,7 @@
 | Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private tables in the Computers owner lane |
 | Veoveo named lifecycle authority | The owner schema separates the accepted actor from retained ownership and records the selected grant; coordinated Computers reader/worker drain required |
 | Veoveo resource ownership across clients | The owner schema indexes tenant, principal and Work Context over retained records; immutable creation keys and encrypted envelope v1 remain unchanged; coordinated Computers reader/worker drain required before cross-client admission |
-| Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; private tables in the Computers owner lane; public adapter qualified in the Bioma installation |
+| Veoveo CLI grant v1; OpenShell `0.1.2` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; private tables in the Computers owner lane; selected private adapter; current provider/CLI installation acceptance pending |
 
 The [current owner schema](src/schema/migrations/0000_current.surql) defines the
 private grant, journal and retained-resource tables described below. The domain owns retained Computer identity. Provider transport belongs to
@@ -442,7 +442,7 @@ They do not establish terminal behavior, public routing, CLI pairing or agent de
 
 ## CLI Pairing And Connection Grants
 
-`cli_grants` implements the private ledger for the stock OpenShell `0.0.116` adapter.
+`cli_grants` implements the private ledger for the stock OpenShell `0.1.2` adapter.
 The public pairing, restricted tunnel and grant panel consume these domain APIs;
 installed qualification has the [limits below](#qualification-limits). The wire adapter
 preserves the client's binary stream:
@@ -1122,6 +1122,13 @@ loads neither sealed intent nor capability secrets. Public action flags use this
 transactional admission still arbitrates concurrent commands and file transfers.
 
 ## Qualification Limits
+
+The selected OpenShell 0.1.2 / patched provider 0.1.2-veoveo.1 profile requires its
+own source-built and native acceptance. Consumer controls establish private selector,
+serialization and grant fencing behavior. They do not qualify provider binaries or
+installed journeys. The runtime's [installation and persistence rules](../runtimes/computers/DESIGN.md#installation-and-persistence-compatibility)
+require a coordinated drain and current-format maintenance readers.
+
 
 The selected profile has installed browser and stock CLI continuity, named agent
 execution, lifecycle authority, retained maintenance and governed file handoff.

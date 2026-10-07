@@ -9,7 +9,7 @@ The [Computers design](../DESIGN.md#qualification-limits) records installed qual
 |---|---|
 | `veoveo.ai/computer-host/v1` | Closed installation-owned JSON configuration; one provider UUID/namespace and a digest-pinned local image catalog |
 | Docker Engine 29.8.0, API 1.53 and volume-plugin API v1 | Dedicated private Unix socket, overlay2 on ext4, local retained-volume plugin; no host daemon access |
-| OpenShell provider `0.0.117-veoveo.2` and supervisor `0.0.117-dev.5+gea0c605` | Exact maintained patch trees and OCI-built binaries from the provider image; private mTLS gRPC and selected SSH transport |
+| OpenShell `0.1.2`, maintained provider/supervisor/sandbox `0.1.2-veoveo.1` | Exact source and patch trees; GNU provider and supervisor, static musl sandbox; private mTLS gRPC and selected SSH transport |
 | TLS 1.3 and `veoveo.ai/computer-storage/v1` | Separate worker trust for retained storage; provider guest certificates are denied provider user authority |
 | OCI images | Exact manifest references from one installation registry, HTTPS or explicitly declared development HTTP |
 | Linux namespaces, cgroup v2, signals and ext4 | One privileged compute container with owned mount/network/PID/cgroup namespaces, finite CPU/RAM ceilings and persistent local ext4 data |
@@ -26,8 +26,14 @@ operations; it has no privileged mounts or daemon socket.
 
 The `computer-host` Bake image composes the independent storage and provider targets.
 It adds the exact Docker 29.8.0 static executable closure used in native qualification,
-its matching DinD initializer and a small Rust launcher. The provider's pinned Z3
-library is retained; the Debian trixie GNU runtime supplies the shared libc/C++ closure.
+its matching DinD initializer and a small Rust launcher. The Host inherits the
+storage image's Debian trixie runtime. Provider binaries are built against the
+Bookworm GNU profile with glibc 2.36 and a shared C++ runtime; their minimum ABI
+and actual Host library closure require ELF qualification. The supervisor companion
+retains its matched GNU runtime image. The provider compiles locked Z3 5.1.0
+source through the bundled-Z3 feature. The gateway's ELF inventory must confirm
+it has no shared Z3 dependency before image admission. The injected sandbox is a
+static musl executable from the supervisor's matched patched source tree.
 Package and binary inventories remain inside the image. Building this image does not
 by itself qualify the resulting runtime ABI or mount behavior.
 
@@ -71,7 +77,8 @@ resource and hardware qualification; this development template runs terminal too
 `veoveo-computer-host init --config <file>` bootstraps the container, then `run`
 reads at most 64 KiB, rejects unknown fields
 and validates identities, capacity, image digests and private networks before startup.
-Configuration provides `providerId`, `namespace`, `defaultImage`, `images`, `templates`,
+Configuration provides `providerId`, `namespace`, `defaultImage`, `supervisorImage`,
+`images`, `templates`,
 `reserveBytes`, `registry`, `bridgeAddress` and `networkPool`. The schema value is
 `veoveo.ai/computer-host/v1`. `providerId` decodes through the Computers contract’s
 `ProviderInstanceId`; the launcher imports that lightweight owner contract directly. Templates use the allocator's fingerprint/capacity shape.
@@ -85,8 +92,14 @@ daemon's insecure-registry list. The current profile preloads an unauthenticated
 installation registry using image digests. Registry credential injection and custom
 CA roots are not yet admitted profiles. Startup checks the private image inventory and
 pulls only missing catalog entries, with a five-minute deadline per image. The provider
-uses `image_pull_policy=Never`. An offline installation must include that local registry
-closure and the host image; no upstream Internet download is part of retained Start.
+uses `image_pull_policy=Never`. The installation selects the qualified supervisor
+image and includes its digest in the catalog. Production admission checks pinned
+references and the local inventory. The native fixture also binds the image's
+provider-profile, source-manifest SHA-256 and supervisor source-tree labels to
+its included source declarations. It rejects an unmatched or unpatched image.
+The supervisor and static sandbox come from the same patched tree. An offline
+installation includes that local registry closure and the Host image; retained
+Start requires no upstream Internet download.
 
 The host mounts its operator-owned trust Secret at
 `/etc/veoveo/computers/host-trust`. Fixed inputs are `provider-ca.pem`,
@@ -120,7 +133,10 @@ reopens its journal without waiting for Docker's API. That lets the daemon resto
 volume metadata. All physical storage operations still verify the original engine.
 
 Docker listens only on the private Unix socket. The provider listens on port 8805 with
-mandatory worker mTLS and guest identity separation. Storage listens on port 8806 with
+mandatory worker mTLS and guest identity separation. Inside the private Host
+namespace the supervisor connects to `127.0.0.1:8805`; the provider server
+certificate includes that IP SAN. Standalone native fixtures use their inspected
+private bridge address and its IP SAN as a separate route profile. Storage listens on port 8806 with
 its dedicated worker mTLS. The launcher waits for bounded process readiness and the
 declared image preload before starting the provider. `health` verifies the launcher
 readiness marker, private Docker API and local provider/plugin listeners. It establishes
@@ -167,11 +183,37 @@ must be reachable from the private bridge namespace. A publication endpoint boun
 only to the host's loopback cannot be substituted with the host bridge's gateway;
 use the registry's inspected address and port on that bridge.
 
-The replacement fixture checks the retained guest's cgroup ancestry, both memory
-ceilings and zero memory protection. Its host has a one-CPU maximum while the guest
+The replacement fixture selects the workload from its retained writer CID and
+requires exactly one supervisor with the same provider namespace, resource ID
+and name. It verifies the supervisor's configured preload image. Both child
+cgroups must descend from the Host root with a two-CPU, 2 GiB and 256-PID maximum
+each. The aggregate Host has a one-CPU, 6 GiB and 1024-PID maximum. Memory
+protection, CPU shares and pinned CPU sets provide no reservations. The two
+containers have separate mount, PID, IPC and cgroup namespaces. The workload has
+no network attachment; the supervisor shares only the private compute Host's
+network namespace and runs as UID/GID 65534 without added capabilities. Its
+root is read-only and no-new-privileges is required. Its host has a one-CPU maximum while the guest
 allows two. A three-second guest workload must increase the host's throttling counter.
 This qualifies aggregate enforcement without exhausting installation RAM.
 Its retained template remains the 512 MiB native host profile;
 the service's separate template-transition fixture qualifies exact installation
 template capacities. This test establishes forward host replacement, not rollback
 to older readers after new storage journal operations have been admitted.
+
+Each active Computer adds one supervisor container with its own CPU, memory, PID
+and log/tmpfs costs. Its limits are separate from the workload limits, while both
+count toward the aggregate Host ceiling. Template admission does not reserve
+capacity for either child. Operators must budget their combined working sets.
+
+Source checks qualify configuration and fixture refusal rules. Provider compilation,
+GNU/musl ELF closure, companion resource enforcement and retained composite Host
+replacement require the exact candidate images and ordinary owned native fixture.
+Installed trust, rollout and host-loss recovery require their installation checks.
+A source or compiler pass establishes none of those runtime outcomes.
+
+Policy checkpoints use version 2 and its current provider-policy fingerprint.
+Host/provider updates require a coordinated drain of version-1 operations before
+the matched binaries start. Unsupported checkpoint versions fail admission; no
+rolling overlap or rollback to a version-1 reader is admitted. The retained Host
+fixture compares distinct images within the matched version-2 profile and preserves
+the backing inode, home bytes and provider resource identity.

@@ -181,6 +181,7 @@ async fn revoke(mut client: Client, token: Zeroizing<String>) -> Result<()> {
         client.revoke_ssh_session(request(
             api::RevokeSshSessionRequest {
                 token: token.to_string(),
+                ..Default::default()
             },
             5,
         )),
@@ -193,7 +194,8 @@ async fn revoke(mut client: Client, token: Zeroizing<String>) -> Result<()> {
 
 pub(crate) async fn issue_session(
     client: Client,
-    sandbox_id: String,
+    sandbox: String,
+    workspace: String,
 ) -> Result<(api::CreateSshSessionResponse, SessionToken)> {
     let permit = SESSION_ISSUANCES
         .try_acquire()
@@ -211,7 +213,13 @@ pub(crate) async fn issue_session(
             let mut rpc = client.clone();
             let mut response = tokio::time::timeout(
                 Duration::from_secs(10),
-                rpc.create_ssh_session(request(api::CreateSshSessionRequest { sandbox_id }, 10)),
+                rpc.create_ssh_session(request(
+                    api::CreateSshSessionRequest {
+                        sandbox,
+                        workspace_scope: crate::client::workspace_scope(&workspace),
+                    },
+                    10,
+                )),
             )
             .await
             .map_err(|_| RuntimeFailure::TerminalFailed)?
@@ -308,13 +316,23 @@ async fn setup(
     if current.phase != Phase::Ready || current.main_process_instance_id.is_empty() {
         return Err(RuntimeFailure::InvalidState);
     }
-    let (session, issued_token) =
-        issue_session(runtime.client.clone(), current.sandbox_id.clone()).await?;
+    let (session, issued_token) = issue_session(
+        runtime.client.clone(),
+        binding.name(),
+        runtime.workspace.clone(),
+    )
+    .await?;
     *token = issued_token;
-    if session.sandbox_id != current.sandbox_id || session.expires_at_ms <= 0 {
+    if session.sandbox_id != current.sandbox_id
+        || crate::client::timestamp_millis(session.expiration_time.as_ref())
+            .is_none_or(|expiry| expiry <= 0)
+    {
         return Err(RuntimeFailure::TerminalFailed);
     }
-    let admission_expires = UNIX_EPOCH + Duration::from_millis(session.expires_at_ms as u64);
+    let admission_expires = UNIX_EPOCH
+        + Duration::from_millis(
+            crate::client::timestamp_millis(session.expiration_time.as_ref()).unwrap() as u64,
+        );
     let duration = admission_expires
         .duration_since(SystemTime::now())
         .ok()
@@ -325,7 +343,13 @@ async fn setup(
     let forward_token = token.token.as_ref().unwrap().to_string();
     let stub = runtime.clone();
     let id = current.sandbox_id.clone();
-    bridges.spawn(forward(stub, id, Zeroizing::new(forward_token), relay));
+    bridges.spawn(forward(
+        stub,
+        binding.name(),
+        id,
+        Zeroizing::new(forward_token),
+        relay,
+    ));
     tokio::time::timeout(duration, async {
         let config = client::Config {
             window_size: (MAX_CHUNK_BYTES * 4) as u32,
@@ -491,6 +515,7 @@ pub(crate) fn forward_data(frame: api::TcpForwardFrame) -> Result<Vec<u8>> {
 }
 async fn forward(
     runtime: OpenShellRuntime,
+    runtime_tunnel_name: String,
     id: String,
     token: Zeroizing<String>,
     relay: tokio::io::DuplexStream,
@@ -500,7 +525,8 @@ async fn forward(
     let (reader, mut writer) = tokio::io::split(relay);
     let init = api::TcpForwardFrame {
         payload: Some(api::tcp_forward_frame::Payload::Init(api::TcpForwardInit {
-            sandbox_id: id.clone(),
+            sandbox: runtime_tunnel_name.clone(),
+            workspace: runtime.workspace.clone(),
             service_id: format!("ssh-proxy:{id}"),
             target: Some(api::tcp_forward_init::Target::Ssh(api::SshRelayTarget {})),
             authorization_token: token.to_string(),

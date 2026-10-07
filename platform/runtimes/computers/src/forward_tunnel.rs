@@ -60,6 +60,7 @@ impl Stream for ForwardTunnel {
 pub(crate) async fn open<S>(
     runtime: OpenShellRuntime,
     sandbox: String,
+    sandbox_id: String,
     lease: AttachmentLease,
     input: S,
 ) -> Result<ForwardTunnel>
@@ -78,7 +79,12 @@ where
                 .await
                 .map_err(|_| RuntimeFailure::TerminalFailed)?
                 .ok_or(RuntimeFailure::TerminalBounds)?;
-            validate_init(&init, &sandbox)?;
+            validate_init(&init, &sandbox, &sandbox_id)?;
+            if let Some(api::tcp_forward_frame::Payload::Init(header)) = &init.payload {
+                if header.workspace != runtime.workspace {
+                    return Err(RuntimeFailure::BindingMismatch);
+                }
+            }
             let (mut client, _transport) =
                 crate::attachment_transport::connect(&runtime.endpoint, &runtime.address).await?;
             let (send, receive) = mpsc::channel(1);
@@ -151,12 +157,12 @@ where
     Ok(tunnel)
 }
 
-fn validate_init(frame: &api::TcpForwardFrame, sandbox: &str) -> Result<()> {
+fn validate_init(frame: &api::TcpForwardFrame, sandbox: &str, sandbox_id: &str) -> Result<()> {
     let Some(api::tcp_forward_frame::Payload::Init(init)) = &frame.payload else {
         return Err(RuntimeFailure::TerminalBounds);
     };
-    if init.sandbox_id != sandbox
-        || init.service_id != format!("ssh-proxy:{sandbox}")
+    if init.sandbox != sandbox
+        || init.service_id != format!("ssh-proxy:{sandbox_id}")
         || !matches!(init.target, Some(api::tcp_forward_init::Target::Ssh(_)))
         || !crate::remote_access::valid_token(&init.authorization_token)
     {
@@ -179,7 +185,8 @@ mod tests {
     #[test]
     fn ssh_only_exact_target_and_data_bounds() {
         let mut init = api::TcpForwardInit {
-            sandbox_id: "owned".into(),
+            sandbox: "owned".into(),
+            workspace: "computers".into(),
             service_id: "ssh-proxy:owned".into(),
             target: Some(api::tcp_forward_init::Target::Ssh(api::SshRelayTarget {})),
             authorization_token: "opaque".into(),
@@ -187,13 +194,13 @@ mod tests {
         let frame = |init| api::TcpForwardFrame {
             payload: Some(api::tcp_forward_frame::Payload::Init(init)),
         };
-        assert!(validate_init(&frame(init.clone()), "owned").is_ok());
-        assert!(validate_init(&frame(init.clone()), "other").is_err());
+        assert!(validate_init(&frame(init.clone()), "owned", "owned").is_ok());
+        assert!(validate_init(&frame(init.clone()), "other", "owned").is_err());
         init.service_id = "arbitrary-service".into();
-        assert!(validate_init(&frame(init.clone()), "owned").is_err());
+        assert!(validate_init(&frame(init.clone()), "owned", "owned").is_err());
         init.service_id = "ssh-proxy:owned".into();
         init.target = None;
-        assert!(validate_init(&frame(init.clone()), "owned").is_err());
+        assert!(validate_init(&frame(init.clone()), "owned", "owned").is_err());
         assert!(validate_data(&frame(init)).is_err());
         assert!(
             validate_data(&api::TcpForwardFrame {

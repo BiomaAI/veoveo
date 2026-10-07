@@ -91,11 +91,12 @@ and fresh state before rollout.
 
 Media publication requires the reviewed host-tracing correction in Phase 3. The
 patch is unapplied pending the user's required host-contract approval, and real
-provider generation is unqualified. Computers' isolated native maintenance profile
-passes upgrade, recovery and rollback. Its current command and file journeys pass
-against the real provider. The worker recovery journey remains unqualified after
-its stack repair exposed a missing stock CLI prerequisite. The wider provider-process
-suites and installed execution profile remain unqualified.
+provider generation is unqualified. Computers' previous provider profile passes
+isolated native maintenance upgrade, recovery and rollback, plus its command and
+file journeys. The current source selects OpenShell 0.1.2 with matched provider
+artifacts, typed selectors and a drained private checkpoint cut. Its provider build,
+affected native suites and installed execution remain unqualified; previous-profile
+results do not qualify this candidate.
 
 Linux Map qualification has 175 distinct passing cases; five product cases require
 the protected shared-host result writer correction. Recording's 31 normal native
@@ -2779,13 +2780,17 @@ TaskRuntime and deployment-smoke with Helm and GNU timeout. GPU suites use hardw
 passes in the full current TaskRuntime suite. Report a future parallel failure and
 any justified diagnostic replay separately.
 
-Computers' provider profile still uses OpenShell `0.0.116`, while the latest stable
-upstream release is [`0.1.2`](https://github.com/NVIDIA/OpenShell/releases/tag/v0.1.2).
-The runtime owner must update its protocol inputs and retained provider repairs;
-the deployer qualifies the matched gateway, supervisor, driver, stock CLI and
-affected template/host images with the current Rust toolchain. Preserve every
-declared containment and recovery guarantee. Qualify the upgraded profile before
-closing F23 or A09; older profile evidence does not establish the new profile.
+Computers' source selects the stable
+[`OpenShell 0.1.2`](https://github.com/NVIDIA/OpenShell/releases/tag/v0.1.2) protocol
+and matched `0.1.2-veoveo.1` provider candidate. The deployer must build and qualify
+the gateway, driver, supervisor, static sandbox, stock CLI and affected template/host
+images with Rust 1.99.0 and the selected static Z3 5.1.0 source. Existing native
+fixtures admit the matched executable/image receipt before effects and use their
+private DinD daemon. Preserve containment, replay, retained writers and recovery
+through the coordinated checkpoint-version drain in the
+[runtime design](../platform/runtimes/computers/DESIGN.md#installation-and-persistence-compatibility).
+Qualify the upgraded profile before closing F23 or A09; older profile evidence does
+not establish the new profile.
 
 Publish the complete affected image closure for the final wire/storage cut: servers,
 gateway, Console/Workspace, agents, SDK servers, runners, simulation/UAV consumers and

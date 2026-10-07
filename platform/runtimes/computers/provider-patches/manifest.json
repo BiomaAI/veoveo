@@ -1,99 +1,91 @@
 {
   "schema": "veoveo-openshell-handoff/provider-patches/v1",
   "upstreamRepository": "https://github.com/NVIDIA/OpenShell",
-  "upstreamRevision": "d1155aa70042d3e2ee49dbfa15346b108b7c1d92",
-  "upstreamTag": "v0.0.116",
-  "cliVersion": "0.0.116",
-  "gatewayVersion": "0.0.117-veoveo.2",
-  "supervisorVersion": "0.0.117-dev.5+gea0c605",
+  "upstreamRevision": "6648bd0c290efbc41ba131ee9831ee45cd431f94",
+  "upstreamTag": "v0.1.2",
+  "upstreamSourceTree": "26f142d5c3be825e72f4d1a705ecf6aa5d4d6b10",
+  "cliVersion": "0.1.2",
+  "gatewayVersion": "0.1.2-veoveo.1",
+  "supervisorVersion": "0.1.2-veoveo.1",
+  "sandboxVersion": "0.1.2-veoveo.1",
+  "driverVersion": "0.1.2-veoveo.1",
   "driver": "docker",
   "platform": "linux/amd64",
+  "compiler": "1.99.0",
   "artifactsIncluded": false,
   "executionQualifiedByThisPackage": false,
   "patches": [
     {
       "order": 1,
-      "file": "0.0.116-positive-ttl-restart.patch",
+      "file": "0.1.2-sandbox-identity.patch",
       "branch": "common",
-      "baseRevision": "d1155aa70042d3e2ee49dbfa15346b108b7c1d92",
-      "sourceRevision": "c40054a9e449759df3ae5858c577e9aec97ada42",
-      "expectedSourceTree": "e3bc07c0385a86bdaf39b62f385f287649753fab",
-      "originalPatchSha256": "1d31433e50fda3cd46c0464bc5b635cf64dd059f6e01004dc05e1158a197a6bb",
-      "packagedPatchSha256": "1d31433e50fda3cd46c0464bc5b635cf64dd059f6e01004dc05e1158a197a6bb",
-      "mailEnvelopeRemoved": false
+      "authoringOwner": "Veoveo",
+      "expectedBaseTree": "26f142d5c3be825e72f4d1a705ecf6aa5d4d6b10",
+      "expectedSourceTree": "724881f23873db5b42d760bc65945bace2bf71b8",
+      "packagedPatchSha256": "11573d1555c896395bb1e400eeeb71b6c2ba0683518f2433ef4779300f017c6a"
     },
     {
       "order": 2,
-      "file": "0.0.116-numeric-supervisor-groups.patch",
-      "branch": "common",
-      "baseRevision": "c40054a9e449759df3ae5858c577e9aec97ada42",
-      "sourceRevision": "857b66394867be36f2f90bfc15f8029c74e3aef1",
-      "expectedSourceTree": "8805c731f1110bb8d6a5856c8e7a6171c9ae2062",
-      "originalPatchSha256": "978e2e3c723c2ef3f88e9d4af171b3db2a47c67a057ec535e8e067f9a2312ff8",
-      "packagedPatchSha256": "978e2e3c723c2ef3f88e9d4af171b3db2a47c67a057ec535e8e067f9a2312ff8",
-      "mailEnvelopeRemoved": false
+      "file": "0.1.2-docker-admission.patch",
+      "branch": "gateway",
+      "authoringOwner": "Veoveo",
+      "expectedBaseTree": "724881f23873db5b42d760bc65945bace2bf71b8",
+      "expectedSourceTree": "d87b45d858196dcad1d63d4e3196811667dffdaa",
+      "packagedPatchSha256": "663d19324ef674056e602aa7676f1163b5082df7ab0ae27f4e133bf1e6edae3b"
     },
     {
       "order": 3,
-      "file": "0.0.116-owned-terminals.patch",
-      "branch": "common",
-      "baseRevision": "857b66394867be36f2f90bfc15f8029c74e3aef1",
-      "sourceRevision": "92d36947ba8ac892ee9ef84b3250dea95e4ac3cb",
-      "expectedSourceTree": "d6c991caf64220519382d93342ef88876a561324",
-      "originalPatchSha256": "f9d08b6243b2d44c512263560421b371455b02c103afa71ea7ddd40832e97a08",
-      "packagedPatchSha256": "f9d08b6243b2d44c512263560421b371455b02c103afa71ea7ddd40832e97a08",
-      "mailEnvelopeRemoved": false
-    },
-    {
-      "order": 4,
-      "file": "0.0.116-exit-recheck.patch",
-      "branch": "gateway",
-      "baseRevision": "92d36947ba8ac892ee9ef84b3250dea95e4ac3cb",
-      "sourceRevision": "f03c0f7d35149bcb034cb3fb8d58ca110f368cd5",
-      "expectedSourceTree": "226b4cea15c1f140e532dc9aae82264fe8b931de",
-      "originalPatchSha256": "c9f449f65f2088388a204a1eebd1530dd5dbbab3a78bf2d59bd4eb910867fdfb",
-      "packagedPatchSha256": "c9f449f65f2088388a204a1eebd1530dd5dbbab3a78bf2d59bd4eb910867fdfb",
-      "mailEnvelopeRemoved": false
-    },
-    {
-      "order": 5,
-      "file": "0.0.116-log-limits.patch",
-      "branch": "gateway",
-      "baseRevision": "f03c0f7d35149bcb034cb3fb8d58ca110f368cd5",
-      "sourceRevision": "32efe0b36dc75a0548344b98ced65132d0de4789",
-      "expectedSourceTree": "ff0dadb259171f03e00c76937fef5ef4848d4df1",
-      "originalPatchSha256": "5130c0ace89194c442b0eeded58472c4458593eeaf796e17d22d47d6d94ea884",
-      "packagedPatchSha256": "5130c0ace89194c442b0eeded58472c4458593eeaf796e17d22d47d6d94ea884",
-      "mailEnvelopeRemoved": false
-    },
-    {
-      "order": 6,
-      "file": "0.0.116-replay-boundary.patch",
+      "file": "0.1.2-replay-boundary.patch",
       "branch": "supervisor",
-      "baseRevision": "92d36947ba8ac892ee9ef84b3250dea95e4ac3cb",
-      "sourceRevision": "ea0c605bf510d7306f89e34a4e51877dde39d891",
-      "expectedSourceTree": "90efc474f932c877e696ee9010e9f00878914942",
-      "originalPatchSha256": "8ec199e19624ad2bb43442857154787fd43237532868d0066ec748184bbbc3a6",
-      "packagedPatchSha256": "c8800d27541541893b4d6c6025b93c948c7b7ef495c811889efaa70a48155d4d",
-      "mailEnvelopeRemoved": true
-    },
-    {
-      "order": 7,
-      "file": "0.0.116-volume-no-copy.patch",
-      "branch": "gateway",
       "authoringOwner": "Veoveo",
-      "expectedBaseTree": "ff0dadb259171f03e00c76937fef5ef4848d4df1",
-      "expectedSourceTree": "9ccd1611356da3d29288cc49ad06db3d8e649405",
-      "packagedPatchSha256": "a77b063bc4452324348a532d2b0f016e98517a8d08d65a4531b8ef0ad8b079f7"
-    },
-    {
-      "order": 8,
-      "file": "0.0.116-mtls-user-admission.patch",
-      "branch": "gateway",
-      "authoringOwner": "Veoveo",
-      "expectedBaseTree": "9ccd1611356da3d29288cc49ad06db3d8e649405",
-      "expectedSourceTree": "b9d0916b4a33f36df9590b4eae8184b7d632faec",
-      "packagedPatchSha256": "048b69df7d75ad30e83770ab40c3aa001d1c6ecf4e6197c3ffe2b4d43a366916"
+      "expectedBaseTree": "724881f23873db5b42d760bc65945bace2bf71b8",
+      "expectedSourceTree": "0020919d2c5d2c61230a0a188edaf4469ba9d0f1",
+      "packagedPatchSha256": "edb1ea2783ed23d6c79f9fa1720ff60f2d44efd942107bf120816f829eb2b56d"
     }
-  ]
+  ],
+  "binaries": [
+    {
+      "name": "openshell",
+      "version": "0.1.2",
+      "sourceTree": "26f142d5c3be825e72f4d1a705ecf6aa5d4d6b10",
+      "target": "x86_64-unknown-linux-gnu",
+      "imagePath": "/usr/local/bin/openshell"
+    },
+    {
+      "name": "openshell-gateway",
+      "version": "0.1.2-veoveo.1",
+      "sourceTree": "d87b45d858196dcad1d63d4e3196811667dffdaa",
+      "target": "x86_64-unknown-linux-gnu",
+      "imagePath": "/usr/local/bin/openshell-gateway"
+    },
+    {
+      "name": "openshell-driver-docker",
+      "version": "0.1.2-veoveo.1",
+      "sourceTree": "d87b45d858196dcad1d63d4e3196811667dffdaa",
+      "target": "x86_64-unknown-linux-gnu",
+      "imagePath": "/usr/local/bin/openshell-driver-docker"
+    },
+    {
+      "name": "openshell-supervisor",
+      "version": "0.1.2-veoveo.1",
+      "sourceTree": "0020919d2c5d2c61230a0a188edaf4469ba9d0f1",
+      "target": "x86_64-unknown-linux-gnu",
+      "imagePath": "/openshell-supervisor"
+    },
+    {
+      "name": "openshell-sandbox",
+      "version": "0.1.2-veoveo.1",
+      "sourceTree": "0020919d2c5d2c61230a0a188edaf4469ba9d0f1",
+      "target": "x86_64-unknown-linux-musl",
+      "imagePath": "/openshell-sandbox"
+    }
+  ],
+  "z3": {
+    "version": "5.1.0",
+    "sourceCrate": "z3-src",
+    "sourceCrateVersion": "501.0.0",
+    "feature": "openshell-server/bundled-z3",
+    "linkage": "static",
+    "runtimeAbi": "glibc 2.36"
+  }
 }

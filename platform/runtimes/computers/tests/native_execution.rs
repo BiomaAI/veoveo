@@ -107,13 +107,23 @@ async fn initial_shell_uses_retained_home(runtime: &OpenShellRuntime, binding: &
 #[tokio::test]
 #[ignore = "requires exact native provider binaries and launcher-bearing image; owns an isolated 512 MiB retained home"]
 async fn structured_execution_preserves_values_and_stop_fences_uncertain_descendants() {
-    let mut provider = native_support::Provider::start_with_execution_logging().await;
+    if native_support::registry_child().await {
+        return;
+    }
+    let mut provider = native_support::Provider::start_with_execution_logging(
+        "structured_execution_preserves_values_and_stop_fences_uncertain_descendants",
+    )
+    .await;
     let runtime = &provider.runtime;
     let selected = template::retained_template(provider.image.clone());
     let computer = Uuid::now_v7();
     let binding = Binding::new(computer, selected.fingerprint()).unwrap();
-    let home =
-        block_home::BlockHome::create(provider.dir.clone(), provider.image.clone(), computer);
+    let home = block_home::BlockHome::create(
+        provider.dir.clone(),
+        provider.image.clone(),
+        computer,
+        provider.docker_socket(),
+    );
     let create = LifecycleCheckpoint::create(
         "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),

@@ -205,7 +205,7 @@ designs above.
 | [`apps/website/`](../apps/website/README.md) | public veoveo.ai site, a Cloudflare Worker with static assets; serves the whitepaper from `docs/` |
 | `mcp/` | shared MCP protocol contracts, extensions, and bridges |
 | `platform/` | internal platform services, persistence, and reusable runtimes |
-| `platform/runtimes/computers/` | private OpenShell adapter, retained binding/storage protocol, terminal/exec streams, renewable attachment enforcement and SSH-only CLI bridge; the Computers plan tracks domain/service and installed qualification |
+| `platform/runtimes/computers/` | private OpenShell adapter and matched provider protocol, retained binding/storage checkpoints, terminal/exec streams, renewable attachment enforcement and SSH-only CLI bridge; the owning runtime design declares the coordinated upgrade and native qualification |
 | `servers/computers-mcp/src/file_worker.rs` and `file_worker/` | file worker: transfer authorization, size-limited Artifact bytes, results, original-run containment and production supervision |
 | `servers/computers-mcp/src/io_guard.rs` | shared command/file foreground expiry, runtime deadlines and monotonic byte-limit enforcement |
 | `platform/computers/contract/src/ids.rs` | distinct Computer, execution, file-transfer, automation and interactive-access IDs, CLI pairing and connection IDs; Task projections use foundational `TaskId` |
@@ -215,7 +215,8 @@ designs above.
 | `platform/computers/src/secrets/files.rs` and `file_access.rs` | private authenticated file intent and Task-bound Artifact access; installation key rotation and retry comparison; stores no file bodies or gateway bearers |
 | `platform/computers/src/files/` | private file authorization, encrypted request and capability preparation, one-shot dispatch, live continuation, original-run containment, result settlement, recoverable Task delivery, and metadata-only public Task access through the supervised service |
 | [`platform/computers/execution/`](../platform/computers/execution/DESIGN.md) | private framed argv codec and packaged guest launcher; fixed provider command, confined launch-directory resolution and finite stdin; `files.rs`, `file_io.rs` and `file_confinement.rs` own the local regular-file helper used by the public file worker; named agent authority and Task integration live in the Computers domain and service |
-| `platform/runtimes/computers/provider-patches/Dockerfile` | standalone OpenShell OCI build, verified upstream/patch trees and pinned provider toolchain; compute-host topology is separate |
+| `platform/runtimes/computers/provider-patches/Dockerfile` | matched gateway, driver, supervisor, static sandbox and CLI OCI build, verified upstream/patch trees and pinned compiler/solver inputs; compute-host topology is separate |
+| `platform/runtimes/computers/tests/native_support/profile.rs` | pre-effect admission of exact provider executables, source manifest and companion image for the existing private-DinD native fixtures |
 | `platform/runtimes/computers/tests/native_support/guest_authority.rs` | native TLS-positive, user-authority-negative check for the guest supervisor certificate |
 | `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
 | `platform/store/src/audit/` | partition-selected audit reads, typed append and indexing records, checked profile/target/detail lookups, nominal native sealing bindings in `blocks.rs`, frozen export documents, export receipts and whole-block retention |

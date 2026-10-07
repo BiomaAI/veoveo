@@ -9,7 +9,7 @@
 | Veoveo internal assertions | Computers audience, verified actor and retained source request context; initial expiry bounded by the source access token |
 | WebSocket, RFC 6455 | HTTP/1.1 through the shared terminal-v2 transport; deployment-owned TLS roots and optional client identity |
 | Veoveo terminal v2 | Same-origin one-use attach, binary bytes, resize, replay fence and service-issued renewable deadlines |
-| OpenShell CLI `0.0.116` adapter | Closed browser pairing projection and profile-bound internal binary tunnel; authority remains in the Computers ledger |
+| OpenShell CLI `0.1.2` adapter | Closed browser pairing projection and profile-bound internal binary tunnel; authority remains in the Computers ledger |
 
 The gateway exposes `/computers/{profile}` for list and Create, with exact Computer
 children for read, Start, Stop, terminal ticket and terminal upgrade. The selected

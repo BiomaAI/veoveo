@@ -14,7 +14,7 @@ fn rule(name: &str, host: &str) -> policy::NetworkPolicyRule {
             port: 443,
             ports: vec![443],
             protocol: "tcp".into(),
-            tls: "passthrough".into(),
+            tls: policy::NetworkTlsMode::Skip as i32,
             ..Default::default()
         }],
         binaries: vec![policy::NetworkBinary {
@@ -148,12 +148,13 @@ impl Fixture {
     }
     pub(super) fn get(&mut self, request: api::GetSandboxRequest) -> Reply<api::SandboxResponse> {
         self.calls.push("get");
-        assert_eq!(request.workspace, "computers");
+        assert!(request.workspace_scope == crate::client::workspace_scope("computers"));
         if request.name == self.source.metadata.as_ref().unwrap().name && self.retired {
             panic!("restoration must not read the retired source");
         }
         Ok(Response::new(api::SandboxResponse {
             sandbox: Some(self.by_name(&request.name).clone()),
+            ..Default::default()
         }))
     }
     pub(super) fn config(
@@ -161,11 +162,11 @@ impl Fixture {
         request: policy::GetSandboxConfigRequest,
     ) -> Reply<policy::GetSandboxConfigResponse> {
         self.calls.push("config");
-        let config = if request.sandbox_id == "sandbox-old" {
+        let config = if request.name == self.source.metadata.as_ref().unwrap().name {
             assert!(!self.retired, "restoration must not read retired settings");
             &self.old_config
         } else {
-            assert_eq!(request.sandbox_id, "sandbox-new");
+            assert_eq!(request.name, self.target.metadata.as_ref().unwrap().name);
             &self.new_config
         };
         Ok(Response::new(config.clone()))
@@ -175,9 +176,9 @@ impl Fixture {
         request: api::GetSandboxPolicyStatusRequest,
     ) -> Reply<api::GetSandboxPolicyStatusResponse> {
         self.calls.push("loaded");
-        assert_eq!(request.workspace, "computers");
+        assert!(request.workspace_scope == crate::client::workspace_scope("computers"));
         assert!(!request.global);
-        let old = self.by_name(&request.name).metadata.as_ref().unwrap().id == "sandbox-old";
+        let old = self.by_name(&request.sandbox).metadata.as_ref().unwrap().id == "sandbox-old";
         assert!(
             !old || !self.retired,
             "restoration must not query retired policy status"
@@ -209,7 +210,7 @@ impl Fixture {
     ) -> Reply<BoxStream<api::SandboxStreamEvent>> {
         self.calls.push("watch");
         self.watches += 1;
-        assert_eq!(request.id, "sandbox-new");
+        assert_eq!(request.sandbox, self.target.metadata.as_ref().unwrap().name);
         assert!(request.follow_status);
         assert!(!request.follow_logs);
         assert!(!request.stop_on_terminal);
@@ -219,6 +220,7 @@ impl Fixture {
                 payload: Some(api::sandbox_stream_event::Payload::Sandbox(
                     self.target.clone(),
                 )),
+                ..Default::default()
             }))
             .unwrap();
         self.sender = Some(sender);
@@ -234,8 +236,8 @@ impl Fixture {
         self.calls.push("update");
         self.updates += 1;
         assert!(self.sender.is_some(), "subscribe before mutation");
-        assert_eq!(request.name, self.target.metadata.as_ref().unwrap().name);
-        assert_eq!(request.workspace, "computers");
+        assert_eq!(request.sandbox, self.target.metadata.as_ref().unwrap().name);
+        assert!(request.workspace_scope == crate::client::workspace_scope("computers"));
         assert_eq!(
             request.expected_resource_version,
             self.target.metadata.as_ref().unwrap().resource_version
@@ -302,6 +304,7 @@ impl Fixture {
             .unwrap()
             .try_send(Ok(api::SandboxStreamEvent {
                 payload: Some(payload),
+                ..Default::default()
             }));
         if self.fault == Fault::LostReply {
             return Err(Status::unavailable(SECRET));
@@ -597,7 +600,7 @@ async fn checkpoint_rejects_noncanonical_data_and_cross_provider_instance_proces
     wrong = expected.clone();
     wrong.phase = Phase::Starting;
     rejected(&bytes, &bindings().0, &wrong);
-    for fault in 0..9 {
+    for fault in 0..10 {
         let mut invalid = PolicyCheckpoint::decode(bytes.as_slice()).unwrap();
         match fault {
             0 => invalid.version += 1,
@@ -609,6 +612,7 @@ async fn checkpoint_rejects_noncanonical_data_and_cross_provider_instance_proces
             6 => invalid.config.as_mut().unwrap().workspace = "different".into(),
             7 => invalid.config.as_mut().unwrap().version = 0,
             8 => invalid.config.as_mut().unwrap().global_policy_version = 1,
+            9 => invalid.version = 1,
             _ => unreachable!(),
         }
         rejected(&invalid.encode_to_vec(), &bindings().0, &expected);
@@ -872,7 +876,7 @@ async fn capture_rejects_static_changes_restrictions_global_policy_and_ambiguous
                         .unwrap()
                         .endpoints[0];
                     endpoint.protocol = "rest".into();
-                    endpoint.enforcement = "audit".into();
+                    endpoint.enforcement = policy::NetworkEnforcementMode::Audit as i32;
                 }
             }
         });

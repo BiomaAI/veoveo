@@ -60,11 +60,18 @@ async fn until(reader: &mut tokio::process::ChildStdout, marker: &str) {
 #[tokio::test]
 #[ignore = "requires pinned stock CLI, exact provider binaries and native Computer image"]
 async fn established_stock_cli_crosses_provider_admission_token_expiry() {
+    if crate::native_support::registry_child().await {
+        return;
+    }
     let binary = PathBuf::from(
         std::env::var_os("VEOVEO_COMPUTERS_NATIVE_CLI").expect("pinned stock CLI path required"),
     );
     assert!(binary.is_absolute());
-    let (mut provider, endpoint) = Provider::start_with_session_ttl(3).await;
+    let (mut provider, endpoint) = Provider::start_with_session_ttl(
+        3,
+        "stock_cli::established_stock_cli_crosses_provider_admission_token_expiry",
+    )
+    .await;
     let version = command(&binary, &provider)
         .arg("--version")
         .output()
@@ -73,7 +80,7 @@ async fn established_stock_cli_crosses_provider_admission_token_expiry() {
     assert!(version.status.success());
     assert_eq!(
         String::from_utf8_lossy(&version.stdout).trim(),
-        "openshell 0.0.116"
+        "openshell 0.1.2"
     );
     let mtls = provider
         .dir
@@ -126,7 +133,15 @@ async fn established_stock_cli_crosses_provider_admission_token_expiry() {
     .unwrap();
     let access = runtime.open_shell_access(&binding, lease).await.unwrap();
     let admission = access.create_ssh_session(&ready.sandbox_id).await.unwrap();
-    let expires = UNIX_EPOCH + Duration::from_millis(admission.expires_at_ms as u64);
+    let timestamp = admission
+        .expiration_time
+        .expect("bounded session expiration");
+    let seconds = u64::try_from(timestamp.seconds).expect("nonnegative session expiration");
+    let nanos = u32::try_from(timestamp.nanos).expect("nonnegative expiration nanos");
+    assert!(nanos < 1_000_000_000);
+    let expires = UNIX_EPOCH
+        .checked_add(Duration::new(seconds, nanos))
+        .expect("representable session expiration");
     assert!(expires.duration_since(SystemTime::now()).unwrap() <= Duration::from_secs(3));
     access
         .revoke_ssh_session(zeroize::Zeroizing::new(admission.token))
@@ -177,6 +192,6 @@ async fn established_stock_cli_crosses_provider_admission_token_expiry() {
         ready.main_process_instance_id
     );
     drop(cli);
-    fs::write(provider.dir.join("stock-cli-result.txt"), "stock 0.0.116 CLI retains shell and input/output across native three-second SSH admission credential expiry; this does not qualify Veoveo renewal, revocation or public ingress\n").unwrap();
+    fs::write(provider.dir.join("stock-cli-result.txt"), "stock 0.1.2 CLI retains shell and input/output across native three-second SSH admission credential expiry; this does not qualify Veoveo renewal, revocation or public ingress\n").unwrap();
     provider.assert_running();
 }

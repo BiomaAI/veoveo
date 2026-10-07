@@ -54,7 +54,7 @@ pub use allocation::{AllocationConfig, HomeAllocator, RetainedHandoff};
 // Private installation protocol shared with the privileged storage service.
 pub use allocation::wire as storage_protocol;
 pub use binding::Binding;
-pub use client::{GATEWAY_VERSION, GatewayConfig, OpenShellRuntime};
+pub use client::{CLI_VERSION, GATEWAY_VERSION, GatewayConfig, OpenShellRuntime};
 pub use execution::{ExecChunk, ExecInput, ExecIntent, ExecResult, OutputStream};
 pub use forward_tunnel::ForwardTunnel;
 pub use lease::{AttachmentLease, LeaseAuthority, MAX_AUTHORITY_STALENESS, MAX_RENEWAL_INTERVAL};

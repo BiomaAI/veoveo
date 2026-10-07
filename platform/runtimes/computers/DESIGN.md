@@ -1,34 +1,94 @@
 # Computers Provider Runtime
 
-Status: native lifecycle, retained terminal and renewable runtime leases are qualified
-in isolated fixtures. The owning service composes browser grants with this adapter;
-public ingress and installed qualification remain in
-[Computers](../../computers/DESIGN.md#qualification-limits).
+The private adapter admits one OpenShell 0.1.2 provider profile. Consumer compilation
+and owning controls qualify typed admission, identity fencing and private serialization.
+Source-built provider and native acceptance are separate release gates; public ingress
+and installed acceptance belong to [Computers](../../computers/DESIGN.md#qualification-limits).
 
 ## Standards And Protocols
 
 | Boundary | Selected profile |
 |---|---|
-| OpenShell `0.0.116` protobuf/gRPC | Vendored protocol verified by `protocol/SHA256SUMS`; internal generated client/server types over mTLS |
-| OpenShell retained Docker provider | Candidate gateway `0.0.117-veoveo.2` and supervisor `0.0.117-dev.5+gea0c605`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
+| OpenShell `0.1.2` protobuf/gRPC | Vendored protocol verified by `protocol/SHA256SUMS`; internal generated client/server types over mTLS |
+| OpenShell retained Docker provider | Candidate gateway/driver/supervisor/sandbox `0.1.2-veoveo.1`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
 | SSH and terminal metadata | Byte-preserving canonical-main attachment with private `openshell.terminal.v1` ReplayComplete metadata; explicit history fence |
 | `veoveo.ai/computer-storage/v1` | Bounded mTLS prepare/restore/handoff/abandon adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
-| Veoveo private policy checkpoint protobuf v1 | `protocol/maintenance.proto`; canonical Prost encoding of exact provider/source/run and selected gateway version with the generated provider configuration. Encrypted journal storage is required; this format grants no authority |
+| Veoveo private policy checkpoint protobuf v2 | `protocol/maintenance.proto`; canonical Prost encoding of exact provider/source/run and selected gateway version with the generated provider configuration. Encrypted journal storage is required; this format grants no authority |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
 | `veoveo.ai/computer-files/v1` | Private framed JSON header with raw binary file stream and typed SHA-256 receipt; regular files up to 64 MiB, no archive extraction, fixed guest helper command |
 | Rust 1.99.0, Tonic and Prost | Provider builds use the official Bookworm compiler image; qualified workspace Tonic `0.14.6` and Prost `0.14.4`; generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
 | Docker volume-plugin API v1; Engine HTTP API `1.53` | Selected volume methods and registered-container enumeration; the worker fixture composes the production allocator with the native provider |
 
-Upstream stable versions were checked through crates.io and the NVIDIA GitHub
-release API on 2026-09-09. Workspace `tokio-rustls` remains on its qualified
-`0.26.4` pin; advancing it to `0.26.5` is independent of this adapter port.
-OpenShell `0.0.116` remains the latest published release at this checkpoint.
-The provider patches implement retained restart, process groups, owned terminals,
-exit-event correlation, log bounds, explicit replay completion, and Docker volume
-NoCopy. They require
-their own qualification and upstream/removal tracking before release.
+OpenShell's selected stable release is
+[v0.1.2](https://github.com/NVIDIA/OpenShell/releases/tag/v0.1.2), commit
+`6648bd0c290efbc41ba131ee9831ee45cd431f94`. The exact licensed protocol tree and
+hashes bind the generated client to that release. The provider package declares the
+patched binary/ABI graph and owning qualification matrix in
+[its README](provider-patches/README.md).
+
+## Installation And Persistence Compatibility
+
+Install the gateway, Docker driver, supervisor companion and static musl sandbox as
+one matched `0.1.2-veoveo.1` profile. The adapter checks both gateway and driver
+versions/capabilities before effects. Generated requests select the checked binding's
+provider name and explicit workspace; public Computer UUIDs and grants keep their
+existing domain identity. Public callers cannot provide private provider selectors.
+
+The private protobuf cut changes network policy TLS, enforcement and access from
+strings to enums. Timestamp and duration fields also use the upstream well-known
+messages, and launch authentication/runtime generations carry the current run's
+credentials and identity. Canonical hashes cover encoded fields rather than a semantic
+cross-version normalization: templates that use changed field encodings receive new
+fingerprints. Existing simple-template fingerprint goldens remain stable because
+those fields are absent. Installations must materialize and admit their complete
+current-format template catalog before accepting work.
+
+The encrypted maintenance payload uses PolicyCheckpoint version 2 and fingerprint
+domain `veoveo-private-policy-checkpoint-v2`. Its configuration body and selected
+gateway version affect the bytes and fingerprint. Decoders reject version 1, another
+provider profile and unknown/noncanonical encoding. Lifecycle JSON envelope version 1
+keeps its field shape and exact resource/process identity checks.
+
+A coordinated drain is required. Settle pending lifecycle and maintenance operations
+with the qualified previous workers before changing provider and readers. An unresolved
+outcome preserves its Computer fence; an expired wait never authorizes another
+mutation. Keep the prior binaries, encrypted journals and retained data available for
+recovery. Mixed maintenance readers are unsupported. The upgrade does not convert
+old private checkpoints or rewrite retained files. Retained volume names remain bound
+to the public Computer UUID. A rollback requires the matched old provider/readers and
+a catalog whose bindings and encrypted checkpoints they admit; new-format maintenance
+must finish or remain fenced before rollback. Image/home data compatibility requires
+its own declared retained-maintenance transition.
+
+## Provider Process And Build Profile
+
+The companion supervisor runs with its own UID/GID, all capabilities dropped,
+no-new-privileges and a read-only root. It mounts read-only channel/state volumes,
+never the retained home or Docker socket, and shares no PID/cgroup namespace. Host
+networking refers only to the existing private compute-host/DinD namespace. The
+workload runs `network=none` and enters a capability-free static musl sandbox boundary.
+Installed companion gRPC uses loopback with an admitted IP SAN. Native fixtures bind
+an observed private bridge gateway IP and ephemeral port with that exact IP SAN; they
+do not qualify the installed host's namespace or mount topology.
+
+Both containers receive the template CPU/memory maxima and configured PIDs maximum
+separately. They have zero reservations and no pinned CPUs. The companion therefore
+adds a second container ceiling, read-only staging volume and bounded log storage;
+the two maxima do not imply one shared template-memory allowance. The compute host's
+finite aggregate ceiling supplies pressure containment. Retained-Computer quotas
+count allocations and do not promise memory reservations. Stop/retirement and cleanup
+must settle all supervised resources while the storage allocator independently
+establishes physical writer exclusion.
+
+Gateway Z3 uses upstream's `bundled-z3` feature with locked stable Z3 5.1.0 source
+(`z3-src` 501.0.0). It builds a static library with the selected Rust 1.99 Bookworm
+compiler, CMake and Python build inputs. Gateway tests/builds select the same feature.
+ELF closure checks reject a dynamic libz3 dependency before the image omits it.
+The GNU supervisor/gateway use the selected glibc 2.36 runtime; the musl sandbox must
+have neither an interpreter nor DT_NEEDED dependencies. Provider image compilation,
+ELF/version closure and the affected native cases remain qualification gates.
 
 Russh enables the existing Ring crypto backend and omits its unused RSA/compression
 defaults. Canonical-main pins an Ed25519 host identity. The stable Russh release
@@ -403,7 +463,7 @@ Reconciliation observes the expected stopped and restarted epochs without dispat
 This fixture uses the container writable layer. It does not qualify retained external
 volumes, host restart, storage quotas, renewable access, stock CLI or public ingress.
 
-The stock CLI fixture uses the verified `0.0.116` binary supplied by
+The stock CLI fixture uses the verified `0.1.2` binary supplied by
 `VEOVEO_COMPUTERS_NATIVE_CLI`. It registers an isolated mTLS gateway with a three-second
 SSH session TTL. The unmodified client keeps the same shell and exchanges input/output
 after that admission credential expires. The pinned provider validates SSH credentials

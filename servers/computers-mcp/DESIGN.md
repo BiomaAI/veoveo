@@ -10,7 +10,7 @@
 | Native OpenShell | Private mTLS/protobuf adapter in `platform/runtimes/computers`; its exact provider patch graph governs the selected Docker profile |
 | MCP 2026-07-28, repository contract revision 4 | Stateless authenticated lifecycle tools, resources, Tasks and request-scoped subscriptions |
 | WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, bounded binary terminal, resize, replay fence and sequenced renewal deadlines; the gateway authenticates the upgrade |
-| Stock OpenShell CLI `0.0.116`, gRPC over HTTP/2 over WebSocket | Restricted internal adapter for five qualified SSH methods; private Ready/Lease controls are removed by the public edge before reaching the stock client |
+| Stock OpenShell CLI `0.1.2`, gRPC over HTTP/2 over WebSocket | Restricted internal adapter for five selected SSH methods; private Ready/Lease controls are removed by the public edge before reaching the stock client |
 | JSON Schema 2020-12 | Shared public DTOs in `platform/computers/contract`; raw provider messages are never public request inputs |
 | `veoveo.ai/computers-service/v3` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
 | OCI Linux AMD64 | `computers-mcp` Bake target, shared Veoveo Rust compiler and digest-pinned Debian trixie runtime with signed archive snapshot `20260910T000000Z` |
@@ -28,6 +28,15 @@ absence, transport loss and a changed resource are errors, not restart evidence.
 Offline inventory continues to expose retained records without claiming a fresh
 provider observation. Browser grants and terminal setup repeat current authority
 and process checks after recovery.
+
+
+OpenShell 0.1.2 and patched provider 0.1.2-veoveo.1 form one selected private profile.
+Source-built provider, native CLI/pairing/tunnel, retained restart and maintenance
+acceptance must run against that profile. Consumer fixture controls qualify typed
+Computer UUID admission and translation to the persisted checked provider name and
+workspace. They reject another Computer, unknown selectors and caller-supplied
+private workspaces before provider effects. The public grant and policy identity
+remain unchanged. The runtime declares the [coordinated drain and checkpoint format](../../platform/runtimes/computers/DESIGN.md#installation-and-persistence-compatibility).
 
 ## Library Features
 

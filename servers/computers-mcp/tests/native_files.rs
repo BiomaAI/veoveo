@@ -136,6 +136,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         "veoveo_computers_mcp=debug",
     )
     .unwrap();
+    provider::preflight().await;
     let db = support::database().await;
     let mut control = support::automation::control();
     let file_tool = veoveo_mcp_contract::LocalToolName::parse("transfer_file").unwrap();

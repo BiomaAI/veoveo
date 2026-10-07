@@ -1,6 +1,9 @@
 use crate::{
     Binding, canonical,
-    protocol::{sandbox::v1::SandboxPolicy, v1 as api},
+    protocol::{
+        sandbox::v1::{NetworkEnforcementMode, SandboxPolicy},
+        v1 as api,
+    },
     storage::PersistentHome,
 };
 pub use api::SandboxPhase as Phase;
@@ -166,10 +169,10 @@ impl DevelopmentTemplate {
             }
             for e in &rule.endpoints {
                 if matches!(e.protocol.to_ascii_lowercase().as_str(), "" | "tcp") {
-                    if !e.enforcement.is_empty() {
+                    if e.enforcement != NetworkEnforcementMode::Unspecified as i32 {
                         return Err(fail);
                     }
-                } else if e.enforcement != "enforce" {
+                } else if e.enforcement != NetworkEnforcementMode::Enforce as i32 {
                     return Err(fail);
                 }
             }

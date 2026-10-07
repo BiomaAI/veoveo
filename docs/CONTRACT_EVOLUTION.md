@@ -21,7 +21,7 @@ unimplemented or unqualified capability.
 | OAuth security, RFC 9700; native applications, RFC 8252 | Design guidance for scoped authority, safe renewal, and native-client redirects; these decisions do not certify every OAuth feature |
 | WebSocket, RFC 6455; SSH | Terminal and CLI attachment transports; Veoveo lease, replay, and revocation controls are repository-owned extensions |
 | gRPC and Protocol Buffers | Internal OpenShell adapter protocol pinned with the selected provider artifacts; a watch alone is not a durable delivery guarantee |
-| OpenShell `0.0.116` | Reviewed handoff baseline, including explicitly recorded provider patches; broader compatibility remains unqualified |
+| OpenShell `0.1.2` | Selected private protocol; matched `0.1.2-veoveo.1` provider candidate requires source-built and native qualification before installation |
 | JSON Schema `2020-12` | Generated controlled-domain contracts |
 | OCI, Helm, Git content identities | Existing exact artifact publication and installation-owned deployment boundaries |
 | NVIDIA GPU APIs, WebGPU, WebGL | Hardware workload and headed visual evidence remain required; headless behavior checks have a separate evidence class |
@@ -221,6 +221,15 @@ use declared versioned transitions when consumers cannot change together. Docume
 the supported window, owner, migration, downgrade limits, telemetry, and retirement
 condition. An adapter projects the canonical domain and policy. It cannot disguise
 unsupported Tasks, weaken authentication, or select a legacy profile silently.
+
+The Computers runtime selects one matched gateway, driver, supervisor and sandbox
+profile. Its private maintenance checkpoint version 2 requires a coordinated drain:
+settle pending operations with the qualified previous workers before replacing
+provider artifacts and readers. Unresolved outcomes keep their resource fences and
+recovery inputs. Mixed readers and historical checkpoint conversion are unsupported.
+The [owning runtime design](../platform/runtimes/computers/DESIGN.md#installation-and-persistence-compatibility)
+defines template admission, retained-data recovery and rollback limits. Public Computer
+identities and grants keep their existing contract.
 
 ## CE-08: Deployment Boundaries Need A Concrete Purpose
 

@@ -71,7 +71,9 @@ impl OpenShellAccess {
                     .get_sandbox(request(
                         api::GetSandboxRequest {
                             name: self.binding.name(),
-                            workspace: self.runtime.workspace.clone(),
+                            workspace_scope: crate::client::workspace_scope(
+                                &self.runtime.workspace,
+                            ),
                         },
                         10,
                     ))
@@ -148,13 +150,15 @@ impl OpenShellAccess {
             .metadata
             .as_mut()
             .ok_or(RuntimeFailure::BindingMismatch)?;
-        metadata.created_at_ms = 0;
+        metadata.created_time = None;
         metadata.labels.clear();
         metadata.resource_version = 0;
         metadata.annotations.clear();
-        metadata.deletion_timestamp_ms = 0;
+        metadata.deletion_time = None;
+        sandbox.created_from_workload_template = None;
         sandbox.spec = None;
         sandbox.status = None;
+        response.service_urls.clear();
         Ok(response)
     }
 
@@ -170,20 +174,26 @@ impl OpenShellAccess {
             .lease
             .enforce(crate::terminal::issue_session(
                 self.runtime.client.clone(),
-                self.sandbox_id.clone(),
+                self.binding.name(),
+                self.runtime.workspace.clone(),
             ))
             .await?;
         let token = guard.into_token();
         let access_expires_at_ms = self.lease.expires_at().ok().and_then(system_time_ms);
         let accepted = response.sandbox_id == self.sandbox_id
             && valid_token(&token)
-            && response.expires_at_ms > now_ms()
+            && crate::client::timestamp_millis(response.expiration_time.as_ref())
+                .is_some_and(|expiry| expiry > now_ms())
             && access_expires_at_ms.is_some();
         if !accepted {
             let _ = self.revoke_inner(token).await;
             return Err(RuntimeFailure::TerminalFailed);
         }
-        response.expires_at_ms = response.expires_at_ms.min(access_expires_at_ms.unwrap());
+        response.expiration_time = Some(crate::client::timestamp_from_millis(
+            crate::client::timestamp_millis(response.expiration_time.as_ref())
+                .unwrap()
+                .min(access_expires_at_ms.unwrap()),
+        ));
         response.token = token.to_string();
         // A bearer-mode OpenShell CLI uses the registered external gateway URL.
         // Keep the private provider listener out of the public response anyway.
@@ -211,6 +221,7 @@ impl OpenShellAccess {
             .revoke_ssh_session(request(
                 api::RevokeSshSessionRequest {
                     token: token.to_string(),
+                    ..Default::default()
                 },
                 5,
             ))
@@ -226,6 +237,7 @@ impl OpenShellAccess {
         self.current_sandbox().await?;
         crate::forward_tunnel::open(
             self.runtime.clone(),
+            self.binding.name(),
             self.sandbox_id.clone(),
             self.lease.clone(),
             stream,

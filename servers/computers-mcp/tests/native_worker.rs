@@ -104,6 +104,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         native_service_support::cleanup();
         return;
     }
+    provider::preflight().await;
     let db = support::database().await;
     support::policy::install_default(&db.a).await;
     let image = std::env::var("VEOVEO_COMPUTERS_NATIVE_IMAGE").expect("pinned Computer image");

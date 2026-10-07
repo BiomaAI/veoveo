@@ -44,8 +44,9 @@ pub(super) fn response(
 fn init(sandbox: &str) -> api::TcpForwardFrame {
     api::TcpForwardFrame {
         payload: Some(api::tcp_forward_frame::Payload::Init(api::TcpForwardInit {
-            sandbox_id: sandbox.into(),
-            service_id: format!("ssh-proxy:{sandbox}"),
+            sandbox: sandbox.into(),
+            service_id: "ssh-proxy:sandbox-1".into(),
+            workspace: "computers".into(),
             target: Some(api::tcp_forward_init::Target::Ssh(api::SshRelayTarget {})),
             authorization_token: "local-fixture-token".into(),
         })),
@@ -83,7 +84,7 @@ async fn forward_tunnel_renews_and_revokes_under_bidirectional_backpressure() {
         .await
         .unwrap();
     let (send, receive) = tokio::sync::mpsc::channel(1);
-    send.send(init("sandbox-1")).await.unwrap();
+    send.send(init(&binding().name())).await.unwrap();
     let input = stream::unfold(receive, |mut receive| async move {
         receive.recv().await.map(|frame| (frame, receive))
     });
