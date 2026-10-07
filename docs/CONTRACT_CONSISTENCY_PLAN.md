@@ -92,8 +92,14 @@ and fresh state before rollout.
 Media publication requires the reviewed host-tracing correction in Phase 3. The
 patch is unapplied pending the user's required host-contract approval, and real
 provider generation is unqualified. Computers' isolated native maintenance profile
-passes upgrade, recovery and rollback. The wider provider-process suites and
-installed execution profile remain unqualified.
+passes upgrade, recovery and rollback. Its current command and file journeys pass
+against the real provider. The worker recovery journey remains unqualified after
+its stack repair exposed a missing stock CLI prerequisite. The wider provider-process
+suites and installed execution profile remain unqualified.
+
+Linux Map qualification has 175 distinct passing cases; five product cases require
+the protected shared-host result writer correction. Recording's 31 normal native
+cases pass after aligning its registration and shared catalog fixtures.
 
 The accepted Foundations installation covered sixteen Rust servers, eighteen
 participating knowledge sources and the composed flight at `6d4cd2c5`. Headed
@@ -2772,6 +2778,14 @@ TaskRuntime and deployment-smoke with Helm and GNU timeout. GPU suites use hardw
 `recovery_classes_and_leases_are_enforced` now uses a two-second lease fixture and
 passes in the full current TaskRuntime suite. Report a future parallel failure and
 any justified diagnostic replay separately.
+
+Computers' provider profile still uses OpenShell `0.0.116`, while the latest stable
+upstream release is [`0.1.2`](https://github.com/NVIDIA/OpenShell/releases/tag/v0.1.2).
+The runtime owner must update its protocol inputs and retained provider repairs;
+the deployer qualifies the matched gateway, supervisor, driver, stock CLI and
+affected template/host images with the current Rust toolchain. Preserve every
+declared containment and recovery guarantee. Qualify the upgraded profile before
+closing F23 or A09; older profile evidence does not establish the new profile.
 
 Publish the complete affected image closure for the final wire/storage cut: servers,
 gateway, Console/Workspace, agents, SDK servers, runners, simulation/UAV consumers and
