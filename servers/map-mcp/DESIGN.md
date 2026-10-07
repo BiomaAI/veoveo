@@ -121,7 +121,9 @@ time and modifying principal. A change to provenance requires a full read even w
 the summary text stays unchanged.
 
 Layers, features and publications require `map:feature:read`. Their SQL selects the
-current tenant, selected Work Context and label clearance before decoding or pagination.
+current tenant, selected Work Context, classification and label clearance before decoding
+or pagination. The access descriptor combines classification with data labels; changing
+only parent access changes feature and publication observation revisions.
 A feature or publication read selects its body and current parent layer in one database
 statement. The observation records `selected-work-context-members`: owners and grant
 holders still need membership in the selected context. Layer changes revise child access

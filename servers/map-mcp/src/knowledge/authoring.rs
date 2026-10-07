@@ -237,13 +237,15 @@ fn checked_layer(
             && layer.classification.as_ref().map(ToString::to_string) == row.classification,
         "layer document disagrees with selected identity, revision or access"
     );
+    let mut labels = layer.data_labels.clone();
+    labels.extend(layer.classification.iter().cloned());
     let access = AccessDescriptor {
         tenant: scope.identity.tenant_key.parse()?,
         work_context: layer.work_context.clone(),
         read_policy: ReadPolicy::SelectedWorkContextMembers {},
         owner,
         grants: vec![],
-        data_labels: layer.data_labels.iter().cloned().collect(),
+        data_labels: labels.into_iter().collect(),
         expires_at: None,
     };
     Ok((layer, access))

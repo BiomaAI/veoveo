@@ -204,14 +204,66 @@ async fn authoring_knowledge_uses_current_parent_access_before_decoding_and_page
         let mut wrong_context = identity.clone();
         wrong_context.authority.work_context = "other".parse().unwrap();
         assert!(read(&catalog, &analytics, &wrong_context, &scope, &member).await.unwrap().is_none());
+        // A classification-only parent update changes access without rewriting children.
+        let prior_feature = read(&catalog, &analytics, &identity, &scope, &member).await.unwrap().unwrap().document().unwrap();
+        let prior_publication = read(&catalog, &analytics, &identity, &scope, &publication_address).await.unwrap().unwrap().document().unwrap();
+        let mut classified = authoring.layer(&identity, &scope, &layer.layer_id).await.unwrap().unwrap();
+        assert!(classified.data_labels.is_empty());
+        classified.classification = Some("secret".parse().unwrap());
+        let hub = std::sync::Arc::new(veoveo_mcp_contract::SubscriptionHub::new());
+        let mut changes = hub.listen();
+        let stop = tokio_util::sync::CancellationToken::new();
+        let observer = tokio::spawn(crate::resource_changes::observe(db.b.clone(), hub, stop.clone()));
+        assert!(matches!(tokio::time::timeout(Duration::from_secs(30), changes.recv()).await.unwrap().unwrap(), veoveo_mcp_contract::ResourceUpdate::Reconcile));
+        while changes.try_recv().is_ok() {}
+        db.a.client().query(include_str!("../queries/knowledge/tests/authoring_knowledge_uses_current_parent_access_before_decoding_and_pages_features/classify_parent.surql"))
+            .bind(("classification", "secret"))
+            .bind(("canonical_json", serde_json::to_string(&classified).unwrap()))
+            .await.unwrap().check().unwrap();
+        assert!(matches!(tokio::time::timeout(Duration::from_secs(30), changes.recv()).await.unwrap().unwrap(), veoveo_mcp_contract::ResourceUpdate::Reconcile));
+        stop.cancel();
+        observer.await.unwrap();
+        let mut cleared = identity.clone();
+        cleared.actor.data_labels.insert("secret".parse().unwrap());
+        let before = |address: &MapKnowledgeMember| match address {
+            MapKnowledgeMember::Layer { .. } => MapKnowledgeMember::Layer {
+                layer: "feature-layer-00000000-0000-7000-8000-000000000001".parse().unwrap(),
+            },
+            MapKnowledgeMember::Feature { layer, .. } => MapKnowledgeMember::Feature {
+                layer: layer.clone(), feature: "feature-00000000-0000-7000-8000-000000000001".parse().unwrap(),
+            },
+            MapKnowledgeMember::Publication { layer, .. } => MapKnowledgeMember::Publication {
+                layer: layer.clone(), publication: "publication-00000000-0000-7000-8000-000000000001".parse().unwrap(),
+            },
+            _ => unreachable!("authoring fixture member"),
+        };
+        for address in [&layer_address, &member, &publication_address] {
+            assert!(read(&catalog, &analytics, &identity, &scope, address).await.unwrap().is_none());
+            let collection = address.collection();
+            let first_page = MapKnowledgePageUri::new(collection);
+            let continuation = MapKnowledgePageUri::new(collection).with_cursor(MapKnowledgeCursor::after(before(address))).unwrap();
+            assert!(enumerate(&catalog, &analytics, &identity, &scope, &first_page).await.unwrap().items.is_empty());
+            assert!(enumerate(&catalog, &analytics, &identity, &scope, &continuation).await.unwrap().items.is_empty());
+            assert!(!enumerate(&catalog, &analytics, &cleared, &scope, &first_page).await.unwrap().items.is_empty());
+            assert!(!enumerate(&catalog, &analytics, &cleared, &scope, &continuation).await.unwrap().items.is_empty(), "cleared continuation must select a classified member");
+            let allowed = read(&catalog, &analytics, &cleared, &scope, address).await.unwrap().unwrap().document().unwrap().1;
+            assert_eq!(allowed.access().unwrap().data_labels, vec!["secret".parse().unwrap()]);
+        }
+        for (address, prior) in [(&member, prior_feature), (&publication_address, prior_publication)] {
+            let current = read(&catalog, &analytics, &cleared, &scope, address).await.unwrap().unwrap().document().unwrap();
+            assert_eq!(prior.0, current.0, "parent access cannot rewrite child summaries");
+            assert_ne!(prior.1.revision(), current.1.revision(), "parent classification changes child access revisions");
+        }
         // A malformed denied parent and its 105 children must never reach decoding.
         db.a.client().query(include_str!("../queries/knowledge/tests/authoring_knowledge_uses_current_parent_access_before_decoding_and_pages_features/statement_1.surql")).await.unwrap().check().unwrap();
         for collection in [MapKnowledgeCollection::Layers, MapKnowledgeCollection::Features, MapKnowledgeCollection::Publications] {
             assert!(enumerate(&catalog, &analytics, &identity, &scope, &MapKnowledgePageUri::new(collection)).await.unwrap().items.is_empty());
         }
-        assert!(read(&catalog, &analytics, &identity, &scope, &publication_address).await.unwrap().is_none());
-        let mut cleared = identity;
-        cleared.actor.data_labels.insert("secret".parse().unwrap());
+        for address in [&layer_address, &member, &publication_address] {
+            assert!(read(&catalog, &analytics, &identity, &scope, address).await.unwrap().is_none());
+            let continuation = MapKnowledgePageUri::new(address.collection()).with_cursor(MapKnowledgeCursor::after(before(address))).unwrap();
+            assert!(enumerate(&catalog, &analytics, &identity, &scope, &continuation).await.unwrap().items.is_empty());
+        }
         assert!(read(&catalog, &analytics, &cleared, &scope, &member).await.is_err());
     }).await.expect("Map knowledge qualification exceeded 120 seconds");
 }
