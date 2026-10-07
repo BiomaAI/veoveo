@@ -19,6 +19,375 @@ use veoveo_recording_mcp::{
 use veoveo_recording_store::RecordingRepository;
 use veoveo_recording_store::{RecordingLayerId, RecordingReadGrantClass};
 
+fn redap_request<T>(body: T, token: &str) -> tonic::Request<T> {
+    let mut request = tonic::Request::new(body);
+    request
+        .metadata_mut()
+        .insert("authorization", format!("Bearer {token}").parse().unwrap());
+    request
+}
+
+struct RedapWire {
+    _server: RedapServerTask,
+    client: re_protos::cloud::v1alpha1::rerun_cloud_service_client::RerunCloudServiceClient<
+        tonic::transport::Channel,
+    >,
+}
+
+struct RedapServerTask(tokio::task::JoinHandle<()>);
+
+impl Drop for RedapServerTask {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+impl RedapWire {
+    async fn new(manager: &PlaybackManager) -> Self {
+        use re_protos::cloud::v1alpha1::{
+            rerun_cloud_service_client::RerunCloudServiceClient,
+            rerun_cloud_service_server::RerunCloudServiceServer,
+        };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let incoming = async_stream::stream! {
+            loop { yield listener.accept().await.map(|(stream, _)| stream); }
+        };
+        let service = manager.scoped_redap_service();
+        let server = RedapServerTask(tokio::spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(RerunCloudServiceServer::new(service))
+                .serve_with_incoming(incoming)
+                .await
+                .unwrap();
+        }));
+        let channel = tonic::transport::Endpoint::from_shared(format!("http://{address}"))
+            .unwrap()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(5))
+            .connect()
+            .await
+            .unwrap();
+        let client = RerunCloudServiceClient::new(channel);
+        Self {
+            _server: server,
+            client,
+        }
+    }
+
+    async fn query(
+        &mut self,
+        token: &str,
+        dataset: RecordingDatasetId,
+        recording: Option<RecordingId>,
+    ) -> Vec<re_protos::common::v1alpha1::DataframePart> {
+        use re_protos::{
+            cloud::v1alpha1::{FetchChunksRequest, ext::QueryDatasetRequest},
+            common::v1alpha1::ext::ScanParameters,
+            headers::RerunHeadersInjectorExt as _,
+        };
+        let body = QueryDatasetRequest {
+            segment_ids: recording
+                .into_iter()
+                .map(|id| id.to_string().into())
+                .collect(),
+            scan_parameters: Some(ScanParameters {
+                columns: FetchChunksRequest::required_column_names(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let mut stream = self
+            .client
+            .query_dataset(redap_request(body.into(), token).with_entry_id(
+                re_log_types::EntryId::from(re_tuid::Tuid::from_bytes(
+                    *dataset.as_uuid().as_bytes(),
+                )),
+            ))
+            .await
+            .unwrap()
+            .into_inner();
+        let mut parts = Vec::new();
+        while let Some(response) = stream.message().await.unwrap() {
+            parts.extend(response.data);
+        }
+        parts
+    }
+
+    async fn fetch(
+        &mut self,
+        token: &str,
+        parts: Vec<re_protos::common::v1alpha1::DataframePart>,
+    ) -> Result<Vec<Chunk>, tonic::Status> {
+        use re_log_encoding::ToApplication as _;
+        let mut stream = self
+            .client
+            .fetch_chunks(redap_request(
+                re_protos::cloud::v1alpha1::FetchChunksRequest { chunk_infos: parts },
+                token,
+            ))
+            .await?
+            .into_inner();
+        let mut chunks = Vec::new();
+        while let Some(response) = stream.message().await? {
+            for message in response.chunks {
+                chunks.push(Chunk::from_arrow_msg(&message.to_application(()).unwrap()).unwrap());
+            }
+        }
+        Ok(chunks)
+    }
+}
+
+fn assert_source_chunks(actual: &[Chunk], sources: &[&[LogMsg]]) {
+    let expected = sources
+        .iter()
+        .flat_map(|source| source.iter())
+        .filter_map(|message| {
+            if let LogMsg::ArrowMsg(_, arrow) = message {
+                Some(Chunk::from_arrow_msg(arrow).unwrap())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    assert!(!expected.is_empty());
+    assert_eq!(actual.len(), expected.len());
+    for source in expected {
+        let chunk = actual
+            .iter()
+            .find(|chunk| chunk.id() == source.id())
+            .expect("admitted source chunk missing from Redap wire");
+        assert_eq!(
+            chunk, &source,
+            "Redap changed row IDs, timelines or component values"
+        );
+    }
+}
+
+#[tokio::test]
+async fn scoped_redap_archive_wire_delivery_and_grant_isolation() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let db = fixture::TestDb::with_modules(vec![
+        veoveo_recording_store::schema::module_setup(
+            fixture::module_lanes::execution("recordings").unwrap(),
+        )
+        .unwrap(),
+    ])
+    .await;
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let spool = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        let caller = identity("redap-wire", "reader", &["restricted"]);
+        let artifact = super::seal_recovery::PlaybackFixture::new(&db, &caller, spool.path()).await;
+        let dataset = artifact.dataset().await;
+        let (recording, expected) = artifact
+            .recording(&caller, dataset, spool.path(), "admitted")
+            .await;
+        let (peer, peer_expected) = artifact
+            .recording(&caller, dataset, spool.path(), "peer")
+            .await;
+        let (excluded, _) = artifact
+            .recording(&caller, dataset, spool.path(), "excluded")
+            .await;
+        let service = artifact.service(db.b.clone(), spool.path(), cache.path());
+        let reader = artifact_reader(&caller);
+        // SQL excludes this caller before touching even the refusing Artifact
+        // endpoint. A visible caller reaches that endpoint and fails instead.
+        artifact.deny_reads(true);
+        let mut denied = caller.clone();
+        denied.actor.data_labels.clear();
+        assert!(service.playback_plan(&denied, Some(&artifact_reader(&denied)), recording,
+            PlaybackArchiveSelection::Complete).await.unwrap().is_none());
+        assert!(service.playback_plan(&caller, Some(&reader), recording,
+            PlaybackArchiveSelection::Complete).await.is_err());
+        artifact.deny_reads(false);
+        let plan = service
+            .playback_plan(
+                &caller,
+                Some(&reader),
+                recording,
+                PlaybackArchiveSelection::Complete,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(plan.archive_layers.len(), 1);
+        let cached_bytes = std::fs::read(plan.archive_layers[0].cached.path()).unwrap();
+        assert_eq!(cached_bytes, std::fs::read(spool.path().join("admitted.rrd")).unwrap());
+        assert_eq!(cached_bytes.len() as u64, plan.archive_layers[0].byte_len);
+        assert_eq!(veoveo_types::Sha256Digest::from_bytes(sha2::Sha256::digest(&cached_bytes).into()),
+            plan.archive_layers[0].sha256);
+        let grant = service
+            .issue_read_grant(
+                &caller,
+                dataset,
+                RecordingReadGrantClass::ViewerSegment,
+                vec![recording],
+                plan.catalog_revision.clone(),
+                None,
+            )
+            .await
+            .unwrap();
+        let key = base64::engine::general_purpose::STANDARD.encode([7_u8; 32]);
+        let manager = PlaybackManager::new(&key, "http://127.0.0.1:8443", db.b.clone()).unwrap();
+        let manifest = manager.prepare_manifest(plan, grant).await.unwrap();
+        assert!(manifest.archive.is_some());
+        let mut wire = RedapWire::new(&manager).await;
+        let who = wire
+            .client
+            .who_am_i(redap_request(
+                Default::default(),
+                &manifest.access.redap_token,
+            ))
+            .await
+            .unwrap()
+            .into_inner();
+        assert!(who.can_read);
+        assert!(!who.can_write);
+        assert!(who.capabilities.unwrap().capabilities.is_empty());
+        let token = &manifest.access.redap_token;
+        let parts = wire.query(token, dataset, None).await;
+        assert_source_chunks(&wire.fetch(token, parts).await.unwrap(), &[&expected]);
+
+        // The catalog grant selects two of the three committed recordings.
+        let mut plans = Vec::new();
+        for id in [recording, peer] {
+            plans.push(
+                service
+                    .playback_plan(
+                        &caller,
+                        Some(&reader),
+                        id,
+                        PlaybackArchiveSelection::Complete,
+                    )
+                    .await
+                    .unwrap()
+                    .unwrap(),
+            );
+        }
+        let grant = service
+            .issue_read_grant(
+                &caller,
+                dataset,
+                RecordingReadGrantClass::CatalogDataset,
+                vec![recording, peer],
+                veoveo_recording_mcp::service::catalog_set_revision(&plans),
+                None,
+            )
+            .await
+            .unwrap();
+        let catalog = manager.prepare_catalog_grant(plans, grant).await.unwrap();
+        let parts = wire.query(&catalog.redap_token, dataset, None).await;
+        assert_source_chunks(
+            &wire.fetch(&catalog.redap_token, parts).await.unwrap(),
+            &[&expected, &peer_expected],
+        );
+        for selected_token in [token, &catalog.redap_token] {
+            let parts = wire.query(selected_token, dataset, Some(excluded)).await;
+            let rows: usize = parts
+                .into_iter()
+                .map(|part| {
+                    let batch: re_chunk::external::arrow::array::RecordBatch =
+                        part.try_into().unwrap();
+                    batch.num_rows()
+                })
+                .sum();
+            assert_eq!(rows, 0, "excluded recording leaked into query results");
+        }
+        // Obtain genuine direct-fetch keys from a separately admitted grant, then
+        // attempt them against both narrower catalogs on the same wire service.
+        let plan = service
+            .playback_plan(
+                &caller,
+                Some(&reader),
+                excluded,
+                PlaybackArchiveSelection::Complete,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        let grant = service
+            .issue_read_grant(
+                &caller,
+                dataset,
+                RecordingReadGrantClass::ViewerSegment,
+                vec![excluded],
+                plan.catalog_revision.clone(),
+                None,
+            )
+            .await
+            .unwrap();
+        let other = manager.prepare_manifest(plan, grant).await.unwrap();
+        let excluded_parts = wire.query(&other.access.redap_token, dataset, None).await;
+        assert!(
+            !wire
+                .fetch(&other.access.redap_token, excluded_parts.clone())
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        for selected_token in [token, &catalog.redap_token] {
+            let error = wire.fetch(selected_token, excluded_parts.clone()).await.unwrap_err();
+            assert_eq!(error.code(), tonic::Code::NotFound, "direct fetch escaped the grant's registered recording set");
+        }
+        use re_protos::cloud::v1alpha1 as proto;
+        // HS256 fixture signed with the same [7; 32] key, exp=1700000000. Verify its
+        // signature and admitted claims independently with extended leeway;
+        // the production verifier then rejects its expired lifetime.
+        let expired = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ2ZW92ZW8tcmVjb3JkaW5nLXBsYXliYWNrIiwic3ViIjoiMDE5ZmFhY2EtNmNlNy03MDAwLTgwMDAtMDAwMDAwMDAwMDAxIiwiYXVkIjoicmVkYXAiLCJleHAiOjE3MDAwMDAwMDAsImlhdCI6MTY5OTk5OTk5OSwicGVybWlzc2lvbnMiOlsicmVhZCJdLCJhbGxvd2VkX2hvc3RzIjpbIjEyNy4wLjAuMSJdfQ.hlTSdCoL8min6GRoPyk3PPq1YmZnvl-XdfGFzBzBeL0";
+        let provider = re_auth::RedapProvider::from_secret_key_base64(&key).unwrap();
+        let jwt = re_auth::Jwt::try_from(expired.to_owned()).unwrap();
+        let claims = provider.verify(&jwt, re_auth::VerificationOptions::default().with_leeway(Some(
+            Duration::from_secs(u64::try_from(Utc::now().timestamp()).unwrap() - 1_700_000_000 + 60),
+        ))).unwrap();
+        assert_eq!(claims.iss(), "veoveo-recording-playback");
+        assert!(claims.has_read_permission());
+        assert!(provider.verify(&jwt, re_auth::VerificationOptions::default()).is_err());
+        let error = wire.client.who_am_i(redap_request(proto::WhoAmIRequest {}, expired)).await.unwrap_err();
+        assert_eq!(error.code(), tonic::Code::Unauthenticated);
+        for invalid in ["invalid-jwt", ""] {
+            let error = wire
+                .client
+                .who_am_i(redap_request(proto::WhoAmIRequest {}, invalid))
+                .await
+                .unwrap_err();
+            assert_eq!(error.code(), tonic::Code::Unauthenticated);
+        }
+        let error = wire
+            .client
+            .who_am_i(tonic::Request::new(proto::WhoAmIRequest {}))
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), tonic::Code::Unauthenticated);
+        let error = wire
+            .client
+            .delete_entry(redap_request(proto::DeleteEntryRequest::default(), token))
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), tonic::Code::PermissionDenied);
+        let error = wire
+            .client
+            .write_chunks(redap_request(
+                futures::stream::empty::<proto::WriteChunksRequest>(),
+                token,
+            ))
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), tonic::Code::PermissionDenied);
+        let error = wire
+            .client
+            .write_table(redap_request(
+                futures::stream::empty::<proto::WriteTableRequest>(),
+                token,
+            ))
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), tonic::Code::PermissionDenied);
+    })
+    .await
+    .expect("scoped Redap archive wire qualification exceeded 60 seconds");
+}
+
 async fn manifest(
     service: &RecordingService,
     manager: &PlaybackManager,

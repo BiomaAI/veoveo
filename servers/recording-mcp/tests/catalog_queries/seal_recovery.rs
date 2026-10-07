@@ -50,6 +50,129 @@ struct HttpFixture {
     origin: url::Url,
     key: PathBuf,
 }
+
+/// Reuse the recovery fixture's Artifact admission and HTTP lifecycle for playback.
+#[cfg(feature = "redap")]
+pub(super) struct PlaybackFixture {
+    http: HttpFixture,
+    state: PublisherState,
+}
+
+#[cfg(feature = "redap")]
+impl PlaybackFixture {
+    pub(super) async fn new(
+        db: &fixture::TestDb,
+        caller: &GatewayInternalIdentity,
+        root: &Path,
+    ) -> Self {
+        let service = RecordingService::new(
+            db.a.clone(),
+            HttpArtifactPlane::new("http://127.0.0.1:1"),
+            root.into(),
+        )
+        .unwrap();
+        let state = PublisherState {
+            store: db.a.clone(),
+            identity: service.platform_identity(caller).await.unwrap(),
+            authority: veoveo_recording_hub::invocation_authority_record(&caller.authority),
+            caller_authority: caller.authority.clone(),
+            refuse: Arc::new(AtomicBool::new(false)),
+            requests: Arc::new(Mutex::new(Vec::new())),
+            objects: Arc::new(Mutex::new(BTreeMap::new())),
+            revoke_read: Arc::new(AtomicBool::new(false)),
+            refuse_manifest: Arc::new(AtomicBool::new(false)),
+            lose_manifest_reply: Arc::new(AtomicBool::new(false)),
+            corrupt_manifest_reply: Arc::new(AtomicBool::new(false)),
+            manifest_attempts: Arc::new(Mutex::new(Vec::new())),
+        };
+        let http = HttpFixture::new(root, state.clone()).await;
+        Self { http, state }
+    }
+
+    pub(super) fn service(
+        &self,
+        store: PlatformStore,
+        root: &Path,
+        cache: &Path,
+    ) -> RecordingService {
+        self.http.service(store, root, cache)
+    }
+
+    pub(super) fn deny_reads(&self, denied: bool) {
+        self.state.revoke_read.store(denied, Ordering::SeqCst);
+    }
+
+    pub(super) async fn dataset(&self) -> RecordingDatasetId {
+        let row = RecordingRepository::new(self.state.store.clone())
+            .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
+                self.state.identity.clone(),
+                "redap-wire",
+            ))
+            .await
+            .unwrap();
+        RecordingDatasetId::from_uuid(record_uuid(&row.id, "recording_dataset").unwrap())
+    }
+
+    pub(super) async fn recording(
+        &self,
+        caller: &GatewayInternalIdentity,
+        dataset: RecordingDatasetId,
+        root: &Path,
+        key: &str,
+    ) -> (RecordingId, Vec<re_log_types::LogMsg>) {
+        let id = recording(&self.state, caller, dataset, root, key).await;
+        let bytes = std::fs::read(root.join(format!("{key}.rrd"))).unwrap();
+        let layers = RecordingRepository::new(self.state.store.clone())
+            .recording_layers(self.state.identity.tenant_id, id, 1)
+            .await
+            .unwrap();
+        let layer_id =
+            record_uuid(layers[0].artifact.as_ref().unwrap(), "artifact_occurrence").unwrap();
+        let request = self
+            .state
+            .store
+            .artifact_aggregate(veoveo_platform_store::ArtifactId::from_uuid(layer_id))
+            .await
+            .unwrap()
+            .unwrap();
+        let put = StreamArtifactRequest {
+            artifact_id: veoveo_artifact_contract::ArtifactId::try_from(layer_id).unwrap(),
+            artifact: veoveo_artifact_contract::PutArtifactRequest {
+                mime_type: Some("application/vnd.rerun.rrd".into()),
+                filename: Some(format!("{key}.rrd")),
+                classification: None,
+                data_labels: BTreeSet::new(),
+                retention_expires_at: None,
+                metadata: serde_json::json!({}),
+            },
+            expected_byte_len: bytes.len().try_into().unwrap(),
+            expected_sha256: veoveo_artifact_contract::UploadSha256::parse(request.blob.sha256)
+                .unwrap(),
+        };
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-artifact-stream-put",
+            serde_json::to_string(&put).unwrap().parse().unwrap(),
+        );
+        assert_eq!(
+            publish(
+                State(self.state.clone()),
+                headers,
+                Bytes::from(bytes.clone())
+            )
+            .await
+            .status(),
+            StatusCode::OK
+        );
+        let messages = re_log_encoding::Decoder::<re_log_types::LogMsg>::decode_eager(
+            std::io::Cursor::new(bytes),
+        )
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+        (id, messages)
+    }
+}
 impl Drop for HttpFixture {
     fn drop(&mut self) {
         self.task.abort();

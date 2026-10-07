@@ -444,7 +444,20 @@ bootstrap, current-head reconnect, new-channel bootstrap, durable part updates a
 Store-notified layer rollover. SQL visibility refusal precedes spool decoding at
 fresh admission, reconnect and layer transitions. These controls qualify byte
 delivery and authorization at those transitions; mid-layer delivery uses the
-authority admitted for that layer. Redap grants have separate qualification.
+authority admitted for that layer.
+
+The same native harness connects Rerun's generated tonic client to the production
+`ScopedRedapService` over local HTTP/2. SQL-issued viewer and explicit-set catalog
+grants select immutable SDK-produced layers through the Artifact cache. The fixture
+compares cached RRD bytes, lengths and digests with the normalized source, then compares
+queried and fetched chunks with its row IDs, timelines and component values. Separate
+grants expose genuine keys for an excluded recording; narrower catalogs refuse those
+direct fetches and return no query rows for that recording. Missing, invalid and expired
+tokens refuse, while entry deletion and streaming writes return permission denied.
+An actively refusing Artifact endpoint confirms that SQL excludes an invisible caller
+before materialization. These controls qualify local archive/catalog transport and
+grant isolation. Live playback uses the framed RRD controls above; installed ingest,
+grant delivery, GPU decode and headed viewer acceptance require their own checks.
 
 Focused component evidence includes deterministic RRD normalization and Arrow bytes,
 cache corruption and eviction behavior, scratch cleanup, playback manifest v11 rejection of other
