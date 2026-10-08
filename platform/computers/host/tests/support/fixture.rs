@@ -37,6 +37,275 @@ fn bridge() -> (String, String) {
 }
 #[path = "../../src/images.rs"]
 pub(crate) mod images;
+const MAX_MANIFEST_BYTES: usize = 64 * 1024;
+
+/// One explicitly selected development registry reachable by the private Host.
+struct PullRegistry {
+    url: reqwest::Url,
+    authority: String,
+}
+impl PullRegistry {
+    fn parse(authority: &str) -> Result<Self> {
+        ensure!(
+            !authority.is_empty()
+                && authority.len() <= 253
+                && authority
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b".-:".contains(&b)),
+            "Host pull registry requires one DNS/IPv4 authority"
+        );
+        let url = reqwest::Url::parse(&format!("http://{authority}/"))
+            .map_err(|_| anyhow::anyhow!("invalid Host pull registry"))?;
+        ensure!(
+            url.host_str().is_some()
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url.query().is_none()
+                && url.fragment().is_none()
+                && url.path() == "/"
+                && url.origin().ascii_serialization() == format!("http://{authority}"),
+            "invalid Host pull registry authority"
+        );
+        Ok(Self {
+            url,
+            authority: authority.to_owned(),
+        })
+    }
+    fn authority(&self) -> &str {
+        &self.authority
+    }
+}
+
+struct MappedImage {
+    local: String,
+    pull: String,
+    manifest: reqwest::Url,
+    digest: veoveo_types::Sha256Digest,
+    local_authority: String,
+}
+impl MappedImage {
+    fn new(local: String, registry: &PullRegistry) -> Result<Self> {
+        let (repository, digest) = local
+            .split_once("@sha256:")
+            .context("Host fixture requires an immutable image reference")?;
+        let digest = veoveo_types::Sha256Digest::from_hex(digest)?;
+        let (authority, name) = repository
+            .split_once('/')
+            .context("explicit local image registry required")?;
+        let local_registry = PullRegistry::parse(authority)?;
+        ensure!(
+            !name.is_empty()
+                && repository.len() <= 512
+                && name.split('/').all(|part| !part.is_empty()
+                    && part != "."
+                    && part != ".."
+                    && part.bytes().all(|b| b.is_ascii_lowercase()
+                        || b.is_ascii_digit()
+                        || b"._-".contains(&b))),
+            "invalid Host fixture image repository"
+        );
+        let local_authority = local_registry.authority().to_owned();
+        let mut pull = local_registry.url;
+        pull.set_host(registry.url.host_str())?;
+        pull.set_port(registry.url.port())
+            .map_err(|_| anyhow::anyhow!("invalid pull registry port"))?;
+        {
+            let mut path = pull
+                .path_segments_mut()
+                .map_err(|_| anyhow::anyhow!("image path unavailable"))?;
+            path.clear().extend(name.split('/'));
+        }
+        // The image reference is serialized at the Docker boundary. URL owns the
+        // authority replacement and repository component encoding.
+        let pull = format!(
+            "{}@sha256:{}",
+            pull.as_str()
+                .strip_prefix("http://")
+                .context("image reference serialization failed")?,
+            digest.hex()
+        );
+        let mut manifest = registry.url.clone();
+        manifest
+            .path_segments_mut()
+            .map_err(|_| anyhow::anyhow!("manifest path unavailable"))?
+            .clear()
+            .push("v2")
+            .extend(name.split('/'))
+            .push("manifests")
+            .push(&format!("sha256:{}", digest.hex()));
+        Ok(Self {
+            local,
+            pull,
+            manifest,
+            digest,
+            local_authority,
+        })
+    }
+    async fn admit_remote(
+        &self,
+        client: &reqwest::Client,
+        id: &veoveo_types::Sha256Digest,
+    ) -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mut response = client.get(self.manifest.clone())
+                .header(reqwest::header::ACCEPT, "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json")
+                .send().await.map_err(|_| anyhow::anyhow!("Host pull manifest transport failed"))?;
+            ensure!(response.status() == reqwest::StatusCode::OK, "Host pull manifest unavailable");
+            let header = response.headers().get("Docker-Content-Digest")
+                .and_then(|v| v.to_str().ok()).map(str::to_owned);
+            ensure!(response.content_length().is_none_or(|n| n <= MAX_MANIFEST_BYTES as u64), "Host pull manifest exceeds 64 KiB");
+            let mut bytes = Vec::new();
+            while let Some(chunk) = response.chunk().await.map_err(|_| anyhow::anyhow!("Host pull manifest read failed"))? {
+                ensure!(chunk.len() <= MAX_MANIFEST_BYTES - bytes.len(), "Host pull manifest exceeds 64 KiB");
+                bytes.extend_from_slice(&chunk);
+            }
+            self.admit_response(response.status(), header.as_deref(), &bytes, id)
+        }).await.context("Host pull manifest admission deadline")?
+    }
+    fn admit_response(
+        &self,
+        status: reqwest::StatusCode,
+        header: Option<&str>,
+        bytes: &[u8],
+        id: &veoveo_types::Sha256Digest,
+    ) -> Result<()> {
+        ensure!(
+            status == reqwest::StatusCode::OK,
+            "Host pull manifest unavailable"
+        );
+        self.admit_manifest(header, bytes, id)
+    }
+    fn admit_manifest(
+        &self,
+        header: Option<&str>,
+        bytes: &[u8],
+        id: &veoveo_types::Sha256Digest,
+    ) -> Result<()> {
+        use sha2::{Digest, Sha256};
+        ensure!(
+            bytes.len() <= MAX_MANIFEST_BYTES,
+            "Host pull manifest exceeds 64 KiB"
+        );
+        ensure!(
+            header == Some(format!("sha256:{}", self.digest.hex()).as_str())
+                && veoveo_types::Sha256Digest::from_bytes(Sha256::digest(bytes).into())
+                    == self.digest,
+            "Host pull manifest identity mismatch"
+        );
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Manifest {
+            schema_version: u32,
+            media_type: String,
+            config: Descriptor,
+        }
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Descriptor {
+            media_type: String,
+            digest: veoveo_types::Sha256Digest,
+        }
+        let manifest: Manifest = serde_json::from_slice(bytes)
+            .map_err(|_| anyhow::anyhow!("invalid Host pull manifest"))?;
+        ensure!(
+            manifest.schema_version == 2
+                && matches!(
+                    manifest.media_type.as_str(),
+                    "application/vnd.oci.image.manifest.v1+json"
+                        | "application/vnd.docker.distribution.manifest.v2+json"
+                )
+                && matches!(
+                    manifest.config.media_type.as_str(),
+                    "application/vnd.oci.image.config.v1+json"
+                        | "application/vnd.docker.container.image.v1+json"
+                )
+                && &manifest.config.digest == id,
+            "Host pull manifest must match the admitted runnable image"
+        );
+        Ok(())
+    }
+}
+
+/// Admitted local images and their private-Host pull references. Construction
+/// completes all reads before any fixture directory or container is created.
+pub struct FixtureImages {
+    registry: PullRegistry,
+    template: MappedImage,
+    supervisor: MappedImage,
+    template_id: veoveo_types::Sha256Digest,
+    supervisor_id: veoveo_types::Sha256Digest,
+}
+impl FixtureImages {
+    pub fn template_image(&self) -> &str {
+        &self.template.pull
+    }
+    pub async fn admit() -> Result<Self> {
+        let registry = PullRegistry::parse(
+            &std::env::var("VEOVEO_COMPUTERS_HOST_PULL_REGISTRY")
+                .context("explicit bridge-reachable Host pull registry required")?,
+        )?;
+        let template = MappedImage::new(
+            std::env::var("VEOVEO_COMPUTERS_HOST_TEST_IMAGE")?,
+            &registry,
+        )?;
+        let supervisor = MappedImage::new(
+            std::env::var("VEOVEO_COMPUTERS_NATIVE_SUPERVISOR_IMAGE")?,
+            &registry,
+        )?;
+        ensure!(
+            template.local_authority == supervisor.local_authority,
+            "Host fixture local images require one registry"
+        );
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "PascalCase")]
+        struct LocalImage {
+            id: veoveo_types::Sha256Digest,
+            repo_digests: Vec<String>,
+        }
+        let inspected = checked(host().args([
+            "image",
+            "inspect",
+            &template.local,
+            "--format",
+            "{{json .}}",
+        ]))
+        .await?;
+        ensure!(
+            inspected.len() <= MAX_MANIFEST_BYTES,
+            "local template inspection exceeds 64 KiB"
+        );
+        let local: LocalImage = serde_json::from_str(&inspected)
+            .map_err(|_| anyhow::anyhow!("invalid local template metadata"))?;
+        ensure!(
+            local.repo_digests.contains(&template.local),
+            "template digest is not locally admitted"
+        );
+        let inspected = checked(host().args([
+            "image",
+            "inspect",
+            &supervisor.local,
+            "--format",
+            "{{json .}}",
+        ]))
+        .await?;
+        let admitted = images::decode(inspected.as_bytes())?;
+        let supervisor_id = admitted.admit(&supervisor.local, &supervisor.local_authority)?;
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .no_proxy()
+            .build()?;
+        template.admit_remote(&client, &local.id).await?;
+        supervisor.admit_remote(&client, &supervisor_id).await?;
+        Ok(Self {
+            registry,
+            template,
+            supervisor,
+            template_id: local.id,
+            supervisor_id,
+        })
+    }
+}
+
 pub struct Fixture {
     pub dir: PathBuf,
     pub provider: veoveo_computers_runtime::ProviderInstanceId,
@@ -50,7 +319,12 @@ pub struct Fixture {
     finished: bool,
 }
 impl Fixture {
-    pub async fn start(template: &DevelopmentTemplate, computer_image: &str) -> Result<Self> {
+    pub async fn start(template: &DevelopmentTemplate, selected: &FixtureImages) -> Result<Self> {
+        let computer_image = selected.template_image();
+        ensure!(
+            template.image() == computer_image,
+            "Host template must use the admitted pull image"
+        );
         let image =
             std::env::var("VEOVEO_COMPUTERS_HOST_IMAGE").context("candidate compute host image")?;
         let image =
@@ -71,22 +345,6 @@ impl Fixture {
             replacement_image != image,
             "host upgrade must change image identity"
         );
-        let authority = computer_image
-            .split_once('/')
-            .context("candidate registry")?
-            .0;
-        let supervisor_image = std::env::var("VEOVEO_COMPUTERS_NATIVE_SUPERVISOR_IMAGE")
-            .context("matched supervisor image required")?;
-        let inspected = checked(host().args([
-            "image",
-            "inspect",
-            &supervisor_image,
-            "--format",
-            "{{json .}}",
-        ]))
-        .await?;
-        let supervisor = images::decode(inspected.as_bytes())?;
-        supervisor.admit(&supervisor_image, authority)?;
         let provider = veoveo_computers_runtime::ProviderInstanceId::new();
         let name = format!("veoveo-host-probe-{}", provider.as_uuid().simple());
         let dir = PathBuf::from(
@@ -103,6 +361,9 @@ impl Fixture {
             template_image: &'a str,
             supervisor_image: &'a str,
             supervisor_image_id: &'a veoveo_types::Sha256Digest,
+            local_template_image: &'a str,
+            local_supervisor_image: &'a str,
+            template_image_id: &'a veoveo_types::Sha256Digest,
             template_fingerprint: String,
             home_capacity_bytes: u64,
         }
@@ -115,8 +376,11 @@ impl Fixture {
                 source_host_image_id: &image,
                 target_host_image_id: &replacement_image,
                 template_image: computer_image,
-                supervisor_image: &supervisor_image,
-                supervisor_image_id: &supervisor.id,
+                supervisor_image: &selected.supervisor.pull,
+                supervisor_image_id: &selected.supervisor_id,
+                local_template_image: &selected.template.local,
+                local_supervisor_image: &selected.supervisor.local,
+                template_image_id: &selected.template_id,
                 template_fingerprint: template.fingerprint(),
                 home_capacity_bytes: 536870912,
             })?,
@@ -137,10 +401,8 @@ impl Fixture {
         for name in ["data", "config"] {
             fs::create_dir(fixture.dir.join(name))?;
         }
-        let authority = computer_image
-            .split_once('/')
-            .context("candidate registry")?
-            .0;
+        let authority = selected.registry.authority();
+        let supervisor_image = &selected.supervisor.pull;
         let config = serde_json::json!({
             "schema": "veoveo.ai/computer-host/v1", "providerId": provider,
             "namespace": "host-qualification", "defaultImage": computer_image,
@@ -476,5 +738,107 @@ impl Drop for Fixture {
                 self.dir.display()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod registry_admission_tests {
+    use super::*;
+    use sha2::{Digest, Sha256};
+    fn selected(media: &str) -> (MappedImage, Vec<u8>, veoveo_types::Sha256Digest) {
+        let id = veoveo_types::Sha256Digest::from_hex("b".repeat(64)).unwrap();
+        let bytes = serde_json::to_vec(&serde_json::json!({
+            "schemaVersion": 2, "mediaType": media,
+            "config": {"mediaType": "application/vnd.oci.image.config.v1+json", "digest": id},
+            "layers": []
+        }))
+        .unwrap();
+        let digest = veoveo_types::Sha256Digest::from_bytes(Sha256::digest(&bytes).into());
+        let registry = PullRegistry::parse("172.17.0.2:5000").unwrap();
+        let image = MappedImage::new(
+            format!("127.0.0.1:5001/team/computer@sha256:{}", digest.hex()),
+            &registry,
+        )
+        .unwrap();
+        (image, bytes, id)
+    }
+    #[test]
+    fn pull_mapping_preserves_repository_and_manifest_and_refuses_uncontrolled_addresses() {
+        let (image, _, _) = selected("application/vnd.oci.image.manifest.v1+json");
+        assert_eq!(
+            image.pull,
+            image.local.replacen("127.0.0.1:5001", "172.17.0.2:5000", 1)
+        );
+        assert_eq!(image.manifest.host_str(), Some("172.17.0.2"));
+        assert_eq!(image.manifest.port(), Some(5000));
+        assert_eq!(
+            image.manifest.path(),
+            format!("/v2/team/computer/manifests/sha256:{}", image.digest.hex())
+        );
+        for bad in [
+            "http://172.17.0.2:5000",
+            "user@172.17.0.2:5000",
+            "172.17.0.2:5000/?token=secret",
+            "172.17.0.2:5000#secret",
+            "[::1]:5000",
+            "127.1:5000",
+        ] {
+            assert!(PullRegistry::parse(bad).is_err());
+        }
+        let registry = PullRegistry::parse("172.17.0.2:5000").unwrap();
+        for bad in [
+            "computer:latest".to_owned(),
+            "127.0.0.1:5001/team/../computer@sha256:".to_owned() + &"a".repeat(64),
+            "127.0.0.1:5001/team/computer?secret@sha256:".to_owned() + &"a".repeat(64),
+        ] {
+            assert!(MappedImage::new(bad, &registry).is_err());
+        }
+    }
+    #[test]
+    fn pull_manifest_requires_actual_bytes_runnable_profile_and_local_config_identity() {
+        let (image, bytes, id) = selected("application/vnd.oci.image.manifest.v1+json");
+        let header = format!("sha256:{}", image.digest.hex());
+        image
+            .admit_response(reqwest::StatusCode::OK, Some(&header), &bytes, &id)
+            .unwrap();
+        let mut changed = bytes.clone();
+        changed.push(b' ');
+        assert!(
+            image
+                .admit_response(reqwest::StatusCode::OK, Some(&header), &changed, &id)
+                .is_err()
+        );
+        assert!(
+            image
+                .admit_response(reqwest::StatusCode::OK, None, &bytes, &id)
+                .is_err()
+        );
+        assert!(
+            image
+                .admit_response(reqwest::StatusCode::NOT_FOUND, Some(&header), &bytes, &id)
+                .is_err()
+        );
+        assert!(
+            image
+                .admit_response(reqwest::StatusCode::FOUND, Some(&header), &bytes, &id)
+                .is_err()
+        );
+        let foreign = veoveo_types::Sha256Digest::from_hex("c".repeat(64)).unwrap();
+        assert!(
+            image
+                .admit_response(reqwest::StatusCode::OK, Some(&header), &bytes, &foreign)
+                .is_err()
+        );
+        let (index, bytes, id) = selected("application/vnd.oci.image.index.v1+json");
+        assert!(
+            index
+                .admit_manifest(Some(&format!("sha256:{}", index.digest.hex())), &bytes, &id)
+                .is_err()
+        );
+        assert!(
+            image
+                .admit_manifest(Some(&header), &vec![b' '; MAX_MANIFEST_BYTES + 1], &id)
+                .is_err()
+        );
     }
 }

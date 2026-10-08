@@ -62,9 +62,9 @@ async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Res
         cleanup::cleanup();
         return Ok(());
     }
-    let image = std::env::var("VEOVEO_COMPUTERS_HOST_TEST_IMAGE")?;
-    let template = template::retained_template(image.clone());
-    let mut fixture = fixture::Fixture::start(&template, &image).await?;
+    let images = fixture::FixtureImages::admit().await?;
+    let template = template::retained_template(images.template_image().to_owned());
+    let mut fixture = fixture::Fixture::start(&template, &images).await?;
     let engine = fixture.engine().await?;
     let runtime = fixture.runtime().await?;
     ensure!(

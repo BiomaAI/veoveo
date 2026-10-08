@@ -169,7 +169,21 @@ release gates in the Computers plan.
 
 `tests/native_host.rs` resolves the source `VEOVEO_COMPUTERS_HOST_IMAGE` and target
 `VEOVEO_COMPUTERS_HOST_REPLACEMENT_IMAGE` to distinct immutable local image IDs. The
-Computer image comes from `VEOVEO_COMPUTERS_HOST_TEST_IMAGE`. It creates separate
+Computer image comes from the locally admitted RepoDigest in
+`VEOVEO_COMPUTERS_HOST_TEST_IMAGE`; the matched supervisor uses
+`VEOVEO_COMPUTERS_NATIVE_SUPERVISOR_IMAGE`. The required
+`VEOVEO_COMPUTERS_HOST_PULL_REGISTRY` selects one DNS/IPv4 authority reachable
+inside the private Host. The fixture replaces only the authority in both image
+references and preserves repository paths and manifest digests. Before creating
+fixture state, it admits the local RepoDigests and ImageIDs, including the compiled
+supervisor source profile, and reads each mapped manifest with redirects and proxies
+disabled. Each read has a five-second deadline and a 64 KiB body limit. The body
+SHA-256 and Docker-Content-Digest must equal the selected manifest digest; the
+runnable OCI/Docker schema-2 manifest config digest must equal the local ImageID.
+Missing manifests, image indexes and mismatched identities refuse admission. Ops
+stages the selected immutable manifests before qualification. The retained template
+fingerprint and Host configuration use the mapped pull references; inputs preserve
+both local and pull identities. The fixture creates separate
 provider/storage trust, preloads a Computer from the explicit local registry and runs
 the production runtime and allocator clients. A Computer writes a retained file under
 UID 10001, stops, and resumes after replacement of the entire compute container and
