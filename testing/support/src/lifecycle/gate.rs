@@ -143,11 +143,13 @@ pub(crate) fn spawn(
         command,
         registration_root,
         None,
-        deadline,
-        cancelled,
-        grace,
-        None,
-        None,
+        LaunchAdmission {
+            deadline,
+            cancelled,
+            grace,
+            caller_cancelled: None,
+            cleanup: None,
+        },
         || {},
     )
 }
@@ -165,11 +167,13 @@ pub(crate) fn spawn_cancellable(
         command,
         registration_root,
         None,
-        deadline,
-        cancelled,
-        Duration::from_secs(1),
-        Some(caller_cancelled),
-        Some(cleanup),
+        LaunchAdmission {
+            deadline,
+            cancelled,
+            grace: Duration::from_secs(1),
+            caller_cancelled: Some(caller_cancelled),
+            cleanup: Some(cleanup),
+        },
         || {},
     )
 }
@@ -185,26 +189,39 @@ pub(crate) fn spawn_fixture(
         command,
         None,
         Some(root),
-        deadline,
-        &std::sync::atomic::AtomicBool::new(false),
-        Duration::from_secs(1),
-        None,
-        Some(cleanup),
+        LaunchAdmission {
+            deadline,
+            cancelled: &std::sync::atomic::AtomicBool::new(false),
+            grace: Duration::from_secs(1),
+            caller_cancelled: None,
+            cleanup: Some(cleanup),
+        },
         || {},
     )
+}
+
+struct LaunchAdmission<'a> {
+    deadline: Instant,
+    cancelled: &'a std::sync::atomic::AtomicBool,
+    grace: Duration,
+    caller_cancelled: Option<&'a std::sync::atomic::AtomicBool>,
+    cleanup: Option<Arc<super::owner::CommandCleanup>>,
 }
 
 fn spawn_with_publication(
     mut command: Command,
     registration_root: Option<&Path>,
     receipt_root: Option<&Path>,
-    deadline: Instant,
-    cancelled: &std::sync::atomic::AtomicBool,
-    grace: Duration,
-    caller_cancelled: Option<&std::sync::atomic::AtomicBool>,
-    cleanup: Option<Arc<super::owner::CommandCleanup>>,
+    admission: LaunchAdmission<'_>,
     on_published: impl FnOnce(),
 ) -> Result<(Child, Option<PathBuf>)> {
+    let LaunchAdmission {
+        deadline,
+        cancelled,
+        grace,
+        caller_cancelled,
+        cleanup,
+    } = admission;
     use std::sync::atomic::Ordering;
     let is_cancelled = || {
         cancelled.load(Ordering::Acquire)
@@ -298,13 +315,12 @@ fn spawn_with_publication(
         // aborted supervisor never closes/reuses a descriptor before a slow fork.
         let result = command.spawn();
         drop(helper_pipes);
-        if let Err(failed) = sender.send(result) {
-            if let Ok(mut child) = failed.0 {
-                // The receiver may have expired while this helper was starting.
-                // Settlement failure deliberately leaves the supervisor receipt.
-                let _ =
-                    kill_and_reap_until(&mut child, deadline + grace, helper_cleanup.as_deref());
-            }
+        if let Err(failed) = sender.send(result)
+            && let Ok(mut child) = failed.0
+        {
+            // The receiver may have expired while this helper was starting.
+            // Settlement failure deliberately leaves the supervisor receipt.
+            let _ = kill_and_reap_until(&mut child, deadline + grace, helper_cleanup.as_deref());
         }
     });
     let mut publication = Some(on_published);
@@ -445,10 +461,8 @@ fn spawn_with_publication(
                 let _ = killpg(Pid::from_raw(pid as i32), Signal::SIGKILL);
             }
         }
-        if aborted {
-            if let Some(cleanup) = &cleanup {
-                abort_end = Some(cleanup.end());
-            }
+        if aborted && let Some(cleanup) = &cleanup {
+            abort_end = Some(cleanup.end());
         }
         if abort_end.is_some_and(|end| Instant::now() >= end) {
             // Do not report a successful join or cleanup for an unresolved launch.
@@ -623,11 +637,13 @@ mod tests {
                 command,
                 Some(root.path()),
                 None,
-                Instant::now() + Duration::from_secs(1),
-                &cancelled,
-                Duration::from_millis(100),
-                None,
-                None,
+                LaunchAdmission {
+                    deadline: Instant::now() + Duration::from_secs(1),
+                    cancelled: &cancelled,
+                    grace: Duration::from_millis(100),
+                    caller_cancelled: None,
+                    cleanup: None,
+                },
                 || cancelled.store(true, Ordering::Release)
             )
             .is_err()

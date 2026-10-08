@@ -50,10 +50,12 @@ pub(crate) fn live_group(pid: u32) -> Result<bool> {
         if member == pid {
             continue;
         }
-        if let Ok((group, state, _)) = identity(member) {
-            if group == pid && state != 'Z' && state != 'X' {
-                return Ok(true);
-            }
+        if let Ok((group, state, _)) = identity(member)
+            && group == pid
+            && state != 'Z'
+            && state != 'X'
+        {
+            return Ok(true);
         }
     }
     Ok(false)
