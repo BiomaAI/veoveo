@@ -585,6 +585,17 @@ an isolated Docker namespace. It generates mTLS credentials and a separate Ed255
 provider JWT signer with a finite lifetime. The fixture uses a digest-pinned Computer
 image, disables host bind mounts, and removes its own containers, network, credentials
 and database on completion. Its private output directory retains diagnostics.
+Terminal setup failures report only a closed stage and tonic status code or I/O
+error kind. SDK error messages, credentials and process bytes are excluded. The
+lifecycle fixture enables the maintained info logging profile and, before cleanup
+on replacement-gateway attachment failure, reads the already-admitted physical
+companion's final 32 log records with a five-second subprocess deadline. It records
+closed session/relay or OCSF network categories, omitted-line counts and the
+replacement gateway PID in a private receipt capped at 16 KiB. Every spawned
+reader outcome passes through a separate one-second kill/reap budget; an unresolved
+reap is recorded separately from the original read failure. These log facts
+support diagnosis; they do not establish current session authority or settle an
+unresolved provider operation.
 
 Worker and guest transport certificates are distinct. The provider's mTLS user
 allowlist admits only the worker common name. A guest certificate alone must reach

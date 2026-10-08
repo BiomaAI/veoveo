@@ -79,7 +79,9 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     if native_support::registry_child().await {
         return;
     }
-    let mut provider = Provider::start("native_lifecycle_terminal_and_epoch_recovery").await;
+    let mut provider =
+        Provider::start_with_execution_logging("native_lifecycle_terminal_and_epoch_recovery")
+            .await;
     let runtime = provider.runtime.clone();
     let template = retained_template::retained_template(provider.image.clone());
     let computer = Uuid::now_v7();
@@ -193,10 +195,19 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     home.assert_registered_no_copy();
     let (_fresh_authority, fresh_lease) =
         LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(30)).unwrap();
-    let mut terminal = runtime
+    let mut terminal = match runtime
         .attach(&binding, TerminalSize::new(100, 30).unwrap(), fresh_lease)
         .await
-        .unwrap();
+    {
+        Ok(terminal) => terminal,
+        Err(error) => {
+            // Read-only diagnostics must finish before Provider::drop removes
+            // this exact companion. Never replay attachment or change its owner.
+            capture_recovery_attachment(&provider, &old_supervisor, &recovered, controller_pids)
+                .await;
+            panic!("replacement-gateway terminal attachment failed: {error:?}");
+        }
+    };
     replay(&mut terminal).await;
     terminal.write(b"printf '\\npost-controller-marker=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\"\r").await.unwrap();
     marker_output(
@@ -422,6 +433,7 @@ struct ContainerProcessState {
     started_at: String,
 }
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SupervisorIdentity {
     container_id: String,
     process: ContainerProcessState,
@@ -743,5 +755,400 @@ mod retained_mount_tests {
         for variant in variants {
             refuses(variant);
         }
+    }
+}
+
+// Diagnostic facts are observations, never session admission or settlement.
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+enum CompanionFact {
+    SessionEstablished,
+    SessionClosed,
+    SessionReconnectFailed,
+    SshRelayOpen,
+    SshRelayClosed,
+    SshRelayFailed,
+    NetworkOpen,
+    NetworkClose,
+    NetworkFail,
+}
+#[derive(serde::Deserialize)]
+struct DiagnosticEvent {
+    message: Option<String>,
+}
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LogFacts {
+    facts: Vec<CompanionFact>,
+    omitted_lines: usize,
+    truncated: bool,
+}
+fn log_facts(bytes: &[u8], truncated: bool) -> LogFacts {
+    let mut facts = Vec::new();
+    let mut omitted_lines = 0;
+    for line in String::from_utf8_lossy(bytes).lines().take(128) {
+        // Full JSON messages are decoded privately; only a closed category is
+        // emitted. The shorthand's destinations/reasons/message suffixes are
+        // never copied. Arbitrary tracing and process output is omitted.
+        let event = serde_json::from_str::<DiagnosticEvent>(line).ok();
+        let message = event.as_ref().and_then(|event| event.message.as_deref());
+        let fact = match message {
+            Some(text) if text.starts_with("supervisor session established (session_id=") => {
+                Some(CompanionFact::SessionEstablished)
+            }
+            Some(text) if text.starts_with("supervisor session ended cleanly (") => {
+                Some(CompanionFact::SessionClosed)
+            }
+            Some(text) if text.starts_with("supervisor session failed, reconnecting (attempt ") => {
+                Some(CompanionFact::SessionReconnectFailed)
+            }
+            Some(text) if text.starts_with("ssh relay open (channel_id=") => {
+                Some(CompanionFact::SshRelayOpen)
+            }
+            Some(text) if text.starts_with("ssh relay closed (channel_id=") => {
+                Some(CompanionFact::SshRelayClosed)
+            }
+            Some(text) if text.starts_with("ssh relay bridge failed (channel_id=") => {
+                Some(CompanionFact::SshRelayFailed)
+            }
+            _ => match line
+                .split_once(" OCSF ")
+                .map(|(_, text)| text.split_whitespace().next())
+            {
+                Some(Some("NET:OPEN")) => Some(CompanionFact::NetworkOpen),
+                Some(Some("NET:CLOSE")) => Some(CompanionFact::NetworkClose),
+                Some(Some("NET:FAIL")) => Some(CompanionFact::NetworkFail),
+                _ => None,
+            },
+        };
+        if let Some(fact) = fact {
+            if facts.len() < 32 {
+                facts.push(fact);
+            } else {
+                omitted_lines += 1;
+            }
+        } else {
+            omitted_lines += 1;
+        }
+    }
+    LogFacts {
+        facts,
+        omitted_lines,
+        truncated: truncated || bytes.split(|byte| *byte == b'\n').count() > 128,
+    }
+}
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case", rename_all_fields = "camelCase")]
+enum DiagnosticRead {
+    Captured {
+        exit_code: Option<i32>,
+        stdout: LogFacts,
+        stderr: LogFacts,
+    },
+    Deadline,
+    Transport,
+    MissingPipe,
+}
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ReaderCleanup {
+    NotSpawned,
+    Reaped,
+    Unresolved,
+}
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReaderReceipt {
+    observation: DiagnosticRead,
+    cleanup: ReaderCleanup,
+}
+async fn cleanup_reader(child: &mut tokio::process::Child) -> ReaderCleanup {
+    if matches!(child.try_wait(), Ok(Some(_))) {
+        return ReaderCleanup::Reaped;
+    }
+    // This PID belongs only to the read-only Docker CLI observer. Its exit says
+    // nothing about the container, attachment or provider operation outcome.
+    let _ = child.start_kill();
+    match tokio::time::timeout(Duration::from_secs(1), child.wait()).await {
+        Ok(Ok(_)) => ReaderCleanup::Reaped,
+        _ => ReaderCleanup::Unresolved,
+    }
+}
+async fn observe_reader(child: &mut tokio::process::Child, budget: Duration) -> ReaderReceipt {
+    use tokio::io::AsyncReadExt;
+    let read = async {
+        let (Some(stdout), Some(stderr)) = (child.stdout.take(), child.stderr.take()) else {
+            return DiagnosticRead::MissingPipe;
+        };
+        let mut out = Vec::new();
+        let mut err = Vec::new();
+        let mut stdout = stdout.take(8193);
+        let mut stderr = stderr.take(8193);
+        let (a, b) = tokio::join!(stdout.read_to_end(&mut out), stderr.read_to_end(&mut err));
+        if a.is_err() || b.is_err() {
+            return DiagnosticRead::Transport;
+        }
+        let truncated = out.len() > 8192 || err.len() > 8192;
+        let exit_code = if truncated {
+            // Retain the partial read; centralized cleanup owns termination.
+            None
+        } else {
+            let Ok(status) = child.wait().await else {
+                return DiagnosticRead::Transport;
+            };
+            status.code()
+        };
+        DiagnosticRead::Captured {
+            exit_code,
+            stdout: log_facts(&out[..out.len().min(8192)], out.len() > 8192),
+            stderr: log_facts(&err[..err.len().min(8192)], err.len() > 8192),
+        }
+    };
+    let observation = match tokio::time::timeout(budget, read).await {
+        Ok(result) => result,
+        Err(_) => DiagnosticRead::Deadline,
+    };
+    let cleanup = cleanup_reader(child).await;
+    ReaderReceipt {
+        observation,
+        cleanup,
+    }
+}
+async fn selected_companion_logs(
+    provider: &Provider,
+    identity: &SupervisorIdentity,
+) -> ReaderReceipt {
+    // Read by the immutable ID admitted immediately before attach.
+    let mut command = tokio::process::Command::new("docker");
+    command
+        .arg("--host")
+        .arg(format!("unix://{}", provider.docker_socket().display()))
+        .args(["logs", "--tail", "32", &identity.container_id])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
+    match command.spawn() {
+        Ok(mut child) => observe_reader(&mut child, Duration::from_secs(5)).await,
+        Err(_) => ReaderReceipt {
+            observation: DiagnosticRead::Transport,
+            cleanup: ReaderCleanup::NotSpawned,
+        },
+    }
+}
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecoveryAttachmentReceipt<'a> {
+    stage: &'static str,
+    gateway_process: Option<u32>,
+    reaped_gateway_process: u32,
+    sandbox_id: Option<Uuid>,
+    main_process_instance_id: Option<Uuid>,
+    companion: &'a SupervisorIdentity,
+    companion_logs: ReaderReceipt,
+    gateway_log: Option<LogFacts>,
+}
+async fn capture_recovery_attachment(
+    provider: &Provider,
+    identity: &SupervisorIdentity,
+    observation: &Observation,
+    controllers: (u32, u32),
+) {
+    use std::io::{Read, Seek, SeekFrom};
+    use std::os::unix::fs::OpenOptionsExt;
+    let companion_logs = selected_companion_logs(provider, identity).await;
+    let gateway_log = (|| {
+        let mut file = std::fs::File::open(provider.dir.join("gateway.log")).ok()?;
+        let size = file.metadata().ok()?.len();
+        file.seek(SeekFrom::Start(size.saturating_sub(8192))).ok()?;
+        let mut bytes = Vec::new();
+        file.take(8192).read_to_end(&mut bytes).ok()?;
+        Some(log_facts(&bytes, size > 8192))
+    })();
+    let receipt = RecoveryAttachmentReceipt {
+        stage: "replacementGatewayAttach",
+        gateway_process: provider.process_id(),
+        reaped_gateway_process: controllers.0,
+        sandbox_id: observation.sandbox_id.parse().ok(),
+        main_process_instance_id: observation.main_process_instance_id.parse().ok(),
+        companion: identity,
+        companion_logs,
+        gateway_log,
+    };
+    // Never let secondary diagnostic I/O replace the original attach failure.
+    if let Ok(bytes) = serde_json::to_vec(&receipt) {
+        if bytes.len() <= 16384 {
+            use std::io::Write;
+            if let Ok(mut file) = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(provider.dir.join("recovery-attachment-diagnostics.json"))
+            {
+                let _ = file.write_all(&bytes);
+            }
+        }
+    }
+}
+#[cfg(test)]
+mod recovery_diagnostic_tests {
+    use super::*;
+    #[test]
+    fn session_facts_never_copy_credentials_payloads_or_error_suffixes() {
+        let bytes = br#"{"message":"supervisor session failed, reconnecting (attempt 2): Bearer secret-token"}
+{"message":"ssh relay open (channel_id=secret, target=private-bytes)"}
+{"message":"arbitrary secret payload","authorization":"Bearer secret"}
+2026-10-08T05:00:00Z OCSF NET:OPEN private-host [msg:secret]
+"#;
+        let facts = log_facts(bytes, false);
+        assert_eq!(
+            facts.facts,
+            vec![
+                CompanionFact::SessionReconnectFailed,
+                CompanionFact::SshRelayOpen,
+                CompanionFact::NetworkOpen
+            ]
+        );
+        assert_eq!(facts.omitted_lines, 1);
+        let shape = serde_json::to_value(&facts).unwrap();
+        assert_eq!(shape["omittedLines"], 1);
+        assert!(shape.get("omitted_lines").is_none());
+        assert_eq!(
+            shape["facts"],
+            serde_json::json!(["session_reconnect_failed", "ssh_relay_open", "network_open"])
+        );
+        let encoded = serde_json::to_string(&facts).unwrap();
+        for private in [
+            "Bearer",
+            "secret",
+            "private-host",
+            "private-bytes",
+            "authorization",
+        ] {
+            assert!(!encoded.contains(private));
+        }
+        assert!(log_facts(&vec![b'x'; 8192], true).truncated);
+    }
+    #[test]
+    fn diagnostic_receipt_uses_current_controlled_report_names() {
+        let identity = SupervisorIdentity {
+            container_id: "a".repeat(64),
+            process: ContainerProcessState {
+                running: true,
+                pid: 42,
+                started_at: "2026-10-08T00:00:00Z".into(),
+            },
+        };
+        let receipt = RecoveryAttachmentReceipt {
+            stage: "replacementGatewayAttach",
+            gateway_process: Some(2),
+            reaped_gateway_process: 1,
+            sandbox_id: None,
+            main_process_instance_id: None,
+            companion: &identity,
+            companion_logs: ReaderReceipt {
+                observation: DiagnosticRead::Captured {
+                    exit_code: Some(0),
+                    stdout: log_facts(b"", false),
+                    stderr: log_facts(b"", false),
+                },
+                cleanup: ReaderCleanup::Reaped,
+            },
+            gateway_log: None,
+        };
+        let value = serde_json::to_value(receipt).unwrap();
+        let keys: std::collections::BTreeSet<_> = value
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "stage",
+                "gatewayProcess",
+                "reapedGatewayProcess",
+                "sandboxId",
+                "mainProcessInstanceId",
+                "companion",
+                "companionLogs",
+                "gatewayLog"
+            ]
+            .into_iter()
+            .collect()
+        );
+        assert_eq!(value["companion"]["containerId"], "a".repeat(64));
+        assert!(value["companion"].get("container_id").is_none());
+        assert_eq!(value["companion"]["process"]["Running"], true);
+        assert_eq!(value["companion"]["process"]["Pid"], 42);
+        assert_eq!(
+            value["companion"]["process"]["StartedAt"],
+            "2026-10-08T00:00:00Z"
+        );
+        assert_eq!(
+            value["companionLogs"]["observation"]["captured"]["exitCode"],
+            0
+        );
+        assert!(
+            value["companionLogs"]["observation"]["captured"]
+                .get("exit_code")
+                .is_none()
+        );
+        assert_eq!(
+            serde_json::to_value(DiagnosticRead::MissingPipe).unwrap(),
+            "missing_pipe"
+        );
+        assert_eq!(
+            serde_json::to_value(DiagnosticRead::Deadline).unwrap(),
+            "deadline"
+        );
+        assert_eq!(
+            serde_json::to_value(DiagnosticRead::Transport).unwrap(),
+            "transport"
+        );
+    }
+    #[tokio::test]
+    async fn spawned_reader_missing_pipe_and_deadline_preserve_cause_and_reap() {
+        for piped in [false, true] {
+            let mut command = tokio::process::Command::new("/bin/sleep");
+            command.arg("30").kill_on_drop(true);
+            if piped {
+                command
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped());
+            }
+            let mut child = command.spawn().unwrap();
+            let receipt = observe_reader(&mut child, Duration::from_millis(20)).await;
+            if piped {
+                assert!(matches!(receipt.observation, DiagnosticRead::Deadline));
+            } else {
+                assert!(matches!(receipt.observation, DiagnosticRead::MissingPipe));
+            }
+            assert_eq!(receipt.cleanup, ReaderCleanup::Reaped);
+            assert!(
+                child.try_wait().unwrap().is_some(),
+                "owned reader is reaped before fixture teardown"
+            );
+        }
+    }
+    #[tokio::test]
+    async fn completed_reader_preserves_exit_and_redacts_output_before_reap() {
+        let mut command = tokio::process::Command::new("/bin/echo");
+        command
+            .arg("secret arbitrary process payload")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true);
+        let mut child = command.spawn().unwrap();
+        let receipt = observe_reader(&mut child, Duration::from_secs(5)).await;
+        assert!(matches!(
+            receipt.observation,
+            DiagnosticRead::Captured {
+                exit_code: Some(0),
+                ..
+            }
+        ));
+        assert_eq!(receipt.cleanup, ReaderCleanup::Reaped);
+        assert!(!serde_json::to_string(&receipt).unwrap().contains("secret"));
     }
 }

@@ -43,7 +43,15 @@ pub(crate) async fn connect(
                 }
                 state.started = true;
             }
-            let stream = tokio::net::TcpStream::connect(&address).await?;
+            let stream = tokio::net::TcpStream::connect(&address)
+                .await
+                .map_err(|error| {
+                    crate::terminal::diagnose(
+                        crate::terminal::TerminalStage::ForwardConnect,
+                        crate::terminal::TerminalCause::Io(error.kind()),
+                    );
+                    error
+                })?;
             stream.set_nodelay(true)?;
             let stream = stream.into_std()?;
             let closer = stream.try_clone()?;
@@ -60,7 +68,13 @@ pub(crate) async fn connect(
     let channel = endpoint
         .connect_with_connector(connector)
         .await
-        .map_err(|_| RuntimeFailure::Unavailable)?;
+        .map_err(|_| {
+            crate::terminal::diagnose(
+                crate::terminal::TerminalStage::ForwardConnect,
+                crate::terminal::TerminalCause::Transport,
+            );
+            RuntimeFailure::Unavailable
+        })?;
     Ok((
         Client::new(channel)
             .max_decoding_message_size(1024 * 1024)

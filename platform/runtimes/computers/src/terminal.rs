@@ -21,6 +21,60 @@ use tokio::{
 };
 use zeroize::Zeroizing;
 
+// Only closed categories cross the diagnostic boundary. SDK messages, requests,
+// credentials, host names and SSH payloads never enter this formatter.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum TerminalStage {
+    SessionMint,
+    SessionAdmission,
+    ForwardConnect,
+    ForwardAdmission,
+    ForwardRead,
+    ForwardWrite,
+    SshConnect,
+    SshAuthenticate,
+    SshChannel,
+    Pty,
+    Environment,
+    Subsystem,
+    Continuity,
+}
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum TerminalCause {
+    Rpc(tonic::Code),
+    Io(std::io::ErrorKind),
+    Ssh,
+    Transport,
+    Deadline,
+    Refused,
+    EndOfStream,
+    InvalidResponse,
+}
+pub(crate) fn diagnose(stage: TerminalStage, cause: TerminalCause) {
+    eprintln!("computer terminal: {}", diagnostic(stage, cause));
+}
+fn diagnostic(stage: TerminalStage, cause: TerminalCause) -> String {
+    // Explicitly unpack payloads so only the SDK's closed code/kind is rendered.
+    let cause = match cause {
+        TerminalCause::Rpc(code) => format!("Rpc({code:?})"),
+        TerminalCause::Io(kind) => format!("Io({kind:?})"),
+        other => format!("{other:?}"),
+    };
+    format!("stage={stage:?} cause={cause}")
+}
+fn ssh_failure(stage: TerminalStage, error: russh::Error) -> RuntimeFailure {
+    let cause = match error {
+        russh::Error::IO(error) => TerminalCause::Io(error.kind()),
+        _ => TerminalCause::Ssh,
+    };
+    diagnose(stage, cause);
+    RuntimeFailure::TerminalFailed
+}
+fn rpc_failure(stage: TerminalStage, error: tonic::Status) -> RuntimeFailure {
+    diagnose(stage, TerminalCause::Rpc(error.code()));
+    RuntimeFailure::TerminalFailed
+}
+
 // Orphan-response cleanup retains admission until its bounded revoke finishes.
 static SESSION_ISSUANCES: Semaphore = Semaphore::const_new(32);
 
@@ -222,10 +276,14 @@ pub(crate) async fn issue_session(
                 )),
             )
             .await
-            .map_err(|_| RuntimeFailure::TerminalFailed)?
-            .map_err(|_| RuntimeFailure::TerminalFailed)?
+            .map_err(|_| {
+                diagnose(TerminalStage::SessionMint, TerminalCause::Deadline);
+                RuntimeFailure::TerminalFailed
+            })?
+            .map_err(|error| rpc_failure(TerminalStage::SessionMint, error))?
             .into_inner();
             if response.token.is_empty() || response.token.len() > 4096 {
+                diagnose(TerminalStage::SessionMint, TerminalCause::InvalidResponse);
                 return Err(RuntimeFailure::TerminalFailed);
             }
             let token = SessionToken {
@@ -291,10 +349,17 @@ impl OpenShellRuntime {
     }
 }
 type SshChannel = russh::Channel<client::Msg>;
-async fn channel_success(channel: &mut SshChannel) -> Result<()> {
+async fn channel_success(channel: &mut SshChannel, stage: TerminalStage) -> Result<()> {
     match channel.wait().await {
         Some(ChannelMsg::Success) => Ok(()),
-        _ => Err(RuntimeFailure::TerminalFailed),
+        Some(_) => {
+            diagnose(stage, TerminalCause::Refused);
+            Err(RuntimeFailure::TerminalFailed)
+        }
+        None => {
+            diagnose(stage, TerminalCause::EndOfStream);
+            Err(RuntimeFailure::TerminalFailed)
+        }
     }
 }
 struct Attached {
@@ -327,6 +392,10 @@ async fn setup(
         || crate::client::timestamp_millis(session.expiration_time.as_ref())
             .is_none_or(|expiry| expiry <= 0)
     {
+        diagnose(
+            TerminalStage::SessionAdmission,
+            TerminalCause::InvalidResponse,
+        );
         return Err(RuntimeFailure::TerminalFailed);
     }
     let admission_expires = UNIX_EPOCH
@@ -367,41 +436,43 @@ async fn setup(
             },
         )
         .await
-        .map_err(|_| RuntimeFailure::TerminalFailed)?;
+        .map_err(|error| ssh_failure(TerminalStage::SshConnect, error))?;
         if !matches!(
             client
                 .authenticate_none("sandbox")
                 .await
-                .map_err(|_| RuntimeFailure::TerminalFailed)?,
+                .map_err(|error| ssh_failure(TerminalStage::SshAuthenticate, error))?,
             client::AuthResult::Success
         ) {
+            diagnose(TerminalStage::SshAuthenticate, TerminalCause::Refused);
             return Err(RuntimeFailure::TerminalFailed);
         }
         let mut channel = client
             .channel_open_session()
             .await
-            .map_err(|_| RuntimeFailure::TerminalFailed)?;
+            .map_err(|error| ssh_failure(TerminalStage::SshChannel, error))?;
         channel
             .request_pty(true, "xterm-256color", size.cols, size.rows, 0, 0, &[])
             .await
-            .map_err(|_| RuntimeFailure::TerminalFailed)?;
-        channel_success(&mut channel).await?;
+            .map_err(|error| ssh_failure(TerminalStage::Pty, error))?;
+        channel_success(&mut channel, TerminalStage::Pty).await?;
         channel
             .set_env(true, "OPENSHELL_MAIN_EVENTS", "1")
             .await
-            .map_err(|_| RuntimeFailure::TerminalFailed)?;
-        channel_success(&mut channel).await?;
+            .map_err(|error| ssh_failure(TerminalStage::Environment, error))?;
+        channel_success(&mut channel, TerminalStage::Environment).await?;
         channel
             .request_subsystem(true, "openshell-main")
             .await
-            .map_err(|_| RuntimeFailure::TerminalFailed)?;
-        channel_success(&mut channel).await?;
+            .map_err(|error| ssh_failure(TerminalStage::Subsystem, error))?;
+        channel_success(&mut channel, TerminalStage::Subsystem).await?;
         if !current.same_process(
             &runtime
                 .get(binding)
                 .await?
                 .ok_or(RuntimeFailure::TerminalFailed)?,
         ) {
+            diagnose(TerminalStage::Continuity, TerminalCause::InvalidResponse);
             return Err(RuntimeFailure::TerminalFailed);
         }
         Ok(Attached {
@@ -552,19 +623,43 @@ async fn forward(
     // authority timer and aborts the bridge; no fixed gRPC deadline ends live work.
     let mut response = tokio::time::timeout(Duration::from_secs(10), client.forward_tcp(request))
         .await
-        .map_err(|_| RuntimeFailure::TerminalFailed)?
-        .map_err(|_| RuntimeFailure::TerminalFailed)?
+        .map_err(|_| {
+            diagnose(TerminalStage::ForwardAdmission, TerminalCause::Deadline);
+            RuntimeFailure::TerminalFailed
+        })?
+        .map_err(|error| rpc_failure(TerminalStage::ForwardAdmission, error))?
         .into_inner();
     while let Some(frame) = response
         .message()
         .await
-        .map_err(|_| RuntimeFailure::TerminalFailed)?
+        .map_err(|error| rpc_failure(TerminalStage::ForwardRead, error))?
     {
         let bytes = forward_data(frame)?;
-        writer
-            .write_all(&bytes)
-            .await
-            .map_err(|_| RuntimeFailure::TerminalFailed)?;
+        writer.write_all(&bytes).await.map_err(|error| {
+            diagnose(TerminalStage::ForwardWrite, TerminalCause::Io(error.kind()));
+            RuntimeFailure::TerminalFailed
+        })?;
     }
+    diagnose(TerminalStage::ForwardRead, TerminalCause::EndOfStream);
     Err(RuntimeFailure::TerminalFailed)
+}
+
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    #[test]
+    fn sdk_diagnostics_exclude_messages_and_payloads() {
+        let status = tonic::Status::permission_denied("Bearer private-token query=secret");
+        let text = diagnostic(
+            TerminalStage::ForwardAdmission,
+            TerminalCause::Rpc(status.code()),
+        );
+        assert_eq!(text, "stage=ForwardAdmission cause=Rpc(PermissionDenied)");
+        let error =
+            std::io::Error::new(std::io::ErrorKind::ConnectionReset, "private-key and bytes");
+        assert_eq!(
+            diagnostic(TerminalStage::ForwardWrite, TerminalCause::Io(error.kind())),
+            "stage=ForwardWrite cause=Io(ConnectionReset)"
+        );
+    }
 }
