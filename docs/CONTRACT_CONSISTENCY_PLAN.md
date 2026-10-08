@@ -57,7 +57,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. The final client-types check verifies all 18 bundles and 36 outputs | Finish Computer lifecycle identity and locking, then qualify native recovery; reconcile final formats, continuations, producer/consumer links and pins; drain writers and prepare fresh reference state |
+| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls; the file header uses v2. The final client-types check verifies all 18 bundles and 36 outputs | Qualify Computer native recovery and the rebuilt file helper; reconcile final formats, continuations, producer/consumer links and pins; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
@@ -105,19 +105,18 @@ Computers selects OpenShell 0.1.2 with matched provider artifacts, typed selecto
 and a drained private checkpoint cut. Its GCC 16.2 build passes C++20 format and
 static C++ probes against glibc 2.36; gateway and driver require at most GLIBC 2.34.
 Native and Host generators pass byte comparison and effective TLS-loader admission.
-The recovery candidate passes 40 driver, nine gateway and two mTLS controls,
+The recovery candidate passes 44 driver, nine gateway and two mTLS controls,
 packaged-source admission and release binary/ELF checks. Source review accepts
 same-supervisor authentication, uncertain Docker wait containment, fresh Start
 admission and preservation of ambiguous volume mounts. Typed cleanup ownership
 and settlement preserve private state and journals after applied-but-lost Docker
 replies.
 
-Final review identifies two related gaps. Name-only lifecycle calls must resolve the
-actual sandbox ID before selecting a journal or lock. Stop and Delete must recheck
-admission after acquiring that lock and hold it through their effects; a concurrent
-Start can otherwise invalidate an earlier check. A refused or waiting Stop cannot
-grant Create permission to destroy an unsettled companion. Actual public name-only
-and deterministic race controls must qualify the repair before native execution.
+Lifecycle calls resolve the sandbox ID before selecting its journal and lock,
+recheck admission under that lock and hold it through effects. Public name-only
+and deterministic Start/Stop/Delete race controls pass. The obsolete Stop flag
+and its destructive Create branch are removed. The failure → Stop → corrected Create
+control proves that a safe local refusal cannot poison the later operation.
 
 The existing native lifecycle case must prove fresh authenticated terminal delivery
 and retained bytes after abrupt gateway loss while preserving the physical supervisor
@@ -126,6 +125,16 @@ installed execution remain open. The candidate stays quarantined and the retaine
 rollback image stays selected. Compiler checks do not establish native recovery.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
+
+The Python SDK admits the preserved `v1:N` offset grammar and 64-bit range,
+including Rust's admitted leading-plus and leading-zero aliases. It refuses
+non-ASCII digits and overflow before integer conversion. Paired Rust and Python
+controls and the actual registered template resource-list receiver pass.
+The Computer file writer and helper select numeric header version 2 and
+`maximumBytes`; codec and actual helper-process controls reject old and mixed
+headers before filesystem access. Execution protocol version 1 is unchanged.
+The helper-bearing template must be rebuilt and its native file case qualified
+before the v2 writer is installed.
 
 View's CUDA 13.3.1 local NVIDIA hardware smoke passes device and GPU JPEG
 admission, four PNG/JPEG captures and their byte and encoder-completion checks.
@@ -171,6 +180,9 @@ The current source checkpoints are:
 | Time, Computers, Speech, Media, Optimization, UAV, Recording and SDK value admission | `2b32885bf` |
 | Remaining current-wire consumers and complete UAV/Reason schema refresh | `e86d7a28f` |
 | Isolated browser/report contracts and standalone Flight dependencies | `944e95496` |
+| Python offset admission and registered template receiver | `61435785e` |
+| Computer file header v2, helper admission and coordinated drain | `eb1fef5e4` |
+| Computer companion recovery, unresolved state and lifecycle locking | `796054f1f` |
 
 These revisions qualify their implemented source concerns. They do not close the
 wider F-register or the hardware and installed gates.
@@ -2587,6 +2599,7 @@ timestamps; that owner requires its own final schema and decoder qualification.
 | Reason and stream results, speech transcript, travel-model artifact, optimization problem and solution documents | Next version with a `veoveo.ai/<name>/v<N>` tag |
 | Media generation result `veoveo.ai/media-generation/v1` | v2; change the actual publisher, retained Task snapshot and public read/Task consumers together, preserving provider-native registry and response payloads |
 | cuOpt executor `veoveo.ai/cuopt-executor/v1`, reason runner request v3, speech worker v1, Map helper `schema_version: 1` | Next version, both sides in the same commit |
+| Computer regular-file header `veoveo.ai/computer-files/v1` | v2 with numeric header version 2 and export `maximumBytes`; drain file operations and select a rebuilt matched helper template. Execution protocol version 1 is unchanged |
 | UAV acceptance scenario v12, deployment v8, deployment lock v8, component mutation plan v2 | v13, v9, v9 and v3; `deploy/contract/src/decoding.rs` rejects the old versions with an upgrade diagnostic |
 | UAV private control HTTP `/v1/state`, `/v1/world`, `/v1/commands`, `/v1/operations`; `veoveo.ai/uav-world-publication/v1` | Control routes advance to `/v2` on both peers; world publication receipt advances to v2 with the changed binding body |
 | Owner-defined opaque continuations | Advance affected envelope versions; qualify every codec and receiving validator |
