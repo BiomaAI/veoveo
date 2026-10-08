@@ -236,8 +236,9 @@ The [verifier design](../testing/deployment-smoke/DESIGN.md) defines the evidenc
 
 Run the resource preflight before any release expected to compile several Rust image
 families or retain a large BuildKit export. The default 320 GiB growth allowance covers
-the observed 294.57 GB managed-worker peak, while the 20 percent filesystem reserve
-keeps the host below the kubelet image-GC boundary with room for ordinary runtime writes.
+the observed 294.57 GB managed-worker peak. The default 13 percent filesystem reserve
+applies after projected growth and aligns with the managed worker’s shared-host cache
+policy.
 
 ```bash
 cargo xtask release preflight \
