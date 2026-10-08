@@ -134,6 +134,17 @@ retained rollback image stays selected.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
 
+The finite continuation review covers 50 production codec variants and 16 additional
+continuation families, with documentation and test examples classified separately.
+The public Audit query cursor now uses `lastId`; its actual registry and Gateway
+receivers refuse retired, mixed and duplicate keys while preserving partition and
+ordering checks. Signed Audit formats keep their bytes. Console's saved upload rows
+reject unknown and retired fields before restoration or status reads. Both repairs
+pass their owning controls and independent review. The installation-pin fixture now
+uses the actual seven-file Gateway bundle preimage; current pins are unchanged.
+Client generation agrees across all 18 bundles and 36 outputs. This source review
+does not close the wider format inventory or installed consumer gates.
+
 The Python SDK admits the preserved `v1:N` offset grammar and 64-bit range,
 including Rust's admitted leading-plus and leading-zero aliases. It refuses
 non-ASCII digits and overflow before integer conversion. Paired Rust and Python
@@ -199,6 +210,9 @@ The current source checkpoints are:
 | Safe terminal stages and bounded native failure diagnostics | `47868a1b5` |
 | Bounded retained-supervisor relay admission and closed launch diagnostics | `eee60fed3` |
 | Typed companion binding v2 and settled Stop→Start succession | `c16879bcd` |
+| Strict saved-upload row admission before browser restoration | `28ff03897` |
+| Complete Gateway bundle pin fixture | `1c645d680` |
+| Public Audit cursor and generated consumer hard cut | `0b43ab6f6` |
 
 These revisions qualify their implemented source concerns. They do not close the
 wider F-register or the hardware and installed gates.
@@ -2602,6 +2616,7 @@ timestamps; that owner requires its own final schema and decoder qualification.
 | Format | Handling |
 |---|---|
 | Audit chain (RFC 8785 and Ed25519), audit export destination IDs and seals, audit checkpoint files | Frozen (D4) |
+| Public structured Audit query cursor | Unversioned keyset uses `lastId`; retire `last_id` across the owner and actual Gateway/Console readers under the coordinated drain. Signed formats stay frozen |
 | Computers AEAD associated data, HMAC inputs and sealed plaintexts; BFF cookies; forwarder queue `stream.json` | Internal, unchanged |
 | Internal gateway JWT and gateway OAuth access token claims | JWT format, unchanged (D1) |
 | Gateway control-plane SHA-256, Frames `spec_digest`, knowledge registration and member revisions, `runtime_template_revision`, View composition digests, Map request digests, Recording source-snapshot SHA-256 | Recomputed after the cut |
