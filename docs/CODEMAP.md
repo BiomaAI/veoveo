@@ -381,7 +381,7 @@ designs above.
 | `examples/bioma/gitops/` | Flux Git source, OCI chart sources, platform and workload Helm releases, and installation-owned edge resources |
 | `examples/bioma/gateway.json` | the reference installation's complete control plane: 16-server MCP catalog, OAuth clients, policy rules, and routes |
 | [`examples/bioma/acceptance/`](../examples/bioma/acceptance/DESIGN.md) | owner-local compiled composition checks; `tests/record_restore.rs` and `tests/queries/record_restore/` qualify bound record insertion and atomic restoration |
-| `examples/bioma/acceptance/src/reports/artifact_upload.rs` | smoke-gated complete browser upload report shared by browser and installation binaries, canonical Artifact receipt admission, selected occurrence/URI agreement and declared hardware identity |
+| `examples/bioma/acceptance/src/reports/artifact_upload.rs` | report-only exported complete browser upload report shared by browser and installation binaries, canonical Artifact receipt admission, selected occurrence/URI agreement and declared hardware identity |
 | `agents/manager/src/tests/installation_capture.rs` | actual Manager and UAV chart wiring capture, complete nonsecret ConfigMap/template/model inputs and typed revision comparisons; production installation pins require the selected composition |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | Python server template (`datasheet`) |
@@ -1064,7 +1064,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `examples/bioma/flight/src/domain/recording.rs` | shared typed live-part Stream replay and grounded Reason assertions; focused recording acceptance without flight commands |
 | `examples/bioma/flight/src/domain/control_grants.rs` | client-only UAV grant page decoding, Map-owned profile references and bounded authority qualification |
 | `examples/bioma/flight/src/domain/showcase.rs` | showcase UAV cameras and products, authenticated Console checkpoints, Rerun playback, and evidence tied to a revision |
-| `testing/browser-smoke/src/lib.rs` | shared headed CDP transport, owned target cleanup and hardware WebGPU-or-WebGL admission |
+| `testing/browser-smoke/src/lib.rs`, `hardware.rs`, `transport.rs` | contract-only hardware identity and WebGPU-or-WebGL admission; default runtime adds shared headed CDP transport and owned target cleanup |
 | `examples/bioma/acceptance/src/browser/browser.rs` | opaque-origin App hosting, Map workspace viewport acceptance, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
 | `examples/bioma/acceptance/src/browser/browser/map_workspace.rs` | Map-owned typed fixture resources and copied query admission for the existing browser HTTP shim; pure receiving controls qualify request behavior, while Map rendering requires its declared HTTPS basemap origin and headed hardware graphics |
 | `examples/bioma/flight/src/cli.rs`, `src/domain/` | focused flight CLI, scenario validation, authenticated MCP client, world admission, live Stream assertions, and artifact checks; contains no service implementations |

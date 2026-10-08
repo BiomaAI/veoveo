@@ -1,9 +1,9 @@
 //! Owner-local acceptance for the Bioma enterprise composition.
 
-#[cfg(feature = "smoke")]
+#[cfg(feature = "reports")]
 pub mod reports;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 mod tests {
     use std::{fs, path::PathBuf};
 

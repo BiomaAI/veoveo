@@ -66,7 +66,7 @@ these checks.
 
 ## Installation Assertion Delivery
 
-The nondefault `smoke` feature supplies `installation-smoke` and `installation-browser-smoke`. Their single assertion sources own the multi-domain Store, Artifact, Gateway and installation relationships they exercise. The existing acceptance target and its default dependencies keep their normal behavior. Production domain packages do not depend on this composition.
+The nondefault `smoke` feature supplies `installation-smoke` and `installation-browser-smoke`. Their single assertion sources own the multi-domain Store, Artifact, Gateway and installation relationships they exercise. The default `native` feature selects the composition and Store dependencies used by the existing native controls. `smoke` includes that profile. The separate `reports` feature exports the same upload report declarations through only Artifact contracts, shared types and browser hardware contracts; it excludes composition, Store, Tasks, service implementations and CDP execution. Production domain packages do not depend on this composition.
 
 Tracked `smoke/scenarios.json` entries name actual Cargo targets and preparations. Dispatch preserves native command arguments, hardware/service prerequisites and owner cleanup. Browser assertions use the shared headed CDP and hardware admission mechanics; pure browser sampler controls establish behavioral coverage only. Interrupted remote operations keep the owning reconciliation requirement.
 
