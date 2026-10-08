@@ -404,6 +404,7 @@ struct InspectedContainer {
     image: String,
     labels: std::collections::BTreeMap<String, String>,
     mounts: Vec<MountFact>,
+    effective_mounts: Vec<EffectiveMountFact>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
@@ -411,7 +412,7 @@ struct MountFact {
     source: Option<String>,
     target: Option<String>,
     #[serde(default)]
-    read_only: Option<bool>,
+    read_only: bool,
     volume_options: Option<VolumeFact>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
@@ -419,6 +420,57 @@ struct MountFact {
 struct VolumeFact {
     no_copy: Option<bool>,
     subpath: Option<String>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+struct EffectiveMountFact {
+    #[serde(rename = "Type")]
+    mount_type: String,
+    name: Option<String>,
+    destination: String,
+    #[serde(rename = "RW")]
+    writable: bool,
+}
+
+fn retained_home_mounts<'a>(
+    inspected: &'a InspectedContainer,
+    home: &str,
+) -> (&'a MountFact, &'a EffectiveMountFact) {
+    let requested: Vec<_> = inspected
+        .mounts
+        .iter()
+        .filter(|mount| {
+            mount.source.as_deref() == Some(home)
+                || mount.target.as_deref() == Some(PERSISTENT_HOME)
+        })
+        .collect();
+    assert_eq!(requested.len(), 1, "one exact requested retained home");
+    let request = requested[0];
+    assert_eq!(request.source.as_deref(), Some(home));
+    assert_eq!(request.target.as_deref(), Some(PERSISTENT_HOME));
+    // Docker API 1.53 Mount.ReadOnly is optional. Moby's bool/omitempty
+    // request form omits false; Serde default bool rejects explicit null.
+    assert!(!request.read_only, "retained home request must be writable");
+    assert_eq!(request.volume_options.as_ref().unwrap().no_copy, Some(true));
+    assert_eq!(
+        request.volume_options.as_ref().unwrap().subpath.as_deref(),
+        Some("home")
+    );
+    let effective: Vec<_> = inspected
+        .effective_mounts
+        .iter()
+        .filter(|mount| mount.name.as_deref() == Some(home) || mount.destination == PERSISTENT_HOME)
+        .collect();
+    assert_eq!(effective.len(), 1, "one exact effective retained home");
+    let effective = effective[0];
+    assert_eq!(effective.mount_type, "volume");
+    assert_eq!(effective.name.as_deref(), Some(home));
+    assert_eq!(effective.destination, PERSISTENT_HOME);
+    assert!(
+        effective.writable,
+        "effective retained home must be writable"
+    );
+    (request, effective)
 }
 #[derive(Debug, PartialEq, Eq, serde::Serialize)]
 struct RetainedIdentity {
@@ -429,6 +481,7 @@ struct RetainedIdentity {
     container_id: String,
     image_id: String,
     home_mount: MountFact,
+    effective_home_mount: EffectiveMountFact,
     restart_state_sha256: String,
 }
 async fn docker_observation(provider: &Provider, arguments: &[&str]) -> String {
@@ -487,7 +540,7 @@ async fn owned_container(
     );
     assert_eq!(ids[0].len(), 64);
     assert!(ids[0].bytes().all(|b| b.is_ascii_hexdigit()));
-    let format = r#"{"id":{{json .Id}},"image":{{json .Image}},"labels":{{json .Config.Labels}},"mounts":{{json .HostConfig.Mounts}}}"#;
+    let format = r#"{"id":{{json .Id}},"image":{{json .Image}},"labels":{{json .Config.Labels}},"mounts":{{json .HostConfig.Mounts}},"effective_mounts":{{json .Mounts}}}"#;
     let body = docker_observation(provider, &["inspect", "--format", format, ids[0]]).await;
     let inspected: InspectedContainer =
         serde_json::from_str(&body).expect("typed owned Docker identity projection");
@@ -533,20 +586,9 @@ async fn retained_identity(
             .map(String::as_str),
         Some("default")
     );
-    let mounts: Vec<_> = inspected
-        .mounts
-        .iter()
-        .filter(|m| m.source.as_deref() == Some(home))
-        .collect();
-    assert_eq!(mounts.len(), 1);
-    let mount = mounts[0];
-    assert_eq!(mount.target.as_deref(), Some(PERSISTENT_HOME));
-    assert_eq!(mount.read_only, Some(false));
-    assert_eq!(mount.volume_options.as_ref().unwrap().no_copy, Some(true));
-    assert_eq!(
-        mount.volume_options.as_ref().unwrap().subpath.as_deref(),
-        Some("home")
-    );
+    let (mount, effective_mount) = retained_home_mounts(&inspected, home);
+    let home_mount = mount.clone();
+    let effective_home_mount = effective_mount.clone();
     let path = provider
         .dir
         .join("state/openshell/docker-sandbox-tokens")
@@ -572,7 +614,105 @@ async fn retained_identity(
         daemon_id: docker_observation(provider, &["info", "--format", "{{.ID}}"]).await,
         container_id: inspected.id,
         image_id: inspected.image,
-        home_mount: mount.clone(),
+        home_mount,
+        effective_home_mount,
         restart_state_sha256: hex::encode(Sha256::digest(bytes)),
+    }
+}
+
+#[cfg(test)]
+mod retained_mount_tests {
+    use super::*;
+
+    fn inspected() -> InspectedContainer {
+        serde_json::from_str(r#"{
+            "id":"owned", "image":"admitted", "labels":{},
+            "mounts":[
+                {"Source":"owned-home","Target":"/sandbox/persistent","VolumeOptions":{"NoCopy":true,"Subpath":"home"}},
+                {"Source":"channel","Target":"/.openshell/channel","ReadOnly":true,"VolumeOptions":{"NoCopy":true}}
+            ],
+            "effective_mounts":[
+                {"Type":"volume","Name":"owned-home","Destination":"/sandbox/persistent","RW":true},
+                {"Type":"volume","Name":"channel","Destination":"/.openshell/channel","RW":false}
+            ]
+        }"#).unwrap()
+    }
+
+    fn refuses(inspected: InspectedContainer) {
+        assert!(
+            std::panic::catch_unwind(|| retained_home_mounts(&inspected, "owned-home")).is_err()
+        );
+    }
+
+    #[test]
+    fn omitted_and_explicit_false_requests_admit_only_actual_writable_home() {
+        let omitted = inspected();
+        let mut explicit = inspected();
+        explicit.mounts[0] = serde_json::from_str(r#"{"Source":"owned-home","Target":"/sandbox/persistent","ReadOnly":false,"VolumeOptions":{"NoCopy":true,"Subpath":"home"}}"#).unwrap();
+        let omitted = retained_home_mounts(&omitted, "owned-home");
+        let explicit = retained_home_mounts(&explicit, "owned-home");
+        assert_eq!(
+            omitted, explicit,
+            "false omission normalizes only the request form"
+        );
+        assert!(omitted.1.writable);
+    }
+
+    #[test]
+    fn null_wrongtype_readonly_requests_and_unwritable_effective_mounts_refuse() {
+        for invalid in ["null", "\"false\"", "0"] {
+            let body = format!(r#"{{"ReadOnly":{invalid}}}"#);
+            assert!(serde_json::from_str::<MountFact>(&body).is_err());
+        }
+        let mut readonly = inspected();
+        readonly.mounts[0].read_only = true;
+        refuses(readonly);
+        let mut readonly = inspected();
+        readonly.effective_mounts[0].writable = false;
+        refuses(readonly);
+        for invalid in [
+            r#"{"Type":"volume","Name":"owned-home","Destination":"/sandbox/persistent"}"#,
+            r#"{"Type":"volume","Name":"owned-home","Destination":"/sandbox/persistent","RW":null}"#,
+            r#"{"Type":"volume","Name":"owned-home","Destination":"/sandbox/persistent","RW":"true"}"#,
+        ] {
+            assert!(serde_json::from_str::<EffectiveMountFact>(invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn retained_home_identity_count_and_no_copy_subpath_cannot_be_substituted() {
+        let mut variants = Vec::new();
+        let mut missing = inspected();
+        missing.effective_mounts.remove(0);
+        variants.push(missing);
+        let mut wrong = inspected();
+        wrong.effective_mounts[0].name = Some("foreign".into());
+        variants.push(wrong);
+        let mut wrong = inspected();
+        wrong.effective_mounts[0].name = None;
+        variants.push(wrong);
+        let mut wrong = inspected();
+        wrong.effective_mounts[0].destination = "/foreign".into();
+        variants.push(wrong);
+        let mut wrong = inspected();
+        wrong.effective_mounts[0].mount_type = "bind".into();
+        variants.push(wrong);
+        let mut duplicate = inspected();
+        duplicate
+            .effective_mounts
+            .push(duplicate.effective_mounts[0].clone());
+        variants.push(duplicate);
+        let mut wrong = inspected();
+        wrong.mounts[0].source = Some("foreign".into());
+        variants.push(wrong);
+        let mut wrong = inspected();
+        wrong.mounts[0].volume_options.as_mut().unwrap().no_copy = Some(false);
+        variants.push(wrong);
+        let mut wrong = inspected();
+        wrong.mounts[0].volume_options.as_mut().unwrap().subpath = Some("other".into());
+        variants.push(wrong);
+        for variant in variants {
+            refuses(variant);
+        }
     }
 }
