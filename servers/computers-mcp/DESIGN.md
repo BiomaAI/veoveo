@@ -742,7 +742,14 @@ closure after policy removal, logout, family expiry or assertion expiry. Capacit
 fixtures; they establish neither provider execution nor installed acceptance.
 Its native fixture uses the actual current-policy reader, isolated installation
 revision, production retained allocator and native OpenShell provider. Two worker
-replicas compete for Create, then Stop succeeds with the allocator offline. Start
+replicas compete for Create. With the allocator offline, the fixture dispatches one
+Stop and uses the production lifecycle scheduler and current-owner Task listener to
+require successful settlement of that original operation. A step is bounded by current
+30-second dispatch authority; returning Waiting does not settle the provider mutation. The
+scheduler observes the persisted operation within its original 180-second deadline
+and eight-read budget. The allocator stays offline through Task success and the
+Stopped Computer assertion. The fixture checks unchanged dispatch, resource and
+process identities, and owns scheduler cancellation and cleanup on failure. Start
 after allocator replacement preserves the file and changes the process identity.
 Lost dispatch/settlement and current-policy cases retain their domain fence assertions.
 The fixture establishes this composition; it does not establish public MCP or

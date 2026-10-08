@@ -18,7 +18,7 @@ mod support;
 mod template;
 #[path = "support/terminal_hops.rs"]
 mod terminal_hops;
-use futures::FutureExt;
+use futures::{FutureExt, StreamExt};
 use std::{
     sync::{
         Arc,
@@ -276,14 +276,14 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
             gate.clone(),
         )
         .unwrap();
-        let worker_b = LifecycleWorker::new(
+        let worker_b = Arc::new(LifecycleWorker::new(
             b.clone(),
             tasks_b.clone(),
             provider.runtime.clone(),
             vec![selected.clone()],
             gate.clone(),
         )
-        .unwrap();
+        .unwrap());
         let binding = Binding::new(computer.computer_id.as_uuid(), selected.fingerprint()).unwrap();
 
         // Pin initial creation, access and retained restart assertions together.
@@ -342,12 +342,59 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
                 )
                 .await
                 .unwrap();
+            // Anchor the maintained current-owner listener before any dispatch.
+            let mut listener = tasks_a.for_owner(&stop.owner)
+                .subscribe(&[stop.task_id()]).await.unwrap();
+            assert_eq!(listener.accepted_task_ids, vec![stop.task_id()]);
             home.stop_service().await;
-            let stop_result = worker_b.step(stop.clone()).boxed().await;
-            if !matches!(stop_result, Ok(WorkerStep::Settled)) {
+            worker_b.step(stop.clone()).boxed().await.unwrap();
+            let dispatched = a.operation(&stop.owner, stop.operation_id).await.unwrap();
+            assert!(dispatched.dispatch_id.is_some());
+            let deadline = dispatched.observation_deadline.unwrap();
+            let remaining = (deadline - chrono::Utc::now()).to_std().unwrap();
+            let shutdown = tokio_util::sync::CancellationToken::new();
+            let _shutdown_guard = shutdown.clone().drop_guard();
+            // JoinSet aborts its owned task on panic or timeout; cancellation
+            // lets run() abort and reap its own in-flight observation jobs.
+            let mut scheduler = tokio::task::JoinSet::new();
+            scheduler.spawn(worker_b.clone().run(shutdown.clone()));
+            // A single step can return while the original provider Stop is still
+            // running. The production scheduler observes the journaled mutation;
+            // it cannot mint another dispatch or extend its persisted read budget.
+            let completed = tokio::time::timeout(remaining, async {
+                while let Some(update) = listener.updates.next().await {
+                    let snapshot = update.unwrap().snapshot;
+                    assert_eq!(snapshot.task_id, stop.task_id());
+                    if snapshot.is_terminal() {
+                        assert_eq!(snapshot.status, TaskStatus::Succeeded);
+                        return;
+                    }
+                }
+                panic!("native Stop Task listener closed before completion");
+            }).await;
+            shutdown.cancel();
+            let stopped_scheduler = tokio::time::timeout(Duration::from_secs(5), scheduler.join_next()).await;
+            if stopped_scheduler.is_err() {
+                scheduler.abort_all();
+                let _ = tokio::time::timeout(Duration::from_secs(1), scheduler.join_next()).await;
+            }
+            if completed.is_err() {
                 diagnose_step(&a, &tasks_a, &stop, &provider.runtime, &binding).await;
             }
-            assert_eq!(stop_result.unwrap(), WorkerStep::Settled);
+            completed.expect("original Stop did not settle within its stored observation deadline");
+            stopped_scheduler.expect("native lifecycle scheduler did not stop").unwrap().unwrap();
+            drop(listener);
+            let settled = a.operation(&stop.owner, stop.operation_id).await.unwrap();
+            assert_eq!(settled.stage, OperationStage::Succeeded);
+            assert_eq!(settled.operation_id, stop.operation_id);
+            assert_eq!(settled.dispatch_id, dispatched.dispatch_id);
+            assert_eq!(settled.observation_deadline, Some(deadline));
+            assert!(settled.observation_reads <= 8);
+            assert_eq!(settled.previous_resource_id, dispatched.previous_resource_id);
+            assert_eq!(settled.previous_process_id, dispatched.previous_process_id);
+            let stopped = a.get(&actor, computer.computer_id).await.unwrap();
+            assert_eq!(stopped.phase, ComputerPhase::Stopped);
+            assert!(stopped.active_operation.is_none());
             home.start_service().await;
             let start = a
                 .queue_operation(
