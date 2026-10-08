@@ -3,7 +3,11 @@ mod support;
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::{io::Write, process::Command};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::Write,
+    process::Command,
+};
 
 fn render(values: &Value) -> Result<std::process::Output> {
     let plan = support::module_plan()?;
@@ -232,5 +236,281 @@ fn renderer_rejects_unpinned_or_cpu_configuration_and_accepts_declared_gpu_claim
             .get("nvidia.com/gpu")
             .is_none()
     );
+    Ok(())
+}
+
+#[test]
+fn reference_staging_preserves_active_claims_and_omits_deferred_claims() -> Result<()> {
+    let repository = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+    let reference = objects(
+        Command::new("timeout")
+            .args(["25s", "kubectl", "kustomize", "examples/bioma"])
+            .current_dir(repository)
+            .output()
+            .context("reference Kustomize inputs")?,
+    )?;
+    let release = find(&reference, "HelmRelease", "veoveo")?;
+    let namespace = release["metadata"]["namespace"]
+        .as_str()
+        .context("release namespace")?;
+    let directory = tempfile::tempdir()?;
+    let mut helm = Command::new("timeout");
+    helm.args(["25s", "helm", "template"])
+        .arg(
+            release["spec"]["releaseName"]
+                .as_str()
+                .context("release name")?,
+        )
+        .arg("deploy/helm/veoveo")
+        .arg("--namespace")
+        .arg(
+            release["spec"]["targetNamespace"]
+                .as_str()
+                .context("target namespace")?,
+        )
+        .current_dir(repository);
+    for (index, source) in release["spec"]["valuesFrom"]
+        .as_array()
+        .context("release values")?
+        .iter()
+        .enumerate()
+    {
+        ensure!(
+            source["kind"] == "ConfigMap",
+            "reference values must use ConfigMaps"
+        );
+        let config = reference
+            .iter()
+            .find(|object| {
+                object["kind"] == "ConfigMap"
+                    && object["metadata"]["name"] == source["name"]
+                    && object["metadata"]["namespace"] == namespace
+            })
+            .context("same-namespace reference values")?;
+        ensure!(
+            config["immutable"] == true,
+            "reference values must be immutable"
+        );
+        let key = source["valuesKey"].as_str().context("values key")?;
+        let file = directory.path().join(format!("values-{index}.yaml"));
+        std::fs::write(
+            &file,
+            config["data"][key]
+                .as_str()
+                .context("generated values bytes")?,
+        )?;
+        helm.arg("--values").arg(file);
+    }
+    let output = helm.output().context("full reference Helm render")?;
+    let rendered = output.stdout.clone();
+    let _helm_objects = objects(output)?;
+    std::fs::write(directory.path().join("rendered.yaml"), rendered)?;
+    let renderers = release["spec"]["postRenderers"]
+        .as_array()
+        .context("reference postrenderers")?;
+    ensure!(renderers.len() == 1, "qualify every reference postrenderer");
+    let mut kustomization = json!({"apiVersion":"kustomize.config.k8s.io/v1beta1", "kind":"Kustomization", "resources":["rendered.yaml"]});
+    // Kubernetes' YAML parser admits octal file modes (0400) differently from the
+    // generic YAML reader. Compare both sides through the same native parser.
+    std::fs::write(
+        directory.path().join("kustomization.yaml"),
+        serde_yaml_ng::to_string(&kustomization)?,
+    )?;
+    let before = objects(
+        Command::new("timeout")
+            .args(["25s", "kubectl", "kustomize"])
+            .arg(directory.path())
+            .output()
+            .context("unpatched reference Kubernetes manifest")?,
+    )?;
+    let settings = renderers[0]["kustomize"]
+        .as_object()
+        .context("reference Kustomize postrenderer")?;
+    ensure!(
+        settings.keys().all(|key| key == "patches"),
+        "unsupported postrenderer settings require qualification"
+    );
+    kustomization
+        .as_object_mut()
+        .context("Kustomization object")?
+        .extend(settings.clone());
+    std::fs::write(
+        directory.path().join("kustomization.yaml"),
+        serde_yaml_ng::to_string(&kustomization)?,
+    )?;
+    let after = objects(
+        Command::new("timeout")
+            .args(["25s", "kubectl", "kustomize"])
+            .arg(directory.path())
+            .output()
+            .context("actual reference postrenderer")?,
+    )?;
+
+    let deferred = BTreeSet::from([
+        "computer-host-data",
+        "reason-model-cache",
+        "reason-recording-cache",
+        "recording-spool",
+        "recording-catalog-cache",
+        "stream-model-cache",
+        "stream-recording-cache",
+        "optimization-mcp-workspace",
+    ]);
+    let active_claims = ["embedding-model-cache", "map-mcp-workspace"];
+    let zero = BTreeSet::from([
+        "computer-host",
+        "computers-mcp",
+        "optimization-mcp",
+        "reason-mcp",
+        "recording",
+        "rerun-bridge",
+        "speech-mcp",
+        "stream-mcp",
+        "view-mcp",
+    ]);
+    let deadlines = BTreeSet::from(["embedding", "knowledge-mcp"]);
+    let before_claims = before
+        .iter()
+        .filter(|v| v["kind"] == "PersistentVolumeClaim")
+        .map(|v| v["metadata"]["name"].as_str().context("claim name"))
+        .collect::<Result<BTreeSet<_>>>()?;
+    ensure!(
+        deferred.is_subset(&before_claims),
+        "full reference must render every deferred claim before staging: rendered {before_claims:?}, expected {deferred:?}"
+    );
+    ensure!(
+        before.iter().filter(|v| v["kind"] == "Deployment").count() == 25,
+        "full Deployment contract changed"
+    );
+    ensure!(
+        after.iter().filter(|v| v["kind"] == "Deployment").count() == 25,
+        "staging must retain all 25 Deployments"
+    );
+
+    let identity = |v: &Value| -> Result<(String, String, String, String)> {
+        Ok((
+            v["apiVersion"].as_str().context("object API")?.into(),
+            v["kind"].as_str().context("object kind")?.into(),
+            v["metadata"]["namespace"]
+                .as_str()
+                .unwrap_or_default()
+                .into(),
+            v["metadata"]["name"]
+                .as_str()
+                .context("object name")?
+                .into(),
+        ))
+    };
+    let after_by_identity = after
+        .iter()
+        .map(|v| Ok((identity(v)?, v)))
+        .collect::<Result<BTreeMap<_, _>>>()?;
+    ensure!(
+        after_by_identity.len() == after.len(),
+        "duplicate postrendered identities"
+    );
+    for original in &before {
+        let name = original["metadata"]["name"]
+            .as_str()
+            .context("object name")?;
+        if original["kind"] == "PersistentVolumeClaim" && deferred.contains(name) {
+            continue;
+        }
+        let actual = after_by_identity
+            .get(&identity(original)?)
+            .context("staging removed a required object")?;
+        let mut expected = original.clone();
+        if original["kind"] == "Deployment" {
+            if zero.contains(name) {
+                expected["spec"]["replicas"] = json!(0);
+            }
+            if deadlines.contains(name) {
+                expected["spec"]["progressDeadlineSeconds"] = json!(1200);
+            }
+        }
+        // Only the active claim's keep annotation may change. Complete labels and existing
+        // annotations survive the actual strategic merge, including Helm ownership metadata.
+        if original["kind"] == "PersistentVolumeClaim"
+            && active_claims.contains(&name)
+            && actual["metadata"]["annotations"]["helm.sh/resource-policy"] == "keep"
+        {
+            if expected["metadata"].get("annotations").is_none() {
+                expected["metadata"]["annotations"] = json!({});
+            }
+            expected["metadata"]["annotations"]["helm.sh/resource-policy"] = json!("keep");
+        }
+        ensure!(
+            expected == **actual,
+            "postrenderer changed unapproved object fields for {name}"
+        );
+    }
+    let remaining = after
+        .iter()
+        .filter(|v| v["kind"] == "PersistentVolumeClaim")
+        .map(|v| v["metadata"]["name"].as_str().context("claim name"))
+        .collect::<Result<BTreeSet<_>>>()?;
+    let still_deferred = remaining
+        .intersection(&deferred)
+        .copied()
+        .collect::<Vec<_>>();
+    let missing_keep = active_claims
+        .iter()
+        .filter(|name| {
+            find(&after, "PersistentVolumeClaim", name)
+                .map(|v| v["metadata"]["annotations"]["helm.sh/resource-policy"] != "keep")
+                .unwrap_or(true)
+        })
+        .copied()
+        .collect::<Vec<_>>();
+    ensure!(
+        still_deferred.is_empty() && missing_keep.is_empty(),
+        "staged release retains deferred PVCs {still_deferred:?}; active claims missing keep {missing_keep:?}"
+    );
+    ensure!(
+        before.len() == after.len() + deferred.len(),
+        "only the eight deferred PVC declarations may disappear"
+    );
+    for name in active_claims {
+        let claim = find(&after, "PersistentVolumeClaim", name)?;
+        ensure!(claim["metadata"]["labels"]["app.kubernetes.io/managed-by"] == "Helm");
+    }
+    for workload in &after {
+        let (pod, replicas) = match workload["kind"].as_str() {
+            Some("Deployment" | "StatefulSet" | "ReplicaSet") => (
+                &workload["spec"]["template"]["spec"],
+                workload["spec"]
+                    .get("replicas")
+                    .map(|v| v.as_u64().context("replica count"))
+                    .transpose()?
+                    .unwrap_or(1),
+            ),
+            Some("DaemonSet") => (&workload["spec"]["template"]["spec"], 1),
+            Some("Job") => (
+                &workload["spec"]["template"]["spec"],
+                if workload["spec"]["suspend"] == true {
+                    0
+                } else {
+                    workload["spec"]
+                        .get("parallelism")
+                        .map(|v| v.as_u64().context("Job parallelism"))
+                        .transpose()?
+                        .unwrap_or(1)
+                },
+            ),
+            Some("Pod") => (&workload["spec"], 1),
+            _ => continue,
+        };
+        if replicas == 0 {
+            continue;
+        }
+        for volume in pod["volumes"].as_array().into_iter().flatten() {
+            if let Some(claim) = volume["persistentVolumeClaim"]["claimName"].as_str() {
+                ensure!(
+                    !deferred.contains(claim),
+                    "active workload references an omitted claim"
+                );
+            }
+        }
+    }
     Ok(())
 }

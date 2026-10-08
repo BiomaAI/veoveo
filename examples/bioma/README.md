@@ -359,8 +359,9 @@ of its selected sources before it becomes ready; the normal indexing profile sel
 the running Map, Artifact, Time and Chart sources. During the fresh-start gate, observe
 Knowledge's readiness response before indexing, then publish the first index generation
 from those selected sources. The reference HelmRelease keeps Reason and the other
-out-of-batch Deployments at zero replicas until their acceptance batches, preserving
-their required resources and Reason's checkpoint and caches. The local Reason profile
+out-of-batch Deployments at zero replicas until their acceptance batches. Their
+required image and GPU definitions stay in the release; deferred PVC declarations
+are restored with their consumers as described below. The local Reason profile
 reserves 42% of the 24 GiB NVIDIA device for its six-frame, 8192-token pass. Run it with the
 services its focused check requires, after stopping other GPU workloads as needed.
 Installations with different checkpoints, solver pools, or GPU capacity
@@ -722,6 +723,50 @@ inventories. Do not operate concurrent Helm releases for the same resources.
 The reference release gives Embedding and Knowledge twenty minutes to make
 Deployment progress, matching its Helm timeout while cold image pulls and model
 staging precede the application startup probe.
+
+The initial post-renderer omits these WaitForFirstConsumer claims because their
+consumers have zero replicas:
+
+| Deferred claim | Consumer activated with the claim |
+|---|---|
+| `computer-host-data` | Computer Host |
+| `optimization-mcp-workspace` | Optimization |
+| `reason-model-cache`, `reason-recording-cache` | Reason |
+| `recording-catalog-cache` | Recording |
+| `recording-spool` | Recording, Reason and Stream |
+| `stream-model-cache`, `stream-recording-cache` | Stream |
+
+Apply these omissions only after confirming that each deferred claim is absent
+or unbound with no retained data in this fresh stage. Removing a release-owned,
+bound PVC declaration during an upgrade can delete its data. Stop if any claim is
+bound or data-bearing until its owner provides a recovery plan. The standalone
+`computer-host-data` claim in this stage is Pending with no data and keeps its
+existing keep policy; its state does not establish safety for another claim.
+
+When activating a deferred consumer, remove the corresponding PVC deletion patch
+in the same reviewed release change as its zero-replica patch. Restore shared
+`recording-spool` before activating any of its consumers. After a claim is restored
+and bound, defer its consumer by changing replicas only; do not restore the PVC
+deletion patch over retained data. Existing standalone
+`computer-host-data` storage is preserved; omitting a chart declaration does not
+authorize deleting a retained claim.
+
+The active `embedding-model-cache` and `map-mcp-workspace` claims carry
+`helm.sh/resource-policy: keep`. Helm skips their deletion during remediation,
+but an uninstall leaves kept resources orphaned. Before the same reference release
+reuses either claim, verify its namespace `veoveo`, expected name,
+`meta.helm.sh/release-name: veoveo`, `meta.helm.sh/release-namespace: veoveo`, and
+`app.kubernetes.io/managed-by: Helm`. Preserve those ownership fields and stop on a
+mismatch; do not force adoption or take ownership of another release's storage.
+The keep annotation establishes neither a backup nor successful adoption.
+
+During recovery, hold the Veoveo HelmRelease and parent Kustomization while
+checking storage. For a retained claim, verify ownership and stage the pinned
+checkpoint with the procedure below before resuming the release. If the claim is
+absent, resume the corrected release to create it, then stage the checkpoint while
+Helm waits. In both cases, verify the complete manifest under the configured model
+directory before accepting Ready. Recheck Map data after reuse. A prior Ready
+observation does not qualify a replacement volume.
 
 ## Provision the Reason checkpoint
 

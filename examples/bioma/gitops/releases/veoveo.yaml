@@ -40,11 +40,115 @@ spec:
   # Keep every locked image and its Deployment in the rendered contract. The first
   # staged gate runs the shared CPU sources, Datasheet Artifact consumer, Knowledge
   # and Embedding. Other GPU and Computer workloads keep their required resources but
-  # wait at zero replicas for their own acceptance batches. Reason also keeps its
-  # Deployment, checkpoint and cache PVC installed for its separate batch.
+  # wait at zero replicas for their own acceptance batches. Omit only their deferred
+  # PVC declarations until activation; protect active model and Map data during remediation.
   postRenderers:
     - kustomize:
         patches:
+          # Deferred WFFC claims return in the same change that activates their consumers.
+          - target:
+              version: v1
+              kind: PersistentVolumeClaim
+              name: computer-host-data
+            patch: |-
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: computer-host-data
+              $patch: delete
+          - target:
+              version: v1
+              kind: PersistentVolumeClaim
+              name: optimization-mcp-workspace
+            patch: |-
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: optimization-mcp-workspace
+              $patch: delete
+          - target:
+              version: v1
+              kind: PersistentVolumeClaim
+              name: reason-model-cache
+            patch: |-
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: reason-model-cache
+              $patch: delete
+          - target:
+              version: v1
+              kind: PersistentVolumeClaim
+              name: reason-recording-cache
+            patch: |-
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: reason-recording-cache
+              $patch: delete
+          - target:
+              version: v1
+              kind: PersistentVolumeClaim
+              name: recording-catalog-cache
+            patch: |-
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: recording-catalog-cache
+              $patch: delete
+          - target:
+              version: v1
+              kind: PersistentVolumeClaim
+              name: recording-spool
+            patch: |-
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: recording-spool
+              $patch: delete
+          - target:
+              version: v1
+              kind: PersistentVolumeClaim
+              name: stream-model-cache
+            patch: |-
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: stream-model-cache
+              $patch: delete
+          - target:
+              version: v1
+              kind: PersistentVolumeClaim
+              name: stream-recording-cache
+            patch: |-
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: stream-recording-cache
+              $patch: delete
+          # Preserve active storage during Helm uninstall; same-release reuse needs ownership checks.
+          - target:
+              version: v1
+              kind: PersistentVolumeClaim
+              name: embedding-model-cache
+            patch: |-
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: embedding-model-cache
+                annotations:
+                  helm.sh/resource-policy: keep
+          - target:
+              version: v1
+              kind: PersistentVolumeClaim
+              name: map-mcp-workspace
+            patch: |-
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: map-mcp-workspace
+                annotations:
+                  helm.sh/resource-policy: keep
           # Allow cold image pulls and model staging within the twenty-minute Helm budget.
           - target:
               group: apps

@@ -8,7 +8,10 @@ Deployments and Agent Manager were observed Ready, and selected docs and probes
 passed. Helm then timed out waiting for eight Pending WFFC PVCs with deferred
 zero-replica consumers. Automatic uninstall and retry deleted fresh Embedding and
 Map backing volumes. Staging is not accepted; Ops is holding the reference HelmRelease
-and parent Kustomization. Installed A/F/H qualification remains open. See
+and parent Kustomization. The recovery source omits only the eight deferred PVC
+declarations and protects active Embedding/Map claims from Helm deletion. Source
+and render checks pass; same-release storage recovery is pending. Installed A/F/H
+qualification remains open. See
 [Current Status](#current-status) for accepted checks and remaining gates.
 
 This is the single implementation plan for the former Foundations, Contract
@@ -63,7 +66,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls. Native gateway-loss recovery, settled Stop→Start, file retention and full MCP Files, Commands, Maintenance, Worker and Host cases pass with typed binding version 2 and file helper version 2. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Sixteen initial Deployments and Agent Manager were observed Ready; selected docs and probes passed. Helm then timed out on eight Pending WFFC PVCs for deferred consumers; automatic uninstall and retry deleted fresh Embedding/Map volumes. Initial profile source qualification passes, but staging and the installed shared-host gate remain open | Recover reference staging under the held HelmRelease and parent Kustomization, reconcile the initial OAuth profile, then qualify shared-host, Knowledge cold-start, installed-consumer, Agent Manager and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Sixteen initial Deployments and Agent Manager were observed Ready; selected docs and probes passed. Helm then timed out on eight Pending WFFC PVCs for deferred consumers; automatic uninstall and retry deleted fresh Embedding/Map volumes. Initial profile source qualification passes. Recovery source omits the eight deferred claims and protects active Embedding/Map claims. Source/render checks pass; same-release recovery and the installed shared-host gate remain open | Recover reference staging under the held HelmRelease and parent Kustomization, reconcile the initial OAuth profile, then qualify shared-host, Knowledge cold-start, installed-consumer, Agent Manager and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -250,8 +253,13 @@ source/render checks. Helm's twenty-minute install nevertheless timed out on eig
 Pending WaitForFirstConsumer PVCs for deferred zero-replica workloads. Automatic
 uninstall and retry deleted the fresh Embedding and Map backing volumes, leaving
 the new model path empty. Ops is holding the reference HelmRelease and its parent
-Bioma Kustomization for recovery inventory; staging is not accepted. Prior Ready,
-probe and docs observations are valid observations of that attempt.
+Bioma Kustomization for recovery. The recovery source omits only the eight deferred
+PVC declarations and marks active Embedding/Map claims for Helm keep. Source and
+render checks pass; before applying omissions, Ops must confirm all eight
+claims are absent or unbound with no retained data. Bound or data-bearing claims
+require their owner's recovery plan. Ops must verify same-release kept-claim
+ownership, restage the pinned checkpoint and qualify reuse before accepting staging. Prior Ready, probe
+and docs observations are valid observations of that attempt.
 No complete installed shared-host gate has passed against this fresh
 release. Normal frozen conformance and installation executables are ready at
 `/tmp/veoveo-first-installed-gates-artifacts-55a9-20261008`. Installed A/F/H checks
