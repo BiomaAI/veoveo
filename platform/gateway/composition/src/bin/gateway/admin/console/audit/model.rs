@@ -127,4 +127,32 @@ mod tests {
             "audit query exceeds 16 KiB"
         );
     }
+    #[test]
+    fn audit_request_cursor_uses_current_keyset_and_rejects_retired_names() {
+        let registry = veoveo_gateway_catalog::audit_target_registry().unwrap();
+        let mut query = AuditQuery::new(AuditPartition::Installation);
+        query.cursor = Some(AuditCursor {
+            order: query.order,
+            partition: query.partition.clone(),
+            last_id: AuditRecordId::new(),
+        });
+        let input = serde_json::to_string(&query).unwrap();
+        assert!(input.contains("\"lastId\":"));
+        assert_eq!(
+            decode_query(&request_query(&input), &registry)
+                .unwrap()
+                .cursor,
+            query.cursor
+        );
+        assert!(
+            decode_query(
+                &request_query(&input.replace("lastId", "last_id")),
+                &registry
+            )
+            .is_err()
+        );
+        let mut mixed = serde_json::to_value(&query).unwrap();
+        mixed["cursor"]["last_id"] = mixed["cursor"]["lastId"].clone();
+        assert!(decode_query(&request_query(&mixed.to_string()), &registry).is_err());
+    }
 }

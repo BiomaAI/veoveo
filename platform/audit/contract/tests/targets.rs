@@ -360,3 +360,56 @@ fn owner_definitions_cannot_replace_other_owner_definitions() {
         matches!(builder.register::<IntegerDefinitionOwner>(), Err(AuditTargetError::SchemaCollision(name)) if name == "OwnerShared")
     );
 }
+
+#[test]
+fn query_and_page_cursors_admit_current_names_and_refuse_retired_mixed_or_duplicate_keys() {
+    let registry = AuditTargetRegistry::empty();
+    let decoder = registry.decoder();
+    let cursor = AuditCursor {
+        order: AuditOrder::OldestFirst,
+        partition: AuditPartition::Installation,
+        last_id: AuditRecordId::new(),
+    };
+    let mut query = AuditQuery::new(AuditPartition::Installation);
+    query.cursor = Some(cursor.clone());
+    let current = serde_json::to_value(&query).unwrap();
+    assert_eq!(current["cursor"]["lastId"], cursor.last_id.to_string());
+    assert!(current["cursor"].get("last_id").is_none());
+    let admitted: AuditQuery = decoder.from_value(current.clone()).unwrap();
+    assert_eq!(admitted.cursor, Some(cursor.clone()));
+    let page = serde_json::json!({"records": [], "next": current["cursor"]});
+    let admitted: AuditPage = decoder.from_value(page.clone()).unwrap();
+    assert_eq!(admitted.next, Some(cursor.clone()));
+    for (root, field) in [(current.clone(), "cursor"), (page, "next")] {
+        let mut retired = root.clone();
+        let object = retired[field].as_object_mut().unwrap();
+        let id = object.remove("lastId").unwrap();
+        object.insert("last_id".into(), id.clone());
+        let mut mixed = root.clone();
+        mixed[field]["last_id"] = id;
+        let text = serde_json::to_string(&root).unwrap();
+        let duplicate = text.replace(
+            "\"lastId\":",
+            &format!("\"lastId\":\"{}\",\"lastId\":", cursor.last_id),
+        );
+        if field == "cursor" {
+            assert!(decoder.from_value::<AuditQuery>(retired).is_err());
+            assert!(decoder.from_value::<AuditQuery>(mixed).is_err());
+            assert!(decoder.from_str::<AuditQuery>(&duplicate).is_err());
+        } else {
+            assert!(decoder.from_value::<AuditPage>(retired).is_err());
+            assert!(decoder.from_value::<AuditPage>(mixed).is_err());
+            assert!(decoder.from_str::<AuditPage>(&duplicate).is_err());
+        }
+    }
+    let mut wrong_order = current.clone();
+    wrong_order["cursor"]["order"] = serde_json::json!("newest_first");
+    assert!(decoder.from_value::<AuditQuery>(wrong_order).is_err());
+    let mut wrong_partition = current;
+    wrong_partition["cursor"]["partition"] = serde_json::json!({"kind":"tenant", "tenant":"other"});
+    assert!(decoder.from_value::<AuditQuery>(wrong_partition).is_err());
+    let schema = serde_json::to_value(reader_schema(&registry).unwrap()).unwrap();
+    let properties = &schema["$defs"]["AuditCursor"]["properties"];
+    assert!(properties.get("lastId").is_some());
+    assert!(properties.get("last_id").is_none());
+}

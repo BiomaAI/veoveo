@@ -803,7 +803,7 @@ export interface AuditSummaryPage {
  * via the `definition` "AuditCursor".
  */
 export interface AuditCursor {
-  last_id: AuditRecordId;
+  lastId: AuditRecordId;
   order: AuditOrder;
   partition: AuditPartition;
 }

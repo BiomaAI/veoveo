@@ -245,7 +245,7 @@
     "AuditCursor": {
       "additionalProperties": false,
       "properties": {
-        "last_id": {
+        "lastId": {
           "$ref": "#/$defs/AuditRecordId"
         },
         "order": {
@@ -258,7 +258,7 @@
       "required": [
         "order",
         "partition",
-        "last_id"
+        "lastId"
       ],
       "type": "object"
     },

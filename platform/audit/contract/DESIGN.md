@@ -51,7 +51,12 @@ distinguishes the installation partition from a tenant literally named `installa
 
 The reader's policy owner supplies an `AuditReadScope`. Store checks it before query
 execution and includes its admitted partition in SQL before decoding or limiting rows.
-Cursors carry their partition and ordering and cannot move a reader to another tenant. Daily counts
+The public structured `AuditCursor` emits `lastId` and carries its partition and ordering;
+query admission rejects a cursor for another partition or ordering. Query and page readers
+reject retired `last_id`, mixed and duplicate keys. Installation upgrades drain active Audit
+queries and update Gateway and generated Console readers together; this unversioned query
+keyset has no compatibility alias. Signed record, draft, block and checkpoint bytes keep their
+frozen profiles. Daily counts
 use UTC day bounds and a keyset of day, class and outcome; readers can traverse every
 page without silently truncating at a fixed total.
 
