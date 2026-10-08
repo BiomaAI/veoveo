@@ -7,6 +7,6 @@ export function attachmentReference(uri: string, name: string): ChatAttachment {
   const label = name.trim();
   if (!label) throw new Error("Enter a name to show in the chat.");
   if (new TextEncoder().encode(label).length > 255) throw new Error("Shorten the name. It can be at most 255 bytes.");
-  if (/[\u0000-\u001f\u007f-\u009f]/.test(label)) throw new Error("Remove line breaks and other control characters from the name.");
+  if ([...label].some(character => { const code = character.codePointAt(0)!; return code <= 31 || (code >= 127 && code <= 159); })) throw new Error("Remove line breaks and other control characters from the name.");
   return { kind: "artifact", id, name: label };
 }

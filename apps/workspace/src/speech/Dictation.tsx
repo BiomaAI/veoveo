@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Mic, Square, X } from "lucide-react";
 import { Capture } from "./capture.ts";
 
@@ -7,7 +7,8 @@ export function Dictation({ disabled, onText, onActive }: { disabled: boolean; o
   const [partial, setPartial] = useState("");
   const [error, setError] = useState("");
   const current = useRef<Capture | undefined>(undefined);
-  const callbacks = useRef({ onText, onActive }); callbacks.current = { onText, onActive };
+  const callbacks = useRef({ onText, onActive });
+  useLayoutEffect(() => { callbacks.current = { onText, onActive }; }, [onText, onActive]);
   const active = phase === "starting" || phase === "listening" || phase === "finishing";
   const stop = async () => {
     const capture = current.current;

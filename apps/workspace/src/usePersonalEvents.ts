@@ -1,4 +1,4 @@
-import { createContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { parse } from "./api.ts";
 import { emptyPersonal, observePersonal, personalAttention } from "./personal.ts";
@@ -10,8 +10,12 @@ export function usePersonalEvents(readingActivity: boolean) {
   const [state, setState] = useState(emptyPersonal);
   const [connected, setConnected] = useState(false);
   const reading = useRef(readingActivity);
-  reading.current = readingActivity;
-  useEffect(() => { if (readingActivity) setState(current => ({ ...current, unread: new Set() })); }, [readingActivity]);
+  useLayoutEffect(() => { reading.current = readingActivity; }, [readingActivity]);
+  const [wasReading, setWasReading] = useState(readingActivity);
+  if (wasReading !== readingActivity) {
+    setWasReading(readingActivity);
+    if (readingActivity) setState(current => ({ ...current, unread: new Set() }));
+  }
   useEffect(() => {
     const source = new EventSource("/workspace/api/events");
     let timer: ReturnType<typeof setTimeout> | undefined;

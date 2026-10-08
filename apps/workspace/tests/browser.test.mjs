@@ -16,6 +16,13 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
   const browser = await chromium.connectOverCDP(process.env.VEOVEO_BROWSER_CDP ?? "http://127.0.0.1:9222");
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   context.setDefaultTimeout(10_000);
+  const errors = [];
+  const redact = text => String(text)
+    .replace(/-----BEGIN [\s\S]*?-----END [^-]+-----/g, "[redacted key]")
+    .replace(/Bearer\s+[^\s"<>]+/gi, "Bearer [redacted]")
+    .replace(/((?:token|secret|password|authorization)\s*[=:]\s*)[^\s,<>]+/gi, "$1[redacted]")
+    .replace(/(https?:\/\/[^\s?<>]+)\?[^\s<>]*/g, "$1?[redacted]")
+    .slice(0, 4096);
   try {
     await server.listen();
     const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -55,7 +62,6 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     let ownerRevoked = false;
     let messageAfterReconnect;
     const pages = await Promise.all([context.newPage(), context.newPage()]);
-    const errors = [];
     let uploadAdmissions = 0;
     let appOperation;
     let appStarts = 0;
@@ -74,6 +80,16 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     rpc("ui/initialize", {protocolVersion:"2026-01-26"}).then(() => document.body.dataset.connected = "true");
     </script></body></html>`;
     for (const [index, page] of pages.entries()) {
+      await page.addInitScript(() => {
+        const NativeEventSource = window.EventSource;
+        window.personalSourceCount = 0;
+        window.EventSource = class extends NativeEventSource {
+          constructor(url, options) {
+            super(url, options);
+            if (new URL(url, location.href).pathname === "/workspace/api/events") window.personalSourceCount++;
+          }
+        };
+      });
       await hardware(page);
       const person = index === 0 ? alice : bob;
       let upload;
@@ -100,26 +116,26 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
           }
         }
         if (index === 0 && ownerRevoked && path.pathname.startsWith(`/workspace/api/chats/${chat.id}`)) return route.fulfill({ status: 403 });
-        if (path.pathname.endsWith("/artifact-uploads/policy")) return respond({ allowed: true, explanation: "Fixture upload policy", actor: `fixture#${person.id}`, work_context: "default", destination_name: "Product team", access_description: "Owned by you", available_bytes: 1048576,
-          policy: { max_object_bytes: 1048576, tenant_quota_bytes: 1048576, max_active_uploads_per_tenant: 8, part_bytes: 1024, max_part_bytes: 1024, max_parts: 1024, parallel_parts: 1, max_inflight_bytes: 1024, inactivity_seconds: 60, lifetime_seconds: 3600, part_timeout_seconds: 30, allowed_mime_types: ["text/plain"] } });
+        if (path.pathname.endsWith("/artifact-uploads/policy")) return respond({ allowed: true, explanation: "Fixture upload policy", actor: `fixture#${person.id}`, workContext: "default", destinationName: "Product team", accessDescription: "Owned by you", availableBytes: 1048576,
+          policy: { maxObjectBytes: 1048576, tenantQuotaBytes: 1048576, maxActiveUploadsPerTenant: 8, partBytes: 1024, maxPartBytes: 1024, maxParts: 1024, parallelParts: 1, maxInflightBytes: 1024, inactivitySeconds: 60, lifetimeSeconds: 3600, partTimeoutSeconds: 30, allowedMimeTypes: ["text/plain"] } });
         if (path.pathname.includes("/artifact-uploads")) {
           if (request.method() === "POST" && path.pathname.endsWith("/artifact-uploads")) {
             uploadAdmissions++;
-            upload = { upload_id: "01a0a75d-3458-78f3-ac54-91f1cab1fea2", state: "open", descriptor: body,
-              layout: { part_bytes: 1024, max_parts: 1024, max_total_bytes: 1048576, parallel_parts: 1 }, accepted_bytes: 0, accepted_part_count: 0, parts: [], created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 3600000).toISOString() };
+            upload = { uploadId: "01a0a75d-3458-78f3-ac54-91f1cab1fea2", state: "open", descriptor: body,
+              layout: { partBytes: 1024, maxParts: 1024, maxTotalBytes: 1048576, parallelParts: 1 }, acceptedBytes: 0, acceptedPartCount: 0, parts: [], createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3600000).toISOString() };
           }
           assert.ok(upload);
           if (request.method() === "PUT") {
             const bytes = request.postDataBuffer();
-            const part = { part_number: 1, byte_len: bytes.length, sha256: request.headers()["x-veoveo-part-sha256"] };
+            const part = { partNumber: 1, byteLen: bytes.length, sha256: request.headers()["x-veoveo-part-sha256"] };
             assert.equal(bytes.toString(), "Workspace file acceptance");
-            upload.parts = [part]; upload.accepted_bytes = bytes.length; upload.accepted_part_count = 1;
+            upload.parts = [part]; upload.acceptedBytes = bytes.length; upload.acceptedPartCount = 1;
             return respond(part);
           }
           if (path.pathname.endsWith("/complete")) {
-            assert.equal(body.byte_len, upload.accepted_bytes);
+            assert.equal(body.byteLen, upload.acceptedBytes);
             upload.state = "completed";
-            upload.receipt = { upload_id: upload.upload_id, artifact_id: "01a0a75d-3458-78f3-ac54-91f1cab1fea3", artifact_uri: "artifact://01a0a75d-3458-78f3-ac54-91f1cab1fea3", filename: upload.descriptor.filename, mime_type: "text/plain", byte_len: upload.accepted_bytes, sha256: upload.parts[0].sha256, created_at: new Date().toISOString() };
+            upload.receipt = { uploadId: upload.uploadId, artifactId: "01a0a75d-3458-78f3-ac54-91f1cab1fea3", artifactUri: "artifact://01a0a75d-3458-78f3-ac54-91f1cab1fea3", filename: upload.descriptor.filename, mimeType: "text/plain", byteLen: upload.acceptedBytes, sha256: upload.parts[0].sha256, createdAt: new Date().toISOString() };
           }
           return respond(upload);
         }
@@ -268,6 +284,8 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByRole("textbox", { name: "Message", exact: true }).fill("A message with an uncertain response");
     await owner.getByRole("button", { name: "Send message", exact: true }).click();
     await owner.getByRole("alert").waitFor();
+    assert.equal(await owner.getByRole("textbox", { name: "Message", exact: true }).getAttribute("readonly"), "");
+    assert.equal(await owner.getByRole("checkbox", { name: "Writer", exact: true }).isDisabled(), true);
     await owner.getByRole("button", { name: "Retry message", exact: true }).click();
     await owner.waitForFunction(() => document.querySelector("textarea").value === "");
     assert.equal(sends.length, 2);
@@ -323,7 +341,9 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await hardware(owner);
     await owner.screenshot({ path: fileURLToPath(new URL("../../../output/workspace-client-mobile.png", import.meta.url)) });
     await owner.setViewportSize({ width: 1440, height: 1000 });
+    const personalSources = await owner.evaluate(() => window.personalSourceCount);
     await owner.getByRole("button", { name: "Activity", exact: true }).click();
+    assert.equal(await owner.evaluate(() => window.personalSourceCount), personalSources, "reading Activity retains the existing SSE connection");
     console.log(JSON.stringify({ step: "open task input" }));
     operation.runId = crypto.randomUUID(); // Retained Task from a run outside the recent chat window.
     operation.agent = { id: agents[0].id, name: agents[0].name };
@@ -439,7 +459,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await frame.locator('body[data-connected="true"]').waitFor();
     assert.equal(await owner.locator(".workspace-app-frame").getAttribute("sandbox"), "allow-scripts");
     await frame.getByRole("button", { name: "Start fixture task", exact: true }).click();
-    await frame.getByText('"taskId":"opaque-app-fixture"', { exact: false }).waitFor().catch(async error => { console.log(JSON.stringify({ appStartFailure: await frame.locator("body").innerText(), appStarts, appCalls, errors })); throw error; });
+    await frame.getByText('"taskId":"opaque-app-fixture"', { exact: false }).waitFor();
     await frame.getByRole("button", { name: "Read task", exact: true }).click();
     await frame.getByText('"resultType":"complete"', { exact: false }).waitFor();
     await frame.getByRole("button", { name: "Cancel task", exact: true }).click();
@@ -448,7 +468,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByRole("button", { name: "Back to chat", exact: true }).click();
     assert.equal(await owner.getByRole("textbox", { name: "Message", exact: true }).inputValue(), "Keep this unsent draft");
     await owner.goto(`${origin}/workspace/?chat=${chat.id}&panel=activity`);
-    await owner.getByRole("article", { name: "Activity: fixture__start", exact: true }).getByText("App Task continues independently.", { exact: true }).waitFor().catch(async error => { console.log(JSON.stringify({ fixtureBody: await owner.locator("body").innerText(), errors })); throw error; });
+    await owner.getByRole("article", { name: "Activity: fixture__start", exact: true }).getByText("App Task continues independently.", { exact: true }).waitFor();
     assert.equal(appStarts, 1, "closing the App and reloading recovers the journal without repeating tools/call");
     await owner.bringToFront(); await hardware(owner);
     assert.deepEqual(errors, []);
@@ -589,6 +609,13 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     assert.deepEqual({ sends: sends.length, runs: runs.length, uploads: uploadAdmissions }, afterFiles);
     console.log(JSON.stringify({ evidence: "local HTTP fixture", expiredWatchReconnected: true, laterMessageDelivered: recoveredMessage.id, revokedHistoryCleared: true }));
 
+  } catch (error) {
+    const pages = await Promise.all(context.pages().slice(0, 2).map(async page => ({
+      body: redact(await page.locator("body").innerText({ timeout: 1000 }).catch(() => "DOM unavailable")),
+      uploadInputCount: await page.locator("#upload-files").count().catch(() => null)
+    })));
+    console.error(JSON.stringify({ scope: "synthetic Workspace behavior failure", errors: errors.slice(-16).map(redact), pages }));
+    throw error;
   } finally {
     await context.close(); await browser.close(); await server.close();
   }

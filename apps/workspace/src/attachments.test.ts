@@ -15,3 +15,11 @@ test("attachments retain a typed identity and explicit label without accepting c
   assert.equal(parse("Message", message).attachments[0].id, id);
   assert.throws(() => parse("Message", { ...message, attachments: [{ ...file, downloadUrl: "https://example.org/private" }] }));
 });
+
+test("attachment labels refuse every C0 and C1 control while retaining Unicode text", () => {
+  const uri = "artifact://01a0a75d-3458-78f3-ac54-91f1cab1fea1";
+  for (const code of [...Array.from({ length: 32 }, (_, index) => index), ...Array.from({ length: 33 }, (_, index) => index + 127)]) {
+    assert.throws(() => attachmentReference(uri, `before${String.fromCodePoint(code)}after`));
+  }
+  assert.equal(attachmentReference(uri, "界 😊 café").name, "界 😊 café");
+});

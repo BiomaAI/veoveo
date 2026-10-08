@@ -7,6 +7,8 @@ export function AgentRevisionUpdate({ chat, agent, latest, changed }: { chat: st
   const [preview, setPreview] = useState<AgentRevisionPreview>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [retryPending, setRetryPending] = useState(false);
+  const inFlight = useRef(false);
   const pending = useRef<UpdateChatAgent | undefined>(undefined);
   async function review() {
     setBusy(true); setError(undefined);
@@ -15,14 +17,16 @@ export function AgentRevisionUpdate({ chat, agent, latest, changed }: { chat: st
     finally { setBusy(false); }
   }
   async function adopt() {
-    if (!preview) return;
+    if (!preview || inFlight.current) return;
+    inFlight.current = true;
     setBusy(true); setError(undefined);
     try {
       pending.current ??= { requestId: uuidV7(), expectedRevision: preview.current.revision, revision: preview.target.revision };
+      setRetryPending(true);
       await api.updateAgent(chat, agent.id, pending.current);
-      pending.current = undefined; setPreview(undefined); await changed();
+      pending.current = undefined; setRetryPending(false); setPreview(undefined); await changed();
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
+    finally { inFlight.current = false; setBusy(false); }
   }
   const current = preview?.current;
   const target = preview?.target;
@@ -39,7 +43,7 @@ export function AgentRevisionUpdate({ chat, agent, latest, changed }: { chat: st
         <dt>Tool calls</dt><dd>{current.budgets.maxToolCalls} → {target.budgets.maxToolCalls}</dd>
         <dt>Time limit</dt><dd>{current.budgets.deadlineSeconds}s → {target.budgets.deadlineSeconds}s</dd>
       </dl><p className="muted">Published {new Date(target.publishedAt).toLocaleString()} by {target.publishedByName}.</p>
-      <div className="actions"><button disabled={busy} onClick={() => void adopt()}>{busy ? "Updating…" : pending.current ? "Retry update" : "Use this version"}</button><button disabled={busy} onClick={() => { pending.current = undefined; setPreview(undefined); }}>Close</button></div>
+      <div className="actions"><button disabled={busy} onClick={() => void adopt()}>{busy ? "Updating…" : retryPending ? "Retry update" : "Use this version"}</button><button disabled={busy} onClick={() => { pending.current = undefined; setRetryPending(false); setPreview(undefined); }}>Close</button></div>
     </div>}
   </div>;
 }

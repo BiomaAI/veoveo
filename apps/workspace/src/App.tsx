@@ -60,7 +60,9 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const createId = useRef<string | undefined>(undefined);
+  const [retryCreation, setRetryCreation] = useState(false);
+  const creating = useRef(false);
+  const createId = useRef<{ id: string; title: string } | undefined>(undefined);
   const chats = useQuery({ queryKey: ["chats"], queryFn: ({ signal }) => api.chats(signal) });
   const invitations = useQuery({ queryKey: ["invitations"], queryFn: ({ signal }) => api.invitations(signal), refetchOnWindowFocus: true });
   const changed = useCallback(() => { void client.invalidateQueries({ queryKey: ["chats"] }); }, [client]);
@@ -70,15 +72,17 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
   }
   useEffect(() => { const pop = () => { setAgents(new URLSearchParams(location.search).get("view") === "agents"); setSelected(selectedChat()); setComputers(new URLSearchParams(location.search).get("view") === "computers"); setActivity(new URLSearchParams(location.search).get("view") === "activity"); setInbox(false); }; window.addEventListener("popstate", pop); return () => window.removeEventListener("popstate", pop); }, []);
   async function create() {
-    if (!title.trim() || busy) return;
-    createId.current ??= crypto.randomUUID();
+    if (!title.trim() || creating.current || busy) return;
+    createId.current ??= { id: crypto.randomUUID(), title: title.trim() };
+    creating.current = true;
+    setRetryCreation(true);
     setBusy(true); setError(undefined);
-    try { const chat = await api.create(createId.current, title.trim()); select(chat.id); setNewChat(false); setTitle(""); createId.current = undefined; changed(); }
+    try { const chat = await api.create(createId.current.id, createId.current.title); select(chat.id); setNewChat(false); setTitle(""); createId.current = undefined; setRetryCreation(false); changed(); }
     catch (error) {
-      if (error instanceof ApiError && [400, 401, 403, 404, 422].includes(error.status)) createId.current = undefined;
+      if (error instanceof ApiError && [400, 401, 403, 404, 422].includes(error.status)) { createId.current = undefined; setRetryCreation(false); }
       setError(error instanceof Error ? error.message : "Veoveo couldn't create the chat. Try again.");
     }
-    finally { setBusy(false); }
+    finally { creating.current = false; setBusy(false); }
   }
   async function decide(invitation: Invitation, state: "accepted" | "declined") {
     setBusy(true); setError(undefined);
@@ -112,7 +116,7 @@ function Workspace({ session }: { session: WorkspaceBootstrap }) {
       </div> : selected ? <Room key={selected} chat={selected} session={session} changed={changed} uploads={uploads.state} onUpload={() => setUploadsOpen(true)}/> : <div className="welcome"><span className="eyebrow">{session.workContextTitle}</span><div className="spark">✳</div><h1>No chat selected</h1><p>Start a chat, or pick one from the list.</p><button className="primary" disabled={!session.canContribute} onClick={() => setNewChat(true)}><Plus size={17}/> Start a chat</button>{session.canContribute ? <div className="welcome-note"><Users size={16}/> You choose who joins each chat you start.</div> : <p className="muted">You have view-only access in {session.workContextTitle}. Ask an administrator for contributor access to start chats.</p>}</div>}
       {error && !newChat && <p className="global-error error" role="alert">{error}</p>}
     </main>
-    {newChat && <dialog className="modal-backdrop" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={() => setNewChat(false)}><form className="modal" role="dialog" aria-modal="true" aria-labelledby="new-chat-title" onSubmit={event => { event.preventDefault(); void create(); }}><div className="details-heading"><h2 id="new-chat-title">Start a chat</h2><button type="button" className="icon-button" aria-label="Close" onClick={() => setNewChat(false)}><X size={18}/></button></div><p>Give this conversation a name. You'll be its owner and can invite people from your workspace.</p><label>Chat name<input autoFocus value={title} maxLength={200} readOnly={busy || !!createId.current} onChange={event => setTitle(event.target.value)} placeholder="e.g. Planning our next release"/></label>{error && <p className="error" role="alert">{error}</p>}<button type="submit" className="primary" disabled={busy || !title.trim()}>{busy ? "Creating…" : createId.current ? "Retry creation" : "Create chat"}<ArrowRight size={16}/></button></form></dialog>}
+    {newChat && <dialog className="modal-backdrop" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={() => setNewChat(false)}><form className="modal" role="dialog" aria-modal="true" aria-labelledby="new-chat-title" onSubmit={event => { event.preventDefault(); void create(); }}><div className="details-heading"><h2 id="new-chat-title">Start a chat</h2><button type="button" className="icon-button" aria-label="Close" onClick={() => setNewChat(false)}><X size={18}/></button></div><p>Give this conversation a name. You'll be its owner and can invite people from your workspace.</p><label>Chat name<input autoFocus value={title} maxLength={200} readOnly={busy || !!retryCreation} onChange={event => setTitle(event.target.value)} placeholder="e.g. Planning our next release"/></label>{error && <p className="error" role="alert">{error}</p>}<button type="submit" className="primary" disabled={busy || !title.trim()}>{busy ? "Creating…" : retryCreation ? "Retry creation" : "Create chat"}<ArrowRight size={16}/></button></form></dialog>}
     {uploadsOpen && <Suspense fallback={null}><Uploads queue={uploads.queue} state={uploads.state} close={() => setUploadsOpen(false)}/></Suspense>}
   </div></PersonalUpdates.Provider>;
 }

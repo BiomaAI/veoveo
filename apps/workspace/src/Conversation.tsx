@@ -67,6 +67,8 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const composer = useRef<HTMLTextAreaElement>(null);
   const activeAgents = snapshot.activity.agents.filter(agent => agent.active);
+  const [retrySend, setRetrySend] = useState(false);
+  const inFlight = useRef(false);
   const attempt = useRef<SendMessage | undefined>(undefined);
   let addressed: string[] = [], responders: string[] = [], selectionError: string | undefined;
   try { addressed = addressedAgents(draft, selected, activeAgents); responders = responseAgents(snapshot.chat.participation, addressed); }
@@ -75,8 +77,8 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
     try { await api.cancelRun(snapshot.chat.id, id); await onChanged(); }
     catch (error) { setError(error instanceof Error ? error.message : "Veoveo couldn't stop this response. Try again."); }
   }, [snapshot.chat.id, onChanged]);
-  const send = useCallback(async () => {
-    if (dictating || pending || (!draft.trim() && !attachments.length) || snapshot.chat.archived || !canContribute) return;
+  const send = async () => {
+    if (inFlight.current || dictating || pending || (!draft.trim() && !attachments.length) || snapshot.chat.archived || !canContribute) return;
     const text = draft.trim();
     if (new TextEncoder().encode(text).length > 32768) { setError("Keep the message under 32 KB."); return; }
     if (attempt.current && attempt.current.text !== text) {
@@ -84,28 +86,29 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
     }
     if (selectionError && !attempt.current) { setError(selectionError); return; }
     const request = attempt.current ?? { id: crypto.randomUUID(), text, attachments, replyTo: reply?.target ?? null, addressedAgents: addressed };
-    attempt.current = request;
+    inFlight.current = true;
+    attempt.current = request; setRetrySend(true);
     setPending(true); setError(undefined);
     try {
       await api.send(snapshot.chat.id, request);
-      attempt.current = undefined; setDraft(""); setReply(undefined); setAttachments([]);
+      attempt.current = undefined; setRetrySend(false); setDraft(""); setReply(undefined); setAttachments([]);
       await onChanged();
     } catch (error) {
-      if (error instanceof ApiError && [400, 401, 403, 404, 409, 422].includes(error.status)) attempt.current = undefined;
+      if (error instanceof ApiError && [400, 401, 403, 404, 409, 422].includes(error.status)) { attempt.current = undefined; setRetrySend(false); }
       // Without a definite answer the message may have been stored. Retrying
       // reuses its ID, so the server never posts it twice.
       setError(attempt.current ? "Veoveo couldn't tell whether your message was sent. Your text is kept here. Select Retry; it won't post twice."
         : error instanceof Error ? error.message : "Veoveo couldn't send your message. Try again.");
     }
-    finally { setPending(false); }
-  }, [dictating, pending, draft, reply, attachments, snapshot.chat, canContribute, onChanged, addressed, selectionError]);
+    finally { inFlight.current = false; setPending(false); }
+  };
   const selectReply = (message: PresentedMessage) => {
     if (pending || attempt.current || snapshot.chat.archived || !canContribute) return;
     setReply(message);
     if (message.kind === "agent" && activeAgents.some(agent => agent.id === message.authorId)) setSelected([message.authorId]);
     composer.current?.focus();
   };
-  return <RunActions.Provider value={id => void cancel(id)}><ReplyActions.Provider value={{ messages: source, disabled: pending || !!attempt.current || snapshot.chat.archived || !canContribute, select: selectReply }}><AssistantRuntimeProvider runtime={runtime}>
+  return <RunActions.Provider value={id => void cancel(id)}><ReplyActions.Provider value={{ messages: source, disabled: pending || !!retrySend || snapshot.chat.archived || !canContribute, select: selectReply }}><AssistantRuntimeProvider runtime={runtime}>
     <ThreadPrimitive.Root className="conversation">
       <ThreadPrimitive.Viewport className="timeline">
         <div className="timeline-inner">
@@ -115,13 +118,13 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
         </div>
       </ThreadPrimitive.Viewport>
       <div className="composer-area">
-        {activeAgents.length > 0 && <fieldset className="agent-targets" disabled={pending || !!attempt.current || snapshot.chat.archived || !canContribute}>
+        {activeAgents.length > 0 && <fieldset className="agent-targets" disabled={pending || !!retrySend || snapshot.chat.archived || !canContribute}>
           <legend>Ask an agent</legend>{activeAgents.map(agent => <label key={agent.id} className={selected.includes(agent.id) ? "selected" : ""}>
             <input type="checkbox" checked={selected.includes(agent.id)} onChange={event => setSelected(current => event.target.checked ? [...current, agent.id] : current.filter(id => id !== agent.id))}/><Bot size={13}/>{agent.name}
           </label>)}
         </fieldset>}
         {selected.some(id => !activeAgents.some(agent => agent.id === id)) && <p className="error" role="status">
-          An addressed agent left this chat. <button disabled={pending || !!attempt.current}
+          An addressed agent left this chat. <button disabled={pending || !!retrySend}
             onClick={() => setSelected(current => current.filter(id => activeAgents.some(agent => agent.id === id)))}>Clear unavailable agents</button>
         </p>}
         {activeAgents.length > 0 && <p className="composer-note" role="status">{selectionError ?? (responders.length
@@ -129,20 +132,20 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
           : "No agent response requested.")} Begin with @Name or select an agent above.</p>}
         {error && <p role="alert" className="error">{error}</p>}
         <AttachmentComposer value={attachments} onChange={setAttachments} uploads={uploads} onUpload={onUpload}
-          disabled={pending || !!attempt.current || snapshot.chat.archived || !canContribute}/>
+          disabled={pending || !!retrySend || snapshot.chat.archived || !canContribute}/>
         {reply && <div className="composer-reply" role="region" aria-label="Reply context"><ReplyQuote context={{ authorName: reply.authorName, text: [...reply.text].slice(0, 500).join("") }}/>
-          <button className="icon-button" aria-label="Remove reply" disabled={pending || !!attempt.current} onClick={() => { setReply(undefined); composer.current?.focus(); }}><X size={16}/></button></div>}
-        <Recording chat={snapshot.chat.id} uploads={uploads} onUpload={onUpload} disabled={pending || !!attempt.current || snapshot.chat.archived || !canContribute}/>
-        <Dictation disabled={pending || !!attempt.current || snapshot.chat.archived || !canContribute}
+          <button className="icon-button" aria-label="Remove reply" disabled={pending || !!retrySend} onClick={() => { setReply(undefined); composer.current?.focus(); }}><X size={16}/></button></div>}
+        <Recording chat={snapshot.chat.id} uploads={uploads} onUpload={onUpload} disabled={pending || !!retrySend || snapshot.chat.archived || !canContribute}/>
+        <Dictation disabled={pending || !!retrySend || snapshot.chat.archived || !canContribute}
           onActive={setDictating} onText={text => { if (text.trim()) setDraft(current => current ? `${current}\n${text}` : text); composer.current?.focus(); }}/>
         <form className="composer" onSubmit={event => { event.preventDefault(); void send(); }}>
           <textarea ref={composer} aria-label="Message" placeholder={snapshot.chat.archived ? "This chat is archived" : "Write to everyone in this chat…"}
-            value={draft} disabled={!canContribute || snapshot.chat.archived} readOnly={pending || !!attempt.current}
+            value={draft} disabled={!canContribute || snapshot.chat.archived} readOnly={pending || !!retrySend}
             rows={2} onChange={event => setDraft(event.target.value)} onKeyDown={event => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); }
             }} />
           <div className="composer-footer"><span><CornerDownLeft size={12}/> Enter to send · Shift + Enter for a new line</span>
-            <button className="send" type="submit" disabled={dictating || pending || (!draft.trim() && !attachments.length) || snapshot.chat.archived || !canContribute || (!!selectionError && !attempt.current)} aria-label={attempt.current ? "Retry message" : "Send message"}><ArrowUp size={19}/></button>
+            <button className="send" type="submit" disabled={dictating || pending || (!draft.trim() && !attachments.length) || snapshot.chat.archived || !canContribute || (!!selectionError && !retrySend)} aria-label={retrySend ? "Retry message" : "Send message"}><ArrowUp size={19}/></button>
           </div>
         </form>
         <p className="composer-note">Everyone in this chat can read its shared history.</p>

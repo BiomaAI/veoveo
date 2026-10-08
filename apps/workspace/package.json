@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "node --experimental-strip-types --test src/*.test.ts",
-    "test:browser": "node --test --test-concurrency=1 tests/browser.test.mjs tests/agent-management.test.mjs"
+    "test:browser": "node --test --test-concurrency=1 tests/browser.test.mjs tests/agent-management.test.mjs",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@assistant-ui/react": "0.15.20",
@@ -22,13 +23,19 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@modelcontextprotocol/client": "2.3.1",
     "@types/node": "26.1.1",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.3",
+    "eslint": "10.12.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "globals": "17.13.0",
     "playwright": "1.63.0",
     "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1",
     "vite": "8.1.4"
   }
 }

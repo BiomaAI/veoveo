@@ -1,24 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseSpeech } from "./api.ts";
 import { artifactId, artifactPath } from "../resources.ts";
-import type { TranscriptDocument } from "../generated/speech.ts";
+import type { TranscriptDocument, TranscriptionOutput } from "../generated/speech.ts";
 import { boundedJson } from "../../../console/web/src/browserHttp.ts";
 
 function timestamp(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
 }
 export function TranscriptResult({ value }: { value: unknown }) {
-  const output = useMemo(() => { try { return parseSpeech("TranscriptionOutput", value); } catch { return undefined; } }, [value]);
+  const admitted = useMemo(() => { try { return parseSpeech("TranscriptionOutput", value); } catch { return undefined; } }, [value]);
+  const [open, setOpen] = useState(false);
+  return <TranscriptPreview key={JSON.stringify(admitted) ?? "invalid"} output={admitted} open={open} toggle={() => setOpen(current => !current)}/>;
+}
+function TranscriptPreview({ output, open, toggle }: { output?: TranscriptionOutput; open: boolean; toggle: () => void }) {
   const [document, setDocument] = useState<TranscriptDocument>();
   const [error, setError] = useState("");
-  const [open, setOpen] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);
   const source = output && artifactId(output.sourceArtifactUri);
   const transcript = output && artifactId(output.transcript.artifactUri);
   const captions = output && artifactId(output.captions.artifactUri);
   useEffect(() => {
     if (!open || !transcript || !output) return;
-    const controller = new AbortController(); setError(""); setDocument(undefined);
+    const controller = new AbortController();
     void (async () => {
       const response = await fetch(artifactPath(transcript, "download"), { credentials: "same-origin", cache: "no-store", redirect: "error", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       if (response.status === 401) window.dispatchEvent(new Event("workspace-auth-expired"));
@@ -35,7 +38,7 @@ export function TranscriptResult({ value }: { value: unknown }) {
   }, [open, transcript, source, output]);
   if (!output || !source || !transcript || !captions) return <p className="error">This transcription result couldn't be read.</p>;
   return <section className="speech-result" aria-label="Recording transcript">
-    <button onClick={() => setOpen(value => !value)}>{open ? "Close transcript" : "Open transcript"}</button>
+    <button onClick={() => { setError(""); setDocument(undefined); toggle(); }}>{open ? "Close transcript" : "Open transcript"}</button>
     <a href={artifactPath(transcript, "download")}>Download transcript</a><a href={artifactPath(captions, "download")}>Download captions</a>
     {open && <>
       <p className="muted">Timestamps are approximate, and speakers are not identified.</p>
