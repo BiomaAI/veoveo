@@ -101,36 +101,28 @@ and fresh state before rollout.
 The user-approved host-tracing correction records method, path and HTTP version
 without query parameters. The existing TestGateway leak regression and all 14
 hosting controls pass. Real Media provider generation is unqualified.
-Computers' previous provider profile passes
-isolated native maintenance upgrade, recovery and rollback, plus its command and
-file journeys. The current source selects OpenShell 0.1.2 with matched provider
-artifacts, typed selectors and a drained private checkpoint cut. Its source-built
-GCC 16.2 profile passes the C++20 format execution and static C++ runtime probe
-against glibc 2.36. The current gateway and driver pass Cargo artifact admission,
-static Z3/C++ dependency checks and the glibc ceiling; both require at most GLIBC
-2.34. The corrected Native and Host generators place guest TLS credentials in the
-gateway table and pass their generated-input comparisons and effective-loader
-admission. The maintained image controls pass 20 driver, eight gateway and two mTLS
-cases. Its five packaged commands report their expected versions and match the
-recorded hashes. The current native volume-writer exclusion passes. Retained-volume
-provisioning claims and the packaged default-workspace guard pass source qualification while
-generic runtime workspaces keep their supported interface. The corrected file fixture
-passes mount admission, transfer, retention and refusal controls, then fails on Start
-after Stop with `LifecycleUnknown`. The provider returns gRPC `INVALID_ARGUMENT`.
-The committed diagnostic fixture captures one authenticated event tail before
-cleanup without settling or retrying the uncertain operation. Its compiler and four
-privacy controls pass. The fresh diagnostic identifies a Docker supervisor restart
-without the required sandbox template: reconstruction from the container loses
-the admitted specification. The repair persists driver-owned restart facts and
-readmits them before Start effects; its 23 driver controls, eight gateway controls
-and two mTLS controls pass. Independent source review and the gateway/driver
-artifact checks pass. The existing native lifecycle fixture now restarts the owned
-controller with retained launch inputs and storage; compiler checks, three process
-controls, generated-config comparison and independent review pass. It restarts
-the gateway's in-process Docker driver without requiring a separate driver process.
-Final image qualification, the
-repaired native journeys, Host replacement and installed execution remain open.
-Previous-profile results do not qualify this candidate.
+Computers selects OpenShell 0.1.2 with matched provider artifacts, typed selectors
+and a drained private checkpoint cut. Its GCC 16.2 build passes C++20 format and
+static C++ probes against glibc 2.36; gateway and driver require at most GLIBC 2.34.
+Native and Host generators pass byte comparison and effective TLS-loader admission.
+The driver persists admitted restart facts before effects and readmits them before
+Start; its 23 controls, eight gateway controls and two mTLS controls pass independent
+source review. Retained-volume writer exclusion, provisioning claims and the packaged
+default-workspace guard pass their owning controls.
+
+The rebuilt `df38` provider profile passes manifest-label, packaged-source,
+five-binary identity, version and ELF admission. The image planner binds its label
+to the selected source manifest. Its native file journey passes transfer, retention,
+refusal and Stop/Start. The controller fixture passes retained-resource identity
+checks, then fails to reopen the terminal with `InvalidState`. Source investigation
+shows that graceful provider shutdown intentionally terminates sandbox sessions;
+the fixture also assessed an old Ready snapshot instead of fetching current state.
+The prepared fixture separates abrupt controller loss from graceful cleanup and
+fetches fresh state before assessing recovery. Compiler checks, five process controls
+and generated-config comparison pass; independent review and a matching `d884`
+profile build are pending. Recovered terminal delivery and bytes, later lifecycle
+assertions, Host replacement and installed execution remain open. Earlier provider
+profiles do not qualify these gates.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
 
@@ -141,8 +133,11 @@ interrupts an actual MCP-created capture under its live 180-second claim, starts
 one replacement before expiry, preserves that claim until expiry and then reads
 its recovered JPEG bytes. The GPU UUID stays unchanged. Caller isolation,
 cancellation and graceful process drain pass, and the owned fixtures are cleaned.
-Installed consumers, cross-context Task delivery and pod termination-grace
-acceptance remain open. This local run includes no Google or billed provider work.
+The shared installed observer now requires one full terminal/deletion snapshot for
+the admitted container instance, with fenced mutation and termination-grace checks.
+Eight CPU controls and independent review qualify its source; installed consumers,
+cross-context Task delivery and pod termination-grace acceptance remain open.
+This local run includes no Google or billed provider work.
 
 Linux Map qualification includes the current travel-model product cases after
 the shared C02 writer correction. Optimization's nine native read cases pass.
@@ -1300,16 +1295,17 @@ uncertain commit. Its [lane retry policy](../platform/modules/DESIGN.md#history-
 permits 16 attempts within a 60-second admission window and rechecks preparation,
 history and prerequisites before another attempt. Timeouts, transport failures and
 nested conflict causes cannot admit replay. The repaired RocksDB control, rollback,
-timeout/drop and conflict-classification controls pass. The fresh installed run
-completes all generation-1 migration and publication Jobs and both NetworkPolicy
-canaries. Managed-object setup then fails after creating the agent Namespace and
-before any Deployment. The helper omits the failing resource identity and stderr,
-so the cause is unknown. Its diagnostic repair records the operation, purpose,
-resource identity, exit status and a closed API error category without exposing
-stderr or manifests. Compiler checks, nine focused controls and independent review
-pass. The next installed run must use the refreshed executable; later generations
-and installation acceptance remain open.
-The failed run's disposable cluster and owned resources are removed.
+timeout/drop and conflict-classification controls pass. The safe helper records
+operation, purpose, resource identity, exit status and a closed API error category
+without exposing stderr or manifests. Its selected-resource preflight admits the
+chart's Store StatefulSet and every initial, managed and Namespace object; the actual
+three-generation chart control and privacy and identity controls pass independent
+review. The refreshed installed run completes generation-1 preparation and migration
+Jobs and both NetworkPolicy canaries, then fails while creating the managed-agent
+`ValidatingAdmissionPolicy`. Kubectl returns exit 1 with category `Unclassified`;
+the API response is unavailable, so its cause is still unknown. No generation's
+managed lifecycle is qualified. All failed runs' owned resources and clusters are
+removed. Diagnosis, all generations and installation acceptance remain open.
 Production SQL redistribution belongs to Phase 3.
 
 | Work | Detail |
