@@ -154,10 +154,12 @@ async fn qualify_publication_case(
             let error = repo
                 .reserve_manifest_publication(
                     &state.identity,
-                    &before,
-                    &dataset_row,
-                    &layers,
-                    None,
+                    veoveo_recording_store::ManifestPublicationSource {
+                        recording: &before,
+                        dataset: &dataset_row,
+                        layers: &layers,
+                        blueprint: None,
+                    },
                     intent.body.0.clone(),
                     reordered,
                     intent.authority.clone(),

@@ -31,21 +31,20 @@ impl SurrealValue for ManifestPublicationBody {
         );
         // Surreal 3.3 requires optional-object parents for declared children.
         // This native absence represents the owner's public explicit null only.
-        if let Value::Object(fields) = &mut value {
-            if fields.get("blueprint") == Some(&Value::Null) {
-                fields.insert("blueprint", Value::None);
-            }
+        if let Value::Object(fields) = &mut value
+            && fields.get("blueprint") == Some(&Value::Null)
+        {
+            fields.insert("blueprint", Value::None);
         }
         value
     }
     fn from_value(mut value: Value) -> Result<Self, Error> {
-        if let Value::Object(fields) = &mut value {
-            if fields
+        if let Value::Object(fields) = &mut value
+            && fields
                 .get("blueprint")
                 .is_none_or(|value| *value == Value::None)
-            {
-                fields.insert("blueprint", Value::Null);
-            }
+        {
+            fields.insert("blueprint", Value::Null);
         }
         serde_json::from_value(native_json_from_value_strict(value)?)
             .map(Self)
@@ -67,12 +66,12 @@ impl SurrealValue for ManifestPublicationDescriptor {
     fn from_value(mut value: Value) -> Result<Self, Error> {
         let invalid =
             || Error::internal("invalid current Recording manifest intent descriptor".into());
-        if let Value::Object(fields) = &mut value {
-            if let Some(Value::Object(artifact)) = fields.get_mut("artifact") {
-                for key in ["classification", "dataLabels", "retentionExpiresAt"] {
-                    if artifact.get(key) == Some(&Value::None) {
-                        artifact.remove(key);
-                    }
+        if let Value::Object(fields) = &mut value
+            && let Some(Value::Object(artifact)) = fields.get_mut("artifact")
+        {
+            for key in ["classification", "dataLabels", "retentionExpiresAt"] {
+                if artifact.get(key) == Some(&Value::None) {
+                    artifact.remove(key);
                 }
             }
         }
@@ -219,6 +218,14 @@ pub(crate) struct LayerRevision {
     pub(crate) layer: RecordId,
     pub(crate) revision: i64,
 }
+/// Selected source facts checked together when reserving a manifest intent.
+pub struct ManifestPublicationSource<'a> {
+    pub recording: &'a RecordingRecord,
+    pub dataset: &'a RecordingDatasetRecord,
+    pub layers: &'a [RecordingLayerRecord],
+    pub blueprint: Option<&'a RecordingBlueprintRecord>,
+}
+
 impl RecordingRepository {
     /// Select the bounded immutable membership before any catalog pagination.
     pub async fn manifest_publication_layers(
@@ -292,15 +299,18 @@ impl RecordingRepository {
     pub async fn reserve_manifest_publication(
         &self,
         identity: &PlatformIdentity,
-        recording: &RecordingRecord,
-        dataset: &RecordingDatasetRecord,
-        layers: &[RecordingLayerRecord],
-        blueprint: Option<&RecordingBlueprintRecord>,
+        source: ManifestPublicationSource<'_>,
         body: RecordingManifest,
         descriptor: StreamArtifactRequest,
         authority: InvocationAuthorityRecord,
         publisher: RecordingPublisherContext,
     ) -> Result<RecordingManifestPublicationRecord, RecordingStoreError> {
+        let ManifestPublicationSource {
+            recording,
+            dataset,
+            layers,
+            blueprint,
+        } = source;
         let metadata: RecordingArtifactMetadata =
             serde_json::from_value(descriptor.artifact.metadata.clone()).map_err(|_| invalid())?;
         let mut canonical_metadata = serde_json::to_value(metadata).map_err(|_| invalid())?;

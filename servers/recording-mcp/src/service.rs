@@ -800,10 +800,12 @@ impl RecordingService {
             .recordings
             .reserve_manifest_publication(
                 &platform_identity,
-                &current,
-                &dataset,
-                &layers,
-                selected_blueprint.as_ref(),
+                veoveo_recording_store::ManifestPublicationSource {
+                    recording: &current,
+                    dataset: &dataset,
+                    layers: &layers,
+                    blueprint: selected_blueprint.as_ref(),
+                },
                 manifest,
                 descriptor,
                 veoveo_recording_hub::invocation_authority_record(&identity.authority),

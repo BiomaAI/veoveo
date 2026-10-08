@@ -63,9 +63,11 @@ fn admit_manifest_outcome(
     let request = &intent.descriptor.0;
     let occurrence = &aggregate.occurrence;
     let compliance = &metadata.compliance;
-    let mut observed = PutArtifactRequest::default();
-    observed.classification = compliance.classification.clone();
-    observed.data_labels = compliance.data_labels.clone();
+    let observed = PutArtifactRequest {
+        classification: compliance.classification.clone(),
+        data_labels: compliance.data_labels.clone(),
+        ..PutArtifactRequest::default()
+    };
     let effective = observed.effective_labels();
     ensure!(
         request
