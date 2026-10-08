@@ -9,7 +9,7 @@ COPY sdk/python /src/sdk/python
 COPY templates/python-mcp/pyproject.toml templates/python-mcp/uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-install-project --no-editable
-COPY templates/python-mcp/AGENTS.md templates/python-mcp/DESIGN.md ./
+COPY templates/python-mcp/AGENTS.md templates/python-mcp/DESIGN.md templates/python-mcp/contract-compliance.json ./
 COPY templates/python-mcp/src src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable --compile-bytecode

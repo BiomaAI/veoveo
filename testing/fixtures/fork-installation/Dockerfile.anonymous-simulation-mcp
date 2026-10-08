@@ -9,7 +9,7 @@ COPY sdk/python /src/sdk/python
 COPY testing/fixtures/fork-workload/pyproject.toml testing/fixtures/fork-workload/uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-install-project --no-editable
-COPY testing/fixtures/fork-workload/AGENTS.md testing/fixtures/fork-workload/DESIGN.md ./
+COPY testing/fixtures/fork-workload/AGENTS.md testing/fixtures/fork-workload/DESIGN.md testing/fixtures/fork-workload/contract-compliance.json ./
 COPY testing/fixtures/fork-workload/src src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable --compile-bytecode
