@@ -117,12 +117,15 @@ refusal and Stop/Start. The controller fixture passes retained-resource identity
 checks, then fails to reopen the terminal with `InvalidState`. Source investigation
 shows that graceful provider shutdown intentionally terminates sandbox sessions;
 the fixture also assessed an old Ready snapshot instead of fetching current state.
-The prepared fixture separates abrupt controller loss from graceful cleanup and
-fetches fresh state before assessing recovery. Compiler checks, five process controls
-and generated-config comparison pass; independent review and a matching `d884`
-profile build are pending. Recovered terminal delivery and bytes, later lifecycle
-assertions, Host replacement and installed execution remain open. Earlier provider
-profiles do not qualify these gates.
+The corrected fixture separates abrupt controller loss from graceful cleanup and
+fetches fresh state before assessing recovery. Compiler checks, five process controls,
+generated-config comparison and independent review pass. The matching `d884` image
+passes source, label, binary and ELF admission. Its native crash run finds the retained
+sandbox but fails fresh readiness with `LifecycleUnknown`: the replacement supervisor
+is refused because the sandbox runtime reports another supervisor as its owner.
+Recovered terminal delivery and bytes, later lifecycle assertions, Host replacement
+and installed execution remain open. Earlier provider profiles do not qualify these
+gates.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
 
@@ -135,8 +138,12 @@ its recovered JPEG bytes. The GPU UUID stays unchanged. Caller isolation,
 cancellation and graceful process drain pass, and the owned fixtures are cleaned.
 The shared installed observer now requires one full terminal/deletion snapshot for
 the admitted container instance, with fenced mutation and termination-grace checks.
-Eight CPU controls and independent review qualify its source; installed consumers,
-cross-context Task delivery and pod termination-grace acceptance remain open.
+Eight CPU controls and independent review qualify its source. View's owning installed
+mode now checks local catalog bytes and the effective container entrypoint before
+public effects, handles uncertain creation without replay and reconciles owned cleanup
+after replacement. Compiler checks, seven CPU controls and independent review pass.
+Installed consumers, cross-context Task delivery and pod termination-grace acceptance
+remain open; this mode does not qualify active-Task interruption.
 This local run includes no Google or billed provider work.
 
 Linux Map qualification includes the current travel-model product cases after
