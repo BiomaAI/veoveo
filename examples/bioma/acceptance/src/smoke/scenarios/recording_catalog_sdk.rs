@@ -35,7 +35,7 @@ pub(crate) async fn recording_catalog_sdk(
         veoveo_recording_contract::RecordingDatasetId::try_from(dataset_id)?,
         vec![recording_id],
     )?;
-    let first: serde_json::Value = client
+    let first: veoveo_recording_contract::RecordingCatalogGrant = client
         .post(&grant_url)
         .bearer_auth(&token)
         .json(&grant_request)
@@ -44,7 +44,7 @@ pub(crate) async fn recording_catalog_sdk(
         .error_for_status()?
         .json()
         .await?;
-    let renewed: serde_json::Value = client
+    let renewed: veoveo_recording_contract::RecordingCatalogGrant = client
         .post(&grant_url)
         .bearer_auth(&token)
         .json(&grant_request)
@@ -53,12 +53,8 @@ pub(crate) async fn recording_catalog_sdk(
         .error_for_status()?
         .json()
         .await?;
-    let first_redap_token = first["redap_token"]
-        .as_str()
-        .context("first catalog grant has no Redap token")?;
-    let renewed_redap_token = renewed["redap_token"]
-        .as_str()
-        .context("renewed catalog grant has no Redap token")?;
+    let first_redap_token = first.redap_token.as_str();
+    let renewed_redap_token = renewed.redap_token.as_str();
     let grants = serde_json::to_vec(&serde_json::json!({"first": first, "renewed": renewed}))?;
     let ingress_host = target
         .local_base_url
