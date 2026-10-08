@@ -356,7 +356,7 @@ mod tests {
             "-c",
             &source,
             &serde_json::to_string(&receipt).unwrap(),
-            &veoveo_artifact_contract::ArtifactUri::plane(ArtifactId::new()).to_string(),
+            veoveo_artifact_contract::ArtifactUri::plane(ArtifactId::new()).as_ref(),
             &serde_json::to_string(&cases).unwrap(),
         ]);
         let output = veoveo_testing_support::output_async(command, Duration::from_secs(30))

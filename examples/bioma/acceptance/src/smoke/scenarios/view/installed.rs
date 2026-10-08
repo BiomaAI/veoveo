@@ -528,22 +528,20 @@ async fn baseline(client: &SmokeMcpClient, task: TaskId) -> Result<()> {
         "View Task subscription changed its filter"
     );
     tokio::time::timeout(Duration::from_secs(15), async {
-        loop {
-            match stream
-                .next()
-                .await?
-                .context("View Task baseline stream ended")?
-            {
-                ServerNotification::TaskStatusNotification(update) => {
-                    ensure!(
-                        update.params.task.task.task_id == task.to_string()
-                            && update.params.task.status() == TaskStatus::Completed,
-                        "independent context received a different Task baseline"
-                    );
-                    return Ok::<_, anyhow::Error>(());
-                }
-                _ => bail!("View Task baseline contained an unexpected notification"),
+        match stream
+            .next()
+            .await?
+            .context("View Task baseline stream ended")?
+        {
+            ServerNotification::TaskStatusNotification(update) => {
+                ensure!(
+                    update.params.task.task.task_id == task.to_string()
+                        && update.params.task.status() == TaskStatus::Completed,
+                    "independent context received a different Task baseline"
+                );
+                Ok::<_, anyhow::Error>(())
             }
+            _ => bail!("View Task baseline contained an unexpected notification"),
         }
     })
     .await
@@ -573,22 +571,20 @@ async fn denied(client: &SmokeMcpClient, task: TaskId) -> Result<()> {
     );
     // A permitted Views collection baseline anchors actual processing on this same stream.
     tokio::time::timeout(Duration::from_secs(15), async {
-        loop {
-            match stream
-                .next()
-                .await?
-                .context("foreign listener ended before permitted Views collection baseline")?
+        match stream
+            .next()
+            .await?
+            .context("foreign listener ended before permitted Views collection baseline")?
+        {
+            ServerNotification::ResourceUpdatedNotification(update)
+                if update.params.uri == "view://views" =>
             {
-                ServerNotification::ResourceUpdatedNotification(update)
-                    if update.params.uri == "view://views" =>
-                {
-                    return Ok::<_, anyhow::Error>(());
-                }
-                ServerNotification::TaskStatusNotification(_) => {
-                    bail!("foreign listener received an owner Task")
-                }
-                _ => bail!("foreign View listener baseline is unexpected"),
+                Ok::<_, anyhow::Error>(())
             }
+            ServerNotification::TaskStatusNotification(_) => {
+                bail!("foreign listener received an owner Task")
+            }
+            _ => bail!("foreign View listener baseline is unexpected"),
         }
     })
     .await
@@ -672,7 +668,7 @@ pub(super) async fn run(installation: &Path, fixture: &Path, evidence: &Path) ->
 
         let startup = kube(&target,&["logs",&input.pod,"--container",&input.container,"--limit-bytes=65536"]).await?;
         let adapter = readiness::admit_startup_logs(std::str::from_utf8(&startup).context("View startup logs are not UTF-8")?)?;
-        let current_views: Vec<ViewRecord> = serde_json::from_value(read_view_resource(&writer,&veoveo_view_mcp::contract::ViewResource::Views.to_uri()?.to_string()).await?)
+        let current_views: Vec<ViewRecord> = serde_json::from_value(read_view_resource(&writer,veoveo_view_mcp::contract::ViewResource::Views.to_uri()?.as_ref()).await?)
             .map_err(|_| anyhow!("installed View collection failed owner admission"))?;
         ensure!(current_views.is_empty(), "installed View requires an isolated caller WorkContext with no existing Views");
         let composition:SceneComposition = tool(&writer,"create_scene_composition",composition_request(LOCAL_LAYER,false)?).await?;
@@ -726,9 +722,9 @@ pub(super) async fn run(installation: &Path, fixture: &Path, evidence: &Path) ->
                 let views: Vec<ViewRecord> = serde_json::from_value(
                     read_view_resource(
                         &cleanup_client,
-                        &veoveo_view_mcp::contract::ViewResource::Views
+                        veoveo_view_mcp::contract::ViewResource::Views
                             .to_uri()?
-                            .to_string(),
+                            .as_ref(),
                     )
                     .await?,
                 )

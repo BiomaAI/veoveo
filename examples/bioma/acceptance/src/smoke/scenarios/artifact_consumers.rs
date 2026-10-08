@@ -217,7 +217,7 @@ pub(crate) async fn artifact_upload_consumers(
         schema: "veoveo.ai/artifact-upload-consumer-acceptance/v2",
         source_revision: revision,
         public_base_url: base.into(),
-        large_receipt: large_receipt,
+        large_receipt,
         python,
         parquet_receipt,
         unknown_length_receipt,

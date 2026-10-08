@@ -68,10 +68,12 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
     let token_a = issue_view_token("view-smoke-a")?;
     let token_b = issue_view_token("view-smoke-b")?;
     let mut running = start_view_container(
-        view_image,
-        &catalog,
+        ViewRuntimeInputs {
+            image: view_image,
+            catalog: &catalog,
+            platform: &platform,
+        },
         Some(&fixture_dir),
-        &platform,
         false,
         None,
         None,
@@ -307,10 +309,8 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
     session_a.cancel().await?;
     session_b.cancel().await?;
     qualify_view_lifecycle(
-        view_image,
-        &catalog,
+        ViewRuntimeInputs { image: view_image, catalog: &catalog, platform: &platform },
         &fixture_dir,
-        &platform,
         &mut running,
         &first,
         &first_composition,
@@ -349,7 +349,16 @@ pub(crate) async fn view_google_live(view_image: &str, output: &Path) -> Result<
     let platform = spawn_platform_store_smoke().await?;
     let token = issue_view_token("view-google-live")?;
     let running = start_view_container(
-        view_image, &catalog, None, &platform, true, None, None, &tmpdir,
+        ViewRuntimeInputs {
+            image: view_image,
+            catalog: &catalog,
+            platform: &platform,
+        },
+        None,
+        true,
+        None,
+        None,
+        &tmpdir,
     )
     .await?;
     let result: Result<()> = async {
@@ -560,10 +569,10 @@ fn bounded_redacted(text: &str, secrets: &[&str]) -> String {
     for secret in secrets.iter().copied().filter(|secret| !secret.is_empty()) {
         redacted = redacted.replace(secret, "[REDACTED]");
     }
-    if let Ok(secret) = std::env::var("GOOGLE_MAPS_API_KEY") {
-        if !secret.is_empty() {
-            redacted = redacted.replace(&secret, "[REDACTED]");
-        }
+    if let Ok(secret) = std::env::var("GOOGLE_MAPS_API_KEY")
+        && !secret.is_empty()
+    {
+        redacted = redacted.replace(&secret, "[REDACTED]");
     }
     redacted.chars().take(8192).collect()
 }
@@ -830,16 +839,25 @@ fn retain_task_observation(path: &Path, row: &veoveo_platform_store::TaskRecord)
     Ok(())
 }
 
+struct ViewRuntimeInputs<'a> {
+    image: &'a str,
+    catalog: &'a Path,
+    platform: &'a PlatformStoreSmoke,
+}
+
 async fn qualify_view_lifecycle(
-    image: &str,
-    catalog: &Path,
+    inputs: ViewRuntimeInputs<'_>,
     fixtures: &Path,
-    platform: &PlatformStoreSmoke,
     original: &mut RunningView,
     view: &Value,
     composition: &Value,
     evidence: &Path,
 ) -> Result<()> {
+    let ViewRuntimeInputs {
+        image,
+        catalog,
+        platform,
+    } = inputs;
     let store = veoveo_platform_store::PlatformStore::connect(
         veoveo_platform_store::StoreConfig::builder(
             &platform.endpoint,
@@ -904,7 +922,7 @@ async fn qualify_view_lifecycle(
         let expiry = retained.lease_expires_at.context("claimed capture omitted expiry")?;
         ensure!((expiry - Utc::now()).num_seconds() > 30,
             "production lease has insufficient time for replacement startup");
-        fs::write(evidence.join("view-interrupted.log"), lifecycle_logs(&original, deadline).await?
+        fs::write(evidence.join("view-interrupted.log"), lifecycle_logs(original, deadline).await?
             .replace(&token_a, "[REDACTED]").replace(&token_b, "[REDACTED]")
             .replace(SURREAL_RUNTIME_PASSWORD, "[REDACTED]"))?;
         lifecycle_docker(["kill".into(), "--signal=KILL".into(), cid.clone().into()], deadline).await?;
@@ -919,7 +937,7 @@ async fn qualify_view_lifecycle(
         }).await.context("owned interrupted View did not exit within five seconds")??;
         ensure!(interrupted["Running"] == false && interrupted["ExitCode"] == 137,
             "intentional owned-process interruption did not settle: {interrupted}");
-        let next = start_view_container(image, catalog, Some(fixtures), platform, false, Some(original.port), Some(deadline), evidence).await?;
+        let next = start_view_container(ViewRuntimeInputs { image, catalog, platform }, Some(fixtures), false, Some(original.port), Some(deadline), evidence).await?;
         replacement = Some(next);
         let next = replacement.as_ref().context("replacement was not retained")?;
         ensure!(next.adapter.cuda_device_uuid == original.adapter.cuda_device_uuid
@@ -1081,15 +1099,18 @@ struct RunningView {
 }
 
 async fn start_view_container(
-    image: &str,
-    catalog: &Path,
+    inputs: ViewRuntimeInputs<'_>,
     fixtures: Option<&Path>,
-    platform: &PlatformStoreSmoke,
     google: bool,
     reuse_port: Option<u16>,
     lifecycle_deadline: Option<tokio::time::Instant>,
     evidence: &Path,
 ) -> Result<RunningView> {
+    let ViewRuntimeInputs {
+        image,
+        catalog,
+        platform,
+    } = inputs;
     let port = match reuse_port {
         Some(port) => port,
         None => reserve_local_port()?,

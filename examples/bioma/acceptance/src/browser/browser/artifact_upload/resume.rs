@@ -77,7 +77,7 @@ pub async fn verify_resume(
         evidence.elapsed_seconds = started.elapsed().as_secs_f64();
         let receipt = evidence.large_receipt.as_ref().context("Ready upload has no receipt")?;
         ensure!(receipt.byte_len == bytes && receipt.filename == large_name && receipt.sha256.as_str() == hash.await??, "resumed receipt failed independent size or hash verification");
-        let artifact_id = receipt.artifact_id.clone();
+        let artifact_id = receipt.artifact_id;
         verify_download(&mut cdp, &session, &artifact_id, bytes).await?;
         let small = row(&mut cdp, &session, &csv_name).await?;
         if small.phase != "Ready" {
