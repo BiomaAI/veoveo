@@ -147,6 +147,33 @@ Cleanup removes only that CID and requires Docker to confirm removal within 30
 seconds. An uncertain launch or removal keeps its private receipt and redacted
 diagnostics; a container name never authorizes cleanup.
 
+## MCP Task Wire Admission
+
+The Tasks extension emits camelCase fields through the MCP `2026-07-28`
+flattened Task profile. `GetTaskResult.from_wire` admits every detailed status
+with the existing Pydantic model and preserves the response's `_meta`. It rejects
+retired field names, mixed spellings, missing required fields and unknown controlled
+fields. Result and error payloads keep their domain-defined keys. Input requests
+and responses retain the maintained SDK's typed protocol shapes and open schemas.
+
+The maintained server dispatcher decodes the registered Get, Update, Cancel and
+subscription parameter types with alias-only admission. Standard `_meta` values
+keep their upstream extensibility. `TaskSubscriptionFilter` also preserves the
+upstream filter's standard fields and contributions from other extensions; it
+rejects alternate spellings of its known fields without closing that extension map.
+
+Typed Python constructor keyword arguments use the model's attribute names.
+External `model_validate`, JSON decoding and the explicit flattened receiver apply
+current-key preflight from `CurrentWireModel` before Pydantic validation. The
+admission context reaches nested controlled values. Internal result and notification
+wrappers emit their flattened wire through `wire()`; native stored Task records
+follow the separate profile below.
+
+The owning protocol controls exercise the maintained server dispatcher and every
+Task status, including preservation of extension metadata and open payloads.
+These controls establish SDK admission and emission, independently of installed
+provider completion and recovery qualification.
+
 ## Stored Task Records
 
 The Task's `owner` column is its native Principal record reference. The required

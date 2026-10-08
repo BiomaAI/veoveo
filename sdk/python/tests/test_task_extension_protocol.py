@@ -189,3 +189,107 @@ async def test_subscription_closes_reader_when_acknowledgement_or_delivery_fails
             notifications=SimpleNamespace(task_ids=["provider/opaque-task"]),
         ))
     assert updates.closed
+
+
+@pytest.mark.parametrize("status", ["working", "input_required", "completed", "failed", "cancelled"])
+def test_flattened_task_receiver_admits_current_fields_and_refuses_retired_mixed(status):
+    from pydantic import ValidationError
+    now = "2026-10-08T00:00:00Z"
+    value = {"resultType": "complete", "taskId": "provider/opaque-task", "status": status,
+             "statusMessage": "current", "createdAt": now, "lastUpdatedAt": now,
+             "ttlMs": 60000, "pollIntervalMs": 3000,
+             "_meta": {"owner.extension": {"snake_payload": True}}}
+    if status == "input_required":
+        value["inputRequests"] = {"open": {"method": "elicitation/create", "params": {
+            "mode": "form", "message": "choose", "requestedSchema": {"type": "object", "properties": {
+                "snake_payload": {"type": "string"}}}}}}
+    elif status == "completed":
+        value["result"] = {"provider_owned": {"snake_payload": True}}
+    elif status == "failed":
+        value["error"] = {"provider_owned": {"snake_payload": True}}
+    assert GetTaskResult.from_wire(value).wire() == value
+    for current, retired in [("taskId", "task_id"), ("statusMessage", "status_message"),
+                             ("createdAt", "created_at"), ("lastUpdatedAt", "last_updated_at"),
+                             ("ttlMs", "ttl_ms"), ("pollIntervalMs", "poll_interval_ms")]:
+        renamed = dict(value)
+        renamed[retired] = renamed.pop(current)
+        for bad in [renamed, {**value, retired: value[current]}]:
+            with pytest.raises(ValidationError):
+                GetTaskResult.from_wire(bad)
+    for bad in [{**value, "foreignField": 1}, {k: v for k, v in value.items() if k != "taskId"}]:
+        with pytest.raises(ValidationError):
+            GetTaskResult.from_wire(bad)
+    if status == "input_required":
+        for bad in [{**value, "input_requests": value["inputRequests"]},
+                    {**{k: v for k, v in value.items() if k != "inputRequests"},
+                     "input_requests": value["inputRequests"]}]:
+            with pytest.raises(ValidationError):
+                GetTaskResult.from_wire(bad)
+
+
+@pytest.mark.parametrize("method,body", [
+    ("tasks/get", {"taskId": "provider/opaque-task"}),
+    ("tasks/cancel", {"taskId": "provider/opaque-task"}),
+    ("tasks/update", {"taskId": "provider/opaque-task", "inputResponses": {
+        "roots": {"roots": [{"uri": "file:///tmp", "name": "fixture"}]}}}),
+    ("subscriptions/listen", {"notifications": {"taskIds": ["provider/opaque-task"],
+        "resourcesListChanged": True, "ownerExtension": {"snake_payload": True}}}),
+])
+async def test_actual_bound_task_params_admit_aliases_before_handler(method, body):
+    from pydantic import ValidationError
+    instance, _ = server()
+    entry = instance.get_request_handler(method)
+    # The maintained ServerRunner uses this exact params type with by_name=False.
+    current = {**body, "_meta": {"owner.extension": {"snake_payload": True},
+        "io.modelcontextprotocol/protocolVersion": PROTOCOL_VERSION,
+        "io.modelcontextprotocol/clientCapabilities": {"extensions": {EXTENSION_ID: {}}}}}
+    admitted = entry.params_type.model_validate(current, by_name=False)
+    assert admitted.meta["owner.extension"]["snake_payload"] is True
+    from mcp.server.runner import ServerRunner
+    sent = []
+
+    async def notify(name, params):
+        sent.append((name, params))
+
+    channel = SimpleNamespace(request_id="request-1", message_metadata=None, notify=notify)
+    connection = SimpleNamespace(protocol_version=PROTOCOL_VERSION, initialize_accepted=True,
+        client_capabilities=types.ClientCapabilities(extensions={EXTENSION_ID: {}}), outbound=channel)
+    runner = ServerRunner(instance, connection, None)
+    result = await runner.on_request(channel, method, current)
+    assert result is not None
+    if method == "subscriptions/listen":
+        assert [name for name, _ in sent] == ["notifications/subscriptions/acknowledged", "notifications/tasks"]
+    bad = {**current, "foreignField": 1}
+    with pytest.raises(ValidationError):
+        await runner.on_request(channel, method, bad)
+    if method == "subscriptions/listen":
+        assert admitted.notifications.model_extra["ownerExtension"] == {"snake_payload": True}
+        for canonical, retired in [("taskIds", "task_ids"), ("resourcesListChanged", "resources_list_changed")]:
+            old = dict(body["notifications"])
+            old[retired] = old.pop(canonical)
+            for fields in [old, {**body["notifications"], retired: body["notifications"][canonical]}]:
+                with pytest.raises((ValueError, ValidationError)):
+                    await runner.on_request(channel, method, {**current, "notifications": fields})
+    else:
+        for canonical, retired in [("taskId", "task_id")] + ([("inputResponses", "input_responses")] if method == "tasks/update" else []):
+            old = dict(body)
+            old[retired] = old.pop(canonical)
+            for fields in [old, {**body, retired: body[canonical]}]:
+                with pytest.raises(ValidationError):
+                    await runner.on_request(channel, method, {**fields, "_meta": current["_meta"]})
+
+
+def test_internal_task_constructors_and_external_json_admission_are_distinct():
+    import json
+    from pydantic import ValidationError
+    from veoveo_mcp.task_extension.models import GetTaskParams, TaskSubscriptionFilter
+    seed = working()
+    assert Task(task_id=seed.task_id, status="working", created_at=seed.created_at,
+                last_updated_at=seed.last_updated_at).task_id == seed.task_id
+    assert GetTaskParams(task_id=seed.task_id).task_id == seed.task_id
+    assert GetTaskParams.model_validate_json(json.dumps({"taskId": seed.task_id})).task_id == seed.task_id
+    with pytest.raises(ValidationError):
+        GetTaskParams.model_validate_json(json.dumps({"task_id": seed.task_id}))
+    assert TaskSubscriptionFilter(task_ids=[seed.task_id]).task_ids == [seed.task_id]
+    with pytest.raises(ValueError):
+        TaskSubscriptionFilter.model_validate_json(json.dumps({"task_ids": [seed.task_id]}))

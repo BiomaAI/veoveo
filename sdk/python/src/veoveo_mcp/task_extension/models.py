@@ -8,10 +8,15 @@ that are not yet shipped by that SDK release.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal, Self, Union
 
 import mcp.types as types
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import (
+    AfterValidator, BaseModel, ConfigDict, Field, TypeAdapter, ValidationInfo,
+    field_validator, model_validator,
+)
+
+from ..contract.wire import CurrentWireModel
 
 PROTOCOL_VERSION = "2026-07-28"
 EXTENSION_ID = "io.modelcontextprotocol/tasks"
@@ -63,8 +68,44 @@ def _to_camel(value: str) -> str:
     return first + "".join(part.capitalize() for part in rest)
 
 
-class _TaskModel(BaseModel):
-    model_config = ConfigDict(alias_generator=_to_camel, populate_by_name=True)
+class _WireAdmission:
+    """External decoding uses aliases; typed constructor kwargs stay ergonomic."""
+
+    @classmethod
+    def model_validate(cls, value: Any, **kwargs: Any) -> Self:
+        context = kwargs.get("context")
+        kwargs["context"] = {
+            **(context if isinstance(context, dict) else {}), "wire_admission": True,
+        }
+        kwargs.setdefault("by_alias", True)
+        kwargs.setdefault("by_name", False)
+        return super().model_validate(value, **kwargs)
+
+    @classmethod
+    def model_validate_json(cls, value: str | bytes | bytearray, **kwargs: Any) -> Self:
+        context = kwargs.get("context")
+        kwargs["context"] = {
+            **(context if isinstance(context, dict) else {}), "wire_admission": True,
+        }
+        kwargs.setdefault("by_alias", True)
+        kwargs.setdefault("by_name", False)
+        return super().model_validate_json(value, **kwargs)
+
+
+class _TaskModel(_WireAdmission, CurrentWireModel):
+    model_config = ConfigDict(
+        alias_generator=_to_camel, validate_by_name=True,
+        extra="forbid", hide_input_in_errors=True,
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def current_wire_keys(cls, value: object, info: ValidationInfo) -> object:
+        if info.mode == "json" or (
+            isinstance(info.context, dict) and info.context.get("wire_admission")
+        ):
+            return super().current_wire_keys(value)
+        return value
 
 
 class Task(_TaskModel):
@@ -130,39 +171,73 @@ class GetTaskResult(types.Result):
     task: DetailedTask
 
     def wire(self) -> dict[str, Any]:
-        return {"resultType": "complete", **dump(self.task)}
+        value = {"resultType": "complete", **dump(self.task)}
+        if self.meta is not None:
+            value["_meta"] = self.meta
+        return value
 
     @classmethod
     def from_wire(cls, value: dict[str, Any]) -> "GetTaskResult":
         body = dict(value)
         if body.pop("resultType", None) != "complete":
             raise ValueError("resultType must be `complete`")
-        return cls(task=body)
+        meta = body.pop("_meta", None)
+        task = TypeAdapter(DetailedTask).validate_python(
+            body, by_alias=True, by_name=False, context={"wire_admission": True},
+        )
+        return cls(task=task, meta=meta)
 
 
 class AcknowledgeTaskResult(types.Result):
     result_type: Literal["complete"] = "complete"
 
 
-class GetTaskParams(types.RequestParams):
+class _TaskParams(_TaskModel, types.RequestParams):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+
+class GetTaskParams(_TaskParams):
     task_id: OpaqueTaskId
 
 
-class UpdateTaskParams(types.RequestParams):
+class UpdateTaskParams(_TaskParams):
     task_id: OpaqueTaskId
     input_responses: types.InputResponses
 
 
-class CancelTaskParams(types.RequestParams):
+class CancelTaskParams(_TaskParams):
     task_id: OpaqueTaskId
 
 
-class TaskSubscriptionFilter(types.SubscriptionFilter):
+class TaskSubscriptionFilter(_WireAdmission, types.SubscriptionFilter):
+    # The upstream filter is open for independently contributed extensions.
     task_ids: list[OpaqueTaskId] | None = None
 
+    @classmethod
+    def model_validate(cls, value: Any, **kwargs: Any) -> Self:
+        if isinstance(value, dict):
+            for name, field in cls.model_fields.items():
+                if field.alias != name and name in value:
+                    raise ValueError("subscription filter contains a retired field name")
+        return super().model_validate(value, **kwargs)
 
-class TaskSubscriptionsListenParams(types.RequestParams):
+    @classmethod
+    def model_validate_json(cls, value: str | bytes | bytearray, **kwargs: Any) -> Self:
+        # Decode JSON through the same field admission without mirroring the model.
+        from pydantic import JsonValue
+        decoded = TypeAdapter(JsonValue).validate_json(value)
+        return cls.model_validate(decoded, **kwargs)
+
+
+class TaskSubscriptionsListenParams(_TaskParams):
     notifications: TaskSubscriptionFilter
+
+    @field_validator("notifications", mode="before")
+    @classmethod
+    def admitted_notifications(cls, value: Any) -> TaskSubscriptionFilter:
+        if isinstance(value, TaskSubscriptionFilter):
+            return value
+        return TaskSubscriptionFilter.model_validate(value)
 
 
 class TaskStatusNotificationParams(types.NotificationParams):
