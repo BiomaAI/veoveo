@@ -45,12 +45,12 @@ enum LifecycleDiagnosticStage {
     ObservationAdmission,
     Reconcile,
 }
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 enum LifecycleDiagnosticCause {
     Runtime(veoveo_computers_runtime::RuntimeFailure),
     Deadline,
     AuthorityUnavailable,
-    Pending,
+    Pending(Phase),
     Read,
     Wait,
     RecoveryRequired,
@@ -59,12 +59,20 @@ fn lifecycle_diagnostic(
     stage: LifecycleDiagnosticStage,
     cause: LifecycleDiagnosticCause,
 ) -> String {
-    match cause {
+    let cause = match cause {
         LifecycleDiagnosticCause::Runtime(error) => {
-            format!("stage={stage:?} cause=Runtime({error:?})")
+            return format!("stage={stage:?} cause=Runtime({error:?})");
         }
-        other => format!("stage={stage:?} cause={other:?}"),
-    }
+        LifecycleDiagnosticCause::Pending(phase) => {
+            return format!("stage={stage:?} cause=Pending({})", phase.as_str_name());
+        }
+        LifecycleDiagnosticCause::Deadline => "Deadline",
+        LifecycleDiagnosticCause::AuthorityUnavailable => "AuthorityUnavailable",
+        LifecycleDiagnosticCause::Read => "Read",
+        LifecycleDiagnosticCause::Wait => "Wait",
+        LifecycleDiagnosticCause::RecoveryRequired => "RecoveryRequired",
+    };
+    format!("stage={stage:?} cause={cause}")
 }
 fn diagnose_lifecycle(stage: LifecycleDiagnosticStage, cause: LifecycleDiagnosticCause) {
     eprintln!(
@@ -316,9 +324,9 @@ impl<G: Preflight> LifecycleWorker<G> {
                         LifecycleDiagnosticStage::Reconcile,
                         LifecycleDiagnosticCause::Runtime(*error),
                     ),
-                    Ok(LifecycleObservation::Pending(_)) => diagnose_lifecycle(
+                    Ok(LifecycleObservation::Pending(seen)) => diagnose_lifecycle(
                         LifecycleDiagnosticStage::Reconcile,
-                        LifecycleDiagnosticCause::Pending,
+                        LifecycleDiagnosticCause::Pending(seen.phase),
                     ),
                     Ok(LifecycleObservation::Reached(_)) => {}
                 }
@@ -484,9 +492,9 @@ mod diagnostic_tests {
         assert_eq!(
             lifecycle_diagnostic(
                 LifecycleDiagnosticStage::Reconcile,
-                LifecycleDiagnosticCause::Pending
+                LifecycleDiagnosticCause::Pending(Phase::Stopping)
             ),
-            "stage=Reconcile cause=Pending"
+            "stage=Reconcile cause=Pending(SANDBOX_PHASE_STOPPING)"
         );
         assert_eq!(
             lifecycle_diagnostic(

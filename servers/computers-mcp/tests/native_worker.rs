@@ -64,27 +64,49 @@ fn waiting_classification(message: Option<&str>) -> WaitingClassification {
         Some(_) => WaitingClassification::Unclassified,
     }
 }
-async fn diagnose_step(store: &ComputersStore, tasks: &TaskRuntime, operation: &Operation) {
+fn provider_snapshot(
+    observed: &veoveo_computers_runtime::Observation,
+    resource: Option<&str>,
+    process: Option<&str>,
+) -> String {
+    let same_resource = resource == Some(&observed.sandbox_id);
+    let same_process = process == Some(&observed.main_process_instance_id);
+    format!(
+        "phase={} sameResource={same_resource} sameProcess={same_process}",
+        observed.phase.as_str_name()
+    )
+}
+async fn diagnose_step(
+    store: &ComputersStore,
+    tasks: &TaskRuntime,
+    operation: &Operation,
+    runtime: &veoveo_computers_runtime::OpenShellRuntime,
+    binding: &Binding,
+) {
     let snapshot = tokio::time::timeout(Duration::from_secs(5), async {
         let current = store
             .operation(&operation.owner, operation.operation_id)
             .await
             .ok();
         let task = tasks.get(operation.task_id()).await.ok().flatten();
-        (
-            current.map(|current| current.stage),
-            task.as_ref().map(|task| task.status),
-            waiting_classification(
-                task.as_ref()
-                    .and_then(|task| task.status_message.as_deref()),
+        let operation_stage = current.as_ref().map(|current| current.stage);
+        let task_status = task.as_ref().map(|task| task.status);
+        let classification = waiting_classification(task.as_ref().and_then(|task| task.status_message.as_deref()));
+        eprintln!("Native lifecycle step: operationStage={operation_stage:?} taskStatus={task_status:?} waitingClassification={classification:?}");
+        // Read once before fixture cleanup. Only admitted phase and identity
+        // equality facts leave this function; no provider payload is formatted.
+        match runtime.get(binding).await {
+            Ok(Some(observed)) => current.as_ref().map_or_else(
+                || "operation=Absent".to_owned(),
+                |current| provider_snapshot(&observed, current.previous_resource_id.as_deref(), current.previous_process_id.as_deref()),
             ),
-        )
+            Ok(None) => "observation=Absent".to_owned(),
+            Err(error) => format!("observation=Runtime({error:?})"),
+        }
     })
     .await;
     match snapshot {
-        Ok((operation_stage, task_status, classification)) => eprintln!(
-            "Native lifecycle step: operationStage={operation_stage:?} taskStatus={task_status:?} waitingClassification={classification:?}"
-        ),
+        Ok(provider) => eprintln!("Native lifecycle provider snapshot: {provider}"),
         Err(_) => eprintln!("Native lifecycle step: snapshot=Deadline"),
     }
 }
@@ -323,7 +345,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
             home.stop_service().await;
             let stop_result = worker_b.step(stop.clone()).boxed().await;
             if !matches!(stop_result, Ok(WorkerStep::Settled)) {
-                diagnose_step(&a, &tasks_a, &stop).await;
+                diagnose_step(&a, &tasks_a, &stop, &provider.runtime, &binding).await;
             }
             assert_eq!(stop_result.unwrap(), WorkerStep::Settled);
             home.start_service().await;
@@ -545,6 +567,28 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
 #[cfg(test)]
 mod step_diagnostic_tests {
     use super::*;
+    #[test]
+    fn provider_snapshot_discloses_only_admitted_phase_and_identity_equality() {
+        let observed = veoveo_computers_runtime::Observation {
+            sandbox_id: "synthetic-private-resource".into(),
+            main_process_instance_id: "synthetic-private-process".into(),
+            phase: veoveo_computers_runtime::Phase::Stopping,
+            exit_code: None,
+        };
+        assert_eq!(
+            provider_snapshot(
+                &observed,
+                Some(&observed.sandbox_id),
+                Some(&observed.main_process_instance_id)
+            ),
+            "phase=SANDBOX_PHASE_STOPPING sameResource=true sameProcess=true"
+        );
+        assert_eq!(
+            provider_snapshot(&observed, None, Some("other")),
+            "phase=SANDBOX_PHASE_STOPPING sameResource=false sameProcess=false"
+        );
+        assert!(!provider_snapshot(&observed, None, None).contains("synthetic"));
+    }
     #[test]
     fn waiting_messages_are_classified_without_exposing_unrecognized_content() {
         let secret = "credential=synthetic-secret https://private.test/?token=synthetic-token";

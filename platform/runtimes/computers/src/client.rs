@@ -22,11 +22,15 @@ enum StopDiagnosticStage {
 }
 #[derive(Clone, Copy, Debug)]
 enum StopDiagnosticCause {
+    Begin,
+    Complete,
     Rpc(Code),
     Runtime(RuntimeFailure),
 }
 fn stop_diagnostic(stage: StopDiagnosticStage, cause: StopDiagnosticCause) -> String {
     match cause {
+        StopDiagnosticCause::Begin => format!("stage={stage:?} event=Begin"),
+        StopDiagnosticCause::Complete => format!("stage={stage:?} event=Complete"),
         StopDiagnosticCause::Rpc(code) => format!("stage={stage:?} cause=Rpc({code:?})"),
         StopDiagnosticCause::Runtime(error) => format!("stage={stage:?} cause=Runtime({error:?})"),
     }
@@ -349,9 +353,15 @@ impl OpenShellRuntime {
                 StopDiagnosticCause::Runtime(*error),
             );
         })?;
-        let current = self
+        diagnose_stop(StopDiagnosticStage::GetBefore, StopDiagnosticCause::Begin);
+        let read = self
             .get_observed(binding, Some(StopDiagnosticStage::GetBefore))
-            .await
+            .await;
+        diagnose_stop(
+            StopDiagnosticStage::GetBefore,
+            StopDiagnosticCause::Complete,
+        );
+        let current = read
             .and_then(|current| current.ok_or(RuntimeFailure::NotFound))
             .inspect_err(|error| {
                 diagnose_stop(
@@ -378,6 +388,7 @@ impl OpenShellRuntime {
             );
             return Err(RuntimeFailure::InvalidState);
         }
+        diagnose_stop(StopDiagnosticStage::Rpc, StopDiagnosticCause::Begin);
         let response = self
             .client
             .clone()
@@ -389,14 +400,15 @@ impl OpenShellRuntime {
                 },
                 30,
             ))
-            .await
-            .map_err(|status| {
-                diagnose_stop(
-                    StopDiagnosticStage::Rpc,
-                    StopDiagnosticCause::Rpc(status.code()),
-                );
-                RuntimeFailure::LifecycleUnknown
-            })?;
+            .await;
+        diagnose_stop(StopDiagnosticStage::Rpc, StopDiagnosticCause::Complete);
+        let response = response.map_err(|status| {
+            diagnose_stop(
+                StopDiagnosticStage::Rpc,
+                StopDiagnosticCause::Rpc(status.code()),
+            );
+            RuntimeFailure::LifecycleUnknown
+        })?;
         let observed = self
             .observation(response.into_inner(), binding)
             .inspect_err(|error| {
@@ -460,6 +472,16 @@ mod stop_diagnostic_tests {
     use super::*;
     #[test]
     fn stop_rpc_diagnostics_disclose_only_the_code_and_closed_stage() {
+        for stage in [StopDiagnosticStage::GetBefore, StopDiagnosticStage::Rpc] {
+            assert_eq!(
+                stop_diagnostic(stage, StopDiagnosticCause::Begin),
+                format!("stage={stage:?} event=Begin")
+            );
+            assert_eq!(
+                stop_diagnostic(stage, StopDiagnosticCause::Complete),
+                format!("stage={stage:?} event=Complete")
+            );
+        }
         let status =
             tonic::Status::unavailable("credential=synthetic-secret ?token=synthetic-token");
         let output = stop_diagnostic(
