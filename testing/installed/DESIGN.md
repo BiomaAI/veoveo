@@ -97,7 +97,7 @@ a reused GPU analysis keeps its original execution evidence.
 
 ## Restart And Cleanup
 
-The restart helper verifies the target workload and records its current Pod names.
+The readiness-only restart helper verifies the target workload and records its current Pod names.
 It dispatches `kubectl rollout restart` once, waits for rollout completion and for
 every old Pod to disappear, then checks the same Deployment UID, a newer generation
 and unchanged positive replica count. It then reads the owner's contract through the
@@ -111,6 +111,15 @@ A restart has a total deadline of 75 seconds, including the
 Cancellation kills the local
 command; it does not repeat a mutation with an uncertain outcome. Command failures
 report status without arbitrary process diagnostics that could expose credentials.
+
+The optional selected-container API in
+[testing support](../support/DESIGN.md#installed-process-drain) additionally admits
+namespace, Deployment and Pod identities through the ReplicaSet owner chain. It
+establishes the old Pod watch before a UID/resourceVersion-tested JSON Patch,
+requires actual successful container termination inside configured grace, and
+returns a typed drain receipt. Existing readiness-only consumers cannot claim
+process exit from Pod deletion. The receipt qualifies server-process drain; GPU
+throughput and visual acceptance belong to their owning scenario.
 
 The source runner has a fifteen-minute deadline and each K07 probe has 90 seconds.
 Cleanup runs after the source deadline expires; an outer test timer must not cancel

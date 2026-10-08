@@ -14,6 +14,9 @@ use tokio::process::Command;
 use veoveo_deploy_contract::InstallationTarget;
 use veoveo_types::ResourceUri;
 
+mod drain;
+pub use drain::{DrainProfile, DrainReceipt, SelectedDrainIdentity, SelectedDrainTarget};
+
 pub struct DeploymentRestart {
     context: String,
     namespace: String,
@@ -59,6 +62,209 @@ impl DeploymentRestart {
         })
         .await
         .context("installed source restart exceeded 75 seconds")?
+    }
+
+    /// Admit one selected NVIDIA server Pod before any restart mutation.
+    pub async fn select_drain_target(
+        &self,
+        pod_name: &str,
+        profile: DrainProfile,
+    ) -> Result<SelectedDrainTarget> {
+        drain::name(pod_name)?;
+        let before = self.deployment().await?;
+        before.require_ready()?;
+        ensure!(
+            before.spec.replicas == 1,
+            "selected process drain requires a single declared replica"
+        );
+        ensure!(
+            before
+                .spec
+                .selector
+                .match_labels
+                .get("app.kubernetes.io/component")
+                == Some(&self.component),
+            "selected Deployment belongs to another component"
+        );
+        drain::version(&before.metadata.resource_version)?;
+        let namespace: drain::Namespace = serde_json::from_slice(
+            &self
+                .command(&["get", "namespace", &self.namespace, "-o", "json"])
+                .await?,
+        )
+        .map_err(|_| anyhow::anyhow!("invalid namespace admission response"))?;
+        ensure!(
+            namespace.metadata.name == self.namespace
+                && namespace.metadata.deletion_timestamp.is_none(),
+            "selected namespace is replaced or deleting"
+        );
+        let pod: drain::Pod = serde_json::from_slice(
+            &self
+                .command(&["get", "pod", pod_name, "-o", "json"])
+                .await?,
+        )
+        .map_err(|_| anyhow::anyhow!("invalid selected Pod admission response"))?;
+        let grace = pod.admit(&self.namespace, &profile)?;
+        let status = pod.selected_status(&profile)?;
+        let container_id = status.container_id.clone();
+        let restart_count = status.restart_count;
+        let owner = pod
+            .metadata
+            .owner_references
+            .iter()
+            .find(|owner| owner.kind == "ReplicaSet" && owner.controller == Some(true))
+            .context("selected Pod has no controlling ReplicaSet")?;
+        drain::name(&owner.name)?;
+        let replica_set: drain::ReplicaSet = serde_json::from_slice(
+            &self
+                .command(&["get", "replicaset", &owner.name, "-o", "json"])
+                .await?,
+        )
+        .map_err(|_| anyhow::anyhow!("invalid ReplicaSet admission response"))?;
+        ensure!(!namespace.metadata.uid.is_nil(), "namespace UID is absent");
+        let deployment_uid = uuid::Uuid::parse_str(&before.metadata.uid)
+            .map_err(|_| anyhow::anyhow!("invalid Deployment UID"))?;
+        ensure!(
+            !deployment_uid.is_nil() && !owner.uid.is_nil(),
+            "workload owner UID is absent"
+        );
+        ensure!(
+            replica_set.metadata.uid == owner.uid
+                && replica_set.metadata.namespace.as_deref() == Some(&self.namespace)
+                && replica_set
+                    .metadata
+                    .owner_references
+                    .iter()
+                    .any(|owner| owner.kind == "Deployment"
+                        && owner.controller == Some(true)
+                        && owner.uid == deployment_uid
+                        && owner.name == self.deployment),
+            "selected Pod is not owned by the admitted Deployment"
+        );
+        Ok(SelectedDrainTarget {
+            namespace: self.namespace.clone(),
+            namespace_uid: namespace.metadata.uid,
+            deployment: self.deployment.clone(),
+            deployment_uid,
+            deployment_version: before.metadata.resource_version,
+            generation: before.metadata.generation,
+            pod: pod.metadata.name,
+            pod_uid: pod.metadata.uid,
+            pod_version: pod.metadata.resource_version,
+            container_id,
+            restart_count,
+            profile,
+            grace,
+            annotations: before.spec.template.metadata.annotations,
+        })
+    }
+
+    /// One UID/resourceVersion-fenced mutation. Actual container exit is required.
+    pub async fn restart_with_drain(&self, selected: &SelectedDrainTarget) -> Result<DrainReceipt> {
+        ensure!(
+            selected.namespace == self.namespace && selected.deployment == self.deployment,
+            "drain target belongs to another workload"
+        );
+        tokio::time::timeout(selected.profile.deadline + Duration::from_secs(75), async {
+            let namespace: drain::Namespace = serde_json::from_slice(
+                &self
+                    .command(&["get", "namespace", &self.namespace, "-o", "json"])
+                    .await?,
+            )
+            .map_err(|_| anyhow::anyhow!("invalid namespace fence response"))?;
+            ensure!(
+                namespace.metadata.uid == selected.namespace_uid
+                    && namespace.metadata.deletion_timestamp.is_none(),
+                "selected namespace changed before restart"
+            );
+            let mut watch = drain::PodWatch::start(&self.context, &self.namespace, &selected.pod)?;
+            let mut observation = drain::DrainObservation::new(selected.clone());
+            let initial = tokio::time::timeout(Duration::from_secs(10), watch.next())
+                .await
+                .context("selected old Pod watch admission exceeded ten seconds")??;
+            observation.initial(initial)?;
+            // The native watch has delivered its initial selected object before effects.
+            let deadline = tokio::time::Instant::now() + selected.profile.deadline;
+            tokio::time::timeout_at(deadline, async {
+                observation.dispatched(chrono::SubsecRound::trunc_subsecs(chrono::Utc::now(), 0));
+                self.fenced_patch(selected).await?;
+                loop {
+                    if observation.observe(watch.next().await?)? {
+                        break;
+                    }
+                }
+                Ok::<_, anyhow::Error>(())
+            })
+            .await
+            .context("selected old container exit was not observed within the drain deadline")??;
+            drop(watch); // Owned process-group teardown also covers every earlier error/cancellation.
+            let resource = format!("deployment/{}", self.deployment);
+            self.command(&["rollout", "status", &resource, "--timeout=55s"])
+                .await?;
+            let after = self.deployment().await?;
+            after.require_ready()?;
+            ensure!(
+                after.metadata.uid == selected.deployment_uid.to_string()
+                    && after.metadata.generation > selected.generation
+                    && after.spec.replicas == 1,
+                "replacement Deployment identity or readiness differs"
+            );
+            self.require_public_route().await?;
+            observation.receipt(after.metadata.generation)
+        })
+        .await
+        .context("installed selected-container restart exceeded its lifecycle deadline")?
+    }
+
+    async fn fenced_patch(&self, selected: &SelectedDrainTarget) -> Result<()> {
+        use tokio::io::AsyncWriteExt;
+        let mut annotations = selected.annotations.clone();
+        annotations.insert(
+            "kubectl.kubernetes.io/restartedAt".into(),
+            chrono::Utc::now().to_rfc3339(),
+        );
+        let patch = serde_json::to_vec(&serde_json::json!([
+            {"op":"test","path":"/metadata/uid","value":selected.deployment_uid},
+            {"op":"test","path":"/metadata/resourceVersion","value":selected.deployment_version},
+            {"op":"add","path":"/spec/template/metadata/annotations","value":annotations}
+        ]))?;
+        ensure!(
+            patch.len() <= 65536,
+            "selected Deployment annotation patch exceeds 64 KiB"
+        );
+        let mut command = Command::new("kubectl");
+        command
+            .args([
+                "--context",
+                &self.context,
+                "--namespace",
+                &self.namespace,
+                "--request-timeout=10s",
+                "patch",
+                "deployment",
+                &self.deployment,
+                "--type=json",
+                "--patch-file=/dev/stdin",
+            ])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .kill_on_drop(true);
+        let mut child = crate::spawn_async(command)?;
+        let mut input = child
+            .stdin
+            .take()
+            .context("native restart patch input unavailable")?;
+        input.write_all(&patch).await?;
+        input.shutdown().await?;
+        drop(input);
+        let result = child.wait_with_output().await?;
+        ensure!(
+            result.status.success(),
+            "fenced Deployment patch failed with {}; restart outcome is unqualified and must not be redispatched",
+            result.status
+        );
+        Ok(())
     }
 
     async fn require_public_route(&self) -> Result<()> {
@@ -201,12 +407,25 @@ struct Deployment {
 struct DeploymentMetadata {
     uid: String,
     generation: u64,
+    #[serde(rename = "resourceVersion")]
+    resource_version: String,
 }
 #[derive(Deserialize)]
 struct DeploymentSpec {
     replicas: u32,
     selector: Selector,
+    template: PodTemplate,
 }
+#[derive(Deserialize)]
+struct PodTemplate {
+    metadata: TemplateMetadata,
+}
+#[derive(Deserialize)]
+struct TemplateMetadata {
+    #[serde(default)]
+    annotations: BTreeMap<String, String>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Selector {

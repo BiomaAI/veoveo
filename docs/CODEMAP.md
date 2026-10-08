@@ -1819,6 +1819,7 @@ dispatch preflights and budgeted execution.
 | `examples/bioma/acceptance/src/smoke/scenarios/` | Rust process/deployment scenarios |
 | `examples/bioma/acceptance/src/smoke/scenarios/view/readiness.rs` | typed View readiness and production GPU startup-log admission for the existing renderer smoke; NVIDIA Vulkan, encoder and CUDA UUID checks |
 | `examples/bioma/acceptance/src/smoke/scenarios/view/schema.rs` | current View tool input-schema admission and owner DTO validation through JSON Schema references in the existing renderer smoke |
+| `testing/support/src/installed/restart/drain.rs` | optional selected-container restart admission, native Pod watch, typed termination/grace receipt and CPU refusal/cleanup controls; readiness-only consumers retain their declared scope |
 | `examples/bioma/acceptance/src/smoke/scenarios/view/lifecycle.rs` | owned Docker Engine freeze and frozen claim admission for the existing View capture restart scenario |
 | `examples/bioma/acceptance/src/smoke/scenarios/stream/replicas.rs`, `stream/replica_pods.rs` | installed Stream GPU replay with distinct Pod admission, cross-replica Task/result observation, subscription reconnect/cancellation, and a machine-readable outcome |
 | `examples/bioma/acceptance/src/smoke/scenarios/artifact_consumers.rs`, `artifact_consumers/python.rs` | installed public known/unknown-length uploads, CSV/Parquet MCP interoperability, and full-size Python SDK streaming observations asserted by Rust; direct-plane fixture identities stay separate from public OAuth evidence |

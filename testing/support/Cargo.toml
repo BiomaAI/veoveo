@@ -8,6 +8,7 @@ publish = false
 veoveo-deploy-contract.workspace = true
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 anyhow.workspace = true
+chrono.workspace = true
 veoveo-types.workspace = true
 veoveo-gateway-contract.workspace = true
 serde.workspace = true

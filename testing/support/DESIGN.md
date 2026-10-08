@@ -7,6 +7,8 @@ Shared testing support admits owner declarations and compiler artifacts, connect
 | Standard or format | Supported profile |
 | --- | --- |
 | Cargo metadata and JSON compiler messages | Actual package, native target, selected features, emitted executable and linked native library paths; no guessed target directory |
+| Kubernetes core/apps v1, JSON Patch RFC 6902 | Selected namespace/Deployment/Pod identity, atomic UID and resourceVersion tests, native Pod watches and typed container termination; no deletion-only process-exit claim |
+| RFC 3339 timestamps and Chrono 0.4.45 | UTC-normalized Kubernetes finishedAt/deletionTimestamp arithmetic at the API’s second precision |
 | MCP | Maintained RMCP client mechanics and the repository's final Task adapter; bearer credentials supplied by the owner |
 | Linux process groups and `/proc` | PID plus start-time identity, unreaped leader reservation and owned descendants |
 | `veoveo.ai/smoke-scenarios/v1` | Checked tracked owner descriptor, explicit preparations, execution deadline and cleanup grace |
@@ -82,3 +84,25 @@ Intentional fixture teardown uses private `veoveo.ai/smoke-stop/v1` requests and
 Every selected Cargo root and native prerequisite supplies its own contained regular Cargo manifest and target source. Package identity agrees with maintained metadata before feature planning or preparation. A composition declaration cannot exempt a prerequisite from its own file admission.
 
 Exact libtest execution uses normal capture with `--show-output` and the pretty formatter. Framework case status precedes displayed owner diagnostics; the final framework summary follows them. Named-case admission reads the status section and the final summary, preserving serial printing and stdout while refusing missing, ignored, failed or differently named execution. Extra selector arguments are refused before preparation.
+
+## Installed Process Drain
+
+The optional selected-container restart profile admits the namespace UID, Deployment
+UID and resourceVersion, and the old Pod UID and resourceVersion before mutation.
+The Pod’s controlling ReplicaSet must reference that same Deployment UID. The
+selected regular container must be running and ready, with a declared termination
+grace. The NVIDIA profile additionally requires positive GPU requests and limits;
+ordinary server drains make no GPU claim.
+
+A native resourceVersion-zero Pod watch supplies the initial selected object before
+one JSON Patch tests the Deployment UID and resourceVersion and changes its restart
+annotation. Existing annotations pass through private stdin. A failed response does
+not permit another mutation. The observer requires a successful selected-container
+termination with finishedAt inside both deletion grace and the caller’s shorter
+admission window. Kubernetes timestamps use RFC 3339 second precision. The admitted containerID and restartCount bind the process instance. One full
+same-instance Pod snapshot must contain both successful termination and deletion
+metadata. Regressing process state, disappearing deletion metadata and repeated
+opaque resource versions fail; the observer never orders resource versions.
+Deletion or Ready alone cannot qualify exit. Watch errors, gaps, premature closure and missing terminal state fail.
+Owned process groups are cancelled on every exit path. Replacement readiness and
+public routing are checked independently after drain.
