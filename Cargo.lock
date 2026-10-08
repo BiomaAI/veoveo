@@ -17340,6 +17340,7 @@ dependencies = [
  "veoveo-audit",
  "veoveo-audit-contract",
  "veoveo-computers-contract",
+ "veoveo-deploy-contract",
  "veoveo-gateway-contract",
  "veoveo-knowledge-contract",
  "veoveo-mcp-apps-extension",

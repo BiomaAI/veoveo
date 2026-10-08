@@ -54,6 +54,7 @@ veoveo-task-runtime = { path = "../task-runtime" }
 veoveo-modules = { workspace = true, features = ["runner", "serialization"] }
 
 [dev-dependencies]
+veoveo-deploy-contract.workspace = true
 veoveo-modules = { workspace = true, features = ["runner"] }
 jsonschema.workspace = true
 veoveo-computers-contract.workspace = true

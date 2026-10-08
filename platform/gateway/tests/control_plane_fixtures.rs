@@ -233,23 +233,37 @@ fn installation_metadata_and_claim_dictionaries_remain_extensible() {
 }
 
 #[test]
-fn bioma_control_plane_revision_binds_admitted_serialization() {
-    use sha2::{Digest, Sha256};
+fn bioma_control_plane_revision_binds_complete_public_bundle() {
     let control: GatewayControlPlane =
         serde_json::from_slice(&fs::read("../../examples/bioma/gateway.json").unwrap()).unwrap();
     control.validate(&catalog_registry::registry()).unwrap();
-    let digest = hex::encode(Sha256::digest(serde_json::to_vec(&control).unwrap()));
-    if std::env::var_os("VEOVEO_CAPTURE_BIOMA_CONTROL_PLANE_DIGEST").is_some() {
-        println!("BIOMA_CONTROL_PLANE_SHA256={digest}");
-    } else {
-        let values = fs::read_to_string("../../examples/bioma/values.yaml").unwrap();
-        let configured = values
-            .lines()
-            .find_map(|line| line.trim().strip_prefix("controlPlaneRevision: "))
-            .unwrap();
-        assert_eq!(
-            configured, digest,
-            "installation revision must hash admitted compact JSON, not author-file bytes"
-        );
-    }
+    let files = [
+        "gateway.json",
+        "recording-producer-jwks.json",
+        "recording-hub-jwks.json",
+        "recording-mcp-publisher-jwks.json",
+        "operator-client-jwks.json",
+        "admin-client-jwks.json",
+        "knowledge-indexer-jwks.json",
+    ];
+    let bundle = files
+        .into_iter()
+        .map(|name| {
+            (
+                name.to_owned(),
+                fs::read_to_string(format!("../../examples/bioma/{name}")).unwrap(),
+            )
+        })
+        .collect();
+    let digest = veoveo_deploy_contract::gateway_bundle_digest(&bundle).unwrap();
+    let values = fs::read_to_string("../../examples/bioma/values.yaml").unwrap();
+    let configured = values
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("controlPlaneRevision: "))
+        .unwrap();
+    assert_eq!(
+        configured,
+        digest.as_str().strip_prefix("sha256:").unwrap(),
+        "installation revision must bind the complete public ConfigMap bundle"
+    );
 }
