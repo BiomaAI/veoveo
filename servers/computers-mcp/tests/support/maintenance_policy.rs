@@ -90,7 +90,6 @@ pub async fn add_grant(provider: &crate::provider::Provider, binding: &Binding) 
                             }],
                             binaries: vec![policy::NetworkBinary {
                                 path: "/usr/bin/curl".into(),
-                                ..Default::default()
                             }],
                         }),
                     },

@@ -88,7 +88,7 @@ impl BlockHome {
         assert!(
             socket.is_absolute()
                 && socket.exists()
-                && socket != PathBuf::from("/var/run/docker.sock"),
+                && socket != std::path::Path::new("/var/run/docker.sock"),
             "isolated retained-home daemon required"
         );
         let mut home = Self {

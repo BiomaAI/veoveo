@@ -1,6 +1,7 @@
+// Independent test crates consume different subsets of these shared fixture APIs.
 #[path = "native_support/block_home.rs"]
-mod block_home;
-mod native_support;
+pub mod block_home;
+pub mod native_support;
 #[path = "native_support/template.rs"]
 mod retained_template;
 #[path = "native_support/stock_cli.rs"]
@@ -975,17 +976,17 @@ async fn capture_recovery_attachment(
         gateway_log,
     };
     // Never let secondary diagnostic I/O replace the original attach failure.
-    if let Ok(bytes) = serde_json::to_vec(&receipt) {
-        if bytes.len() <= 16384 {
-            use std::io::Write;
-            if let Ok(mut file) = std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o600)
-                .open(provider.dir.join("recovery-attachment-diagnostics.json"))
-            {
-                let _ = file.write_all(&bytes);
-            }
+    if let Ok(bytes) = serde_json::to_vec(&receipt)
+        && bytes.len() <= 16384
+    {
+        use std::io::Write;
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(provider.dir.join("recovery-attachment-diagnostics.json"))
+        {
+            let _ = file.write_all(&bytes);
         }
     }
 }

@@ -1,6 +1,5 @@
 #![allow(dead_code)] // Selected native fixture operations are scenario-specific.
-#[path = "../../../platform/runtimes/computers/tests/native_support/docker_daemon.rs"]
-mod docker_daemon;
+use provider::docker_daemon;
 #[path = "../../../platform/computers/storage/tests/native_support/service.rs"]
 mod native_service_support;
 #[path = "../../../platform/runtimes/computers/tests/native_support/mod.rs"]

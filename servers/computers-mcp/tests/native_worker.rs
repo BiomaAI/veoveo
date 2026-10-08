@@ -5,8 +5,7 @@ mod browser_terminal;
 mod cli_access;
 #[path = "support/cli_edges.rs"]
 mod cli_edges;
-#[path = "../../../platform/runtimes/computers/tests/native_support/docker_daemon.rs"]
-mod docker_daemon;
+use provider::docker_daemon;
 #[path = "../../../platform/computers/storage/tests/native_support/service.rs"]
 mod native_service_support;
 #[path = "../../../platform/runtimes/computers/tests/native_support/mod.rs"]

@@ -1,6 +1,7 @@
 #[path = "native_support/block_home.rs"]
 mod block_home;
-mod native_support;
+// Independent test crates consume different subsets of this shared fixture API.
+pub mod native_support;
 use block_home::BlockHome;
 use native_support::Provider;
 use std::{

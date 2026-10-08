@@ -1,6 +1,5 @@
 #![allow(dead_code)] // Shared native fixture operations are scenario-specific.
-#[path = "../../../platform/runtimes/computers/tests/native_support/docker_daemon.rs"]
-mod docker_daemon;
+use provider::docker_daemon;
 #[path = "support/maintenance_initial_failure.rs"]
 mod maintenance_initial_failure;
 #[path = "support/maintenance_policy.rs"]

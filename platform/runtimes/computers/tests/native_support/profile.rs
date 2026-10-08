@@ -268,7 +268,7 @@ pub async fn preflight() -> std::net::Ipv4Addr {
         "local companion image differs from patched artifact/source profile"
     );
     for binary in receipt.binaries {
-        let mut input = tokio::fs::File::open(&binary.path)
+        let input = tokio::fs::File::open(&binary.path)
             .await
             .expect("native binary");
         assert!(

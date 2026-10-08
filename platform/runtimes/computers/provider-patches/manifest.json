@@ -101,7 +101,7 @@
       "sha256": "3153a6d04c0b68f2c5e0b2098b9e626bf847f0d5027d852c11fc7846c5ad018b",
       "producer": "native.rs",
       "producerSource": "platform/runtimes/computers/tests/native_support/mod.rs",
-      "producerSha256": "eda569174a89280306ee1c54f5031bb624775e905b1c48fc2524274f67ef815b"
+      "producerSha256": "03ffb39bf68ebbc76cdf23d92b1ae452bb017da90066b50fb34bc7d6c36e5e3a"
     }
   ],
   "cxx": {

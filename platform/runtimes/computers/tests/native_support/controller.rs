@@ -214,8 +214,10 @@ pub(super) fn crash(child: &mut Child) -> io::Result<ExitStatus> {
             fs::metadata(format!("/proc/{member}")).is_ok_and(|m| m.ino() == *inode)
                 && Path::new(&format!("/proc/{member}/exe")).exists()
         });
-        if exit.is_some() && !original_executable {
-            return Ok(exit.unwrap());
+        if let Some(exit) = exit
+            && !original_executable
+        {
+            return Ok(exit);
         }
         std::thread::sleep(Duration::from_millis(20));
     }

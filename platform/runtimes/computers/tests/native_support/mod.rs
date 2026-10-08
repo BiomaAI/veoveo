@@ -9,21 +9,32 @@ use std::{
 use uuid::Uuid;
 use veoveo_computers_runtime::{GatewayConfig, OpenShellRuntime};
 mod controller;
-mod docker_daemon;
+pub mod docker_daemon;
 mod guest_authority;
 pub mod profile;
 pub use profile::preflight;
+
+struct ProviderLaunchSettings<'a> {
+    image: &'a str,
+    supervisor_image: &'a str,
+    sandbox: &'a std::path::Path,
+    ssh_session_ttl_secs: u64,
+    log_level: &'a str,
+}
 
 fn provider_config(
     dir: &std::path::Path,
     host: &ComputeHost,
     port: u16,
-    image: &str,
-    supervisor_image: &str,
-    sandbox: &std::path::Path,
-    ssh_session_ttl_secs: u64,
-    log_level: &str,
+    settings: ProviderLaunchSettings<'_>,
 ) -> String {
+    let ProviderLaunchSettings {
+        image,
+        supervisor_image,
+        sandbox,
+        ssh_session_ttl_secs,
+        log_level,
+    } = settings;
     let gateway_ip = host.gateway_ip;
     let namespace = &host.namespace;
     let socket = &host.socket;
@@ -60,8 +71,8 @@ sandbox_pids_limit = 256
 enable_bind_mounts = false
 "#,
         image = serde_json::to_string(&image).unwrap(),
-        socket = quoted(&socket),
-        sandbox = quoted(&sandbox),
+        socket = quoted(socket),
+        sandbox = quoted(sandbox),
         supervisor_image = serde_json::to_string(&supervisor_image).unwrap(),
         ca = quoted(&dir.join("ca.pem")),
         cert = quoted(&dir.join("guest.pem")),
@@ -70,38 +81,6 @@ enable_bind_mounts = false
         jwt_public = quoted(&dir.join("jwt-public.pem")),
         jwt_kid = quoted(&dir.join("jwt-kid")),
     )
-}
-
-#[cfg(test)]
-mod generated_config_tests {
-    use super::*;
-    #[test]
-    fn generated_native_provider_config_matches_packaged_loader_input() {
-        let host = ComputeHost {
-            socket: "/run/veoveo-native/docker.sock".into(),
-            output: "/run/veoveo-native/output".into(),
-            namespace: "private-native".into(),
-            gateway_ip: "172.30.0.1".parse().unwrap(),
-        };
-        let generated = provider_config(
-            std::path::Path::new("/run/veoveo-native/trust"),
-            &host,
-            18805,
-            &format!("registry.internal:5000/computer@sha256:{}", "a".repeat(64)),
-            &format!("registry.internal:5000/provider@sha256:{}", "c".repeat(64)),
-            std::path::Path::new("/usr/local/bin/openshell-sandbox"),
-            3600,
-            "warn",
-        );
-        if let Some(directory) = std::env::var_os("VEOVEO_PROVIDER_CONFIG_EXPORT") {
-            fs::write(PathBuf::from(directory).join("native.toml"), &generated).unwrap();
-        } else {
-            assert_eq!(
-                generated,
-                include_str!("../../provider-patches/generated/native.toml")
-            );
-        }
-    }
 }
 
 pub struct ComputeHost {
@@ -140,13 +119,11 @@ impl Cleanup {
 }
 impl Drop for Cleanup {
     fn drop(&mut self) {
-        if let Some(child) = &mut self.child {
-            if controller::stop(child).is_err() {
-                let _ = controller::stop_child_only(child);
-                eprintln!(
-                    "owned controller cleanup did not complete within its process-group budget"
-                );
-            }
+        if let Some(child) = &mut self.child
+            && controller::stop(child).is_err()
+        {
+            let _ = controller::stop_child_only(child);
+            eprintln!("owned controller cleanup did not complete within its process-group budget");
         }
         let filter = format!("label=openshell.ai/sandbox-namespace={}", self.namespace);
         if let Ok(output) = self
@@ -260,7 +237,7 @@ impl Provider {
         let host = host.expect("OpenShell 0.1.2 native provider requires an isolated ComputeHost; outer-host sidecar networking is unsupported");
         assert!(
             host.socket.is_absolute()
-                && host.socket != PathBuf::from("/var/run/docker.sock")
+                && host.socket != std::path::Path::new("/var/run/docker.sock")
                 && host.socket.exists(),
             "isolated native daemon socket required"
         );
@@ -299,11 +276,13 @@ impl Provider {
             &dir,
             &host,
             port,
-            &image,
-            &supervisor_image,
-            &sandbox,
-            ssh_session_ttl_secs,
-            log_level,
+            ProviderLaunchSettings {
+                image: &image,
+                supervisor_image: &supervisor_image,
+                sandbox: &sandbox,
+                ssh_session_ttl_secs,
+                log_level,
+            },
         );
         fs::write(dir.join("gateway.toml"), config).unwrap();
         let launch = controller::Launch::new(gateway, driver, dir.clone());
@@ -372,7 +351,7 @@ async fn connect_controller(
     dir: &std::path::Path,
     endpoint: &str,
 ) -> OpenShellRuntime {
-    let runtime = tokio::time::timeout(Duration::from_secs(30), async {
+    tokio::time::timeout(Duration::from_secs(30), async {
         loop {
             if let Some(exit) = child.try_wait().unwrap() {
                 panic!("provider exited {exit}; diagnostics at {}", dir.display());
@@ -398,8 +377,7 @@ async fn connect_controller(
             "provider readiness timed out; diagnostics at {}",
             dir.display()
         )
-    });
-    runtime
+    })
 }
 
 fn certificates(dir: &std::path::Path, gateway_ip: std::net::Ipv4Addr) {
@@ -469,5 +447,42 @@ pub async fn registry_child() -> bool {
         true
     } else {
         false
+    }
+}
+
+#[cfg(test)]
+mod generated_config_tests {
+    use super::*;
+    #[test]
+    fn generated_native_provider_config_matches_packaged_loader_input() {
+        let host = ComputeHost {
+            socket: "/run/veoveo-native/docker.sock".into(),
+            output: "/run/veoveo-native/output".into(),
+            namespace: "private-native".into(),
+            gateway_ip: "172.30.0.1".parse().unwrap(),
+        };
+        let generated = provider_config(
+            std::path::Path::new("/run/veoveo-native/trust"),
+            &host,
+            18805,
+            ProviderLaunchSettings {
+                image: &format!("registry.internal:5000/computer@sha256:{}", "a".repeat(64)),
+                supervisor_image: &format!(
+                    "registry.internal:5000/provider@sha256:{}",
+                    "c".repeat(64)
+                ),
+                sandbox: std::path::Path::new("/usr/local/bin/openshell-sandbox"),
+                ssh_session_ttl_secs: 3600,
+                log_level: "warn",
+            },
+        );
+        if let Some(directory) = std::env::var_os("VEOVEO_PROVIDER_CONFIG_EXPORT") {
+            fs::write(PathBuf::from(directory).join("native.toml"), &generated).unwrap();
+        } else {
+            assert_eq!(
+                generated,
+                include_str!("../../provider-patches/generated/native.toml")
+            );
+        }
     }
 }
