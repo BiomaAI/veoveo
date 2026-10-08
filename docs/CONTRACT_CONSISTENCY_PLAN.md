@@ -223,11 +223,14 @@ cleanup retains dependency libraries, current executable links, the newest
 incremental variants and frozen acceptance inputs. The two repaired Python image
 contexts pass their locked package builds and development-stage publication;
 these checks do not qualify the full release. The combined 34-target publication
-is running from the committed packaging repair. Its preflight allows 241 GiB of
-remaining growth while retaining 238 GiB free, and reuses the admitted Speech and
-UAV dependency parents. BuildKit cache, rollback images and cluster data stay
-protected. Qualified image publication, final deployment inputs and installed
-acceptance remain open.
+stops at Console's omitted shared TypeScript fixture; subsequent cancellations
+do not establish additional defects. Console and Workspace build-input lists
+now include that canonical fixture and their native builds pass. Actual frontend
+image-stage qualification is pending. The failed run's five partial image pushes
+remain unqualified. The next publication must account for resident outputs within
+the original 320 GiB growth ceiling and retain 238 GiB free. BuildKit cache,
+rollback images and cluster data stay protected. Qualified image publication,
+final deployment inputs and installed acceptance remain open.
 
 The Python SDK admits the preserved `v1:N` offset grammar and 64-bit range,
 including Rust's admitted leading-plus and leading-zero aliases. It refuses

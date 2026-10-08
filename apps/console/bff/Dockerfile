@@ -6,6 +6,7 @@ COPY apps/console/web/package.json apps/console/web/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm install --global npm@12.0.2 \
     && npm ci
 COPY apps/console/web ./
+COPY platform/artifacts/contract/testdata/upload-notifications.json /app/platform/artifacts/contract/testdata/upload-notifications.json
 RUN npm run build
 
 FROM node:26-bookworm-slim@sha256:4db36457f406501e6f608802e5da617e5fbd0e80b75901b6a09de1ae5a667d32 AS workspace-builder
@@ -15,6 +16,7 @@ RUN --mount=type=cache,target=/root/.npm npm install --global npm@12.0.2 \
     && npm ci
 COPY apps/workspace ./
 COPY apps/console/web/src /app/apps/console/web/src
+COPY platform/artifacts/contract/testdata/upload-notifications.json /app/platform/artifacts/contract/testdata/upload-notifications.json
 RUN npm run build
 
 FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
