@@ -45,8 +45,15 @@ until those workloads reach their own acceptance batches. The first staged targe
 the shared CPU sources, Datasheet's Artifact consumer, Knowledge and Embedding. Map,
 Artifact, Time, Chart, DuckDB, Timeseries, Frames and Media remain available as
 Knowledge sources and shared runtime services. The UAV HelmRelease is suspended until
-its GPU acceptance batch. Use `installation-target-initial.json` for this staged gate and
-`installation-target.json` for complete-installation acceptance. Advance generation
+its GPU acceptance batch. Use `installation-target-initial.json` for this staged gate.
+Its normal OAuth client selects `/mcp/operator-initial`, whose tool catalog exposes
+DuckDB, Timeseries, Frames and Media. Artifact resource exposure permits read-only
+downloads of their exported results; Artifact tools, uploads, prompts, completions
+and Tasks are disabled. Tool and prompt discovery fail closed if an exposed upstream
+is unavailable. Resource discovery keeps its existing cache and degradation behavior.
+Staged-off workloads cannot satisfy the tool and prompt gate. The full
+`/mcp/operator` catalog stays unchanged. Select `installation-target.json` for complete-installation acceptance
+after activating its workloads. Advance generation
 when preparation identity changes, including credential revision, and preserve it for
 an unchanged installation.
 

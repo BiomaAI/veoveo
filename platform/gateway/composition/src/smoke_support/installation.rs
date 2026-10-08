@@ -283,6 +283,7 @@ mod tests {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
         for relative in [
             "examples/bioma/installation-target.json",
+            "examples/bioma/installation-target-initial.json",
             "testing/fixtures/fork-installation/installation-target.json",
         ] {
             InstalledTarget::load(&repository.join(relative))

@@ -293,3 +293,134 @@ fn local_operator_profile_challenges_for_the_complete_view_scope_bundle() {
         "operator protected-resource metadata omits UAV domain read authority"
     );
 }
+
+#[test]
+fn bioma_initial_profile_allows_only_read_only_artifact_delivery() {
+    use veoveo_mcp_contract::{
+        CompletionExposure, DiscoveryFailureMode, Exposure, ResourceSelector, TaskExposure,
+    };
+    let catalog = GatewayCatalog::load_json(
+        Path::new("../../examples/bioma/gateway.json"),
+        catalog_admission::binding(),
+    )
+    .unwrap();
+    let profile_id = GatewayProfileId::parse("operator-initial").unwrap();
+    let profile = catalog.profile(&profile_id).unwrap();
+    assert_eq!(
+        profile.discovery_failure_mode,
+        DiscoveryFailureMode::FailClosed
+    );
+    assert!(profile.artifact_upload.is_none());
+    let mut tool_servers = profile
+        .servers
+        .iter()
+        .filter(|server| !matches!(server.tools, Exposure::None))
+        .map(|server| server.server.as_str())
+        .collect::<Vec<_>>();
+    tool_servers.sort();
+    assert_eq!(tool_servers, ["duckdb", "frames", "media", "timeseries"]);
+    assert_eq!(profile.servers.len(), 5);
+    let artifact_server = ServerSlug::parse("artifact").unwrap();
+    let (_, exposure, _) = catalog
+        .profile_server(&profile_id, &artifact_server)
+        .unwrap();
+    assert!(matches!(exposure.tools, Exposure::None));
+    assert!(matches!(exposure.prompts, Exposure::None));
+    assert_eq!(exposure.completions, CompletionExposure::Disabled);
+    assert_eq!(exposure.tasks, TaskExposure::Disabled);
+    let uri = ResourceUri::new("artifact://01960000-0000-7000-8000-000000000001").unwrap();
+    assert_eq!(
+        catalog
+            .server_for_resource_uri(&profile_id, uri.as_str())
+            .unwrap()
+            .1
+            .slug,
+        artifact_server
+    );
+    let Exposure::Listed(selectors) = &exposure.resources else {
+        panic!("initial Artifact exposure must select only its resource scheme")
+    };
+    assert_eq!(selectors.len(), 1);
+    assert!(
+        matches!(&selectors[0], ResourceSelector::Scheme { scheme } if scheme.as_str() == "artifact")
+    );
+    let target = PolicyTarget::Artifact {
+        server: artifact_server.clone(),
+        artifact_uri: uri,
+    };
+    let trace = TraceId::parse("initial-artifact-policy").unwrap();
+    for (id, kind, roles) in [
+        (
+            "https://veoveo.bioma.ai/oauth#operator-service",
+            PrincipalKind::Service,
+            BTreeSet::new(),
+        ),
+        (
+            "initial-operator@example.com",
+            PrincipalKind::User,
+            BTreeSet::from([RoleId::parse("operator").unwrap()]),
+        ),
+    ] {
+        let mut principal = Principal {
+            id: PrincipalId::parse(id).unwrap(),
+            kind,
+            issuer: TokenIssuer::parse("https://veoveo.bioma.ai/oauth").unwrap(),
+            subject: TokenSubject::parse("initial-artifact-reader").unwrap(),
+            tenant: Some(TenantId::parse("bioma").unwrap()),
+            groups: BTreeSet::new(),
+            group_roles: BTreeSet::new(),
+            roles,
+            scopes: profile.required_scopes.iter().cloned().collect(),
+            data_labels: BTreeSet::new(),
+            assurances: BTreeSet::new(),
+            authenticated_at: None,
+        };
+        let decide = |principal: &Principal, action: GatewayAction, target: &PolicyTarget| {
+            catalog
+                .decide(PolicyRequest {
+                    principal,
+                    profile: &profile_id,
+                    action: action.into(),
+                    target,
+                    trace_id: &trace,
+                })
+                .effect
+        };
+        assert_eq!(
+            decide(&principal, GatewayAction::ArtifactRead, &target),
+            PolicyEffect::Allow
+        );
+        assert_eq!(
+            decide(&principal, GatewayAction::ArtifactUpload, &target),
+            PolicyEffect::Deny
+        );
+        let ui = PolicyTarget::Resource {
+            server: artifact_server.clone(),
+            uri: ResourceUri::new("ui://artifact/library.html").unwrap(),
+        };
+        assert_eq!(
+            decide(&principal, GatewayAction::ResourcesRead, &ui),
+            PolicyEffect::Deny
+        );
+        let mutation = PolicyTarget::Tool {
+            server: artifact_server.clone(),
+            tool: LocalToolName::parse("grant_access").unwrap(),
+        };
+        assert_eq!(
+            decide(&principal, GatewayAction::ToolsCall, &mutation),
+            PolicyEffect::Deny
+        );
+        principal.scopes.clear();
+        assert_eq!(
+            decide(&principal, GatewayAction::ArtifactRead, &target),
+            PolicyEffect::Deny
+        );
+        principal.scopes = profile.required_scopes.iter().cloned().collect();
+        principal.id = PrincipalId::parse("https://veoveo.bioma.ai/oauth#foreign-service").unwrap();
+        principal.roles.clear();
+        assert_eq!(
+            decide(&principal, GatewayAction::ArtifactRead, &target),
+            PolicyEffect::Deny
+        );
+    }
+}

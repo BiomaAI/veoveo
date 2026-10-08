@@ -1682,6 +1682,171 @@
       }
     },
     {
+      "id": "operator-initial",
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://veoveo.bioma.ai/mcp/operator-initial",
+      "policyVersion": "2026-10-02-knowledge-docs",
+      "authModes": [
+        "oauth_client_credentials",
+        "oidc_authorization_code_pkce"
+      ],
+      "requiredScopes": [
+        "operator:use",
+        "uav-sim:control",
+        "uav-sim:stream",
+        "view:read",
+        "view:write",
+        "view:capture",
+        "map:dataset:read",
+        "map:route",
+        "time:read"
+      ],
+      "servers": [
+        {
+          "server": "media",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "artifact",
+              "model_schema",
+              "models",
+              "run"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "media"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://media/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "timeseries",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "forecast"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "timeseries"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://timeseries/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "duckdb",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "query",
+              "execute",
+              "ingest",
+              "export"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "duckdb"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://duckdb/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "frames",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "batch_transform",
+              "convert_frame",
+              "create_world",
+              "publish_world"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "frames"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://frames/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "artifact",
+          "tools": {
+            "mode": "none"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "artifact"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
+        }
+      ],
+      "metadata": {
+        "tenant": "bioma"
+      },
+      "discoveryFailureMode": "fail_closed"
+    },
+    {
       "id": "agent",
       "identityProvider": "enterprise",
       "authorizationServer": "veoveo",
@@ -3299,6 +3464,7 @@
           ],
           "profiles": [
             "operator",
+            "operator-initial",
             "workspace"
           ],
           "servers": [
@@ -3351,7 +3517,8 @@
             "usage_read"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "operator-initial"
           ],
           "servers": [
             "media"
@@ -3531,6 +3698,32 @@
           ]
         },
         {
+          "id": "allow_operator_initial_artifact_read",
+          "effect": "allow",
+          "actions": [
+            "artifact_read"
+          ],
+          "profiles": [
+            "operator-initial"
+          ],
+          "servers": [
+            "artifact"
+          ],
+          "resourceSchemes": [
+            "artifact"
+          ],
+          "requiredScopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenantIds": [
+            "bioma"
+          ],
+          "roles": [
+            "operator"
+          ]
+        },
+        {
           "id": "allow_operator_service_artifact_use",
           "effect": "allow",
           "actions": [
@@ -3566,6 +3759,29 @@
           "prompts": [
             "artifact-access-review",
             "artifact-share-review"
+          ],
+          "principalIds": [
+            "https://veoveo.bioma.ai/oauth#operator-service"
+          ],
+          "requiredScopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_operator_initial_service_artifact_read",
+          "effect": "allow",
+          "actions": [
+            "artifact_read"
+          ],
+          "profiles": [
+            "operator-initial"
+          ],
+          "servers": [
+            "artifact"
+          ],
+          "resourceSchemes": [
+            "artifact"
           ],
           "principalIds": [
             "https://veoveo.bioma.ai/oauth#operator-service"
@@ -4006,6 +4222,7 @@
           ],
           "profiles": [
             "operator",
+            "operator-initial",
             "workspace"
           ],
           "servers": [
@@ -4047,7 +4264,8 @@
             "usage_read"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "operator-initial"
           ],
           "servers": [
             "timeseries"
@@ -4370,6 +4588,7 @@
           ],
           "profiles": [
             "operator",
+            "operator-initial",
             "workspace"
           ],
           "servers": [
@@ -4421,7 +4640,8 @@
             "usage_read"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "operator-initial"
           ],
           "servers": [
             "frames"
@@ -5288,6 +5508,7 @@
           ],
           "profiles": [
             "operator",
+            "operator-initial",
             "workspace"
           ],
           "servers": [
@@ -5332,7 +5553,8 @@
             "usage_read"
           ],
           "profiles": [
-            "operator"
+            "operator",
+            "operator-initial"
           ],
           "servers": [
             "duckdb"
@@ -7098,6 +7320,7 @@
       "clientSurface": "full_mcp",
       "allowedResources": [
         "https://veoveo.bioma.ai/mcp/operator",
+        "https://veoveo.bioma.ai/mcp/operator-initial",
         "https://veoveo.bioma.ai/mcp/rerun"
       ],
       "grantTypes": [
@@ -7167,7 +7390,8 @@
       ],
       "directTaskCallAdapter": true,
       "allowedResources": [
-        "https://veoveo.bioma.ai/mcp/operator"
+        "https://veoveo.bioma.ai/mcp/operator",
+        "https://veoveo.bioma.ai/mcp/operator-initial"
       ],
       "grantTypes": [
         "authorization_code_pkce",
@@ -7287,6 +7511,7 @@
       "clientSurface": "full_mcp",
       "allowedResources": [
         "https://veoveo.bioma.ai/mcp/operator",
+        "https://veoveo.bioma.ai/mcp/operator-initial",
         "https://veoveo.bioma.ai/mcp/rerun"
       ],
       "grantTypes": [
@@ -7503,6 +7728,7 @@
       "authorizationServer": "veoveo",
       "allowedResources": [
         "https://veoveo.bioma.ai/mcp/operator",
+        "https://veoveo.bioma.ai/mcp/operator-initial",
         "https://veoveo.bioma.ai/mcp/admin",
         "https://veoveo.bioma.ai/mcp/rerun",
         "https://veoveo.bioma.ai/mcp/workspace"

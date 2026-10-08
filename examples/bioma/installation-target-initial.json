@@ -28,7 +28,7 @@
   "minimumGpuShares": 8,
   "operator": {
     "clientId": "operator-service",
-    "profile": "operator",
+    "profile": "operator-initial",
     "workContext": "operations",
     "comparisonContext": "independent-review",
     "scopes": [

@@ -3,11 +3,12 @@
 Status: The 34-image closure and both Helm charts for source `6431c30c6621` are
 published and verified. Release inputs are pushed at `55a9c57840be02b32d13c5df76d20d6ed3a448e1`;
 fresh credentials and public configuration at `8055` were validated and applied.
-All 19 owner migration lanes and preparation/publication Jobs completed. Fourteen
-of sixteen initial deployments and Agent Manager became Ready before the cold
-Embedding install failed and Helm automatically uninstalled it. The inferred
-progress-budget correction passes source/render checks; a fresh retry remains
-pending. Installed A/F/H checks have not run against this fresh release. See
+All 19 owner lanes and preparation/publication Jobs completed. Sixteen initial
+Deployments and Agent Manager were observed Ready, and selected docs and probes
+passed. Helm then timed out waiting for eight Pending WFFC PVCs with deferred
+zero-replica consumers. Automatic uninstall and retry deleted fresh Embedding and
+Map backing volumes. Staging is not accepted; Ops is holding the reference HelmRelease
+and parent Kustomization. Installed A/F/H qualification remains open. See
 [Current Status](#current-status) for accepted checks and remaining gates.
 
 This is the single implementation plan for the former Foundations, Contract
@@ -62,7 +63,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls. Native gateway-loss recovery, settled Stop→Start, file retention and full MCP Files, Commands, Maintenance, Worker and Host cases pass with typed binding version 2 and file helper version 2. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published. Matching release inputs are pushed at `55a9c57840be02b32d13c5df76d20d6ed3a448e1`; fresh credentials and public configuration at `8055` were validated and applied. All 19 owner lanes and preparation/publication Jobs completed. Fourteen of sixteen initial deployments and Agent Manager became Ready before the cold Embedding install failed and Helm automatically uninstalled it. The inferred progress-budget correction passes source/render checks; no installed A/F/H checks have run against this fresh release | Qualify the fresh installation retry, then pass Knowledge readiness, installed-consumer, separate Agent Manager namespace readiness and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Sixteen initial Deployments and Agent Manager were observed Ready; selected docs and probes passed. Helm then timed out on eight Pending WFFC PVCs for deferred consumers; automatic uninstall and retry deleted fresh Embedding/Map volumes. Initial profile source qualification passes, but staging and the installed shared-host gate remain open | Recover reference staging under the held HelmRelease and parent Kustomization, reconcile the initial OAuth profile, then qualify shared-host, Knowledge cold-start, installed-consumer, Agent Manager and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -242,21 +243,37 @@ platform controllers are running. Its RTX 4090 uses NVIDIA driver `610.57.04` an
 the device plugin advertises eight shares; this does not qualify a GPU workload.
 Matching Knowledge signing and Embedding credentials were validated with the four
 public configuration updates, pushed at `8055` and applied. The fresh installation
-completed all 19 owner migration lanes and preparation/publication Jobs; fourteen
-of sixteen initial deployments and Agent Manager
-became Ready before Helm failed the cold Embedding rollout. Retained observations
-show the pinned image pull and a stalled Deployment after about ten minutes; automatic
-uninstall removed its Deployment condition, so `ProgressDeadlineExceeded` is not proven.
-The reference deadline correction gives Embedding and Knowledge 1,200 seconds of
-Deployment progress, aligned with the existing twenty-minute Helm budget. The correction
-passes the existing render controls and documentation checks; a fresh installation
-retry remains pending. It uses the same credentials and verified host model cache. No installed shared-host cases have run against this fresh
+completed all 19 owner migration lanes and preparation/publication Jobs. Sixteen
+initial Deployments and Agent Manager were subsequently observed Ready, including
+Embedding and Knowledge. The reference 1,200-second progress correction passes
+source/render checks. Helm's twenty-minute install nevertheless timed out on eight
+Pending WaitForFirstConsumer PVCs for deferred zero-replica workloads. Automatic
+uninstall and retry deleted the fresh Embedding and Map backing volumes, leaving
+the new model path empty. Ops is holding the reference HelmRelease and its parent
+Bioma Kustomization for recovery inventory; staging is not accepted. Prior Ready,
+probe and docs observations are valid observations of that attempt.
+No complete installed shared-host gate has passed against this fresh
 release. Normal frozen conformance and installation executables are ready at
 `/tmp/veoveo-first-installed-gates-artifacts-55a9-20261008`. Installed A/F/H checks
 remain open. The old shared 197.9 GB checkpoint/model volume is preserved because
 fourteen retained containers mount it; the new cluster uses fresh volumes.
 Fresh-install, Knowledge readiness, installed-consumer, separate Agent Manager
 namespace readiness and hardware gates remain open.
+The first normal OAuth discovery attempt on the full operator profile failed on eight
+intentionally staged-off upstreams. The installation adds `operator-initial` for exactly
+DuckDB, Timeseries, Frames and Media tools plus read-only Artifact resources. It
+explicitly requires complete tool and prompt catalogs and preserves the full operator
+catalog. Resource discovery cache and degradation behavior are unchanged. The initial
+target selects that resource through the same operator-service client. Corrected profile, read-only Artifact policy and target qualification pass;
+reconciliation has not run. Frames and installation verification failed before service or MCP mutation because the delivered
+helper manifest used a bare digest where the framework requires `sha256:`. No World
+was created. The corrected combined executable/library delivery passes native resolver
+qualification with manifest `d2167d97ffe00062d7a37bedac7afb28542bd53c0dfd1b9edadc6b545691aabe`.
+The direct unsigned Media webhook returned 401 with an invalid-signature rejection.
+All four servers passed normal OAuth docs, contracts, `doc_id=de` completion to
+`design` and nonexistent-document rejection with -32602. Global discovery remains
+unqualified until the initial profile is reconciled; the Frames domain fixture and
+other first shared-host checks remain open.
 The installation target checks Deployments in `veoveo`; Agent Manager in
 `veoveo-agents` needs its separate bounded KubeOps rollout check and JSON receipt.
 
