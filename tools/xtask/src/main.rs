@@ -48,8 +48,11 @@ enum EnforceScope {
     /// Run Rust formatting, linting, tests, and documentation checks.
     Rust {
         /// Check the complete tracked-source macro catalog without broader workspace suites.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "boundaries_only")]
         macros_only: bool,
+        /// Inspect isolated reusable-kernel and hosted-contract normal/build dependency profiles.
+        #[arg(long, conflicts_with = "macros_only")]
+        boundaries_only: bool,
     },
     /// Run the locked local SDK and in-repository Python checks.
     Python,
@@ -427,8 +430,14 @@ fn main() -> Result<()> {
     match cli.command {
         Command::Doctor => doctor::run(&repository),
         Command::Enforce { scope } => {
-            match scope.unwrap_or(EnforceScope::Rust { macros_only: false }) {
-                EnforceScope::Rust { macros_only } => enforce::rust(&repository, macros_only),
+            match scope.unwrap_or(EnforceScope::Rust {
+                macros_only: false,
+                boundaries_only: false,
+            }) {
+                EnforceScope::Rust {
+                    macros_only,
+                    boundaries_only,
+                } => enforce::rust(&repository, macros_only, boundaries_only),
                 EnforceScope::Python => enforce::python(&repository),
                 EnforceScope::Docs => enforce::docs(&repository),
                 EnforceScope::Identifiers => enforce::identifiers(&repository),
@@ -518,16 +527,34 @@ mod tests {
         assert!(matches!(
             rust.command,
             Command::Enforce {
-                scope: Some(EnforceScope::Rust { macros_only: false })
+                scope: Some(EnforceScope::Rust {
+                    macros_only: false,
+                    boundaries_only: false
+                })
             }
         ));
         let focused = Cli::try_parse_from(["xtask", "enforce", "rust", "--macros-only"]).unwrap();
         assert!(matches!(
             focused.command,
             Command::Enforce {
-                scope: Some(EnforceScope::Rust { macros_only: true })
+                scope: Some(EnforceScope::Rust {
+                    macros_only: true,
+                    boundaries_only: false
+                })
             }
         ));
         assert!(Cli::try_parse_from(["xtask", "enforce", "docs", "--macros-only"]).is_err());
+        assert!(Cli::try_parse_from(["xtask", "enforce", "rust", "--boundaries-only"]).is_ok());
+        assert!(
+            Cli::try_parse_from([
+                "xtask",
+                "enforce",
+                "rust",
+                "--boundaries-only",
+                "--macros-only"
+            ])
+            .is_err()
+        );
+        assert!(Cli::try_parse_from(["xtask", "enforce", "docs", "--boundaries-only"]).is_err());
     }
 }

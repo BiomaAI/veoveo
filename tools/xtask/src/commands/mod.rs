@@ -2,6 +2,7 @@ pub(crate) mod builder;
 pub(crate) mod client_types;
 pub(crate) mod computers_trust;
 pub(crate) mod contract_docs;
+pub(crate) mod dependency_policy;
 pub(crate) mod doc_links;
 pub(crate) mod doctor;
 pub(crate) mod enforce;

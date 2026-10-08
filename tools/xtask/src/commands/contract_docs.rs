@@ -12,13 +12,7 @@ use veoveo_mcp_contract::docs::{
 
 pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
     let root = repository.root();
-    let mut owners = Vec::new();
-    for directory in ["servers", "templates", "testing/fixtures", "showcase"] {
-        discover(&root.join(directory), &mut owners)?;
-    }
-    owners.sort();
-    owners.dedup();
-    ensure!(!owners.is_empty(), "no contract owners discovered");
+    let owners = discover_owners(root)?;
     // Admit every owning design before emitting even the first manual. A later
     // invalid owner must not leave a partially generated repository.
     validate_owner_designs(&owners)?;
@@ -202,6 +196,18 @@ fn emit(path: &Path, bytes: &[u8], check: bool) -> Result<()> {
         fs::write(path, bytes)?;
     }
     Ok(())
+}
+
+pub(crate) fn discover_owners(root: &Path) -> Result<Vec<PathBuf>> {
+    let mut owners = Vec::new();
+    for directory in ["servers", "templates", "testing/fixtures", "showcase"] {
+        discover(&root.join(directory), &mut owners)?;
+    }
+    owners.sort();
+    owners.dedup();
+    ensure!(!owners.is_empty(), "no contract owners discovered");
+    reconcile_embeddings(root, &owners)?;
+    Ok(owners)
 }
 
 fn discover(path: &Path, owners: &mut Vec<PathBuf>) -> Result<()> {

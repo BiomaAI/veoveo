@@ -8,11 +8,19 @@ use crate::{
     process,
 };
 
-pub(crate) fn rust(repository: &RepositoryContext, macros_only: bool) -> Result<()> {
+pub(crate) fn rust(
+    repository: &RepositoryContext,
+    macros_only: bool,
+    boundaries_only: bool,
+) -> Result<()> {
+    if boundaries_only {
+        return crate::commands::dependency_policy::enforce(repository);
+    }
     macro_policy::enforce(repository)?;
     if macros_only {
         return Ok(());
     }
+    crate::commands::dependency_policy::enforce(repository)?;
     let root = Some(repository.root());
     process::cargo_status(["fmt", "--all", "--", "--check"], root)?;
     process::cargo_status(

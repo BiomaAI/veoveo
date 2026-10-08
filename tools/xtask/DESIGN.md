@@ -53,3 +53,31 @@ Artifact coordinate type and URL component checks. Recorded publications refuse 
 repeat push. The final digest enrichment is written after the registry response.
 Chart names and Helm archive/OCI spellings keep their native profiles;
 this wrapper does not establish that a chart was installed.
+
+
+## Dependency Boundaries
+
+`enforce rust --boundaries-only` checks reusable Store runtime, Audit and Gateway
+libraries and Knowledge runtime separately from hosted public contracts. Ordinary
+Rust enforcement checks the macro catalog first, then these profiles before its
+workspace suites. The two focused flags are mutually exclusive.
+
+Hosted libraries are discovered through the contract-document owner convention,
+including Rust templates and independent fixtures. Every Rust owner requires a
+public library and `contract` feature. Unsupported owners fail with their path.
+Each selection becomes a disposable Cargo dependency consumer with defaults off.
+Cargo resolves normal/build dependencies using the host profile; development edges
+and workspace feature unions do not enter the selection. No compiler target is
+created. The copied lock may add the temporary consumer or prune unused entries;
+every selected dependency version, source and checksum must match the repository
+lock. The original lock stays unchanged.
+
+The architecture policy classifies optional owners by their declared component
+paths and active contract features, and excludes catalog/composition back-edges.
+Pure contract ports and extensions remain eligible; Knowledge's required embedding
+client is admitted only in that reusable runtime. Unknown first-party paths fail
+before qualification. Explicit external implementation exclusions cover the
+qualified MCP, database, provider, GPU and async profiles. This gate cannot establish
+the purity of arbitrary unfamiliar third-party source. Each refusal reports the
+selected owner/profile, package identity, active features and dependency chain.
+A 600-second process budget and 64 MiB metadata/tree limits bound inspection.

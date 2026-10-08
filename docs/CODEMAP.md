@@ -402,6 +402,7 @@ designs above.
 | `tools/xtask/src/commands/image/browser_compilation_tests.rs` | real Bake and Cargo planning regression for a stable browser compiler action across standalone and platform selections |
 | `tools/xtask/src/commands/identifiers.rs` | tracked-text identifier namespace enforcement with section-scoped migration documentation exceptions |
 | `tools/xtask/src/commands/macro_policy.rs` | Maintained Rust syntax traversal and exact six-entry macro catalog; `enforce rust --macros-only` shares the default Rust gate and the [macro design](../platform/macros/DESIGN.md#macro-catalog-and-enforcement) |
+| `tools/xtask/src/commands/dependency_policy.rs` | discovered hosted contract and reusable-kernel dependency gates using isolated Cargo consumers, source/feature identities and normal/build profiles; `enforce rust --boundaries-only` |
 | [`tools/xtask/src/commands/contract_docs.rs`](../tools/xtask/src/commands/contract_docs/DESIGN.md) | package discovery reconciled with Rust document selections, checked profile/manual projection and identical catalog/schema plus versioned coverage export; `release contract-docs --check` detects drift |
 | `tools/xtask/` | compiled repository command, enforcement, typed smoke prerequisite builds and dispatch, image planning, profile-registry builder configuration, and release orchestration |
 
