@@ -418,6 +418,17 @@ home. The owning maintenance journal must hold the original dispatch ticket and 
 source lifecycle mutations fenced. The selected private provider profile excludes
 concurrent out-of-band administration and never reuses retired instance names.
 
+The gateway assigns a canonical UUIDv4 `provider_attachment_epoch` after admitting
+template inputs. Policy capture admits that owner identity separately, then compares
+every other spec field against the selected immutable template. Config reads must
+carry the same epoch as their resource spec. Before/after reads and restoration
+watches preserve the full same-instance epoch equality. The encrypted checkpoint
+retains its source epoch in the existing authenticated config payload; recovery
+requires that identity alongside the original resource and process. Source and
+replacement epochs are independently admitted against their own spec/config pairs.
+Only their epoch difference is normalized when comparing settings across those
+instances. A missing, malformed or mismatched epoch refuses capture or restoration.
+
 Recovery may observe the exact original binding within its persisted budget, then
 ask the allocator to prove physical writer removal and hand off the retained home.
 A current not-found result alone cannot transfer storage. The command fixture now

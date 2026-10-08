@@ -57,6 +57,12 @@ fn sandbox_for(binding: &Binding, id: &str, version: u32) -> api::Sandbox {
     meta.labels = binding.labels();
     meta.resource_version = 6;
     value.spec = Some(profile().bound_spec(binding).unwrap());
+    value.spec.as_mut().unwrap().provider_attachment_epoch = if id == "sandbox-old" {
+        "00000000-0000-4000-8000-000000000011"
+    } else {
+        "00000000-0000-4000-8000-000000000012"
+    }
+    .into();
     let status = value.status.as_mut().unwrap();
     status.current_policy_version = version;
     status.main_process_instance_id = format!("main-{id}");
@@ -65,6 +71,12 @@ fn sandbox_for(binding: &Binding, id: &str, version: u32) -> api::Sandbox {
 fn config_for(sandbox: &api::Sandbox) -> policy::GetSandboxConfigResponse {
     policy::GetSandboxConfigResponse {
         policy: sandbox.spec.as_ref().unwrap().policy.clone(),
+        provider_attachment_epoch: sandbox
+            .spec
+            .as_ref()
+            .unwrap()
+            .provider_attachment_epoch
+            .clone(),
         version: sandbox.status.as_ref().unwrap().current_policy_version,
         policy_hash: "a".repeat(64),
         config_revision: 10,
@@ -92,6 +104,16 @@ enum Fault {
     UncertainPending,
     Warning,
     ChangedProcess,
+    ChangedEpoch,
+    MissingConfigEpoch,
+    MalformedConfigEpoch,
+    ChangedConfigEpoch,
+    MissingWatchEpoch,
+    MalformedWatchEpoch,
+    ChangedWatchEpoch,
+    MissingFinalEpoch,
+    MalformedFinalEpoch,
+    ChangedFinalEpoch,
     ChangedSettings,
     Unloaded,
     ChangedRules,
@@ -152,8 +174,13 @@ impl Fixture {
         if request.name == self.source.metadata.as_ref().unwrap().name && self.retired {
             panic!("restoration must not read the retired source");
         }
+        let sandbox = self.by_name(&request.name).clone();
+        if self.fault == Fault::ChangedEpoch {
+            self.source.spec.as_mut().unwrap().provider_attachment_epoch =
+                "00000000-0000-4000-8000-000000000013".into();
+        }
         Ok(Response::new(api::SandboxResponse {
-            sandbox: Some(self.by_name(&request.name).clone()),
+            sandbox: Some(sandbox),
             ..Default::default()
         }))
     }
@@ -274,6 +301,14 @@ impl Fixture {
         self.target.metadata.as_mut().unwrap().resource_version += 1;
         self.target.status.as_mut().unwrap().current_policy_version = self.new_config.version;
         match self.fault {
+            Fault::MissingConfigEpoch => self.new_config.provider_attachment_epoch.clear(),
+            Fault::MalformedConfigEpoch => {
+                self.new_config.provider_attachment_epoch = "malformed".into()
+            }
+            Fault::ChangedConfigEpoch => {
+                self.new_config.provider_attachment_epoch =
+                    "00000000-0000-4000-8000-000000000013".into()
+            }
             Fault::ChangedSettings => {
                 self.new_config.settings.clear();
             }
@@ -290,6 +325,36 @@ impl Fixture {
         let mut sandbox = self.target.clone();
         if self.fault == Fault::ChangedProcess {
             sandbox.status.as_mut().unwrap().main_process_instance_id = "wrong-process".into();
+        }
+        match self.fault {
+            Fault::MissingWatchEpoch => sandbox
+                .spec
+                .as_mut()
+                .unwrap()
+                .provider_attachment_epoch
+                .clear(),
+            Fault::MalformedWatchEpoch => {
+                sandbox.spec.as_mut().unwrap().provider_attachment_epoch = "malformed".into()
+            }
+            Fault::ChangedWatchEpoch => {
+                sandbox.spec.as_mut().unwrap().provider_attachment_epoch =
+                    "00000000-0000-4000-8000-000000000013".into()
+            }
+            Fault::MissingFinalEpoch => self
+                .target
+                .spec
+                .as_mut()
+                .unwrap()
+                .provider_attachment_epoch
+                .clear(),
+            Fault::MalformedFinalEpoch => {
+                self.target.spec.as_mut().unwrap().provider_attachment_epoch = "malformed".into()
+            }
+            Fault::ChangedFinalEpoch => {
+                self.target.spec.as_mut().unwrap().provider_attachment_epoch =
+                    "00000000-0000-4000-8000-000000000013".into()
+            }
+            _ => {}
         }
         let payload = if self.fault == Fault::Warning {
             api::sandbox_stream_event::Payload::Warning(api::SandboxStreamWarning {
@@ -448,7 +513,15 @@ async fn retired_source_policy_restores_onto_an_image_change_only_with_exact_han
     edit(&running, |f| {
         f.retired = true;
         f.target.metadata.as_mut().unwrap().labels = target.labels();
+        let epoch = f
+            .target
+            .spec
+            .as_ref()
+            .unwrap()
+            .provider_attachment_epoch
+            .clone();
         f.target.spec = Some(target_profile.bound_spec(&target).unwrap());
+        f.target.spec.as_mut().unwrap().provider_attachment_epoch = epoch;
         f.calls.clear();
     });
     for fault in 0..3 {
@@ -600,7 +673,7 @@ async fn checkpoint_rejects_noncanonical_data_and_cross_provider_instance_proces
     wrong = expected.clone();
     wrong.phase = Phase::Starting;
     rejected(&bytes, &bindings().0, &wrong);
-    for fault in 0..10 {
+    for fault in 0..13 {
         let mut invalid = PolicyCheckpoint::decode(bytes.as_slice()).unwrap();
         match fault {
             0 => invalid.version += 1,
@@ -613,6 +686,17 @@ async fn checkpoint_rejects_noncanonical_data_and_cross_provider_instance_proces
             7 => invalid.config.as_mut().unwrap().version = 0,
             8 => invalid.config.as_mut().unwrap().global_policy_version = 1,
             9 => invalid.version = 1,
+            10 => invalid
+                .config
+                .as_mut()
+                .unwrap()
+                .provider_attachment_epoch
+                .clear(),
+            11 => invalid.config.as_mut().unwrap().provider_attachment_epoch = "malformed".into(),
+            12 => {
+                invalid.config.as_mut().unwrap().provider_attachment_epoch =
+                    "00000000-0000-7000-8000-000000000011".into()
+            }
             _ => unreachable!(),
         }
         rejected(&invalid.encode_to_vec(), &bindings().0, &expected);
@@ -888,5 +972,116 @@ async fn capture_rejects_static_changes_restrictions_global_policy_and_ambiguous
                 .is_err()
         );
         edit(&running, |f| assert_eq!((f.updates, f.watches), (0, 0)));
+    }
+}
+
+#[tokio::test]
+async fn capture_admits_gateway_owned_attachment_epoch() {
+    let running = fixture().await;
+    assert!(
+        running
+            .runtime
+            .capture_replacement_policy(&bindings().0, &profile())
+            .await
+            .is_ok(),
+        "current gateway assigns an attachment epoch distinct from immutable template inputs"
+    );
+    edit(&running, |f| assert_eq!(f.updates, 0));
+}
+
+#[tokio::test]
+async fn capture_refuses_absent_malformed_mismatched_or_changed_attachment_epoch() {
+    for epoch in ["", "not-an-epoch", "00000000-0000-7000-8000-000000000011"] {
+        let running = fixture().await;
+        edit(&running, |f| {
+            f.source.spec.as_mut().unwrap().provider_attachment_epoch = epoch.into()
+        });
+        assert!(
+            running
+                .runtime
+                .capture_replacement_policy(&bindings().0, &profile())
+                .await
+                .is_err()
+        );
+        edit(&running, |f| assert_eq!(f.updates, 0));
+    }
+    let running = fixture().await;
+    edit(&running, |f| {
+        f.old_config.provider_attachment_epoch = "00000000-0000-4000-8000-000000000012".into()
+    });
+    assert!(
+        running
+            .runtime
+            .capture_replacement_policy(&bindings().0, &profile())
+            .await
+            .is_err()
+    );
+    edit(&running, |f| assert_eq!(f.updates, 0));
+    let running = fixture().await;
+    edit(&running, |f| f.fault = Fault::ChangedEpoch);
+    assert!(
+        running
+            .runtime
+            .capture_replacement_policy(&bindings().0, &profile())
+            .await
+            .is_err()
+    );
+    edit(&running, |f| assert_eq!(f.updates, 0));
+}
+
+#[tokio::test]
+async fn replacement_epoch_mismatch_refuses_before_policy_mutation() {
+    let running = fixture().await;
+    let snapshot = captured(&running).await;
+    edit(&running, |f| {
+        f.target.spec.as_mut().unwrap().provider_attachment_epoch =
+            "00000000-0000-4000-8000-000000000013".into();
+    });
+    assert!(restore(&running, &snapshot).await.is_err());
+    edit(&running, |f| assert_eq!((f.updates, f.watches), (0, 0)));
+}
+
+#[tokio::test]
+async fn restoration_requires_original_epoch_in_config_watch_and_final_spec() {
+    for fault in [
+        Fault::MissingConfigEpoch,
+        Fault::MalformedConfigEpoch,
+        Fault::ChangedConfigEpoch,
+        Fault::MissingWatchEpoch,
+        Fault::MalformedWatchEpoch,
+        Fault::ChangedWatchEpoch,
+        Fault::MissingFinalEpoch,
+        Fault::MalformedFinalEpoch,
+        Fault::ChangedFinalEpoch,
+    ] {
+        let running = fixture().await;
+        let snapshot = captured(&running).await;
+        edit(&running, |f| f.fault = fault);
+        assert!(
+            restore(&running, &snapshot).await.is_err(),
+            "changed target identity cannot settle restoration"
+        );
+        edit(&running, |f| assert_eq!((f.updates, f.watches), (1, 1)));
+    }
+}
+
+#[tokio::test]
+async fn observation_only_reconciliation_refuses_epoch_drift_without_replay() {
+    for fault in [
+        Fault::MissingConfigEpoch,
+        Fault::MalformedConfigEpoch,
+        Fault::ChangedConfigEpoch,
+        Fault::MissingFinalEpoch,
+        Fault::MalformedFinalEpoch,
+        Fault::ChangedFinalEpoch,
+    ] {
+        let running = fixture().await;
+        let snapshot = captured(&running).await;
+        edit(&running, |f| f.fault = fault);
+        assert!(restore(&running, &snapshot).await.is_err());
+        for _ in 0..2 {
+            assert!(reconcile(&running, &snapshot).await.is_err());
+        }
+        edit(&running, |f| assert_eq!((f.updates, f.watches), (1, 1)));
     }
 }

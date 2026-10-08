@@ -19,6 +19,7 @@ russh = { version = "=0.63.3", default-features = false, features = ["ring"] }
 rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+schemars.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
@@ -40,7 +41,6 @@ tonic-prost-build = "=0.14.6"
 typify = { version = "=0.8.0", default-features = false }
 
 [dev-dependencies]
-schemars.workspace = true
 axum.workspace = true
 reqwest = { workspace = true, features = ["json", "query"] }
 rcgen.workspace = true

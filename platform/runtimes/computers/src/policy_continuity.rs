@@ -1,8 +1,8 @@
 //! Policy continuity after authenticated retained-writer handoff. The owning
 //! maintenance journal must fence source mutations before capture and retirement.
 use crate::{
-    Binding, DevelopmentTemplate, Observation, OpenShellRuntime, Phase, Result, RetainedHandoff,
-    RuntimeFailure,
+    Binding, DevelopmentTemplate, Observation, OpenShellRuntime, Phase, Result as NativeResult,
+    RetainedHandoff, RuntimeFailure,
     client::request,
     models::valid_fingerprint,
     protocol::{sandbox::v1 as policy, v1 as api},
@@ -30,6 +30,7 @@ pub struct ReplacementPolicy {
     installation_provider_id: veoveo_computers_contract::ProviderInstanceId,
     provider_id: String,
     process_id: String,
+    attachment_epoch: AttachmentEpoch,
     config: policy::GetSandboxConfigResponse,
     fingerprint: String,
 }
@@ -46,10 +47,25 @@ pub struct PolicyRestoration {
     pub policy_hash: String,
 }
 
+/// Gateway-generated UUIDv4; it is not a template selector or caller authority.
+#[veoveo_types::id(uuid(AttachmentEpochs))]
+pub(super) struct AttachmentEpoch(Uuid);
+
+pub(super) struct AttachmentEpochs;
+impl veoveo_types::IdProfile for AttachmentEpochs {
+    type Error = RuntimeFailure;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> =
+        veoveo_types::IdProfileSpec::generated_uuid(
+            veoveo_types::UuidGrammar::canonical(&[4]),
+            |_, _, _| FAILURE,
+        );
+}
+
 #[derive(Eq, PartialEq)]
 struct Bound {
     provider_id: String,
     process: String,
+    attachment_epoch: AttachmentEpoch,
     resource_version: u64,
     policy_version: u32,
     phase: Phase,
@@ -60,12 +76,17 @@ fn checked(
     binding: &Binding,
     workspace: &str,
     template: &DevelopmentTemplate,
-) -> Result<Bound> {
+) -> NativeResult<Bound> {
     let observed =
         Observation::checked(sandbox.clone(), binding, workspace).map_err(|_| FAILURE)?;
+    let mut immutable_spec = sandbox.spec.clone().ok_or(FAILURE)?;
+    let attachment_epoch = AttachmentEpoch::parse(&immutable_spec.provider_attachment_epoch)?;
+    // The gateway stamps this admitted identity after receiving template inputs.
+    // Every other field must still equal the exact immutable selected spec.
+    immutable_spec.provider_attachment_epoch.clear();
     if template.fingerprint() != binding.template_fingerprint()
         || template.persistent_home().is_none()
-        || sandbox.spec.as_ref() != Some(&template.bound_spec(binding).map_err(|_| FAILURE)?)
+        || immutable_spec != template.bound_spec(binding).map_err(|_| FAILURE)?
         || !matches!(observed.phase, Phase::Ready | Phase::Stopped)
         || observed.main_process_instance_id.is_empty()
     {
@@ -79,6 +100,7 @@ fn checked(
     Ok(Bound {
         provider_id: observed.sandbox_id,
         process: observed.main_process_instance_id,
+        attachment_epoch,
         resource_version: metadata.resource_version,
         policy_version: status.current_policy_version,
         phase: observed.phase,
@@ -118,11 +140,12 @@ fn admitted_config(
     workspace: &str,
     template: &DevelopmentTemplate,
     computer: Uuid,
-) -> Result<()> {
+) -> NativeResult<()> {
     let spec = template.spec(computer).map_err(|_| FAILURE)?;
     let base = spec.policy.as_ref().ok_or(FAILURE)?;
     let effective = config.policy.as_ref().ok_or(FAILURE)?;
-    if config.workspace != workspace || config.policy_source != policy::PolicySource::Sandbox as i32
+    if AttachmentEpoch::parse(&config.provider_attachment_epoch)? != bound.attachment_epoch
+        || config.workspace != workspace || config.policy_source != policy::PolicySource::Sandbox as i32
         || config.global_policy_version != 0 || config.version != bound.policy_version
         || !valid_fingerprint(&config.policy_hash) || !static_admitted(base, effective)
         || !template.admits_network_policy(effective)
@@ -176,12 +199,31 @@ fn other_config_equal(
     &normalized == left
 }
 
+/// Compare only distinct replacement instances whose own epoch facts were admitted.
+fn replacement_config_equal(
+    source: &ReplacementPolicy,
+    target: &policy::GetSandboxConfigResponse,
+    target_bound: &Bound,
+) -> NativeResult<bool> {
+    if source.provider_id == target_bound.provider_id
+        || AttachmentEpoch::parse(&source.config.provider_attachment_epoch)?
+            != source.attachment_epoch
+        || AttachmentEpoch::parse(&target.provider_attachment_epoch)?
+            != target_bound.attachment_epoch
+    {
+        return Err(FAILURE);
+    }
+    let mut comparable_target = target.clone();
+    comparable_target.provider_attachment_epoch = source.config.provider_attachment_epoch.clone();
+    Ok(other_config_equal(&source.config, &comparable_target))
+}
+
 impl OpenShellRuntime {
     async fn policy_bound(
         &self,
         binding: &Binding,
         template: &DevelopmentTemplate,
-    ) -> Result<Bound> {
+    ) -> NativeResult<Bound> {
         let sandbox = self
             .client
             .clone()
@@ -200,7 +242,10 @@ impl OpenShellRuntime {
         checked(sandbox, binding, &self.workspace, template)
     }
 
-    async fn policy_config(&self, binding: &Binding) -> Result<policy::GetSandboxConfigResponse> {
+    async fn policy_config(
+        &self,
+        binding: &Binding,
+    ) -> NativeResult<policy::GetSandboxConfigResponse> {
         self.client
             .clone()
             .get_sandbox_config(request(
@@ -220,7 +265,7 @@ impl OpenShellRuntime {
         binding: &Binding,
         version: u32,
         hash: &str,
-    ) -> Result<api::SandboxPolicyRevision> {
+    ) -> NativeResult<api::SandboxPolicyRevision> {
         let status = self
             .client
             .clone()
@@ -253,7 +298,7 @@ impl OpenShellRuntime {
         &self,
         source: &Binding,
         template: &DevelopmentTemplate,
-    ) -> Result<ReplacementPolicy> {
+    ) -> NativeResult<ReplacementPolicy> {
         tokio::time::timeout(DEADLINE, async {
             let before = self.policy_bound(source, template).await?;
             if before.phase != Phase::Stopped {
@@ -279,6 +324,7 @@ impl OpenShellRuntime {
                 installation_provider_id: self.provider_instance_id,
                 provider_id: before.provider_id,
                 process_id: before.process,
+                attachment_epoch: before.attachment_epoch,
                 config,
                 fingerprint: String::new(),
             };
@@ -300,7 +346,7 @@ impl OpenShellRuntime {
         handoff: &RetainedHandoff,
         source_template: &DevelopmentTemplate,
         target_template: &DevelopmentTemplate,
-    ) -> Result<PolicyRestoration> {
+    ) -> NativeResult<PolicyRestoration> {
         self.replacement_policy(
             snapshot,
             handoff,
@@ -321,7 +367,7 @@ impl OpenShellRuntime {
         source_template: &DevelopmentTemplate,
         target_template: &DevelopmentTemplate,
         budget: Duration,
-    ) -> Result<PolicyRestoration> {
+    ) -> NativeResult<PolicyRestoration> {
         self.replacement_policy(
             snapshot,
             handoff,
@@ -341,7 +387,7 @@ impl OpenShellRuntime {
         target_template: &DevelopmentTemplate,
         mode: RestoreMode,
         budget: Duration,
-    ) -> Result<PolicyRestoration> {
+    ) -> NativeResult<PolicyRestoration> {
         let target = handoff.target();
         if budget.is_zero()
             || self.provider_instance_id != snapshot.installation_provider_id
@@ -382,7 +428,7 @@ impl OpenShellRuntime {
         template: &DevelopmentTemplate,
         operation: veoveo_types::TaskId,
         mode: RestoreMode,
-    ) -> Result<PolicyRestoration> {
+    ) -> NativeResult<PolicyRestoration> {
         let bound = self.policy_bound(target, template).await?;
         if bound.phase != Phase::Ready || bound.provider_id == snapshot.provider_id {
             return Err(FAILURE);
@@ -395,7 +441,7 @@ impl OpenShellRuntime {
             template,
             target.computer_id(),
         )?;
-        if !other_config_equal(&snapshot.config, &before) {
+        if !replacement_config_equal(snapshot, &before, &bound)? {
             return Err(FAILURE);
         }
         self.policy_loaded(target, before.version, &before.policy_hash)
@@ -481,6 +527,7 @@ impl OpenShellRuntime {
                         let seen = checked(sandbox, target, &self.workspace, template)?;
                         if seen.provider_id != bound.provider_id
                             || seen.process != bound.process
+                            || seen.attachment_epoch != bound.attachment_epoch
                             || seen.phase != Phase::Ready
                             || seen.policy_version > update.version
                         {
@@ -511,7 +558,8 @@ impl OpenShellRuntime {
             return Err(FAILURE);
         }
         let after = self.policy_config(target).await?;
-        if after.version != version
+        if AttachmentEpoch::parse(&after.provider_attachment_epoch)? != bound.attachment_epoch
+            || after.version != version
             || after.policy_hash != hash
             || after.policy.as_ref() != Some(&expected)
             || !other_config_equal(&before, &after)
@@ -521,6 +569,7 @@ impl OpenShellRuntime {
         let current = self.policy_bound(target, template).await?;
         if current.provider_id != bound.provider_id
             || current.process != bound.process
+            || current.attachment_epoch != bound.attachment_epoch
             || current.phase != Phase::Ready
             || current.policy_version != version
         {
