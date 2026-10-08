@@ -225,7 +225,7 @@ async fn run(
         grant.token.expose_secret().as_bytes(),
     );
     let grant_id = grant.grant_id;
-    drop(grant);
+    let credential = &grant.token;
     let stderr = fs::File::create(directory.join("stock-cli.log")).unwrap();
     let mut child = command(&binary, &directory)
         .args([
@@ -282,33 +282,79 @@ async fn run(
     })
     .await
     .expect("revocation must close every actual relay hop within five seconds");
-    let idle_client_waited_for_input = cli.child.try_wait().unwrap().is_none();
-    // The stock ProxyCommand uses blocking Tokio stdin. Once access is already
-    // closed, an idle process may await local input before runtime shutdown ends.
+    // The supervised stock client can retry admission for sixty seconds after
+    // disconnect. Its process lifetime is separate from relay revocation.
     let _ = input
         .write_all(b"printf '\\nREVOKED_%s\\n' executed\r")
         .await;
-    tokio::time::timeout(Duration::from_secs(5), cli.child.wait())
-        .await
-        .expect("stock CLI must report interruption after local input")
+    for worker in [&a, &b] {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        let mut url: reqwest::Url = format!(
+            "{}/cli/operator/{computer}/_ws_tunnel",
+            worker.base.trim_end_matches("/computers/admin")
+        )
+        .parse()
         .unwrap();
+        url.set_scheme("ws").unwrap();
+        let mut request = url.as_str().into_client_request().unwrap();
+        request.headers_mut().insert(
+            "authorization",
+            format!("Bearer {}", credential.expose_secret())
+                .parse()
+                .unwrap(),
+        );
+        let refused = tokio::time::timeout(
+            Duration::from_secs(5),
+            tokio_tungstenite::connect_async(request),
+        )
+        .await
+        .expect("fresh CLI admission deadline");
+        match refused {
+            Err(tokio_tungstenite::tungstenite::Error::Http(response)) => {
+                assert_eq!(response.status().as_u16(), 403);
+            }
+            _ => panic!("current revoked CLI grant must receive HTTP 403"),
+        }
+    }
+    drop(grant);
     let mut trailing = Vec::new();
-    tokio::time::timeout(
+    let observed = tokio::time::timeout(
         Duration::from_secs(3),
-        output.take(65536).read_to_end(&mut trailing),
+        (&mut output).take(65537).read_to_end(&mut trailing),
     )
-    .await
-    .unwrap()
-    .unwrap();
+    .await;
+    if let Ok(read) = observed {
+        read.expect("bounded stock CLI output read");
+    }
+    assert!(trailing.len() <= 65536, "bounded stock CLI output");
     assert!(!String::from_utf8_lossy(&trailing).contains("REVOKED_executed"));
-    println!(
-        "CLI relay revocation passed; idle client awaited input: {idle_client_waited_for_input}"
-    );
     assert_eq!(
         store.get(fresh.owner(), computer).await.unwrap().phase,
         veoveo_computers::api::ComputerPhase::Ready
     );
-    write_private(&directory.join("result.txt"), b"HTTP pairing and one-use confirmation across replicas; stock CLI 0.1.2 retains shell through source-token and initial-lease expiry across two service replicas and two relay hops; owner revocation closes all relay hops within five seconds without stopping Computer; idle stock ProxyCommand may need local input to finish shutdown; public SSO and ingress remain unqualified\n");
+    // Security assertions precede owned teardown. EOF does not cancel the
+    // vendor reconnect loop, so explicitly signal and reap this process group.
+    drop(input);
+    let terminated = Command::new("kill")
+        .args(["-TERM", "--", &format!("-{}", cli.group)])
+        .status()
+        .await
+        .unwrap();
+    assert!(terminated.success() || cli.child.try_wait().unwrap().is_some());
+    if let Ok(status) = tokio::time::timeout(Duration::from_secs(5), cli.child.wait()).await {
+        status.expect("owned CLI wait");
+    } else {
+        Command::new("kill")
+            .args(["-KILL", "--", &format!("-{}", cli.group)])
+            .status()
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(1), cli.child.wait())
+            .await
+            .expect("owned CLI reap deadline")
+            .unwrap();
+    }
+    write_private(&directory.join("result.txt"), b"HTTP pairing and one-use confirmation across replicas; stock CLI 0.1.2 retains shell through source-token and initial-lease expiry across two service replicas and two relay hops; owner revocation closes all relay hops within five seconds, fresh admission is forbidden on both workers, no revoked command output is observed, and Computer remains Ready; vendor reconnect can retry for sixty seconds and owned teardown follows security assertions; public SSO and ingress remain unqualified\n");
     println!("Native CLI diagnostics: {}", directory.display());
     support::policy::install_default(&db.a).await;
 }
