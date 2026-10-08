@@ -428,6 +428,14 @@ requires that identity alongside the original resource and process. Source and
 replacement epochs are independently admitted against their own spec/config pairs.
 Only their epoch difference is normalized when comparing settings across those
 instances. A missing, malformed or mismatched epoch refuses capture or restoration.
+The supervisor's canonical UUIDv4 configuration registration identity is admitted
+from resource status and matched against every config read in Ready and Stopped.
+The gateway preserves that identity across Stop. Its authenticated checkpoint
+payload retains the source identity; a replacement carries its independently
+admitted registration identity. Cross-instance comparison normalizes only these
+two admitted instance facts. Same-instance reads, watches and reconciliation
+require unchanged identities. Restoration refusal diagnostics expose closed
+stage names without provider settings, policy values or credentials.
 
 Recovery may observe the exact original binding within its persisted budget, then
 ask the allocator to prove physical writer removal and hand off the retained home.

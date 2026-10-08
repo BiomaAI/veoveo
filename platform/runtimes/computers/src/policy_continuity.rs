@@ -22,6 +22,24 @@ enum RestoreMode {
     Observe,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
+enum RestoreRefusalStage {
+    #[vocabulary(rename = "target_admission")]
+    TargetAdmission,
+    #[vocabulary(rename = "replacement_configuration")]
+    ReplacementConfiguration,
+    #[vocabulary(rename = "watch_admission")]
+    WatchAdmission,
+    #[vocabulary(rename = "final_configuration")]
+    FinalConfiguration,
+    #[vocabulary(rename = "final_resource")]
+    FinalResource,
+}
+fn restore_refusal(stage: RestoreRefusalStage) -> RuntimeFailure {
+    eprintln!("Computer policy restoration refused: stage={stage} cause=policy_continuity");
+    FAILURE
+}
+
 /// Private provider snapshot. Effective settings may be sensitive. Persist only
 /// an authenticated encrypted checkpoint, bound to its durable maintenance job.
 /// This type deliberately has no Debug or Serialize implementation.
@@ -31,6 +49,7 @@ pub struct ReplacementPolicy {
     provider_id: String,
     process_id: String,
     attachment_epoch: AttachmentEpoch,
+    configuration_instance: ConfigurationInstance,
     config: policy::GetSandboxConfigResponse,
     fingerprint: String,
 }
@@ -61,11 +80,26 @@ impl veoveo_types::IdProfile for AttachmentEpochs {
         );
 }
 
+/// Supervisor-generated registration fence, retained by the gateway across Stop.
+#[veoveo_types::id(uuid(ConfigurationInstances))]
+pub(super) struct ConfigurationInstance(Uuid);
+
+pub(super) struct ConfigurationInstances;
+impl veoveo_types::IdProfile for ConfigurationInstances {
+    type Error = RuntimeFailure;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> =
+        veoveo_types::IdProfileSpec::generated_uuid(
+            veoveo_types::UuidGrammar::canonical(&[4]),
+            |_, _, _| FAILURE,
+        );
+}
+
 #[derive(Eq, PartialEq)]
 struct Bound {
     provider_id: String,
     process: String,
     attachment_epoch: AttachmentEpoch,
+    configuration_instance: ConfigurationInstance,
     resource_version: u64,
     policy_version: u32,
     phase: Phase,
@@ -97,10 +131,18 @@ fn checked(
     if metadata.resource_version == 0 || status.current_policy_version == 0 {
         return Err(FAILURE);
     }
+    let configuration_instance = ConfigurationInstance::parse(
+        &status
+            .configuration_admission
+            .as_ref()
+            .ok_or(FAILURE)?
+            .instance_id,
+    )?;
     Ok(Bound {
         provider_id: observed.sandbox_id,
         process: observed.main_process_instance_id,
         attachment_epoch,
+        configuration_instance,
         resource_version: metadata.resource_version,
         policy_version: status.current_policy_version,
         phase: observed.phase,
@@ -144,7 +186,8 @@ fn admitted_config(
     let spec = template.spec(computer).map_err(|_| FAILURE)?;
     let base = spec.policy.as_ref().ok_or(FAILURE)?;
     let effective = config.policy.as_ref().ok_or(FAILURE)?;
-    if AttachmentEpoch::parse(&config.provider_attachment_epoch)? != bound.attachment_epoch
+    if ConfigurationInstance::parse(&config.configuration_instance_id)? != bound.configuration_instance
+        || AttachmentEpoch::parse(&config.provider_attachment_epoch)? != bound.attachment_epoch
         || config.workspace != workspace || config.policy_source != policy::PolicySource::Sandbox as i32
         || config.global_policy_version != 0 || config.version != bound.policy_version
         || !valid_fingerprint(&config.policy_hash) || !static_admitted(base, effective)
@@ -206,6 +249,10 @@ fn replacement_config_equal(
     target_bound: &Bound,
 ) -> NativeResult<bool> {
     if source.provider_id == target_bound.provider_id
+        || ConfigurationInstance::parse(&source.config.configuration_instance_id)?
+            != source.configuration_instance
+        || ConfigurationInstance::parse(&target.configuration_instance_id)?
+            != target_bound.configuration_instance
         || AttachmentEpoch::parse(&source.config.provider_attachment_epoch)?
             != source.attachment_epoch
         || AttachmentEpoch::parse(&target.provider_attachment_epoch)?
@@ -215,6 +262,7 @@ fn replacement_config_equal(
     }
     let mut comparable_target = target.clone();
     comparable_target.provider_attachment_epoch = source.config.provider_attachment_epoch.clone();
+    comparable_target.configuration_instance_id = source.config.configuration_instance_id.clone();
     Ok(other_config_equal(&source.config, &comparable_target))
 }
 
@@ -325,6 +373,7 @@ impl OpenShellRuntime {
                 provider_id: before.provider_id,
                 process_id: before.process,
                 attachment_epoch: before.attachment_epoch,
+                configuration_instance: before.configuration_instance,
                 config,
                 fingerprint: String::new(),
             };
@@ -429,7 +478,10 @@ impl OpenShellRuntime {
         operation: veoveo_types::TaskId,
         mode: RestoreMode,
     ) -> NativeResult<PolicyRestoration> {
-        let bound = self.policy_bound(target, template).await?;
+        let bound = self
+            .policy_bound(target, template)
+            .await
+            .map_err(|_| restore_refusal(RestoreRefusalStage::TargetAdmission))?;
         if bound.phase != Phase::Ready || bound.provider_id == snapshot.provider_id {
             return Err(FAILURE);
         }
@@ -440,9 +492,14 @@ impl OpenShellRuntime {
             &self.workspace,
             template,
             target.computer_id(),
-        )?;
-        if !replacement_config_equal(snapshot, &before, &bound)? {
-            return Err(FAILURE);
+        )
+        .map_err(|_| restore_refusal(RestoreRefusalStage::TargetAdmission))?;
+        if !replacement_config_equal(snapshot, &before, &bound)
+            .map_err(|_| restore_refusal(RestoreRefusalStage::ReplacementConfiguration))?
+        {
+            return Err(restore_refusal(
+                RestoreRefusalStage::ReplacementConfiguration,
+            ));
         }
         self.policy_loaded(target, before.version, &before.policy_hash)
             .await?;
@@ -480,8 +537,11 @@ impl OpenShellRuntime {
             let Some(api::sandbox_stream_event::Payload::Sandbox(initial)) = initial.payload else {
                 return Err(FAILURE);
             };
-            if checked(initial, target, &self.workspace, template)? != bound {
-                return Err(FAILURE);
+            if checked(initial, target, &self.workspace, template)
+                .map_err(|_| restore_refusal(RestoreRefusalStage::WatchAdmission))?
+                != bound
+            {
+                return Err(restore_refusal(RestoreRefusalStage::WatchAdmission));
             }
             let operations = original
                 .network_policies
@@ -524,14 +584,16 @@ impl OpenShellRuntime {
                 let event = watch.message().await.map_err(|_| FAILURE)?.ok_or(FAILURE)?;
                 match event.payload {
                     Some(api::sandbox_stream_event::Payload::Sandbox(sandbox)) => {
-                        let seen = checked(sandbox, target, &self.workspace, template)?;
+                        let seen = checked(sandbox, target, &self.workspace, template)
+                            .map_err(|_| restore_refusal(RestoreRefusalStage::WatchAdmission))?;
                         if seen.provider_id != bound.provider_id
                             || seen.process != bound.process
                             || seen.attachment_epoch != bound.attachment_epoch
+                            || seen.configuration_instance != bound.configuration_instance
                             || seen.phase != Phase::Ready
                             || seen.policy_version > update.version
                         {
-                            return Err(FAILURE);
+                            return Err(restore_refusal(RestoreRefusalStage::WatchAdmission));
                         }
                         if seen.policy_version == update.version {
                             confirmed = true;
@@ -558,26 +620,60 @@ impl OpenShellRuntime {
             return Err(FAILURE);
         }
         let after = self.policy_config(target).await?;
-        if AttachmentEpoch::parse(&after.provider_attachment_epoch)? != bound.attachment_epoch
+        if ConfigurationInstance::parse(&after.configuration_instance_id)
+            .map_err(|_| restore_refusal(RestoreRefusalStage::FinalConfiguration))?
+            != bound.configuration_instance
+            || AttachmentEpoch::parse(&after.provider_attachment_epoch)
+                .map_err(|_| restore_refusal(RestoreRefusalStage::FinalConfiguration))?
+                != bound.attachment_epoch
             || after.version != version
             || after.policy_hash != hash
             || after.policy.as_ref() != Some(&expected)
             || !other_config_equal(&before, &after)
         {
-            return Err(FAILURE);
+            return Err(restore_refusal(RestoreRefusalStage::FinalConfiguration));
         }
-        let current = self.policy_bound(target, template).await?;
+        let current = self
+            .policy_bound(target, template)
+            .await
+            .map_err(|_| restore_refusal(RestoreRefusalStage::FinalResource))?;
         if current.provider_id != bound.provider_id
             || current.process != bound.process
             || current.attachment_epoch != bound.attachment_epoch
+            || current.configuration_instance != bound.configuration_instance
             || current.phase != Phase::Ready
             || current.policy_version != version
         {
-            return Err(FAILURE);
+            return Err(restore_refusal(RestoreRefusalStage::FinalResource));
         }
         Ok(PolicyRestoration {
             policy_version: version,
             policy_hash: hash,
         })
+    }
+}
+
+#[cfg(test)]
+mod restoration_diagnostic_tests {
+    use super::*;
+
+    #[test]
+    fn refusal_stages_are_closed_and_never_accept_provider_payloads() {
+        for (stage, expected) in [
+            (RestoreRefusalStage::TargetAdmission, "target_admission"),
+            (
+                RestoreRefusalStage::ReplacementConfiguration,
+                "replacement_configuration",
+            ),
+            (RestoreRefusalStage::WatchAdmission, "watch_admission"),
+            (
+                RestoreRefusalStage::FinalConfiguration,
+                "final_configuration",
+            ),
+            (RestoreRefusalStage::FinalResource, "final_resource"),
+        ] {
+            assert_eq!(stage.to_string(), expected);
+            assert_eq!(restore_refusal(stage), RuntimeFailure::PolicyContinuity);
+        }
     }
 }

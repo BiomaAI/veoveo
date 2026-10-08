@@ -19,7 +19,6 @@ fn rule(name: &str, host: &str) -> policy::NetworkPolicyRule {
         }],
         binaries: vec![policy::NetworkBinary {
             path: "/opt/fixture/bin/tool".into(),
-            ..Default::default()
         }],
     }
 }
@@ -64,12 +63,32 @@ fn sandbox_for(binding: &Binding, id: &str, version: u32) -> api::Sandbox {
     }
     .into();
     let status = value.status.as_mut().unwrap();
+    status.configuration_admission = Some(api::SandboxConfigurationAdmission {
+        instance_id: if id == "sandbox-old" {
+            "00000000-0000-4000-8000-000000000021"
+        } else {
+            "00000000-0000-4000-8000-000000000022"
+        }
+        .into(),
+        state: api::ConfigurationAdmissionState::Accepted as i32,
+        ..Default::default()
+    });
     status.current_policy_version = version;
     status.main_process_instance_id = format!("main-{id}");
     value
 }
 fn config_for(sandbox: &api::Sandbox) -> policy::GetSandboxConfigResponse {
     policy::GetSandboxConfigResponse {
+        configuration_instance_id: sandbox
+            .status
+            .as_ref()
+            .unwrap()
+            .configuration_admission
+            .as_ref()
+            .unwrap()
+            .instance_id
+            .clone(),
+        configuration_admitted: true,
         policy: sandbox.spec.as_ref().unwrap().policy.clone(),
         provider_attachment_epoch: sandbox
             .spec
@@ -105,6 +124,16 @@ enum Fault {
     Warning,
     ChangedProcess,
     ChangedEpoch,
+    ChangedConfiguration,
+    MissingConfigurationConfig,
+    MalformedConfigurationConfig,
+    ChangedConfigurationConfig,
+    MissingConfigurationWatch,
+    MalformedConfigurationWatch,
+    ChangedConfigurationWatch,
+    MissingConfigurationFinal,
+    MalformedConfigurationFinal,
+    ChangedConfigurationFinal,
     MissingConfigEpoch,
     MalformedConfigEpoch,
     ChangedConfigEpoch,
@@ -178,6 +207,16 @@ impl Fixture {
         if self.fault == Fault::ChangedEpoch {
             self.source.spec.as_mut().unwrap().provider_attachment_epoch =
                 "00000000-0000-4000-8000-000000000013".into();
+        }
+        if self.fault == Fault::ChangedConfiguration {
+            self.source
+                .status
+                .as_mut()
+                .unwrap()
+                .configuration_admission
+                .as_mut()
+                .unwrap()
+                .instance_id = "00000000-0000-4000-8000-000000000023".into();
         }
         Ok(Response::new(api::SandboxResponse {
             sandbox: Some(sandbox),
@@ -301,6 +340,14 @@ impl Fixture {
         self.target.metadata.as_mut().unwrap().resource_version += 1;
         self.target.status.as_mut().unwrap().current_policy_version = self.new_config.version;
         match self.fault {
+            Fault::MissingConfigurationConfig => self.new_config.configuration_instance_id.clear(),
+            Fault::MalformedConfigurationConfig => {
+                self.new_config.configuration_instance_id = "malformed".into()
+            }
+            Fault::ChangedConfigurationConfig => {
+                self.new_config.configuration_instance_id =
+                    "00000000-0000-4000-8000-000000000023".into()
+            }
             Fault::MissingConfigEpoch => self.new_config.provider_attachment_epoch.clear(),
             Fault::MalformedConfigEpoch => {
                 self.new_config.provider_attachment_epoch = "malformed".into()
@@ -355,6 +402,36 @@ impl Fixture {
                     "00000000-0000-4000-8000-000000000013".into()
             }
             _ => {}
+        }
+        let configuration_fault = match self.fault {
+            Fault::MissingConfigurationWatch | Fault::MissingConfigurationFinal => Some(""),
+            Fault::MalformedConfigurationWatch | Fault::MalformedConfigurationFinal => {
+                Some("malformed")
+            }
+            Fault::ChangedConfigurationWatch | Fault::ChangedConfigurationFinal => {
+                Some("00000000-0000-4000-8000-000000000023")
+            }
+            _ => None,
+        };
+        if let Some(identity) = configuration_fault {
+            let value = if matches!(
+                self.fault,
+                Fault::MissingConfigurationWatch
+                    | Fault::MalformedConfigurationWatch
+                    | Fault::ChangedConfigurationWatch
+            ) {
+                &mut sandbox
+            } else {
+                &mut self.target
+            };
+            value
+                .status
+                .as_mut()
+                .unwrap()
+                .configuration_admission
+                .as_mut()
+                .unwrap()
+                .instance_id = identity.into();
         }
         let payload = if self.fault == Fault::Warning {
             api::sandbox_stream_event::Payload::Warning(api::SandboxStreamWarning {
@@ -673,7 +750,7 @@ async fn checkpoint_rejects_noncanonical_data_and_cross_provider_instance_proces
     wrong = expected.clone();
     wrong.phase = Phase::Starting;
     rejected(&bytes, &bindings().0, &wrong);
-    for fault in 0..13 {
+    for fault in 0..16 {
         let mut invalid = PolicyCheckpoint::decode(bytes.as_slice()).unwrap();
         match fault {
             0 => invalid.version += 1,
@@ -696,6 +773,17 @@ async fn checkpoint_rejects_noncanonical_data_and_cross_provider_instance_proces
             12 => {
                 invalid.config.as_mut().unwrap().provider_attachment_epoch =
                     "00000000-0000-7000-8000-000000000011".into()
+            }
+            13 => invalid
+                .config
+                .as_mut()
+                .unwrap()
+                .configuration_instance_id
+                .clear(),
+            14 => invalid.config.as_mut().unwrap().configuration_instance_id = "malformed".into(),
+            15 => {
+                invalid.config.as_mut().unwrap().configuration_instance_id =
+                    "00000000-0000-7000-8000-000000000021".into()
             }
             _ => unreachable!(),
         }
@@ -1083,5 +1171,108 @@ async fn observation_only_reconciliation_refuses_epoch_drift_without_replay() {
             assert!(reconcile(&running, &snapshot).await.is_err());
         }
         edit(&running, |f| assert_eq!((f.updates, f.watches), (1, 1)));
+    }
+}
+
+#[tokio::test]
+async fn replacement_admits_independent_provider_configuration_instances() {
+    let running = fixture().await;
+    let snapshot = captured(&running).await;
+    edit(&running, |f| {
+        assert_ne!(
+            f.old_config.configuration_instance_id,
+            f.new_config.configuration_instance_id
+        )
+    });
+    restore(&running, &snapshot).await.unwrap();
+    reconcile(&running, &snapshot).await.unwrap();
+    edit(&running, |f| assert_eq!((f.updates, f.watches), (1, 1)));
+}
+
+#[tokio::test]
+async fn configuration_identity_is_required_and_correlated_during_capture() {
+    for identity in [
+        "",
+        "malformed",
+        "00000000-0000-7000-8000-000000000021",
+        "00000000-0000-4000-8000-000000000023",
+    ] {
+        let running = fixture().await;
+        edit(&running, |f| {
+            f.old_config.configuration_instance_id = identity.into()
+        });
+        assert!(
+            running
+                .runtime
+                .capture_replacement_policy(&bindings().0, &profile())
+                .await
+                .is_err()
+        );
+        edit(&running, |f| assert_eq!(f.updates, 0));
+    }
+    for identity in [None, Some(""), Some("malformed")] {
+        let running = fixture().await;
+        edit(&running, |f| {
+            if let Some(identity) = identity {
+                f.source
+                    .status
+                    .as_mut()
+                    .unwrap()
+                    .configuration_admission
+                    .as_mut()
+                    .unwrap()
+                    .instance_id = identity.into();
+            } else {
+                f.source.status.as_mut().unwrap().configuration_admission = None;
+            }
+        });
+        assert!(
+            running
+                .runtime
+                .capture_replacement_policy(&bindings().0, &profile())
+                .await
+                .is_err()
+        );
+    }
+    let running = fixture().await;
+    edit(&running, |f| f.fault = Fault::ChangedConfiguration);
+    assert!(
+        running
+            .runtime
+            .capture_replacement_policy(&bindings().0, &profile())
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn restoration_configuration_identity_cannot_drift_after_dispatch() {
+    for fault in [
+        Fault::MissingConfigurationConfig,
+        Fault::MalformedConfigurationConfig,
+        Fault::ChangedConfigurationConfig,
+        Fault::MissingConfigurationWatch,
+        Fault::MalformedConfigurationWatch,
+        Fault::ChangedConfigurationWatch,
+        Fault::MissingConfigurationFinal,
+        Fault::MalformedConfigurationFinal,
+        Fault::ChangedConfigurationFinal,
+    ] {
+        let running = fixture().await;
+        let snapshot = captured(&running).await;
+        edit(&running, |f| f.fault = fault);
+        assert!(restore(&running, &snapshot).await.is_err());
+        edit(&running, |f| assert_eq!((f.updates, f.watches), (1, 1)));
+        if !matches!(
+            fault,
+            Fault::MissingConfigurationWatch
+                | Fault::MalformedConfigurationWatch
+                | Fault::ChangedConfigurationWatch
+        ) {
+            for _ in 0..2 {
+                assert!(reconcile(&running, &snapshot).await.is_err());
+            }
+            edit(&running, |f| assert_eq!((f.updates, f.watches), (1, 1)));
+        }
     }
 }

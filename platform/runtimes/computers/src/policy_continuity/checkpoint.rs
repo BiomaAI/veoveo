@@ -1,5 +1,7 @@
 //! Closed private checkpoint encoding; never plaintext persistence or authority.
-use super::{AttachmentEpoch, Bound, FAILURE, ReplacementPolicy, admitted_config};
+use super::{
+    AttachmentEpoch, Bound, ConfigurationInstance, FAILURE, ReplacementPolicy, admitted_config,
+};
 use crate::{
     Binding, DevelopmentTemplate, GATEWAY_VERSION, Observation, OpenShellRuntime, Phase, Result,
     maintenance_protocol::PolicyCheckpoint, models::identifier,
@@ -98,6 +100,9 @@ impl OpenShellRuntime {
             provider_id: message.resource_id.clone(),
             process: message.process_id.clone(),
             attachment_epoch: AttachmentEpoch::parse(&config.provider_attachment_epoch)?,
+            configuration_instance: ConfigurationInstance::parse(
+                &config.configuration_instance_id,
+            )?,
             resource_version: 0, // Private replay validates the captured config, not a live CAS.
             policy_version: config.version,
             phase: expected.phase,
@@ -115,6 +120,7 @@ impl OpenShellRuntime {
             provider_id: message.resource_id,
             process_id: message.process_id,
             attachment_epoch: bound.attachment_epoch,
+            configuration_instance: bound.configuration_instance,
             config,
             fingerprint: String::new(),
         };
