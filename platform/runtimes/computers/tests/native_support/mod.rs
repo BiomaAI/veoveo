@@ -3,11 +3,12 @@ use std::{
     net::TcpListener,
     os::unix::fs::PermissionsExt,
     path::PathBuf,
-    process::{Child, Command, Stdio},
+    process::{Child, Command},
     time::Duration,
 };
 use uuid::Uuid;
 use veoveo_computers_runtime::{GatewayConfig, OpenShellRuntime};
+mod controller;
 mod docker_daemon;
 mod guest_authority;
 pub mod profile;
@@ -118,6 +119,7 @@ pub struct Provider {
     #[allow(dead_code)] // Only installation-policy scenarios use the raw fixture endpoint.
     pub endpoint: String,
     cleanup: Cleanup,
+    launch: controller::Launch,
 }
 struct Cleanup {
     child: Option<Child>,
@@ -139,8 +141,12 @@ impl Cleanup {
 impl Drop for Cleanup {
     fn drop(&mut self) {
         if let Some(child) = &mut self.child {
-            let _ = child.kill();
-            let _ = child.wait();
+            if controller::stop(child).is_err() {
+                let _ = controller::stop_child_only(child);
+                eprintln!(
+                    "owned controller cleanup did not complete within its process-group budget"
+                );
+            }
         }
         let filter = format!("label=openshell.ai/sandbox-namespace={}", self.namespace);
         if let Ok(output) = self
@@ -233,6 +239,11 @@ impl Provider {
         provider.cleanup.owned_daemon = Some(daemon);
         (provider, endpoint)
     }
+    #[allow(dead_code)] // Used by the owning controller recovery scenario.
+    pub fn namespace(&self) -> &str {
+        &self.cleanup.namespace
+    }
+
     pub fn docker_socket(&self) -> PathBuf {
         self.cleanup.socket.clone()
     }
@@ -295,74 +306,11 @@ impl Provider {
             log_level,
         );
         fs::write(dir.join("gateway.toml"), config).unwrap();
-        let log = fs::File::create(dir.join("gateway.log")).unwrap();
-        let mut command = Command::new(gateway);
-        command
-            .env_clear()
-            .env(
-                "PATH",
-                std::env::join_paths(
-                    std::iter::once(driver.parent().unwrap().to_path_buf()).chain(
-                        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
-                    ),
-                )
-                .unwrap(),
-            )
-            .env("XDG_STATE_HOME", dir.join("state"))
-            .env("XDG_DATA_HOME", dir.join("data"))
-            .env("XDG_CONFIG_HOME", dir.join("config"))
-            .arg("--config")
-            .arg(dir.join("gateway.toml"))
-            .arg("--db-url")
-            .arg(format!(
-                "sqlite://{}?mode=rwc",
-                dir.join("gateway.sqlite").display()
-            ))
-            .arg("--tls-cert")
-            .arg(dir.join("server.pem"))
-            .arg("--tls-key")
-            .arg(dir.join("server-key.pem"))
-            .arg("--tls-client-ca")
-            .arg(dir.join("ca.pem"))
-            .args([
-                "--enable-mtls-auth",
-                "true",
-                "--enable-loopback-service-http",
-                "false",
-            ])
-            .stdin(Stdio::null())
-            .stdout(log.try_clone().unwrap())
-            .stderr(log);
+        let launch = controller::Launch::new(gateway, driver, dir.clone());
         drop(listener);
-        cleanup.child = Some(command.spawn().expect("start native provider"));
+        cleanup.child = Some(launch.spawn().expect("start native provider"));
         let endpoint = format!("{gateway_ip}:{port}");
-        let runtime = tokio::time::timeout(Duration::from_secs(30), async {
-            loop {
-                if let Some(exit) = cleanup.child.as_mut().unwrap().try_wait().unwrap() {
-                    panic!("provider exited {exit}; diagnostics at {}", dir.display());
-                }
-                let config = GatewayConfig::new(
-                    "00000000-0000-7000-8000-000000000064".parse().unwrap(),
-                    endpoint.clone(),
-                    "default".into(),
-                    dir.join("ca.pem"),
-                    dir.join("client.pem"),
-                    dir.join("client-key.pem"),
-                )
-                .unwrap();
-                match OpenShellRuntime::connect(config).await {
-                    Ok(runtime) => break runtime,
-                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
-                }
-            }
-        })
-        .await
-        .unwrap_or_else(|_| {
-            panic!(
-                "provider readiness timed out; diagnostics at {}",
-                dir.display()
-            )
-        });
+        let runtime = connect_controller(cleanup.child.as_mut().unwrap(), &dir, &endpoint).await;
         eprintln!("Native provider diagnostics: {}", dir.display());
         guest_authority::assert_denied(&dir, &endpoint).await;
         let provider = Self {
@@ -371,8 +319,39 @@ impl Provider {
             image,
             endpoint: endpoint.clone(),
             cleanup,
+            launch,
         };
         (provider, format!("https://{endpoint}"))
+    }
+
+    /// Restart the real owned gateway and its in-process Docker driver, preserving the daemon,
+    /// database, immutable driver state and original trust/launch inputs.
+    #[allow(dead_code)] // Shared by native targets; only lifecycle qualifies controller restart.
+    pub async fn restart_controller(&mut self) -> (u32, u32) {
+        let child = self.cleanup.child.as_mut().expect("owned controller");
+        let before = child.id();
+        self.launch
+            .admit_controller(child)
+            .expect("admit exact qualified owned gateway group");
+        controller::stop(child).expect("bounded owned controller group termination");
+        self.cleanup.child.take();
+        self.cleanup.child = Some(
+            self.launch
+                .spawn()
+                .expect("restart exact retained controller inputs"),
+        );
+        let after = self.cleanup.child.as_ref().unwrap().id();
+        assert_ne!(before, after, "real controller process must change");
+        self.runtime = connect_controller(
+            self.cleanup.child.as_mut().unwrap(),
+            &self.dir,
+            &self.endpoint,
+        )
+        .await;
+        self.launch
+            .admit_controller(self.cleanup.child.as_mut().unwrap())
+            .expect("admit replacement qualified gateway group");
+        (before, after)
     }
 
     pub fn assert_running(&mut self) {
@@ -386,6 +365,41 @@ impl Provider {
                 .is_none()
         );
     }
+}
+
+async fn connect_controller(
+    child: &mut Child,
+    dir: &std::path::Path,
+    endpoint: &str,
+) -> OpenShellRuntime {
+    let runtime = tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            if let Some(exit) = child.try_wait().unwrap() {
+                panic!("provider exited {exit}; diagnostics at {}", dir.display());
+            }
+            let config = GatewayConfig::new(
+                "00000000-0000-7000-8000-000000000064".parse().unwrap(),
+                endpoint.to_owned(),
+                "default".into(),
+                dir.join("ca.pem"),
+                dir.join("client.pem"),
+                dir.join("client-key.pem"),
+            )
+            .unwrap();
+            match OpenShellRuntime::connect(config).await {
+                Ok(runtime) => break runtime,
+                Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "provider readiness timed out; diagnostics at {}",
+            dir.display()
+        )
+    });
+    runtime
 }
 
 fn certificates(dir: &std::path::Path, gateway_ip: std::net::Ipv4Addr) {

@@ -218,6 +218,7 @@ designs above.
 | `platform/runtimes/computers/provider-patches/Dockerfile` | matched gateway, driver, supervisor, static sandbox and CLI OCI build, verified upstream/patch trees and pinned compiler/solver inputs; compute-host topology is separate |
 | `platform/runtimes/computers/provider-patches/cxx-profile.json` | exact compiler and prerequisite sources, hashes, bootstrap inputs, glibc ceiling and static Z3 C++ runtime profile |
 | `platform/runtimes/computers/tests/native_support/profile.rs` | pre-effect admission of exact provider executables, source manifest and companion image for the existing private-DinD native fixtures |
+| `platform/runtimes/computers/tests/native_support/controller.rs` | native fixture controller process-group ownership, bounded restart and reuse of admitted launch inputs, trust, database and private daemon |
 | `platform/runtimes/computers/tests/native_support/guest_authority.rs` | native TLS-positive, user-authority-negative check for the guest supervisor certificate |
 | `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
 | `platform/store/src/audit/` | partition-selected audit reads, typed append and indexing records, checked profile/target/detail lookups, nominal native sealing bindings in `blocks.rs`, frozen export documents, export receipts and whole-block retention |

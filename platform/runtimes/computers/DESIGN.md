@@ -495,11 +495,17 @@ paths and `VEOVEO_COMPUTERS_NATIVE_IMAGE` set to an available image digest. The 
 is `cargo test --locked --offline -p veoveo-computers-runtime --test native_lifecycle
 -- --ignored --nocapture`. Record it through the repository evidence recorder.
 
-The test proves native creation, an explicit replay boundary, retained shell-local
-state on reattachment, numeric UID 10001, and a new process identity after Stop/Start.
-Reconciliation observes the expected stopped and restarted epochs without dispatch.
-This fixture uses the container writable layer. It does not qualify retained external
-volumes, host restart, storage quotas, renewable access, stock CLI or public ingress.
+The lifecycle case requires native creation, terminal replay, numeric UID 10001,
+and settled observations before restarting its owned gateway process group. The qualified gateway hosts its Docker
+driver in-process; the fixture does not require a standalone driver child.
+The replacement controller uses the original private database, trust and launch inputs.
+The case compares the daemon, guest container, selected image, external home and private
+restart-state digest, reads retained file bytes through current authenticated access,
+and requires one replacement supervisor. Stop/Start must then change the main process
+identity while preserving those resource identities and bytes. Process-group admission
+and bounded TERM/KILL/reap controls run locally without a provider fixture.
+Reconciliation observes stopped and restarted epochs without dispatch. This case does
+not qualify host reboot, storage quotas, renewable access, stock CLI or public ingress.
 
 The stock CLI fixture uses the verified `0.1.2` binary supplied by
 `VEOVEO_COMPUTERS_NATIVE_CLI`. It registers an isolated mTLS gateway with a three-second
