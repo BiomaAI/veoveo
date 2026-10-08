@@ -193,9 +193,35 @@ impl Fixture {
         fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
         Ok(path)
     }
+    fn resource(&self, object: &Value) -> Result<process::KubernetesResource> {
+        let kind = object["kind"]
+            .as_str()
+            .context("diagnostic resource kind absent")?;
+        let name = object["metadata"]["name"]
+            .as_str()
+            .context("diagnostic resource name absent")?;
+        let namespace = if matches!(
+            kind,
+            "Namespace" | "ValidatingAdmissionPolicy" | "ValidatingAdmissionPolicyBinding"
+        ) {
+            None
+        } else {
+            Some(match object["metadata"].get("namespace") {
+                None => self.namespace.as_str(),
+                Some(value) => value
+                    .as_str()
+                    .context("invalid diagnostic namespace field")?,
+            })
+        };
+        process::KubernetesResource::new(kind, namespace, name)
+    }
     pub fn apply(&mut self, object: &Value) -> Result<()> {
+        self.apply_for(object, process::KubernetesPurpose::FixtureObject)
+    }
+    fn apply_for(&mut self, object: &Value, purpose: process::KubernetesPurpose) -> Result<()> {
+        let resource = self.resource(object)?;
         let path = self.file(object)?;
-        process::checked(
+        process::checked_kubernetes(
             self.kubectl_in(
                 object["metadata"]["namespace"]
                     .as_str()
@@ -204,12 +230,16 @@ impl Fixture {
             .args(["apply", "--filename"])
             .arg(path),
             30,
+            purpose,
+            process::KubernetesOperation::Apply,
+            &resource,
         )?;
         Ok(())
     }
     pub fn create_object(&mut self, object: &Value) -> Result<()> {
+        let resource = self.resource(object)?;
         let path = self.file(object)?;
-        process::checked(
+        process::checked_kubernetes(
             self.kubectl_in(
                 object["metadata"]["namespace"]
                     .as_str()
@@ -218,6 +248,9 @@ impl Fixture {
             .args(["create", "--filename"])
             .arg(path),
             30,
+            process::KubernetesPurpose::FixtureObject,
+            process::KubernetesOperation::Create,
+            &resource,
         )?;
         Ok(())
     }
@@ -440,9 +473,13 @@ impl Fixture {
     pub fn wait_job(&self, name: &str, success: bool) -> Result<()> {
         let start = Instant::now();
         loop {
-            let bytes = process::checked(
+            let resource = process::KubernetesResource::new("Job", Some(&self.namespace), name)?;
+            let bytes = process::checked_kubernetes(
                 self.kubectl().args(["get", "job", name, "--output=json"]),
                 20,
+                process::KubernetesPurpose::InstallationJobObservation,
+                process::KubernetesOperation::Get,
+                &resource,
             )?;
             let job: Value = serde_json::from_slice(&bytes)?;
             let conditions = job["status"]["conditions"].as_array();
@@ -474,12 +511,16 @@ impl Fixture {
         for object in render.objects.iter().filter(|o| o["kind"] == "Namespace") {
             if self.agent_uid.is_none() {
                 let path = self.file(object)?;
-                let bytes = process::checked(
+                let resource = self.resource(object)?;
+                let bytes = process::checked_kubernetes(
                     self.kubectl()
                         .args(["create", "--filename"])
                         .arg(path)
                         .arg("--output=json"),
                     30,
+                    process::KubernetesPurpose::ManagedInstallation,
+                    process::KubernetesOperation::Create,
+                    &resource,
                 )?;
                 let owned: Namespace = serde_json::from_slice(&bytes)?;
                 ensure!(!owned.metadata.uid.is_empty(), "agent namespace UID absent");
@@ -489,12 +530,12 @@ impl Fixture {
         self.agent_runtime_credentials()?;
         let namespace = self.managed_config.namespace.clone();
         for target in [&self.namespace.clone(), &namespace] {
-            self.apply(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"fixture-model","namespace":target},"type":"Opaque","stringData":{"api-key":"fixture-only-unused"}}))?;
+            self.apply_managed(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"fixture-model","namespace":target},"type":"Opaque","stringData":{"api-key":"fixture-only-unused"}}))?;
         }
-        self.apply(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"veoveo-installation-secrets"},"type":"Opaque","stringData":self.managed_config.installation_secrets}))?;
-        self.apply(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"veoveo-audit-signing-key"},"type":"Opaque","stringData":{"seed-b64":"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="}}))?;
-        self.apply(&json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"fixture-control-plane","namespace":namespace},"data":{"gateway.json":serde_json::to_string(&self.managed_config.plane)?,"jwks.json":self.managed_config.jwks}}))?;
-        self.apply(&json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":self.managed_config.template.workload.config_map,"namespace":namespace},"immutable":true,"data":self.managed_config.data}))?;
+        self.apply_managed(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"veoveo-installation-secrets"},"type":"Opaque","stringData":self.managed_config.installation_secrets}))?;
+        self.apply_managed(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"veoveo-audit-signing-key"},"type":"Opaque","stringData":{"seed-b64":"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="}}))?;
+        self.apply_managed(&json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"fixture-control-plane","namespace":namespace},"data":{"gateway.json":serde_json::to_string(&self.managed_config.plane)?,"jwks.json":self.managed_config.jwks}}))?;
+        self.apply_managed(&json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":self.managed_config.template.workload.config_map,"namespace":namespace},"immutable":true,"data":self.managed_config.data}))?;
         for object in managed_objects(&render.objects) {
             let kind = object["kind"].as_str().context("managed object kind")?;
             if kind.starts_with("ValidatingAdmissionPolicy") {
@@ -511,12 +552,16 @@ impl Fixture {
                 );
                 if !self.cluster_owned.iter().any(|(p, _)| p == &path) {
                     let file = self.file(object)?;
-                    let bytes = process::checked(
+                    let resource = self.resource(object)?;
+                    let bytes = process::checked_kubernetes(
                         self.kubectl()
                             .args(["create", "--filename"])
                             .arg(file)
                             .arg("--output=json"),
                         30,
+                        process::KubernetesPurpose::ManagedInstallation,
+                        process::KubernetesOperation::Create,
+                        &resource,
                     )?;
                     let created: Namespace = serde_json::from_slice(&bytes)?;
                     ensure!(
@@ -526,13 +571,16 @@ impl Fixture {
                     self.cluster_owned.push((path, created.metadata.uid));
                 }
             } else {
-                self.apply(object)?;
+                self.apply_managed(object)?;
             }
         }
         Ok(())
     }
     fn agent_runtime_credentials(&mut self) -> Result<()> {
-        self.apply(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"veoveo-surreal-runtime","namespace":self.managed_config.namespace},"type":"Opaque","stringData":{"username":"fixture-runtime","password":self.runtime_password}}))
+        self.apply_managed(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"veoveo-surreal-runtime","namespace":self.managed_config.namespace},"type":"Opaque","stringData":{"username":"fixture-runtime","password":self.runtime_password}}))
+    }
+    fn apply_managed(&mut self, object: &Value) -> Result<()> {
+        self.apply_for(object, process::KubernetesPurpose::ManagedInstallation)
     }
     pub(super) fn store_config(
         &self,
@@ -984,6 +1032,35 @@ mod tests {
         ModuleRuntimeBinding, RuntimeBindingKey,
     };
 
+    #[test]
+    fn resource_diagnostics_select_explicit_namespace_and_refuse_invalid_fields() -> Result<()> {
+        let image = "registry.invalid/fixture@sha256:".to_owned() + &"a".repeat(64);
+        let fixture = Fixture::create(&Args {
+            context: "native-unused".into(),
+            gateway_image: image.parse().map_err(anyhow::Error::msg)?,
+            manager_image: image.parse().map_err(anyhow::Error::msg)?,
+            kernel_image: image.parse().map_err(anyhow::Error::msg)?,
+            evidence_output: "unused".into(),
+        })?;
+        let resource = fixture.resource(&json!({"kind":"Secret","metadata":{"name":"credentials","namespace":"fixture-agent"},"stringData":{"password":"secret-sentinel"}}))?;
+        let diagnostic = format!("{resource:?}");
+        assert!(diagnostic.contains("fixture-agent"));
+        assert!(!diagnostic.contains("secret-sentinel"));
+        let default =
+            fixture.resource(&json!({"kind":"ConfigMap","metadata":{"name":"control-plane"}}))?;
+        assert!(format!("{default:?}").contains(&fixture.namespace));
+        for object in [
+            json!({"kind":"Secret","metadata":{"name":"credentials","namespace":null}}),
+            json!({"kind":"Secret","metadata":{"name":"secret-sentinel\nleak"}}),
+            json!({"kind":"unknown-secret-sentinel","metadata":{"name":"safe"}}),
+        ] {
+            assert!(
+                !format!("{:#}", fixture.resource(&object).unwrap_err())
+                    .contains("secret-sentinel")
+            );
+        }
+        Ok(())
+    }
     #[test]
     fn fixture_diagnostics_redact_every_owned_secret_before_capping() -> Result<()> {
         let image = "registry.invalid/fixture@sha256:".to_owned() + &"a".repeat(64);

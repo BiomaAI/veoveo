@@ -127,6 +127,153 @@ pub(super) fn checked_phase(command: &mut Command, seconds: u64, phase: &str) ->
         "stderr excluded to protect credentials".into()
     })
 }
+/// Diagnostic identity only; it never establishes an operation outcome.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum KubernetesOperation {
+    Apply,
+    Create,
+    Get,
+}
+#[derive(Clone, Copy, Debug)]
+pub(super) enum KubernetesPurpose {
+    FixtureObject,
+    ManagedInstallation,
+    InstallationJobObservation,
+}
+#[derive(Clone, Copy, Debug)]
+enum KubernetesResourceKind {
+    Namespace,
+    Secret,
+    ConfigMap,
+    ServiceAccount,
+    Role,
+    RoleBinding,
+    ValidatingAdmissionPolicy,
+    ValidatingAdmissionPolicyBinding,
+    NetworkPolicy,
+    Service,
+    Deployment,
+    Job,
+    Pod,
+}
+#[derive(Debug)]
+pub(super) struct KubernetesResource {
+    kind: KubernetesResourceKind,
+    namespace: Option<String>,
+    name: String,
+}
+impl KubernetesResource {
+    pub(super) fn new(kind: &str, namespace: Option<&str>, name: &str) -> Result<Self> {
+        let kind = match kind {
+            "Namespace" => KubernetesResourceKind::Namespace,
+            "Secret" => KubernetesResourceKind::Secret,
+            "ConfigMap" => KubernetesResourceKind::ConfigMap,
+            "ServiceAccount" => KubernetesResourceKind::ServiceAccount,
+            "Role" => KubernetesResourceKind::Role,
+            "RoleBinding" => KubernetesResourceKind::RoleBinding,
+            "ValidatingAdmissionPolicy" => KubernetesResourceKind::ValidatingAdmissionPolicy,
+            "ValidatingAdmissionPolicyBinding" => {
+                KubernetesResourceKind::ValidatingAdmissionPolicyBinding
+            }
+            "NetworkPolicy" => KubernetesResourceKind::NetworkPolicy,
+            "Service" => KubernetesResourceKind::Service,
+            "Deployment" => KubernetesResourceKind::Deployment,
+            "Job" => KubernetesResourceKind::Job,
+            "Pod" => KubernetesResourceKind::Pod,
+            _ => anyhow::bail!("unsupported diagnostic resource kind"),
+        };
+        fn admitted(value: &str, limit: usize, dots: bool) -> bool {
+            !value.is_empty()
+                && value.len() <= limit
+                && value.split('.').all(|part| {
+                    !part.is_empty()
+                        && part.starts_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit())
+                        && part.ends_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit())
+                        && part
+                            .bytes()
+                            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
+                })
+                && (dots || !value.contains('.'))
+        }
+        ensure!(
+            admitted(name, 253, true),
+            "invalid diagnostic resource name"
+        );
+        ensure!(
+            namespace.is_none_or(|ns| admitted(ns, 63, false)),
+            "invalid diagnostic resource namespace"
+        );
+        Ok(Self {
+            kind,
+            namespace: namespace.map(str::to_owned),
+            name: name.into(),
+        })
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum KubernetesFailureCategory {
+    Invalid,
+    Forbidden,
+    AlreadyExists,
+    NotFound,
+    Conflict,
+    Unauthorized,
+    BadRequest,
+    Unclassified,
+}
+fn kubernetes_failure_category(stderr: &[u8]) -> KubernetesFailureCategory {
+    let Ok(text) = std::str::from_utf8(stderr) else {
+        return KubernetesFailureCategory::Unclassified;
+    };
+    [
+        ("Invalid", KubernetesFailureCategory::Invalid),
+        ("Forbidden", KubernetesFailureCategory::Forbidden),
+        ("AlreadyExists", KubernetesFailureCategory::AlreadyExists),
+        ("NotFound", KubernetesFailureCategory::NotFound),
+        ("Conflict", KubernetesFailureCategory::Conflict),
+        ("Unauthorized", KubernetesFailureCategory::Unauthorized),
+        ("BadRequest", KubernetesFailureCategory::BadRequest),
+    ]
+    .into_iter()
+    .find_map(|(reason, category)| {
+        text.starts_with(&format!("Error from server ({reason}):"))
+            .then_some(category)
+    })
+    .unwrap_or(KubernetesFailureCategory::Unclassified)
+}
+pub(super) fn checked_kubernetes(
+    command: &mut Command,
+    seconds: u64,
+    purpose: KubernetesPurpose,
+    operation: KubernetesOperation,
+    resource: &KubernetesResource,
+) -> Result<Vec<u8>> {
+    ensure!(
+        program(command) == "kubectl",
+        "Kubernetes diagnostics require kubectl"
+    );
+    kubernetes_command(command, seconds, purpose, operation, resource)
+}
+fn kubernetes_command(
+    command: &mut Command,
+    seconds: u64,
+    purpose: KubernetesPurpose,
+    operation: KubernetesOperation,
+    resource: &KubernetesResource,
+) -> Result<Vec<u8>> {
+    let phase = format!(
+        "{purpose:?}: {operation:?} {:?} {}/{}",
+        resource.kind,
+        resource.namespace.as_deref().unwrap_or("cluster"),
+        resource.name
+    );
+    checked_with_diagnostics(command, seconds, &phase, |stderr| {
+        format!(
+            "Kubernetes category {:?}; stderr excluded to protect credentials",
+            kubernetes_failure_category(stderr)
+        )
+    })
+}
 /// Only the fixture-owned Helm values boundary opts into redacted stderr.
 pub(super) fn checked_redacted(
     command: &mut Command,
@@ -230,6 +377,86 @@ impl Background {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn kubernetes_failure_preserves_resource_and_status_without_child_content() -> Result<()> {
+        let resource =
+            KubernetesResource::new("Secret", Some("fixture-agent"), "runtime-credentials")?;
+        for reason in ["Invalid", "Forbidden"] {
+            let payload = format!(
+                "Error from server ({reason}): stringData.password=secret-sentinel SQL token header body"
+            );
+            let error = kubernetes_command(
+                Command::new("sh").args([
+                    "-c",
+                    "printf '%s' \"$1\" >&2; exit 17",
+                    "private-argv-sentinel",
+                    &payload,
+                ]),
+                2,
+                KubernetesPurpose::ManagedInstallation,
+                KubernetesOperation::Apply,
+                &resource,
+            )
+            .unwrap_err();
+            let diagnostic = format!("{error:#}");
+            assert!(
+                diagnostic.contains(
+                    "ManagedInstallation: Apply Secret fixture-agent/runtime-credentials"
+                )
+            );
+            assert!(diagnostic.contains("exit status: 17"));
+            assert!(diagnostic.contains(&format!("Kubernetes category {reason}")));
+            for private in [
+                "secret-sentinel",
+                "private-argv-sentinel",
+                "stringData",
+                "SQL",
+                "header",
+                "printf",
+            ] {
+                assert!(!diagnostic.contains(private));
+            }
+        }
+        for payload in [
+            "prefix Error from server (Forbidden): secret-sentinel",
+            "Error from server (Other): secret-sentinel",
+            "Error from server (Forbidden) secret-sentinel",
+            "secret-sentinel\nError from server (Invalid): leak",
+        ] {
+            let error = kubernetes_command(
+                Command::new("sh").args([
+                    "-c",
+                    "printf '%s' \"$1\" >&2; exit 3",
+                    "fixture",
+                    payload,
+                ]),
+                2,
+                KubernetesPurpose::ManagedInstallation,
+                KubernetesOperation::Create,
+                &resource,
+            )
+            .unwrap_err();
+            let diagnostic = format!("{error:#}");
+            assert!(diagnostic.contains("Kubernetes category Unclassified"));
+            assert!(!diagnostic.contains("secret-sentinel"));
+        }
+        assert_eq!(
+            kubernetes_failure_category(&[0xff]),
+            KubernetesFailureCategory::Unclassified
+        );
+        Ok(())
+    }
+    #[test]
+    fn kubernetes_identity_refuses_unsafe_fields_without_echoing_them() {
+        for (kind, namespace, name) in [
+            ("Secret secret-sentinel", Some("fixture"), "safe"),
+            ("Secret", Some("fixture\nsecret-sentinel"), "safe"),
+            ("Secret", Some("fixture"), "safe/secret-sentinel"),
+        ] {
+            let error = KubernetesResource::new(kind, namespace, name).unwrap_err();
+            assert!(!format!("{error:#}").contains("secret-sentinel"));
+        }
+    }
     #[test]
     fn generic_command_diagnostics_suppress_child_secrets() {
         let error = checked_phase(

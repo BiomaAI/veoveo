@@ -266,7 +266,14 @@ groups. Readiness, recovery and terminal archive each have a 180-second observat
 budget; individual native commands retain their own shorter deadlines.
 Commands have deadlines, file-backed output capped at 2 MiB and owned process-group
 cleanup on timeout; no blind mutation retries are added. Command failures identify
-the phase, program and exit status. The fixture-owned Helm render
+the phase, program and exit status. Managed installation commands also identify
+Apply, Create or Get, their purpose, and an admitted resource kind, namespace and
+name. Kubernetes stderr contributes only a recognized, anchored
+`Error from server (reason):` category: Invalid, Forbidden, AlreadyExists, NotFound,
+Conflict, Unauthorized or BadRequest. Other output is Unclassified. These categories
+describe a command failure; they cannot establish mutation settlement or permit a
+replay. Raw arguments, input manifests and Kubernetes stderr stay private.
+The fixture-owned Helm render
 exposes stderr through the same secret replacement and 16 KiB cap as pod diagnostics.
 The old-runtime credential probe first runs a credential-free `curl` readiness
 init in the same Pod, using the same pinned gateway image and database Service.
