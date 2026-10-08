@@ -95,10 +95,10 @@ impl OpenShell for Restricted {
         let workspace = self.access.workspace().to_owned();
         let input = request.into_inner().take_while(|result| future::ready(result.is_ok())).map(move |result| {
             let mut frame = result.expect("successful stream item");
-            if let Some(api::tcp_forward_frame::Payload::Init(header)) = &mut frame.payload {
-                if !translate_forward_header(header, computer, &sandbox_name, &sandbox_id, &workspace) {
-                    frame.payload = None;
-                }
+            if let Some(api::tcp_forward_frame::Payload::Init(header)) = &mut frame.payload
+                && !translate_forward_header(header, computer, &sandbox_name, &sandbox_id, &workspace)
+            {
+                frame.payload = None;
             }
             if matches!(&frame.payload, Some(api::tcp_forward_frame::Payload::Data(bytes)) if !bytes.is_empty() && bytes.len() <= 65536) {
                 // SSH is encrypted. Its payload includes user bytes and may include

@@ -220,10 +220,10 @@ pub(super) fn validate(
         if let Some(value) = object.get("propertyNames") {
             property_names.push(key_facts(value, root)?);
         }
-        if let Some(required) = object.get("required") {
-            if !required.as_array().is_some_and(|v| v.is_empty()) {
-                return Err(NamingProfileError::DictionaryKeys);
-            }
+        if let Some(required) = object.get("required")
+            && !required.as_array().is_some_and(|v| v.is_empty())
+        {
+            return Err(NamingProfileError::DictionaryKeys);
         }
     }
     let properties: BTreeSet<String> = properties
