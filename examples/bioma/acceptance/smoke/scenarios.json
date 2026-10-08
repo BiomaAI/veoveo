@@ -856,7 +856,7 @@
     },
     {
       "id": "view-mcp",
-      "description": "Smoke-test the production View MCP image through NVIDIA, MCP tasks, and frame resources.",
+      "description": "Qualify View NVIDIA captures locally or installed Task isolation, retained results and selected server-process drain.",
       "target": {
         "kind": "cargo_binary",
         "selection": {
@@ -953,12 +953,12 @@
       ],
       "requirements": {
         "network": true,
-        "credentials": false,
-        "clusterMutation": false,
+        "credentials": true,
+        "clusterMutation": true,
         "billedEffects": false,
         "nvidia": true,
         "headedGraphics": false,
-        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+        "explanation": "Local mode owns native fixtures. Installed mode requires explicit installation credentials and an Ops-staged immutable deterministic catalog; it restarts only the declared View Deployment through a fenced native watch. No billed providers are used."
       },
       "deadlineSeconds": 3600,
       "cleanupSeconds": 180

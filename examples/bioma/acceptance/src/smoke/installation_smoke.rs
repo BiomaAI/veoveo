@@ -110,6 +110,18 @@ enum Cmd {
         /// Optional path that retains the deterministic rendered frame.
         #[arg(long)]
         retained_frame: Option<PathBuf>,
+        /// Installed target; explicit deterministic fixture admission is required.
+        #[arg(long, requires_all=["installed_fixture","evidence_output"])]
+        installation: Option<PathBuf>,
+        #[arg(long, requires = "installation")]
+        installed_fixture: Option<PathBuf>,
+        #[arg(long, requires = "installation")]
+        evidence_output: Option<PathBuf>,
+    },
+    /// Prepare local fixture files; this command is not a smoke qualification.
+    ViewFixtureExport {
+        #[arg(long)]
+        output: PathBuf,
     },
     ViewGoogleLive {
         /// Production View MCP container image.
@@ -557,7 +569,29 @@ async fn execute() -> Result<()> {
         Cmd::ViewMcp {
             view_image,
             retained_frame,
-        } => view_mcp(&view_image, retained_frame.as_deref()).await,
+            installation,
+            installed_fixture,
+            evidence_output,
+        } => {
+            if let Some(installation) = installation {
+                view_installed(
+                    &installation,
+                    &installed_fixture.context("installed View requires --installed-fixture")?,
+                    &evidence_output.context("installed View requires --evidence-output")?,
+                )
+                .await
+            } else {
+                view_mcp(&view_image, retained_frame.as_deref()).await
+            }
+        }
+        Cmd::ViewFixtureExport { output } => {
+            export_view_fixture(&output)?;
+            println!(
+                "{}",
+                serde_json::json!({"schemaVersion":"veoveo.ai/view-fixture-preparation/v1","output":output,"qualification":false})
+            );
+            Ok(())
+        }
         Cmd::ViewGoogleLive { view_image, output } => view_google_live(&view_image, &output).await,
         Cmd::DatasheetMcp {
             conformance_bin,
@@ -939,5 +973,64 @@ async fn execute() -> Result<()> {
             )
             .await
         }
+    }
+}
+
+#[cfg(test)]
+mod view_cli_tests {
+    use super::*;
+    use anyhow::ensure;
+    #[test]
+    fn installed_view_requires_complete_explicit_fixture_flags() {
+        assert!(Args::try_parse_from(["installation-smoke", "view-mcp"]).is_ok());
+        for args in [
+            vec![
+                "installation-smoke",
+                "view-mcp",
+                "--installation",
+                "target.json",
+            ],
+            vec![
+                "installation-smoke",
+                "view-mcp",
+                "--installed-fixture",
+                "fixture.json",
+            ],
+            vec![
+                "installation-smoke",
+                "view-mcp",
+                "--evidence-output",
+                "receipt.json",
+            ],
+        ] {
+            assert!(Args::try_parse_from(args).is_err());
+        }
+        assert!(
+            Args::try_parse_from([
+                "installation-smoke",
+                "view-mcp",
+                "--installation",
+                "target.json",
+                "--installed-fixture",
+                "fixture.json",
+                "--evidence-output",
+                "receipt.json"
+            ])
+            .is_ok()
+        );
+    }
+    #[test]
+    fn fixture_export_is_separate_from_registered_view_qualification() -> Result<()> {
+        let args = Args::try_parse_from([
+            "installation-smoke",
+            "view-fixture-export",
+            "--output",
+            "fixture",
+        ])?;
+        ensure!(matches!(args.cmd, Cmd::ViewFixtureExport { .. }));
+        let descriptors: Value = serde_json::from_str(include_str!("../../smoke/scenarios.json"))?;
+        // A preparation utility cannot be selected as an acceptance scenario.
+        ensure!(!descriptors.to_string().contains("view-fixture-export"));
+        Ok(())
     }
 }

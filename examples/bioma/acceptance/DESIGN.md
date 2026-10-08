@@ -21,6 +21,9 @@
 | World readiness | UAV-owned simulation, tile and camera state types; the scenario timeout includes reads and warmup waits; invalid bindings, failed resources and unsupported encoders fail immediately |
 | Browser automation | Headed Chrome DevTools Protocol, hardware-backed WebGPU or WebGL, shared browser assertions owned by `testing/browser-smoke` |
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
+| Installed View fixture | `veoveo.ai/view-installed-fixture/v1` closed JSON; nonzero Kubernetes UIDs, opaque resourceVersions, immutable ConfigMap bytes and qualified image release; relative release paths resolve beside the declaration |
+| View fixture preparation | `veoveo.ai/view-fixture-preparation/v1` JSON utility receipt; preparation produces no smoke acceptance outcome |
+| Installed View evidence | `veoveo.ai/view-installed-evidence/v1` private JSON; official OAuth/MCP Tasks and the shared selected-container Kubernetes drain profile |
 | View process interruption | Docker Engine HTTP API 1.44 subset over the fixture's active local Unix socket; version and owned-container inspection precede one STOP signal, followed by durable claim admission and the existing restart checks |
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v2` JSON receipt with the output file SHA-256 |
 | Evidence | `veoveo.ai/uav-showcase-acceptance-evidence/v6` JSON and revision-qualified captures; `veoveo.ai/uav-showcase-phase-outcomes/v3` records domain and visual outcomes and preserves successful visual measurements even when the domain phase fails; both mark Reason `not_run` because its acceptance runs separately |
@@ -150,3 +153,49 @@ Map source-query digests come from the Map contract's cursor-independent produce
 The hosted App requires network access to the credential-free OpenFreeMap Positron
 and Dark HTTPS styles at `tiles.openfreemap.org`. Its CSP admits that declared
 origin. Pure request controls do not qualify headed rendering or hardware graphics.
+
+## Installed View Lifecycle
+
+The existing `view-mcp` scenario retains its local default. Installed mode uses
+`--installation`, `--installed-fixture` and `--evidence-output`. Ops stages one
+immutable ConfigMap from the maintained local triangle, tileset and catalog, mounts
+it read-only at `/fixtures` and `/etc/veoveo/view`, and supplies the selected
+namespace, Deployment and Pod UIDs/resourceVersions and qualified image release.
+The declaration uses `veoveo.ai/view-installed-fixture/v1`. A Google-only catalog
+fails private admission before public calls. The scenario never replaces a catalog.
+Fixture names use lowercase DNS labels and resourceVersions have no ordering. The
+selected caller WorkContext must contain no existing Views before fixture creation.
+Admission inspects both Pod command and arguments. It accepts the qualified image
+entrypoint or its explicit `/usr/local/bin/view-mcp` executable and rejects catalog
+overrides and wrapper commands.
+
+`installation-smoke view-fixture-export --output <directory>` writes the same fixture
+files and a `veoveo.ai/view-fixture-preparation/v1` receipt. It performs preparation
+only and has no registered smoke scenario or acceptance outcome.
+
+Normal Gateway OAuth creates independent official MCP clients for the same caller,
+profile, tenant and WorkContext. A completed GPU capture must deliver a Task baseline
+and unchanged JPEG bytes to that independent context and to a fresh context after
+Pod replacement. The declared comparison WorkContext and distinct administrator
+principal must receive the exact unknown-Task response for get/cancel. Their Task
+listeners may acknowledge requested handles; a permitted Views collection baseline
+anchors processing before a one-second interval excludes owner Task notifications.
+
+The selected server uses the shared
+[process-drain profile](../../../testing/support/DESIGN.md#installed-process-drain).
+Its receipt records the actual old-container exit within declared grace and checks
+replacement readiness independently. Evidence uses
+`veoveo.ai/view-installed-evidence/v1`, preserves dispatch intent before restart,
+and reports cleanup separately. Each client admission permits 15 seconds; lifecycle
+assertions permit 240 seconds, followed by 30 seconds for owned View closure and
+10 seconds for client shutdown. The first failure is redacted before receipt and
+CLI output. Ops owns removal of its installed catalog and fixture WorkContext;
+completed Task/frame products stay available for the declared recovery assertions.
+View creation records dispatch intent before sending its request. A lost or invalid
+reply does not permit another Create. Cleanup reads the same caller collection and
+closes at most one View bound to the admitted composition, digest and local layer.
+An empty collection before admitted replacement leaves cleanup unqualified. After
+successful old-process drain and replacement, that collection must instead prove
+the old in-process View absent; completed Tasks and frame products remain readable.
+These owner cases require installed NVIDIA hardware;
+CPU fixture and observer controls establish admission and lifecycle mechanics only.

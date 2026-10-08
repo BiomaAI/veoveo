@@ -16,6 +16,8 @@ use veoveo_types::{
     WorkContextId,
 };
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
+#[path = "view/installed.rs"]
+mod installed;
 #[path = "view/lifecycle.rs"]
 mod lifecycle;
 #[path = "view/readiness.rs"]
@@ -42,6 +44,18 @@ const STATUE_LATITUDE: f64 = 40.689_249_4;
 const STATUE_LONGITUDE: f64 = -74.044_500_4;
 
 const STATUE_HEIGHT_METERS: f64 = 20.0;
+
+pub(crate) async fn view_installed(
+    installation: &Path,
+    fixture: &Path,
+    evidence: &Path,
+) -> Result<()> {
+    installed::run(installation, fixture, evidence).await
+}
+pub(crate) fn export_view_fixture(directory: &Path) -> Result<()> {
+    write_local_fixture(directory)?;
+    Ok(())
+}
 
 pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) -> Result<()> {
     inspect_view_image(view_image)?;

@@ -811,3 +811,26 @@ Any use of the Licensed Deliverables in individual and commercial
 software must include, in the user documentation and internal
 comments to the code, the above Disclaimer and U.S. Government End
 Users Notice.
+
+## Installed Lifecycle Qualification
+
+The existing [View acceptance owner](../../examples/bioma/acceptance/DESIGN.md#installed-view-lifecycle)
+selects an Ops-staged immutable local triangle/catalog and qualified image before
+public calls. Independent MCP clients sharing principal, profile, tenant and
+WorkContext receive the same completed Task. A comparison WorkContext and different
+principal cannot get, cancel or receive notifications for that owner Task. Listen
+acknowledgement accepts requested handles; authorized SQL selects the baseline.
+The negative listener observes a permitted collection baseline before its declared
+one-second exclusion interval.
+
+The installed mode binds the selected Pod through its ReplicaSet to the declared
+Deployment, observes successful old-container termination inside configured grace,
+and checks replacement readiness separately. It recovers unchanged completed JPEG
+bytes through a fresh public client. Its caller collection proves the old
+in-process View absent after admitted replacement; failures before replacement
+require explicit closure of the admitted or reconciled owned View. A lost Create
+reply cannot authorize another Create or make missing cleanup qualified.
+This qualifies completed result retention;
+interruption of an actively claimed capture and hardware visual acceptance retain
+their own qualification requirements. Fixture export and CPU observer tests do not
+establish an installed or hardware pass.
