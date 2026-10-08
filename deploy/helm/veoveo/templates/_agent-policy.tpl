@@ -1,5 +1,6 @@
 {{/* Shared Pod-spec admission; installation-owned CEL, never author input. */}}
 {{- define "veoveo.agentPodValidations" -}}
+{{- $literalEnvironmentNames := concat (list "VEOVEO_AGENT_TENANT" "VEOVEO_AGENT_ID" "VEOVEO_AGENT_NAME" "VEOVEO_AGENT_PROFILE" "VEOVEO_AGENT_WORK_CONTEXT" "VEOVEO_AGENT_CLIENT_ID" "VEOVEO_AGENT_KEY_ID" "VEOVEO_GATEWAY_URL" "VEOVEO_GATEWAY_TRANSPORT_URL" "VEOVEO_GATEWAY_AUDIENCE" "VEOVEO_GATEWAY_RESOURCE" "VEOVEO_AGENT_MODEL_URL" "VEOVEO_AGENT_MODEL_ID" "VEOVEO_MANAGED_GENERATION" "VEOVEO_MANAGED_MODEL" "VEOVEO_SURREAL_ENDPOINT" "VEOVEO_SURREAL_NAMESPACE" "VEOVEO_SURREAL_DATABASE" "VEOVEO_SURREAL_AUTH_LEVEL" "RUST_LOG") .parameterNames | uniq -}}
 - expression: >-
     variables.owner.matches('^agent-[a-f0-9]{32}$') &&
     variables.meta.annotations['veoveo.ai/managed-generation'].matches('^[1-9][0-9]*$') &&
@@ -48,11 +49,13 @@
     variables.kernel.volumeMounts.exists(v, v.name == 'config' && v.mountPath == '/etc/veoveo/agent' && has(v.readOnly) && v.readOnly)
   message: Kernels may mount only their retained memory, approved configuration and bounded temporary storage.
 - expression: >-
+    size(variables.kernel.env) <= {{ len (concat $literalEnvironmentNames (list "VEOVEO_AGENT_POD_UID" "VEOVEO_MANAGED_PRIVATE_KEY" "VEOVEO_MANAGED_MODEL_KEY" "VEOVEO_SURREAL_USERNAME" "VEOVEO_SURREAL_PASSWORD") | uniq) }} &&
+    variables.kernel.env.all(e, variables.kernel.env.filter(other, other.name == e.name).size() == 1) &&
     variables.kernel.env.all(e,
       has(e.valueFrom) ?
         (has(e.valueFrom.fieldRef) ? e.name == 'VEOVEO_AGENT_POD_UID' && e.valueFrom.fieldRef.fieldPath == 'metadata.uid' :
           has(e.valueFrom.secretKeyRef) && e.name in ['VEOVEO_MANAGED_PRIVATE_KEY', 'VEOVEO_MANAGED_MODEL_KEY', 'VEOVEO_SURREAL_USERNAME', 'VEOVEO_SURREAL_PASSWORD']) :
-        e.name in {{ concat (list "VEOVEO_AGENT_TENANT" "VEOVEO_AGENT_ID" "VEOVEO_AGENT_NAME" "VEOVEO_AGENT_PROFILE" "VEOVEO_AGENT_WORK_CONTEXT" "VEOVEO_AGENT_CLIENT_ID" "VEOVEO_AGENT_KEY_ID" "VEOVEO_GATEWAY_URL" "VEOVEO_GATEWAY_TRANSPORT_URL" "VEOVEO_GATEWAY_AUDIENCE" "VEOVEO_GATEWAY_RESOURCE" "VEOVEO_AGENT_MODEL_URL" "VEOVEO_AGENT_MODEL_ID" "VEOVEO_MANAGED_GENERATION" "VEOVEO_MANAGED_MODEL" "VEOVEO_SURREAL_ENDPOINT" "VEOVEO_SURREAL_NAMESPACE" "VEOVEO_SURREAL_DATABASE" "VEOVEO_SURREAL_AUTH_LEVEL" "RUST_LOG") .parameterNames | uniq | toJson }}
+        e.name in {{ $literalEnvironmentNames | toJson }}
     ) &&
     variables.kernel.env.exists(e, e.name == 'VEOVEO_MANAGED_PRIVATE_KEY' && e.valueFrom.secretKeyRef.name == variables.owner + '-key' && e.valueFrom.secretKeyRef.key == 'private-key-der-b64') &&
     variables.kernel.env.exists(e, e.name == 'VEOVEO_GATEWAY_URL' && e.value == {{ printf "%s/" (trimSuffix "/" .root.Values.global.publicBaseUrl) | toJson }}) &&
@@ -65,20 +68,19 @@
       variables.kernel.image == {{ $template.workload.image | toJson }} &&
       variables.kernel.resources.requests == variables.kernel.resources.limits &&
       size(variables.kernel.resources.limits) == 2 &&
-      quantity(variables.kernel.resources.limits['cpu']) == quantity({{ printf "%vm" $template.workload.cpu_millis | toJson }}) &&
-      quantity(variables.kernel.resources.limits['memory']) == quantity({{ printf "%vMi" $template.workload.memory_mib | toJson }}) &&
-      variables.pod.volumes.exists(v, v.name == 'config' && has(v.configMap) && v.configMap.name == {{ $template.workload.config_map | toJson }}) &&
-      variables.kernel.env.exists(e, e.name == 'VEOVEO_SURREAL_USERNAME' && e.valueFrom.secretKeyRef.name == {{ $template.workload.database_secret | toJson }} && e.valueFrom.secretKeyRef.key == 'username') &&
-      variables.kernel.env.exists(e, e.name == 'VEOVEO_SURREAL_PASSWORD' && e.valueFrom.secretKeyRef.name == {{ $template.workload.database_secret | toJson }} && e.valueFrom.secretKeyRef.key == 'password') &&
-      ({{- $firstModel := true }}{{ range $model := $.root.Values.gateway.agents.models }}{{ if has $model.id $template.models }}
-      {{ if not $firstModel }} || {{ end }}{{ $firstModel = false }}(
-        variables.kernel.env.exists(e, e.name == 'VEOVEO_AGENT_MODEL_URL' && e.value == {{ $model.base_url | toJson }}) &&
-        variables.kernel.env.exists(e, e.name == 'VEOVEO_AGENT_MODEL_ID' && e.value == {{ $model.model | toJson }})
-      ){{ end }}{{ end }}{{ if $firstModel }}false{{ end }}) &&
-      variables.kernel.env.exists(e, e.name == 'VEOVEO_MANAGED_MODEL_KEY' && (
-      {{- range $i, $secret := $template.workload.model_secrets }}
-      {{ if $i }} || {{ end }}(e.valueFrom.secretKeyRef.name == {{ $secret.secret | toJson }} && e.valueFrom.secretKeyRef.key == {{ $secret.key | toJson }})
-      {{- end }}))
+      quantity(variables.kernel.resources.limits['cpu']) == quantity({{ printf "%vm" $template.workload.cpuMillis | toJson }}) &&
+      quantity(variables.kernel.resources.limits['memory']) == quantity({{ printf "%vMi" $template.workload.memoryMib | toJson }}) &&
+      variables.pod.volumes.exists(v, v.name == 'config' && has(v.configMap) && v.configMap.name == {{ $template.workload.configMap | toJson }}) &&
+      variables.kernel.env.exists(e, e.name == 'VEOVEO_SURREAL_USERNAME' && e.valueFrom.secretKeyRef.name == {{ $template.workload.databaseSecret | toJson }} && e.valueFrom.secretKeyRef.key == 'username') &&
+      variables.kernel.env.exists(e, e.name == 'VEOVEO_SURREAL_PASSWORD' && e.valueFrom.secretKeyRef.name == {{ $template.workload.databaseSecret | toJson }} && e.valueFrom.secretKeyRef.key == 'password') &&
+      ({{- $firstBinding := true }}
+      {{- range $model := $.root.Values.gateway.agents.models }}{{ if has $model.id $template.models }}
+      {{- range $secret := $template.workload.modelSecrets }}{{ if eq $secret.reference $model.apiKey }}
+      {{ if not $firstBinding }} || {{ end }}{{ $firstBinding = false }}(
+        variables.kernel.env.exists(e, e.name == 'VEOVEO_AGENT_MODEL_URL' && e.value == {{ $model.baseUrl | toJson }}) &&
+        variables.kernel.env.exists(e, e.name == 'VEOVEO_AGENT_MODEL_ID' && e.value == {{ $model.model | toJson }}) &&
+        variables.kernel.env.exists(e, e.name == 'VEOVEO_MANAGED_MODEL_KEY' && has(e.valueFrom) && has(e.valueFrom.secretKeyRef) && e.valueFrom.secretKeyRef.name == {{ $secret.secret | toJson }} && e.valueFrom.secretKeyRef.key == {{ $secret.key | toJson }})
+      ){{ end }}{{ end }}{{ end }}{{ end }}{{ if $firstBinding }}false{{ end }})
     )
     {{- end }}
   message: Image, resources, template and Secret references must match one approved runtime template.

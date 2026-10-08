@@ -176,3 +176,152 @@ fn workspace_chart_rejects_ambient_credentials_and_unbounded_model_settings() ->
     }
     Ok(())
 }
+
+/// The chart consumes the same camelCase owner DTOs as the gateway and manager.
+#[test]
+fn managed_policy_binds_each_current_model_to_its_template_secret() -> Result<()> {
+    use veoveo_agent_runtime::contract::authoring::{ModelConnection, RuntimeTemplate};
+    let source: Value =
+        serde_yaml_ng::from_str(include_str!("../../../examples/bioma/values.yaml"))?;
+    let mut template: RuntimeTemplate =
+        serde_json::from_value(source["gateway"]["agents"]["templates"][0].clone())?;
+    let mut model: ModelConnection = serde_json::from_value(
+        source["gateway"]["agents"]["models"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["id"] == "pilot-model")
+            .unwrap()
+            .clone(),
+    )?;
+    // Distinct destinations and keys make cross-model mixing observable in the emitted branches.
+    model.base_url = "https://first.invalid/v1".into();
+    model.model = "first-model".into();
+    let mut second = model.clone();
+    second.id = serde_json::from_value(json!("second-approved"))?;
+    second.api_key = serde_json::from_value(json!("second-reference"))?;
+    second.base_url = "https://second.invalid/v1".into();
+    second.model = "second-model".into();
+    let mut second_binding = template.workload.model_secrets[0].clone();
+    second_binding.reference = second.api_key.clone();
+    second_binding.secret = "second-secret".into();
+    second_binding.key = "second-key".into();
+    template.workload.model_secrets[0].secret = "first-secret".into();
+    template.workload.model_secrets[0].key = "first-key".into();
+    let first_binding = template.workload.model_secrets[0].clone();
+    let policy = |template: &RuntimeTemplate,
+                  models: &[ModelConnection]|
+     -> Result<(String, String)> {
+        let values = json!({"gateway":{"agents":{"models":models,"templates":[template],"modelSecrets":source["gateway"]["agents"]["modelSecrets"]}},"agentManager":source["agentManager"]});
+        let rendered = objects(render(&values)?)?;
+        let pod_policy = rendered
+            .iter()
+            .find(|o| {
+                o["kind"] == "ValidatingAdmissionPolicy"
+                    && o["metadata"]["name"]
+                        .as_str()
+                        .is_some_and(|n| n.ends_with("managed-pods"))
+            })
+            .context("Pod admission policy")?;
+        let environment = pod_policy["spec"]["validations"][4]["expression"]
+            .as_str()
+            .context("environment admission")?;
+        assert!(environment.contains("variables.kernel.env.all(e, variables.kernel.env.filter(other, other.name == e.name).size() == 1) &&"), "rendered uniqueness guard must precede all credential matching: {environment}");
+        assert!(
+            environment
+                .trim_start()
+                .starts_with("size(variables.kernel.env) <= "),
+            "environment names bound must precede the quadratic uniqueness guard"
+        );
+        // This is a render-contract assertion; evaluated refusal belongs to the existing native admission test.
+        for parameter in template.parameters.values() {
+            assert!(
+                environment.contains(&json!(parameter.environment_variable).to_string()),
+                "{environment}"
+            );
+        }
+        let expression = |suffix: &str, index: usize| -> Result<String> {
+            let p = rendered
+                .iter()
+                .find(|o| {
+                    o["kind"] == "ValidatingAdmissionPolicy"
+                        && o["metadata"]["name"]
+                            .as_str()
+                            .is_some_and(|n| n.ends_with(suffix))
+                })
+                .context("rendered policy")?;
+            Ok(p["spec"]["validations"][index]["expression"]
+                .as_str()
+                .context("policy expression")?
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" "))
+        };
+        Ok((
+            expression("managed-deployments", 5)?,
+            expression("controller-persistentvolumeclaims", 2)?,
+        ))
+    };
+    let expected_branch =
+        |m: &ModelConnection,
+         b: &veoveo_agent_runtime::contract::authoring::TemplateSecretBinding| {
+            format!(
+                "( variables.kernel.env.exists(e, e.name == 'VEOVEO_AGENT_MODEL_URL' && e.value == {}) && variables.kernel.env.exists(e, e.name == 'VEOVEO_AGENT_MODEL_ID' && e.value == {}) && variables.kernel.env.exists(e, e.name == 'VEOVEO_MANAGED_MODEL_KEY' && has(e.valueFrom) && has(e.valueFrom.secretKeyRef) && e.valueFrom.secretKeyRef.name == {} && e.valueFrom.secretKeyRef.key == {}) )",
+                json!(m.base_url),
+                json!(m.model),
+                json!(b.secret),
+                json!(b.key)
+            )
+        };
+    let (single, storage) = policy(&template, &[model.clone(), second.clone()])?;
+    assert!(
+        single.contains(&expected_branch(&model, &first_binding)),
+        "{single}"
+    );
+    assert!(!single.contains("second.invalid"));
+    assert!(!single.contains("<nil>"));
+    for value in [
+        &template.workload.config_map,
+        &template.workload.database_secret,
+    ] {
+        assert!(single.contains(&json!(value).to_string()));
+    }
+    assert!(single.contains(&format!("quantity(\"{}m\")", template.workload.cpu_millis)));
+    assert!(single.contains(&format!("quantity(\"{}Mi\")", template.workload.memory_mib)));
+    assert!(storage.contains(&json!(template.workload.storage_class).to_string()));
+    assert!(storage.contains(&format!(
+        "quantity(\"{}Gi\")",
+        template.workload.storage_gib
+    )));
+    template.models.insert(second.id.clone());
+    template.workload.model_secrets.push(second_binding.clone());
+    let (multiple, _) = policy(&template, &[model.clone(), second.clone()])?;
+    assert!(
+        multiple.contains(&format!(
+            "{} || {}",
+            expected_branch(&model, &first_binding),
+            expected_branch(&second, &second_binding)
+        )),
+        "{multiple}"
+    );
+    // A foreign API-key reference is never authorized merely because its model is selected.
+    second.api_key = serde_json::from_value(json!("foreign-reference"))?;
+    let (foreign, _) = policy(&template, &[model.clone(), second.clone()])?;
+    assert!(foreign.contains(&expected_branch(&model, &first_binding)));
+    assert!(!foreign.contains("second.invalid"));
+    template.models.remove(&model.id);
+    let (zero, _) = policy(&template, &[model, second])?;
+    assert!(zero.ends_with("&& (false) )"), "{zero}");
+    assert!(
+        !zero.contains("first-secret")
+            && !zero.contains("second-secret")
+            && !zero.contains("&& ()")
+    );
+    template.workload.model_secrets.clear();
+    let values = json!({"gateway":{"agents":{"templates":[template]}},"agentManager":source["agentManager"]});
+    assert!(
+        !render(&values)?.status.success(),
+        "empty bindings must fail chart admission"
+    );
+    Ok(())
+}

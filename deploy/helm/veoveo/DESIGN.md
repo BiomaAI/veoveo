@@ -360,7 +360,21 @@ and native Pod watching. It grants no PVC deletion, Pod creation, exec, Secret l
 RBAC mutation or writes in the main namespace. Admission policies also constrain the
 controller's resource names and immutable credentials, and enforce the actual Pod
 image, entrypoint, service account, security context, resources, storage and Secret
-references. The manager cannot replace its own privileged Deployment. Kernel service
+references. The chart consumes the public model and template DTOs with their camelCase
+field names. Each admitted model branch binds its configured URL and model ID to the
+same template credential reference, Secret name and key. Unselected models and
+foreign credential references produce no branch; a template with no eligible binding
+produces a false predicate. Empty credential bindings fail values-schema admission.
+The Pod policy requires every environment name to occur once before matching
+credential destinations. The environment length cannot exceed the installed list
+of literal, field and Secret variable names, which bounds the pairwise comparison.
+Its CEL `all`, `filter` and `size` guard covers ordinary
+variables and model credentials together; duplicate names cannot supply one value
+for admission and another for the kernel.
+The same workload DTO supplies resource quantities, configuration and database
+references, storage capacity and installation-defined parameter names.
+
+The manager cannot replace its own privileged Deployment. Kernel service
 accounts have no API token or RoleBinding. The namespace enforces Restricted Pod
 Security at the qualified Kubernetes v1.36 profile.
 

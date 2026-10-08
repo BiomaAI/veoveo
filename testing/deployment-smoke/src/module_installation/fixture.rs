@@ -1360,6 +1360,21 @@ mod tests {
             if index == 0 {
                 let policies = super::super::policy::select_policies(&rendered.objects)?;
                 assert!(!policies.is_empty());
+                for policy in &rendered.objects {
+                    if policy["kind"] == "ValidatingAdmissionPolicy" {
+                        for validation in policy["spec"]["validations"].as_array().unwrap() {
+                            let expression = validation["expression"].as_str().unwrap();
+                            assert!(
+                                !expression.contains("&& ()"),
+                                "empty credential predicate: {expression}"
+                            );
+                            assert!(
+                                !expression.contains("<nil>"),
+                                "missing owner field: {expression}"
+                            );
+                        }
+                    }
+                }
             }
             let publication = rendered
                 .objects

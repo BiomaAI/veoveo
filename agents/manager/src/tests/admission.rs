@@ -215,6 +215,18 @@ fn installed_admission_rejects_workload_and_credential_escalation() -> Result<()
             Some(body),
         )
     };
+    let normal_env = deployment["spec"]["template"]["spec"]["containers"][0]["env"]
+        .as_array()
+        .context("owner environment")?;
+    anyhow::ensure!(
+        normal_env
+            .iter()
+            .map(|e| e["name"].as_str().unwrap())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            == normal_env.len(),
+        "owner workload has duplicate environment names"
+    );
     let admitted = request(&deployment, &actor)?;
     let admitted: Deployment = serde_json::from_slice(&success(admitted)?)?;
     anyhow::ensure!(!admitted.spec.template.spec.containers[0].volume_mounts[1].read_only);
@@ -291,6 +303,61 @@ fn installed_admission_rejects_workload_and_credential_escalation() -> Result<()
         !request(&destination, &actor)?.status.success(),
         "unapproved model destination was admitted"
     );
+    // Kubernetes warns about duplicates, while kubelet applies the last value.
+    // Require the selected policy to deny both workload surfaces, rather than accepting a schema error.
+    for (name, replacement) in [
+        (
+            "VEOVEO_MANAGED_MODEL_KEY",
+            json!({"valueFrom":{"secretKeyRef":{"name":"foreign-model","key":"foreign-key"}}}),
+        ),
+        (
+            "VEOVEO_AGENT_MODEL_URL",
+            json!({"value":"https://foreign.invalid/v1"}),
+        ),
+        ("VEOVEO_AGENT_MODEL_ID", json!({"value":"foreign-model"})),
+        ("RUST_LOG", json!({"value":"debug"})),
+    ] {
+        let mut body = deployment.clone();
+        let env = body
+            .pointer_mut("/spec/template/spec/containers/0/env")
+            .unwrap()
+            .as_array_mut()
+            .unwrap();
+        anyhow::ensure!(
+            env.iter().any(|e| e["name"] == name),
+            "duplicate control lacks its original approved entry"
+        );
+        let mut duplicate = replacement;
+        duplicate["name"] = json!(name);
+        env.push(duplicate);
+        for (kind, submitted, submitted_actor) in [
+            ("deployments", body.clone(), Some(actor.as_str())),
+            (
+                "pods",
+                json!({"apiVersion":"v1","kind":"Pod","metadata":{"name":format!("{}-duplicate", snapshot.instance.resources.workload),"namespace":namespace,"labels":body["spec"]["template"]["metadata"]["labels"],"annotations":body["spec"]["template"]["metadata"]["annotations"]},"spec":body["spec"]["template"]["spec"]}),
+                None,
+            ),
+        ] {
+            let output = if let Some(actor) = submitted_actor {
+                request(&submitted, actor)?
+            } else {
+                command(
+                    "kubectl",
+                    &["create", "--dry-run=server", "-f", "-"],
+                    Some(&submitted),
+                )?
+            };
+            let diagnostic = String::from_utf8_lossy(&output.stderr);
+            let policy = format!("{namespace}-managed-{kind}");
+            anyhow::ensure!(
+                !output.status.success()
+                    && diagnostic.contains("ValidatingAdmissionPolicy")
+                    && diagnostic.contains(&policy)
+                    && diagnostic.contains("Kernel environment and credential destinations"),
+                "duplicate {name} must be refused by selected {kind} environment policy"
+            );
+        }
+    }
     let mut foreign_memory = deployment.clone();
     foreign_memory["spec"]["template"]["spec"]["volumes"][1]["persistentVolumeClaim"]["claimName"] =
         json!("another-agent-memory");
@@ -499,7 +566,28 @@ fn installed_admission_rejects_workload_and_credential_escalation() -> Result<()
 fn managed_chart_preserves_watch_permissions_and_installation_ingress() -> Result<()> {
     for enabled in [false, true] {
         let namespace = format!("agent-network-{}", uuid::Uuid::now_v7().simple());
-        let (mut installation, _, _, _) = rendered(&namespace, enabled)?;
+        let (mut installation, config, snapshot, map) = rendered(&namespace, enabled)?;
+        let template = &config.templates[0];
+        let workload = resources::deployment(
+            &config,
+            &snapshot,
+            template,
+            &config.models[0],
+            resources::configuration_items(&map, template)?,
+        )?;
+        let body = serde_json::to_value(workload)?;
+        let environment = body["spec"]["template"]["spec"]["containers"][0]["env"]
+            .as_array()
+            .context("owner environment")?;
+        anyhow::ensure!(
+            environment
+                .iter()
+                .map(|e| e["name"].as_str().unwrap())
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                == environment.len(),
+            "normal owner workload has unique environment names"
+        );
         let objects: Vec<Value> =
             serde_json::from_slice(&std::fs::read(installation.directory.join("objects.json"))?)?;
         let role = objects

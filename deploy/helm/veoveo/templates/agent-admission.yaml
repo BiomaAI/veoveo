@@ -2,7 +2,7 @@
 {{- $namespace := .Values.agentManager.namespace }}
 {{- $prefix := printf "%s-managed" $namespace }}
 {{- $parameters := list }}
-{{- range .Values.gateway.agents.templates }}{{ range .parameters }}{{ $parameters = append $parameters .environment_variable }}{{ end }}{{ end }}
+{{- range .Values.gateway.agents.templates }}{{ range .parameters }}{{ $parameters = append $parameters .environmentVariable }}{{ end }}{{ end }}
 {{- range $kind := list "deployments" "pods" }}
 ---
 apiVersion: admissionregistration.k8s.io/v1
@@ -108,7 +108,7 @@ spec:
         !has(variables.resource.spec.volumeName) &&
         !has(variables.resource.spec.dataSource) && !has(variables.resource.spec.dataSourceRef) &&
         ({{- range $i, $template := $.Values.gateway.agents.templates }}
-        {{ if $i }} || {{ end }}(variables.resource.spec.storageClassName == {{ $template.workload.storage_class | toJson }} && quantity(variables.resource.spec.resources.requests['storage']) == quantity({{ printf "%vGi" $template.workload.storage_gib | toJson }}))
+        {{ if $i }} || {{ end }}(variables.resource.spec.storageClassName == {{ $template.workload.storageClass | toJson }} && quantity(variables.resource.spec.resources.requests['storage']) == quantity({{ printf "%vGi" $template.workload.storageGib | toJson }}))
         {{- end }})
       message: Retained memory may only be created at an approved capacity; deletion and rebinding require the storage operator.
     {{- end }}
