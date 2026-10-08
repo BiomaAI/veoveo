@@ -743,8 +743,10 @@ fixtures; they establish neither provider execution nor installed acceptance.
 Its native fixture uses the actual current-policy reader, isolated installation
 revision, production retained allocator and native OpenShell provider. Two worker
 replicas compete for Create. With the allocator offline, the fixture dispatches one
-Stop and uses the production lifecycle scheduler and current-owner Task listener to
-require successful settlement of that original operation. A step is bounded by current
+Stop. Before dispatch, it idempotently materializes that operation's persisted Task
+and anchors the current-owner listener on the same Task identity. It then uses the
+production lifecycle scheduler and listener to require successful settlement of
+that original operation. A step is bounded by current
 30-second dispatch authority; returning Waiting does not settle the provider mutation. The
 scheduler observes the persisted operation within its original 180-second deadline
 and eight-read budget. The allocator stays offline through Task success and the

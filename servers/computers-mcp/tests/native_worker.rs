@@ -76,6 +76,25 @@ fn provider_snapshot(
         observed.phase.as_str_name()
     )
 }
+async fn listen_operation(
+    store: &ComputersStore,
+    tasks: &TaskRuntime,
+    operation: &Operation,
+) -> veoveo_task_runtime::OwnerTaskSubscription {
+    // The operation is persisted before its repairable Task. Materialize the
+    // same Task before subscribe() admits its current-owner baseline.
+    let linked = store
+        .ensure_operation_task(&operation.owner, operation.operation_id)
+        .await
+        .unwrap();
+    assert_eq!(linked.operation_id, operation.operation_id);
+    tasks
+        .for_owner(&operation.owner)
+        .subscribe(&[operation.task_id()])
+        .await
+        .unwrap()
+}
+
 async fn diagnose_step(
     store: &ComputersStore,
     tasks: &TaskRuntime,
@@ -343,8 +362,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
                 .await
                 .unwrap();
             // Anchor the maintained current-owner listener before any dispatch.
-            let mut listener = tasks_a.for_owner(&stop.owner)
-                .subscribe(&[stop.task_id()]).await.unwrap();
+            let mut listener = listen_operation(&a, &tasks_a, &stop).await;
             assert_eq!(listener.accepted_task_ids, vec![stop.task_id()]);
             home.stop_service().await;
             worker_b.step(stop.clone()).boxed().await.unwrap();
@@ -655,5 +673,91 @@ mod step_diagnostic_tests {
             waiting_classification(Some("Observing the original operation; files are retained")),
             WaitingClassification::ObservingOriginal
         );
+    }
+}
+
+#[cfg(test)]
+mod lifecycle_listener_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn queued_operation_task_is_linked_before_listener_admission_without_dispatch() {
+        tokio::time::timeout(Duration::from_secs(45), async {
+            let db = support::database().await;
+            support::policy::install_default(&db.a).await;
+            let store = ComputersStore::new(
+                db.a.clone(),
+                "00000000-0000-7000-8000-000000000064".parse().unwrap(),
+                veoveo_gateway_catalog::registry().unwrap(),
+            )
+            .unwrap();
+            store
+                .install_capacity(
+                    None,
+                    CapacityPolicy {
+                        per_owner: 2,
+                        per_tenant: 4,
+                        provider: 4,
+                    },
+                )
+                .await
+                .unwrap();
+            let actor = support::owner("alice");
+            let computer = store
+                .reserve(
+                    &support::authenticated(&actor),
+                    &Reservation {
+                        request_id: veoveo_computers::api::RequestId::new(),
+                        template_id: "development".parse().unwrap(),
+                        template_fingerprint: support::FINGERPRINT.into(),
+                    },
+                )
+                .await
+                .unwrap();
+            // Queueing commits the domain operation, not its separately repairable Task.
+            let operation = store
+                .queue_operation(
+                    support::authenticated(&actor),
+                    computer.computer_id,
+                    veoveo_computers::api::RequestId::new(),
+                    Action::Create,
+                )
+                .await
+                .unwrap();
+            let tasks = TaskRuntime::new(db.b.clone(), "computers", "listener-fixture");
+            assert!(tasks.get(operation.task_id()).await.unwrap().is_none());
+            let absent = tasks
+                .for_owner(&operation.owner)
+                .subscribe(&[operation.task_id()])
+                .await
+                .unwrap();
+            assert!(absent.accepted_task_ids.is_empty());
+            drop(absent);
+            let mut listener = listen_operation(&store, &tasks, &operation).await;
+            assert_eq!(listener.accepted_task_ids, vec![operation.task_id()]);
+            let baseline = tokio::time::timeout(Duration::from_secs(5), listener.updates.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap()
+                .snapshot;
+            assert_eq!(baseline.task_id, operation.task_id());
+            assert_eq!(baseline.status, TaskStatus::Queued);
+            drop(listener);
+            // Repair remains idempotent and never crosses the provider dispatch seam.
+            let second = listen_operation(&store, &tasks, &operation).await;
+            assert_eq!(second.accepted_task_ids, vec![operation.task_id()]);
+            let current = store
+                .operation(&operation.owner, operation.operation_id)
+                .await
+                .unwrap();
+            assert_eq!(current.operation_id, operation.operation_id);
+            assert_eq!(current.stage, OperationStage::Queued);
+            assert!(current.dispatch_id.is_none());
+            assert!(current.observation_deadline.is_none());
+            assert_eq!(current.observation_reads, 0);
+        })
+        .await
+        .unwrap();
     }
 }
