@@ -86,7 +86,7 @@ use axum::{
 };
 use rmcp::transport::streamable_http_server::StreamableHttpService;
 use tokio_util::sync::CancellationToken;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use tower_http::trace::TraceLayer;
 
 use crate::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
@@ -515,8 +515,14 @@ where
                 host::validate_host,
             ))
             .layer(
-                TraceLayer::new_for_http()
-                    .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
+                TraceLayer::new_for_http().make_span_with(|request: &Request| {
+                    tracing::info_span!(
+                        "request",
+                        method = %request.method(),
+                        path = request.uri().path(),
+                        version = ?request.version(),
+                    )
+                }),
             );
         HostedServer {
             router,
