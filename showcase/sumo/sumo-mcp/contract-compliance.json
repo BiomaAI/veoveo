@@ -160,7 +160,7 @@
     {
       "id": "C33",
       "status": "pending",
-      "note": "Owner naming producers, consumers and installed qualification are pending."
+      "note": "Source producers, typed paired consumers and local naming controls are qualified; installed naming, simulation and hardware qualification remain pending."
     }
   ],
   "contractRevision": 4,

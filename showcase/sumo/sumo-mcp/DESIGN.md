@@ -12,9 +12,19 @@ Recording, Rerun and asynchronous runtime implementations. `runtime` selects the
 driver and recording adapter. The default `mcp` profile adds the hosted server
 and preserves its operational dependencies; the binary requires that feature.
 
-The current traffic DTOs and Task operation wire names use snake_case. C33 naming
-qualification is pending; this library profile preserves those forms and does not
-establish the canonical naming cut.
+Public traffic DTO fields use camelCase and refuse retired snake_case, mixed and
+unknown fields. The generated input/output schemas, resource JSON and Task results
+use these same owner types. Task names and the private durable operation envelope
+keep their declared snake_case forms; TraCI, SUMO XML and Rerun formats belong to
+the external adapters.
+
+The producer and Bioma receiver require a coordinated installation drain. Stop
+new SUMO mutations, settle outstanding Tasks and consume their terminal results
+with the matching receiver before replacing the server and receiver together.
+A rolling overlap of old and current DTO writers is unsupported. Missing or retired
+fields fail admission without aliases or inferred conversion. Retained old Task
+results require their original receiver before the coordinated replacement; this
+cut does not rewrite durable histories.
 
 ## Runtime And Ownership
 
@@ -35,3 +45,10 @@ Discover configuration used by the MCP handler before simulator connection,
 Recording publication, Task connection or recovery. Rejection never enters the
 owner startup continuation. The owning regression qualifies that ordering with
 synthetic effects; it does not execute simulation or GPU work.
+
+The owning naming controls qualify all nine changed DTO families, required fields,
+retired/mixed refusal and the complete generated tool catalog. Safe local resources
+and Task products pass the maintained C33 inspector through their production
+serialization helpers. The Bioma receiver admits those owner DTOs and constructs
+current control requests. These are source and local behavioral checks; installed
+naming, simulation and hardware qualification remain pending.

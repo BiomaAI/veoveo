@@ -18038,6 +18038,7 @@ dependencies = [
  "veoveo-artifact-client",
  "veoveo-artifact-contract",
  "veoveo-gateway-catalog",
+ "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-task-runtime",
  "veoveo-types",

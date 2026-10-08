@@ -652,6 +652,30 @@ mod tests {
             },
         )
         .unwrap();
+        let admitted: RunBatchResult =
+            serde_json::from_value(inline.structured_content.clone().unwrap()).unwrap();
+        assert_eq!(admitted.steps_advanced, 1);
+        let label = veoveo_types::NamingLabel::new("batchTaskResult").unwrap();
+        let bodies = [
+            veoveo_mcp_conformance::OwnerSchemaEvidence::generated::<RunBatchResult>(label.clone())
+                .observe(
+                    veoveo_mcp_conformance::SchemaObservation::from_serializable(&admitted)
+                        .unwrap(),
+                ),
+        ];
+        veoveo_mcp_conformance::naming::inspect_discovery(
+            &[],
+            &[],
+            &[],
+            &[],
+            None,
+            &veoveo_mcp_conformance::NamingEvidence {
+                required_observations: vec![label],
+                bodies: &bodies,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let TaskTransition::Succeeded { result_uri, .. } =
             veoveo_task_runtime::mcp_task_completion("completed", inline).unwrap()
         else {

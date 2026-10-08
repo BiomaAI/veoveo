@@ -5,7 +5,7 @@ pub use task_kind::SumoTaskKind;
 use veoveo_types::TaskTypeDefinition;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Vehicle {
     pub id: String,
     pub latitude: f64,
@@ -29,7 +29,7 @@ pub struct Signal {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TrafficState {
     pub simulation_time_s: f64,
     pub vehicle_count: usize,
@@ -39,7 +39,7 @@ pub struct TrafficState {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Scenario {
     pub name: String,
     pub edge_count: usize,
@@ -58,7 +58,7 @@ pub struct Acknowledgement {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SetSignalPhaseRequest {
     /// Traffic-light ID from the `signals` list returned by `describe_scenario`.
     pub signal_id: String,
@@ -68,7 +68,7 @@ pub struct SetSignalPhaseRequest {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RerouteVehicleRequest {
     /// Vehicle ID from the `vehicles` list returned by `query_state`.
     pub vehicle_id: String,
@@ -77,7 +77,7 @@ pub struct RerouteVehicleRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SetEdgeSpeedRequest {
     /// Edge ID from the `edges` list returned by `describe_scenario`.
     pub edge_id: String,
@@ -87,7 +87,7 @@ pub struct SetEdgeSpeedRequest {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LaneRequest {
     /// SUMO lane ID in `{edge_id}_{index}` form, where the edge ID comes from
     /// `describe_scenario` and the index counts lanes from 0.
@@ -103,7 +103,7 @@ pub struct RunBatchRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RunBatchResult {
     pub steps_advanced: u32,
     pub final_simulation_time_s: f64,
@@ -210,7 +210,7 @@ pub struct DurableTaskRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CongestionState {
     pub congested: bool,
     pub mean_speed_mps: f64,

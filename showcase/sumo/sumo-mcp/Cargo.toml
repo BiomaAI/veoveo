@@ -41,6 +41,7 @@ veoveo-task-runtime = { path = "../../../platform/task-runtime", optional = true
 
 
 [dev-dependencies]
+veoveo-mcp-conformance = { path = "../../../mcp/conformance" }
 veoveo-mcp-contract = { workspace = true, features = ["runtime", "testing"] }
 veoveo-gateway-catalog.workspace = true
 tempfile = "3"

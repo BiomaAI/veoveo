@@ -14,7 +14,12 @@ Use `cargo check --locked -p veoveo-sumo-mcp --all-targets` for the full profile
 `cargo check --locked -p veoveo-sumo-mcp --no-default-features --features contract --lib`
 for the public library. `cargo xtask enforce rust --boundaries-only` inspects its
 independent contract normal/build graph. The owning deployment-contract tests verify
-the preserved DTO schema and Task names; canonical naming qualification is pending. Simulation and GPU acceptance run separately with their explicit prerequisites.
+all nine current camelCase DTO families and refusal cases. Existing service/Task
+controls inspect the full tool catalog and safely observed products with the
+maintained naming inspector. Public DTO changes require the coordinated server
+and receiver drain described in DESIGN.md. Task names and external simulator
+formats keep their declared wire profiles. Installed naming, simulation and GPU
+acceptance run separately with their explicit prerequisites.
 
 ## Contract Compliance
 
@@ -54,5 +59,5 @@ Catalog revision: 2
 - C30: pending — SUMO has not completed hosted contract qualification for this requirement; simulation/GPU execution is separately qualified.
 - C31: pending — SUMO has not completed hosted contract qualification for this requirement; simulation/GPU execution is separately qualified.
 - C32: pending — SUMO has not completed hosted contract qualification for this requirement; simulation/GPU execution is separately qualified.
-- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+- C33: pending — Source producers, typed paired consumers and local naming controls are qualified; installed naming, simulation and hardware qualification remain pending.
 <!-- veoveo:contract-compliance:end -->

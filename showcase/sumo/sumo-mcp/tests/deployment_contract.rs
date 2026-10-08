@@ -30,8 +30,16 @@ fn sumo_control_plane_satisfies_the_gateway_contract() {
         let capabilities = server["capabilities"]
             .as_object()
             .expect("capability object");
+        assert!(
+            capabilities
+                .get("resourcesListChanged")
+                .and_then(Value::as_bool)
+                .is_some(),
+            "current capability field must be advertised"
+        );
+        assert!(!capabilities.contains_key("resources_list_changed"));
         if capabilities
-            .get("resources_list_changed")
+            .get("resourcesListChanged")
             .and_then(Value::as_bool)
             == Some(true)
         {
@@ -45,46 +53,113 @@ fn sumo_control_plane_satisfies_the_gateway_contract() {
     }
 }
 
-#[test]
-fn sumo_public_contract_preserves_schema_and_task_wire_profile() {
-    use veoveo_sumo_mcp::contract::{SumoTaskKind, Vehicle};
-    use veoveo_types::TaskTypeDefinition;
-    let schema = serde_json::to_value(schemars::schema_for!(Vehicle)).unwrap();
+fn qualify_wire<T>(wire: Value, retired: &[(&str, &str)])
+where
+    T: serde::de::DeserializeOwned + serde::Serialize + schemars::JsonSchema,
+{
+    let schema = serde_json::to_value(schemars::schema_for!(T)).unwrap();
     let properties = schema["properties"].as_object().unwrap();
-    for field in ["speed_mps", "edge_id", "heading_degrees", "vehicle_class"] {
-        assert!(
-            properties.contains_key(field),
-            "current SUMO wire field missing: {field}"
-        );
-    }
     assert_eq!(schema["additionalProperties"], false);
-    let wire = serde_json::json!({"id":"vehicle","latitude":1.0,"longitude":2.0,"speed_mps":3.0,"edge_id":"edge","heading_degrees":4.0,"x_m":5.0,"y_m":6.0,"length_m":7.0,"width_m":8.0,"height_m":9.0,"vehicle_class":"passenger"});
-    let names: std::collections::BTreeSet<_> = wire
-        .as_object()
-        .unwrap()
-        .keys()
-        .map(String::as_str)
-        .collect();
+    let names: std::collections::BTreeSet<_> = wire.as_object().unwrap().keys().collect();
     assert_eq!(
-        properties
-            .keys()
-            .map(String::as_str)
-            .collect::<std::collections::BTreeSet<_>>(),
+        properties.keys().collect::<std::collections::BTreeSet<_>>(),
         names
     );
-    assert_eq!(
-        schema["required"]
-            .as_array()
+    let admitted: T = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(admitted).unwrap(), wire);
+    for required in schema["required"].as_array().unwrap() {
+        let mut missing = wire.clone();
+        missing
+            .as_object_mut()
             .unwrap()
-            .iter()
-            .map(|v| v.as_str().unwrap())
-            .collect::<std::collections::BTreeSet<_>>(),
-        names
-    );
-    let vehicle: Vehicle = serde_json::from_value(wire.clone()).unwrap();
-    assert_eq!(serde_json::to_value(vehicle).unwrap(), wire);
+            .remove(required.as_str().unwrap());
+        assert!(serde_json::from_value::<T>(missing).is_err());
+    }
+    for (current, old) in retired {
+        assert!(properties.contains_key(*current));
+        assert!(!properties.contains_key(*old));
+        let mut mixed = wire.clone();
+        mixed[*old] = mixed[*current].clone();
+        assert!(serde_json::from_value::<T>(mixed.clone()).is_err());
+        mixed.as_object_mut().unwrap().remove(*current);
+        assert!(serde_json::from_value::<T>(mixed).is_err());
+    }
     let mut unknown = wire;
-    unknown["speedMps"] = serde_json::json!(3.0);
-    assert!(serde_json::from_value::<Vehicle>(unknown).is_err());
+    unknown["unrecognized"] = serde_json::json!(true);
+    assert!(serde_json::from_value::<T>(unknown).is_err());
+}
+
+#[test]
+fn sumo_public_contract_admits_current_wire_and_refuses_retired_mixed_and_missing_fields() {
+    use veoveo_sumo_mcp::contract::*;
+    use veoveo_types::TaskTypeDefinition;
+    let vehicle = serde_json::json!({"id":"vehicle","latitude":1.0,"longitude":2.0,"speedMps":3.0,"edgeId":"edge","headingDegrees":4.0,"xM":5.0,"yM":6.0,"lengthM":7.0,"widthM":8.0,"heightM":9.0,"vehicleClass":"passenger"});
+    qualify_wire::<Vehicle>(
+        vehicle.clone(),
+        &[
+            ("speedMps", "speed_mps"),
+            ("edgeId", "edge_id"),
+            ("headingDegrees", "heading_degrees"),
+            ("xM", "x_m"),
+            ("yM", "y_m"),
+            ("lengthM", "length_m"),
+            ("widthM", "width_m"),
+            ("heightM", "height_m"),
+            ("vehicleClass", "vehicle_class"),
+        ],
+    );
+    qualify_wire::<TrafficState>(
+        serde_json::json!({"simulationTimeS":1.0,"vehicleCount":1,"meanSpeedMps":3.0,"vehicles":[vehicle],"signals":[{"id":"signal","phase":1}]}),
+        &[
+            ("simulationTimeS", "simulation_time_s"),
+            ("vehicleCount", "vehicle_count"),
+            ("meanSpeedMps", "mean_speed_mps"),
+        ],
+    );
+    qualify_wire::<Scenario>(
+        serde_json::json!({"name":"fixture","edgeCount":1,"signalCount":1,"edges":["edge"],"signals":["signal"],"originLatitude":1.0,"originLongitude":2.0}),
+        &[
+            ("edgeCount", "edge_count"),
+            ("signalCount", "signal_count"),
+            ("originLatitude", "origin_latitude"),
+            ("originLongitude", "origin_longitude"),
+        ],
+    );
+    qualify_wire::<SetSignalPhaseRequest>(
+        serde_json::json!({"signalId":"signal","phase":0}),
+        &[("signalId", "signal_id")],
+    );
+    qualify_wire::<RerouteVehicleRequest>(
+        serde_json::json!({"vehicleId":"vehicle","targetEdgeId":"edge"}),
+        &[
+            ("vehicleId", "vehicle_id"),
+            ("targetEdgeId", "target_edge_id"),
+        ],
+    );
+    qualify_wire::<SetEdgeSpeedRequest>(
+        serde_json::json!({"edgeId":"edge","speedMps":8.0}),
+        &[("edgeId", "edge_id"), ("speedMps", "speed_mps")],
+    );
+    qualify_wire::<LaneRequest>(
+        serde_json::json!({"laneId":"edge_0"}),
+        &[("laneId", "lane_id")],
+    );
+    qualify_wire::<RunBatchResult>(
+        serde_json::json!({"stepsAdvanced":50,"finalSimulationTimeS":50.0,"minimumMeanSpeedMps":2.0,"congestionDetected":true}),
+        &[
+            ("stepsAdvanced", "steps_advanced"),
+            ("finalSimulationTimeS", "final_simulation_time_s"),
+            ("minimumMeanSpeedMps", "minimum_mean_speed_mps"),
+            ("congestionDetected", "congestion_detected"),
+        ],
+    );
+    qualify_wire::<CongestionState>(
+        serde_json::json!({"congested":true,"meanSpeedMps":2.0,"thresholdMps":5.0,"simulationTimeS":50.0}),
+        &[
+            ("meanSpeedMps", "mean_speed_mps"),
+            ("thresholdMps", "threshold_mps"),
+            ("simulationTimeS", "simulation_time_s"),
+        ],
+    );
     assert_eq!(SumoTaskKind::RunBatch.name().as_str(), "run_batch");
 }

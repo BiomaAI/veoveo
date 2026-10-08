@@ -758,9 +758,100 @@ fn invalid(error: impl std::fmt::Display) -> McpError {
 mod tests {
     use super::*;
 
+    fn resource_evidence<T>(
+        label: &str,
+        uri: &str,
+        value: &T,
+    ) -> veoveo_mcp_conformance::OwnerSchemaEvidence
+    where
+        T: Serialize + serde::de::DeserializeOwned + schemars::JsonSchema,
+    {
+        let result = json_resource(uri, value).unwrap();
+        let ResourceContents::TextResourceContents { text, .. } = &result.contents[0] else {
+            panic!("JSON text resource required")
+        };
+        let admitted: T = serde_json::from_str(text).unwrap();
+        veoveo_mcp_conformance::OwnerSchemaEvidence::generated::<T>(
+            veoveo_types::NamingLabel::new(label).unwrap(),
+        )
+        .observe(veoveo_mcp_conformance::SchemaObservation::from_serializable(&admitted).unwrap())
+    }
+
     #[test]
-    fn tool_input_schemas_use_the_canonical_profile() {
-        assert!(!SumoMcp::tool_router().list_all().is_empty());
+    fn tool_input_schemas_and_observed_resources_use_the_canonical_profile() {
+        let tools = SumoMcp::tool_router().list_all();
+        assert!(!tools.is_empty());
+        let state = TrafficState {
+            simulation_time_s: 1.0,
+            vehicle_count: 0,
+            mean_speed_mps: 4.9,
+            vehicles: vec![],
+            signals: vec![],
+        };
+        let scenario = crate::contract::Scenario {
+            name: "fixture".into(),
+            edge_count: 1,
+            signal_count: 1,
+            edges: vec!["edge".into()],
+            signals: vec!["signal".into()],
+            origin_latitude: 1.0,
+            origin_longitude: 2.0,
+        };
+        let bodies = [
+            resource_evidence("trafficState", STATE_URI, &state),
+            resource_evidence("scenario", SCENARIO_URI, &scenario),
+            resource_evidence("congestion", CONGESTION_URI, &congestion(&state)),
+        ];
+        let evidence = veoveo_mcp_conformance::NamingEvidence {
+            required_observations: ["trafficState", "scenario", "congestion"]
+                .into_iter()
+                .map(|name| veoveo_types::NamingLabel::new(name).unwrap())
+                .collect(),
+            bodies: &bodies,
+            ..Default::default()
+        };
+        let inspection = veoveo_mcp_conformance::naming::inspect_discovery(
+            &tools,
+            &[],
+            &[],
+            &[],
+            None,
+            &evidence,
+        )
+        .expect("complete actual SUMO tool input/output and safely observed resource naming");
+        assert_eq!(
+            inspection
+                .roots()
+                .iter()
+                .filter(|root| root.observations > 0)
+                .count(),
+            3
+        );
+        let mut retired_catalog = tools.clone();
+        let control = retired_catalog
+            .iter_mut()
+            .find(|tool| tool.name == "set_edge_speed")
+            .unwrap();
+        let schema = std::sync::Arc::make_mut(&mut control.input_schema);
+        let properties = schema
+            .get_mut("properties")
+            .unwrap()
+            .as_object_mut()
+            .unwrap();
+        let edge = properties.remove("edgeId").unwrap();
+        properties.insert("edge_id".into(), edge);
+        assert!(
+            veoveo_mcp_conformance::naming::inspect_discovery(
+                &retired_catalog,
+                &[],
+                &[],
+                &[],
+                None,
+                &evidence
+            )
+            .is_err(),
+            "actual catalog retired field must refuse C33"
+        );
     }
 
     #[test]

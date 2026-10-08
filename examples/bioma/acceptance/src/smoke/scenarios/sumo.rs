@@ -13,6 +13,10 @@ use veoveo_recording_contract::{
 use veoveo_recording_hub::{DatasetName, DatasetRoute, Spooler, SpoolerConfig, run_blocking};
 use veoveo_rrd::projection::{ArrowProjectionQuery, write_arrow_projection};
 use veoveo_sumo_mcp::{
+    contract::{
+        Acknowledgement, RunBatchRequest, RunBatchResult, Scenario, SetEdgeSpeedRequest,
+        TrafficState,
+    },
     driver::{FakeSimDriver, SimDriver},
     recording::RecordingPublisher,
 };
@@ -172,11 +176,7 @@ pub(crate) async fn sumo_verify(conformance: &Path, context: &str) -> Result<()>
         &["call", "--tool-name", "query_state", "--arguments", "{}"],
         auth.clone(),
     )?;
-    let state = structured_output(&state)?;
-    ensure!(
-        state.get("vehicle_count").and_then(Value::as_u64).is_some(),
-        "query_state did not return a typed vehicle_count: {state}"
-    );
+    let _state: TrafficState = admit_output(&state).context("admit query_state traffic DTO")?;
 
     let scenario = run_conformance(
         conformance,
@@ -190,14 +190,15 @@ pub(crate) async fn sumo_verify(conformance: &Path, context: &str) -> Result<()>
         ],
         auth.clone(),
     )?;
-    let scenario = structured_output(&scenario)?;
+    let scenario: Scenario = admit_output(&scenario).context("admit describe_scenario DTO")?;
     let edge = scenario
-        .get("edges")
-        .and_then(Value::as_array)
-        .and_then(|edges| edges.first())
-        .and_then(Value::as_str)
+        .edges
+        .first()
         .context("live SUMO scenario exposed no edges")?;
-    let edge_request = serde_json::json!({"edge_id": edge, "speed_mps": 8.0}).to_string();
+    let edge_request = serde_json::to_string(&SetEdgeSpeedRequest {
+        edge_id: edge.clone(),
+        speed_mps: 8.0,
+    })?;
     let actuation = run_conformance(
         conformance,
         &base,
@@ -210,14 +211,11 @@ pub(crate) async fn sumo_verify(conformance: &Path, context: &str) -> Result<()>
         ],
         auth.clone(),
     )?;
-    ensure!(
-        structured_output(&actuation)?
-            .get("applied")
-            .and_then(Value::as_bool)
-            == Some(true),
-        "live SUMO actuation was not applied"
-    );
+    let actuation: Acknowledgement =
+        admit_output(&actuation).context("admit set_edge_speed acknowledgement")?;
+    ensure!(actuation.applied, "live SUMO actuation was not applied");
 
+    let batch_request = serde_json::to_string(&RunBatchRequest { steps: 50 })?;
     let task = run_conformance(
         conformance,
         &base,
@@ -226,14 +224,14 @@ pub(crate) async fn sumo_verify(conformance: &Path, context: &str) -> Result<()>
             "--tool-name",
             "run_batch",
             "--arguments",
-            r#"{"steps":50}"#,
+            &batch_request,
         ],
         auth,
     )?;
-    let task_result = structured_output(&task)?;
+    let task_result: RunBatchResult = admit_output(&task).context("admit run_batch Task result")?;
     ensure!(
-        task_result.get("steps_advanced").and_then(Value::as_u64) == Some(50),
-        "run_batch task did not advance 50 steps: {task_result}"
+        task_result.steps_advanced == 50,
+        "run_batch task did not advance 50 steps: {task_result:?}"
     );
 
     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -300,6 +298,10 @@ fn collect_rrd_layers(root: &Path, output: &mut Vec<PathBuf>) -> Result<()> {
     Ok(())
 }
 
+fn admit_output<T: serde::de::DeserializeOwned>(output: &str) -> Result<T> {
+    serde_json::from_value(structured_output(output)?).context("admit owner SUMO structured DTO")
+}
+
 fn structured_output(output: &str) -> Result<Value> {
     let raw = output
         .lines()
@@ -320,4 +322,60 @@ fn run_conformance<const N: usize>(
         .map(OsString::from)
         .collect::<Vec<_>>();
     run_checked(conformance, arguments, environment)
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::*;
+    #[test]
+    fn paired_sumo_receiver_admits_current_task_and_traffic_and_refuses_retired_forms() {
+        let state = TrafficState {
+            simulation_time_s: 1.0,
+            vehicle_count: 0,
+            mean_speed_mps: 0.0,
+            vehicles: vec![],
+            signals: vec![],
+        };
+        let wire = serde_json::to_value(&state).unwrap();
+        let admitted: TrafficState = admit_output(&format!("structured: {wire}")).unwrap();
+        assert_eq!(admitted, state);
+        let mut retired = wire.clone();
+        let count = retired
+            .as_object_mut()
+            .unwrap()
+            .remove("vehicleCount")
+            .unwrap();
+        retired["vehicle_count"] = count;
+        assert!(admit_output::<TrafficState>(&format!("structured: {retired}")).is_err());
+        let mut mixed = wire;
+        mixed["vehicle_count"] = serde_json::json!(0);
+        assert!(admit_output::<TrafficState>(&format!("structured: {mixed}")).is_err());
+        let result = RunBatchResult {
+            steps_advanced: 50,
+            final_simulation_time_s: 50.0,
+            minimum_mean_speed_mps: 0.0,
+            congestion_detected: true,
+        };
+        let wire = serde_json::to_value(&result).unwrap();
+        assert_eq!(
+            admit_output::<RunBatchResult>(&format!("structured: {wire}")).unwrap(),
+            result
+        );
+        let mut retired = wire;
+        let steps = retired
+            .as_object_mut()
+            .unwrap()
+            .remove("stepsAdvanced")
+            .unwrap();
+        retired["steps_advanced"] = steps;
+        assert!(admit_output::<RunBatchResult>(&format!("structured: {retired}")).is_err());
+        let request = SetEdgeSpeedRequest {
+            edge_id: "edge".into(),
+            speed_mps: 8.0,
+        };
+        assert_eq!(
+            serde_json::to_value(request).unwrap(),
+            serde_json::json!({"edgeId":"edge","speedMps":8.0})
+        );
+    }
 }
