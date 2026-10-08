@@ -59,7 +59,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls. Native gateway-loss recovery, settled Stop→Start, file retention and full MCP Files, Commands, Maintenance, Worker and Host cases pass with typed binding version 2 and file helper version 2. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
+| 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified. DuckDB Task delivery and Frames subscription cases pass compiler, focused CPU controls and source review in their existing owner scenarios. Strict acceptance target/test lint passes | Publish the affected image closure and pass every required installed and hardware gate |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -222,12 +222,11 @@ the cluster stays stopped. The selected Computer native gates pass. Scoped Cargo
 cleanup retains dependency libraries, current executable links, the newest
 incremental variants and frozen acceptance inputs. The two repaired Python image
 contexts pass their locked package builds and development-stage publication;
-these checks do not qualify the full release. The combined 34-target publication
-stops at Console's omitted shared TypeScript fixture; subsequent cancellations
-do not establish additional defects. Console and Workspace build-input lists
-now include that canonical fixture and their native builds pass. Actual frontend
-image-stage qualification is pending. The failed run's five partial image pushes
-remain unqualified. The next publication must account for resident outputs within
+these checks do not qualify the full release. Console and Workspace build-input
+lists include the canonical notification fixture; their native builds and actual
+frontend Docker stages pass. The combined 34-target release remains open, and the
+failed run's five partial image pushes remain unqualified. The next publication
+must account for resident outputs within
 the original 320 GiB growth ceiling and retain 238 GiB free. BuildKit cache,
 rollback images and cluster data stay protected. Qualified image publication,
 final deployment inputs and installed acceptance remain open.
