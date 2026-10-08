@@ -1286,8 +1286,12 @@ with in-memory storage but reproduces the failure on the chart's RocksDB backend
 gateway migration 0 returns typed `Query.TransactionConflict` at commit. Safe
 diagnostics preserve that category and statement context while redacting database
 messages and values. Both waiting processes and sibling migration tasks are owned
-through fixture cleanup. The conflict requires a repair that distinguishes an
-authoritative abort from an uncertain commit; installation acceptance remains open.
+through fixture cleanup. The runner now distinguishes a top-level typed native commit conflict from an
+uncertain commit. Its [lane retry policy](../platform/modules/DESIGN.md#history-and-execution)
+permits 16 attempts within a 60-second admission window and rechecks preparation,
+history and prerequisites before another attempt. Timeouts, transport failures and
+nested conflict causes cannot admit replay. The repaired RocksDB control and installed
+Job replay require qualification; installation acceptance remains open.
 The failed run's disposable cluster and owned resources are removed.
 Production SQL redistribution belongs to Phase 3.
 

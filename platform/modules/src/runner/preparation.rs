@@ -112,7 +112,7 @@ impl PreparedInstallation<'_> {
         )
         .await;
         if let Err(error) = result {
-            if !error.may_observe_winner {
+            if !error.disposition.may_observe_winner() {
                 return Err(error.error);
             }
             let existing = read(db).await?;
@@ -139,7 +139,7 @@ impl PreparedInstallation<'_> {
         )
         .await;
         if let Err(error) = result {
-            if !error.may_observe_winner {
+            if !error.disposition.may_observe_winner() {
                 return Err(error.error);
             }
             let existing = read(db).await?;

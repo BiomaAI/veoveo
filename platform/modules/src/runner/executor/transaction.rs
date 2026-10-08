@@ -68,16 +68,27 @@ pub(crate) enum Output {
     Written,
     History(Vec<Header>, Vec<Applied>),
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Disposition {
+    Refused,
+    ObserveCommittedWinner,
+    AbortedCommitConflict,
+}
+impl Disposition {
+    pub fn may_observe_winner(self) -> bool {
+        self != Self::Refused
+    }
+}
 #[derive(Debug)]
 pub(crate) struct TransactionError {
     pub error: RunnerError,
-    pub may_observe_winner: bool,
+    pub disposition: Disposition,
 }
 impl From<RunnerError> for TransactionError {
     fn from(error: RunnerError) -> Self {
         Self {
             error,
-            may_observe_winner: false,
+            disposition: Disposition::Refused,
         }
     }
 }
@@ -87,10 +98,27 @@ impl From<TransactionError> for RunnerError {
     }
 }
 impl TransactionError {
+    fn commit(error: &surrealdb::Error) -> Self {
+        let disposition = if matches!(
+            error.query_details(),
+            Some(surrealdb::types::QueryError::TransactionConflict)
+        ) {
+            Disposition::AbortedCommitConflict
+        } else {
+            Disposition::ObserveCommittedWinner
+        };
+        Self {
+            error: database_failure(
+                "transaction commit not confirmed; observe committed history before further action",
+                error,
+            ),
+            disposition,
+        }
+    }
     fn observe(error: RunnerError) -> Self {
         Self {
             error,
-            may_observe_winner: true,
+            disposition: Disposition::ObserveCommittedWinner,
         }
     }
 }
@@ -392,9 +420,15 @@ pub(crate) async fn execute<C: Connection>(
         }
         // Commit consumes the native handle. Once dispatched, caller cancellation
         // cannot pretend to revoke it; let this owned task settle or report uncertainty.
-        tokio::time::timeout(limits.operation_timeout, transaction.commit()).await
-            .map_err(|_| TransactionError::observe(failure("transaction commit timed out; observe committed history before further action", None)))?
-            .map_err(|error| TransactionError::observe(database_failure("transaction commit not confirmed; observe committed history before further action", &error)))?;
+        tokio::time::timeout(limits.operation_timeout, transaction.commit())
+            .await
+            .map_err(|_| {
+                TransactionError::observe(failure(
+                    "transaction commit timed out; observe committed history before further action",
+                    None,
+                ))
+            })?
+            .map_err(|error| TransactionError::commit(&error))?;
         result.map_err(TransactionError::observe)
     });
     task.await.map_err(|_| {
@@ -422,5 +456,43 @@ mod diagnostics_tests {
                 .contains("Query.TransactionConflict caused by Thrown")
         );
         assert!(!format!("{diagnostic:?} {diagnostic}").contains("private-token"));
+    }
+    #[test]
+    fn only_top_level_typed_commit_conflict_admits_retry() {
+        use surrealdb::types::QueryError;
+        let conflict = || {
+            surrealdb::Error::query(
+                "private-token".into(),
+                Some(QueryError::TransactionConflict),
+            )
+        };
+        let aborted = TransactionError::commit(
+            &conflict().with_cause(surrealdb::Error::internal("private-token".into())),
+        );
+        assert_eq!(aborted.disposition, Disposition::AbortedCommitConflict);
+        assert!(!format!("{aborted:?}").contains("private-token"));
+        for error in [
+            surrealdb::Error::internal("private-token".into()),
+            surrealdb::Error::internal("private-token".into()).with_cause(conflict()),
+            surrealdb::Error::connection("private-token".into(), None),
+            surrealdb::Error::query(
+                "private-token".into(),
+                Some(QueryError::TimedOut {
+                    duration: Duration::from_secs(1),
+                }),
+            ),
+            surrealdb::Error::query("private-token".into(), Some(QueryError::Cancelled)),
+            surrealdb::Error::query("private-token".into(), Some(QueryError::NotExecuted)),
+        ] {
+            let uncertain = TransactionError::commit(&error);
+            assert_eq!(uncertain.disposition, Disposition::ObserveCommittedWinner);
+            assert!(!format!("{uncertain:?}").contains("private-token"));
+        }
+        // A statement failure is not a commit result, even if its category is conflict.
+        assert_eq!(
+            TransactionError::observe(database_failure("statement failure", &conflict()))
+                .disposition,
+            Disposition::ObserveCommittedWinner
+        );
     }
 }

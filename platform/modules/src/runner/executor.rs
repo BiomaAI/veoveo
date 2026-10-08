@@ -20,6 +20,21 @@ pub use transaction::ExecutionLimits;
 
 const INFRASTRUCTURE: &str = include_str!("../../migrations/0000_lane_bookkeeping.surql");
 
+// This bounds admission of another attempt, not completion of an in-flight commit.
+fn conflict_retry_delay(
+    disposition: transaction::Disposition,
+    attempt: u32,
+    elapsed: std::time::Duration,
+) -> Option<std::time::Duration> {
+    if disposition != transaction::Disposition::AbortedCommitConflict || !(1..16).contains(&attempt)
+    {
+        return None;
+    }
+    let delay = std::time::Duration::from_millis((25u64 << (attempt - 1).min(4)).min(250));
+    let remaining = std::time::Duration::from_secs(60).saturating_sub(elapsed);
+    (delay < remaining).then_some(delay)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LaneStatus {
     pub module: ModuleName,
@@ -272,7 +287,7 @@ impl PreparedInstallation<'_> {
         }
         let result = transaction::execute(db, transaction::Operation::Infrastructure, limits).await;
         if let Err(error) = result
-            && !error.may_observe_winner
+            && !error.disposition.may_observe_winner()
         {
             return Err(error.error);
         }
@@ -337,8 +352,38 @@ impl PreparedInstallation<'_> {
         limits: ExecutionLimits,
         preparation: Option<&PreparationKey>,
     ) -> Result<InstallationStatus, RunnerError> {
+        let limits = limits.check()?;
+        let started = tokio::time::Instant::now();
+        for attempt in 1..=16 {
+            match self.apply_lane_attempt(db, name, limits, preparation).await {
+                Ok(status) => return Ok(status),
+                Err(error) => {
+                    let Some(delay) =
+                        conflict_retry_delay(error.disposition, attempt, started.elapsed())
+                    else {
+                        return Err(error.error);
+                    };
+                    tokio::time::sleep(delay).await;
+                    if started.elapsed() >= std::time::Duration::from_secs(60) {
+                        return Err(error.error);
+                    }
+                }
+            }
+        }
+        unreachable!("bounded lane attempts return on exhaustion")
+    }
+    async fn apply_lane_attempt<C: Connection>(
+        &self,
+        db: &Surreal<C>,
+        name: &ModuleName,
+        limits: ExecutionLimits,
+        preparation: Option<&PreparationKey>,
+    ) -> Result<InstallationStatus, transaction::TransactionError> {
         if !self.selection().contains(name) {
-            return Err(failure("lane is not enabled", Some(name)));
+            return Err(failure("lane is not enabled", Some(name)).into());
+        }
+        if let Some(key) = preparation {
+            self.require_preparation(db, key).await?;
         }
         let module = self
             .selection()
@@ -359,16 +404,15 @@ impl PreparedInstallation<'_> {
                 transaction::execute(db, transaction::Operation::Infrastructure, limits).await;
             // Both success and uncertainty require authoritative committed schema validation.
             if !infrastructure_state(db, limits).await? {
-                return Err(failure(
-                    "no matching committed bookkeeping infrastructure",
-                    None,
-                ));
+                return Err(
+                    failure("no matching committed bookkeeping infrastructure", None).into(),
+                );
             }
             // A matching committed infrastructure winner settles a concurrent initializer.
             if let Err(error) = result
-                && !error.may_observe_winner
+                && !error.disposition.may_observe_winner()
             {
-                return Err(error.error);
+                return Err(error);
             }
         }
         if !lane.initialized {
@@ -386,8 +430,8 @@ impl PreparedInstallation<'_> {
             )
             .await;
             if let Err(error) = result {
-                if !error.may_observe_winner {
-                    return Err(error.error);
+                if !error.disposition.may_observe_winner() {
+                    return Err(error);
                 }
                 if !self
                     .status_with_limits(db, limits)
@@ -396,13 +440,16 @@ impl PreparedInstallation<'_> {
                     .expect("known lane")
                     .initialized
                 {
-                    return Err(failure(
-                        &format!(
-                            "lane initialization failed without a matching committed winner: {}",
-                            error.error
+                    return Err(transaction::TransactionError {
+                        disposition: error.disposition,
+                        error: failure(
+                            &format!(
+                                "lane initialization failed without a matching committed winner: {}",
+                                error.error
+                            ),
+                            Some(name),
                         ),
-                        Some(name),
-                    ));
+                    });
                 }
             }
         }
@@ -450,8 +497,8 @@ impl PreparedInstallation<'_> {
             )
             .await
             {
-                if !error.may_observe_winner {
-                    return Err(error.error);
+                if !error.disposition.may_observe_winner() {
+                    return Err(error);
                 }
                 let status = self.status_with_limits(db, limits).await?;
                 if status
@@ -460,21 +507,24 @@ impl PreparedInstallation<'_> {
                     .pending
                     .contains(&migration.version())
                 {
-                    return Err(failure(
-                        &format!(
-                            "migration {} failed without a matching committed winner: {}",
-                            migration.version().get(),
-                            error.error
+                    return Err(transaction::TransactionError {
+                        disposition: error.disposition,
+                        error: failure(
+                            &format!(
+                                "migration {} failed without a matching committed winner: {}",
+                                migration.version().get(),
+                                error.error
+                            ),
+                            Some(name),
                         ),
-                        Some(name),
-                    ));
+                    });
                 }
             }
         }
         if let Some(key) = preparation {
             self.require_preparation(db, key).await?;
         }
-        self.status_with_limits(db, limits).await
+        Ok(self.status_with_limits(db, limits).await?)
     }
 }
 

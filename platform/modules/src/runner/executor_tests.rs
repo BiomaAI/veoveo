@@ -930,3 +930,47 @@ async fn native_runtime_prerequisites_require_preparation_and_scoped_complete_hi
     .await
     .expect("runtime prerequisite fixture exceeded 120 seconds");
 }
+
+#[test]
+fn conflict_retries_exhaust_and_never_admit_uncertain_or_refused_outcomes() {
+    use transaction::Disposition;
+    let zero = Duration::ZERO;
+    assert_eq!(
+        conflict_retry_delay(Disposition::AbortedCommitConflict, 1, zero),
+        Some(Duration::from_millis(25))
+    );
+    assert_eq!(
+        conflict_retry_delay(Disposition::AbortedCommitConflict, 15, zero),
+        Some(Duration::from_millis(250))
+    );
+    assert_eq!(
+        conflict_retry_delay(Disposition::AbortedCommitConflict, 16, zero),
+        None
+    );
+    assert_eq!(
+        conflict_retry_delay(
+            Disposition::AbortedCommitConflict,
+            1,
+            Duration::from_secs(60)
+        ),
+        None
+    );
+    assert_eq!(
+        conflict_retry_delay(
+            Disposition::AbortedCommitConflict,
+            1,
+            Duration::from_millis(59_975)
+        ),
+        None
+    );
+    for attempt in 1..=16 {
+        assert_eq!(
+            conflict_retry_delay(Disposition::ObserveCommittedWinner, attempt, zero),
+            None
+        );
+        assert_eq!(
+            conflict_retry_delay(Disposition::Refused, attempt, zero),
+            None
+        );
+    }
+}

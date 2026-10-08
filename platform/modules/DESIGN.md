@@ -156,6 +156,23 @@ Migration failures report their phase, failed statement positions and structured
 error categories, including conflict, cancellation and timeout. Messages and detail
 values stay redacted. Absence of a matching committed winner preserves the original
 redacted failure; it does not establish that an uncertain operation had no effects.
+Only a top-level typed `QueryError::TransactionConflict` returned by native commit
+admits another lane attempt. SurrealDB 3.3.0 maps RocksDB optimistic commit conflicts
+to this category; RocksDB writes no keys for that failed commit. The SDK's native
+commit does not retry. Nested conflict causes, generic internal errors, statement
+failures, timeouts and lost responses never admit replay.
+
+A lane permits at most 16 attempts. Another attempt must start within a 60-second
+admission window, with delays increasing from 25 milliseconds to a 250-millisecond
+cap. This window does not cancel an admitted attempt or promise completion within
+60 seconds. Every pass checks the current preparation, history and prerequisites,
+rebuilds prerequisite receipts and skips matching committed migrations. Exact
+committed-winner validation precedes retry admission. A superseding preparation
+refuses execution. Preparation publication itself does not retry.
+[SurrealDB's pinned RocksDB adapter](https://github.com/surrealdb/surrealdb/blob/v3.3.0/surrealdb/kvs-rocksdb/src/lib.rs)
+and [RocksDB's transaction semantics](https://github.com/facebook/rocksdb/wiki/Transactions)
+define this conflict disposition.
+
 Read-only status supports publication readiness without trusting Job launch order.
 Catalog inspection compares parsed table, field and index declarations before accepting
 bookkeeping infrastructure; `IF NOT EXISTS` and an empty SELECT do not prove its shape.
