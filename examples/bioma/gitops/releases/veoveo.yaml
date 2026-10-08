@@ -11,7 +11,7 @@ spec:
   storageNamespace: veoveo
   chartRef:
     kind: OCIRepository
-    name: veoveo-chart-5a574dc5b969b1653d01e416fe4d4e67db63f6f08da3dac7a83c35a364d952b2
+    name: veoveo-chart-ea8f452d17a8ce1d5a853048c407b3b9c64caf12b4922cb6a515765e4187e44f
   valuesFrom:
     - kind: ConfigMap
       name: bioma-veoveo-values
@@ -22,6 +22,9 @@ spec:
     - kind: ConfigMap
       name: bioma-veoveo-values
       valuesKey: images.lock.yaml
+    - kind: ConfigMap
+      name: bioma-veoveo-values
+      valuesKey: modules-values.yaml
   install:
     createNamespace: false
     serverSideApply: true
@@ -34,9 +37,11 @@ spec:
       retryInterval: 1m
   driftDetection:
     mode: enabled
-  # Reason runs in its separate acceptance batch. Knowledge and embedding are core
-  # services and keep their declared replicas alongside the simulator.
-  # Keep Reason's Deployment, checkpoint and cache PVCs installed.
+  # Keep every locked image and its Deployment in the rendered contract. The first
+  # staged gate runs the shared CPU sources, Datasheet Artifact consumer, Knowledge
+  # and Embedding. Other GPU and Computer workloads keep their required resources but
+  # wait at zero replicas for their own acceptance batches. Reason also keeps its
+  # Deployment, checkpoint and cache PVC installed for its separate batch.
   postRenderers:
     - kustomize:
         patches:
@@ -44,7 +49,79 @@ spec:
               group: apps
               version: v1
               kind: Deployment
+              name: computer-host
+            patch: |-
+              - op: replace
+                path: /spec/replicas
+                value: 0
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: computers-mcp
+            patch: |-
+              - op: replace
+                path: /spec/replicas
+                value: 0
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: optimization-mcp
+            patch: |-
+              - op: replace
+                path: /spec/replicas
+                value: 0
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
               name: reason-mcp
+            patch: |-
+              - op: replace
+                path: /spec/replicas
+                value: 0
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: recording
+            patch: |-
+              - op: replace
+                path: /spec/replicas
+                value: 0
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: rerun-bridge
+            patch: |-
+              - op: replace
+                path: /spec/replicas
+                value: 0
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: speech-mcp
+            patch: |-
+              - op: replace
+                path: /spec/replicas
+                value: 0
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: stream-mcp
+            patch: |-
+              - op: replace
+                path: /spec/replicas
+                value: 0
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: view-mcp
             patch: |-
               - op: replace
                 path: /spec/replicas

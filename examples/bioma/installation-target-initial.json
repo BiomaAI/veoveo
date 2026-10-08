@@ -12,8 +12,6 @@
     "artifact-service",
     "chart-mcp",
     "cloudflared",
-    "computer-host",
-    "computers-mcp",
     "console-bff",
     "datasheet-mcp",
     "duckdb-mcp",
@@ -23,17 +21,9 @@
     "map-mcp",
     "mcp-gateway",
     "media-mcp",
-    "optimization-mcp",
     "otel-collector",
-    "recording",
-    "rerun-bridge",
-    "speech-mcp",
-    "stream-mcp",
     "time-mcp",
-    "timeseries-mcp",
-    "uav-sim",
-    "uav-sim-mcp",
-    "view-mcp"
+    "timeseries-mcp"
   ],
   "minimumGpuShares": 8,
   "operator": {

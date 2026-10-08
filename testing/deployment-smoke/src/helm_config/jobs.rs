@@ -15,7 +15,12 @@ struct Job {
     spec: Value,
 }
 
-fn command_with_plan(chart: &Path, release: &str, settings: &[&str], plan: &Path) -> Command {
+fn command_with_plan(
+    chart: &Path,
+    release: &str,
+    settings: &[&str],
+    plan: Option<&Path>,
+) -> Command {
     let mut command = Command::new("helm");
     command.args(["template", release]).arg(chart).args([
         "--namespace",
@@ -27,10 +32,13 @@ fn command_with_plan(chart: &Path, release: &str, settings: &[&str], plan: &Path
         "--values",
         "examples/bioma/images/veoveo.lock.yaml",
     ]);
-    command.args([
-        "--set-file",
-        &format!("moduleInstallation.planJson={}", plan.display()),
-    ]);
+    command.args(["--values", "examples/bioma/modules-values.yaml"]);
+    if let Some(plan) = plan {
+        command.args([
+            "--set-file",
+            &format!("moduleInstallation.planJson={}", plan.display()),
+        ]);
+    }
     for setting in settings {
         command.args(["--set-string", setting]);
     }
@@ -38,27 +46,17 @@ fn command_with_plan(chart: &Path, release: &str, settings: &[&str], plan: &Path
 }
 
 fn command(chart: &Path, release: &str, settings: &[&str]) -> Command {
-    command_with_plan(
-        chart,
-        release,
-        settings,
-        Path::new("testing/fixtures/module-schema-consumer/module-plan.json"),
-    )
+    command_with_plan(chart, release, settings, None)
 }
 
 fn render(chart: &Path, release: &str, settings: &[&str]) -> Result<BTreeMap<String, Job>> {
-    render_with_plan(
-        chart,
-        release,
-        settings,
-        Path::new("testing/fixtures/module-schema-consumer/module-plan.json"),
-    )
+    render_with_plan(chart, release, settings, None)
 }
 fn render_with_plan(
     chart: &Path,
     release: &str,
     settings: &[&str],
-    plan: &Path,
+    plan: Option<&Path>,
 ) -> Result<BTreeMap<String, Job>> {
     let command = command_with_plan(chart, release, settings, plan);
     let rendered = run_checked(Path::new("helm"), command.get_args().map(Into::into), [])?;
@@ -116,7 +114,10 @@ fn render_with_plan(
             "duplicate Job component"
         );
     }
-    let plan: veoveo_modules::ModulePlanDocument = serde_json::from_slice(&fs::read(plan)?)?;
+    let plan: veoveo_modules::ModulePlanDocument = match plan {
+        Some(path) => serde_json::from_slice(&fs::read(path)?)?,
+        None => super::bioma::module_plan()?,
+    };
     let expected: std::collections::BTreeSet<String> = plan
         .lanes()
         .iter()
@@ -252,7 +253,7 @@ pub(super) fn check() -> Result<()> {
     Ok(())
 }
 
-fn documents(chart: &Path, plan: &Path) -> Result<Vec<Value>> {
+fn documents(chart: &Path, plan: Option<&Path>) -> Result<Vec<Value>> {
     let command = command_with_plan(chart, "bioma", &[], plan);
     let rendered = run_checked(Path::new("helm"), command.get_args().map(Into::into), [])?;
     serde_yaml_ng::Deserializer::from_str(&rendered)
@@ -334,14 +335,13 @@ fn credential_rotation(
     before_jobs: &BTreeMap<String, Job>,
     directory: &Path,
 ) -> Result<()> {
-    let original = Path::new("testing/fixtures/module-schema-consumer/module-plan.json");
-    let mut next: Value = serde_json::from_slice(&fs::read(original)?)?;
+    let mut next = serde_json::to_value(super::bioma::module_plan()?)?;
     next["generation"] = "2".into();
     next["credentialRevision"] = "fixture-rotated".into();
     let _: veoveo_modules::ModulePlanDocument = serde_json::from_value(next.clone())?;
     let path = directory.join("credential-plan.json");
     fs::write(&path, serde_json::to_vec(&next)?)?;
-    let after_jobs = render_with_plan(chart, "bioma", &[], &path)?;
+    let after_jobs = render_with_plan(chart, "bioma", &[], Some(&path))?;
     for (key, job) in before_jobs {
         if key == "object-store-init" {
             ensure!(
@@ -355,8 +355,8 @@ fn credential_rotation(
             );
         }
     }
-    let before = client_templates(&documents(chart, original)?)?;
-    let after = client_templates(&documents(chart, &path)?)?;
+    let before = client_templates(&documents(chart, None)?)?;
+    let after = client_templates(&documents(chart, Some(&path))?)?;
     for (key, template) in before.iter().filter(|(key, _)| !key.starts_with("Job/")) {
         let next = after
             .get(key)

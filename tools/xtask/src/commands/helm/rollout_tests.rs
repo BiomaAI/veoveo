@@ -72,16 +72,11 @@ fn render(chart: &Path, extension: bool, settings: &[&str]) -> Vec<Value> {
             "examples/bioma/values.yaml",
             "examples/bioma/k3d-values.yaml",
             "examples/bioma/images/veoveo.lock.yaml",
+            "examples/bioma/modules-values.yaml",
         ][..]
     };
     for path in values {
         command.args(["-f", path]);
-    }
-    if !extension {
-        command.args([
-            "--set-file",
-            "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json",
-        ]);
     }
     for setting in settings {
         command.args(["--set", setting]);

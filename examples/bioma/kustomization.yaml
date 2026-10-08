@@ -65,6 +65,7 @@ configMapGenerator:
       - values.yaml=values.yaml
       - k3d-values.yaml=k3d-values.yaml
       - images.lock.yaml=images/veoveo.lock.yaml
+      - modules-values.yaml=modules-values.yaml
   - name: bioma-uav-sim-values
     namespace: flux-system
     options:

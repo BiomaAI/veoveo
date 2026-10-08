@@ -1,11 +1,11 @@
 # Platform Foundations And Contract Consistency Plan
 
-Status: Phase 0 is source-qualified. Phases 1–5 have qualified source checkpoints.
-The implemented Phase 6 consumer batch and Phase 7 embedding identity and producer
-provenance pass source qualification. Wider owner rows, the installation cut and
-remaining conformance and installed acceptance in phases 8–10 are open. The cluster
-stays stopped during local development. See [Current Status](#current-status) for
-accepted checks and remaining gates.
+Status: The 34-image closure and both Helm charts for source `6431c30c6621` are
+published and verified. Matching image locks, module plan and staged workload
+references pass source and render checks and independent review. The reference cluster
+remains stopped; fresh-install, Knowledge readiness, installed-consumer, separate
+Agent Manager namespace readiness, and hardware acceptance gates remain open. See
+[Current Status](#current-status) for accepted checks and remaining gates.
 
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
@@ -59,7 +59,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls. Native gateway-loss recovery, settled Stop→Start, file retention and full MCP Files, Commands, Maintenance, Worker and Host cases pass with typed binding version 2 and file helper version 2. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified. DuckDB Task delivery and Frames subscription cases pass compiler, focused CPU controls and source review in their existing owner scenarios. Strict acceptance target/test lint passes | Publish the affected image closure and pass every required installed and hardware gate |
+| 10 — Installed acceptance | The 34-image closure and both matching charts are published for source `6431c30c6621`. Generated image locks, outside-Pod runtime references and the 19-lane module plan use those published digests. Source/render checks and independent review accept the release inputs; commit and push are pending. The reference cluster remains stopped | Commit and push the coherent release inputs, then pass the required fresh-install, Knowledge readiness, installed-consumer, separate Agent Manager namespace readiness and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -224,12 +224,21 @@ incremental variants and frozen acceptance inputs. The two repaired Python image
 contexts pass their locked package builds and development-stage publication;
 these checks do not qualify the full release. Console and Workspace build-input
 lists include the canonical notification fixture; their native builds and actual
-frontend Docker stages pass. The combined 34-target release remains open, and the
-failed run's five partial image pushes remain unqualified. The next publication
-must account for resident outputs within
-the original 320 GiB growth ceiling and retain 238 GiB free. BuildKit cache,
-rollback images and cluster data stay protected. Qualified image publication,
-final deployment inputs and installed acceptance remain open.
+frontend Docker stages pass. The 34-target release is qualified at source
+`6431c30c6621`; its receipt binds each runnable image digest and publication index.
+The `veoveo` and `uav-sim` charts are published at `0.1.0-6431c30c6621` with
+manifest digests `ea8f452d…7e44f` and `c88d51f2…b4bc1f`. The generated module plan
+binds all 19 owner lanes to the released Gateway image. Full values keep every locked
+image and Deployment in the render; the HelmRelease stages Computer-dependent and
+out-of-batch GPU workloads at zero replicas while the initial target runs Knowledge,
+Embedding, Datasheet's Artifact consumer and their CPU source services. The UAV
+HelmRelease is suspended for this first acceptance batch. Image locks and outside-Pod
+runtime references use the published runnable digests. Source and render checks and
+independent review accept the release inputs; commit and push precede activation. The
+cluster remains stopped, and fresh-install, Knowledge readiness, installed-consumer,
+separate Agent Manager namespace readiness and hardware gates remain open.
+The installation target checks Deployments in `veoveo`; Agent Manager in
+`veoveo-agents` needs its separate bounded KubeOps rollout check and JSON receipt.
 
 The Python SDK admits the preserved `v1:N` offset grammar and 64-bit range,
 including Rust's admitted leading-plus and leading-zero aliases. It refuses
