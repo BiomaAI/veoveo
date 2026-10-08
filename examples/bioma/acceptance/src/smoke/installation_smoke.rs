@@ -91,6 +91,11 @@ enum Cmd {
         /// Built artifact-service binary path.
         #[arg(long)]
         artifact_service_bin: Option<PathBuf>,
+        /// Installed normal-OAuth target; paired with an evidence output.
+        #[arg(long, requires = "evidence_output")]
+        installation: Option<PathBuf>,
+        #[arg(long, requires = "installation")]
+        evidence_output: Option<PathBuf>,
     },
     MapMcp {
         /// Built conformance binary path.
@@ -531,7 +536,16 @@ async fn execute() -> Result<()> {
             conformance_bin,
             frames_bin,
             artifact_service_bin,
+            installation,
+            evidence_output,
         } => {
+            if let Some(installation) = installation {
+                return frames_installed(
+                    &support::InstalledTarget::load(&installation)?,
+                    &evidence_output.context("installed Frames requires --evidence-output")?,
+                )
+                .await;
+            }
             let conformance_bin = veoveo_testing_support::artifacts::requested_executable(
                 conformance_bin,
                 "veoveo-mcp-conformance",
@@ -1032,5 +1046,31 @@ mod view_cli_tests {
         // A preparation utility cannot be selected as an acceptance scenario.
         ensure!(!descriptors.to_string().contains("view-fixture-export"));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod frames_cli_tests {
+    use super::*;
+    #[test]
+    fn installed_frames_requires_paired_explicit_inputs_and_preserves_local_default() {
+        assert!(Args::try_parse_from(["installation-smoke", "frames-mcp"]).is_ok());
+        for flag in ["--installation", "--evidence-output"] {
+            assert!(
+                Args::try_parse_from(["installation-smoke", "frames-mcp", flag, "path.json"])
+                    .is_err()
+            );
+        }
+        assert!(
+            Args::try_parse_from([
+                "installation-smoke",
+                "frames-mcp",
+                "--installation",
+                "target.json",
+                "--evidence-output",
+                "receipt.json"
+            ])
+            .is_ok()
+        );
     }
 }

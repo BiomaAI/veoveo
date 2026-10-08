@@ -603,7 +603,7 @@
     },
     {
       "id": "frames-mcp",
-      "description": "Smoke-test direct hosted frame tools, tasks, artifacts, and usage.",
+      "description": "Smoke-test local Frames or installed OAuth resource delivery and immutable revisions.",
       "target": {
         "kind": "cargo_binary",
         "selection": {
@@ -724,12 +724,12 @@
       ],
       "requirements": {
         "network": true,
-        "credentials": false,
+        "credentials": true,
         "clusterMutation": false,
         "billedEffects": false,
         "nvidia": false,
         "headedGraphics": false,
-        "explanation": "The owner creates isolated native service/authentication fixtures using the declared compiler artifacts. Required local containers and network listeners are owned and cleaned up by that fixture."
+        "explanation": "Local mode owns isolated native fixtures. Optional paired --installation and --evidence-output inputs use normal gateway OAuth; installed mode retains its uniquely named append-only world and revision, closes subscriptions and clients, and does not invoke providers."
       },
       "deadlineSeconds": 3600,
       "cleanupSeconds": 180

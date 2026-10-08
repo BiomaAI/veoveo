@@ -23,6 +23,7 @@
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
 | Installed View fixture | `veoveo.ai/view-installed-fixture/v1` closed JSON; nonzero Kubernetes UIDs, opaque resourceVersions, immutable ConfigMap bytes and qualified image release; relative release paths resolve beside the declaration |
 | View fixture preparation | `veoveo.ai/view-fixture-preparation/v1` JSON utility receipt; preparation produces no smoke acceptance outcome |
+| Installed Frames evidence | `veoveo.ai/frames-installed-evidence/v1` camelCase JSON with closed snake_case outcomes; Frames owner world/revision identities and retained append-only fixture declaration |
 | Installed View evidence | `veoveo.ai/view-installed-evidence/v1` private JSON; official OAuth/MCP Tasks and the shared selected-container Kubernetes drain profile |
 | View process interruption | Docker Engine HTTP API 1.44 subset over the fixture's active local Unix socket; version and owned-container inspection precede one STOP signal, followed by durable claim admission and the existing restart checks |
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v2` JSON receipt with the output file SHA-256 |
@@ -203,3 +204,31 @@ successful old-process drain and replacement, that collection must instead prove
 the old in-process View absent; completed Tasks and frame products remain readable.
 These owner cases require installed NVIDIA hardware;
 CPU fixture and observer controls establish admission and lifecycle mechanics only.
+
+## Installed Frames
+
+The existing `frames-mcp` scenario defaults to its isolated local services. Paired
+`--installation` and `--evidence-output` inputs select normal gateway OAuth and
+the installed operator profile. Installed execution consumes an acknowledged
+worlds-resource baseline before creating one uniquely named world, then requires
+a separate invalidation and a fresh owned-world read. It publishes the local
+scenario's deterministic three-frame tree, reads the admitted immutable revision
+and requires invalid-params refusal of a revision subscription. No provider runs.
+
+The installed scenario has a 90-second deadline from entry. OAuth issuance,
+MCP discovery and listener admission each have at most 15 seconds within that
+deadline; resource waits have 15-second limits. Listener/client cleanup each
+has a separate five-second limit. Before network admission, the scenario reserves
+a new writable mode-0600 receipt file with exclusive creation and retains its
+handle through outcome writes. The unresolved mutation intent is written and
+synced before the first tool dispatch; an admitted revision identity is persisted
+before subsequent reads or subscription assertions. Failed intent persistence
+refuses dispatch. Mutations use the SDK one-dispatch call and
+require a complete response; input-required responses never cause redispatch. The private receipt
+records current world and revision identities, mutation uncertainty and connection
+cleanup independently. Lost or malformed mutation replies never cause redispatch.
+Frames has no public world deletion operation, so installed fixture worlds and
+revisions are retained append-only data owned by the selected caller. Connection
+cleanup does not claim deletion of these records. Source controls establish CLI
+admission and report/resource identity handling; installed delivery requires the
+selected gateway, credentials and actual scenario run.
