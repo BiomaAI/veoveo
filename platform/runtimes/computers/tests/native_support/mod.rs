@@ -324,16 +324,16 @@ impl Provider {
         (provider, format!("https://{endpoint}"))
     }
 
-    /// Restart the real owned gateway and its in-process Docker driver, preserving the daemon,
+    /// Abruptly crash the real owned gateway and its in-process Docker driver, preserving the daemon,
     /// database, immutable driver state and original trust/launch inputs.
     #[allow(dead_code)] // Shared by native targets; only lifecycle qualifies controller restart.
-    pub async fn restart_controller(&mut self) -> (u32, u32) {
+    pub async fn crash_controller_and_recover(&mut self) -> (u32, u32) {
         let child = self.cleanup.child.as_mut().expect("owned controller");
         let before = child.id();
         self.launch
             .admit_controller(child)
             .expect("admit exact qualified owned gateway group");
-        controller::stop(child).expect("bounded owned controller group termination");
+        controller::crash(child).expect("bounded abrupt owned controller group loss and reap");
         self.cleanup.child.take();
         self.cleanup.child = Some(
             self.launch

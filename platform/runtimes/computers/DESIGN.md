@@ -496,14 +496,22 @@ is `cargo test --locked --offline -p veoveo-computers-runtime --test native_life
 -- --ignored --nocapture`. Record it through the repository evidence recorder.
 
 The lifecycle case requires native creation, terminal replay, numeric UID 10001,
-and settled observations before restarting its owned gateway process group. The qualified gateway hosts its Docker
-driver in-process; the fixture does not require a standalone driver child.
+and settled observations before abrupt loss of its admitted gateway process group.
+The fault sends SIGKILL once and reaps the owned group within three seconds. The
+qualified gateway hosts its Docker driver in-process; the fixture does not require
+a standalone driver child. Ordinary fixture cleanup keeps graceful TERM/KILL/reap.
+Graceful provider shutdown intentionally stops workloads and does not promise
+continuity of the running canonical process.
 The replacement controller uses the original private database, trust and launch inputs.
+A fresh Get supplies the replacement controller observation to the lifecycle assessor,
+which opens a current watch if readiness is pending. The previous Create response
+cannot establish recovery. The case checks the preserved main-process epoch before
+reattachment through current authority.
 The case compares the daemon, guest container, selected image, external home and private
 restart-state digest, reads retained file bytes through current authenticated access,
 and requires one replacement supervisor. Stop/Start must then change the main process
 identity while preserving those resource identities and bytes. Process-group admission
-and bounded TERM/KILL/reap controls run locally without a provider fixture.
+and separate abrupt-loss and graceful TERM/KILL/reap controls run locally without a provider fixture.
 Reconciliation observes stopped and restarted epochs without dispatch. This case does
 not qualify host reboot, storage quotas, renewable access, stock CLI or public ingress.
 

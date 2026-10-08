@@ -148,9 +148,12 @@ fn process_group(pid: u32) -> io::Result<Option<u32>> {
         .map_err(|_| io::Error::other("invalid owned process group"))
 }
 
-pub(super) fn stop(child: &mut Child) -> io::Result<ExitStatus> {
-    if let Some(exit) = child.try_wait()? {
-        return Ok(exit);
+/// Observe the live owned leader and its direct children before any group signal.
+fn admitted_group(child: &mut Child) -> io::Result<(u32, Vec<(u32, u64)>)> {
+    if child.try_wait()?.is_some() {
+        return Err(io::Error::other(
+            "owned controller already exited before fault admission",
+        ));
     }
     let pid = child.id();
     if process_group(pid)? != Some(pid) {
@@ -191,6 +194,41 @@ pub(super) fn stop(child: &mut Child) -> io::Result<ExitStatus> {
             Ok((child_pid, metadata.ino()))
         })
         .collect::<io::Result<_>>()?;
+    Ok((pid, members))
+}
+
+/// Inject abrupt controller loss without running the provider's graceful Stop sweep.
+/// Normal fixture cleanup continues to use `stop`.
+pub(super) fn crash(child: &mut Child) -> io::Result<ExitStatus> {
+    let (pid, members) = admitted_group(child)?;
+    // The live admitted leader prevents group ID reuse before this single signal.
+    bounded("kill", &["--signal", "KILL", "--", &format!("-{pid}")])?;
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let mut exit = None;
+    while Instant::now() < deadline {
+        if exit.is_none() {
+            exit = child.try_wait()?;
+        }
+        use std::os::unix::fs::MetadataExt;
+        let original_executable = members.iter().any(|(member, inode)| {
+            fs::metadata(format!("/proc/{member}")).is_ok_and(|m| m.ino() == *inode)
+                && Path::new(&format!("/proc/{member}/exe")).exists()
+        });
+        if exit.is_some() && !original_executable {
+            return Ok(exit.unwrap());
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    Err(io::Error::other(
+        "owned controller crash did not reap its group within three seconds",
+    ))
+}
+
+pub(super) fn stop(child: &mut Child) -> io::Result<ExitStatus> {
+    if let Some(exit) = child.try_wait()? {
+        return Ok(exit);
+    }
+    let (pid, members) = admitted_group(child)?;
     bounded("kill", &["--signal", "TERM", "--", &format!("-{pid}")])?;
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
@@ -274,6 +312,7 @@ mod tests {
         let mut child = OwnedChild(Command::new("sleep").arg("30").spawn().unwrap());
         assert_ne!(process_group(child.0.id()).unwrap(), Some(child.0.id()));
         assert!(stop(&mut child.0).is_err());
+        assert!(crash(&mut child.0).is_err());
         assert!(
             child.0.try_wait().unwrap().is_none(),
             "refusal must leave foreign group untouched"
@@ -306,6 +345,64 @@ mod tests {
         assert_process_exited(descendant_pid);
         assert!(child.0.try_wait().unwrap().is_some());
     }
+    #[test]
+    fn abrupt_loss_reaps_owned_members_without_running_graceful_term_handler() {
+        use std::os::unix::process::ExitStatusExt;
+        let mut command = Command::new("sh");
+        command
+            .args([
+                "-c",
+                "trap 'printf graceful-term; exit 0' TERM; sleep 30 & printf '%s\\n' $!; wait",
+            ])
+            .process_group(0)
+            .stdout(Stdio::piped());
+        let mut child = OwnedChild(command.spawn().unwrap());
+        let mut reader = std::io::BufReader::new(child.0.stdout.take().unwrap());
+        let mut pid = String::new();
+        reader.read_line(&mut pid).unwrap();
+        let descendant_pid: u32 = pid.trim().parse().unwrap();
+        let exit = crash(&mut child.0).unwrap();
+        assert_eq!(
+            exit.signal(),
+            Some(9),
+            "fault must be abrupt controller loss"
+        );
+        assert_process_exited(descendant_pid);
+        use std::io::Read;
+        let mut tail = String::new();
+        reader.read_to_string(&mut tail).unwrap();
+        assert!(
+            tail.is_empty(),
+            "crash must not invoke graceful Stop semantics"
+        );
+        assert!(
+            crash(&mut child.0).is_err(),
+            "never signal a reaped leader's old group ID"
+        );
+    }
+
+    #[test]
+    fn ordinary_cleanup_keeps_graceful_term_semantics() {
+        let mut command = Command::new("sh");
+        command
+            .args([
+                "-c",
+                "trap 'printf graceful-term; exit 0' TERM; printf 'ready\\n'; while :; do :; done",
+            ])
+            .process_group(0)
+            .stdout(Stdio::piped());
+        let mut child = OwnedChild(command.spawn().unwrap());
+        let mut reader = std::io::BufReader::new(child.0.stdout.take().unwrap());
+        let mut ready = String::new();
+        reader.read_line(&mut ready).unwrap();
+        assert_eq!(ready.trim(), "ready");
+        assert!(stop(&mut child.0).unwrap().success());
+        use std::io::Read;
+        let mut tail = String::new();
+        reader.read_to_string(&mut tail).unwrap();
+        assert_eq!(tail, "graceful-term");
+    }
+
     #[test]
     fn controller_launch_refuses_changed_retained_inputs_before_spawn_and_redacts_bytes() {
         let dir =

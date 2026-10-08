@@ -163,16 +163,23 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     home.assert_registered_no_copy();
     let before_controller = retained_identity(&provider, &ready, &home.volume).await;
     let old_supervisor = supervisor_identity(&provider, &ready).await;
-    let controller_pids = provider.restart_controller().await;
+    let controller_pids = provider.crash_controller_and_recover().await;
     let runtime = provider.runtime.clone();
+    // The old Create response is already settled and cannot prove recovery. Read
+    // the replacement controller before assessing readiness or process continuity.
+    let current = runtime
+        .get(&binding)
+        .await
+        .expect("fresh replacement-controller observation")
+        .expect("retained sandbox exists after abrupt controller loss");
     let recovered = runtime
-        .wait_for_lifecycle(&create, &created, Duration::from_secs(30))
+        .wait_for_lifecycle(&create, &current, Duration::from_secs(30))
         .await
         .unwrap();
     assert_eq!(recovered.sandbox_id, ready.sandbox_id);
     assert_eq!(
         recovered.main_process_instance_id, ready.main_process_instance_id,
-        "controller restart must preserve the running canonical process"
+        "abrupt controller-loss recovery must preserve the running canonical process"
     );
     assert_eq!(
         retained_identity(&provider, &recovered, &home.volume).await,
