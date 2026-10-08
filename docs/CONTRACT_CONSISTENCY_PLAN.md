@@ -57,7 +57,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls. Native gateway-loss recovery, settled Stop→Start, file retention and the full MCP Files case pass with typed binding version 2 and file helper version 2. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify Computer Worker, Commands, Maintenance and Host against rebuilt images; qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
+| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls. Native gateway-loss recovery, settled Stop→Start, file retention and full MCP Files, Commands and Maintenance cases pass with typed binding version 2 and file helper version 2. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify Computer Worker and Host; qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
@@ -140,26 +140,31 @@ advance beyond the original overflow. Worker exposes two fixture defects: an uns
 stock-CLI exit deadline after revocation, then a tunnel URL that drops the server mount.
 The repaired oracle checks relay closure, refusal of a fresh revoked-grant connection
 and absence of post-revocation output before owned process cleanup. Its typed URL builder
-preserves the mount; the affected compiler and offline controls pass. The fresh Worker
-case advances through CLI revocation and terminal checks, then returns `Waiting` from
-Stop while the allocator service is absent. Its failing branch is not established by
-the retained logs. Policy capture now admits the provider's UUIDv4 attachment epoch
-separately from immutable template settings and preserves it through same-instance
-reads and watches. Independent review and all 98 runtime controls pass. The fresh
-Commands case passes capture, command execution, revocation containment, Stop and
-policy loading, then reports `RecoveryRequired` during restoration. The separate
-Maintenance case also stops at Restore and records `BudgetExhausted`. Source inspection
-proves that the qualified provider gives each supervisor a configuration-instance UUID;
-the replacement comparison incorrectly requires the source and target values to agree.
-A provider-shaped control reproduces that refusal. Its repair passes 103 runtime
-controls and independent review; native confirmation is pending. Closed lifecycle
-diagnostics preserve typed stages and error categories without provider payloads;
-their 24 controls and independent review pass. The original native Stop failure's
-discarded branch remains unknown. Files passes its
-complete native case after splitting the large assertion phases; import/export,
-duplicate and clearance refusals, cancellation, lost-dispatch containment and restart
-inspection all complete. Every terminal fixture is cleaned up. Worker, Commands,
-Maintenance and Host replacement still require native qualification. Installed execution stays open.
+preserves the mount; the affected compiler and offline controls pass. Policy continuity
+admits the provider's UUIDv4 attachment epoch and configuration-instance identity
+separately from immutable template settings. Replacement admits both peers' identities;
+same-instance reads and watches preserve equality. All 103 runtime controls and
+independent review pass. Commands now passes its complete native case, including real
+execution, revocation containment, Stop and retained-policy restoration. Maintenance
+passes retained-home upgrade, explicit recovery, rollback and initial-create recovery.
+Files passes import/export, duplicate and clearance refusals, cancellation,
+lost-dispatch containment and restart inspection.
+
+Worker advances through CLI revocation and terminal checks, then keeps its dispatched
+Stop unresolved while the allocator service is absent. The authenticated initial read
+completes, the Stop RPC begins without completing, and reconciliation observes
+`STOPPING` for the original resource and process. Fixture shutdown also removes
+Docker's volume-plugin socket; retained daemon logs prove failed volume reads.
+The blocking provider Stop branch is under investigation. Reviewed closed diagnostics
+record call stages and phase without provider payloads; the existing Stop guarantee
+and settlement assertion are unchanged. Host stops before domain assertions because
+its private Docker daemon cannot reach the loopback registry address. A fixture-only
+mapping now separates local image admission from private pull addresses and checks
+served manifest bytes, headers and image identity before creating fixture state.
+Its compiler, five controls, strict lint and independent review pass; native
+confirmation is pending.
+Every terminal fixture is cleaned up. Worker and Host still require native
+qualification. Installed execution stays open.
 The candidate remains quarantined and
 the rollback image stays selected.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
@@ -203,8 +208,11 @@ The shared native-fixture batch passes isolated Runtime and Host all-target lint
 all four MCP native-target lint checks. Fourteen owning controls verify controller,
 profile and packaging behavior and both generated provider configurations. Their
 TOML bytes are unchanged; the manifest updates only the native producer's source hash.
-Independent review accepts the fixture and provenance changes. Fresh provider and
-Host image qualification remain open.
+Independent review accepts the fixture and provenance changes. Both maintained image
+builds and package admission pass against the current manifest. Provider controls pass
+45 driver and two mTLS cases; the Host embeds the same five provider executables.
+The candidates remain quarantined, canonical images and caches are preserved, and
+the cluster stays stopped. Worker and Host native qualification remain open.
 
 The Python SDK admits the preserved `v1:N` offset grammar and 64-bit range,
 including Rust's admitted leading-plus and leading-zero aliases. It refuses
