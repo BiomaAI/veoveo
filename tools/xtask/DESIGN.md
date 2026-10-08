@@ -2,6 +2,13 @@
 
 Repository tooling composes owner declarations and native commands through `cargo xtask`.
 
+Image planning captures the Computer provider manifest SHA-256 from the selected source
+checkout when the dependency graph includes `computer-provider`. The optional provider
+input records that digest separately from Cargo compiler families. Bake receives the
+selected context and digest together; resolved context or argument changes reject before
+execution. The provider source stage checks the packaged manifest against that argument
+before compilation, and the runtime OCI label consumes the same argument.
+
 ## Standards And Protocols
 
 | Format or interface | Supported profile |

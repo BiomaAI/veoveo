@@ -141,6 +141,11 @@ closure and records its file classification. It records the GNU supervisor's dyn
 closure and compiler identities. The runtime image includes the exact source manifest,
 patches, upstream license, package inventory and hashes for all five executables.
 Its OCI labels bind the patched profile, manifest SHA-256 and supervisor source tree.
+The maintained image planner captures the manifest digest from the selected provider
+checkout and supplies `PROVIDER_MANIFEST_SHA256` with that build context. The source
+stage refuses a missing or mismatched digest before compilation; the final image uses
+the same argument for its manifest label. Direct Bake invocations require this admitted
+argument and must pass the same source check.
 The host image exports both supervisor and sandbox and keeps their hash inventory.
 
 Provider configuration requires a preloaded digest-pinned supervisor image and the

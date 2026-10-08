@@ -9,6 +9,7 @@ use std::{
 
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
 
 use crate::{
@@ -41,6 +42,8 @@ pub(crate) use run_evidence::{EvidenceRun, evidence_run};
 pub(crate) use selection::{Selection, SelectionKind};
 
 const PLAN_SCHEMA: &str = "veoveo.ai/image-build-plan/v3";
+const PROVIDER_TARGET: &str = "computer-provider";
+const PROVIDER_MANIFEST_ARG: &str = "PROVIDER_MANIFEST_SHA256";
 const MODE_LABEL: &str = "ai.veoveo.build.mode";
 const PACKAGE_LABEL: &str = "ai.veoveo.build.package";
 const BINARIES_LABEL: &str = "ai.veoveo.build.binaries";
@@ -66,7 +69,45 @@ pub(crate) struct BuildPlanV1 {
     source_revision_targets: Vec<String>,
     targets: Vec<ImageTarget>,
     families: Vec<FamilyPlan>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_input: Option<ProviderInput>,
     normalized_parents: Vec<normalized::ParentPlan>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderInput {
+    manifest_sha256: String,
+    #[serde(skip)]
+    context_path: PathBuf,
+}
+
+impl ProviderInput {
+    fn for_targets(context_path: &Path, targets: &[String]) -> Result<Option<Self>> {
+        targets
+            .iter()
+            .any(|name| name == PROVIDER_TARGET)
+            .then(|| Self::admit(context_path))
+            .transpose()
+    }
+    fn admit(context_path: &Path) -> Result<Self> {
+        let manifest =
+            context_path.join("platform/runtimes/computers/provider-patches/manifest.json");
+        ensure!(
+            fs::symlink_metadata(&manifest)
+                .with_context(|| format!(
+                    "selected provider manifest unavailable: {}",
+                    manifest.display()
+                ))?
+                .is_file(),
+            "selected provider manifest must be a regular file"
+        );
+        let bytes = fs::read(&manifest).context("reading selected provider manifest")?;
+        Ok(Self {
+            manifest_sha256: hex::encode(Sha256::digest(bytes)),
+            context_path: context_path.to_owned(),
+        })
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -371,6 +412,8 @@ pub(crate) fn prepare_with_builder(
     let validation_started = Instant::now();
     let direct_targets = selected_targets(&checked, &selection)?;
     let source_revision_targets = target_dependency_closure(&checked, &direct_targets)?;
+    let provider_input =
+        ProviderInput::for_targets(source_repository.root(), &source_revision_targets)?;
     let parents = normalized::prepare(source_repository.root(), &checked, &direct_targets)?;
     let needs_cargo_metadata = source_revision_targets
         .iter()
@@ -525,6 +568,7 @@ pub(crate) fn prepare_with_builder(
         source_revision_targets,
         targets,
         families,
+        provider_input,
         normalized_parents: parents.iter().map(|parent| parent.plan.clone()).collect(),
     };
     let override_definition = make_override(&plan)?;
@@ -968,6 +1012,22 @@ fn make_override(plan: &BuildPlanV1) -> Result<BakeOverride> {
             )
         })
         .collect::<BTreeMap<_, _>>();
+    if let Some(provider) = &plan.provider_input {
+        let image = target
+            .get_mut(PROVIDER_TARGET)
+            .context("provider input has no selected Bake target")?;
+        image.context = Some(
+            provider
+                .context_path
+                .to_str()
+                .context("provider source context is not UTF-8")?
+                .to_owned(),
+        );
+        image.args.insert(
+            PROVIDER_MANIFEST_ARG.to_owned(),
+            provider.manifest_sha256.clone(),
+        );
+    }
     for family in &plan.families {
         if let Some(path) = &family.asset_context_path {
             for name in &family.targets {
@@ -1065,6 +1125,20 @@ fn verify_override(plan: &BuildPlanV1, definition: &BakeDefinition) -> Result<()
         ensure!(
             target.args.get("SOURCE_REVISION") == Some(&plan.source.revision),
             "resolved Bake graph changed source revision for {name}"
+        );
+    }
+    if let Some(provider) = &plan.provider_input {
+        let image = definition
+            .target
+            .get(PROVIDER_TARGET)
+            .context("resolved Bake graph omitted provider target")?;
+        ensure!(
+            Path::new(&image.context) == provider.context_path,
+            "resolved Bake graph changed provider source context"
+        );
+        ensure!(
+            image.args.get(PROVIDER_MANIFEST_ARG) == Some(&provider.manifest_sha256),
+            "resolved Bake graph changed provider manifest identity"
         );
     }
     for family in &plan.families {

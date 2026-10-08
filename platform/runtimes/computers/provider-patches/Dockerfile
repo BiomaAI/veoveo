@@ -28,6 +28,7 @@ COPY platform/runtimes/computers/provider-patches/control.sh /usr/local/bin/prov
 RUN chmod 0555 /usr/local/bin/provider-control
 
 FROM compiler AS source
+ARG PROVIDER_MANIFEST_SHA256
 WORKDIR /source
 # Fetch once by immutable object identity; no branch or tag resolves during builds.
 RUN git init --quiet \
@@ -39,6 +40,8 @@ COPY platform/computers/host/src/config.rs /configuration-producers/host.rs
 COPY platform/runtimes/computers/tests/native_support/mod.rs /configuration-producers/native.rs
 RUN <<'EOF'
 set -eu
+test -n "${PROVIDER_MANIFEST_SHA256:-}"
+test "$(sha256sum /patches/manifest.json | cut -d' ' -f1)" = "$PROVIDER_MANIFEST_SHA256"
 test "$(jq '.generatedConfigurations | length' /patches/manifest.json)" = 2
 jq -e '[.generatedConfigurations[].file] | sort == ["host.toml", "native.toml"]' /patches/manifest.json > /dev/null
 jq -r '.generatedConfigurations[] | [.file,.sha256,.producer,.producerSha256] | @tsv' /patches/manifest.json > /tmp/config-list
@@ -277,6 +280,7 @@ RUN --mount=type=cache,id=veoveo-openshell-rust195-bookworm-cargo,target=/usr/lo
     && cp /provider-target/release/openshell /binaries/
 
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+ARG PROVIDER_MANIFEST_SHA256
 COPY --from=compiler /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list.d/debian.sources
 RUN apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends ca-certificates libstdc++6 \
@@ -296,6 +300,6 @@ COPY --from=source /gateway/LICENSE /usr/share/doc/veoveo-computer-provider/LICE
 COPY platform/runtimes/computers/provider-patches /usr/share/veoveo-computer-provider/source
 RUN cd /usr/local/bin && sha256sum openshell openshell-gateway openshell-driver-docker openshell-supervisor openshell-sandbox > /usr/share/veoveo-computer-provider/binaries.sha256
 LABEL ai.veoveo.provider.profile="0.1.2-veoveo.1" \
-      ai.veoveo.provider.manifest-sha256="018318fc728aa04b3c2bed5a9ae5bccec45205e6e1631d3530019a4ca47e961c" \
+      ai.veoveo.provider.manifest-sha256="$PROVIDER_MANIFEST_SHA256" \
       ai.veoveo.provider.supervisor-source-tree="0020919d2c5d2c61230a0a188edaf4469ba9d0f1"
 ENTRYPOINT ["/usr/local/bin/openshell-gateway"]
