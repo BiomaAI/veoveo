@@ -57,7 +57,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls. Native gateway-loss recovery, settled Stop→Start, file retention and full MCP Files, Commands, Maintenance and Host cases pass with typed binding version 2 and file helper version 2. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify Computer Worker settlement through its production scheduler; qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
+| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls. Native gateway-loss recovery, settled Stop→Start, file retention and full MCP Files, Commands, Maintenance, Worker and Host cases pass with typed binding version 2 and file helper version 2. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
@@ -159,17 +159,18 @@ without dispatch or changes to the deadline and read budget. Final acceptance st
 requires Task success, original-operation settlement, unchanged resource/process
 identity and the allocator-offline condition. The scheduler repair passes compiler,
 strict lint, four focused controls and independent review. The Task-link correction
-passes its compiler, strict lint, real-store control and independent review; native
-settlement remains open. Reviewed closed diagnostics record call stages and phase
-without provider payloads.
+passes its compiler, strict lint, real-store control and independent review. The full
+native case now passes original Stop settlement while the allocator stays offline,
+retained Start and proof-file readback, recovery, cancellation, denial and lost-dispatch
+containment. Reviewed closed diagnostics record call stages and phase without provider
+payloads.
 
 Host now passes its full native case, including namespace replacement, retained
 Docker and Computer identity, retained bytes, a new process identity and resource
 limits. Its fixture-only mapping separates local image admission from private pull
 addresses and checks manifest bytes, headers and image identity before creating
 fixture state. Compiler, five controls, strict lint and independent review pass.
-Every terminal fixture is cleaned up. Worker still requires native qualification.
-Installed execution stays open.
+Every terminal fixture is cleaned up. Installed execution stays open.
 The candidate remains quarantined and
 the rollback image stays selected.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
@@ -217,7 +218,7 @@ Independent review accepts the fixture and provenance changes. Both maintained i
 builds and package admission pass against the current manifest. Provider controls pass
 45 driver and two mTLS cases; the Host embeds the same five provider executables.
 The candidates remain quarantined, canonical images and caches are preserved, and
-the cluster stays stopped. Worker native qualification remains open. Scoped Cargo
+the cluster stays stopped. The selected Computer native gates pass. Scoped Cargo
 cleanup removes superseded unlinked executables and older incremental variants,
 recovering 356.8 GiB while retaining dependency libraries, current executable links,
 the newest incremental variants and frozen acceptance inputs. Release preflight now
@@ -3129,7 +3130,7 @@ reason rather than growing an unbounded generic typing task.
 | F20 | Time resolution metadata | Qualify installed resolve/convert decoding and epoch behavior after authority activation; computed representations remain the engine's responsibility |
 | F21 | Time activation preflight | Qualify installed activation and concurrent conflict rollback |
 | F22 | Digest wire profiles | Preserve each owner's admitted bare-hex spelling and hash preimage through typed Speech, UAV, Optimization and Recording/publication APIs; qualify installed Time and changed consumers |
-| F23 | Computers | Qualify the current matched provider image and affected native maintenance, pairing and recovery matrix, then installed grant/Execute-limit and collection consumers; preserve source-qualified shared admission and live permission checks |
+| F23 | Computers | Qualify final image pins and installed pairing, grant/Execute-limit and collection consumers; preserve the qualified matched provider image, retained maintenance/recovery native matrix, shared admission and live permission checks |
 | F24 | Speech | Transcript/source/Task/Artifact admission and the current runner's CUDA transcription, dictation, recovery, cancellation and GPU-host conformance pass their owning controls. Qualify fresh image assembly, offline packaging and installed consumers. |
 | F25 | Artifact plane model | Qualify installed access/service consumers and external byte stores with the source-qualified lightweight Artifact contract; keep verified caller, policy and transport in their adapters and reuse unaffected byte-plane/SQL controls |
 | F26 | Artifact identity and URI admission | Qualify installed consumption of the current identity and URI contract |
