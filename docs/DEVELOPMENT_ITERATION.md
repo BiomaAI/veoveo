@@ -4,14 +4,14 @@
 
 | Boundary | Supported profile |
 |---|---|
-| Docker Buildx 0.37.0 and BuildKit 0.33.0 | repository-managed Bake execution and cache worker |
+| Docker Buildx 0.37.1 and BuildKit 0.33.0 | repository-managed Bake execution and cache worker |
 | OCI Image Spec | immutable `linux/amd64` runnable manifests and attested publication indexes |
 | Git commit identity | exact source revision and reproducible source timestamp |
 | Helm values | complete registry and image-digest map consumed by GitOps |
 | Chrome DevTools Protocol | headed hardware-browser acceptance and request cancellation evidence |
 | Rerun 0.38.1 RRD | bounded live history and governed archive playback |
 | `veoveo.ai/image-affected-plan/v1` | repository-owned affected-surface closure |
-| `veoveo.ai/development-image-lock/v1` | repository-owned non-release deployment closure |
+| `veoveo.ai/development-image-lock/v2` | repository-owned non-release deployment closure |
 | `veoveo.ai/component-publication/v1` | exact component lock composition with retained artifact inputs; no cluster mutation claim |
 | `veoveo.ai/gitops-convergence-evidence/v3` | repository-owned reconciliation mode, observation start, exact Flux source revision, root apply, Helm inventory, rollout, and readiness evidence |
 | `veoveo.ai/console-apps-browser-acceptance/v1` | composed signed-in Console App catalog, server grouping, per-App headed render, and hardware adapter evidence |
