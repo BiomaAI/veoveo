@@ -373,6 +373,7 @@ async fn setup(
     size: TerminalSize,
     token: &mut SessionToken,
     bridges: &mut JoinSet<Result<()>>,
+    lease: &AttachmentLease,
 ) -> Result<Attached> {
     let current = runtime
         .get(binding)
@@ -418,6 +419,8 @@ async fn setup(
         id,
         Zeroizing::new(forward_token),
         relay,
+        lease.clone(),
+        admission_expires,
     ));
     tokio::time::timeout(duration, async {
         let config = client::Config {
@@ -504,7 +507,7 @@ async fn terminal_worker(
         biased;
         _=&mut cancel => Err(RuntimeFailure::TerminalFailed),
         _=lease.closed() => Err(RuntimeFailure::LeaseExpired),
-        result=tokio::time::timeout(Duration::from_secs(45),setup(&runtime,&binding,size,&mut token,&mut bridges)) => result.map_err(|_|RuntimeFailure::TerminalFailed).and_then(|r|r),
+        result=tokio::time::timeout(Duration::from_secs(45),setup(&runtime,&binding,size,&mut token,&mut bridges,&lease)) => result.map_err(|_|RuntimeFailure::TerminalFailed).and_then(|r|r),
     };
     let result = match setup_result {
         Err(error) => {
@@ -584,12 +587,21 @@ pub(crate) fn forward_data(frame: api::TcpForwardFrame) -> Result<Vec<u8>> {
         _ => Err(RuntimeFailure::TerminalBounds),
     }
 }
+fn admit_forward_authority(lease: &AttachmentLease, expiration: SystemTime) -> Result<()> {
+    lease.check()?;
+    if SystemTime::now() >= expiration {
+        return Err(RuntimeFailure::LeaseExpired);
+    }
+    Ok(())
+}
 async fn forward(
     runtime: OpenShellRuntime,
     runtime_tunnel_name: String,
     id: String,
     token: Zeroizing<String>,
     relay: tokio::io::DuplexStream,
+    lease: AttachmentLease,
+    admission_expires: SystemTime,
 ) -> Result<()> {
     let (mut client, _transport) =
         crate::attachment_transport::connect(&runtime.endpoint, &runtime.address).await?;
@@ -621,14 +633,29 @@ async fn forward(
     let request = tonic::Request::new(stream::once(async move { init }).chain(data));
     // A credential admits this tunnel. The enclosing worker owns the renewable
     // authority timer and aborts the bridge; no fixed gRPC deadline ends live work.
-    let mut response = tokio::time::timeout(Duration::from_secs(10), client.forward_tcp(request))
-        .await
-        .map_err(|_| {
-            diagnose(TerminalStage::ForwardAdmission, TerminalCause::Deadline);
-            RuntimeFailure::TerminalFailed
-        })?
-        .map_err(|error| rpc_failure(TerminalStage::ForwardAdmission, error))?
+    // The gateway admits an authenticated reconnect for at most 15 seconds.
+    // This 20-second RPC admission budget includes transport overhead, while
+    // setup's credential deadline and the owning lease can end it sooner.
+    admit_forward_authority(&lease, admission_expires)?;
+    let admission_budget = admission_expires
+        .duration_since(SystemTime::now())
+        .map_err(|_| RuntimeFailure::LeaseExpired)?
+        .min(Duration::from_secs(20));
+    let mut response = lease
+        .enforce(async {
+            tokio::time::timeout(admission_budget, client.forward_tcp(request))
+                .await
+                .map_err(|_| {
+                    diagnose(TerminalStage::ForwardAdmission, TerminalCause::Deadline);
+                    RuntimeFailure::TerminalFailed
+                })?
+                .map_err(|error| rpc_failure(TerminalStage::ForwardAdmission, error))
+        })
+        .await?
         .into_inner();
+    // Reconnect admission may have consumed the authority window. A returned
+    // stream cannot revive expired/revoked access or an expired mint credential.
+    admit_forward_authority(&lease, admission_expires)?;
     while let Some(frame) = response
         .message()
         .await
@@ -647,6 +674,25 @@ async fn forward(
 #[cfg(test)]
 mod diagnostic_tests {
     use super::*;
+    #[test]
+    fn awaited_forward_admission_cannot_revive_expired_or_revoked_authority() {
+        let (authority, lease) =
+            crate::LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(30))
+                .unwrap();
+        assert_eq!(
+            admit_forward_authority(&lease, SystemTime::now() + Duration::from_secs(30)),
+            Ok(())
+        );
+        assert_eq!(
+            admit_forward_authority(&lease, UNIX_EPOCH),
+            Err(RuntimeFailure::LeaseExpired)
+        );
+        authority.revoke();
+        assert_eq!(
+            admit_forward_authority(&lease, SystemTime::now() + Duration::from_secs(30)),
+            Err(RuntimeFailure::LeaseExpired)
+        );
+    }
     #[test]
     fn sdk_diagnostics_exclude_messages_and_payloads() {
         let status = tonic::Status::permission_denied("Bearer private-token query=secret");

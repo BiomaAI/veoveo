@@ -629,10 +629,10 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +mod tests;
 diff --git a/crates/openshell-driver-docker/src/companion_state/tests.rs b/crates/openshell-driver-docker/src/companion_state/tests.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..a6020a5774c4a4a785ad18e5f5f11ecd7d6f1c5c
+index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f9b30d65a
 --- /dev/null
 +++ b/crates/openshell-driver-docker/src/companion_state/tests.rs
-@@ -0,0 +1,1597 @@
+@@ -0,0 +1,1613 @@
 +use super::*;
 +use crate::tests::{runtime_config, test_sandbox};
 +use bollard::models::{ContainerConfig, ContainerState};
@@ -2230,6 +2230,22 @@ index 0000000000000000000000000000000000000000..a6020a5774c4a4a785ad18e5f5f11ecd
 +mod provisioning;
 +
 +mod lifecycle;
++
++#[test]
++fn companion_state_launch_failure_diagnostics_exclude_status_messages() {
++    let failure = ControlSpawnFailure {
++        status: Status::failed_precondition("Bearer private-jwt private-payload"),
++        monitor: None,
++        stage: ControlLaunchStage::PreparedAuthentication,
++    };
++    assert_eq!(
++        failure.diagnostic(),
++        "stage=PreparedAuthentication code=FailedPrecondition"
++    );
++    for secret in ["Bearer", "private-jwt", "private-payload"] {
++        assert!(!failure.diagnostic().contains(secret));
++    }
++}
 diff --git a/crates/openshell-driver-docker/src/companion_state/tests/lifecycle.rs b/crates/openshell-driver-docker/src/companion_state/tests/lifecycle.rs
 new file mode 100644
 index 0000000000000000000000000000000000000000..2e7ac786cc519f1a164dacb4e32911877870fbfe
@@ -3077,7 +3093,7 @@ index 0000000000000000000000000000000000000000..ab1e45d77ec5084db72c0750a81e3054
 +    });
 +}
 diff --git a/crates/openshell-driver-docker/src/lib.rs b/crates/openshell-driver-docker/src/lib.rs
-index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575ed92001d 100644
+index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2a9b38e1b 100644
 --- a/crates/openshell-driver-docker/src/lib.rs
 +++ b/crates/openshell-driver-docker/src/lib.rs
 @@ -5,8 +5,15 @@
@@ -3237,7 +3253,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      fn record_previous_exit(&self, sandbox_id: &str, finished_at: Option<&str>) {
          let mut state = self
              .state
-@@ -461,27 +475,59 @@ impl DockerLifecycleEventFences {
+@@ -461,27 +475,86 @@ impl DockerLifecycleEventFences {
              .cloned()
      }
 
@@ -3282,15 +3298,42 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
 +    UnresolvedDispatch,
 +}
 +
++#[derive(Clone, Copy, Debug)]
++enum ControlLaunchStage {
++    FreshAdmission,
++    TemplateAdmission,
++    PrivateInputs,
++    PreparedAuthentication,
++    BundleStaging,
++    ContainerSpecification,
++    ContainerCreate,
++    ContainerStart,
++    InstanceInspection,
++    RuntimeDescriptor,
++    ImmutableBinding,
++    Readiness,
++}
 +struct ControlSpawnFailure {
 +    status: Status,
 +    monitor: Option<DockerControlProcess>,
++    stage: ControlLaunchStage,
++}
++impl ControlSpawnFailure {
++    fn diagnostic(&self) -> String {
++        // Only closed owner stages and tonic codes. Never include status
++        // messages, metadata, auth bundles, descriptors or process bytes.
++        format!("stage={:?} code={:?}", self.stage, self.status.code())
++    }
++    fn report(&self) {
++        warn!(diagnosis = %self.diagnostic(), "Docker supervisor launch admission unresolved");
++    }
 +}
 +impl From<Status> for ControlSpawnFailure {
 +    fn from(status: Status) -> Self {
 +        Self {
 +            status,
 +            monitor: None,
++            stage: ControlLaunchStage::FreshAdmission,
 +        }
 +    }
  }
@@ -3302,7 +3345,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      reason: &'static str,
      message: String,
  }
-@@ -712,6 +758,8 @@ struct DockerSandboxDriverConfig {
+@@ -712,6 +785,8 @@ struct DockerSandboxDriverConfig {
      )]
      cdi_devices: Option<Vec<String>>,
      mounts: Vec<DockerDriverMountConfig>,
@@ -3311,7 +3354,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
  }
 
  struct ValidatedDockerSandbox<'a> {
-@@ -751,6 +799,8 @@ enum DockerDriverMountConfig {
+@@ -751,6 +826,8 @@ enum DockerDriverMountConfig {
          read_only: bool,
          #[serde(default)]
          subpath: Option<String>,
@@ -3320,7 +3363,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      },
      Tmpfs {
          target: String,
-@@ -901,37 +951,27 @@ impl DockerComputeDriver {
+@@ -901,37 +978,27 @@ impl DockerComputeDriver {
              ))
          })?;
          let supervisor_grpc_endpoint = docker_config.grpc_endpoint.clone();
@@ -3378,7 +3421,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          let guest_tls = docker_guest_tls_paths(&docker_config)?;
          let driver = Self {
              docker: Arc::new(docker),
-@@ -965,6 +1005,7 @@ impl DockerComputeDriver {
+@@ -965,6 +1032,7 @@ impl DockerComputeDriver {
              )),
              lifecycle_event_fences: DockerLifecycleEventFences::default(),
              control_processes: Arc::new(Mutex::new(HashMap::new())),
@@ -3386,7 +3429,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              runtime_failures: Arc::new(Mutex::new(HashMap::new())),
          };
 
-@@ -1048,10 +1089,11 @@ impl DockerComputeDriver {
+@@ -1048,10 +1116,11 @@ impl DockerComputeDriver {
              .ok_or_else(|| Status::invalid_argument("sandbox.spec.template is required"))?;
 
          Self::validate_sandbox_template_base(template)?;
@@ -3399,7 +3442,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          for mount in &driver_config.mounts {
              if matches!(
                  mount,
-@@ -1399,7 +1441,8 @@ impl DockerComputeDriver {
+@@ -1399,7 +1468,8 @@ impl DockerComputeDriver {
          sandbox_id: &str,
          sandbox_name: &str,
      ) -> Result<Option<DriverSandbox>, Status> {
@@ -3409,7 +3452,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              return Ok(Some(pending));
          }
          let container = self
-@@ -1422,6 +1465,11 @@ impl DockerComputeDriver {
+@@ -1422,6 +1492,11 @@ impl DockerComputeDriver {
              let Some(mut sandbox) = sandbox_from_container_summary(summary) else {
                  continue;
              };
@@ -3421,7 +3464,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              if let Some(container_id) = summary.id.as_deref() {
                  match self.docker.inspect_container(container_id, None).await {
                      Ok(inspected) if summary.state == Some(ContainerSummaryStateEnum::EXITED) => {
-@@ -1470,7 +1518,10 @@ impl DockerComputeDriver {
+@@ -1470,7 +1545,10 @@ impl DockerComputeDriver {
          // Provisioning state is authoritative until the supervisor has
          // attached to both the sandbox and gateway. A running workload
          // container alone is not a usable sandbox.
@@ -3433,7 +3476,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          let mut sandboxes = by_id.into_values().collect::<Vec<_>>();
          sandboxes.sort_by(|left, right| left.id.cmp(&right.id));
          Ok(sandboxes)
-@@ -1563,6 +1614,16 @@ impl DockerComputeDriver {
+@@ -1563,6 +1641,16 @@ impl DockerComputeDriver {
          let validated = Self::validated_sandbox(sandbox, &self.config).map_err(|status| {
              DockerProvisioningFailure::new("ContainerCreateFailed", status.message())
          })?;
@@ -3450,7 +3493,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          let template = validated.template;
          let image = async {
              openshell_otel::record_error_result(
-@@ -1587,302 +1648,73 @@ impl DockerComputeDriver {
+@@ -1587,302 +1675,74 @@ impl DockerComputeDriver {
              .map_err(|status| {
                  DockerProvisioningFailure::new("IdentityResolutionFailed", status.message())
              })?;
@@ -3476,13 +3519,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
 -                    "SandboxTokenWriteFailed",
 -                    status.message(),
 -                ));
-+        let mut cleanup_disposition = ProvisioningCleanupDisposition::SafeLocalRefusal;
-+        async {
-+            let token_file_created = write_sandbox_token_file(sandbox, &self.config).await
-+                .map_err(|status| DockerProvisioningFailure::new("SandboxTokenWriteFailed", status.message()))?;
-+            if !token_file_created {
-+                return Err(DockerProvisioningFailure::new("SandboxTokenWriteFailed", "Docker control mode requires a gateway sandbox token"));
-             }
+-            }
 -        };
 -        if !token_file_created {
 -            let _ =
@@ -3512,7 +3549,13 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
 -                    "ContainerCreateFailed",
 -                    status.message(),
 -                ));
--            }
++        let mut cleanup_disposition = ProvisioningCleanupDisposition::SafeLocalRefusal;
++        async {
++            let token_file_created = write_sandbox_token_file(sandbox, &self.config).await
++                .map_err(|status| DockerProvisioningFailure::new("SandboxTokenWriteFailed", status.message()))?;
++            if !token_file_created {
++                return Err(DockerProvisioningFailure::new("SandboxTokenWriteFailed", "Docker control mode requires a gateway sandbox token"));
+             }
 -        };
 -        let mut create_body = match build_container_create_body_for_image(
 -            sandbox,
@@ -3762,6 +3805,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
 +            let control = match spawn_docker_control_process(&self.docker, sandbox, &self.config, failure_context, &fresh).await {
 +                Ok(control) => control,
 +                Err(mut failure) => {
++                    failure.report();
 +                    if let Some(monitor) = failure.monitor.take() { self.replace_control_process(&sandbox.id, monitor).await; }
 +                    return Err(DockerProvisioningFailure::new("ControlSupervisorObservationUnknown", "Docker companion launch/readiness is unresolved"));
                  }
@@ -3815,7 +3859,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      }
 
      async fn replace_control_process(&self, sandbox_id: &str, process: DockerControlProcess) {
-@@ -1897,6 +1729,12 @@ impl DockerComputeDriver {
+@@ -1897,6 +1757,12 @@ impl DockerComputeDriver {
      }
 
      async fn clear_runtime_failure(&self, sandbox_id: &str) {
@@ -3828,7 +3872,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          self.runtime_failures.lock().await.remove(sandbox_id);
      }
 
-@@ -1917,6 +1755,22 @@ impl DockerComputeDriver {
+@@ -1917,6 +1783,22 @@ impl DockerComputeDriver {
      }
 
      async fn apply_runtime_failure(&self, sandbox: &mut DriverSandbox) {
@@ -3851,7 +3895,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          let container_is_running = sandbox.status.as_ref().is_some_and(|status| {
              status.conditions.iter().any(|condition| {
                  condition.r#type == "Ready"
-@@ -1929,12 +1783,141 @@ impl DockerComputeDriver {
+@@ -1929,12 +1811,141 @@ impl DockerComputeDriver {
          }
          let failure = self.runtime_failures.lock().await.get(&sandbox.id).cloned();
          if let Some(failure) = failure {
@@ -3996,7 +4040,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          if let Some(process) = process {
              stop_docker_control_process(process).await;
          }
-@@ -1944,6 +1927,7 @@ impl DockerComputeDriver {
+@@ -1944,6 +1955,7 @@ impl DockerComputeDriver {
          &self,
          sandbox_id: &str,
      ) -> Result<bool, Status> {
@@ -4004,7 +4048,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          let filters = managed_resource_label_filters(
              &self.config.sandbox_namespace,
              [format!("{LABEL_SANDBOX_ID}={sandbox_id}")],
-@@ -2021,22 +2005,61 @@ impl DockerComputeDriver {
+@@ -2021,22 +2033,61 @@ impl DockerComputeDriver {
              ))
              .await
              .map_err(|error| internal_status("list Docker startup resources", error))?;
@@ -4019,6 +4063,13 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
                  .as_ref()
                  .and_then(|labels| labels.get(LABEL_ISOLATION_ROLE))
                  .map(String::as_str);
+-            if !matches!(
+-                role,
+-                Some(
+-                    LABEL_ISOLATION_ROLE_SUPERVISOR
+-                        | LABEL_ISOLATION_ROLE_STAGING
+-                        | LABEL_ISOLATION_ROLE_IDENTITY
+-                )
 +            if role == Some(LABEL_ISOLATION_ROLE_SUPERVISOR) {
 +                if let Some(id) = container
 +                    .labels
@@ -4049,13 +4100,8 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
 +                }
 +                continue;
 +            }
-             if !matches!(
-                 role,
--                Some(
--                    LABEL_ISOLATION_ROLE_SUPERVISOR
--                        | LABEL_ISOLATION_ROLE_STAGING
--                        | LABEL_ISOLATION_ROLE_IDENTITY
--                )
++            if !matches!(
++                role,
 +                Some(LABEL_ISOLATION_ROLE_STAGING | LABEL_ISOLATION_ROLE_IDENTITY)
              ) {
                  continue;
@@ -4071,7 +4117,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              let Some(target) = summary_container_target(&container) else {
                  continue;
              };
-@@ -2075,7 +2098,16 @@ impl DockerComputeDriver {
+@@ -2075,7 +2126,16 @@ impl DockerComputeDriver {
              .map_err(|error| internal_status("list Docker startup volumes", error))?;
          for volume in volumes.volumes.unwrap_or_default() {
              let sandbox_id = volume.labels.get(LABEL_SANDBOX_ID);
@@ -4089,7 +4135,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
                  continue;
              }
              self.docker
-@@ -2097,24 +2129,50 @@ impl DockerComputeDriver {
+@@ -2097,24 +2157,50 @@ impl DockerComputeDriver {
          Ok(())
      }
 
@@ -4142,7 +4188,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              stop_docker_control_process(stale).await;
          }
          if read_docker_runtime_descriptor(&sandbox.id, &self.config)
-@@ -2127,49 +2185,158 @@ impl DockerComputeDriver {
+@@ -2127,49 +2213,159 @@ impl DockerComputeDriver {
              let status = Status::failed_precondition(
                  "Docker sandbox runtime descriptor is missing; refusing to leave the workload running without its supervisor",
              );
@@ -4242,6 +4288,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
 +            {
 +                Ok(process) => process,
 +                Err(mut failure) => {
++                    failure.report();
 +                    if let Some(monitor) = failure.monitor.take() {
 +                        self.replace_control_process(&sandbox.id, monitor).await;
 +                    }
@@ -4329,7 +4376,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          let pending = self
              .remove_pending_sandbox(sandbox_id, sandbox_name)
              .await?;
-@@ -2179,7 +2346,7 @@ impl DockerComputeDriver {
+@@ -2179,7 +2375,7 @@ impl DockerComputeDriver {
              task.abort();
          }
          if let Some(record) = pending.as_ref() {
@@ -4338,7 +4385,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              self.remove_auxiliary_containers_for_sandbox(&record.sandbox.id)
                  .await?;
          }
-@@ -2188,55 +2355,17 @@ impl DockerComputeDriver {
+@@ -2188,55 +2384,17 @@ impl DockerComputeDriver {
              .find_managed_container_summary(sandbox_id, sandbox_name)
              .await?
          else {
@@ -4402,7 +4449,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          let Some(target) = summary_container_target(&container) else {
              return Ok(pending.is_some());
          };
-@@ -2245,7 +2374,7 @@ impl DockerComputeDriver {
+@@ -2245,7 +2403,7 @@ impl DockerComputeDriver {
              .as_ref()
              .and_then(|labels| labels.get(LABEL_SANDBOX_ID))
              .map_or(sandbox_id, String::as_str);
@@ -4411,7 +4458,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          self.remove_auxiliary_containers_for_sandbox(resolved_sandbox_id)
              .await?;
 
-@@ -2279,10 +2408,24 @@ impl DockerComputeDriver {
+@@ -2279,10 +2437,24 @@ impl DockerComputeDriver {
          }
      }
 
@@ -4437,7 +4484,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          // Startup can still be waiting for supervisor readiness after the
          // workload container exists. Cancel it before removing the supervisor
          // so its failure path cannot delete retained workload storage.
-@@ -2294,22 +2437,14 @@ impl DockerComputeDriver {
+@@ -2294,22 +2466,14 @@ impl DockerComputeDriver {
              let _ = task.await;
          }
          let Some(container) = container else {
@@ -4467,7 +4514,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              return Err(Status::not_found("sandbox not found"));
          };
          let Some(target) = summary_container_target(&container) else {
-@@ -2320,7 +2455,7 @@ impl DockerComputeDriver {
+@@ -2320,7 +2484,7 @@ impl DockerComputeDriver {
              .as_ref()
              .and_then(|labels| labels.get(LABEL_SANDBOX_ID))
              .map_or(sandbox_id, String::as_str);
@@ -4476,7 +4523,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          self.remove_auxiliary_containers_for_sandbox(resolved_sandbox_id)
              .await?;
 
-@@ -2378,12 +2513,14 @@ impl DockerComputeDriver {
+@@ -2378,12 +2542,14 @@ impl DockerComputeDriver {
              generation_id.to_string(),
          )
          .map_err(|error| Status::invalid_argument(error.to_string()))?;
@@ -4495,7 +4542,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              &generation,
              launch_authentication,
          ))
-@@ -2394,17 +2531,19 @@ impl DockerComputeDriver {
+@@ -2394,17 +2560,19 @@ impl DockerComputeDriver {
 
      async fn start_sandbox_with_lifecycle_fence(
          &self,
@@ -4517,7 +4564,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          let Some(target) = summary_container_target(&container) else {
              return Ok(false);
          };
-@@ -2415,6 +2554,10 @@ impl DockerComputeDriver {
+@@ -2415,6 +2583,10 @@ impl DockerComputeDriver {
              .map_err(|error| internal_status("inspect Docker sandbox outer fence", error))?;
          validate_docker_outer_fence(&inspected)?;
          self.admit_container_resources(&inspected).await?;
@@ -4528,7 +4575,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          let state = container.state.unwrap_or(ContainerSummaryStateEnum::EMPTY);
          let previous_finished_at = if state == ContainerSummaryStateEnum::EXITED {
              inspected
-@@ -2435,32 +2578,47 @@ impl DockerComputeDriver {
+@@ -2435,32 +2607,47 @@ impl DockerComputeDriver {
              adopt_or_verify_docker_start_generation(resolved_sandbox_id, &self.config, generation)
                  .await?;
              if launch_authentication.is_empty() {
@@ -4587,7 +4634,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          write_docker_boundary_file(
              &docker_boundary_state_dir_by_id(resolved_sandbox_id, &self.config)?
                  .join(START_GENERATION_FILE),
-@@ -2537,16 +2695,28 @@ impl DockerComputeDriver {
+@@ -2537,16 +2724,28 @@ impl DockerComputeDriver {
 
          match self.docker.start_container(&target, None).await {
              Ok(()) => {}
@@ -4622,7 +4669,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          Ok(true)
      }
 
-@@ -2569,6 +2739,9 @@ impl DockerComputeDriver {
+@@ -2569,6 +2768,9 @@ impl DockerComputeDriver {
                      false,
                  ),
                  task: None,
@@ -4632,7 +4679,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              },
          );
          Ok(())
-@@ -2614,16 +2787,55 @@ impl DockerComputeDriver {
+@@ -2614,16 +2816,55 @@ impl DockerComputeDriver {
          sandbox: &DriverSandbox,
          failure: &DockerProvisioningFailure,
      ) {
@@ -4691,7 +4738,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
                  record.sandbox = snapshot.clone();
                  record.task = None;
              } else {
-@@ -2637,7 +2849,10 @@ impl DockerComputeDriver {
+@@ -2637,7 +2878,10 @@ impl DockerComputeDriver {
                  "docker",
                  "Warning",
                  failure.reason,
@@ -4703,7 +4750,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              ),
          );
          self.publish_sandbox_snapshot(snapshot);
-@@ -2648,7 +2863,8 @@ impl DockerComputeDriver {
+@@ -2648,7 +2892,8 @@ impl DockerComputeDriver {
          sandbox_id: &str,
          sandbox_name: &str,
      ) -> Result<(), Status> {
@@ -4713,7 +4760,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              self.publish_sandbox_snapshot(pending);
              return Ok(());
          }
-@@ -2868,7 +3084,7 @@ impl DockerComputeDriver {
+@@ -2868,7 +3113,7 @@ impl DockerComputeDriver {
              .await
              .map_err(|err| internal_status("find Docker sandbox container", err))?;
 
@@ -4722,7 +4769,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              let Some(labels) = summary.labels.as_ref() else {
                  return false;
              };
-@@ -2884,7 +3100,14 @@ impl DockerComputeDriver {
+@@ -2884,7 +3129,14 @@ impl DockerComputeDriver {
                      .get(LABEL_SANDBOX_NAME)
                      .is_some_and(|value| value == sandbox_name);
              namespace_matches && id_matches && name_matches
@@ -4738,7 +4785,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      }
 
      async fn ensure_image_available(
-@@ -3313,24 +3536,24 @@ impl ComputeDriver for DockerComputeDriver {
+@@ -3313,24 +3565,24 @@ impl ComputeDriver for DockerComputeDriver {
          let request = request.into_inner();
          require_sandbox_identifier(&request.sandbox_id, &request.name)?;
 
@@ -4779,7 +4826,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          span_status.finish(Ok(Response::new(StopSandboxResponse {})))
      }
 
-@@ -3373,12 +3596,15 @@ impl ComputeDriver for DockerComputeDriver {
+@@ -3373,12 +3625,15 @@ impl ComputeDriver for DockerComputeDriver {
          let request = request.into_inner();
          require_sandbox_identifier(&request.sandbox_id, &request.name)?;
 
@@ -4801,7 +4848,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          if deleted && !event_sandbox_id.is_empty() {
              let _ = self.events.send(WatchSandboxesEvent {
                  payload: Some(watch_sandboxes_event::Payload::Deleted(
-@@ -3455,6 +3681,8 @@ impl ComputeDriver for DockerComputeDriver {
+@@ -3455,6 +3710,8 @@ impl ComputeDriver for DockerComputeDriver {
  impl DockerProvisioningFailure {
      fn new(reason: &'static str, message: impl Into<String>) -> Self {
          Self {
@@ -4810,7 +4857,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              reason,
              message: message.into(),
          }
-@@ -3718,9 +3946,28 @@ fn docker_driver_config(
+@@ -3718,9 +3975,28 @@ fn docker_driver_config(
      let config =
          DockerSandboxDriverConfig::from_template(template).map_err(Status::invalid_argument)?;
      validate_docker_driver_mounts(&config.mounts, enable_bind_mounts)?;
@@ -4839,7 +4886,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
  /// Collect user-supplied bind mounts as string-format binds.
  ///
  /// Bind mounts use the legacy `Binds` field (`-v` syntax) rather than the
-@@ -3804,13 +4051,15 @@ fn docker_mount_from_config(config: &DockerDriverMountConfig) -> Result<Option<M
+@@ -3804,13 +4080,15 @@ fn docker_mount_from_config(config: &DockerDriverMountConfig) -> Result<Option<M
              target,
              read_only,
              subpath,
@@ -4857,7 +4904,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
                  ..Default::default()
              }),
              ..Default::default()
-@@ -4066,17 +4315,13 @@ async fn create_docker_channel_volume(
+@@ -4066,17 +4344,13 @@ async fn create_docker_channel_volume(
          docker_channel_volume_name(sandbox, config),
      )
      .await?;
@@ -4867,18 +4914,17 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          sandbox,
          config,
          docker_supervisor_volume_name(sandbox, config),
--    )
+     )
 -    .await
 -    {
 -        let _ = remove_docker_volume(docker, &docker_channel_volume_name(sandbox, config)).await;
 -        return Err(error);
 -    }
-+    )
 +    .await?;
      Ok(())
  }
 
-@@ -4132,6 +4377,7 @@ async fn remove_docker_channel_volume_by_id(
+@@ -4132,6 +4406,7 @@ async fn remove_docker_channel_volume_by_id(
      sandbox_id: &str,
      config: &DockerDriverRuntimeConfig,
  ) -> Result<(), Status> {
@@ -4886,10 +4932,11 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      remove_docker_volume(
          docker,
          &docker_channel_volume_name_by_id(sandbox_id, config),
-@@ -4217,6 +4463,148 @@ async fn write_sandbox_token_file(
+@@ -4217,54 +4492,196 @@ async fn write_sandbox_token_file(
      Ok(true)
  }
 
+-fn prepare_docker_boundary_state_dir(
 +const PROVISIONING_INTENT_FILE: &str = "provisioning-intent-v1.json";
 +#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 +#[serde(rename_all = "snake_case")]
@@ -4907,15 +4954,43 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
 +    stage: ProvisioningStage,
 +}
 +fn provisioning_intent_path(
-+    sandbox: &DriverSandbox,
-+    config: &DockerDriverRuntimeConfig,
-+) -> Result<PathBuf, Status> {
+     sandbox: &DriverSandbox,
+     config: &DockerDriverRuntimeConfig,
+ ) -> Result<PathBuf, Status> {
+-    let directory = docker_boundary_state_dir(sandbox, config)?;
+-    openshell_core::paths::create_dir_restricted(&directory).map_err(|error| {
+-        Status::internal(format!(
+-            "create Docker boundary state directory {}: {error}",
+-            directory.display()
+-        ))
+-    })?;
+-    Ok(directory)
+-}
+-
+-async fn write_docker_boundary_file(path: &Path, contents: &[u8]) -> Result<(), Status> {
+-    tokio::fs::write(path, contents).await.map_err(|error| {
+-        Status::internal(format!(
+-            "write Docker boundary file {}: {error}",
+-            path.display()
+-        ))
+-    })?;
+-    openshell_core::paths::set_file_owner_only(path).map_err(|error| {
+-        Status::internal(format!(
+-            "restrict Docker boundary file {}: {error}",
+-            path.display()
+-        ))
+-    })
 +    Ok(docker_boundary_state_dir(sandbox, config)?.join(PROVISIONING_INTENT_FILE))
-+}
+ }
+-
+-async fn adopt_or_verify_docker_start_generation(
 +fn admit_no_unfinished_provisioning(
-+    sandbox_id: &str,
-+    config: &DockerDriverRuntimeConfig,
-+) -> Result<(), Status> {
+     sandbox_id: &str,
+     config: &DockerDriverRuntimeConfig,
+-    requested: &openshell_core::sandbox_generation::SandboxGenerationId,
+ ) -> Result<(), Status> {
+-    let path = docker_boundary_state_dir_by_id(sandbox_id, config)?.join(START_GENERATION_FILE);
+-    adopt_or_verify_docker_start_generation_path(&path, requested).await
 +    let path = docker_boundary_state_dir_by_id(sandbox_id, config)?.join(PROVISIONING_INTENT_FILE);
 +    match std::fs::symlink_metadata(path) {
 +        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -4923,12 +4998,22 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
 +            "unfinished or unreadable private provisioning intent; resources remain fenced until authoritative current reconciliation",
 +        )),
 +    }
-+}
+ }
+-
+-async fn adopt_or_verify_docker_start_generation_path(
+-    path: &Path,
+-    requested: &openshell_core::sandbox_generation::SandboxGenerationId,
 +async fn write_provisioning_intent(
 +    sandbox: &DriverSandbox,
 +    config: &DockerDriverRuntimeConfig,
 +    stage: ProvisioningStage,
-+) -> Result<(), Status> {
+ ) -> Result<(), Status> {
+-    let active = match tokio::fs::read_to_string(&path).await {
+-        Ok(active) => active,
+-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+-            let mut marker = match tokio::fs::OpenOptions::new()
+-                .write(true)
+-                .create_new(true)
 +    let encoded = sandbox
 +        .spec
 +        .as_ref()
@@ -5032,10 +5117,58 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
 +    })
 +}
 +
- fn prepare_docker_boundary_state_dir(
-     sandbox: &DriverSandbox,
-     config: &DockerDriverRuntimeConfig,
-@@ -4529,6 +4917,11 @@ async fn prepare_docker_boundary_files(
++fn prepare_docker_boundary_state_dir(
++    sandbox: &DriverSandbox,
++    config: &DockerDriverRuntimeConfig,
++) -> Result<PathBuf, Status> {
++    let directory = docker_boundary_state_dir(sandbox, config)?;
++    openshell_core::paths::create_dir_restricted(&directory).map_err(|error| {
++        Status::internal(format!(
++            "create Docker boundary state directory {}: {error}",
++            directory.display()
++        ))
++    })?;
++    Ok(directory)
++}
++
++async fn write_docker_boundary_file(path: &Path, contents: &[u8]) -> Result<(), Status> {
++    tokio::fs::write(path, contents).await.map_err(|error| {
++        Status::internal(format!(
++            "write Docker boundary file {}: {error}",
++            path.display()
++        ))
++    })?;
++    openshell_core::paths::set_file_owner_only(path).map_err(|error| {
++        Status::internal(format!(
++            "restrict Docker boundary file {}: {error}",
++            path.display()
++        ))
++    })
++}
++
++async fn adopt_or_verify_docker_start_generation(
++    sandbox_id: &str,
++    config: &DockerDriverRuntimeConfig,
++    requested: &openshell_core::sandbox_generation::SandboxGenerationId,
++) -> Result<(), Status> {
++    let path = docker_boundary_state_dir_by_id(sandbox_id, config)?.join(START_GENERATION_FILE);
++    adopt_or_verify_docker_start_generation_path(&path, requested).await
++}
++
++async fn adopt_or_verify_docker_start_generation_path(
++    path: &Path,
++    requested: &openshell_core::sandbox_generation::SandboxGenerationId,
++) -> Result<(), Status> {
++    let active = match tokio::fs::read_to_string(&path).await {
++        Ok(active) => active,
++        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
++            let mut marker = match tokio::fs::OpenOptions::new()
++                .write(true)
++                .create_new(true)
+                 .open(&path)
+                 .await
+             {
+@@ -4529,6 +4946,11 @@ async fn prepare_docker_boundary_files(
      gpu_requested: bool,
  ) -> Result<(), Status> {
      let directory = docker_boundary_state_dir(sandbox, config)?;
@@ -5047,7 +5180,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      let workspace_root = driver_mounts::resolve_oci_workspace_root(&image.working_dir)
          .map_err(Status::failed_precondition)?;
      let launch_authentication = sandbox
-@@ -4638,10 +5031,15 @@ async fn prepare_docker_boundary_files(
+@@ -4638,10 +5060,15 @@ async fn prepare_docker_boundary_files(
      Ok(())
  }
 
@@ -5064,7 +5197,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      let directory = docker_boundary_state_dir(sandbox, config)?;
      let runtime_descriptor = tokio::fs::read(directory.join(RUNTIME_DESCRIPTOR_FILE))
          .await
-@@ -4656,6 +5054,13 @@ async fn docker_supervisor_bundle_archive(
+@@ -4656,6 +5083,13 @@ async fn docker_supervisor_bundle_archive(
              "Docker supervisor requires launch authentication",
          ));
      }
@@ -5078,7 +5211,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      let mut archive = tar::Builder::new(Vec::new());
      append_docker_archive_file(
          &mut archive,
-@@ -4718,9 +5123,13 @@ async fn docker_supervisor_bundle_archive(
+@@ -4718,9 +5152,13 @@ async fn docker_supervisor_bundle_archive(
              &contents,
          )?;
      }
@@ -5094,7 +5227,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
  }
 
  async fn refresh_docker_boundary_authentication(
-@@ -4761,6 +5170,7 @@ async fn refresh_docker_boundary_authentication(
+@@ -4761,6 +5199,7 @@ async fn refresh_docker_boundary_authentication(
      boundary_config.verification_keys =
          gateway_verification_keys(&authentication.verification_keys)?;
      runtime_descriptor.session_id = session_id;
@@ -5102,7 +5235,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      runtime_descriptor.tls = SandboxTlsClientConfig {
          server_name: tls.server_name,
          trust_anchor_pem: tls.trust_anchor_pem,
-@@ -4800,35 +5210,6 @@ async fn refresh_docker_boundary_authentication(
+@@ -4800,35 +5239,6 @@ async fn refresh_docker_boundary_authentication(
      .await
  }
 
@@ -5138,7 +5271,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
  async fn read_docker_runtime_descriptor(
      sandbox_id: &str,
      config: &DockerDriverRuntimeConfig,
-@@ -4859,12 +5240,14 @@ async fn stage_docker_supervisor_bundle(
+@@ -4859,12 +5269,14 @@ async fn stage_docker_supervisor_bundle(
      archive: Vec<u8>,
  ) -> Result<(), Status> {
      let stager_name = format!("{}-supervisor-stage", container_name_for_sandbox(sandbox));
@@ -5159,7 +5292,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      let created = docker
          .create_container(
              Some(
-@@ -4914,14 +5297,14 @@ async fn stage_docker_supervisor_bundle(
+@@ -4914,14 +5326,14 @@ async fn stage_docker_supervisor_bundle(
          .path(SUPERVISOR_STATE_MOUNT_PATH)
          .copy_uidgid("true")
          .build();
@@ -5176,7 +5309,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      let cleanup = docker
          .remove_container(
              &created.id,
-@@ -4933,7 +5316,6 @@ async fn stage_docker_supervisor_bundle(
+@@ -4933,7 +5345,6 @@ async fn stage_docker_supervisor_bundle(
                  "remove Docker supervisor staging container: {error}"
              ))
          });
@@ -5184,7 +5317,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      cleanup
  }
 
-@@ -4957,13 +5339,22 @@ fn docker_auxiliary_container_labels(
+@@ -4957,13 +5368,22 @@ fn docker_auxiliary_container_labels(
      ])
  }
 
@@ -5208,7 +5341,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          extra_hosts: docker_supervisor_host_aliases(grpc_endpoint),
          mounts: Some(mounts),
          cap_drop: Some(vec!["ALL".to_string()]),
-@@ -4984,10 +5375,12 @@ fn docker_supervisor_host_config(mounts: Vec<Mount>, grpc_endpoint: &str) -> Hos
+@@ -4984,10 +5404,12 @@ fn docker_supervisor_host_config(mounts: Vec<Mount>, grpc_endpoint: &str) -> Hos
              (
                  "/var/log".to_string(),
                  format!(
@@ -5222,31 +5355,18 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
          restart_policy: None,
          ..Default::default()
      }
-@@ -5019,7 +5412,19 @@ async fn spawn_docker_control_process(
+@@ -5019,305 +5441,384 @@ async fn spawn_docker_control_process(
      sandbox: &DriverSandbox,
      config: &DockerDriverRuntimeConfig,
      failure_context: DockerRuntimeFailureContext,
 -) -> Result<DockerControlProcess, Status> {
-+    fresh: &companion_state::AdmittedFreshCompanion,
-+) -> Result<DockerControlProcess, ControlSpawnFailure> {
-+    let supervisor_name = fresh.name_for(sandbox, config)?;
-+    let template = sandbox
-+        .spec
-+        .as_ref()
-+        .and_then(|spec| spec.template.as_ref())
-+        .ok_or_else(|| Status::invalid_argument("sandbox.spec.template is required"))?;
-+    let driver_config =
-+        DockerSandboxDriverConfig::from_template(template).map_err(Status::invalid_argument)?;
-+    let resource_limits = docker_resource_limits(template)?;
-+    driver_config.validate_log_limits(resource_limits.memory_bytes)?;
-+    let pids_limit = docker_pids_limit(config.sandbox_pids_limit)?;
-     let directory = docker_boundary_state_dir(sandbox, config)?;
-     let main_process_spec = tokio::fs::read_to_string(directory.join(MAIN_PROCESS_SPEC_FILE))
-         .await
-@@ -5027,13 +5432,6 @@ async fn spawn_docker_control_process(
-     let workspace_root = tokio::fs::read_to_string(directory.join(WORKSPACE_ROOT_FILE))
-         .await
-         .map_err(|error| Status::internal(format!("read Docker workspace root: {error}")))?;
+-    let directory = docker_boundary_state_dir(sandbox, config)?;
+-    let main_process_spec = tokio::fs::read_to_string(directory.join(MAIN_PROCESS_SPEC_FILE))
+-        .await
+-        .map_err(|error| Status::internal(format!("read Docker main process spec: {error}")))?;
+-    let workspace_root = tokio::fs::read_to_string(directory.join(WORKSPACE_ROOT_FILE))
+-        .await
+-        .map_err(|error| Status::internal(format!("read Docker workspace root: {error}")))?;
 -    let supervisor_name = format!("{}-supervisor", container_name_for_sandbox(sandbox));
 -    let _ = docker
 -        .remove_container(
@@ -5254,91 +5374,426 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
 -            Some(RemoveContainerOptionsBuilder::default().force(true).build()),
 -        )
 -        .await;
-     let runtime_descriptor_path = format!("{SUPERVISOR_STATE_MOUNT_PATH}/runtime-descriptor.json");
-     let auth_bundle_path = format!("{SUPERVISOR_STATE_MOUNT_PATH}/auth.json");
-     let mut environment = vec![
-@@ -5102,7 +5500,7 @@ async fn spawn_docker_control_process(
-         ));
-     }
-     let supervisor_archive = docker_supervisor_bundle_archive(sandbox, config).await?;
--    stage_docker_supervisor_bundle(docker, sandbox, config, supervisor_archive).await?;
-+    stage_docker_supervisor_bundle(docker, sandbox, config, supervisor_archive.archive).await?;
-     let labels = HashMap::from([
-         (LABEL_MANAGED_BY.to_string(), "openshell".to_string()),
-         (LABEL_SANDBOX_ID.to_string(), sandbox.id.clone()),
-@@ -5186,6 +5584,9 @@ async fn spawn_docker_control_process(
-         host_config: Some(docker_supervisor_host_config(
-             supervisor_mounts,
-             &config.supervisor_grpc_endpoint,
-+            driver_config.log_limits,
-+            resource_limits,
-+            pids_limit,
-         )),
-         ..Default::default()
-     };
-@@ -5193,7 +5594,7 @@ async fn spawn_docker_control_process(
-         .create_container(
-             Some(
-                 CreateContainerOptionsBuilder::default()
--                    .name(supervisor_name.as_str())
-+                    .name(supervisor_name)
-                     .build(),
+-    let runtime_descriptor_path = format!("{SUPERVISOR_STATE_MOUNT_PATH}/runtime-descriptor.json");
+-    let auth_bundle_path = format!("{SUPERVISOR_STATE_MOUNT_PATH}/auth.json");
+-    let mut environment = vec![
+-        format!(
+-            "{}={DRIVER_ADMITTED_BACKEND}",
+-            openshell_core::sandbox_env::ADMITTED_ISOLATION_BACKEND
+-        ),
+-        format!(
+-            "{}={main_process_spec}",
+-            openshell_core::sandbox_env::MAIN_PROCESS_SPEC
+-        ),
+-        format!(
+-            "{}={}",
+-            openshell_core::sandbox_env::ENDPOINT,
+-            config.supervisor_grpc_endpoint
+-        ),
+-        format!("{}={}", openshell_core::sandbox_env::SANDBOX_ID, sandbox.id),
+-        format!("{}={}", openshell_core::sandbox_env::SANDBOX, sandbox.name),
+-        format!(
+-            "{}={}",
+-            openshell_core::sandbox_env::SSH_SOCKET_PATH,
+-            config.ssh_socket_path
+-        ),
+-        format!(
+-            "{}=/run/openshell/proxy-tls",
+-            openshell_core::sandbox_env::PROXY_TLS_DIR
+-        ),
+-        format!(
+-            "{}={}",
+-            openshell_core::sandbox_env::NETWORK_RUNTIME_CAPABILITIES,
+-            openshell_core::sandbox_env::POLICY_DNS_TRANSPARENT_TCP_CAPABILITY
+-        ),
+-        format!(
+-            "{}={}",
+-            openshell_core::sandbox_env::LOG_LEVEL,
+-            openshell_core::driver_utils::sandbox_log_level(sandbox, &config.log_level)
+-        ),
+-        format!(
+-            "{}={}",
+-            openshell_core::sandbox_env::TELEMETRY_ENABLED,
+-            openshell_core::telemetry::enabled_env_value()
+-        ),
+-    ];
+-    if config.guest_tls.is_some() {
+-        environment.extend([
++    fresh: &companion_state::AdmittedFreshCompanion,
++) -> Result<DockerControlProcess, ControlSpawnFailure> {
++    let mut stage = ControlLaunchStage::FreshAdmission;
++    let result = async {
++        let supervisor_name = fresh.name_for(sandbox, config)?;
++        stage = ControlLaunchStage::TemplateAdmission;
++        let template = sandbox
++            .spec
++            .as_ref()
++            .and_then(|spec| spec.template.as_ref())
++            .ok_or_else(|| Status::invalid_argument("sandbox.spec.template is required"))?;
++        let driver_config =
++            DockerSandboxDriverConfig::from_template(template).map_err(Status::invalid_argument)?;
++        let resource_limits = docker_resource_limits(template)?;
++        driver_config.validate_log_limits(resource_limits.memory_bytes)?;
++        let pids_limit = docker_pids_limit(config.sandbox_pids_limit)?;
++        stage = ControlLaunchStage::PrivateInputs;
++        let directory = docker_boundary_state_dir(sandbox, config)?;
++        let main_process_spec = tokio::fs::read_to_string(directory.join(MAIN_PROCESS_SPEC_FILE))
++            .await
++            .map_err(|error| Status::internal(format!("read Docker main process spec: {error}")))?;
++        let workspace_root = tokio::fs::read_to_string(directory.join(WORKSPACE_ROOT_FILE))
++            .await
++            .map_err(|error| Status::internal(format!("read Docker workspace root: {error}")))?;
++        let runtime_descriptor_path =
++            format!("{SUPERVISOR_STATE_MOUNT_PATH}/runtime-descriptor.json");
++        let auth_bundle_path = format!("{SUPERVISOR_STATE_MOUNT_PATH}/auth.json");
++        let mut environment = vec![
++            format!(
++                "{}={DRIVER_ADMITTED_BACKEND}",
++                openshell_core::sandbox_env::ADMITTED_ISOLATION_BACKEND
++            ),
++            format!(
++                "{}={main_process_spec}",
++                openshell_core::sandbox_env::MAIN_PROCESS_SPEC
++            ),
++            format!(
++                "{}={}",
++                openshell_core::sandbox_env::ENDPOINT,
++                config.supervisor_grpc_endpoint
++            ),
++            format!("{}={}", openshell_core::sandbox_env::SANDBOX_ID, sandbox.id),
++            format!("{}={}", openshell_core::sandbox_env::SANDBOX, sandbox.name),
++            format!(
++                "{}={}",
++                openshell_core::sandbox_env::SSH_SOCKET_PATH,
++                config.ssh_socket_path
++            ),
+             format!(
+-                "{}={SUPERVISOR_STATE_MOUNT_PATH}/tls/ca.pem",
+-                openshell_core::sandbox_env::TLS_CA
++                "{}=/run/openshell/proxy-tls",
++                openshell_core::sandbox_env::PROXY_TLS_DIR
              ),
-             create,
-@@ -5202,122 +5603,171 @@ async fn spawn_docker_control_process(
-         .map_err(|error| {
-             Status::internal(format!("create Docker supervisor container: {error}"))
-         })?;
+             format!(
+-                "{}={SUPERVISOR_STATE_MOUNT_PATH}/tls/cert.pem",
+-                openshell_core::sandbox_env::TLS_CERT
++                "{}={}",
++                openshell_core::sandbox_env::NETWORK_RUNTIME_CAPABILITIES,
++                openshell_core::sandbox_env::POLICY_DNS_TRANSPARENT_TCP_CAPABILITY
+             ),
+             format!(
+-                "{}={SUPERVISOR_STATE_MOUNT_PATH}/tls/key.pem",
+-                openshell_core::sandbox_env::TLS_KEY
++                "{}={}",
++                openshell_core::sandbox_env::LOG_LEVEL,
++                openshell_core::driver_utils::sandbox_log_level(sandbox, &config.log_level)
++            ),
++            format!(
++                "{}={}",
++                openshell_core::sandbox_env::TELEMETRY_ENABLED,
++                openshell_core::telemetry::enabled_env_value()
++            ),
++        ];
++        if config.guest_tls.is_some() {
++            environment.extend([
++                format!(
++                    "{}={SUPERVISOR_STATE_MOUNT_PATH}/tls/ca.pem",
++                    openshell_core::sandbox_env::TLS_CA
++                ),
++                format!(
++                    "{}={SUPERVISOR_STATE_MOUNT_PATH}/tls/cert.pem",
++                    openshell_core::sandbox_env::TLS_CERT
++                ),
++                format!(
++                    "{}={SUPERVISOR_STATE_MOUNT_PATH}/tls/key.pem",
++                    openshell_core::sandbox_env::TLS_KEY
++                ),
++            ]);
++        }
++        if let Some(socket) = config.provider_spiffe_workload_api_socket.as_ref() {
++            let projected =
++                openshell_core::driver_utils::projected_provider_spiffe_socket_path(socket)
++                    .map_err(Status::failed_precondition)?;
++            environment.push(format!(
++                "{}={projected}",
++                openshell_core::sandbox_env::PROVIDER_SPIFFE_WORKLOAD_API_SOCKET
++            ));
++        }
++        stage = ControlLaunchStage::PreparedAuthentication;
++        let supervisor_archive = docker_supervisor_bundle_archive(sandbox, config).await?;
++        stage = ControlLaunchStage::BundleStaging;
++        stage_docker_supervisor_bundle(docker, sandbox, config, supervisor_archive.archive).await?;
++        stage = ControlLaunchStage::ContainerSpecification;
++        let labels = HashMap::from([
++            (LABEL_MANAGED_BY.to_string(), "openshell".to_string()),
++            (LABEL_SANDBOX_ID.to_string(), sandbox.id.clone()),
++            (LABEL_SANDBOX_NAME.to_string(), sandbox.name.clone()),
++            (
++                LABEL_SANDBOX_NAMESPACE.to_string(),
++                config.sandbox_namespace.clone(),
++            ),
++            (
++                LABEL_ISOLATION_ROLE.to_string(),
++                LABEL_ISOLATION_ROLE_SUPERVISOR.to_string(),
+             ),
+         ]);
+-    }
+-    if let Some(socket) = config.provider_spiffe_workload_api_socket.as_ref() {
+-        let projected = openshell_core::driver_utils::projected_provider_spiffe_socket_path(socket)
+-            .map_err(Status::failed_precondition)?;
+-        environment.push(format!(
+-            "{}={projected}",
+-            openshell_core::sandbox_env::PROVIDER_SPIFFE_WORKLOAD_API_SOCKET
+-        ));
+-    }
+-    let supervisor_archive = docker_supervisor_bundle_archive(sandbox, config).await?;
+-    stage_docker_supervisor_bundle(docker, sandbox, config, supervisor_archive).await?;
+-    let labels = HashMap::from([
+-        (LABEL_MANAGED_BY.to_string(), "openshell".to_string()),
+-        (LABEL_SANDBOX_ID.to_string(), sandbox.id.clone()),
+-        (LABEL_SANDBOX_NAME.to_string(), sandbox.name.clone()),
+-        (
+-            LABEL_SANDBOX_NAMESPACE.to_string(),
+-            config.sandbox_namespace.clone(),
+-        ),
+-        (
+-            LABEL_ISOLATION_ROLE.to_string(),
+-            LABEL_ISOLATION_ROLE_SUPERVISOR.to_string(),
+-        ),
+-    ]);
+-    let mut command = vec![
+-        "--backend-descriptor-file".to_string(),
+-        runtime_descriptor_path,
+-        "--auth-bundle-file".to_string(),
+-        auth_bundle_path,
+-        "--workdir".to_string(),
+-        workspace_root,
+-        format!("--health-socket-path={SUPERVISOR_HEALTH_SOCKET_PATH}"),
+-    ];
+-    command.extend(docker_upstream_proxy_cli_args(&config.upstream_proxy));
+-    let mut supervisor_mounts = vec![
+-        Mount {
+-            target: Some(BOUNDARY_MOUNT_PATH.to_string()),
+-            source: Some(docker_channel_volume_name(sandbox, config)),
+-            typ: Some(MountTypeEnum::VOLUME),
+-            read_only: Some(true),
+-            volume_options: Some(MountVolumeOptions {
+-                no_copy: Some(true),
++        let mut command = vec![
++            "--backend-descriptor-file".to_string(),
++            runtime_descriptor_path,
++            "--auth-bundle-file".to_string(),
++            auth_bundle_path,
++            "--workdir".to_string(),
++            workspace_root,
++            format!("--health-socket-path={SUPERVISOR_HEALTH_SOCKET_PATH}"),
++        ];
++        command.extend(docker_upstream_proxy_cli_args(&config.upstream_proxy));
++        let mut supervisor_mounts = vec![
++            Mount {
++                target: Some(BOUNDARY_MOUNT_PATH.to_string()),
++                source: Some(docker_channel_volume_name(sandbox, config)),
++                typ: Some(MountTypeEnum::VOLUME),
++                read_only: Some(true),
++                volume_options: Some(MountVolumeOptions {
++                    no_copy: Some(true),
++                    ..Default::default()
++                }),
+                 ..Default::default()
+-            }),
+-            ..Default::default()
+-        },
+-        Mount {
+-            target: Some(SUPERVISOR_STATE_MOUNT_PATH.to_string()),
+-            source: Some(docker_supervisor_volume_name(sandbox, config)),
+-            typ: Some(MountTypeEnum::VOLUME),
+-            read_only: Some(true),
+-            volume_options: Some(MountVolumeOptions {
+-                no_copy: Some(true),
++            },
++            Mount {
++                target: Some(SUPERVISOR_STATE_MOUNT_PATH.to_string()),
++                source: Some(docker_supervisor_volume_name(sandbox, config)),
++                typ: Some(MountTypeEnum::VOLUME),
++                read_only: Some(true),
++                volume_options: Some(MountVolumeOptions {
++                    no_copy: Some(true),
++                    ..Default::default()
++                }),
+                 ..Default::default()
++            },
++        ];
++        if let Some(socket) = config.provider_spiffe_workload_api_socket.as_ref() {
++            let parent = socket.parent().ok_or_else(|| {
++                Status::failed_precondition("provider SPIFFE socket has no parent directory")
++            })?;
++            supervisor_mounts.push(Mount {
++                target: Some(PROVIDER_SPIFFE_WORKLOAD_API_SOCKET_MOUNT_DIR.to_string()),
++                source: Some(parent.display().to_string()),
++                typ: Some(MountTypeEnum::BIND),
++                read_only: Some(true),
++                ..Default::default()
++            });
++        }
++        let create = ContainerCreateBody {
++            image: Some(config.supervisor_image_id.clone()),
++            user: Some(format!("{SUPERVISOR_UID}:{SUPERVISOR_GID}")),
++            entrypoint: Some(vec![SUPERVISOR_IMAGE_CONTROL_BINARY_PATH.to_string()]),
++            cmd: Some(command),
++            env: Some(environment),
++            labels: Some(labels),
++            healthcheck: Some(HealthConfig {
++                test: Some(vec![
++                    "CMD".to_string(),
++                    SUPERVISOR_IMAGE_CONTROL_BINARY_PATH.to_string(),
++                    "health".to_string(),
++                    "--socket".to_string(),
++                    SUPERVISOR_HEALTH_SOCKET_PATH.to_string(),
++                ]),
++                interval: Some(SUPERVISOR_HEALTH_INTERVAL_NS),
++                timeout: Some(SUPERVISOR_HEALTH_TIMEOUT_NS),
++                retries: Some(3),
++                start_period: Some(SUPERVISOR_HEALTH_START_PERIOD_NS),
++                start_interval: Some(SUPERVISOR_HEALTH_INTERVAL_NS),
+             }),
++            host_config: Some(docker_supervisor_host_config(
++                supervisor_mounts,
++                &config.supervisor_grpc_endpoint,
++                driver_config.log_limits,
++                resource_limits,
++                pids_limit,
++            )),
+             ..Default::default()
+-        },
+-    ];
+-    if let Some(socket) = config.provider_spiffe_workload_api_socket.as_ref() {
+-        let parent = socket.parent().ok_or_else(|| {
+-            Status::failed_precondition("provider SPIFFE socket has no parent directory")
+-        })?;
+-        supervisor_mounts.push(Mount {
+-            target: Some(PROVIDER_SPIFFE_WORKLOAD_API_SOCKET_MOUNT_DIR.to_string()),
+-            source: Some(parent.display().to_string()),
+-            typ: Some(MountTypeEnum::BIND),
+-            read_only: Some(true),
+-            ..Default::default()
+-        });
+-    }
+-    let create = ContainerCreateBody {
+-        image: Some(config.supervisor_image_id.clone()),
+-        user: Some(format!("{SUPERVISOR_UID}:{SUPERVISOR_GID}")),
+-        entrypoint: Some(vec![SUPERVISOR_IMAGE_CONTROL_BINARY_PATH.to_string()]),
+-        cmd: Some(command),
+-        env: Some(environment),
+-        labels: Some(labels),
+-        healthcheck: Some(HealthConfig {
+-            test: Some(vec![
+-                "CMD".to_string(),
+-                SUPERVISOR_IMAGE_CONTROL_BINARY_PATH.to_string(),
+-                "health".to_string(),
+-                "--socket".to_string(),
+-                SUPERVISOR_HEALTH_SOCKET_PATH.to_string(),
+-            ]),
+-            interval: Some(SUPERVISOR_HEALTH_INTERVAL_NS),
+-            timeout: Some(SUPERVISOR_HEALTH_TIMEOUT_NS),
+-            retries: Some(3),
+-            start_period: Some(SUPERVISOR_HEALTH_START_PERIOD_NS),
+-            start_interval: Some(SUPERVISOR_HEALTH_INTERVAL_NS),
+-        }),
+-        host_config: Some(docker_supervisor_host_config(
+-            supervisor_mounts,
+-            &config.supervisor_grpc_endpoint,
+-        )),
+-        ..Default::default()
+-    };
+-    let created = docker
+-        .create_container(
+-            Some(
+-                CreateContainerOptionsBuilder::default()
+-                    .name(supervisor_name.as_str())
+-                    .build(),
+-            ),
+-            create,
+-        )
+-        .await
+-        .map_err(|error| {
+-            Status::internal(format!("create Docker supervisor container: {error}"))
+-        })?;
 -    if let Err(error) = docker.start_container(&created.id, None).await {
 -        let _ = docker
 -            .remove_container(
 -                &created.id,
 -                Some(RemoveContainerOptionsBuilder::default().force(true).build()),
-+    docker
-+        .start_container(&created.id, None)
-+        .await
-+        .map_err(|_| Status::unavailable("Docker companion Start observation is unresolved"))?;
-+    let inspected = docker
-+        .inspect_container(&created.id, None)
-+        .await
-+        .map_err(|_| {
-+            Status::failed_precondition(
-+                "Cannot inspect started Docker companion for immutable binding",
++        };
++        stage = ControlLaunchStage::ContainerCreate;
++        let created = docker
++            .create_container(
++                Some(
++                    CreateContainerOptionsBuilder::default()
++                        .name(supervisor_name)
++                        .build(),
++                ),
++                create,
              )
 -            .await;
 -        return Err(Status::internal(format!(
 -            "start Docker supervisor container: {error}"
 -        )));
-+        })?;
-+    let descriptor = read_docker_runtime_descriptor(&sandbox.id, config)
-+        .await?
-+        .ok_or_else(|| {
-+            Status::failed_precondition(
-+                "Docker runtime descriptor is missing before companion commit",
-+            )
-+        })?;
-+    companion_state::write(
-+        sandbox,
-+        &failure_context.container_id,
-+        &descriptor.generation,
-+        &inspected,
-+        config,
-+        &supervisor_archive.authentication,
-+    )?;
-+    let readiness_sandbox_id = failure_context.container_id.clone();
-+    let supervisor_id = created.id;
-+    let context = failure_context.clone();
-+    let process = monitor_docker_control_process(supervisor_id.clone(), failure_context);
-+    if let Err(error) =
-+        wait_for_docker_supervisor_ready(docker, &supervisor_id, &readiness_sandbox_id).await
-+    {
-+        publish_unresolved_supervisor_observation(&context).await;
-+        return Err(ControlSpawnFailure {
-+            status: error,
-+            monitor: Some(process),
-+        });
++            .await
++            .map_err(|error| {
++                Status::internal(format!("create Docker supervisor container: {error}"))
++            })?;
++        stage = ControlLaunchStage::ContainerStart;
++        docker
++            .start_container(&created.id, None)
++            .await
++            .map_err(|_| Status::unavailable("Docker companion Start observation is unresolved"))?;
++        stage = ControlLaunchStage::InstanceInspection;
++        let inspected = docker
++            .inspect_container(&created.id, None)
++            .await
++            .map_err(|_| {
++                Status::failed_precondition(
++                    "Cannot inspect started Docker companion for immutable binding",
++                )
++            })?;
++        stage = ControlLaunchStage::RuntimeDescriptor;
++        let descriptor = read_docker_runtime_descriptor(&sandbox.id, config)
++            .await?
++            .ok_or_else(|| {
++                Status::failed_precondition(
++                    "Docker runtime descriptor is missing before companion commit",
++                )
++            })?;
++        stage = ControlLaunchStage::ImmutableBinding;
++        companion_state::write(
++            sandbox,
++            &failure_context.container_id,
++            &descriptor.generation,
++            &inspected,
++            config,
++            &supervisor_archive.authentication,
++        )?;
++        let readiness_sandbox_id = failure_context.container_id.clone();
++        let supervisor_id = created.id;
++        let context = failure_context.clone();
++        let process = monitor_docker_control_process(supervisor_id.clone(), failure_context);
++        stage = ControlLaunchStage::Readiness;
++        if let Err(error) =
++            wait_for_docker_supervisor_ready(docker, &supervisor_id, &readiness_sandbox_id).await
++        {
++            publish_unresolved_supervisor_observation(&context).await;
++            return Err(ControlSpawnFailure {
++                status: error,
++                monitor: Some(process),
++                stage,
++            });
++        }
++        Ok(process)
 +    }
-+    Ok(process)
++    .await;
++    result.map_err(|mut failure: ControlSpawnFailure| {
++        failure.stage = stage;
++        failure
++    })
 +}
 +
 +#[derive(Clone, Copy)]
@@ -5551,7 +6006,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
  }
 
  async fn wait_for_docker_supervisor_ready(
-@@ -5398,6 +5848,46 @@ async fn docker_container_log_tail(docker: &Docker, container_id: &str) -> Strin
+@@ -5398,6 +5899,46 @@ async fn docker_container_log_tail(docker: &Docker, container_id: &str) -> Strin
      String::from_utf8_lossy(&output).trim().to_string()
  }
 
@@ -5598,7 +6053,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
  async fn handle_docker_runtime_failure(
      context: DockerRuntimeFailureContext,
      reason: &'static str,
-@@ -5406,6 +5896,7 @@ async fn handle_docker_runtime_failure(
+@@ -5406,6 +5947,7 @@ async fn handle_docker_runtime_failure(
      context.failures.lock().await.insert(
          context.sandbox.id.clone(),
          DockerRuntimeFailure {
@@ -5606,7 +6061,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              reason,
              message: message.clone(),
          },
-@@ -5481,6 +5972,9 @@ fn cleanup_docker_boundary_state(sandbox: &DriverSandbox, config: &DockerDriverR
+@@ -5481,6 +6023,9 @@ fn cleanup_docker_boundary_state(sandbox: &DriverSandbox, config: &DockerDriverR
  }
 
  fn cleanup_docker_boundary_state_by_id(sandbox_id: &str, config: &DockerDriverRuntimeConfig) {
@@ -5616,7 +6071,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      let Ok(directory) = docker_boundary_state_dir_by_id(sandbox_id, config) else {
          return;
      };
-@@ -5661,6 +6155,11 @@ fn build_container_create_body_for_image(
+@@ -5661,6 +6206,11 @@ fn build_container_create_body_for_image(
          .map_err(Status::failed_precondition)?;
      driver_mounts::validate_workspace_control_path(&workspace_root, BOUNDARY_MOUNT_PATH)
          .map_err(Status::failed_precondition)?;
@@ -5628,7 +6083,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      for volume in &image.volumes {
          driver_mounts::validate_container_mount_target(volume).map_err(|error| {
              Status::failed_precondition(format!(
-@@ -5674,6 +6173,9 @@ fn build_container_create_body_for_image(
+@@ -5674,6 +6224,9 @@ fn build_container_create_body_for_image(
          })?;
          driver_mounts::validate_mount_control_path(volume, BOUNDARY_MOUNT_PATH)
              .map_err(Status::failed_precondition)?;
@@ -5638,7 +6093,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      }
      for mount in &driver_config.mounts {
          let target = match mount {
-@@ -5686,8 +6188,14 @@ fn build_container_create_body_for_image(
+@@ -5686,8 +6239,14 @@ fn build_container_create_body_for_image(
              .map_err(Status::failed_precondition)?;
          driver_mounts::validate_mount_control_path(target, BOUNDARY_MOUNT_PATH)
              .map_err(Status::failed_precondition)?;
@@ -5653,7 +6108,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
      user_mounts.push(Mount {
          target: Some(BOUNDARY_MOUNT_PATH.to_string()),
          source: Some(docker_channel_volume_name(sandbox, config)),
-@@ -5776,6 +6284,7 @@ fn build_container_create_body_for_image(
+@@ -5776,6 +6335,7 @@ fn build_container_create_body_for_image(
                  Some(binds)
              },
              mounts: Some(user_mounts),
@@ -5661,7 +6116,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..bddde61fa783be434c23671ba4d9c575
              // Canonical main-process exit is terminal. Runtime restart would
              // silently create a new process generation behind the gateway.
              restart_policy: None,
-@@ -6292,48 +6801,30 @@ fn sanitize_docker_name(value: &str) -> String {
+@@ -6292,48 +6852,30 @@ fn sanitize_docker_name(value: &str) -> String {
          .to_string()
  }
 
@@ -7383,3 +7838,162 @@ index 8988542b1a99abf89fa8d206cfb7e2a934287276..4f841085e41e5141c6f70215e42ce6db
 
      let roles: Vec<String> = subject
          .iter_organizational_unit()
+diff --git a/crates/openshell-server/src/supervisor_session.rs b/crates/openshell-server/src/supervisor_session.rs
+index 710ecc140600e83b079043336d65061ebaff272d..67cc87a258e18f9f6f674f794ee28690a8fd9f5a 100644
+--- a/crates/openshell-server/src/supervisor_session.rs
++++ b/crates/openshell-server/src/supervisor_session.rs
+@@ -1433,11 +1433,22 @@ pub async fn open_routed_relay_with_message(
+                 continue;
+             }
+             if owner_endpoint_is_local_only(&owner.owner_peer_endpoint) {
+-                return Err(Status::failed_precondition(format!(
+-                    "sandbox is owned by gateway replica {} which advertises no peer endpoint; \
+-                     set OPENSHELL_PEER_ENDPOINT on every replica to route across replicas",
+-                    owner.owner_replica_id
+-                )));
++                // A retained companion can reconnect to a replacement process
++                // before the old replica's lease expires. Never dial local://
++                // or supersede ownership here: await an admitted current session
++                // within this call's existing admission window.
++                state.peer_routes.evict_owner(sandbox_id);
++                if Instant::now() + backoff > deadline {
++                    return Err(Status::failed_precondition(format!(
++                        "sandbox is owned by gateway replica {} which advertises no peer endpoint; \
++                         no current supervisor session arrived within the admission window; \
++                         set OPENSHELL_PEER_ENDPOINT on every replica for cross-replica routing",
++                        owner.owner_replica_id
++                    )));
++                }
++                tokio::time::sleep(backoff).await;
++                backoff = (backoff * 2).min(SESSION_WAIT_MAX_BACKOFF);
++                continue;
+             }
+             match open_peer_relay(
+                 state,
+@@ -3349,4 +3360,126 @@ mod tests {
+         assert!(!channels.contains_key("http://10.0.0.1:8080"));
+         assert!(channels.contains_key("http://10.0.0.2:8080"));
+     }
++    #[tokio::test]
++    async fn veoveo_routed_relay_waits_for_same_instance_reconnect_from_local_only_owner() {
++        let state = crate::grpc::test_support::test_server_state().await;
++        let index = SupervisorOwnerIndex::new(state.store.clone(), OWNER_TTL);
++        index
++            .publish(
++                "sb-relay",
++                "old-session",
++                "same-instance",
++                1,
++                "old-replica",
++                "local://old-replica",
++            )
++            .await
++            .unwrap();
++        let reconnect = async {
++            tokio::time::sleep(Duration::from_millis(25)).await;
++            // The same CAS admission used by authenticated session establishment:
++            // a different physical instance or stale epoch cannot take this lease.
++            index
++                .publish(
++                    "sb-relay",
++                    "current-session",
++                    "same-instance",
++                    2,
++                    &state.replica_id,
++                    &local_owner_endpoint(&state.replica_id),
++                )
++                .await
++                .unwrap();
++            let (tx, rx) = mpsc::channel(1);
++            state.supervisor_sessions.register(
++                "sb-relay".into(),
++                "current-session".into(),
++                tx,
++                make_shutdown(),
++            );
++            rx
++        };
++        let open = open_routed_relay_with_target(
++            &state,
++            "sb-relay",
++            relay_open::Target::Ssh(SshRelayTarget {}),
++            "owned-terminal".into(),
++            Duration::from_secs(2),
++        );
++        let (result, mut accepted_session) = tokio::join!(open, reconnect);
++        let (channel_id, _response) =
++            result.expect("local-only prior owner must not reject qualified reconnect");
++        let message = accepted_session.recv().await.unwrap();
++        let Some(gateway_message::Payload::RelayOpen(open)) = message.payload else {
++            panic!("one relay dispatch to current accepted session");
++        };
++        assert_eq!(open.channel_id, channel_id);
++        assert_eq!(open.service_id, "owned-terminal");
++        assert!(accepted_session.try_recv().is_err(), "no relay redispatch");
++        let owner = index.read("sb-relay").await.unwrap().unwrap();
++        assert_eq!(owner.supervisor_instance_id, "same-instance");
++        assert_eq!(owner.connection_epoch, 2);
++        assert_eq!(owner.owner_replica_id, state.replica_id);
++    }
++
++    #[tokio::test]
++    async fn veoveo_routed_relay_keeps_foreign_and_stale_epoch_refusals_until_deadline() {
++        let state = crate::grpc::test_support::test_server_state().await;
++        let index = SupervisorOwnerIndex::new(state.store.clone(), OWNER_TTL);
++        index
++            .publish(
++                "sb-refusal",
++                "old-session",
++                "same-instance",
++                2,
++                "old-replica",
++                "local://old-replica",
++            )
++            .await
++            .unwrap();
++        for (instance, epoch) in [
++            ("foreign-instance", 3),
++            ("same-instance", 2),
++            ("same-instance", 1),
++        ] {
++            assert!(matches!(
++                index
++                    .publish(
++                        "sb-refusal",
++                        "unadmitted",
++                        instance,
++                        epoch,
++                        &state.replica_id,
++                        &local_owner_endpoint(&state.replica_id)
++                    )
++                    .await,
++                Err(OwnerError::AlreadyOwned)
++            ));
++        }
++        let began = Instant::now();
++        let error = open_routed_relay_with_target(
++            &state,
++            "sb-refusal",
++            relay_open::Target::Ssh(SshRelayTarget {}),
++            "owned-terminal".into(),
++            Duration::from_millis(350),
++        )
++        .await
++        .err()
++        .expect("a missing current session cannot establish a relay");
++        assert_eq!(error.code(), tonic::Code::FailedPrecondition);
++        assert!(began.elapsed() >= Duration::from_millis(100));
++        assert!(began.elapsed() < Duration::from_secs(2));
++        assert!(!state.supervisor_sessions.has_session("sb-refusal"));
++        assert!(
++            state
++                .supervisor_sessions
++                .pending_channel_ids("sb-refusal")
++                .is_empty()
++        );
++        assert_eq!(
++            index.read("sb-refusal").await.unwrap().unwrap().session_id,
++            "old-session"
++        );
++    }
+ }

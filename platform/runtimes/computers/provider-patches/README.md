@@ -218,6 +218,15 @@ mount topology. Standalone runtime cases also own the maintained private daemon;
 provider, retained storage helpers, writer enumeration and cleanup use its explicit
 socket. No provider fixture can select the installation daemon for its companion.
 
+Gateway relay admission uses the existing fifteen-second session window when the
+previous gateway's fresh owner record advertises a local-only endpoint. Current
+same-instance, higher-epoch authentication and owner CAS still govern reconnect;
+no local-only address is dialed and admission cannot take over another instance.
+Server controls exercise the routed relay against the actual Store and session
+registry, including no-session deadlines, foreign/stale epochs, principal refusal
+and superseded-session selection. Driver launch diagnostics emit only a closed
+stage and tonic code while preserving the original unknown outcome and fences.
+
 ## Qualification And Maintenance
 
 This package declares a candidate source/build profile. The manifest records

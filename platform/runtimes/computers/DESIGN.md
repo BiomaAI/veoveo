@@ -308,6 +308,15 @@ Its physical supervisor identity and canonical main-process epoch must survive. 
 supervisor's maintained authenticated reconnect supplies the replacement gateway's
 current registry. Local companion health indicates readiness; authenticated terminal
 traffic through that replacement registry establishes current session acceptance.
+Relay admission waits up to fifteen seconds for the maintained authenticated
+reconnect even when a fresh owner record points to the previous local-only gateway
+replica. It never dials a local-only endpoint or alters owner leases. The same
+supervisor instance with a higher connection epoch must pass the existing ownership
+CAS and current authentication before registering. An absent current session still
+refuses by the deadline. The terminal adapter allows twenty seconds for ForwardTcp
+admission, including transport overhead, inside its credential/setup deadline and
+renewable attachment lease. It checks both lease and mint-credential expiry before
+dispatch and after admission; an awaited response cannot revive expired access.
 
 Explicit Start on an observed stopped generation keeps the admitted fresh-generation
 path. One per-sandbox admission lock covers the absence check, generation/authentication
@@ -596,6 +605,11 @@ reader outcome passes through a separate one-second kill/reap budget; an unresol
 reap is recorded separately from the original read failure. These log facts
 support diagnosis; they do not establish current session authority or settle an
 unresolved provider operation.
+Driver companion launch failures also report a closed launch stage and tonic code
+at the existing failure boundary. This distinguishes authentication-snapshot,
+instance-inspection and immutable-binding refusal from readiness failure without
+copying status messages. The original RPC failure and unresolved resource fences
+continue to govern the operation.
 
 Worker and guest transport certificates are distinct. The provider's mTLS user
 allowlist admits only the worker common name. A guest certificate alone must reach
