@@ -1,8 +1,13 @@
 use super::*;
 use anyhow::ensure;
+use rmcp::model::{GetTaskParams, ServerNotification, SubscriptionFilter, TaskStatus};
 use scraper::{Html, Selector};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+use veoveo_duckdb_mcp::{
+    DuckDbDatabaseId, DuckDbExecuteOutput, DuckDbExecuteRequest, DuckDbExportOutput,
+    DuckDbExportRequest, DuckDbTabularFormat, DuckDbTabularSelection,
+};
 const LARGE_ARTIFACT_ROWS: u64 = 200_000;
 
 const LARGE_ARTIFACT_MINIMUM_BYTES: usize = 8 * 1024 * 1024;
@@ -88,6 +93,13 @@ async fn verify_large_artifact_delivery(
     let profile = installation.profile();
     let token = installation.token().await?;
 
+    let database = DuckDbDatabaseId::new("artifact_delivery_acceptance")?;
+    let mut setup = DuckDbExecuteRequest::new(
+        database.clone(),
+        "CREATE OR REPLACE TABLE marker AS SELECT 1 AS ready".parse()?,
+    );
+    setup.create_if_missing = true;
+    let setup_arguments = serde_json::to_string(&setup)?;
     let execute = run_public_conformance(
         conformance,
         base,
@@ -98,63 +110,42 @@ async fn verify_large_artifact_delivery(
             "--tool-name",
             "duckdb__execute",
             "--arguments",
-            r#"{"db":"artifact_delivery_acceptance","sql":"CREATE OR REPLACE TABLE marker AS SELECT 1 AS ready","create_if_missing":true}"#,
+            &setup_arguments,
         ],
         Duration::from_secs(60),
     )
     .await?;
-    let execute = structured_output(&execute)?;
+    let execute: DuckDbExecuteOutput = serde_json::from_value(structured_output(&execute)?)
+        .context("large-artifact setup returned invalid DuckDB output")?;
     ensure!(
-        execute.get("db").and_then(Value::as_str) == Some("artifact_delivery_acceptance"),
-        "large-artifact setup returned an unexpected DuckDB identity: {execute}"
+        execute.db == database,
+        "large-artifact setup returned an unexpected DuckDB identity"
     );
 
     let export_sql = format!(
         "SELECT i, sha256(CAST(i AS VARCHAR)) AS digest FROM range({LARGE_ARTIFACT_ROWS}) AS t(i) ORDER BY i"
     );
-    let arguments = serde_json::to_string(&serde_json::json!({
-        "db": "artifact_delivery_acceptance",
-        "selection": {
-            "kind": "sql",
-            "sql": export_sql,
+    let arguments = DuckDbExportRequest::Tabular {
+        db: database.clone(),
+        selection: DuckDbTabularSelection::Sql {
+            sql: export_sql.parse()?,
         },
-        "format": "csv",
-    }))?;
-    let export = run_public_conformance(
-        conformance,
-        base,
-        profile,
-        &token,
-        &[
-            "task-call",
-            "--tool-name",
-            "duckdb__export",
-            "--arguments",
-            &arguments,
-            "--timeout-seconds",
-            "180",
-        ],
-        Duration::from_secs(210),
+        format: DuckDbTabularFormat::Csv,
+    };
+    let export: DuckDbExportOutput = serde_json::from_value(
+        export_with_task_notification(base, profile, &token, serde_json::to_value(arguments)?)
+            .await?,
     )
-    .await?;
-    let export = structured_output(&export)?;
+    .context("large-artifact export returned invalid DuckDB output")?;
     ensure!(
-        export.get("rows_exported").and_then(Value::as_u64) == Some(LARGE_ARTIFACT_ROWS),
-        "large-artifact export returned an unexpected row count: {export}"
+        export.db() == &database && export.rows_exported() == LARGE_ARTIFACT_ROWS,
+        "large-artifact export returned an unexpected database or row count"
     );
-    let artifact = export
-        .get("artifact")
-        .and_then(Value::as_object)
-        .context("large-artifact export omitted typed artifact metadata")?;
-    let artifact_id = artifact
-        .get("artifactId")
-        .and_then(Value::as_str)
-        .context("large-artifact export omitted artifact_id")?;
-    veoveo_artifact_contract::ArtifactId::parse(artifact_id)
-        .context("large-artifact export returned an invalid artifact_id")?;
+    let artifact = export.artifact();
+    let artifact_id = artifact.artifact_id();
     ensure!(
-        !artifact.contains_key("download_url"),
-        "artifact metadata must not expose storage download plumbing: {artifact:?}"
+        artifact.download_url.is_none(),
+        "artifact metadata must not expose storage download plumbing"
     );
 
     let expected = expected_large_artifact();
@@ -163,7 +154,7 @@ async fn verify_large_artifact_delivery(
         "large-artifact fixture must remain larger than 8 MiB"
     );
     ensure!(
-        artifact.get("byteLen").and_then(Value::as_u64) == Some(expected.len() as u64),
+        artifact.byte_len == expected.len() as u64,
         "artifact metadata byte length does not match deterministic export"
     );
     let expected_digest = Sha256::digest(&expected);
@@ -239,6 +230,123 @@ async fn verify_large_artifact_delivery(
         "public artifact byte range did not match the deterministic export"
     );
     Ok(())
+}
+
+// Keep the former CLI's 210-second envelope and 180-second Task wait.
+// The maintained Task helper registers uncertain dispatch cleanup before effects.
+async fn export_with_task_notification(
+    base: &str,
+    profile: &str,
+    token: &str,
+    arguments: Value,
+) -> Result<Value> {
+    let overall = tokio::time::Instant::now() + Duration::from_secs(210);
+    let mut endpoint = url::Url::parse(base).context("invalid installation MCP base")?;
+    endpoint
+        .path_segments_mut()
+        .map_err(|_| anyhow!("installation MCP base cannot hold route segments"))?
+        .pop_if_empty()
+        .push("mcp")
+        .push(profile);
+    let client = tokio::time::timeout_at(
+        overall.min(tokio::time::Instant::now() + Duration::from_secs(15)),
+        connect_mcp_client(endpoint.as_str(), token),
+    )
+    .await
+    .context("DuckDB SDK connection exceeded its admission deadline")?
+    .map_err(|_| anyhow!("DuckDB SDK connection failed"))?;
+    let mut subscription = None;
+    let outcome = tokio::time::timeout_at(overall, async {
+        let task = call_tool_as_task(&client, "duckdb__export", arguments)
+            .await
+            .map_err(|_| {
+                anyhow!("DuckDB Task dispatch failed; original outcome remains unresolved")
+            })?;
+        let task_id = veoveo_types::TaskId::parse(&task.task_id)
+            .map_err(|_| anyhow!("DuckDB Task response has an invalid identity"))?;
+        let deadline = overall.min(tokio::time::Instant::now() + Duration::from_secs(180));
+        tokio::time::timeout_at(deadline, async {
+            let filter = SubscriptionFilter::builder()
+                .task_ids([task_id.to_string()])
+                .build();
+            subscription = Some(
+                client
+                    .listen(filter.clone())
+                    .await
+                    .map_err(|_| anyhow!("DuckDB exact Task listener failed"))?,
+            );
+            let stream = subscription.as_mut().expect("listener established");
+            ensure!(
+                stream.acknowledged() == &filter,
+                "DuckDB Task listener changed its acknowledged exact filter"
+            );
+            loop {
+                match stream
+                    .next()
+                    .await
+                    .map_err(|_| anyhow!("DuckDB Task notification read failed"))?
+                    .context("DuckDB Task listener ended before completion")?
+                {
+                    ServerNotification::TaskStatusNotification(update) => {
+                        ensure!(
+                            update.params.task.task.task_id == task_id.to_string(),
+                            "DuckDB Task notification identity mismatch"
+                        );
+                        match update.params.task.status() {
+                            TaskStatus::Completed => break,
+                            TaskStatus::Working | TaskStatus::InputRequired => {}
+                            _ => bail!("DuckDB export Task did not complete successfully"),
+                        }
+                    }
+                    _ => bail!("DuckDB exact Task listener delivered an unexpected notification"),
+                }
+            }
+            let current = client
+                .get_task(GetTaskParams::new(task_id.to_string()))
+                .await
+                .map_err(|_| anyhow!("DuckDB current Task read failed"))?;
+            ensure!(
+                current.task.task.task_id == task_id.to_string()
+                    && current.task.status() == TaskStatus::Completed,
+                "DuckDB completed notification disagrees with current Task identity/status"
+            );
+            let payload = task_payload(&client, &task_id.to_string())
+                .await
+                .map_err(|_| anyhow!("DuckDB completed Task payload read failed"))?;
+            ensure!(
+                payload.is_error != Some(true),
+                "DuckDB export Task returned a tool error"
+            );
+            payload
+                .structured_content
+                .context("DuckDB export Task omitted structured content")
+        })
+        .await
+        .context("DuckDB Task notification exceeded the original 180-second deadline")?
+    })
+    .await
+    .context("DuckDB export exceeded the original 210-second deadline")
+    .and_then(|result| result);
+    // Cleanup runs after every dispatch/listener outcome, including a cancelled wait.
+    let unsubscribe = if let Some(mut stream) = subscription {
+        tokio::time::timeout(Duration::from_secs(5), stream.cancel())
+            .await
+            .context("DuckDB Task subscription cleanup exceeded five seconds")
+            .and_then(|result| {
+                result.map_err(|_| anyhow!("DuckDB Task subscription cleanup failed"))
+            })
+    } else {
+        Ok(())
+    };
+    let close = tokio::time::timeout(Duration::from_secs(10), client.cancel())
+        .await
+        .context("DuckDB SDK cleanup exceeded ten seconds")
+        .and_then(|result| result.map_err(|_| anyhow!("DuckDB SDK cleanup failed")));
+    // Preserve the original failure; cleanup never turns unknown work into success.
+    let value = outcome?;
+    unsubscribe?;
+    close?;
+    Ok(value)
 }
 
 fn assert_artifact_response(

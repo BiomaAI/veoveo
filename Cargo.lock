@@ -16329,6 +16329,7 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-browser-smoke",
  "veoveo-deploy-contract",
+ "veoveo-duckdb-mcp",
  "veoveo-duckdb-runtime",
  "veoveo-frames-mcp",
  "veoveo-gateway-catalog",
