@@ -219,17 +219,15 @@ builds and package admission pass against the current manifest. Provider control
 45 driver and two mTLS cases; the Host embeds the same five provider executables.
 The candidates remain quarantined, canonical images and caches are preserved, and
 the cluster stays stopped. The selected Computer native gates pass. Scoped Cargo
-cleanup removes superseded unlinked executables and older incremental variants,
-recovering 356.8 GiB while retaining dependency libraries, current executable links,
-the newest incremental variants and frozen acceptance inputs. Release preflight now
-passes with 559 GiB available against 320 GiB projected growth and a 238 GiB retained
-reserve. The 34-target publication exposed a missing Python owner compliance profile
-in the package build context. The two affected Docker copy lists are repaired and
-isolated-wheel controls pass; their image packaging qualification is pending. The
-successful Speech and UAV dependency parents remain available under their unchanged
-recipe identities. The next publication must account for resident outputs when
-estimating remaining growth and retain the same free-space reserve. BuildKit cache,
-rollback images and cluster data stay protected.
+cleanup retains dependency libraries, current executable links, the newest
+incremental variants and frozen acceptance inputs. The two repaired Python image
+contexts pass their locked package builds and development-stage publication;
+these checks do not qualify the full release. The combined 34-target publication
+is running from the committed packaging repair. Its preflight allows 241 GiB of
+remaining growth while retaining 238 GiB free, and reuses the admitted Speech and
+UAV dependency parents. BuildKit cache, rollback images and cluster data stay
+protected. Qualified image publication, final deployment inputs and installed
+acceptance remain open.
 
 The Python SDK admits the preserved `v1:N` offset grammar and 64-bit range,
 including Rust's admitted leading-plus and leading-zero aliases. It refuses
