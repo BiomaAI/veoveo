@@ -11,22 +11,36 @@ from uuid_utils.compat import uuid7
 from veoveo_mcp.artifacts import (
     ArtifactDenied, ArtifactRepository, ArtifactTooLarge, ArtifactTransport, HttpArtifactPlane,
 )
-from veoveo_mcp.contract.identity import PlaneCaller
+from veoveo_mcp.contract.identity import (
+    DirectInvocationProvenance, GatewayInternalIdentity, InvocationAuthority,
+    PlaneCaller, Principal, PrincipalAccessSubject, PrincipalKind,
+    WorkContextMembershipLevel, WorkContextOutputPolicy,
+)
 
 
-def caller():
-    now = datetime.now(timezone.utc).isoformat()
-    return PlaneCaller.model_validate({
-        "bearer_token": "fixture-forwarded-identity",
-        "identity": {
-            "issuer": "veoveo-internal", "profile": "fixture", "server": "datasheet",
-            "jwt_id": "test", "issued_at": now, "not_before": now, "expiresAt": now,
-            "actor": {"id": "alice", "kind": "user", "issuer": "https://idp.example", "subject": "alice", "tenant": "tenant"},
-            "authority": {"workContext": "operations", "tenant": "tenant", "membership": "contributor", "policyRevision": "p1",
-                "output_policy": {"owner": {"kind": "principal", "id": "alice"}, "initial_grants": [], "classification": "internal", "dataLabels": []},
-                "provenance": {"mode": "direct", "initiator": "alice"}},
-        },
-    })
+def caller() -> PlaneCaller:
+    now = datetime.now(timezone.utc)
+    return PlaneCaller(
+        bearer_token="fixture-forwarded-identity",
+        identity=GatewayInternalIdentity(
+            issuer="veoveo-internal", profile="fixture", server="datasheet",
+            jwt_id="test", issued_at=now, not_before=now, expires_at=now,
+            actor=Principal(
+                id="alice", kind=PrincipalKind.USER, issuer="https://idp.example",
+                subject="alice", tenant="tenant",
+            ),
+            authority=InvocationAuthority(
+                work_context="operations", tenant="tenant",
+                membership=WorkContextMembershipLevel.CONTRIBUTOR,
+                policy_revision="p1",
+                output_policy=WorkContextOutputPolicy(
+                    owner=PrincipalAccessSubject(kind="principal", id="alice"),
+                    initial_grants=(), classification="internal", data_labels=frozenset(),
+                ),
+                provenance=DirectInvocationProvenance(mode="direct", initiator="alice"),
+            ),
+        ),
+    )
 
 
 class Chunks(httpx.AsyncByteStream):

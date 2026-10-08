@@ -128,31 +128,61 @@ async def test_query_propagates_caller_cancellation_without_reconnecting() -> No
     assert opens == 0
 
 
-def test_fixture_cleans_owned_container_after_launch_timeout(monkeypatch, tmp_path):
+@pytest.mark.parametrize("cid_state", ["owned", "missing", "malformed"])
+def test_fixture_cleans_owned_container_after_launch_timeout(monkeypatch, tmp_path, cid_state):
+    import json
     import subprocess
+    from pathlib import Path
 
     import conftest
 
     calls = []
+    owned_cid = "a" * 64
+    directory = tmp_path / "fixture"
+    directory.mkdir()
     monkeypatch.setattr(conftest, "_docker_available", lambda: True)
     monkeypatch.setattr(conftest, "_gateway_binary", lambda: tmp_path / "gateway")
     monkeypatch.setattr(conftest, "_free_port", lambda: 12345)
+    monkeypatch.setattr(conftest.tempfile, "mkdtemp", lambda **_options: str(directory))
 
     def run(arguments, **options):
         calls.append((arguments, options))
         if arguments[:2] == ["docker", "run"]:
-            raise subprocess.TimeoutExpired(arguments, options["timeout"])
-        return subprocess.CompletedProcess(arguments, 0)
+            cidfile = Path(arguments[arguments.index("--cidfile") + 1])
+            if cid_state != "missing":
+                cidfile.write_text(owned_cid if cid_state == "owned" else "invalid-cid")
+            raise subprocess.TimeoutExpired(
+                arguments, options["timeout"], stderr=conftest.RUNTIME_PASSWORD,
+            )
+        assert arguments == ["docker", "rm", "--force", "--volumes", owned_cid]
+        return subprocess.CompletedProcess(arguments, 0, stdout=owned_cid + "\n", stderr="")
 
     monkeypatch.setattr(conftest.subprocess, "run", run)
     fixture = conftest.surreal_platform.__wrapped__()
-    with pytest.raises(subprocess.TimeoutExpired) as error:
+    expected = "launch exceeded 60 seconds" if cid_state == "owned" else "cleanup unresolved"
+    with pytest.raises(RuntimeError, match=expected) as error:
         next(fixture)
 
-    assert len(calls) == 2
-    launch, cleanup = calls
-    owned_name = launch[0][launch[0].index("--name") + 1]
-    assert cleanup[0] == ["docker", "rm", "--force", owned_name]
-    assert cleanup[1] == {"check": False, "capture_output": True, "timeout": 30}
-    assert error.value.cmd == launch[0]
-    assert error.value.timeout == 60
+    receipt = json.loads((directory / "receipt.json").read_text())
+    assert receipt["launch"] == "unknown"
+    assert conftest.RUNTIME_PASSWORD not in json.dumps(receipt)
+    assert conftest.RUNTIME_PASSWORD not in str(error.value)
+    assert receipt["diagnostic"] == "[REDACTED]"
+    assert calls[0][0][:2] == ["docker", "run"]
+    assert calls[0][1]["timeout"] == 60
+    assert receipt["name"] == calls[0][0][calls[0][0].index("--name") + 1]
+    assert (directory.stat().st_mode & 0o777) == 0o700
+    assert ((directory / "receipt.json").stat().st_mode & 0o777) == 0o600
+    if cid_state == "owned":
+        assert len(calls) == 2
+        assert receipt["cid"] == owned_cid
+        assert receipt["cleanup"] == "settled"
+        assert calls[1][0] == ["docker", "rm", "--force", "--volumes", owned_cid]
+        assert calls[1][1] == {
+            "check": False, "capture_output": True, "text": True, "timeout": 30,
+        }
+    else:
+        assert len(calls) == 1, "unknown launch identity cannot authorize cleanup"
+        assert "cid" not in receipt
+        assert receipt["cleanup"] == "unresolved"
+        assert "cleanupDiagnostic" in receipt
