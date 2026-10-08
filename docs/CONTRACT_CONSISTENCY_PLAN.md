@@ -127,10 +127,19 @@ generation and verified credential epoch, preserve no-clobber admission and vali
 both values during decoding. Gateway-loss recovery keeps both values unchanged;
 settled Stop→Start preserves generation and advances credential epoch. The source
 passes review, 24 affected runtime controls, 60 provider controls and artifact
-checks. Both selected native lifecycle and file-transfer cases pass with the
-matched provider and template profiles. The wider provider matrix, host replacement
-and installed execution remain open. The candidate stays quarantined and the
-retained rollback image stays selected.
+checks. Eight selected native runtime and storage cases pass with the matched
+provider and template profiles. They cover lifecycle recovery, file transfer,
+terminal renewal, execution, retention, writer exclusion, filesystem identity and
+the allocator's shared mounts and restart. Fresh volume allocation admits Engine
+absence before publishing the filesystem as Ready and consumes one typed proof for
+labeled creation. Existing allocations only inspect approval; missing or unapproved
+metadata cannot authorize another Create. The repair passes independent review and
+its complete Storage library and diagnostic controls. The MCP worker fixture aborts
+with a stack overflow after controller connection; its exact failing callee is unknown.
+Static inspection finds large async poll frames across all four MCP fixtures. Their
+worker, command, file and maintenance cases and Host replacement still require native
+qualification. Installed execution stays open. The candidate remains quarantined and
+the rollback image stays selected.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
 
@@ -142,8 +151,18 @@ ordering checks. Signed Audit formats keep their bytes. Console's saved upload r
 reject unknown and retired fields before restoration or status reads. Both repairs
 pass their owning controls and independent review. The installation-pin fixture now
 uses the actual seven-file Gateway bundle preimage; current pins are unchanged.
-Client generation agrees across all 18 bundles and 36 outputs. This source review
-does not close the wider format inventory or installed consumer gates.
+Client generation agrees across all 18 bundles and 36 outputs. The maintained Helm
+configuration smoke verifies the approved Agent template's complete two-file ConfigMap,
+immutable name and owner-computed digest. This source review does not close the wider
+format inventory or installed consumer gates.
+
+The required harness, Embedding, authentication and image-copy review records 27
+additional producer and receiver families with explicit diagnostic and internal
+roles. The basic Embedding reference decoder now admits its complete typed v2
+document before endpoint or credential access. It rejects retired, mixed and
+unsupported markers and checks precision and vector relationships. Its current
+fixture and CPU admission controls pass; producer bytes and hardware captures are
+unchanged. These finite reviews do not establish the complete format denominator.
 
 The Python SDK admits the preserved `v1:N` offset grammar and 64-bit range,
 including Rust's admitted leading-plus and leading-zero aliases. It refuses
@@ -2956,7 +2975,7 @@ in batches; keep Knowledge and Embedding enabled and run Reason separately.
 | A01 | Every selected pod becomes Ready. Direct mounted `healthz` and `readyz` return 200 when healthy. Do not add anonymous per-server health passthroughs to the gateway |
 | A02 | Through the gateway, tools/resources/templates/prompts list successfully; unauthenticated discovery fails. Read `{scheme}://docs`, contract and an owner document, complete `doc_id=de` to `design`, and read authenticated admin docs |
 | A03 | Bad or unparseable resource addresses return -32602. Through a port-forward, missing Host is 400 and a disallowed Host is 421, including probes and Recording gRPC |
-| A04 | Admin server health returns every registered state and `checked_at`, denies non-admin callers and records ServerHealth. One failed upstream does not break federated prompt discovery. DuckDB and Timeseries completion work |
+| A04 | Admin server health returns every registered state and `checkedAt`, denies non-admin callers and records ServerHealth. One failed upstream does not break federated prompt discovery. DuckDB and Timeseries completion work |
 | A05 | Exercise each owner's domain read/tool and declared durable Task lifecycle, including completion, cancellation and delivered subscriptions. DuckDB task updates and current Task admission survive the applicable replica/restart cases |
 | A06 | Frames `frames://worlds` listener receives the create-world invalidation; immutable revision subscription returns -32602. Complete the F-register paging, mutation and operation consumers |
 | A07 | Direct Media unsigned webhook POST returns 401 with `invalid signature`. Existing fake-provider lifecycle passes. Real generation stays unqualified under the user restriction |
