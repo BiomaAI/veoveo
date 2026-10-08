@@ -150,19 +150,18 @@ passes retained-home upgrade, explicit recovery, rollback and initial-create rec
 Files passes import/export, duplicate and clearance refusals, cancellation,
 lost-dispatch containment and restart inspection.
 
-Worker advances through CLI revocation and terminal checks, then keeps its dispatched
-Stop unresolved while the allocator service is absent. The authenticated initial read
-completes, the Stop RPC begins without completing, and reconciliation observes
-`STOPPING` for the original resource and process. Fixture shutdown also removes
-Docker's volume-plugin socket; retained daemon logs prove failed volume reads.
-The fixture requires one current-authority step to finish the operation, while the
-production scheduler permits that step to return Waiting and observe the same
-persisted Stop through its original deadline and finite read budget. The fixture
-repair uses that scheduler and the maintained Task listener; it retains final Task
-success, original-operation settlement, resource/process identity and the
-allocator-offline condition. Compiler, strict lint, four focused controls and
-independent review pass; native confirmation is pending. Reviewed closed diagnostics
-record call stages and phase without provider payloads.
+Worker's native Stop gate uses the production scheduler to observe the original
+operation through its stored deadline and finite read budget. The fixture must
+materialize that operation's Task before anchoring the maintained current-owner
+listener; queueing an operation alone does not create its public Task. A real-store
+control reproduces the empty subscription baseline and proves same-Task admission
+without dispatch or changes to the deadline and read budget. Final acceptance still
+requires Task success, original-operation settlement, unchanged resource/process
+identity and the allocator-offline condition. The scheduler repair passes compiler,
+strict lint, four focused controls and independent review. The Task-link correction
+passes its compiler, strict lint, real-store control and independent review; native
+settlement remains open. Reviewed closed diagnostics record call stages and phase
+without provider payloads.
 
 Host now passes its full native case, including namespace replacement, retained
 Docker and Computer identity, retained bytes, a new process identity and resource
@@ -218,11 +217,13 @@ Independent review accepts the fixture and provenance changes. Both maintained i
 builds and package admission pass against the current manifest. Provider controls pass
 45 driver and two mTLS cases; the Host embeds the same five provider executables.
 The candidates remain quarantined, canonical images and caches are preserved, and
-the cluster stays stopped. Worker native qualification remains open. Final publication
-still needs capacity qualification: the current release preflight fails its growth
-and retained-reserve requirements. Verified obsolete outputs may be retired, and the
-growth estimate needs measurement before the 34-target build is released; useful
-Cargo and BuildKit caches and rollback inputs stay protected.
+the cluster stays stopped. Worker native qualification remains open. Scoped Cargo
+cleanup removes superseded unlinked executables and older incremental variants,
+recovering 356.8 GiB while retaining dependency libraries, current executable links,
+the newest incremental variants and frozen acceptance inputs. Release preflight now
+passes with 559 GiB available against 320 GiB projected growth and a 238 GiB retained
+reserve. The small remaining margin requires capacity monitoring during the 34-target
+publication. BuildKit cache, rollback images and cluster data stay protected.
 
 The Python SDK admits the preserved `v1:N` offset grammar and 64-bit range,
 including Rust's admitted leading-plus and leading-zero aliases. It refuses
