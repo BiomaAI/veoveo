@@ -161,6 +161,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         .await
         .parse()
         .unwrap();
+        eprintln!("Native Files phase: provider_setup_begin");
         let provider = provider::Provider::start_on_compute_host(provider::ComputeHost {
             socket: home.docker_socket(),
             output: home.dir.clone(),
@@ -168,12 +169,16 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
             gateway_ip,
         })
         .await;
+        eprintln!("Native Files phase: provider_setup_complete");
         (db, selected, home, provider)
     })
     .await;
 
     // Pin the assertion phase independently while preserving fixture ownership.
     Box::pin(async {
+        eprintln!("Native Files phase: assertion_setup_begin");
+        let (a, b, owner, computer, binding, tasks_a, lifecycle, agent, caller, plane, keys,
+             worker, successor, grant, artifact_server) = Box::pin(async {
         let a = ComputersStore::new(
             db.a.clone(),
             "00000000-0000-7000-8000-000000000064"
@@ -420,8 +425,12 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
             .issue_automation_grant(&owner, &grant_input.clone().build().unwrap())
             .await
             .unwrap();
-        // Pin real Artifact import, export and duplicate rejection together.
-        let (_bytes, artifact) = Box::pin(async {
+        (a, b, owner, computer, binding, tasks_a, lifecycle, agent, caller, plane, keys,
+         worker, successor, grant, artifact_server)
+        }).await;
+        eprintln!("Native Files phase: assertion_setup_complete");
+        // Keep the bytes and Artifact alive through all containment assertions.
+        let (bytes, artifact) = Box::pin(async {
             let bytes: Vec<u8> = (0..1_000_003).map(|i| (i % 251) as u8).collect();
             let artifact = plane
                 .put(
@@ -435,6 +444,10 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
                 )
                 .await
                 .unwrap();
+            (bytes, artifact)
+        }).await;
+        eprintln!("Native Files phase: import_begin");
+        let imported = Box::pin(async {
             let import = queue(
                 &a,
                 &agent,
@@ -457,6 +470,11 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
             let imported = task_result(&tasks_a, import_id).await;
             assert_eq!(imported.artifact_id(), artifact.artifact_id());
             assert_eq!(imported.bytes(), bytes.len() as u64);
+            imported
+        }).await;
+        eprintln!("Native Files phase: import_complete");
+        eprintln!("Native Files phase: export_begin");
+        Box::pin(async {
             let export = queue(
                 &a,
                 &agent,
@@ -490,6 +508,10 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
                 .unwrap();
             assert_eq!(actual.bytes, bytes);
             assert_eq!(actual.metadata.filename.as_deref(), Some("download.bin"));
+        }).await;
+        eprintln!("Native Files phase: export_complete");
+        eprintln!("Native Files phase: duplicate_begin");
+        Box::pin(async {
             let duplicate = queue(
                 &a,
                 &agent,
@@ -518,11 +540,13 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
             assert_eq!(duplicate_task.error.unwrap().code, "destination_exists");
             assert!(provider.runtime.get(&binding).await.unwrap().unwrap().phase == Phase::Ready);
 
-            (bytes, artifact)
         })
         .await;
+        eprintln!("Native Files phase: duplicate_complete");
+        let _bytes = bytes;
 
-        // Pin clearance, cancellation and lost-dispatch containment together.
+        // Each containment operation has its own pinned phase.
+        eprintln!("Native Files phase: clearance_begin");
         Box::pin(async {
             // Caller clearance alone cannot raise a retained Computer's data floor.
             let restricted = plane
@@ -562,6 +586,10 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
                 .unwrap();
             assert_eq!(denied_task.error.unwrap().code, "artifact_unavailable");
             assert!(provider.runtime.get(&binding).await.unwrap().unwrap().phase == Phase::Ready);
+        }).await;
+        eprintln!("Native Files phase: clearance_complete");
+        eprintln!("Native Files phase: cancellation_begin");
+        Box::pin(async {
             let cancelled = queue(
                 &a,
                 &agent,
@@ -595,6 +623,10 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
                 TaskStatus::Cancelled
             );
 
+        }).await;
+        eprintln!("Native Files phase: cancellation_complete");
+        eprintln!("Native Files phase: lost_dispatch_begin");
+        Box::pin(async {
             // Losing an original dispatch receipt cannot turn into a repeated import.
             let lost = queue(
                 &a,
@@ -632,6 +664,10 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
             assert!(provider.runtime.get(&binding).await.unwrap().unwrap().phase == Phase::Stopped);
             let stopped = a.get(owner.owner(), computer.computer_id).await.unwrap();
             assert_eq!(stopped.phase, ComputerPhase::Stopped);
+        }).await;
+        eprintln!("Native Files phase: lost_dispatch_complete");
+        eprintln!("Native Files phase: restart_inspection_begin");
+        Box::pin(async {
             let start = a
                 .queue_operation(
                     ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
@@ -664,6 +700,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         })
         .await;
 
+        eprintln!("Native Files phase: restart_inspection_complete");
         artifact_server.abort();
         let _ = artifact_server.await;
         provider.assert_running();
