@@ -8,7 +8,7 @@ name = "agent-manager"
 path = "src/main.rs"
 
 [dependencies]
-veoveo-agent-runtime = { workspace = true, features = ["catalog", "schema"] }
+veoveo-agent-runtime = { workspace = true, features = ["catalog", "schema", "persistence"] }
 veoveo-gateway-catalog.workspace = true
 veoveo-types.workspace = true
 veoveo-modules = { workspace = true, features = ["serialization"] }
