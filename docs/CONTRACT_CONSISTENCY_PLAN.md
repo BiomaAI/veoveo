@@ -53,7 +53,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | Phase | Current state | Remaining gate |
 |---|---|---|
 | 0 — Shared declarations | Source qualification passes; owner admission, wire forms and schema metadata are preserved | Qualify affected installed consumers with the final cut |
-| 1–4 — Modules, extension points and storage | Qualified checkpoints cover selected lanes, owner SQL, native records, authority and recovery. The commit-conflict repair passes concurrent RocksDB lanes, rollback, cancellation and conflict-classification controls | Reconcile required owner coverage and qualify the repaired runner through installed Jobs and the final installation lifecycle |
+| 1–4 — Modules, extension points and storage | Qualified checkpoints cover selected lanes, owner SQL, native records, authority and recovery. The commit-conflict repair passes concurrent RocksDB lanes, rollback, cancellation and conflict-classification controls. Kubernetes accepts all five corrected Agent policies; the owning admission suite passes approved workloads and duplicate-credential refusal | Reconcile required owner coverage and qualify the repaired runner through installed Jobs and the final installation lifecycle |
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
@@ -121,8 +121,10 @@ The corrected fixture separates abrupt controller loss from graceful cleanup and
 fetches fresh state before assessing recovery. Compiler checks, five process controls,
 generated-config comparison and independent review pass. The matching `d884` image
 passes source, label, binary and ELF admission. Its native crash run finds the retained
-sandbox but fails fresh readiness with `LifecycleUnknown`: the replacement supervisor
-is refused because the sandbox runtime reports another supervisor as its owner.
+sandbox but fails fresh readiness with `LifecycleUnknown`: startup recovery removes
+the original supervisor, and the sandbox refuses the replacement process. The repair
+must preserve that physical supervisor and prove its authenticated reconnect through
+the replacement controller while retaining the canonical main-process epoch.
 Recovered terminal delivery and bytes, later lifecycle assertions, Host replacement
 and installed execution remain open. Earlier provider profiles do not qualify these
 gates.
@@ -463,7 +465,7 @@ Both gateway configurations declare revision 4 for all eighteen hosted domain
 servers; the external Rerun bridge keeps its explicit adapter profile. Stream's
 registration control rejects the retired revision member and verifies every
 hosted declaration. The reference gateway and UAV rollout checksums cover their
-current delivered bytes. Shared hosting corrections remain unapplied.
+current delivered bytes.
 The cluster and embedding process stay stopped between these local batches.
 Knowledge's owner/configuration cut
 and Reason's full owner/private-runner cut pass their current grouped compiler check;
@@ -1313,10 +1315,13 @@ Jobs and both NetworkPolicy canaries, then fails while creating the managed-agen
 image-produced plan and chart without starting installation workloads. Its server
 dry-run identifies an empty CEL model-key condition. The templates read obsolete
 snake_case fields from camelCase owner contracts, losing model bindings and other
-workload settings. The owner-to-Helm correction is in progress; all generations and
-installation acceptance remain open. The diagnostic creates no persisted policy and
-does not qualify a generation. All failed runs' owned resources and clusters are
-removed.
+workload settings. The correction at `0180518d9` uses the owning wire fields,
+binds model keys to the selected Secret and rejects duplicate environment names.
+All five corrected policies pass server dry-run on Kubernetes 1.37. The existing
+Manager admission suite admits normal Pods and Deployments and rejects duplicate
+key, URL, model-ID and logging entries on both surfaces through the selected policy.
+The private cluster and owned resources are removed. These checks qualify CEL and
+enforcement; all installation generations and lifecycle acceptance remain open.
 Production SQL redistribution belongs to Phase 3.
 
 | Work | Detail |
