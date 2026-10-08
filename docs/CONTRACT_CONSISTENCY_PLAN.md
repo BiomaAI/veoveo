@@ -53,12 +53,12 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | Phase | Current state | Remaining gate |
 |---|---|---|
 | 0 — Shared declarations | Source qualification passes; owner admission, wire forms and schema metadata are preserved | Qualify affected installed consumers with the final cut |
-| 1–4 — Modules, extension points and storage | Qualified checkpoints cover selected lanes, owner SQL, native records, authority and recovery. The commit-conflict repair passes concurrent RocksDB lanes, rollback, cancellation and conflict-classification controls. Kubernetes accepts all five corrected Agent policies; the owning admission suite passes approved workloads and duplicate-credential refusal | Reconcile required owner coverage and qualify the repaired runner through installed Jobs and the final installation lifecycle |
+| 1–4 — Modules, extension points and storage | Selected owner SQL, native records, authority and recovery pass source qualification. The repaired runner and chart pass all three isolated installation generations, managed-kernel credential replacement and retained-data checks. Kubernetes accepts all five Agent policies, and the owning admission suite passes | Reconcile required owner coverage and qualify the final reference installation |
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33, shared Artifact and SDK controls pass; selected Map and Time native controls, Speech's Rust/Python protocol and Media's current receiver checks pass. Knowledge's collector, Video's current receivers and UAV's repaired private protocol pass. Computers' focused contract, private-byte and hosted file-admission controls pass. Selected Agents/Workspace native and generated-receiver checks pass. Recording's selected native and producer comparisons, Stream's actual SDK parser controls and gateway/deployment preflight pass. The shared C02 writer and Rust/Python admission now use `resultUri`; the current Map travel-model and Optimization native read controls pass | Complete remaining owner repairs and the full producer/consumer cut, qualify generated artifacts, drain incompatible writers and prepare fresh reference state |
-| 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Complete remaining owner/enforcement gates; the current shared-host compliance fixture and transport controls pass |
+| 8 — Installation and naming cut | C33, shared Artifact and SDK controls pass; selected Map and Time native controls, Speech's Rust/Python protocol and Media's current receiver checks pass. Knowledge's collector, Video's current receivers and UAV's repaired private protocol pass. Computers' focused contract, private-byte and hosted file-admission controls pass. Selected Agents/Workspace native and generated-receiver checks pass. Recording's selected native and producer comparisons, Stream's actual SDK parser controls and gateway/deployment preflight pass. The shared C02 writer and Rust/Python admission now use `resultUri`; the current Map travel-model and Optimization native read controls pass | Finish Computer recovery; reconcile the format, continuation, producer/consumer and pin inventory, including SUMO's pending naming profile; supply Workspace lint; qualify final generated artifacts, drain writers and prepare fresh reference state |
+| 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
@@ -128,6 +128,12 @@ the replacement controller while retaining the canonical main-process epoch.
 Recovered terminal delivery and bytes, later lifecycle assertions, Host replacement
 and installed execution remain open. Earlier provider profiles do not qualify these
 gates.
+The same-supervisor repair passes its existing compiler and source controls.
+Independent review requires three additional protections before native qualification:
+an uncertain Docker wait must preserve the retained resources, fresh Start must admit
+companion absence before changing guest credentials or generation, and cleanup must
+preserve volumes when mount observations are incomplete. The revised controls must
+exercise those actual paths; a compiler-only image cannot satisfy recovery acceptance.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
 
@@ -1282,46 +1288,30 @@ database check runs production control-plane publication through fixture definit
 creation, publication and managed provisioning without modifying the published Work
 Context. The kernel's native admission check also proves episode persistence precedes
 dispatch.
-The extended installed scenario passes at `112852a4d`: the new kernel uses rotated
-credentials and a higher fence, preserves signing identity and PVC content, renews its
-lease twice, survives replay, and drains without creating episodes. All three
-installation generations complete. The old-password probe establishes database
-readiness in its own Pod before one validation attempt proves authentication
-rejection. Stale preparation, migration and publication commands are rejected.
-The scenario reports no execution or cleanup failure, and the disposable cluster,
-private kubeconfig and owned network are removed. This qualification uses an idle
-kernel and selected chart resources; full Helm lifecycle, hosted domain startup and
-reference activation remain open.
-The final-cut installation run at `003353fb8` fails in gateway migration 0 without
-a matching committed winner. The original runner discarded the database cause.
-Native rollback/redaction passes. The concurrent production-lane control passes
-with in-memory storage but reproduces the failure on the chart's RocksDB backend:
-gateway migration 0 returns typed `Query.TransactionConflict` at commit. Safe
-diagnostics preserve that category and statement context while redacting database
-messages and values. Both waiting processes and sibling migration tasks are owned
-through fixture cleanup. The runner now distinguishes a top-level typed native commit conflict from an
-uncertain commit. Its [lane retry policy](../platform/modules/DESIGN.md#history-and-execution)
-permits 16 attempts within a 60-second admission window and rechecks preparation,
-history and prerequisites before another attempt. Timeouts, transport failures and
-nested conflict causes cannot admit replay. The repaired RocksDB control, rollback,
-timeout/drop and conflict-classification controls pass. The safe helper records
-operation, purpose, resource identity, exit status and a closed API error category
-without exposing stderr or manifests. Its selected-resource preflight admits the
-chart's Store StatefulSet and every initial, managed and Namespace object; the actual
-three-generation chart control and privacy and identity controls pass independent
-review. The refreshed installed run completes generation-1 preparation and migration
-Jobs and both NetworkPolicy canaries, then fails while creating the managed-agent
-`ValidatingAdmissionPolicy`. The reviewed policy-only diagnostic reuses the actual
-image-produced plan and chart without starting installation workloads. Its server
-dry-run identifies an empty CEL model-key condition. The templates read obsolete
-snake_case fields from camelCase owner contracts, losing model bindings and other
-workload settings. The correction at `0180518d9` uses the owning wire fields,
-binds model keys to the selected Secret and rejects duplicate environment names.
-All five corrected policies pass server dry-run on Kubernetes 1.37. The existing
-Manager admission suite admits normal Pods and Deployments and rejects duplicate
-key, URL, model-ID and logging entries on both surfaces through the selected policy.
-The private cluster and owned resources are removed. These checks qualify CEL and
-enforcement; all installation generations and lifecycle acceptance remain open.
+The runner distinguishes a top-level typed native commit conflict from an uncertain
+commit. Its [lane retry policy](../platform/modules/DESIGN.md#history-and-execution)
+permits 16 attempts within 60 seconds and rechecks preparation, history and
+prerequisites before replay. Transport failures, timeouts and nested causes cannot
+admit replay. Native RocksDB concurrency, rollback, cancellation and classification
+controls pass. Diagnostics admit selected resource identities and error categories
+while keeping manifests and raw stderr private.
+
+The chart at `0180518d9` uses owner wire fields, binds each model key to its selected
+Secret and rejects duplicate environment names. All five Agent policies pass
+Kubernetes 1.37 server validation. The owning Manager admission suite admits normal
+Pods and Deployments and rejects duplicate key, URL, model-ID and logging entries on
+both surfaces through the selected policy.
+
+The complete isolated lifecycle passes with the staged gateway, manager and kernel
+images ending in `ff19ca`, `29b734` and `2ebbe5`. All three generations complete their
+preparation, migration, publication and runtime authentication checks. Credential
+rotation rejects the old account after proving database readiness; stale commands
+are refused. Managed replacement preserves signing identity and PVC content, uses
+a higher fence, renews twice and survives replay. Ordered observations establish
+Pod retirement and old-lease drain. The kernel creates no episodes through shutdown.
+The run reports no execution or cleanup failure; owned namespaces, volumes, cluster,
+network and private kubeconfig are removed. This qualification covers the selected
+CPU-only fixture. Hosted domain startup and final reference activation remain open.
 Production SQL redistribution belongs to Phase 3.
 
 | Work | Detail |
