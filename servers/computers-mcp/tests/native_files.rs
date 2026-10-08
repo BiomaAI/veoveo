@@ -137,520 +137,540 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
     )
     .unwrap();
     provider::preflight().await;
-    let db = support::database().await;
-    let mut control = support::automation::control();
-    let file_tool = veoveo_mcp_contract::LocalToolName::parse("transfer_file").unwrap();
-    control.servers[0].tools.push(file_tool.clone());
-    control.policies[0].rules[0].tools.insert(file_tool);
-    support::policy::install(&db.a, control).await;
-    let selected = template::retained_template(image);
-    let home = native_service_support::Fixture::start_with_templates(
-        vec![selected.clone()],
-        "governed_file_worker_moves_real_artifacts_and_contains_lost_attempts",
-    )
-    .await;
-    let gateway_ip = docker_daemon::checked(docker_daemon::host().args([
-        "network",
-        "inspect",
-        "bridge",
-        "--format",
-        "{{(index .IPAM.Config 0).Gateway}}",
-    ]))
-    .await
-    .parse()
-    .unwrap();
-    let mut provider = provider::Provider::start_on_compute_host(provider::ComputeHost {
-        socket: home.docker_socket(),
-        output: home.dir.clone(),
-        namespace: "storage-fixture".into(),
-        gateway_ip,
+    // Keep setup temporaries out of the assertion phase's poll frame.
+    let (db, selected, home, mut provider) = Box::pin(async {
+        let db = support::database().await;
+        let mut control = support::automation::control();
+        let file_tool = veoveo_mcp_contract::LocalToolName::parse("transfer_file").unwrap();
+        control.servers[0].tools.push(file_tool.clone());
+        control.policies[0].rules[0].tools.insert(file_tool);
+        support::policy::install(&db.a, control).await;
+        let selected = template::retained_template(image);
+        let home = native_service_support::Fixture::start_with_templates(
+            vec![selected.clone()],
+            "governed_file_worker_moves_real_artifacts_and_contains_lost_attempts",
+        )
+        .await;
+        let gateway_ip = docker_daemon::checked(docker_daemon::host().args([
+            "network",
+            "inspect",
+            "bridge",
+            "--format",
+            "{{(index .IPAM.Config 0).Gateway}}",
+        ]))
+        .await
+        .parse()
+        .unwrap();
+        let provider = provider::Provider::start_on_compute_host(provider::ComputeHost {
+            socket: home.docker_socket(),
+            output: home.dir.clone(),
+            namespace: "storage-fixture".into(),
+            gateway_ip,
+        })
+        .await;
+        (db, selected, home, provider)
     })
     .await;
-    let a = ComputersStore::new(
-        db.a.clone(),
-        "00000000-0000-7000-8000-000000000064"
-            .parse::<veoveo_computers::api::ProviderInstanceId>()
-            .unwrap(),
-        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
-    )
-    .unwrap();
-    let b = ComputersStore::new(
-        db.b.clone(),
-        "00000000-0000-7000-8000-000000000064"
-            .parse::<veoveo_computers::api::ProviderInstanceId>()
-            .unwrap(),
-        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
-    )
-    .unwrap();
-    a.install_capacity(
-        None,
-        CapacityPolicy {
-            per_owner: 2,
-            per_tenant: 4,
-            provider: 4,
-        },
-    )
-    .await
-    .unwrap();
-    a.install_automation_grant_policy(
-        None,
-        veoveo_computers::automation_grants::AutomationGrantPolicy {
-            maximum_output_bytes: 4 * 1024 * 1024,
-            ..support::automation::POLICY
-        },
-    )
-    .await
-    .unwrap();
-    let owner =
-        ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
-    let computer = a
-        .reserve(
-            &owner,
-            &Reservation {
-                request_id: veoveo_computers::api::RequestId::new(),
-                template_id: "development".parse().unwrap(),
-                template_fingerprint: selected.fingerprint(),
+
+    // Pin the assertion phase independently while preserving fixture ownership.
+    Box::pin(async {
+        let a = ComputersStore::new(
+            db.a.clone(),
+            "00000000-0000-7000-8000-000000000064"
+                .parse::<veoveo_computers::api::ProviderInstanceId>()
+                .unwrap(),
+            veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
+        )
+        .unwrap();
+        let b = ComputersStore::new(
+            db.b.clone(),
+            "00000000-0000-7000-8000-000000000064"
+                .parse::<veoveo_computers::api::ProviderInstanceId>()
+                .unwrap(),
+            veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
+        )
+        .unwrap();
+        a.install_capacity(
+            None,
+            CapacityPolicy {
+                per_owner: 2,
+                per_tenant: 4,
+                provider: 4,
             },
         )
         .await
         .unwrap();
-    let homes = RetainedHomes::new(
-        "00000000-0000-7000-8000-000000000064"
-            .parse::<veoveo_computers::api::ProviderInstanceId>()
-            .unwrap(),
-        home.allocation_config(),
-        std::slice::from_ref(&selected),
-    )
-    .await
-    .unwrap();
-    // Isolated fixture adoption: qualify file and lifecycle paths against a
-    // real replacement home. Durable product maintenance admission is separate.
-    let initial = Binding::new(computer.computer_id.as_uuid(), selected.fingerprint()).unwrap();
-    let replacement_id = Uuid::now_v7();
-    let binding = Binding::replacement(
-        computer.computer_id.as_uuid(),
-        replacement_id,
-        selected.fingerprint(),
-    )
-    .unwrap();
-    let allocator = home.worker(home.provider).await;
-    allocator.prepare(&initial).await.unwrap();
-    allocator
-        .abandon(veoveo_types::TaskId::new(), &initial, &binding)
-        .await
-        .unwrap();
-    db.a.client()
-        .query(include_str!("queries/native_files/governed_file_worker_moves_real_artifacts_and_contains_lost_attempts.surql"))
-        .bind((
-            "computer",
-            surrealdb::types::RecordId::new(
-                "computer",
-                surrealdb::types::Uuid::from(computer.computer_id.as_uuid()),
-            ),
-        ))
-        .bind(("instance", replacement_id))
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
-    let tasks_a = TaskRuntime::new(db.a.clone(), "computers", "file-native-a");
-    let tasks_b = TaskRuntime::new(db.b.clone(), "computers", "file-native-b");
-    let lifecycle = LifecycleWorker::new(
-        a.clone(),
-        tasks_a.clone(),
-        provider.runtime.clone(),
-        vec![selected.clone()],
-        homes.clone(),
-    )
-    .unwrap();
-    let create = a
-        .queue_operation(
-            ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
-            computer.computer_id,
-            veoveo_computers::api::RequestId::new(),
-            Action::Create,
+        a.install_automation_grant_policy(
+            None,
+            veoveo_computers::automation_grants::AutomationGrantPolicy {
+                maximum_output_bytes: 4 * 1024 * 1024,
+                ..support::automation::POLICY
+            },
         )
         .await
         .unwrap();
-    assert_eq!(
-        lifecycle.step(create).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    assert_eq!(
-        a.get(owner.owner(), computer.computer_id)
-            .await
-            .unwrap()
-            .instance_id(),
-        replacement_id
-    );
-
-    let signer = signing::Signing::new();
-    let mut actor = support::owner("service");
-    actor.authority.output_policy = support::automation::control().work_contexts[0]
-        .output_policy
-        .clone();
-    actor.principal_kind = veoveo_platform_store::PrincipalKind::Service;
-    actor.data_labels.insert("cui".into());
-    actor.authority.provenance = InvocationProvenance::Automated;
-    db.a.ensure_identity(
-        actor.tenant_key(),
-        &actor.principal_key,
-        &actor.issuer,
-        &actor.subject,
-        actor.principal_kind,
-    )
-    .await
-    .unwrap();
-    let identity = support::identity(&actor);
-    let agent = ComputerActor::from_verified(&identity).unwrap();
-    let bearer = signer.identity(
-        identity.clone(),
-        "computers",
-        chrono::Utc::now() + chrono::TimeDelta::minutes(10),
-    );
-    let auth = PlaneAuthenticator::new(
-        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
-        vec![ServerSlug::parse("computers").unwrap()],
-        signer.trust.clone(),
-    );
-    let caller = PlaneCaller {
-        bearer_token: bearer,
-        memberships: identity.actor.group_memberships(),
-        identity,
-    };
-    // The gateway normally materializes this current Work Context. Read
-    // capabilities require that projection as well as the signed caller.
-    let context_id = veoveo_platform_store::deterministic_work_context_id("test", "computers-test")
-        .unwrap()
-        .record_id();
-    let context = veoveo_platform_store::WorkContextRecord {
-        id: context_id.clone(),
-        tenant: veoveo_platform_store::deterministic_tenant_id("test")
-            .unwrap()
-            .record_id(),
-        context_key: "computers-test".into(),
-        title: "Computers tests".into(),
-        policy_revision: "test-1".into(),
-        output_policy: veoveo_platform_store::WorkContextOutputPolicyRecord {
-            owner_kind: veoveo_platform_store::ArtifactGrantSubjectKind::Principal,
-            owner_key: "https://computers.test#alice".into(),
-            initial_grants: vec![],
-            classification: None,
-            data_labels: vec![],
-        },
-        memberships: vec![veoveo_platform_store::WorkContextMembershipRuleRecord {
-            level: veoveo_platform_store::WorkContextMembershipLevel::Contributor,
-            principals: vec![],
-            groups: vec![],
-            roles: vec![],
-            oauth_clients: vec!["console".into(), "service".into(), "delegated".into()],
-        }],
-        created_at: chrono::Utc::now(),
-        updated_at: chrono::Utc::now(),
-    };
-    let _: Option<veoveo_platform_store::WorkContextRecord> =
-        db.a.client()
-            .create(context_id)
-            .content(context)
+        let owner =
+            ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
+        let computer = a
+            .reserve(
+                &owner,
+                &Reservation {
+                    request_id: veoveo_computers::api::RequestId::new(),
+                    template_id: "development".parse().unwrap(),
+                    template_fingerprint: selected.fingerprint(),
+                },
+            )
             .await
             .unwrap();
-    let artifacts = ArtifactService::new(
-        SurrealArtifactRepository::new(db.a.clone()),
-        ObjectStoreConfig::Filesystem {
-            root: home.dir.join("artifact-output"),
-        }
-        .build()
-        .unwrap(),
-    );
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let endpoint = format!("http://{}", listener.local_addr().unwrap());
-    let artifact_server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            veoveo_artifact_service::http::router(veoveo_artifact_service::http::AppState::new(
-                artifacts, auth,
-            )),
+        let homes = RetainedHomes::new(
+            "00000000-0000-7000-8000-000000000064"
+                .parse::<veoveo_computers::api::ProviderInstanceId>()
+                .unwrap(),
+            home.allocation_config(),
+            std::slice::from_ref(&selected),
         )
         .await
         .unwrap();
-    });
-    let plane = HttpArtifactPlane::new(endpoint);
-    let key_id = Uuid::from_u128(1);
-    let keys = Arc::new(
-        ComputerKeyRing::new(
-            key_id,
-            vec![ComputerSealingKey::new(key_id, zeroize::Zeroizing::new([23; 32])).unwrap()],
+        // Isolated fixture adoption: qualify file and lifecycle paths against a
+        // real replacement home. Durable product maintenance admission is separate.
+        let initial = Binding::new(computer.computer_id.as_uuid(), selected.fingerprint()).unwrap();
+        let replacement_id = Uuid::now_v7();
+        let binding = Binding::replacement(
+            computer.computer_id.as_uuid(),
+            replacement_id,
+            selected.fingerprint(),
         )
-        .unwrap(),
-    );
-    let worker = FileWorker::new(
-        a.clone(),
-        tasks_a.clone(),
-        provider.runtime.clone(),
-        keys.clone(),
-        plane.clone(),
-        BTreeSet::from([selected.fingerprint()]),
-    )
-    .unwrap();
-    let successor = FileWorker::new(
-        b.clone(),
-        tasks_b,
-        provider.runtime.clone(),
-        keys.clone(),
-        plane.clone(),
-        BTreeSet::from([selected.fingerprint()]),
-    )
-    .unwrap();
-    let mut grant_input: veoveo_computers_contract::IssueAutomationGrantInputValue =
-        support::automation::input(computer.computer_id).into();
-    let mut limits = veoveo_computers_contract::AutomationExecutionLimitsValue::from(
-        grant_input.execution_limits.unwrap(),
-    );
-    limits.maximum_output_bytes = 2 * 1024 * 1024;
-    grant_input.execution_limits = Some(limits.build().unwrap());
-    let grant = a
-        .issue_automation_grant(&owner, &grant_input.clone().build().unwrap())
-        .await
         .unwrap();
-    let bytes: Vec<u8> = (0..1_000_003).map(|i| (i % 251) as u8).collect();
-    let artifact = plane
-        .put(
-            &caller,
-            PutArtifactRequest {
-                filename: Some("source.bin".into()),
-                mime_type: Some("application/octet-stream".into()),
-                ..Default::default()
-            },
-            bytes.clone(),
+        let allocator = home.worker(home.provider).await;
+        allocator.prepare(&initial).await.unwrap();
+        allocator
+            .abandon(veoveo_types::TaskId::new(), &initial, &binding)
+            .await
+            .unwrap();
+        db.a.client()
+            .query(include_str!("queries/native_files/governed_file_worker_moves_real_artifacts_and_contains_lost_attempts.surql"))
+            .bind((
+                "computer",
+                surrealdb::types::RecordId::new(
+                    "computer",
+                    surrealdb::types::Uuid::from(computer.computer_id.as_uuid()),
+                ),
+            ))
+            .bind(("instance", replacement_id))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let tasks_a = TaskRuntime::new(db.a.clone(), "computers", "file-native-a");
+        let tasks_b = TaskRuntime::new(db.b.clone(), "computers", "file-native-b");
+        let lifecycle = LifecycleWorker::new(
+            a.clone(),
+            tasks_a.clone(),
+            provider.runtime.clone(),
+            vec![selected.clone()],
+            homes.clone(),
         )
-        .await
         .unwrap();
-    let import = queue(
-        &a,
-        &agent,
-        computer.computer_id,
-        grant.grant_id,
-        payload(FileTransfer::Import {
-            artifact_id: artifact.artifact_id(),
-            path: path("binary source.tar"),
-        }),
-        &keys,
-        &plane,
-        &caller,
-    )
-    .await;
-    let import_id = import.transfer_id();
-    assert_eq!(
-        worker.step(import).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    let imported = task_result(&tasks_a, import_id).await;
-    assert_eq!(imported.artifact_id(), artifact.artifact_id());
-    assert_eq!(imported.bytes(), bytes.len() as u64);
-    let export = queue(
-        &a,
-        &agent,
-        computer.computer_id,
-        grant.grant_id,
-        payload(FileTransfer::Export {
-            path: path("binary source.tar"),
-            filename: "download.bin".into(),
-            media_type: "application/octet-stream".into(),
-        }),
-        &keys,
-        &plane,
-        &caller,
-    )
-    .await;
-    let export_id = export.transfer_id();
-    assert_eq!(
-        worker.step(export).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    let exported = task_result(&tasks_a, export_id).await;
-    assert_eq!(exported.sha256(), imported.sha256());
-    assert_ne!(exported.artifact_id(), imported.artifact_id());
-    let actual = plane
-        .get(
-            &caller,
-            &exported.artifact_id(),
-            veoveo_types::AccessLevel::Read,
-        )
-        .await
-        .unwrap();
-    assert_eq!(actual.bytes, bytes);
-    assert_eq!(actual.metadata.filename.as_deref(), Some("download.bin"));
-    let duplicate = queue(
-        &a,
-        &agent,
-        computer.computer_id,
-        grant.grant_id,
-        payload(FileTransfer::Import {
-            artifact_id: artifact.artifact_id(),
-            path: path("binary source.tar"),
-        }),
-        &keys,
-        &plane,
-        &caller,
-    )
-    .await;
-    let duplicate_id = duplicate.transfer_id();
-    assert_eq!(
-        worker.step(duplicate).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    let duplicate_task = tasks_a
-        .get(veoveo_types::TaskId::from_uuid(duplicate_id.as_uuid()))
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(duplicate_task.status, TaskStatus::Failed);
-    assert_eq!(duplicate_task.error.unwrap().code, "destination_exists");
-    assert!(provider.runtime.get(&binding).await.unwrap().unwrap().phase == Phase::Ready);
+        let create = a
+            .queue_operation(
+                ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
+                computer.computer_id,
+                veoveo_computers::api::RequestId::new(),
+                Action::Create,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            lifecycle.step(create).boxed().await.unwrap(),
+            WorkerStep::Settled
+        );
+        assert_eq!(
+            a.get(owner.owner(), computer.computer_id)
+                .await
+                .unwrap()
+                .instance_id(),
+            replacement_id
+        );
 
-    // Caller clearance alone cannot raise a retained Computer's data floor.
-    let restricted = plane
-        .put(
-            &caller,
-            PutArtifactRequest {
-                data_labels: BTreeSet::from([veoveo_types::DataLabelId::parse("cui").unwrap()]),
-                ..Default::default()
+        let signer = signing::Signing::new();
+        let mut actor = support::owner("service");
+        actor.authority.output_policy = support::automation::control().work_contexts[0]
+            .output_policy
+            .clone();
+        actor.principal_kind = veoveo_platform_store::PrincipalKind::Service;
+        actor.data_labels.insert("cui".into());
+        actor.authority.provenance = InvocationProvenance::Automated;
+        db.a.ensure_identity(
+            actor.tenant_key(),
+            &actor.principal_key,
+            &actor.issuer,
+            &actor.subject,
+            actor.principal_kind,
+        )
+        .await
+        .unwrap();
+        let identity = support::identity(&actor);
+        let agent = ComputerActor::from_verified(&identity).unwrap();
+        let bearer = signer.identity(
+            identity.clone(),
+            "computers",
+            chrono::Utc::now() + chrono::TimeDelta::minutes(10),
+        );
+        let auth = PlaneAuthenticator::new(
+            TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
+            vec![ServerSlug::parse("computers").unwrap()],
+            signer.trust.clone(),
+        );
+        let caller = PlaneCaller {
+            bearer_token: bearer,
+            memberships: identity.actor.group_memberships(),
+            identity,
+        };
+        // The gateway normally materializes this current Work Context. Read
+        // capabilities require that projection as well as the signed caller.
+        let context_id = veoveo_platform_store::deterministic_work_context_id("test", "computers-test")
+            .unwrap()
+            .record_id();
+        let context = veoveo_platform_store::WorkContextRecord {
+            id: context_id.clone(),
+            tenant: veoveo_platform_store::deterministic_tenant_id("test")
+                .unwrap()
+                .record_id(),
+            context_key: "computers-test".into(),
+            title: "Computers tests".into(),
+            policy_revision: "test-1".into(),
+            output_policy: veoveo_platform_store::WorkContextOutputPolicyRecord {
+                owner_kind: veoveo_platform_store::ArtifactGrantSubjectKind::Principal,
+                owner_key: "https://computers.test#alice".into(),
+                initial_grants: vec![],
+                classification: None,
+                data_labels: vec![],
             },
-            b"sensitive fixture".to_vec(),
-        )
-        .await
-        .unwrap();
-    let denied = queue(
-        &a,
-        &agent,
-        computer.computer_id,
-        grant.grant_id,
-        payload(FileTransfer::Import {
-            artifact_id: restricted.artifact_id(),
-            path: path("restricted-import"),
-        }),
-        &keys,
-        &plane,
-        &caller,
-    )
-    .await;
-    let denied_id = denied.transfer_id();
-    assert_eq!(
-        worker.step(denied).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    let denied_task = tasks_a
-        .get(veoveo_types::TaskId::from_uuid(denied_id.as_uuid()))
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(denied_task.error.unwrap().code, "artifact_unavailable");
-    assert!(provider.runtime.get(&binding).await.unwrap().unwrap().phase == Phase::Ready);
-    let cancelled = queue(
-        &a,
-        &agent,
-        computer.computer_id,
-        grant.grant_id,
-        payload(FileTransfer::Import {
-            artifact_id: artifact.artifact_id(),
-            path: path("cancelled-import"),
-        }),
-        &keys,
-        &plane,
-        &caller,
-    )
-    .await;
-    let cancelled_id = cancelled.transfer_id();
-    tasks_a
-        .cancel(veoveo_types::TaskId::from_uuid(cancelled_id.as_uuid()))
-        .await
-        .unwrap();
-    assert_eq!(
-        worker.step(cancelled).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    assert_eq!(
-        tasks_a
-            .get(veoveo_types::TaskId::from_uuid(cancelled_id.as_uuid()))
+            memberships: vec![veoveo_platform_store::WorkContextMembershipRuleRecord {
+                level: veoveo_platform_store::WorkContextMembershipLevel::Contributor,
+                principals: vec![],
+                groups: vec![],
+                roles: vec![],
+                oauth_clients: vec!["console".into(), "service".into(), "delegated".into()],
+            }],
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+        let _: Option<veoveo_platform_store::WorkContextRecord> =
+            db.a.client()
+                .create(context_id)
+                .content(context)
+                .await
+                .unwrap();
+        let artifacts = ArtifactService::new(
+            SurrealArtifactRepository::new(db.a.clone()),
+            ObjectStoreConfig::Filesystem {
+                root: home.dir.join("artifact-output"),
+            }
+            .build()
+            .unwrap(),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let artifact_server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                veoveo_artifact_service::http::router(veoveo_artifact_service::http::AppState::new(
+                    artifacts, auth,
+                )),
+            )
             .await
-            .unwrap()
-            .unwrap()
-            .status,
-        TaskStatus::Cancelled
-    );
+            .unwrap();
+        });
+        let plane = HttpArtifactPlane::new(endpoint);
+        let key_id = Uuid::from_u128(1);
+        let keys = Arc::new(
+            ComputerKeyRing::new(
+                key_id,
+                vec![ComputerSealingKey::new(key_id, zeroize::Zeroizing::new([23; 32])).unwrap()],
+            )
+            .unwrap(),
+        );
+        let worker = FileWorker::new(
+            a.clone(),
+            tasks_a.clone(),
+            provider.runtime.clone(),
+            keys.clone(),
+            plane.clone(),
+            BTreeSet::from([selected.fingerprint()]),
+        )
+        .unwrap();
+        let successor = FileWorker::new(
+            b.clone(),
+            tasks_b,
+            provider.runtime.clone(),
+            keys.clone(),
+            plane.clone(),
+            BTreeSet::from([selected.fingerprint()]),
+        )
+        .unwrap();
+        let mut grant_input: veoveo_computers_contract::IssueAutomationGrantInputValue =
+            support::automation::input(computer.computer_id).into();
+        let mut limits = veoveo_computers_contract::AutomationExecutionLimitsValue::from(
+            grant_input.execution_limits.unwrap(),
+        );
+        limits.maximum_output_bytes = 2 * 1024 * 1024;
+        grant_input.execution_limits = Some(limits.build().unwrap());
+        let grant = a
+            .issue_automation_grant(&owner, &grant_input.clone().build().unwrap())
+            .await
+            .unwrap();
+        // Pin real Artifact import, export and duplicate rejection together.
+        let (_bytes, artifact) = Box::pin(async {
+            let bytes: Vec<u8> = (0..1_000_003).map(|i| (i % 251) as u8).collect();
+            let artifact = plane
+                .put(
+                    &caller,
+                    PutArtifactRequest {
+                        filename: Some("source.bin".into()),
+                        mime_type: Some("application/octet-stream".into()),
+                        ..Default::default()
+                    },
+                    bytes.clone(),
+                )
+                .await
+                .unwrap();
+            let import = queue(
+                &a,
+                &agent,
+                computer.computer_id,
+                grant.grant_id,
+                payload(FileTransfer::Import {
+                    artifact_id: artifact.artifact_id(),
+                    path: path("binary source.tar"),
+                }),
+                &keys,
+                &plane,
+                &caller,
+            )
+            .await;
+            let import_id = import.transfer_id();
+            assert_eq!(
+                worker.step(import).boxed().await.unwrap(),
+                WorkerStep::Settled
+            );
+            let imported = task_result(&tasks_a, import_id).await;
+            assert_eq!(imported.artifact_id(), artifact.artifact_id());
+            assert_eq!(imported.bytes(), bytes.len() as u64);
+            let export = queue(
+                &a,
+                &agent,
+                computer.computer_id,
+                grant.grant_id,
+                payload(FileTransfer::Export {
+                    path: path("binary source.tar"),
+                    filename: "download.bin".into(),
+                    media_type: "application/octet-stream".into(),
+                }),
+                &keys,
+                &plane,
+                &caller,
+            )
+            .await;
+            let export_id = export.transfer_id();
+            assert_eq!(
+                worker.step(export).boxed().await.unwrap(),
+                WorkerStep::Settled
+            );
+            let exported = task_result(&tasks_a, export_id).await;
+            assert_eq!(exported.sha256(), imported.sha256());
+            assert_ne!(exported.artifact_id(), imported.artifact_id());
+            let actual = plane
+                .get(
+                    &caller,
+                    &exported.artifact_id(),
+                    veoveo_types::AccessLevel::Read,
+                )
+                .await
+                .unwrap();
+            assert_eq!(actual.bytes, bytes);
+            assert_eq!(actual.metadata.filename.as_deref(), Some("download.bin"));
+            let duplicate = queue(
+                &a,
+                &agent,
+                computer.computer_id,
+                grant.grant_id,
+                payload(FileTransfer::Import {
+                    artifact_id: artifact.artifact_id(),
+                    path: path("binary source.tar"),
+                }),
+                &keys,
+                &plane,
+                &caller,
+            )
+            .await;
+            let duplicate_id = duplicate.transfer_id();
+            assert_eq!(
+                worker.step(duplicate).boxed().await.unwrap(),
+                WorkerStep::Settled
+            );
+            let duplicate_task = tasks_a
+                .get(veoveo_types::TaskId::from_uuid(duplicate_id.as_uuid()))
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(duplicate_task.status, TaskStatus::Failed);
+            assert_eq!(duplicate_task.error.unwrap().code, "destination_exists");
+            assert!(provider.runtime.get(&binding).await.unwrap().unwrap().phase == Phase::Ready);
 
-    // Losing an original dispatch receipt cannot turn into a repeated import.
-    let lost = queue(
-        &a,
-        &agent,
-        computer.computer_id,
-        grant.grant_id,
-        payload(FileTransfer::Import {
-            artifact_id: artifact.artifact_id(),
-            path: path("must-not-be-replayed"),
-        }),
-        &keys,
-        &plane,
-        &caller,
-    )
-    .await;
-    let claim = tasks_a
-        .claim_observation(lost.task_id(), Duration::from_secs(60))
-        .await
-        .unwrap();
-    drop(a.begin_file_dispatch(&claim, &keys).await.unwrap());
-    tasks_a.release_observation(&claim).await.unwrap();
-    a.revoke_automation_grant(
-        &owner,
-        &RevokeAutomationGrantInput {
-            computer_id: computer.computer_id,
-            grant_id: grant.grant_id,
-        },
-    )
-    .await
-    .unwrap();
-    assert_eq!(
-        successor.step(lost).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    assert!(provider.runtime.get(&binding).await.unwrap().unwrap().phase == Phase::Stopped);
-    let stopped = a.get(owner.owner(), computer.computer_id).await.unwrap();
-    assert_eq!(stopped.phase, ComputerPhase::Stopped);
-    let start = a
-        .queue_operation(
-            ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
-            computer.computer_id,
-            veoveo_computers::api::RequestId::new(),
-            Action::Start,
-        )
-        .await
-        .unwrap();
-    assert_eq!(
-        lifecycle.step(start).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    let inspect=ExecIntent::new(vec!["/bin/sh".into(),"-eu".into(),"-c".into(),"test ! -e must-not-be-replayed; test ! -e restricted-import; test ! -e cancelled-import; test -f 'binary source.tar'; test $(wc -c < 'binary source.tar') = 1000003".into()],"/sandbox/persistent".into(),5,4096,vec![]).unwrap();
-    assert_eq!(
-        provider
-            .runtime
-            .execute(&binding, &inspect, |_| async { Ok(()) })
+            (bytes, artifact)
+        })
+        .await;
+
+        // Pin clearance, cancellation and lost-dispatch containment together.
+        Box::pin(async {
+            // Caller clearance alone cannot raise a retained Computer's data floor.
+            let restricted = plane
+                .put(
+                    &caller,
+                    PutArtifactRequest {
+                        data_labels: BTreeSet::from([veoveo_types::DataLabelId::parse("cui").unwrap()]),
+                        ..Default::default()
+                    },
+                    b"sensitive fixture".to_vec(),
+                )
+                .await
+                .unwrap();
+            let denied = queue(
+                &a,
+                &agent,
+                computer.computer_id,
+                grant.grant_id,
+                payload(FileTransfer::Import {
+                    artifact_id: restricted.artifact_id(),
+                    path: path("restricted-import"),
+                }),
+                &keys,
+                &plane,
+                &caller,
+            )
+            .await;
+            let denied_id = denied.transfer_id();
+            assert_eq!(
+                worker.step(denied).boxed().await.unwrap(),
+                WorkerStep::Settled
+            );
+            let denied_task = tasks_a
+                .get(veoveo_types::TaskId::from_uuid(denied_id.as_uuid()))
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(denied_task.error.unwrap().code, "artifact_unavailable");
+            assert!(provider.runtime.get(&binding).await.unwrap().unwrap().phase == Phase::Ready);
+            let cancelled = queue(
+                &a,
+                &agent,
+                computer.computer_id,
+                grant.grant_id,
+                payload(FileTransfer::Import {
+                    artifact_id: artifact.artifact_id(),
+                    path: path("cancelled-import"),
+                }),
+                &keys,
+                &plane,
+                &caller,
+            )
+            .await;
+            let cancelled_id = cancelled.transfer_id();
+            tasks_a
+                .cancel(veoveo_types::TaskId::from_uuid(cancelled_id.as_uuid()))
+                .await
+                .unwrap();
+            assert_eq!(
+                worker.step(cancelled).boxed().await.unwrap(),
+                WorkerStep::Settled
+            );
+            assert_eq!(
+                tasks_a
+                    .get(veoveo_types::TaskId::from_uuid(cancelled_id.as_uuid()))
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .status,
+                TaskStatus::Cancelled
+            );
+
+            // Losing an original dispatch receipt cannot turn into a repeated import.
+            let lost = queue(
+                &a,
+                &agent,
+                computer.computer_id,
+                grant.grant_id,
+                payload(FileTransfer::Import {
+                    artifact_id: artifact.artifact_id(),
+                    path: path("must-not-be-replayed"),
+                }),
+                &keys,
+                &plane,
+                &caller,
+            )
+            .await;
+            let claim = tasks_a
+                .claim_observation(lost.task_id(), Duration::from_secs(60))
+                .await
+                .unwrap();
+            drop(a.begin_file_dispatch(&claim, &keys).await.unwrap());
+            tasks_a.release_observation(&claim).await.unwrap();
+            a.revoke_automation_grant(
+                &owner,
+                &RevokeAutomationGrantInput {
+                    computer_id: computer.computer_id,
+                    grant_id: grant.grant_id,
+                },
+            )
             .await
-            .unwrap()
-            .exit_code,
-        0
-    );
-    assert!(
-        b.pending_file_transfers(None, 100)
-            .await
-            .unwrap()
-            .is_empty()
-    );
-    artifact_server.abort();
-    let _ = artifact_server.await;
-    provider.assert_running();
-    drop(worker);
-    drop(successor);
-    drop(lifecycle);
-    drop(provider);
-    home.finish(None).await;
+            .unwrap();
+            assert_eq!(
+                successor.step(lost).boxed().await.unwrap(),
+                WorkerStep::Settled
+            );
+            assert!(provider.runtime.get(&binding).await.unwrap().unwrap().phase == Phase::Stopped);
+            let stopped = a.get(owner.owner(), computer.computer_id).await.unwrap();
+            assert_eq!(stopped.phase, ComputerPhase::Stopped);
+            let start = a
+                .queue_operation(
+                    ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
+                    computer.computer_id,
+                    veoveo_computers::api::RequestId::new(),
+                    Action::Start,
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                lifecycle.step(start).boxed().await.unwrap(),
+                WorkerStep::Settled
+            );
+            let inspect=ExecIntent::new(vec!["/bin/sh".into(),"-eu".into(),"-c".into(),"test ! -e must-not-be-replayed; test ! -e restricted-import; test ! -e cancelled-import; test -f 'binary source.tar'; test $(wc -c < 'binary source.tar') = 1000003".into()],"/sandbox/persistent".into(),5,4096,vec![]).unwrap();
+            assert_eq!(
+                provider
+                    .runtime
+                    .execute(&binding, &inspect, |_| async { Ok(()) })
+                    .await
+                    .unwrap()
+                    .exit_code,
+                0
+            );
+            assert!(
+                b.pending_file_transfers(None, 100)
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+        })
+        .await;
+
+        artifact_server.abort();
+        let _ = artifact_server.await;
+        provider.assert_running();
+        drop(worker);
+        drop(successor);
+        drop(lifecycle);
+        drop(provider);
+        home.finish(None).await;
+    }).await;
 }

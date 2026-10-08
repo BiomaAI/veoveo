@@ -160,717 +160,742 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     )
     .unwrap();
     provider::preflight().await;
-    let db = support::database().await;
-    support::policy::install(&db.a, support::automation::control()).await;
-    let selected = template::retained_template(image);
-    let home = native_service_support::Fixture::start_with_templates(
-        vec![selected.clone()],
-        "governed_command_worker_publishes_real_outputs_and_contains_revoked_execution",
-    )
-    .await;
-    let gateway_ip = docker_daemon::checked(docker_daemon::host().args([
-        "network",
-        "inspect",
-        "bridge",
-        "--format",
-        "{{(index .IPAM.Config 0).Gateway}}",
-    ]))
-    .await
-    .parse()
-    .unwrap();
-    let mut provider = provider::Provider::start_on_compute_host(provider::ComputeHost {
-        socket: home.docker_socket(),
-        output: home.dir.clone(),
-        namespace: "storage-fixture".into(),
-        gateway_ip,
+    // Keep setup temporaries out of the assertion phase's poll frame.
+    let (db, selected, home, mut provider) = Box::pin(async {
+        let db = support::database().await;
+        support::policy::install(&db.a, support::automation::control()).await;
+        let selected = template::retained_template(image);
+        let home = native_service_support::Fixture::start_with_templates(
+            vec![selected.clone()],
+            "governed_command_worker_publishes_real_outputs_and_contains_revoked_execution",
+        )
+        .await;
+        let gateway_ip = docker_daemon::checked(docker_daemon::host().args([
+            "network",
+            "inspect",
+            "bridge",
+            "--format",
+            "{{(index .IPAM.Config 0).Gateway}}",
+        ]))
+        .await
+        .parse()
+        .unwrap();
+        let provider = provider::Provider::start_on_compute_host(provider::ComputeHost {
+            socket: home.docker_socket(),
+            output: home.dir.clone(),
+            namespace: "storage-fixture".into(),
+            gateway_ip,
+        })
+        .await;
+        (db, selected, home, provider)
     })
     .await;
-    let a = ComputersStore::new(
-        db.a.clone(),
-        "00000000-0000-7000-8000-000000000064"
-            .parse::<veoveo_computers::api::ProviderInstanceId>()
-            .unwrap(),
-        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
-    )
-    .unwrap();
-    let b = ComputersStore::new(
-        db.b.clone(),
-        "00000000-0000-7000-8000-000000000064"
-            .parse::<veoveo_computers::api::ProviderInstanceId>()
-            .unwrap(),
-        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
-    )
-    .unwrap();
-    a.install_capacity(
-        None,
-        CapacityPolicy {
-            per_owner: 2,
-            per_tenant: 4,
-            provider: 4,
-        },
-    )
-    .await
-    .unwrap();
-    a.install_automation_grant_policy(None, support::automation::POLICY)
-        .await
+
+    // Pin the assertion phase independently while preserving fixture ownership.
+    Box::pin(async {
+        let a = ComputersStore::new(
+            db.a.clone(),
+            "00000000-0000-7000-8000-000000000064"
+                .parse::<veoveo_computers::api::ProviderInstanceId>()
+                .unwrap(),
+            veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
+        )
         .unwrap();
-    let owner =
-        ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
-    let computer = a
-        .reserve(
-            &owner,
-            &Reservation {
-                request_id: veoveo_computers::api::RequestId::new(),
-                template_id: "development".parse().unwrap(),
-                template_fingerprint: selected.fingerprint(),
+        let b = ComputersStore::new(
+            db.b.clone(),
+            "00000000-0000-7000-8000-000000000064"
+                .parse::<veoveo_computers::api::ProviderInstanceId>()
+                .unwrap(),
+            veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
+        )
+        .unwrap();
+        a.install_capacity(
+            None,
+            CapacityPolicy {
+                per_owner: 2,
+                per_tenant: 4,
+                provider: 4,
             },
         )
         .await
         .unwrap();
-    let homes = RetainedHomes::new(
-        "00000000-0000-7000-8000-000000000064"
-            .parse::<veoveo_computers::api::ProviderInstanceId>()
-            .unwrap(),
-        home.allocation_config(),
-        std::slice::from_ref(&selected),
-    )
-    .await
-    .unwrap();
-    // Isolated fixture adoption: qualify all command/lifecycle paths against a
-    // real replacement home. Durable product maintenance admission is separate.
-    let initial = Binding::new(computer.computer_id.as_uuid(), selected.fingerprint()).unwrap();
-    let replacement_id = Uuid::now_v7();
-    let binding = Binding::replacement(
-        computer.computer_id.as_uuid(),
-        replacement_id,
-        selected.fingerprint(),
-    )
-    .unwrap();
-    let allocator = home.worker(home.provider).await;
-    allocator.prepare(&initial).await.unwrap();
-    allocator
-        .abandon(veoveo_types::TaskId::new(), &initial, &binding)
-        .await
-        .unwrap();
-    db.a.client()
-        .query(include_str!("queries/native_commands/governed_command_worker_publishes_real_outputs_and_contains_revoked_execution.surql"))
-        .bind((
-            "computer",
-            surrealdb::types::RecordId::new(
-                "computer",
-                surrealdb::types::Uuid::from(computer.computer_id.as_uuid()),
-            ),
-        ))
-        .bind(("instance", replacement_id))
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
-    let tasks_a = TaskRuntime::new(db.a.clone(), "computers", "command-native-a");
-    let tasks_b = TaskRuntime::new(db.b.clone(), "computers", "command-native-b");
-    let lifecycle = LifecycleWorker::new(
-        a.clone(),
-        tasks_a.clone(),
-        provider.runtime.clone(),
-        vec![selected.clone()],
-        homes.clone(),
-    )
-    .unwrap();
-    let create = a
-        .queue_operation(
-            ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
-            computer.computer_id,
-            veoveo_computers::api::RequestId::new(),
-            Action::Create,
+        a.install_automation_grant_policy(None, support::automation::POLICY)
+            .await
+            .unwrap();
+        let owner =
+            ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
+        let computer = a
+            .reserve(
+                &owner,
+                &Reservation {
+                    request_id: veoveo_computers::api::RequestId::new(),
+                    template_id: "development".parse().unwrap(),
+                    template_fingerprint: selected.fingerprint(),
+                },
+            )
+            .await
+            .unwrap();
+        let homes = RetainedHomes::new(
+            "00000000-0000-7000-8000-000000000064"
+                .parse::<veoveo_computers::api::ProviderInstanceId>()
+                .unwrap(),
+            home.allocation_config(),
+            std::slice::from_ref(&selected),
         )
         .await
         .unwrap();
-    assert_eq!(
-        lifecycle.step(create).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    assert_eq!(
-        a.get(owner.owner(), computer.computer_id)
+        // Isolated fixture adoption: qualify all command/lifecycle paths against a
+        // real replacement home. Durable product maintenance admission is separate.
+        let initial = Binding::new(computer.computer_id.as_uuid(), selected.fingerprint()).unwrap();
+        let replacement_id = Uuid::now_v7();
+        let binding = Binding::replacement(
+            computer.computer_id.as_uuid(),
+            replacement_id,
+            selected.fingerprint(),
+        )
+        .unwrap();
+        let allocator = home.worker(home.provider).await;
+        allocator.prepare(&initial).await.unwrap();
+        allocator
+            .abandon(veoveo_types::TaskId::new(), &initial, &binding)
+            .await
+            .unwrap();
+        db.a.client()
+            .query(include_str!("queries/native_commands/governed_command_worker_publishes_real_outputs_and_contains_revoked_execution.surql"))
+            .bind((
+                "computer",
+                surrealdb::types::RecordId::new(
+                    "computer",
+                    surrealdb::types::Uuid::from(computer.computer_id.as_uuid()),
+                ),
+            ))
+            .bind(("instance", replacement_id))
             .await
             .unwrap()
-            .instance_id(),
-        replacement_id
-    );
-
-    let signer = signing::Signing::new();
-    let mut actor = support::owner("service");
-    actor.authority.output_policy = support::automation::control().work_contexts[0]
-        .output_policy
-        .clone();
-    actor.principal_kind = veoveo_platform_store::PrincipalKind::Service;
-    actor.authority.provenance = InvocationProvenance::Automated;
-    db.a.ensure_identity(
-        actor.tenant_key(),
-        &actor.principal_key,
-        &actor.issuer,
-        &actor.subject,
-        actor.principal_kind,
-    )
-    .await
-    .unwrap();
-    let identity = support::identity(&actor);
-    let agent = ComputerActor::from_verified(&identity).unwrap();
-    let bearer = signer.identity(
-        identity.clone(),
-        "computers",
-        chrono::Utc::now() + chrono::TimeDelta::minutes(10),
-    );
-    let auth = PlaneAuthenticator::new(
-        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
-        vec![ServerSlug::parse("computers").unwrap()],
-        signer.trust.clone(),
-    );
-    let caller = PlaneCaller {
-        bearer_token: bearer,
-        memberships: identity.actor.group_memberships(),
-        identity,
-    };
-    let artifacts = ArtifactService::new(
-        SurrealArtifactRepository::new(db.a.clone()),
-        ObjectStoreConfig::Filesystem {
-            root: home.dir.join("artifact-output"),
-        }
-        .build()
-        .unwrap(),
-    );
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let endpoint = format!("http://{}", listener.local_addr().unwrap());
-    let artifact_server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            veoveo_artifact_service::http::router(veoveo_artifact_service::http::AppState::new(
-                artifacts, auth,
-            )),
-        )
-        .await
-        .unwrap();
-    });
-    let plane = HttpArtifactPlane::new(endpoint);
-    let key_id = Uuid::from_u128(1);
-    let keys = Arc::new(
-        ComputerKeyRing::new(
-            key_id,
-            vec![ComputerSealingKey::new(key_id, zeroize::Zeroizing::new([23; 32])).unwrap()],
-        )
-        .unwrap(),
-    );
-    let worker_a = Arc::new(
-        CommandWorker::new(
+            .check()
+            .unwrap();
+        let tasks_a = TaskRuntime::new(db.a.clone(), "computers", "command-native-a");
+        let tasks_b = TaskRuntime::new(db.b.clone(), "computers", "command-native-b");
+        let lifecycle = LifecycleWorker::new(
             a.clone(),
             tasks_a.clone(),
             provider.runtime.clone(),
-            keys.clone(),
-            plane.clone(),
-            BTreeSet::from([selected.fingerprint()]),
+            vec![selected.clone()],
+            homes.clone(),
         )
-        .unwrap(),
-    );
-    let worker_b = Arc::new(
-        CommandWorker::new(
-            b.clone(),
-            tasks_b.clone(),
-            provider.runtime.clone(),
-            keys.clone(),
-            plane.clone(),
-            BTreeSet::from([selected.fingerprint()]),
-        )
-        .unwrap(),
-    );
-    let (_health, health) = tokio::sync::watch::channel(veoveo_computers_mcp::CapacityHealth {
-        availability: CapacityAvailability::Available,
-        observed_at: Instant::now(),
-    });
-    let app = veoveo_computers_mcp::Application::new(
-        a.clone(),
-        tasks_a.clone(),
-        veoveo_computers_mcp::Templates::new(
-            vec![
-                veoveo_computers_mcp::NamedTemplate::new(
-                    "development".parse().unwrap(),
-                    selected.clone(),
-                )
-                .unwrap(),
-            ],
-            Some(selected.fingerprint()),
-        )
-        .unwrap(),
-        health,
-        veoveo_computers_mcp::RuntimeAccess::unavailable(),
-    )
-    .unwrap()
-    .with_execution(keys.clone(), plane.clone(), [selected.fingerprint()].into())
-    .unwrap();
-    let projection = projection::Projection::new(app, &signer).await;
-    let owner_peer = projection
-        .client(signer.identity(
-            support::identity(owner.owner()),
-            "computers",
-            chrono::Utc::now() + chrono::TimeDelta::minutes(5),
-        ))
-        .await;
-    let agent_peer = projection.client(caller.bearer_token.clone()).await;
-    let rmcp::model::CallToolResponse::Complete(issued) = owner_peer
-        .call_tool_once(projection::call(
-            "grant_automation",
-            &support::automation::input(computer.computer_id),
-        ))
-        .await
-        .unwrap()
-    else {
-        panic!("grant result missing");
-    };
-    let grant = serde_json::from_value::<AutomationGrantResult>(issued.structured_content.unwrap())
-        .unwrap()
-        .into_grant();
-    use base64::Engine;
-    let input = ExecuteInput {
-        computer_id: computer.computer_id, grant_id: grant.grant_id, request_id: veoveo_computers::api::RequestId::new(),
-        arguments: vec!["/bin/sh".into(), "-c".into(), "printf native-stdout; printf native-stderr >&2; printf x >> invocation-count; cat > received-stdin; printf '%s' \"$PRIVATE_TOKEN\" > received-env; exit 7".into()],
-        directory: ".".into(), environment: BTreeMap::from([("PRIVATE_TOKEN".into(), "native-private-command-value".into())]),
-        stdin: base64::engine::general_purpose::STANDARD.encode(b"native-private-stdin\0\xff"),
-        limits: veoveo_computers_contract::AutomationExecutionLimitsValue { maximum_seconds: 30, maximum_output_bytes: 1024, on_interruption: AutomationInterruption::StopComputer }.build().unwrap(),
-    };
-    let rmcp::model::CallToolResponse::Task(created) = agent_peer
-        .call_tool_once(projection::call("execute", &input))
-        .await
-        .unwrap()
-    else {
-        panic!("command Task missing");
-    };
-    let id = created.task.task_id;
-    let mut updates = agent_peer
-        .listen(
-            rmcp::model::SubscriptionFilter::builder()
-                .task_id(&id)
-                .build(),
-        )
-        .await
         .unwrap();
-    let schedulers = projection::Schedulers::start([worker_a.clone(), worker_b.clone()]);
-    tokio::time::timeout(Duration::from_secs(60), async {
-        loop {
-            let update = updates.next().await.unwrap().expect("Task stream ended");
-            if let rmcp::model::ServerNotification::TaskStatusNotification(update) = update
-                && update.params.task.status().is_terminal()
-            {
-                break;
-            }
-        }
-    })
-    .await
-    .expect("public native command did not settle");
-    let public = agent_peer
-        .get_task(rmcp::model::GetTaskParams::new(&id))
-        .await
-        .unwrap();
-    assert_eq!(public.task.status(), rmcp::model::TaskStatus::Completed);
-    // Wait for the domain-first result's final retention acknowledgement before
-    // ending the continuously running workers used by this journey.
-    tokio::time::timeout(Duration::from_secs(5), async {
-        while !a.pending_commands(None, 100).await.unwrap().is_empty() {
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
-    })
-    .await
-    .unwrap();
-    schedulers.stop().await;
-    let rmcp::model::CallToolResponse::Task(retried) = agent_peer
-        .call_tool_once(projection::call("execute", &input))
-        .await
-        .unwrap()
-    else {
-        panic!("completed retry lost its Task");
-    };
-    assert_eq!(retried.task.task_id, id);
-    let task = tasks_a.get(id.parse().unwrap()).await.unwrap().unwrap();
-    assert_eq!(
-        task.status,
-        TaskStatus::Succeeded,
-        "command status: {:?}",
-        task.status_message
-    );
-    let response: rmcp::model::CallToolResult =
-        serde_json::from_value(task.result.unwrap()).unwrap();
-    assert_eq!(response.is_error, Some(true));
-    let result: ExecutionResult =
-        serde_json::from_value(response.structured_content.unwrap()).unwrap();
-    assert_eq!(result.exit_code(), 7);
-    let resource = agent_peer
-        .read_resource(rmcp::model::ReadResourceRequestParams::new(String::from(
-            result.result_uri(),
-        )))
-        .await
-        .unwrap();
-    let rmcp::model::ResourceContents::TextResourceContents { text, .. } = &resource.contents[0]
-    else {
-        panic!("command result was not JSON");
-    };
-    assert_eq!(
-        serde_json::from_str::<ExecutionResult>(text).unwrap(),
-        result
-    );
-    for (output, expected) in [
-        (result.stdout(), b"native-stdout".as_slice()),
-        (result.stderr(), b"native-stderr".as_slice()),
-    ] {
-        let artifact = plane
-            .resolve(&caller, &output.artifact_id.plane_uri())
+        let create = a
+            .queue_operation(
+                ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
+                computer.computer_id,
+                veoveo_computers::api::RequestId::new(),
+                Action::Create,
+            )
             .await
             .unwrap();
-        assert_eq!(artifact.bytes, expected);
         assert_eq!(
-            artifact.metadata.compliance.owner.as_ref(),
-            Some(&actor.authority.output_policy.owner)
+            lifecycle.step(create).boxed().await.unwrap(),
+            WorkerStep::Settled
         );
         assert_eq!(
-            artifact
-                .metadata
-                .compliance
-                .provenance
+            a.get(owner.owner(), computer.computer_id)
+                .await
                 .unwrap()
-                .producer
-                .as_str(),
-            actor.principal_key
+                .instance_id(),
+            replacement_id
         );
-    }
-    inspect(&provider.runtime, &binding, "test \"$(cat invocation-count)\" = x; test \"$(cat received-env)\" = native-private-command-value; test $(wc -c < received-stdin) = 22").await;
 
-    let command = queue(
-        &a,
-        &agent,
-        computer.computer_id,
-        grant.grant_id,
-        payload(
-            "printf active > active-command; sleep 120; printf forbidden > after-revocation",
-            30,
-        ),
-        &keys,
-        &plane,
-        &caller,
-    )
-    .await;
-    let id = command.task_id();
-    let worker = worker_a.clone();
-    let job = tokio::spawn(async move { worker.step(command).boxed().await });
-    // One native fixture observer waits for the command's start marker. This is
-    // neither provider completion polling nor a substitute for Stop evidence.
-    inspect(
-        &provider.runtime,
-        &binding,
-        "while ! test -f active-command; do sleep 0.02; done",
-    )
-    .await;
-    let revoked = Instant::now();
-    a.revoke_automation_grant(
-        &owner,
-        &RevokeAutomationGrantInput {
-            computer_id: computer.computer_id,
-            grant_id: grant.grant_id,
-        },
-    )
-    .await
-    .unwrap();
-    // Containment starts only after the foreground I/O future has ended. The
-    // database journal proves that boundary independently of Docker's Stop grace.
-    tokio::time::timeout(Duration::from_secs(5), async {
-        loop {
-            let operations = b.pending_commands(None, 100).await.unwrap();
-            if operations
-                .iter()
-                .any(|op| op.task_id() == id && op.stage() != CommandStage::Dispatched)
-            {
-                break;
-            }
-            if tasks_a.get(id).await.unwrap().unwrap().is_terminal() {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
-    })
-    .await
-    .unwrap();
-    let authority_cutoff = revoked.elapsed();
-    assert_eq!(
-        tokio::time::timeout(Duration::from_secs(60), job)
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap(),
-        WorkerStep::Settled
-    );
-    assert!(authority_cutoff < Duration::from_secs(5));
-    eprintln!(
-        "Native revocation: I/O containment began in {} ms; positive Stop settled in {} ms",
-        authority_cutoff.as_millis(),
-        revoked.elapsed().as_millis()
-    );
-    assert_eq!(
-        a.get(owner.owner(), computer.computer_id)
-            .await
-            .unwrap()
-            .phase,
-        ComputerPhase::Stopped
-    );
-    assert_eq!(
-        tasks_a.get(id).await.unwrap().unwrap().status,
-        TaskStatus::Failed
-    );
-    assert!(matches!(
-        provider.runtime.get(&binding).await.unwrap().unwrap().phase,
-        Phase::Stopped
-    ));
-    let start = a
-        .queue_operation(
-            ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
-            computer.computer_id,
-            veoveo_computers::api::RequestId::new(),
-            Action::Start,
+        let signer = signing::Signing::new();
+        let mut actor = support::owner("service");
+        actor.authority.output_policy = support::automation::control().work_contexts[0]
+            .output_policy
+            .clone();
+        actor.principal_kind = veoveo_platform_store::PrincipalKind::Service;
+        actor.authority.provenance = InvocationProvenance::Automated;
+        db.a.ensure_identity(
+            actor.tenant_key(),
+            &actor.principal_key,
+            &actor.issuer,
+            &actor.subject,
+            actor.principal_kind,
         )
         .await
         .unwrap();
-    assert_eq!(
-        lifecycle.step(start).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    inspect(
-        &provider.runtime,
-        &binding,
-        "test -f active-command; test ! -e after-revocation; test \"$(cat invocation-count)\" = x",
-    )
-    .await;
-    // Task cancellation uses the same containment journal and preserved home.
-    let grant = a
-        .issue_automation_grant(&owner, &support::automation::input(computer.computer_id))
-        .await
-        .unwrap();
-    let command = queue(
-        &a,
-        &agent,
-        computer.computer_id,
-        grant.grant_id,
-        payload(
-            "printf active > active-cancel; sleep 120; printf forbidden > after-cancel",
-            30,
-        ),
-        &keys,
-        &plane,
-        &caller,
-    )
-    .await;
-    let cancelled_id = command.task_id();
-    let worker = worker_a.clone();
-    let job = tokio::spawn(async move { worker.step(command).boxed().await });
-    inspect(
-        &provider.runtime,
-        &binding,
-        "while ! test -f active-cancel; do sleep 0.02; done",
-    )
-    .await;
-    tasks_b.cancel(cancelled_id).await.unwrap();
-    assert_eq!(
-        tokio::time::timeout(Duration::from_secs(60), job)
-            .await
-            .unwrap()
-            .unwrap()
+        let identity = support::identity(&actor);
+        let agent = ComputerActor::from_verified(&identity).unwrap();
+        let bearer = signer.identity(
+            identity.clone(),
+            "computers",
+            chrono::Utc::now() + chrono::TimeDelta::minutes(10),
+        );
+        let auth = PlaneAuthenticator::new(
+            TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
+            vec![ServerSlug::parse("computers").unwrap()],
+            signer.trust.clone(),
+        );
+        let caller = PlaneCaller {
+            bearer_token: bearer,
+            memberships: identity.actor.group_memberships(),
+            identity,
+        };
+        let artifacts = ArtifactService::new(
+            SurrealArtifactRepository::new(db.a.clone()),
+            ObjectStoreConfig::Filesystem {
+                root: home.dir.join("artifact-output"),
+            }
+            .build()
             .unwrap(),
-        WorkerStep::Settled
-    );
-    assert_eq!(
-        tasks_b.get(cancelled_id).await.unwrap().unwrap().status,
-        TaskStatus::Cancelled
-    );
-    let start = a
-        .queue_operation(
-            ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
-            computer.computer_id,
-            veoveo_computers::api::RequestId::new(),
-            Action::Start,
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let artifact_server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                veoveo_artifact_service::http::router(veoveo_artifact_service::http::AppState::new(
+                    artifacts, auth,
+                )),
+            )
+            .await
+            .unwrap();
+        });
+        let plane = HttpArtifactPlane::new(endpoint);
+        let key_id = Uuid::from_u128(1);
+        let keys = Arc::new(
+            ComputerKeyRing::new(
+                key_id,
+                vec![ComputerSealingKey::new(key_id, zeroize::Zeroizing::new([23; 32])).unwrap()],
+            )
+            .unwrap(),
+        );
+        let worker_a = Arc::new(
+            CommandWorker::new(
+                a.clone(),
+                tasks_a.clone(),
+                provider.runtime.clone(),
+                keys.clone(),
+                plane.clone(),
+                BTreeSet::from([selected.fingerprint()]),
+            )
+            .unwrap(),
+        );
+        let worker_b = Arc::new(
+            CommandWorker::new(
+                b.clone(),
+                tasks_b.clone(),
+                provider.runtime.clone(),
+                keys.clone(),
+                plane.clone(),
+                BTreeSet::from([selected.fingerprint()]),
+            )
+            .unwrap(),
+        );
+        let (_health, health) = tokio::sync::watch::channel(veoveo_computers_mcp::CapacityHealth {
+            availability: CapacityAvailability::Available,
+            observed_at: Instant::now(),
+        });
+        let app = veoveo_computers_mcp::Application::new(
+            a.clone(),
+            tasks_a.clone(),
+            veoveo_computers_mcp::Templates::new(
+                vec![
+                    veoveo_computers_mcp::NamedTemplate::new(
+                        "development".parse().unwrap(),
+                        selected.clone(),
+                    )
+                    .unwrap(),
+                ],
+                Some(selected.fingerprint()),
+            )
+            .unwrap(),
+            health,
+            veoveo_computers_mcp::RuntimeAccess::unavailable(),
         )
-        .await
+        .unwrap()
+        .with_execution(keys.clone(), plane.clone(), [selected.fingerprint()].into())
         .unwrap();
-    assert_eq!(
-        lifecycle.step(start).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    inspect(
-        &provider.runtime,
-        &binding,
-        "test -f active-cancel; test ! -e after-cancel",
-    )
-    .await;
+        let projection = projection::Projection::new(app, &signer).await;
+        let owner_peer = projection
+            .client(signer.identity(
+                support::identity(owner.owner()),
+                "computers",
+                chrono::Utc::now() + chrono::TimeDelta::minutes(5),
+            ))
+            .await;
+        let agent_peer = projection.client(caller.bearer_token.clone()).await;
+        // Pin public command delivery and Artifact output assertions together.
+        let (grant, _updates) = Box::pin(async {
+            let rmcp::model::CallToolResponse::Complete(issued) = owner_peer
+                .call_tool_once(projection::call(
+                    "grant_automation",
+                    &support::automation::input(computer.computer_id),
+                ))
+                .await
+                .unwrap()
+            else {
+                panic!("grant result missing");
+            };
+            let grant = serde_json::from_value::<AutomationGrantResult>(issued.structured_content.unwrap())
+                .unwrap()
+                .into_grant();
+            use base64::Engine;
+            let input = ExecuteInput {
+                computer_id: computer.computer_id, grant_id: grant.grant_id, request_id: veoveo_computers::api::RequestId::new(),
+                arguments: vec!["/bin/sh".into(), "-c".into(), "printf native-stdout; printf native-stderr >&2; printf x >> invocation-count; cat > received-stdin; printf '%s' \"$PRIVATE_TOKEN\" > received-env; exit 7".into()],
+                directory: ".".into(), environment: BTreeMap::from([("PRIVATE_TOKEN".into(), "native-private-command-value".into())]),
+                stdin: base64::engine::general_purpose::STANDARD.encode(b"native-private-stdin\0\xff"),
+                limits: veoveo_computers_contract::AutomationExecutionLimitsValue { maximum_seconds: 30, maximum_output_bytes: 1024, on_interruption: AutomationInterruption::StopComputer }.build().unwrap(),
+            };
+            let rmcp::model::CallToolResponse::Task(created) = agent_peer
+                .call_tool_once(projection::call("execute", &input))
+                .await
+                .unwrap()
+            else {
+                panic!("command Task missing");
+            };
+            let id = created.task.task_id;
+            let mut updates = agent_peer
+                .listen(
+                    rmcp::model::SubscriptionFilter::builder()
+                        .task_id(&id)
+                        .build(),
+                )
+                .await
+                .unwrap();
+            let schedulers = projection::Schedulers::start([worker_a.clone(), worker_b.clone()]);
+            tokio::time::timeout(Duration::from_secs(60), async {
+                loop {
+                    let update = updates.next().await.unwrap().expect("Task stream ended");
+                    if let rmcp::model::ServerNotification::TaskStatusNotification(update) = update
+                        && update.params.task.status().is_terminal()
+                    {
+                        break;
+                    }
+                }
+            })
+            .await
+            .expect("public native command did not settle");
+            let public = agent_peer
+                .get_task(rmcp::model::GetTaskParams::new(&id))
+                .await
+                .unwrap();
+            assert_eq!(public.task.status(), rmcp::model::TaskStatus::Completed);
+            // Wait for the domain-first result's final retention acknowledgement before
+            // ending the continuously running workers used by this journey.
+            tokio::time::timeout(Duration::from_secs(5), async {
+                while !a.pending_commands(None, 100).await.unwrap().is_empty() {
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .unwrap();
+            schedulers.stop().await;
+            let rmcp::model::CallToolResponse::Task(retried) = agent_peer
+                .call_tool_once(projection::call("execute", &input))
+                .await
+                .unwrap()
+            else {
+                panic!("completed retry lost its Task");
+            };
+            assert_eq!(retried.task.task_id, id);
+            let task = tasks_a.get(id.parse().unwrap()).await.unwrap().unwrap();
+            assert_eq!(
+                task.status,
+                TaskStatus::Succeeded,
+                "command status: {:?}",
+                task.status_message
+            );
+            let response: rmcp::model::CallToolResult =
+                serde_json::from_value(task.result.unwrap()).unwrap();
+            assert_eq!(response.is_error, Some(true));
+            let result: ExecutionResult =
+                serde_json::from_value(response.structured_content.unwrap()).unwrap();
+            assert_eq!(result.exit_code(), 7);
+            let resource = agent_peer
+                .read_resource(rmcp::model::ReadResourceRequestParams::new(String::from(
+                    result.result_uri(),
+                )))
+                .await
+                .unwrap();
+            let rmcp::model::ResourceContents::TextResourceContents { text, .. } = &resource.contents[0]
+            else {
+                panic!("command result was not JSON");
+            };
+            assert_eq!(
+                serde_json::from_str::<ExecutionResult>(text).unwrap(),
+                result
+            );
+            for (output, expected) in [
+                (result.stdout(), b"native-stdout".as_slice()),
+                (result.stderr(), b"native-stderr".as_slice()),
+            ] {
+                let artifact = plane
+                    .resolve(&caller, &output.artifact_id.plane_uri())
+                    .await
+                    .unwrap();
+                assert_eq!(artifact.bytes, expected);
+                assert_eq!(
+                    artifact.metadata.compliance.owner.as_ref(),
+                    Some(&actor.authority.output_policy.owner)
+                );
+                assert_eq!(
+                    artifact
+                        .metadata
+                        .compliance
+                        .provenance
+                        .unwrap()
+                        .producer
+                        .as_str(),
+                    actor.principal_key
+                );
+            }
+            inspect(&provider.runtime, &binding, "test \"$(cat invocation-count)\" = x; test \"$(cat received-env)\" = native-private-command-value; test $(wc -c < received-stdin) = 22").await;
 
-    // Drop a committed dispatch receipt before submitting native work. A new
-    // worker cannot infer that the command did not run, and contains without replay.
-    let command = queue(
-        &a,
-        &agent,
-        computer.computer_id,
-        grant.grant_id,
-        payload("printf forbidden > replayed-command", 30),
-        &keys,
-        &plane,
-        &caller,
-    )
-    .await;
-    let lost_id = command.task_id();
-    let claim = tasks_a
-        .claim_observation(lost_id, Duration::from_secs(60))
-        .await
-        .unwrap();
-    drop(a.begin_command_dispatch(&claim, &keys).await.unwrap());
-    let dispatched = a.command_for_claim(&claim).await.unwrap();
-    tasks_a.release_observation(&claim).await.unwrap();
-    assert_eq!(
-        tokio::time::timeout(Duration::from_secs(60), worker_b.step(dispatched).boxed())
+            (grant, updates)
+        })
+        .await;
+
+        // Pin revocation, cancellation and lost-dispatch containment together.
+        Box::pin(async {
+            let command = queue(
+                &a,
+                &agent,
+                computer.computer_id,
+                grant.grant_id,
+                payload(
+                    "printf active > active-command; sleep 120; printf forbidden > after-revocation",
+                    30,
+                ),
+                &keys,
+                &plane,
+                &caller,
+            )
+            .await;
+            let id = command.task_id();
+            let worker = worker_a.clone();
+            let job = tokio::spawn(async move { worker.step(command).boxed().await });
+            // One native fixture observer waits for the command's start marker. This is
+            // neither provider completion polling nor a substitute for Stop evidence.
+            inspect(
+                &provider.runtime,
+                &binding,
+                "while ! test -f active-command; do sleep 0.02; done",
+            )
+            .await;
+            let revoked = Instant::now();
+            a.revoke_automation_grant(
+                &owner,
+                &RevokeAutomationGrantInput {
+                    computer_id: computer.computer_id,
+                    grant_id: grant.grant_id,
+                },
+            )
             .await
-            .unwrap()
-            .unwrap(),
-        WorkerStep::Settled
-    );
-    let lost = tasks_a.get(lost_id).await.unwrap().unwrap();
-    assert_eq!(lost.status, TaskStatus::Failed);
-    assert_eq!(lost.error.unwrap().code, "execution_unknown");
-    let start = a
-        .queue_operation(
-            ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
-            computer.computer_id,
-            veoveo_computers::api::RequestId::new(),
-            Action::Start,
-        )
-        .await
-        .unwrap();
-    assert_eq!(
-        lifecycle.step(start).boxed().await.unwrap(),
-        WorkerStep::Settled
-    );
-    inspect(&provider.runtime, &binding, "test ! -e replayed-command; test ! -e after-cancel; test ! -e after-revocation; test \"$(cat invocation-count)\" = x").await;
-    maintenance_policy::add_grant(&provider, &binding).await;
-    // Real product journal and worker, using the same isolated retained home and
-    // provider tuple. The earlier manual adapter sequence is now owned here.
-    let mut maintenance_control = support::automation::control();
-    let tool = veoveo_mcp_contract::LocalToolName::parse("update_template").unwrap();
-    maintenance_control.servers[0].tools.push(tool.clone());
-    maintenance_control.policies[0].rules[0].tools.insert(tool);
-    support::policy::install(&db.a, maintenance_control).await;
-    let actor =
-        ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
-    let operation = a
-        .queue_maintenance(
-            &actor,
-            computer.computer_id,
-            veoveo_computers::api::RequestId::new(),
-            &veoveo_computers::maintenance::MaintenanceTarget {
-                template_id: "development".parse().unwrap(),
-                template_fingerprint: selected.fingerprint(),
-            },
-        )
-        .await
-        .unwrap();
-    let profiles = MaintenanceProfiles::new(
-        vec![selected.clone()],
-        vec![MaintenanceTransition {
-            source_fingerprint: selected.fingerprint(),
-            target_fingerprint: selected.fingerprint(),
-        }],
-    )
-    .unwrap();
-    let maintenance_a = MaintenanceWorker::new(
-        a.clone(),
-        tasks_a.clone(),
-        provider.runtime.clone(),
-        profiles.clone(),
-        homes.clone(),
-        keys.clone(),
-    )
-    .unwrap();
-    let maintenance_b = MaintenanceWorker::new(
-        b.clone(),
-        tasks_b.clone(),
-        provider.runtime.clone(),
-        profiles,
-        homes.clone(),
-        keys.clone(),
-    )
-    .unwrap();
-    let schedulers =
-        projection::Schedulers::maintenance([Arc::new(maintenance_a), Arc::new(maintenance_b)]);
-    let started = Instant::now();
-    tokio::time::timeout(Duration::from_secs(180), async {
-        loop {
-            let current = a
+            .unwrap();
+            // Containment starts only after the foreground I/O future has ended. The
+            // database journal proves that boundary independently of Docker's Stop grace.
+            tokio::time::timeout(Duration::from_secs(5), async {
+                loop {
+                    let operations = b.pending_commands(None, 100).await.unwrap();
+                    if operations
+                        .iter()
+                        .any(|op| op.task_id() == id && op.stage() != CommandStage::Dispatched)
+                    {
+                        break;
+                    }
+                    if tasks_a.get(id).await.unwrap().unwrap().is_terminal() {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .unwrap();
+            let authority_cutoff = revoked.elapsed();
+            assert_eq!(
+                tokio::time::timeout(Duration::from_secs(60), job)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap(),
+                WorkerStep::Settled
+            );
+            assert!(authority_cutoff < Duration::from_secs(5));
+            eprintln!(
+                "Native revocation: I/O containment began in {} ms; positive Stop settled in {} ms",
+                authority_cutoff.as_millis(),
+                revoked.elapsed().as_millis()
+            );
+            assert_eq!(
+                a.get(owner.owner(), computer.computer_id)
+                    .await
+                    .unwrap()
+                    .phase,
+                ComputerPhase::Stopped
+            );
+            assert_eq!(
+                tasks_a.get(id).await.unwrap().unwrap().status,
+                TaskStatus::Failed
+            );
+            assert!(matches!(
+                provider.runtime.get(&binding).await.unwrap().unwrap().phase,
+                Phase::Stopped
+            ));
+            let start = a
+                .queue_operation(
+                    ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
+                    computer.computer_id,
+                    veoveo_computers::api::RequestId::new(),
+                    Action::Start,
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                lifecycle.step(start).boxed().await.unwrap(),
+                WorkerStep::Settled
+            );
+            inspect(
+                &provider.runtime,
+                &binding,
+                "test -f active-command; test ! -e after-revocation; test \"$(cat invocation-count)\" = x",
+            )
+            .await;
+            // Task cancellation uses the same containment journal and preserved home.
+            let grant = a
+                .issue_automation_grant(&owner, &support::automation::input(computer.computer_id))
+                .await
+                .unwrap();
+            let command = queue(
+                &a,
+                &agent,
+                computer.computer_id,
+                grant.grant_id,
+                payload(
+                    "printf active > active-cancel; sleep 120; printf forbidden > after-cancel",
+                    30,
+                ),
+                &keys,
+                &plane,
+                &caller,
+            )
+            .await;
+            let cancelled_id = command.task_id();
+            let worker = worker_a.clone();
+            let job = tokio::spawn(async move { worker.step(command).boxed().await });
+            inspect(
+                &provider.runtime,
+                &binding,
+                "while ! test -f active-cancel; do sleep 0.02; done",
+            )
+            .await;
+            tasks_b.cancel(cancelled_id).await.unwrap();
+            assert_eq!(
+                tokio::time::timeout(Duration::from_secs(60), job)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap(),
+                WorkerStep::Settled
+            );
+            assert_eq!(
+                tasks_b.get(cancelled_id).await.unwrap().unwrap().status,
+                TaskStatus::Cancelled
+            );
+            let start = a
+                .queue_operation(
+                    ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
+                    computer.computer_id,
+                    veoveo_computers::api::RequestId::new(),
+                    Action::Start,
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                lifecycle.step(start).boxed().await.unwrap(),
+                WorkerStep::Settled
+            );
+            inspect(
+                &provider.runtime,
+                &binding,
+                "test -f active-cancel; test ! -e after-cancel",
+            )
+            .await;
+
+            // Drop a committed dispatch receipt before submitting native work. A new
+            // worker cannot infer that the command did not run, and contains without replay.
+            let command = queue(
+                &a,
+                &agent,
+                computer.computer_id,
+                grant.grant_id,
+                payload("printf forbidden > replayed-command", 30),
+                &keys,
+                &plane,
+                &caller,
+            )
+            .await;
+            let lost_id = command.task_id();
+            let claim = tasks_a
+                .claim_observation(lost_id, Duration::from_secs(60))
+                .await
+                .unwrap();
+            drop(a.begin_command_dispatch(&claim, &keys).await.unwrap());
+            let dispatched = a.command_for_claim(&claim).await.unwrap();
+            tasks_a.release_observation(&claim).await.unwrap();
+            assert_eq!(
+                tokio::time::timeout(Duration::from_secs(60), worker_b.step(dispatched).boxed())
+                    .await
+                    .unwrap()
+                    .unwrap(),
+                WorkerStep::Settled
+            );
+            let lost = tasks_a.get(lost_id).await.unwrap().unwrap();
+            assert_eq!(lost.status, TaskStatus::Failed);
+            assert_eq!(lost.error.unwrap().code, "execution_unknown");
+            let start = a
+                .queue_operation(
+                    ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
+                    computer.computer_id,
+                    veoveo_computers::api::RequestId::new(),
+                    Action::Start,
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                lifecycle.step(start).boxed().await.unwrap(),
+                WorkerStep::Settled
+            );
+            inspect(&provider.runtime, &binding, "test ! -e replayed-command; test ! -e after-cancel; test ! -e after-revocation; test \"$(cat invocation-count)\" = x").await;
+        })
+        .await;
+
+        // Pin retained maintenance assertions separately from command execution.
+        Box::pin(async {
+            maintenance_policy::add_grant(&provider, &binding).await;
+            // Real product journal and worker, using the same isolated retained home and
+            // provider tuple. The earlier manual adapter sequence is now owned here.
+            let mut maintenance_control = support::automation::control();
+            let tool = veoveo_mcp_contract::LocalToolName::parse("update_template").unwrap();
+            maintenance_control.servers[0].tools.push(tool.clone());
+            maintenance_control.policies[0].rules[0].tools.insert(tool);
+            support::policy::install(&db.a, maintenance_control).await;
+            let actor =
+                ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
+            let operation = a
+                .queue_maintenance(
+                    &actor,
+                    computer.computer_id,
+                    veoveo_computers::api::RequestId::new(),
+                    &veoveo_computers::maintenance::MaintenanceTarget {
+                        template_id: "development".parse().unwrap(),
+                        template_fingerprint: selected.fingerprint(),
+                    },
+                )
+                .await
+                .unwrap();
+            let profiles = MaintenanceProfiles::new(
+                vec![selected.clone()],
+                vec![MaintenanceTransition {
+                    source_fingerprint: selected.fingerprint(),
+                    target_fingerprint: selected.fingerprint(),
+                }],
+            )
+            .unwrap();
+            let maintenance_a = MaintenanceWorker::new(
+                a.clone(),
+                tasks_a.clone(),
+                provider.runtime.clone(),
+                profiles.clone(),
+                homes.clone(),
+                keys.clone(),
+            )
+            .unwrap();
+            let maintenance_b = MaintenanceWorker::new(
+                b.clone(),
+                tasks_b.clone(),
+                provider.runtime.clone(),
+                profiles,
+                homes.clone(),
+                keys.clone(),
+            )
+            .unwrap();
+            let schedulers =
+                projection::Schedulers::maintenance([Arc::new(maintenance_a), Arc::new(maintenance_b)]);
+            let started = Instant::now();
+            tokio::time::timeout(Duration::from_secs(180), async {
+                loop {
+                    let current = a
+                        .maintenance(actor.owner(), operation.operation_id)
+                        .await
+                        .unwrap();
+                    assert_ne!(
+                        current.stage,
+                        veoveo_computers::maintenance::MaintenanceStage::RecoveryRequired,
+                        "native maintenance requires recovery at {:?}",
+                        current.steps().last().map(|step| step.step)
+                    );
+                    let task = tasks_a.get(operation.task_id()).await.unwrap().unwrap();
+                    if task.is_terminal() && b.pending_maintenance(None, 100).await.unwrap().is_empty() {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                }
+            })
+            .await
+            .expect("native retained maintenance did not settle");
+            schedulers.stop().await;
+            let completed = a
                 .maintenance(actor.owner(), operation.operation_id)
                 .await
                 .unwrap();
-            assert_ne!(
-                current.stage,
-                veoveo_computers::maintenance::MaintenanceStage::RecoveryRequired,
-                "native maintenance requires recovery at {:?}",
-                current.steps().last().map(|step| step.step)
+            assert_eq!(
+                completed.stage,
+                veoveo_computers::maintenance::MaintenanceStage::Succeeded
             );
+            assert_eq!(completed.steps().len(), 6);
+            assert!(matches!(completed.steps().last().unwrap().evidence,
+                Some(veoveo_computers::maintenance::MaintenanceEvidence::Restored {policy_version,..}) if policy_version > 1));
+            let retained = b.get(actor.owner(), computer.computer_id).await.unwrap();
+            assert_eq!(retained.active_operation, None);
+            assert_eq!(retained.instance_id(), operation.target_instance_id);
+            let replacement = Binding::from_instance(
+                retained.computer_id.as_uuid(),
+                retained.instance_id(),
+                retained.template_fingerprint.clone(),
+            )
+            .unwrap();
+            assert!(provider.runtime.get(&binding).await.unwrap().is_none());
             let task = tasks_a.get(operation.task_id()).await.unwrap().unwrap();
-            if task.is_terminal() && b.pending_maintenance(None, 100).await.unwrap().is_empty() {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(200)).await;
-        }
-    })
-    .await
-    .expect("native retained maintenance did not settle");
-    schedulers.stop().await;
-    let completed = a
-        .maintenance(actor.owner(), operation.operation_id)
-        .await
-        .unwrap();
-    assert_eq!(
-        completed.stage,
-        veoveo_computers::maintenance::MaintenanceStage::Succeeded
-    );
-    assert_eq!(completed.steps().len(), 6);
-    assert!(matches!(completed.steps().last().unwrap().evidence,
-        Some(veoveo_computers::maintenance::MaintenanceEvidence::Restored {policy_version,..}) if policy_version > 1));
-    let retained = b.get(actor.owner(), computer.computer_id).await.unwrap();
-    assert_eq!(retained.active_operation, None);
-    assert_eq!(retained.instance_id(), operation.target_instance_id);
-    let replacement = Binding::from_instance(
-        retained.computer_id.as_uuid(),
-        retained.instance_id(),
-        retained.template_fingerprint.clone(),
-    )
-    .unwrap();
-    assert!(provider.runtime.get(&binding).await.unwrap().is_none());
-    let task = tasks_a.get(operation.task_id()).await.unwrap().unwrap();
-    assert_eq!(task.status, TaskStatus::Succeeded);
-    let result: rmcp::model::CallToolResult = serde_json::from_value(task.result.unwrap()).unwrap();
-    let result: MaintenanceResult =
-        serde_json::from_value(result.structured_content.unwrap()).unwrap();
-    assert_eq!(result.maintenance_id(), operation.operation_id);
-    assert_eq!(
-        result.result_uri(),
-        veoveo_computers::api::ComputerResultUri::new(computer.computer_id)
-    );
-    assert!(b.pending_maintenance(None, 100).await.unwrap().is_empty());
-    inspect(
-        &provider.runtime,
-        &replacement,
-        "test \"$(cat invocation-count)\" = x; test ! -e replayed-command",
-    )
-    .await;
-    assert!(allocator.restore(&binding).await.is_err());
-    eprintln!(
-        "Native durable retained maintenance settled in {} ms",
-        started.elapsed().as_millis()
-    );
-    artifact_server.abort();
-    let _ = artifact_server.await;
-    provider.assert_running();
-    drop(worker_a);
-    drop(worker_b);
-    drop(lifecycle);
-    drop(provider);
-    home.finish(None).await;
+            assert_eq!(task.status, TaskStatus::Succeeded);
+            let result: rmcp::model::CallToolResult = serde_json::from_value(task.result.unwrap()).unwrap();
+            let result: MaintenanceResult =
+                serde_json::from_value(result.structured_content.unwrap()).unwrap();
+            assert_eq!(result.maintenance_id(), operation.operation_id);
+            assert_eq!(
+                result.result_uri(),
+                veoveo_computers::api::ComputerResultUri::new(computer.computer_id)
+            );
+            assert!(b.pending_maintenance(None, 100).await.unwrap().is_empty());
+            inspect(
+                &provider.runtime,
+                &replacement,
+                "test \"$(cat invocation-count)\" = x; test ! -e replayed-command",
+            )
+            .await;
+            assert!(allocator.restore(&binding).await.is_err());
+            eprintln!(
+                "Native durable retained maintenance settled in {} ms",
+                started.elapsed().as_millis()
+            );
+        })
+        .await;
+
+        artifact_server.abort();
+        let _ = artifact_server.await;
+        provider.assert_running();
+        drop(worker_a);
+        drop(worker_b);
+        drop(lifecycle);
+        drop(provider);
+        home.finish(None).await;
+    }).await;
 }
