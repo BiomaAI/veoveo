@@ -89,9 +89,15 @@ applicable security fixes; unsupported or vulnerable pins also require a documen
 mitigation and replacement deadline. Update affected tests and current documentation
 with a pin change.
 
-Pre-release dependencies and maintained provider patches require an explicit product
-reason, exact provenance, a supported qualification matrix, and an upstream/removal
-plan. Record the constraint beside the pin.
+Pre-release dependencies require an explicit product reason, exact provenance, a
+supported qualification matrix, and an upstream/removal plan. Record the constraint
+beside the pin.
+
+Third-party runtimes use unmodified upstream releases: preserve their source,
+protocols, build behavior and runtime behavior. Adapt at the Veoveo edge or through
+supported configuration, or contribute a required change upstream. Recovery rules
+authorize changes only to Veoveo-owned adapters and state; they do not authorize
+provider patches.
 
 ## GPU Execution Is Mandatory
 
