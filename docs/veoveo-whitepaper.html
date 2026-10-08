@@ -122,8 +122,7 @@
   .verline { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.14em; color: var(--dark-muted); text-transform: uppercase; margin-top: 1rem; }
 
   /* ---------- transcript ---------- */
-  section.transcript { background: var(--dark); color: var(--dark-ink); padding: 3rem 16px; }
-  .transcript-inner { max-width: 46rem; margin: 0 auto; }
+  .transcript { background: var(--dark); color: var(--dark-ink); border-radius: 10px; padding: 1.8rem 1.8rem 1.4rem; margin: 1.6rem 0; }
   .tp-eyebrow { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.2em; color: var(--accent-bright); text-transform: uppercase; margin-bottom: 0.4rem; }
   .tp-sub { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.08em; color: var(--dark-muted); text-transform: uppercase; margin-bottom: 1.6rem; }
   .tlog { font-family: var(--mono); font-size: 0.74rem; line-height: 1.85; color: #C3BBD0; }
@@ -221,7 +220,7 @@
     body { background: #fff; color: #17212B; }
     main { max-width: none; padding: 0; }
 
-    header.cover, section.transcript {
+    header.cover {
       page: fullbleed; width: 8.5in; height: 11in; min-height: 0; overflow: hidden;
       break-after: page;
     }
@@ -244,8 +243,7 @@
     .platform-map iframe { display: none; }
     .platform-map .map-static { display: block; width: 100%; height: auto; }
 
-    section.transcript { padding: 0.75in 0.8in; }
-    .transcript-inner { max-width: none; }
+    .transcript { padding: 20px 24px 16px; break-inside: avoid; }
     .tp-eyebrow { font-size: 10px; }
     .tp-sub { font-size: 8.5px; margin-bottom: 24px; }
     .tlog { font-size: 9.5px; line-height: 2; }
@@ -330,49 +328,6 @@
   </script>
 </section>
 
-<section class="transcript" aria-label="Illustrative mission transcript">
-  <div class="transcript-inner">
-    <div class="tp-eyebrow">Transcript of an illustrative mission</div>
-    <div class="tp-sub">Live traffic world · Eclipse SUMO, Simulation of Urban Mobility · Luxembourg scenario</div>
-    <div class="tlog">
-      <div class="row"><span class="t">06:41:02</span><span class="ch">wake</span><span class="tx">timer · hourly review</span></div>
-      <div class="row"><span class="t">06:41:03</span><span class="ch">context</span><span class="tx">slice: 2 active missions · 214 vehicles tracked · signals nominal</span></div>
-      <div class="row"><span class="t">06:41:04</span><span class="ch">episode</span><span class="tx">#4,112 closed · no action required · sleeping</span></div>
-    </div>
-    <div class="opbox">
-      <div class="oplabel">OPERATOR → PILOT</div>
-      <p>New mission: survey the northern district for congestion buildup between 07:00
-         and 09:00, and keep it moving. Boundary attached (survey-north.kml); intersection
-         priorities from ops (priorities.xlsx). Interventions stay inside city signal policy.
-         Report with evidence.</p>
-    </div>
-    <div class="tlog">
-      <div class="row"><span class="t">06:42:07</span><span class="ch">wake</span><span class="tx">operator message · 2 attachments</span></div>
-      <div class="row"><span class="t">06:42:08</span><span class="ch">reason</span><span class="tx">this operator has not sent a .kml boundary or an .xlsx priority sheet before; I can structure both</span></div>
-      <div class="row"><span class="t">06:42:09</span><span class="ch">act</span><span class="tx"><b>duckdb__ingest</b> priorities.xlsx → ops_priorities · 14 intersections ranked</span></div>
-      <div class="row"><span class="t">06:42:10</span><span class="ch">act</span><span class="tx"><b>map__validate_geofence</b> survey-north.kml → WGS84 polygon · 8.2 km²</span></div>
-      <div class="row"><span class="t">06:42:11</span><span class="ch">act</span><span class="tx"><b>memory_write</b> missions ← ‘survey-north’ · objectives, boundary, constraints</span></div>
-      <div class="row"><span class="t">06:42:12</span><span class="ch">reason</span><span class="tx">the report needs camera footage and vehicle counts; four streams cover the district</span></div>
-      <div class="row"><span class="t">06:42:13</span><span class="ch">act</span><span class="tx"><b>subscribe</b> sumo://congestion · scoped to the boundary</span></div>
-      <div class="row"><span class="t">06:42:14</span><span class="ch">act</span><span class="tx"><b>schedule</b> wake 07:00 · survey window opens</span></div>
-      <div class="row"><span class="t">06:42:15</span><span class="ch">episode</span><span class="tx">#4,113 closed · mission stored in the <b>world model</b> · sleeping</span></div>
-      <div class="gap"></div>
-      <div class="row"><span class="t">07:00:00</span><span class="ch">wake</span><span class="tx">timer · survey window open</span></div>
-      <div class="row"><span class="t">07:00:03</span><span class="ch">act</span><span class="tx"><b>recording__create_recording_projection</b> latest-at → 61 vehicles in boundary · edge N-14 densest</span></div>
-      <div class="row"><span class="t">07:00:05</span><span class="ch">act</span><span class="tx"><b>stream__run_recording</b> /world/camera/n14 · task t-2211 · sleeping</span></div>
-      <div class="row"><span class="t">07:11:40</span><span class="ch">wake</span><span class="tx">task result · 1,204 detections · 87 tracks · northbound queue +9%/min</span></div>
-      <div class="row"><span class="t">07:11:43</span><span class="ch">act</span><span class="tx"><b>duckdb__ingest</b> detections → demand per approach</span></div>
-      <div class="row"><span class="t">07:11:44</span><span class="ch">act</span><span class="tx"><b>optimization__solve_milp</b> · minimize delay · typed signal choices, demand, priorities, and policy constraints</span></div>
-      <div class="row"><span class="t">07:11:52</span><span class="ch">reason</span><span class="tx">the verified solution retimes N-14 and N-9 inside policy and leaves N-2 unchanged because its priority and demand are low</span></div>
-      <div class="row"><span class="t">07:11:53</span><span class="ch">act</span><span class="tx"><b>sumo__set_signal_phase</b> N-14 N-9 · run_batch(500) · task t-2212 · sleeping</span></div>
-      <div class="row"><span class="t">07:19:26</span><span class="ch">wake</span><span class="tx">task result · queue at N-14 down <b>23%</b> · writing report</span></div>
-      <div class="row"><span class="t">07:19:31</span><span class="ch">report</span><span class="tx">artifact sealed · counts, plan, clip, rationale · shareable under policy</span></div>
-    </div>
-    <p class="tcap">This transcript is illustrative and uses the SUMO reference integration. The
-      sections that follow describe how its wakes, tools, tasks, and artifacts work.</p>
-  </div>
-</section>
-
 <main>
 
 <section class="chapter" id="abstract">
@@ -406,15 +361,15 @@
   <h1 class="section">Contents</h1>
   <nav aria-label="Contents">
     <ol class="toc">
-      <li><span>1</span><a href="#capabilities">Capabilities</a><span class="pg">6</span></li>
-      <li><span>2</span><a href="#system-model">System Model</a><span class="pg">7</span></li>
-      <li><span>3</span><a href="#world-model">The World Model</a><span class="pg">8</span></li>
-      <li><span>4</span><a href="#agent-kernel">The Agent Kernel</a><span class="pg">10</span></li>
-      <li><span>5</span><a href="#gateway">Edge, Access, and the Gateway</a><span class="pg">12</span></li>
-      <li><span>6</span><a href="#hosted-servers">Hosted Servers</a><span class="pg">13</span></li>
-      <li><span>7</span><a href="#tasks">Tasks and Shared Stores</a><span class="pg">16</span></li>
-      <li><span>8</span><a href="#recording-hub">Recording Hub</a><span class="pg">17</span></li>
-      <li><span>9</span><a href="#integrations">Connecting Robots and Simulators</a><span class="pg">18</span></li>
+      <li><span>1</span><a href="#capabilities">Capabilities</a><span class="pg">5</span></li>
+      <li><span>2</span><a href="#system-model">System Model</a><span class="pg">6</span></li>
+      <li><span>3</span><a href="#world-model">The World Model</a><span class="pg">7</span></li>
+      <li><span>4</span><a href="#agent-kernel">The Agent Kernel</a><span class="pg">9</span></li>
+      <li><span>5</span><a href="#gateway">Edge, Access, and the Gateway</a><span class="pg">11</span></li>
+      <li><span>6</span><a href="#hosted-servers">Hosted Servers</a><span class="pg">12</span></li>
+      <li><span>7</span><a href="#tasks">Tasks and Shared Stores</a><span class="pg">15</span></li>
+      <li><span>8</span><a href="#recording-hub">Recording Hub</a><span class="pg">16</span></li>
+      <li><span>9</span><a href="#integrations">Connecting Robots and Simulators</a><span class="pg">17</span></li>
       <li><span>10</span><a href="#verification">Verification and Observability</a><span class="pg">21</span></li>
       <li><span>11</span><a href="#learning">Self-Improvement Primitives</a><span class="pg">21</span></li>
       <li><span>12</span><a href="#deployment">Deployment and Operations</a><span class="pg">22</span></li>
@@ -943,6 +898,48 @@
         <tr><td>Outputs</td><td>A successful task uploads its outputs to the artifact plane with a write capability bound to that task.</td></tr>
       </tbody>
     </table>
+    </div>
+    <div class="transcript" role="figure" aria-label="Illustrative mission transcript">
+      <div class="transcript-inner">
+        <div class="tp-eyebrow">Transcript of an illustrative mission</div>
+        <div class="tp-sub">Live traffic world · Eclipse SUMO, Simulation of Urban Mobility · Luxembourg scenario</div>
+        <div class="tlog">
+          <div class="row"><span class="t">06:41:02</span><span class="ch">wake</span><span class="tx">timer · hourly review</span></div>
+          <div class="row"><span class="t">06:41:03</span><span class="ch">context</span><span class="tx">slice: 2 active missions · 214 vehicles tracked · signals nominal</span></div>
+          <div class="row"><span class="t">06:41:04</span><span class="ch">episode</span><span class="tx">#4,112 closed · no action required · sleeping</span></div>
+        </div>
+        <div class="opbox">
+          <div class="oplabel">OPERATOR → PILOT</div>
+          <p>New mission: survey the northern district for congestion buildup between 07:00
+             and 09:00, and keep it moving. Boundary attached (survey-north.kml); intersection
+             priorities from ops (priorities.xlsx). Interventions stay inside city signal policy.
+             Report with evidence.</p>
+        </div>
+        <div class="tlog">
+          <div class="row"><span class="t">06:42:07</span><span class="ch">wake</span><span class="tx">operator message · 2 attachments</span></div>
+          <div class="row"><span class="t">06:42:08</span><span class="ch">reason</span><span class="tx">this operator has not sent a .kml boundary or an .xlsx priority sheet before; I can structure both</span></div>
+          <div class="row"><span class="t">06:42:09</span><span class="ch">act</span><span class="tx"><b>duckdb__ingest</b> priorities.xlsx → ops_priorities · 14 intersections ranked</span></div>
+          <div class="row"><span class="t">06:42:10</span><span class="ch">act</span><span class="tx"><b>map__validate_geofence</b> survey-north.kml → WGS84 polygon · 8.2 km²</span></div>
+          <div class="row"><span class="t">06:42:11</span><span class="ch">act</span><span class="tx"><b>memory_write</b> missions ← ‘survey-north’ · objectives, boundary, constraints</span></div>
+          <div class="row"><span class="t">06:42:12</span><span class="ch">reason</span><span class="tx">the report needs camera footage and vehicle counts; four streams cover the district</span></div>
+          <div class="row"><span class="t">06:42:13</span><span class="ch">act</span><span class="tx"><b>subscribe</b> sumo://congestion · scoped to the boundary</span></div>
+          <div class="row"><span class="t">06:42:14</span><span class="ch">act</span><span class="tx"><b>schedule</b> wake 07:00 · survey window opens</span></div>
+          <div class="row"><span class="t">06:42:15</span><span class="ch">episode</span><span class="tx">#4,113 closed · mission stored in the <b>world model</b> · sleeping</span></div>
+          <div class="gap"></div>
+          <div class="row"><span class="t">07:00:00</span><span class="ch">wake</span><span class="tx">timer · survey window open</span></div>
+          <div class="row"><span class="t">07:00:03</span><span class="ch">act</span><span class="tx"><b>recording__create_recording_projection</b> latest-at → 61 vehicles in boundary · edge N-14 densest</span></div>
+          <div class="row"><span class="t">07:00:05</span><span class="ch">act</span><span class="tx"><b>stream__run_recording</b> /world/camera/n14 · task t-2211 · sleeping</span></div>
+          <div class="row"><span class="t">07:11:40</span><span class="ch">wake</span><span class="tx">task result · 1,204 detections · 87 tracks · northbound queue +9%/min</span></div>
+          <div class="row"><span class="t">07:11:43</span><span class="ch">act</span><span class="tx"><b>duckdb__ingest</b> detections → demand per approach</span></div>
+          <div class="row"><span class="t">07:11:44</span><span class="ch">act</span><span class="tx"><b>optimization__solve_milp</b> · minimize delay · typed signal choices, demand, priorities, and policy constraints</span></div>
+          <div class="row"><span class="t">07:11:52</span><span class="ch">reason</span><span class="tx">the verified solution retimes N-14 and N-9 inside policy and leaves N-2 unchanged because its priority and demand are low</span></div>
+          <div class="row"><span class="t">07:11:53</span><span class="ch">act</span><span class="tx"><b>sumo__set_signal_phase</b> N-14 N-9 · run_batch(500) · task t-2212 · sleeping</span></div>
+          <div class="row"><span class="t">07:19:26</span><span class="ch">wake</span><span class="tx">task result · queue at N-14 down <b>23%</b> · writing report</span></div>
+          <div class="row"><span class="t">07:19:31</span><span class="ch">report</span><span class="tx">artifact sealed · counts, plan, clip, rationale · shareable under policy</span></div>
+        </div>
+        <p class="tcap">This transcript is illustrative. It follows one mission in the SUMO world
+          through the wakes, tools, tasks, and artifacts described in the earlier chapters.</p>
+      </div>
     </div>
   </section>
 
