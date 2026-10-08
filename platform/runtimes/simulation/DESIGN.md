@@ -10,7 +10,7 @@ controller, scenario, mission, customer asset, or domain entrypoint. Application
 |---|---|
 | OCI Image Specification | one `linux/amd64` image published by digest with SBOM and provenance |
 | `veoveo.ai/simulation-runtime-lock/v1` | exact build-input lock for the supported runtime tuple and pod contract |
-| `veoveo.ai/simulation-runtime-conformance/v1` | hardware result tied to one image digest and qualified node |
+| `veoveo.ai/simulation-runtime-conformance/v2` | hardware result tied to one image digest and qualified node |
 | NVIDIA Container Runtime | one visible NVIDIA RTX GPU through `nvidia.com/gpu` and RuntimeClass `nvidia` |
 | CUDA | Torch CUDA 12.8 plus the Isaac RTX extension's pinned NVRTC 12.8.61 builtins |
 | NVIDIA NVENC API | driver-provided encode API required by live-view profiles |
@@ -20,6 +20,14 @@ controller, scenario, mission, customer asset, or domain entrypoint. Application
 Isaac, Kit, CUDA, and NVIDIA live-stream interfaces are implementation dependencies.
 The dependency lock and immutable image digest identify the supported runtime.
 Domain-facing simulation protocols belong to the hosted server.
+
+The GPU probe emits a one-way v2 JSON report with camelCase fields, including nested
+probe results and identity fields. The identity probe emits those same current fields
+in its untagged standalone output. Isaac Lab package-name keys and native values keep
+their upstream spelling.
+Operators must replace stored v1 GPU reports and update external readers with the
+writer; this repository has no decoder for this probe report. The release contract
+uses its separate `veoveo.ai/simulation-conformance-result/v2` format.
 
 ## Dependency Profile
 

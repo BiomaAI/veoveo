@@ -137,7 +137,7 @@ def inspect_identity() -> dict[str, object]:
         )
 
     return {
-        "isaac_sim": (ISAAC_ROOT / "VERSION").read_text().strip(),
+        "isaacSim": (ISAAC_ROOT / "VERSION").read_text().strip(),
         "python": f"{sys.version_info.major}.{sys.version_info.minor}",
         "torch": {
             "version": torch.__version__,
@@ -152,9 +152,9 @@ def inspect_identity() -> dict[str, object]:
             "version": newton.__version__,
             "file": str(_module_path(newton)),
         },
-        "isaac_lab": isaac_lab,
-        "inspected_authoritative_modules": inspected_modules,
-        "mixed_module_roots": mixed_modules,
+        "isaacLab": isaac_lab,
+        "inspectedAuthoritativeModules": inspected_modules,
+        "mixedModuleRoots": mixed_modules,
     }
 
 

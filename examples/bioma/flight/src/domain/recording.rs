@@ -14,6 +14,7 @@ use veoveo_stream_mcp::contract::{
 use veoveo_uav_sim_mcp::contract::{CameraLifecycle, RecordingPublisherLifecycle, SimulationState};
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RecordingAcceptance {
     schema: &'static str,
     video: RecordingVideoSelection,
@@ -219,7 +220,7 @@ async fn analyze(
     );
     eprintln!("Recording acceptance: grounded Reason passed");
     Ok(RecordingAcceptance {
-        schema: "veoveo.ai/uav-recording-acceptance/v1",
+        schema: "veoveo.ai/uav-recording-acceptance/v2",
         video,
         stream_artifact_id,
         reason_artifact_id,
@@ -325,7 +326,7 @@ mod tests {
     fn fixture() -> (SimulationState, UavAcceptanceScenario) {
         let scenario = UavAcceptanceScenario::load(
             &Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../showcase/uav-sim/scenarios/new-york-aerial.json"),
+                .join("../../../showcase/uav-sim/scenarios/new-york-aerial.json"),
         )
         .unwrap();
         let mut state: SimulationState =
@@ -348,6 +349,35 @@ mod tests {
                 started_at: Utc::now(),
             });
         (state, scenario)
+    }
+
+    #[test]
+    fn recording_report_emits_v2_current_keys_and_owned_video() {
+        let (state, scenario) = fixture();
+        let video = selection(&state, &scenario).unwrap();
+        let stream_artifact_id = ArtifactId::new();
+        let reason_artifact_id = ArtifactId::new();
+        let expected_video = serde_json::to_value(&video).unwrap();
+        let report = RecordingAcceptance {
+            schema: "veoveo.ai/uav-recording-acceptance/v2",
+            video,
+            stream_artifact_id,
+            reason_artifact_id,
+            processed_frames: 3,
+            observed_frames: 2,
+        };
+        let wire = serde_json::to_value(report).unwrap();
+        assert_eq!(
+            wire,
+            serde_json::json!({
+                "schema": "veoveo.ai/uav-recording-acceptance/v2",
+                "video": expected_video,
+                "streamArtifactId": stream_artifact_id,
+                "reasonArtifactId": reason_artifact_id,
+                "processedFrames": 3,
+                "observedFrames": 2,
+            })
+        );
     }
 
     #[test]

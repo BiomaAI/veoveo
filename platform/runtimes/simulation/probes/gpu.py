@@ -47,8 +47,8 @@ def _verify_runtime_storage() -> dict[str, object]:
             f"least 2 GiB, received {shared_memory_bytes} bytes"
         )
     return {
-        "writable_paths": [str(path) for path in writable_paths],
-        "shared_memory_bytes": shared_memory_bytes,
+        "writablePaths": [str(path) for path in writable_paths],
+        "sharedMemoryBytes": shared_memory_bytes,
     }
 
 
@@ -81,8 +81,8 @@ def _verify_driver_apis() -> dict[str, int]:
     if not hasattr(nvenc, "NvEncodeAPICreateInstance"):
         raise RuntimeError("the NVIDIA NVENC session API is unavailable")
     return {
-        "cuda_device_count": device_count.value,
-        "nvenc_api_version": nvenc_version.value,
+        "cudaDeviceCount": device_count.value,
+        "nvencApiVersion": nvenc_version.value,
     }
 
 
@@ -113,12 +113,12 @@ def _verify_hardware_identity() -> dict[str, object]:
             f"NVIDIA driver {driver_version} is below the 570.169 runtime floor"
         )
     return {
-        "gpu_uuid": gpu_uuid,
-        "gpu_name": gpu_name,
-        "driver_version": driver_version,
-        "minimum_driver_version": "570.169",
-        "qualified_driver_version": "595.58.03",
-        "release_driver_qualified": version >= QUALIFIED_DRIVER,
+        "gpuUuid": gpu_uuid,
+        "gpuName": gpu_name,
+        "driverVersion": driver_version,
+        "minimumDriverVersion": "570.169",
+        "qualifiedDriverVersion": "595.58.03",
+        "releaseDriverQualified": version >= QUALIFIED_DRIVER,
     }
 
 
@@ -218,20 +218,20 @@ def _verify_cuda_kernels() -> dict[str, object]:
     properties = torch.cuda.get_device_properties(device)
     return {
         "device": properties.name,
-        "compute_capability": f"{properties.major}.{properties.minor}",
-        "torch_cuda": torch.version.cuda,
-        "torch_kernel_sum": float(torch_output.item()),
-        "warp_kernel_sum": actual_sum,
-        "newton_solver_mujoco": {
+        "computeCapability": f"{properties.major}.{properties.minor}",
+        "torchCuda": torch.version.cuda,
+        "torchKernelSum": float(torch_output.item()),
+        "warpKernelSum": actual_sum,
+        "newtonSolverMujoco": {
             "device": str(model.device),
-            "initial_height": initial_height,
-            "final_height": final_height,
+            "initialHeight": initial_height,
+            "finalHeight": final_height,
             "steps": 8,
         },
-        "newton_tiled_camera": {
+        "newtonTiledCamera": {
             "shape": list(image_tensor.shape),
             "device": str(image_tensor.device),
-            "unique_values": unique_values,
+            "uniqueValues": unique_values,
         },
     }
 
@@ -339,12 +339,12 @@ def _verify_isaac_lab_camera(
             "shape": list(rgb_tensor.shape),
             "dtype": str(rgb_tensor.dtype),
             "device": str(rgb_tensor.device),
-            "minimum_standard_deviation": float(standard_deviation.min().item()),
-            "maximum_standard_deviation": float(standard_deviation.max().item()),
-            "distinct_mean_values": int(
+            "minimumStandardDeviation": float(standard_deviation.min().item()),
+            "maximumStandardDeviation": float(standard_deviation.max().item()),
+            "distinctMeanValues": int(
                 torch.unique(torch.round(means * 1000.0) / 1000.0).numel()
             ),
-            "elapsed_seconds": time.perf_counter() - started,
+            "elapsedSeconds": time.perf_counter() - started,
         }
     finally:
         del camera
@@ -390,15 +390,15 @@ def main() -> int:
             args.warmup_frames,
         )
         result = {
-            "schema_version": "veoveo.ai/simulation-runtime-conformance/v1",
+            "schemaVersion": "veoveo.ai/simulation-runtime-conformance/v2",
             "profile": os.environ["VEOVEO_SIMULATION_RUNTIME_PROFILE"],
-            "image_digest": args.image_digest,
+            "imageDigest": args.image_digest,
             "identity": identity,
             "storage": storage,
-            "driver_apis": driver_apis,
+            "driverApis": driver_apis,
             "hardware": hardware,
             "cuda": cuda,
-            "isaac_lab_camera": camera,
+            "isaacLabCamera": camera,
         }
         encoded = json.dumps(result, indent=2, sort_keys=True) + "\n"
         if args.output is not None:

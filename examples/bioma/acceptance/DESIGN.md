@@ -13,7 +13,7 @@
 | Installation input | Required `--installation` file using `veoveo.ai/installation-target/v1`; identities and endpoints validated against its control-plane document |
 | MCP and authentication | Repository conformance CLI over public HTTPS, the hosted MCP 2026-07-28 profile, OAuth token exchange, exact Work Context and profile scopes |
 | Flight scenario | Runtime-loaded `veoveo.ai/uav-sim-acceptance/v12` JSON with bounded typed mission, world, video and observation parameters |
-| Recording analysis | Stream and Reason contract features, Recording catalog and checked live-part snapshot types; `veoveo.ai/uav-recording-acceptance/v1` JSON result |
+| Recording analysis | Stream and Reason contract features, Recording catalog and checked live-part snapshot types; `veoveo.ai/uav-recording-acceptance/v2` JSON result |
 | Stream live sessions | Server-owned live-session types imported through the Stream library's isolated `contract` feature |
 | Stream notifications | Official workspace Rust MCP SDK; public resource subscriptions, uncached typed reads, cancellation and reconnected baselines; `veoveo.ai/stream-notification-acceptance/v1` result |
 | UAV control grants | UAV-owned grant, permission and collection types through its isolated contract feature; a 60-second and 100-page traversal limit; Map owns mobility-profile references |
@@ -39,6 +39,10 @@ stdin peer model and the SDK's Artifact identity/address admission; its embedded
 GatewayInternalIdentity keeps the frozen signed identity profile. These decoder
 controls establish receiving behavior, while headed hardware acceptance and
 installed SDK transfer measurements require their actual declared environments.
+
+The recording-analysis operator report emits camelCase fields under its v2 schema. It is
+a one-way JSON output; this repository has no report decoder. Operators must replace
+stored v1 reports and update external readers when coordinating the writer cut.
 
 ## Ownership
 

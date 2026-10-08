@@ -11,7 +11,7 @@ contract-only; hosting, token signing and analytics are outside this package.
 | Installation input | Required `--installation` file using `veoveo.ai/installation-target/v1`; identities and endpoints validated against its control-plane document |
 | MCP and authentication | Maintained workspace Rust MCP SDK and conformance CLI over public HTTPS; hosted MCP 2026-07-28, OAuth token exchange, Work Context and profile scopes |
 | Flight scenario | Runtime-loaded `veoveo.ai/uav-sim-acceptance/v13` JSON with bounded typed mission, world, video and observation parameters |
-| Recording analysis | Stream and Reason contract features, Recording catalog and checked live-part snapshot types; `veoveo.ai/uav-recording-acceptance/v1` JSON result |
+| Recording analysis | Stream and Reason contract features, Recording catalog and checked live-part snapshot types; `veoveo.ai/uav-recording-acceptance/v2` JSON result |
 | Stream live sessions | Server-owned live-session types imported through the Stream library's isolated `contract` feature |
 | Stream notifications | Official workspace Rust MCP SDK; public resource subscriptions, uncached typed reads, cancellation and reconnected baselines; `veoveo.ai/stream-notification-acceptance/v1` result |
 | UAV control grants | UAV-owned grant, permission and collection types through its isolated contract feature; a 60-second and 100-page traversal limit; Map owns mobility-profile references |
@@ -22,6 +22,10 @@ contract-only; hosting, token signing and analytics are outside this package.
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v2` JSON receipt with the output file SHA-256 |
 | Evidence | `veoveo.ai/uav-showcase-acceptance-evidence/v6` JSON and revision-qualified captures; `veoveo.ai/uav-showcase-phase-outcomes/v3` records domain and visual outcomes and preserves successful visual measurements even when the domain phase fails; both mark Reason `not_run` because its acceptance runs separately |
 | Focused restart stages | `veoveo.ai/uav-live-view-restart-stage/v1` records each accepted container restart and its headed hardware browser observations before the next restart begins |
+
+The recording-analysis operator report emits camelCase fields under its v2 schema. It is
+a one-way JSON output; this repository has no report decoder. Operators must replace
+stored v1 reports and update external readers when coordinating the writer cut.
 
 ## Ownership
 
