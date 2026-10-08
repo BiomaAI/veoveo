@@ -525,7 +525,7 @@ async fn row(cdp: &mut Cdp, session: &str, filename: &str) -> Result<Row> {
 }
 
 async fn persisted_row(cdp: &mut Cdp, session: &str, filename: &str) -> Result<Row> {
-    cdp.evaluate(session, &format!(r#"(()=>{{for(const k of Object.keys(localStorage)){{if(!k.startsWith('veoveo.uploads.v1:'))continue;const n=JSON.parse(localStorage.getItem(k)).find(n=>n.descriptor.filename==={});if(n)return {{phase:'',text:'',uploadId:n.uploadId??null,accepted:n.accepted,receipt:n.receipt??null}}}}return {{phase:'',text:'',uploadId:null,accepted:0,receipt:null}}}})()"#, serde_json::to_string(filename)?), false).await
+    cdp.evaluate(session, &format!(r#"(()=>{{for(const k of Object.keys(localStorage)){{if(!k.startsWith('veoveo.uploads.v2:'))continue;const n=JSON.parse(localStorage.getItem(k)).find(n=>n.descriptor.filename==={});if(n)return {{phase:'',text:'',uploadId:n.uploadId??null,accepted:n.accepted,receipt:n.receipt??null}}}}return {{phase:'',text:'',uploadId:null,accepted:0,receipt:null}}}})()"#, serde_json::to_string(filename)?), false).await
 }
 
 async fn wait_row(

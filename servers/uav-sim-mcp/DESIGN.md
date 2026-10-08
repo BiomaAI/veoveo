@@ -295,7 +295,10 @@ Agent-target metadata still invalidates discovery when its Store inputs change.
 
 The `control-grants`, `mission-plans`, `missions`, and `usage` roots return
 `{items, limit, nextCursor}` with at most 100 items. Their `{?cursor}` templates accept
-one versioned opaque cursor. Grant and plan pages order their immutable domain IDs.
+one versioned opaque cursor. Writers and receivers share the `CollectionPage` owner
+type and must be replaced together; retired or mixed page spellings fail admission.
+This field naming cut leaves the cursor envelope versions and bytes unchanged.
+Grant and plan pages order their immutable domain IDs.
 Mission pages order distinct mission IDs; usage pages order Task creation time and UUID.
 SQL applies caller visibility and cursor predicates before fetching the extra row used
 to detect a following page. A cursor carries a position and collection identity, with

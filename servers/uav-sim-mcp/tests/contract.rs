@@ -372,3 +372,30 @@ fn private_nested_current_wire_refuses_retired_and_mixed_members() {
         &[("loadType", "load_type"), ("httpStatus", "http_status")],
     );
 }
+
+#[test]
+fn collection_pages_share_current_schema_and_strict_receiver_spelling() {
+    let current =
+        serde_json::json!({"items": ["member"], "limit": 100, "nextCursor": "opaque-position"});
+    let page: CollectionPage<String> = serde_json::from_value(current.clone()).unwrap();
+    assert_eq!(page.next_cursor.as_deref(), Some("opaque-position"));
+    assert_eq!(serde_json::to_value(&page).unwrap(), current);
+    let schema = serde_json::to_value(schemars::schema_for!(CollectionPage<String>)).unwrap();
+    assert!(schema["properties"].get("nextCursor").is_some());
+    assert!(schema["properties"].get("next_cursor").is_none());
+    for invalid in [
+        serde_json::json!({"items": [], "limit": 100, "next_cursor": null}),
+        serde_json::json!({"items": [], "limit": 100, "nextCursor": null, "next_cursor": "retired"}),
+    ] {
+        assert!(serde_json::from_value::<CollectionPage<String>>(invalid).is_err());
+    }
+    assert_eq!(
+        serde_json::to_value(CollectionPage::<String> {
+            items: vec![],
+            limit: 100,
+            next_cursor: None
+        })
+        .unwrap()["nextCursor"],
+        serde_json::Value::Null
+    );
+}

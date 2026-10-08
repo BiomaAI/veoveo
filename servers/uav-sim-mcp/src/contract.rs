@@ -702,7 +702,7 @@ pub enum DurableOperationResult {
 
 /// One live collection page. Reuse the cursor only with the same collection/filter.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CollectionPage<T> {
     pub items: Vec<T>,
     pub limit: usize,
@@ -715,7 +715,7 @@ pub struct CollectionPage<T> {
 pub struct ActiveVehicleGrantsRequest {
     pub session_id: SessionId,
     #[serde(default)]
-    /// Opaque next_cursor from the previous page for this session.
+    /// Opaque nextCursor from the previous page for this session.
     pub cursor: Option<String>,
 }
 

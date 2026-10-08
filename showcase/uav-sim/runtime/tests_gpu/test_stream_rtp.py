@@ -4,7 +4,9 @@ Requires Docker/NVIDIA Container Toolkit, ffprobe, Python 3.13 and these inputs:
 VEOVEO_TEST_STREAM_IMAGE (locally cached immutable image), VEOVEO_TEST_STREAM_ENGINE,
 VEOVEO_TEST_STREAM_INFERENCE (its matching nvinfer config), VEOVEO_TEST_STREAM_H264,
 and VEOVEO_TEST_NVIDIA_GPU_UUID. Config must use /models/primary-detector.engine.
-Run this file with a 180-second outer timeout. Each case owns its container, socket
+Requests use `veoveo.ai/stream-live-runner-request/v2`; events use the owner
+`veoveo.ai/stream-live-video-chunk/v2` and `veoveo.ai/stream-live-frame/v2`
+profiles with camelCase fields. Run this file with a 180-second outer timeout. Each case owns its container, socket
 and temporary files; source model and image caches are read-only and preserved.
 """
 from __future__ import annotations
@@ -51,21 +53,89 @@ def receive_events(connection: socket.socket, observed: Observation) -> None:
                 if len(line) > MAX_EVENT_BYTES:
                     raise ValueError("native event exceeds its declared byte limit")
                 event = json.loads(line)
-                match event["schema"]:
-                    case "veoveo.stream-live-video-chunk/v1":
-                        chunk = event["chunk"]
-                        annex_b_nals(base64.b64decode(chunk["data_base64"], validate=True))
-                        observed.sequences.append(chunk["sequence"])
-                        observed.timestamps_us.append(chunk["timestamp_us"])
-                    case "veoveo.stream-live-frame/v1":
-                        if event["frame"]["index"] != observed.inference_frames:
-                            raise ValueError("GPU inference sequence is not contiguous")
-                        observed.inference_frames += 1
-                    case _:
-                        raise ValueError("unknown native Stream event")
+                observe_event(event, observed)
             raise ValueError("native runner exceeded the fixture's event budget")
     except Exception as error:
         observed.failures.append(str(error))
+
+
+def observe_event(event: dict, observed: Observation) -> None:
+    """Observe current native events without admitting a retired spelling."""
+    match event.get("schema"):
+        case "veoveo.ai/stream-live-video-chunk/v2":
+            if set(event) != {"schema", "chunk"}:
+                raise ValueError("unknown video event fields")
+            chunk = event["chunk"]
+            if set(chunk) != {"sequence", "timestampUs", "keyframe", "dataBase64"}:
+                raise ValueError("unknown video chunk fields")
+            annex_b_nals(base64.b64decode(chunk["dataBase64"], validate=True))
+            observed.sequences.append(chunk["sequence"])
+            observed.timestamps_us.append(chunk["timestampUs"])
+        case "veoveo.ai/stream-live-frame/v2":
+            if set(event) != {"schema", "frame"} or set(event["frame"]) != {"index", "detections"}:
+                raise ValueError("unknown inference event fields")
+            if event["frame"]["index"] != observed.inference_frames:
+                raise ValueError("GPU inference sequence is not contiguous")
+            observed.inference_frames += 1
+        case _:
+            raise ValueError("unknown native Stream event")
+
+
+def request_document(pipeline: dict, width: int, height: int, port: int) -> dict:
+    graph = dict(pipeline["live"]["graph"])
+    graph["launch"] = graph["launch"].replace("port=9000", f"port={port}")
+    return {
+        "schema": "veoveo.ai/stream-live-runner-request/v2",
+        "sessionId": "019ffdb2-0596-7c91-ac83-0a45b82d7952",
+        "inputWidth": width, "inputHeight": height,
+        "pipeline": {"pipelineId": pipeline["id"], "graph": graph,
+                     "profile": {key: value for key, value in pipeline["profile"].items()
+                                 if key != "modelId"}},
+        "model": {"modelId": "primary-detector", "format": "tensor_rt_engine",
+                  "modelPath": "/models/primary-detector.engine"},
+        "maxDetectionsPerFrame": 10000, "maxEventBytes": MAX_EVENT_BYTES,
+        "maxVideoChunkBytes": 1024 * 1024,
+    }
+
+
+class StreamWireTests(unittest.TestCase):
+    def test_current_catalog_request_projects_the_native_v2_profile(self) -> None:
+        pipeline = next(p for p in json.loads((ROOT / "configs/stream/catalog.example.json").read_text())["pipelines"]
+                        if p["id"] == "detect-objects")
+        request = request_document(pipeline, 640, 480, 12345)
+        self.assertEqual(request["schema"], "veoveo.ai/stream-live-runner-request/v2")
+        self.assertEqual(request["pipeline"]["pipelineId"], pipeline["id"])
+        self.assertEqual(request["pipeline"]["profile"]["inferenceConfigPath"], pipeline["profile"]["inferenceConfigPath"])
+        self.assertNotIn("modelId", request["pipeline"]["profile"])
+        self.assertEqual(request["model"]["modelPath"], "/models/primary-detector.engine")
+        self.assertIn("port=12345", request["pipeline"]["graph"]["launch"])
+        self.assertNotIn("port=12345", pipeline["live"]["graph"]["launch"])
+        self.assertEqual(set(request), {"schema", "sessionId", "inputWidth", "inputHeight", "pipeline", "model",
+                                      "maxDetectionsPerFrame", "maxEventBytes", "maxVideoChunkBytes"})
+
+    def test_current_events_and_retired_mixed_refusal_precede_observation(self) -> None:
+        video = {"schema": "veoveo.ai/stream-live-video-chunk/v2", "chunk": {
+            "sequence": 1, "timestampUs": 600000000, "keyframe": True,
+            "dataBase64": base64.b64encode(b"\x00\x00\x00\x01\x65\x80").decode()}}
+        observed = Observation()
+        observe_event(video, observed)
+        observe_event({"schema": "veoveo.ai/stream-live-frame/v2", "frame": {"index": 0, "detections": []}}, observed)
+        self.assertEqual(observed.timestamps_us, [600000000])
+        self.assertEqual(observed.inference_frames, 1)
+        import copy
+        for key, retired in [("timestampUs", "timestamp_us"), ("dataBase64", "data_base64")]:
+            for mixed in [False, True]:
+                bad = copy.deepcopy(video)
+                bad["chunk"][retired] = bad["chunk"][key]
+                if not mixed:
+                    del bad["chunk"][key]
+                with self.assertRaises(ValueError):
+                    observe_event(bad, observed)
+        for schema in ["veoveo.stream-live-video-chunk/v1", "veoveo.stream-live-frame/v1"]:
+            with self.assertRaises(ValueError):
+                observe_event({"schema": schema}, observed)
+        self.assertEqual(observed.timestamps_us, [600000000])
+        self.assertEqual(observed.inference_frames, 1)
 
 
 class StreamRtpTests(unittest.TestCase):
@@ -113,20 +183,7 @@ class StreamRtpTests(unittest.TestCase):
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as reservation:
                 reservation.bind(("127.0.0.1", 0))
                 port = reservation.getsockname()[1]
-            graph = dict(self.pipeline["live"]["graph"])
-            graph["launch"] = graph["launch"].replace("port=9000", f"port={port}")
-            request = {
-                "schema": "veoveo.stream-live-runner-request/v1",
-                "session_id": "019ffdb2-0596-7c91-ac83-0a45b82d7952",
-                "input_width": self.width, "input_height": self.height,
-                "pipeline": {"pipeline_id": self.pipeline["id"], "graph": graph,
-                             "profile": {k: v for k, v in self.pipeline["profile"].items()
-                                         if k != "model_id"}},
-                "model": {"model_id": "primary-detector", "format": "tensor_rt_engine",
-                          "model_path": "/models/primary-detector.engine"},
-                "max_detections_per_frame": 10000, "max_event_bytes": MAX_EVENT_BYTES,
-                "max_video_chunk_bytes": 1024 * 1024,
-            }
+            request = request_document(self.pipeline, self.width, self.height, port)
             (work / "request.json").write_text(json.dumps(request))
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             listener.bind(str(work / "events.sock"))

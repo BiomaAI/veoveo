@@ -91,7 +91,11 @@ as open values. This admission does not claim domain output-schema parity.
 
 The final-protocol adapter owns tool envelopes, inline-row limits and disabled file
 references. The App build keeps scripts local and enforces the host's 2 MiB cap.
-Its existing composer harness qualifies those controls without rendering charts.
+The Composer admits current MCP envelope keys `structuredContent` and `isError`
+on tool replies and notifications and refuses retired or mixed spellings before
+domain state changes. Upstream `chart_spec`, `semantic_types`, `theme_spec` and
+opaque extension values keep their declared profile. Its existing composer harness
+qualifies these controls without rendering charts.
 
 ## Compliance And SDK Packaging
 

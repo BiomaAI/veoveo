@@ -5,27 +5,56 @@
     "type": "object",
     "properties": {
       "schema": {
+        "type": "string",
+        "const": "veoveo.ai/reason-runner-request/v4",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "builtin",
+              "grammar": "format_tag"
+            }
+          }
+        }
+      },
+      "taskId": {
+        "type": "string",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "owner_identity",
+              "declaration": {
+                "authority": {
+                  "kind": "owner",
+                  "module": "veoveo_reason_mcp::contract::ids"
+                },
+                "profile": "AnalysisId",
+                "version": "unversioned",
+                "applicability": "the declared scalar identity schema"
+              }
+            }
+          }
+        }
+      },
+      "inputMp4": {
         "type": "string"
       },
-      "task_id": {
-        "type": "string"
-      },
-      "input_mp4": {
-        "type": "string"
-      },
-      "input_width": {
+      "inputWidth": {
         "type": "integer",
         "format": "uint16",
         "minimum": 0,
         "maximum": 65535
       },
-      "input_height": {
+      "inputHeight": {
         "type": "integer",
         "format": "uint16",
         "minimum": 0,
         "maximum": 65535
       },
-      "response_json": {
+      "responseJson": {
         "type": "string"
       },
       "pipeline": {
@@ -47,10 +76,10 @@
           }
         ]
       },
-      "requested_range": {
+      "requestedRange": {
         "$ref": "#/$defs/IndexRange"
       },
-      "decode_start_index": {
+      "decodeStartIndex": {
         "type": "integer",
         "format": "int64"
       },
@@ -60,17 +89,17 @@
       "decode": {
         "$ref": "#/$defs/DecodePolicy"
       },
-      "max_events": {
+      "maxEvents": {
         "type": "integer",
         "format": "uint64",
         "minimum": 1
       },
-      "max_answer_bytes": {
+      "maxAnswerBytes": {
         "type": "integer",
         "format": "uint64",
         "minimum": 1
       },
-      "max_response_bytes": {
+      "maxResponseBytes": {
         "type": "integer",
         "format": "uint64",
         "minimum": 1
@@ -79,33 +108,51 @@
     "additionalProperties": false,
     "required": [
       "schema",
-      "task_id",
-      "input_mp4",
-      "input_width",
-      "input_height",
-      "response_json",
+      "taskId",
+      "inputMp4",
+      "inputWidth",
+      "inputHeight",
+      "responseJson",
       "pipeline",
       "model",
       "task",
-      "requested_range",
-      "decode_start_index",
+      "requestedRange",
+      "decodeStartIndex",
       "sampling",
       "decode",
-      "max_events",
-      "max_answer_bytes",
-      "max_response_bytes"
+      "maxEvents",
+      "maxAnswerBytes",
+      "maxResponseBytes"
     ],
     "$defs": {
       "RunnerPipeline": {
         "type": "object",
         "properties": {
-          "pipeline_id": {
+          "pipelineId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_reason_mcp::contract::ids"
+                    },
+                    "profile": "PipelineId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
+          },
+          "promptTemplatePath": {
             "type": "string"
           },
-          "prompt_template_path": {
-            "type": "string"
-          },
-          "prompt_revision": {
+          "promptRevision": {
             "type": "string"
           },
           "observation": {
@@ -114,9 +161,9 @@
         },
         "additionalProperties": false,
         "required": [
-          "pipeline_id",
-          "prompt_template_path",
-          "prompt_revision",
+          "pipelineId",
+          "promptTemplatePath",
+          "promptRevision",
           "observation"
         ]
       },
@@ -133,7 +180,7 @@
             "format": "uint32",
             "minimum": 0
           },
-          "maximum_frames": {
+          "maximumFrames": {
             "type": "integer",
             "format": "uint32",
             "minimum": 1,
@@ -144,22 +191,40 @@
         "required": [
           "width",
           "height",
-          "maximum_frames"
+          "maximumFrames"
         ]
       },
       "RunnerModel": {
         "type": "object",
         "properties": {
-          "model_id": {
-            "type": "string"
+          "modelId": {
+            "type": "string",
+            "ai.veoveo/naming-profile": {
+              "revision": 1,
+              "role": {
+                "kind": "scalar",
+                "profile": {
+                  "kind": "owner_identity",
+                  "declaration": {
+                    "authority": {
+                      "kind": "owner",
+                      "module": "veoveo_reason_mcp::contract::ids"
+                    },
+                    "profile": "ModelId",
+                    "version": "unversioned",
+                    "applicability": "the declared scalar identity schema"
+                  }
+                }
+              }
+            }
           },
-          "model_path": {
+          "modelPath": {
             "type": "string"
           },
           "format": {
             "$ref": "#/$defs/ModelFormat"
           },
-          "model_digest": {
+          "modelDigest": {
             "type": [
               "string",
               "null"
@@ -171,19 +236,16 @@
         },
         "additionalProperties": false,
         "required": [
-          "model_id",
-          "model_path",
+          "modelId",
+          "modelPath",
           "format",
           "engine"
         ]
       },
       "ModelFormat": {
-        "oneOf": [
-          {
-            "description": "A locally mounted world-model checkpoint directory or file, supplied\nby the deployment. Runtime optimization belongs to the runner image,\nnever to the request path.",
-            "type": "string",
-            "const": "local_checkpoint"
-          }
+        "type": "string",
+        "enum": [
+          "local_checkpoint"
         ]
       },
       "EngineConfig": {
@@ -191,13 +253,13 @@
           {
             "type": "object",
             "properties": {
-              "gpu_memory_utilization": {
+              "gpuMemoryUtilization": {
                 "type": "number",
                 "format": "float",
                 "minimum": 0.1,
                 "maximum": 1.0
               },
-              "max_model_len": {
+              "maxModelLen": {
                 "type": "integer",
                 "format": "uint32",
                 "minimum": 1024,
@@ -211,8 +273,8 @@
             "additionalProperties": false,
             "required": [
               "kind",
-              "gpu_memory_utilization",
-              "max_model_len"
+              "gpuMemoryUtilization",
+              "maxModelLen"
             ]
           }
         ]
@@ -285,7 +347,7 @@
           "schema": {
             "$ref": "#/$defs/GroundingSchema"
           },
-          "source_artifact_uri": {
+          "sourceArtifactUri": {
             "type": "string"
           },
           "frames": {
@@ -298,15 +360,25 @@
         "additionalProperties": false,
         "required": [
           "schema",
-          "source_artifact_uri",
+          "sourceArtifactUri",
           "frames"
         ]
       },
       "GroundingSchema": {
         "type": "string",
         "enum": [
-          "veoveo.reason-grounding/v1"
-        ]
+          "veoveo.ai/reason-grounding/v2"
+        ],
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "builtin",
+              "grammar": "format_tag"
+            }
+          }
+        }
       },
       "GroundingFrame": {
         "type": "object",
@@ -334,7 +406,7 @@
           "label": {
             "type": "string"
           },
-          "track_id": {
+          "trackId": {
             "type": [
               "integer",
               "null"
@@ -370,7 +442,7 @@
         "description": "How many decoded frames the model observes across the requested range.",
         "type": "object",
         "properties": {
-          "max_frames": {
+          "maxFrames": {
             "type": "integer",
             "format": "uint32",
             "minimum": 0
@@ -378,7 +450,7 @@
         },
         "additionalProperties": false,
         "required": [
-          "max_frames"
+          "maxFrames"
         ]
       },
       "DecodePolicy": {
@@ -404,7 +476,7 @@
                 "type": "number",
                 "format": "float"
               },
-              "top_p": {
+              "topP": {
                 "type": "number",
                 "format": "float"
               },
@@ -422,7 +494,7 @@
             "required": [
               "mode",
               "temperature",
-              "top_p",
+              "topP",
               "seed"
             ]
           }
@@ -436,17 +508,28 @@
     "type": "object",
     "properties": {
       "schema": {
-        "type": "string"
+        "type": "string",
+        "const": "veoveo.ai/reason-runner-response/v2",
+        "ai.veoveo/naming-profile": {
+          "revision": 1,
+          "role": {
+            "kind": "scalar",
+            "profile": {
+              "kind": "builtin",
+              "grammar": "format_tag"
+            }
+          }
+        }
       },
       "answer": {
         "$ref": "#/$defs/ReasoningAnswer"
       },
-      "observed_frames": {
+      "observedFrames": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
       },
-      "elapsed_ms": {
+      "elapsedMs": {
         "type": "integer",
         "format": "uint64",
         "minimum": 0
@@ -456,8 +539,8 @@
     "required": [
       "schema",
       "answer",
-      "observed_frames",
-      "elapsed_ms"
+      "observedFrames",
+      "elapsedMs"
     ],
     "$defs": {
       "ReasoningAnswer": {
@@ -531,7 +614,7 @@
           "description": {
             "type": "string"
           },
-          "track_ids": {
+          "trackIds": {
             "description": "Perception track identities cited from the request's grounding.",
             "type": "array",
             "items": {

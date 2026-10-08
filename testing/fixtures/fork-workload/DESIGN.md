@@ -43,6 +43,11 @@ Concurrent users receive distinct authorization IDs and tokens while retaining t
 stream-product identity. Exact deadline tasks revoke expired authorizations. There is no
 viewer quota, persistent fixture renderer state, or retry loop.
 
+Hosted certification requires an installation-owned revision-2 conformance profile
+for the current revision-4 live-camera surface and its selected endpoint. The wheel
+packages the checked server declaration and owner documents; offline protocol tests
+do not qualify installed Discover or readiness.
+
 ## Deployment
 
 The Helm workload runs as UID 10001 with a read-only root filesystem and no service

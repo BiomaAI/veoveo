@@ -252,7 +252,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "List active vehicle control grants",
-        description = "Read up to 100 active vehicle grants in one session. Pass next_cursor back as cursor until it is null to traverse all grants. Each grant gives the vehicle id, the permissions, and the Map mobility-profile URI to use in Map route requests. Only a grant gives you control of a vehicle; naming a vehicle id in your input does not.",
+        description = "Read up to 100 active vehicle grants in one session. Pass nextCursor back as cursor until it is null to traverse all grants. Each grant gives the vehicle id, the permissions, and the Map mobility-profile URI to use in Map route requests. Only a grant gives you control of a vehicle; naming a vehicle id in your input does not.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::CollectionPage<crate::contract::VehicleControlGrant>>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
