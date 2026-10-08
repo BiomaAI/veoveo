@@ -53,7 +53,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | Phase | Current state | Remaining gate |
 |---|---|---|
 | 0 — Shared declarations | Source qualification passes; owner admission, wire forms and schema metadata are preserved | Qualify affected installed consumers with the final cut |
-| 1–4 — Modules, extension points and storage | Qualified checkpoints cover selected lanes, owner SQL, native records, authority and recovery. Native rollback passes; concurrent RocksDB lanes reproduce the installed gateway migration failure as `Query.TransactionConflict` at commit | Resolve the conflict while preserving uncertain outcomes, reconcile required owner coverage and qualify the final installation lifecycle |
+| 1–4 — Modules, extension points and storage | Qualified checkpoints cover selected lanes, owner SQL, native records, authority and recovery. The commit-conflict repair passes concurrent RocksDB lanes, rollback, cancellation and conflict-classification controls | Reconcile required owner coverage and qualify the repaired runner through installed Jobs and the final installation lifecycle |
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
@@ -98,9 +98,10 @@ Native and synthetic checks cannot substitute for the required NVIDIA qualificat
 The current installation is untouched. The new format requires a coordinated drain
 and fresh state before rollout.
 
-Media publication requires the reviewed host-tracing correction in Phase 3. The
-patch is unapplied pending the user's required host-contract approval, and real
-provider generation is unqualified. Computers' previous provider profile passes
+The user-approved host-tracing correction records method, path and HTTP version
+without query parameters. The existing TestGateway leak regression and all 14
+hosting controls pass. Real Media provider generation is unqualified.
+Computers' previous provider profile passes
 isolated native maintenance upgrade, recovery and rollback, plus its command and
 file journeys. The current source selects OpenShell 0.1.2 with matched provider
 artifacts, typed selectors and a drained private checkpoint cut. Its source-built
@@ -115,12 +116,16 @@ recorded hashes. The current native volume-writer exclusion passes. Retained-vol
 provisioning claims and the packaged default-workspace guard pass source qualification while
 generic runtime workspaces keep their supported interface. The corrected file fixture
 passes mount admission, transfer, retention and refusal controls, then fails on Start
-after Stop with `LifecycleUnknown`. The provider returns gRPC `INVALID_ARGUMENT`;
-its retained runtime observation does not expose the companion's original failure.
+after Stop with `LifecycleUnknown`. The provider returns gRPC `INVALID_ARGUMENT`.
 The committed diagnostic fixture captures one authenticated event tail before
 cleanup without settling or retrying the uncertain operation. Its compiler and four
-privacy controls pass. A fresh diagnostic run must establish the cause before the
-remaining native journeys, Host replacement and installed execution can qualify.
+privacy controls pass. The fresh diagnostic identifies a Docker supervisor restart
+without the required sandbox template: reconstruction from the container loses
+the admitted specification. The repair persists driver-owned restart facts and
+readmits them before Start effects; its 23 driver controls, eight gateway controls
+and two mTLS controls pass. Independent source review, final provider artifact
+checks, the repaired native journeys, Host replacement and installed execution
+remain open.
 Previous-profile results do not qualify this candidate.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
@@ -814,7 +819,7 @@ qualified profile; D12 records the separate Apple proposal.
 | Persistence ownership | Workspace, Agents, Map and Recording repositories and queries live in their owning modules. Their native suites and fresh owner-lane composition have qualified source checkpoints. Store supplies shared connections and kernel services |
 | Optional-module dependencies | The reusable gateway excludes optional owner runtimes from its normal/build graph. Store and Audit use the registered Audit target codec; Computers supplies its implementation. Audit's Computers dependency is test-only. Knowledge runtime consumes Policy's resolver port; server composition selects the separately gated Agent adapter from admitted plan lanes. Native checks and isolated dependency profiles pass |
 | Schema ownership | Owners declare separate current-schema lanes through `ModuleSetup`; Store owns kernel lanes. Optimization and UAV use owned lookup tables. The installation must activate the composed lanes in phase 8 |
-| Runtime kernel access | Qualified owner APIs cover Computers, UAV, Reason, Stream, Frames, Workspace, Agents, Artifact and Map projection recovery. Task, Media and Knowledge authority adapters also pass native qualification. Source review reconciles 495 optional-owner query assets, variable targets and record links. Media's protected host tracing correction remains open |
+| Runtime kernel access | Qualified owner APIs cover Computers, UAV, Reason, Stream, Frames, Workspace, Agents, Artifact and Map projection recovery. Task, Media and Knowledge authority adapters also pass native qualification. Source review reconciles 495 optional-owner query assets, variable targets and record links. The user-approved host tracing correction passes its leak regression and hosting controls |
 
 Knowledge's dependencies on the gateway, store and `mcp/contract` are kernel-to-kernel
 under D11.
@@ -1290,8 +1295,9 @@ through fixture cleanup. The runner now distinguishes a top-level typed native c
 uncertain commit. Its [lane retry policy](../platform/modules/DESIGN.md#history-and-execution)
 permits 16 attempts within a 60-second admission window and rechecks preparation,
 history and prerequisites before another attempt. Timeouts, transport failures and
-nested conflict causes cannot admit replay. The repaired RocksDB control and installed
-Job replay require qualification; installation acceptance remains open.
+nested conflict causes cannot admit replay. The repaired RocksDB control, rollback,
+timeout/drop and conflict-classification controls pass. Installed Job replay and
+installation acceptance remain open.
 The failed run's disposable cluster and owned resources are removed.
 Production SQL redistribution belongs to Phase 3.
 
@@ -3007,7 +3013,7 @@ reason rather than growing an unbounded generic typing task.
 | F26 | Artifact identity and URI admission | Qualify installed consumption of the current identity and URI contract |
 | F27 | Remaining Artifact references | Qualify installed issuance/redemption, current-format capability recovery and multi-page SDK consumers with the source-qualified Task/digest, access-decision and metadata/address admission; preserve external transfer locations and the declared coordinated profile cut |
 | F28 | Artifact attribution construction | Qualify installed metadata consumption; native construction, schema/decoder and independent-consumer checks already have a passing checkpoint. |
-| F29 | Media public contract and hosted setup | Qualify installed registration, catalog continuation and Artifact presentation consumers with the source-qualified registry snapshot and admission; qualify real provider recovery budgets after the protected host correction and permitted provider execution |
+| F29 | Media public contract and hosted setup | Qualify installed registration, catalog continuation and Artifact presentation consumers with the source-qualified registry snapshot and admission; qualify real provider recovery budgets when provider execution is permitted. The approved host tracing correction passes its owning controls |
 | F30 | Frames hosted setup | Qualify current resource admission and subscriptions through installed clients |
 | F31 | Frames world reads | Qualify installed paging and completion with current catalog consumers |
 | F32 | Frames mutation inputs | Qualify installed publication and concurrent replay under current writer policy |
@@ -3084,16 +3090,18 @@ writer correction. The hosting fixture supplies its complete current compliance
 profile and embedded manual; the original transport, authorization and Host
 controls pass. These source results do not close final installed acceptance.
 
-The host-tracing correction remains under the user-directed review.
-The separate TestGateway tracing control confirms that the current default span
-records synthetic query values, including a token and signature. The route receives
-the original query. Its prepared replacement records method, path and HTTP version;
-the protected correction and its final passing control remain unqualified.
+The user approved the host-tracing correction, and independent review accepted it.
+The existing TestGateway control reproduced synthetic token and signature values
+in the previous span and passes with the replacement. Request spans record method,
+path and HTTP version; handlers receive the original query. Compiler checks and
+all 14 current hosting controls pass. Affected images still require publication
+and installed acceptance.
 The shared contract design's opening still declares revision 3 and a retired root
 export, while the implemented hosted profile and all domain registrations declare
 revision 4. Its prepared documentation correction names the current numeric export
-and protocol tag. Apply it with the reviewed host corrections; no registration
-or runtime change is required for this declaration repair.
+and protocol tag. Those user-owned documentation changes remain separate from
+the applied tracing correction; no registration or runtime change is required
+for this declaration repair.
 
 Optimization's catalog-startup implementation deferral is resolved. Its
 [`RuntimeInstallation`](../servers/optimization-mcp/src/composition.rs) gate verifies
