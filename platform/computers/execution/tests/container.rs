@@ -186,3 +186,35 @@ fn actual_guest_preserves_argv_environment_stdin_and_exit_while_rejecting_escape
 
 #[path = "support/files.rs"]
 mod files;
+
+#[test]
+fn packaged_file_helper_refuses_retired_headers_before_filesystem_admission() {
+    use veoveo_computer_execution::{FileFailure, FileReceipt};
+    for body in [
+        r#"{"version":1,"path":"private-fixture-path","operation":{"kind":"export","maximum_bytes":1}}"#,
+        r#"{"version":2,"path":"private-fixture-path","operation":{"kind":"export","maximumBytes":1,"maximum_bytes":1}}"#,
+    ] {
+        let mut input = (body.len() as u32).to_be_bytes().to_vec();
+        input.extend_from_slice(body.as_bytes());
+        let mut child = Command::new("timeout")
+            .args([
+                "--kill-after=1",
+                "3",
+                env!("CARGO_BIN_EXE_veoveo-computer-exec"),
+                "--files",
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(&input).unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert_eq!(output.status.code(), Some(125));
+        assert!(output.stdout.is_empty());
+        let result: Result<FileReceipt, FileFailure> =
+            serde_json::from_slice(&output.stderr).unwrap();
+        assert!(matches!(result, Err(FileFailure::InvalidRequest)));
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("private-fixture-path"));
+    }
+}

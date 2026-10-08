@@ -19,7 +19,7 @@ and installed acceptance belong to [Computers](../../computers/DESIGN.md#qualifi
 | OpenShell gateway TOML schema 2 | Host and isolated native generators use the current gateway loader and strict Docker driver schema; package controls consume their generated TOML inputs |
 | Veoveo private policy checkpoint protobuf v2 | `protocol/maintenance.proto`; canonical Prost encoding of exact provider/source/run and selected gateway version with the generated provider configuration. Encrypted journal storage is required; this format grants no authority |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
-| `veoveo.ai/computer-files/v1` | Private framed JSON header with raw binary file stream and typed SHA-256 receipt; regular files up to 64 MiB, no archive extraction, fixed guest helper command |
+| `veoveo.ai/computer-files/v2` | Private framed JSON header with raw binary file stream and typed SHA-256 receipt; regular files up to 64 MiB, no archive extraction, fixed guest helper command; numeric header version 2, export `maximumBytes`; execution protocol stays version 1 |
 | Rust 1.99.0, Tonic and Prost | Provider builds use the official Bookworm compiler image; qualified workspace Tonic `0.14.6` and Prost `0.14.4`; generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
 | Docker volume-plugin API v1; Engine HTTP API `1.53` | Selected volume methods and registered-container enumeration; the worker fixture composes the production allocator with the native provider |
 
@@ -410,12 +410,16 @@ This adapter never settles a Task or grants an actor execution authority.
 
 ## Regular File Transport
 
-`file_request` carries the private `veoveo.ai/computer-files/v1` helper protocol over
+`file_request` carries the private `veoveo.ai/computer-files/v2` helper protocol over
 the existing bounded native execution stream. The provider sees only the fixed
 launcher command with `--files`. The caller holds current domain authority and an
 exclusive durable fence, and selects a template qualified with this helper profile.
 The runtime requires the exact admitted Ready resource and process before dispatch
 and verifies that process again at completion.
+The writer and packaged guest helper select the same file profile. Upgrade drains
+file operations, rebuilds the helper-bearing Computer template and selects its admitted
+digest before installing the v2 writer. Version 1, retired fields and mixed headers
+refuse admission. Existing uncertainty fences persist.
 
 Import sends a bounded header and exactly the declared binary body. Export streams
 provisional bytes to the caller. A successful native exit must agree with a typed

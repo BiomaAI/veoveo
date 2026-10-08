@@ -15,14 +15,17 @@ provider adapter, Artifact/domain integration and public UI remain delivery work
 | Linux `O_TMPFILE` and procfs descriptor reopen | Finite program stdin uses an anonymous file under the Computer's private `/tmp`, reopened read-only; no named-file fallback or detached producer |
 | nix `0.31.3` | Exact syscall-wrapper pin, confirmed against the upstream changelog on September 10, 2026; selected filesystem and user APIs |
 | OpenShell `0.1.2` private execution adapter | Existing authenticated stream transports a fixed launcher command and framed stdin; provider completion and interruption require the selected runtime qualification |
-| `veoveo.ai/computer-files/v1` | Private length-prefixed JSON header, exact binary import body, raw export stdout and bounded structured result on stderr; maximum file size 64 MiB |
+| `veoveo.ai/computer-files/v2` | Private length-prefixed JSON header, exact binary import body, raw export stdout and bounded structured result on stderr; maximum file size 64 MiB |
 | Linux Landlock ABI 3 filesystem subset | The single-threaded file helper requires ABI 3 or newer and installs an additional retained-home-only filesystem layer; unavailable confinement rejects the request |
 | SHA-256, FIPS 180-4; sha2 `0.11.0` | Existing workspace implementation validates import bytes before publication and identifies exported bytes |
 
 ## Regular-File Transfer
 
 The fixed `--files` launcher mode accepts a header of at most 4 KiB. It carries a
-relative file path and a typed import/export operation. Binary file data never
+relative file path and a typed import/export operation. Numeric header version 2
+emits the export bound as `maximumBytes`; import/export kind and failure values
+keep their declared spellings. Version 1 and retired or mixed field keys refuse
+before filesystem admission. Binary file data never
 enters JSON or provider command arguments. The helper streams through one 64 KiB
 buffer. Archives are opaque regular files; this profile performs no extraction.
 The eventual public projection must show this size limit and destination behavior.
@@ -60,6 +63,13 @@ File receipts contain only byte counts, digests or fixed failure codes. File pat
 have no diagnostic formatting implementation. The domain must supply current
 Computer/Artifact authority, durable operation identity, quotas, interruption and
 publication policy before this helper can be exposed through a public file tool.
+
+The writer and packaged guest helper require the same file profile. A coordinated
+upgrade drains file operations, rebuilds the helper-bearing Computer template and
+selects its admitted image digest before installing the version-2 writer. Existing
+guest processes must stop before that selection changes. Old headers are not
+converted, and uncertain file operations retain their existing fences. Execution
+frames continue to use their separate version-1 profile.
 
 ## Ownership And Authority
 

@@ -60,7 +60,7 @@ async fn export(
 }
 
 #[tokio::test]
-#[ignore = "requires exact native provider binaries and files/v1 template; owns isolated retained storage"]
+#[ignore = "requires exact native provider binaries and files/v2 template; owns isolated retained storage"]
 async fn regular_file_transfer_verifies_bytes_retention_and_uncertain_input() {
     if native_support::registry_child().await {
         return;
@@ -251,7 +251,7 @@ async fn regular_file_transfer_verifies_bytes_retention_and_uncertain_input() {
     ] {
         assert!(!log.contains(value), "file path leaked into provider log");
     }
-    std::fs::write(provider.dir.join("files-result.txt"), "files/v1 native confinement; 1000003 binary bytes and SHA256; opaque archive; no overwrite; bounded export; checksum refusal; interrupted input remains uncertain; Stop/Start retains committed bytes and removes incomplete input; stale run refused; provider command log excludes paths\n").unwrap();
+    std::fs::write(provider.dir.join("files-result.txt"), "files/v2 native confinement; 1000003 binary bytes and SHA256; opaque archive; no overwrite; bounded export; checksum refusal; interrupted input remains uncertain; Stop/Start retains committed bytes and removes incomplete input; stale run refused; provider command log excludes paths\n").unwrap();
     home.finish();
     provider.assert_running();
 }

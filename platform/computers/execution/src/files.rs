@@ -7,6 +7,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, Zeroizing};
 
+pub const FILE_PROTOCOL_VERSION: u8 = 2;
+
 pub const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_HEADER_BYTES: usize = 4096;
 
@@ -24,8 +26,14 @@ pub(crate) struct Payload {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum FileOperation {
-    Import { bytes: u64, sha256: [u8; 32] },
-    Export { maximum_bytes: u64 },
+    Import {
+        bytes: u64,
+        sha256: [u8; 32],
+    },
+    Export {
+        #[serde(rename = "maximumBytes")]
+        maximum_bytes: u64,
+    },
 }
 
 impl Drop for Payload {
@@ -80,7 +88,7 @@ impl FileRequest {
     }
     fn new(path: String, operation: FileOperation) -> Result<Self, FileFailure> {
         let request = Self(Payload {
-            version: 1,
+            version: FILE_PROTOCOL_VERSION,
             path,
             operation,
         });
@@ -91,7 +99,7 @@ impl FileRequest {
         let path = &self.0.path;
         // Component iteration normalizes repeated separators and trailing dots;
         // reject those spellings as well as traversal before any filesystem call.
-        if self.0.version != 1
+        if self.0.version != FILE_PROTOCOL_VERSION
             || path.is_empty()
             || path.len() > 1024
             || path.chars().any(char::is_control)
@@ -158,6 +166,61 @@ pub fn write_file_result(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn decode(body: &[u8]) -> Result<FileRequest, FileFailure> {
+        let mut frame = (body.len() as u32).to_be_bytes().to_vec();
+        frame.extend_from_slice(body);
+        read_file_request(&mut frame.as_slice())
+    }
+
+    #[test]
+    fn current_file_header_and_helper_refuse_retired_or_mixed_profiles() {
+        let encoded = FileRequest::export("project/data.bin".into(), 64)
+            .unwrap()
+            .encode()
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&encoded[4..]).unwrap();
+        assert_eq!(
+            value,
+            serde_json::json!({"version":2,"path":"project/data.bin",
+            "operation":{"kind":"export","maximumBytes":64}})
+        );
+        assert!(matches!(
+            read_file_request(&mut encoded.as_slice()).unwrap().bounds(),
+            FileTransferBounds::Export { maximum_bytes: 64 }
+        ));
+        for body in [
+            r#"{"version":1,"path":"a","operation":{"kind":"export","maximumBytes":1}}"#,
+            r#"{"version":1,"path":"a","operation":{"kind":"export","maximum_bytes":1}}"#,
+            r#"{"version":2,"path":"a","operation":{"kind":"export","maximum_bytes":1}}"#,
+            r#"{"version":2,"path":"a","operation":{"kind":"export","maximumBytes":1,"maximum_bytes":1}}"#,
+            r#"{"version":2,"path":"a","operation":{"kind":"export"}}"#,
+            r#"{"version":2,"path":"a","operation":{"kind":"export","maximumBytes":1,"maximumBytes":1}}"#,
+            r#"{"version":1,"path":"a","operation":{"kind":"import","bytes":0,"sha256":[0]}}"#,
+        ] {
+            assert!(matches!(
+                decode(body.as_bytes()),
+                Err(FileFailure::InvalidRequest)
+            ));
+        }
+        let mut import: serde_json::Value = serde_json::from_slice(
+            &FileRequest::import("a".into(), 0, [0; 32])
+                .unwrap()
+                .encode()
+                .unwrap()[4..],
+        )
+        .unwrap();
+        assert!(decode(&serde_json::to_vec(&import).unwrap()).is_ok());
+        import["version"] = 1.into();
+        assert!(matches!(
+            decode(&serde_json::to_vec(&import).unwrap()),
+            Err(FileFailure::InvalidRequest)
+        ));
+        assert_eq!(
+            serde_json::to_string(&FileFailure::CommitUnknown).unwrap(),
+            "\"commit_unknown\""
+        );
+    }
+
     #[test]
     fn transfer_header_is_bounded_and_leaves_binary_body_unread() {
         let request = FileRequest::import("project/data.bin".into(), 4, [3; 32]).unwrap();
@@ -180,7 +243,7 @@ mod tests {
             assert!(FileRequest::export(path.into(), 1).is_err(), "{path:?}");
         }
         assert!(FileRequest::export("a".into(), MAX_FILE_BYTES + 1).is_err());
-        let duplicate = br#"{"version":1,"path":"a","path":"b","operation":{"kind":"export","maximum_bytes":1}}"#;
+        let duplicate = br#"{"version":2,"path":"a","path":"b","operation":{"kind":"export","maximumBytes":1}}"#;
         let mut frame = (duplicate.len() as u32).to_be_bytes().to_vec();
         frame.extend_from_slice(duplicate);
         assert!(read_file_request(&mut frame.as_slice()).is_err());

@@ -31,7 +31,7 @@ struct Output {
 
 impl OpenShellRuntime {
     /// The caller must hold current authority and a durable execution fence, and
-    /// use a template qualified with the files/v1 helper. Export chunks are
+    /// use a template qualified with the files/v2 helper. Export chunks are
     /// provisional until Completed verifies their exact byte count and digest.
     pub async fn transfer_file<F, Fut>(
         &self,

@@ -5,9 +5,10 @@ fn main() -> std::process::ExitCode {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
     if arguments.as_slice() == ["--version"] {
         println!(
-            "veoveo-computer-exec {} protocol {}",
+            "veoveo-computer-exec {} protocol {} files {}",
             env!("CARGO_PKG_VERSION"),
-            veoveo_computer_execution::PROTOCOL_VERSION
+            veoveo_computer_execution::PROTOCOL_VERSION,
+            veoveo_computer_execution::FILE_PROTOCOL_VERSION
         );
         return std::process::ExitCode::SUCCESS;
     }
