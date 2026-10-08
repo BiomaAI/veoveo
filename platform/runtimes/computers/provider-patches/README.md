@@ -37,7 +37,7 @@ builds materialize the manifest's workspace and lockfile package version.
 | Docker driver and sandbox identity | Explicit numeric policy users receive no inherited image-account supplementary groups; private PTYs receive the admitted UID/GID and mode 0600 |
 | Sandbox Landlock | O_PATH descriptors classify the same opened inode and permit policy handling of device paths without opening device data |
 | Docker driver logging | Workload and companion Docker logs use configured finite rotation; the actual supervisor companion has the configured finite `/var/log` tmpfs |
-| Docker driver supervisor restart | Immutable private version-1 record restores the admitted template for the same container/image/labels/mounts before auth or start effects; missing/corrupt/foreign state refuses; credentials and mutable status are excluded |
+| Docker driver supervisor restart | Private version-1 guest restoration and generation-owned physical companion binding admit the same running supervisor after gateway-only loss; immutable mismatches and expired/superseded authentication refuse without replacement |
 | Docker driver volume admission | Typed NoCopy reaches Engine options with and without subpaths; retained-home initialization cannot precede container registration |
 | Gateway mTLS | Exact user common-name allowlist; missing, duplicate and unknown common names cannot become users; guest transport certificates need scoped launch authority |
 | Supervisor attachment | A generated ReplayComplete fence belongs to each attachment cursor; history and live bytes remain unmodified; clients enable input only after their fence |
@@ -49,7 +49,36 @@ Docker driver controls cover identity, NoCopy, log bounds, profile image admissi
 runtime generations. Focused restart-state controls cover controller-memory loss, exact
 selected-template and retained-home restoration, non-overwrite and private permissions,
 foreign image/container/labels/mount refusal, missing or corrupt records and credential
-exclusion. The driver uses the existing locked Prost codec for this private record.
+exclusion. The driver uses the existing locked Prost codec for this private record. Companion binding controls separately qualify atomic private commit,
+exact physical instance and configuration refusal, retained/current JWT admission and
+Engine inspection without create/remove/start or credential overwrite. A running
+recovery adopts the same companion; explicit stopped-generation Start requires the old
+companion's observed absence. The runtime design declares commit ordering, the uncertain
+start-before-commit window and mandatory drain before rollback to pre-adoption images.
+Startup controls preserve companion candidates and their trust volumes. Running controls
+exercise the public Start path with exact recorded-instance admission and a same-ID wait
+monitor; archive staging is allowed only during fixture preparation. The binding hashes
+verified public authentication facts from the staged bundle snapshot without persisting JWTs.
+Stopped-generation controls require companion absence before credential updates, staging
+or guest Start, and cover a completed Stop followed by an admitted new generation.
+Public Create controls preserve pre-existing binding and trust bytes when a companion
+is retained, foreign or uncertain. Private directories, files and symlinks refuse fresh
+Create. Cleanup requires the originally claimed directory device/inode and a safe
+local refusal before provisioning dispatch. Lost volume Create, guest Create or Start
+responses preserve the generation-bound private intent, resources and fencing. Get and
+watch retain a separate unknown provisioning condition across process replacement;
+Running Start refuses unfinished intent before changing credentials or generation.
+Public controls apply an Engine mutation and lose its response, reject cleanup after a
+directory inode replacement, and qualify cleanup after a genuine local refusal.
+Lifecycle controls exercise name-only and explicit-ID admission, retained intent after
+driver replacement, and a paused Stop/Delete racing a Start into unresolved companion
+launch. Each request resolves one identity and holds its admission lock through current
+intent checks and effects; Stop cannot authorize interruption of a fresh Create.
+A safe local failure followed by Stop and corrected Create exercises that separation.
+Wait controls distinguish confirmed exits and owned Stop from transport failure, EOF
+and structured uncertainty. Unknown observation preserves resources and its monitor
+fence; an authenticated session cannot erase the separate unknown condition.
+
 Supervisor controls cover replay and SSH attachments; sandbox
 controls cover process identity and Landlock. `control.sh` uses the maintained libtest
 runner's multiple OR filters in one invocation per owner target, requires nonzero

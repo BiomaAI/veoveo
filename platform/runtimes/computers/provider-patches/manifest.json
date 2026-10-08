@@ -30,8 +30,8 @@
       "branch": "gateway",
       "authoringOwner": "Veoveo",
       "expectedBaseTree": "724881f23873db5b42d760bc65945bace2bf71b8",
-      "expectedSourceTree": "4620ac7fc790b5349a23ba2e7cd0fd2657b0520a",
-      "packagedPatchSha256": "167e5533511cc1a60dbc2c42752cc1d77f98df14e194b7e0fd6c81376abb0ccd"
+      "expectedSourceTree": "e31df99032fb46ccef88497cc8891936b1797f7e",
+      "packagedPatchSha256": "fcafa342c38400d563665bf583f15d230acb78c32df42621adfb076732db56a0"
     },
     {
       "order": 3,
@@ -54,14 +54,14 @@
     {
       "name": "openshell-gateway",
       "version": "0.1.2-veoveo.1",
-      "sourceTree": "4620ac7fc790b5349a23ba2e7cd0fd2657b0520a",
+      "sourceTree": "e31df99032fb46ccef88497cc8891936b1797f7e",
       "target": "x86_64-unknown-linux-gnu",
       "imagePath": "/usr/local/bin/openshell-gateway"
     },
     {
       "name": "openshell-driver-docker",
       "version": "0.1.2-veoveo.1",
-      "sourceTree": "4620ac7fc790b5349a23ba2e7cd0fd2657b0520a",
+      "sourceTree": "e31df99032fb46ccef88497cc8891936b1797f7e",
       "target": "x86_64-unknown-linux-gnu",
       "imagePath": "/usr/local/bin/openshell-driver-docker"
     },

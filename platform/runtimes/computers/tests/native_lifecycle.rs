@@ -185,10 +185,10 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         retained_identity(&provider, &recovered, &home.volume).await,
         before_controller
     );
-    assert_ne!(
+    assert_eq!(
         supervisor_identity(&provider, &recovered).await,
         old_supervisor,
-        "the replacement controller must own a fresh single supervisor"
+        "gateway-only recovery must preserve the exact running physical supervisor"
     );
     home.assert_registered_no_copy();
     let (_fresh_authority, fresh_lease) =
@@ -268,7 +268,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     )
     .await;
     terminal.detach().await.unwrap();
-    std::fs::write(provider.dir.join("controller-restart-result.json"), serde_json::to_vec_pretty(&serde_json::json!({"oldControllerPid":controller_pids.0,"newControllerPid":controller_pids.1,"retained":before_controller,"sandboxId":restarted.sandbox_id,"newMainProcess":restarted.main_process_instance_id,"scope":"actual controller restart and Stop/Start retained state; no installation claim"})).unwrap()).unwrap();
+    std::fs::write(provider.dir.join("controller-restart-result.json"), serde_json::to_vec_pretty(&serde_json::json!({"oldControllerPid":controller_pids.0,"newControllerPid":controller_pids.1,"retained":before_controller,"retainedSupervisor":old_supervisor,"currentAuthenticatedTerminalRelay":true,"sandboxId":restarted.sandbox_id,"newMainProcess":restarted.main_process_instance_id,"scope":"actual controller restart and Stop/Start retained state; no installation claim"})).unwrap()).unwrap();
     std::fs::set_permissions(
         provider.dir.join("controller-restart-result.json"),
         std::os::unix::fs::PermissionsExt::from_mode(0o600),
@@ -412,6 +412,19 @@ struct InspectedContainer {
     labels: std::collections::BTreeMap<String, String>,
     mounts: Vec<MountFact>,
     effective_mounts: Vec<EffectiveMountFact>,
+    state: ContainerProcessState,
+}
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+struct ContainerProcessState {
+    running: bool,
+    pid: i64,
+    started_at: String,
+}
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+struct SupervisorIdentity {
+    container_id: String,
+    process: ContainerProcessState,
 }
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
@@ -547,7 +560,7 @@ async fn owned_container(
     );
     assert_eq!(ids[0].len(), 64);
     assert!(ids[0].bytes().all(|b| b.is_ascii_hexdigit()));
-    let format = r#"{"id":{{json .Id}},"image":{{json .Image}},"labels":{{json .Config.Labels}},"mounts":{{json .HostConfig.Mounts}},"effective_mounts":{{json .Mounts}}}"#;
+    let format = r#"{"id":{{json .Id}},"image":{{json .Image}},"labels":{{json .Config.Labels}},"mounts":{{json .HostConfig.Mounts}},"effective_mounts":{{json .Mounts}},"state":{{json .State}}}"#;
     let body = docker_observation(provider, &["inspect", "--format", format, ids[0]]).await;
     let inspected: InspectedContainer =
         serde_json::from_str(&body).expect("typed owned Docker identity projection");
@@ -565,10 +578,18 @@ async fn owned_container(
     }
     inspected
 }
-async fn supervisor_identity(provider: &Provider, observation: &Observation) -> String {
-    owned_container(provider, observation, "supervisor")
-        .await
-        .id
+async fn supervisor_identity(provider: &Provider, observation: &Observation) -> SupervisorIdentity {
+    let inspected = owned_container(provider, observation, "supervisor").await;
+    assert!(
+        inspected.state.running,
+        "the admitted supervisor must be running"
+    );
+    assert!(inspected.state.pid > 0);
+    assert!(!inspected.state.started_at.is_empty());
+    SupervisorIdentity {
+        container_id: inspected.id,
+        process: inspected.state,
+    }
 }
 async fn retained_identity(
     provider: &Provider,
@@ -634,6 +655,7 @@ mod retained_mount_tests {
     fn inspected() -> InspectedContainer {
         serde_json::from_str(r#"{
             "id":"owned", "image":"admitted", "labels":{},
+            "state":{"Running":true,"Pid":123,"StartedAt":"2026-10-07T00:00:00Z"},
             "mounts":[
                 {"Source":"owned-home","Target":"/sandbox/persistent","VolumeOptions":{"NoCopy":true,"Subpath":"home"}},
                 {"Source":"channel","Target":"/.openshell/channel","ReadOnly":true,"VolumeOptions":{"NoCopy":true}}

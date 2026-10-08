@@ -15,7 +15,9 @@ and installed acceptance belong to [Computers](../../computers/DESIGN.md#qualifi
 | `veoveo.ai/computer-storage/v1` | Bounded mTLS prepare/restore/handoff/abandon adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
-| Docker driver supervisor restart JSON version 1 | Private owner-only immutable container/image/ownership/resource facts and a credential-free Prost DriverSandboxSpec subset; 1 MiB maximum; exact restoration admission before Start or supervisor recovery |
+| Docker driver supervisor restart JSON version 1 | Private owner-only immutable guest container/image/ownership/resource facts and a credential-free Prost DriverSandboxSpec subset; 1 MiB maximum; restoration admission before Start or supervisor recovery |
+| Docker provisioning intent JSON version 1 | Private credential-free sandbox/generation/stage journal; synced atomic replacement before effects; unresolved observations preserve resources and refuse automatic redispatch |
+| Docker driver companion binding JSON version 1 | Generation-owned private physical companion container ID, StartedAt/PID and immutable configuration hashes; 16 KiB maximum, atomic owner-only commit before readiness publication |
 | OpenShell gateway TOML schema 2 | Host and isolated native generators use the current gateway loader and strict Docker driver schema; package controls consume their generated TOML inputs |
 | Veoveo private policy checkpoint protobuf v2 | `protocol/maintenance.proto`; canonical Prost encoding of exact provider/source/run and selected gateway version with the generated provider configuration. Encrypted journal storage is required; this format grants no authority |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
@@ -274,21 +276,117 @@ launch authentication, bearer tokens, TLS material, policy, process progress and
 The existing main-process record owns command and TTY restoration.
 
 Start and controller reconciliation restore this record through the driver template
-and outer-fence admission functions. They inspect the same Docker container and require
-its image, ownership and immutable settings to match before refreshing credentials or
-starting either process. Current resource admission also checks external volume claims.
-The selected driver has no resource-update operation; changing these settings requires
-an explicitly admitted replacement. Supervisor recovery uses the current controller
-endpoint and current launch credentials rather than stored credentials.
+and outer-fence admission functions. They inspect the same guest container and require
+its image, ownership and immutable settings to match before start effects. Current
+resource admission also checks external volume claims. The selected driver has no
+resource-update operation; changing these settings requires an admitted replacement.
 
-The private persistence cut supports only version 1 and files created by this profile.
-Missing, corrupt, foreign or mismatched state refuses restart; the driver cannot infer a
-template from defaults or recreate a retained sandbox. The record is committed without
-overwriting an existing file, with mode 0600 and a 1 MiB decoding limit. Existing owned
-sandbox deletion removes the boundary directory and its record while preserving the
-external retained home. Source controls qualify typed restoration and refusal. Native
-Stop/Start and controller-restart controls must establish retained identity, credential
-rotation and containment for the selected built profile.
+The Docker driver separately commits a generation-owned `companion-binding-v1-<digest>.json`
+after starting the supervisor and before publishing its readiness. The filename hashes
+the runtime generation. The credential-free record binds the guest, generation,
+namespace, resolved supervisor image, exact companion container ID, StartedAt/PID and
+hashes of its immutable Engine configuration, selected driver settings and verified public
+authentication context. The authentication hash binds issuer, trusted key set, sandbox,
+generation, credential epoch and gateway token lineage from the descriptor and bundle
+byte snapshot staged into that companion. Token issue/expiry times and JWT text do not
+form the immutable identity. Environment,
+arguments and installation paths contribute to those hashes without being copied into
+the record. The driver writes a mode-0600 temporary file, synchronizes it, commits
+without overwrite and synchronizes the private directory. Decoding permits 16 KiB.
+The guest restart record keeps its independent 1 MiB limit.
+
+A gateway-only outage can recover a running guest by adopting the recorded, still-running
+companion. The driver inspects its recorded ID, checks every binding and uses the maintained
+JWT verifier to admit the retained private launch bundle against current trusted launch
+keys, issuer, runtime generation, credential epoch and gateway token lineage. Expired or
+superseded retained credentials refuse adoption. Startup reconciliation preserves companion
+candidates and their mounted trust volumes until this admission; an empty driver map
+cannot authorize removal. Missing mount lists, mount types or volume names preserve
+channel volumes because startup cannot establish their independence from the candidate. The driver leaves the companion and
+credential files untouched and takes ownership of the existing same-ID Docker monitor.
+Its physical supervisor identity and canonical main-process epoch must survive. The
+supervisor's maintained authenticated reconnect supplies the replacement gateway's
+current registry. Local companion health indicates readiness; authenticated terminal
+traffic through that replacement registry establishes current session acceptance.
+
+Explicit Start on an observed stopped generation keeps the admitted fresh-generation
+path. One per-sandbox admission lock covers the absence check, generation/authentication
+and TLS updates, archive staging, guest Start and companion creation. A sealed observed-absence
+value binds sandbox, companion name, namespace and image before these effects. The
+runtime descriptor generation follows that same admitted launch. The previous owned
+companion must have been removed by the completed stop path;
+a new launch cannot remove an existing or uncertain companion by name. A new runtime
+generation receives its own immutable binding file. An outage between companion start
+and binding commit leaves recovery unqualified. Missing, corrupt, foreign, dead or
+mismatched companions and expired or revoked credentials cannot trigger replacement,
+credential overwrite or replay of a running workload. This profile does not recover a
+dead companion into an existing running sandbox generation.
+
+Fresh Create checks companion absence and private-state absence before image preparation
+or identity resolution. Existing private directories, files, symlinks and uncertain
+metadata refuse without cleanup. The provisioning operation claims cleanup ownership
+only after exclusively creating its owner-only directory. Failure settlement carries
+that closed ownership value and checks the directory's device and inode before removing
+it. Cleanup also requires the separate safe-local-refusal disposition, which applies
+before provisioning dispatch. An unowned refusal preserves existing bindings, trust
+files and journals. After the first runtime-volume dispatch, failure preserves the
+private directory and resources because this profile has no qualified automatic rollback.
+Lost Create or Start responses cannot authorize compensating Delete or Stop.
+
+The driver commits a credential-free `provisioning-intent-v1.json` before runtime-volume
+creation, guest creation, guest Start and companion launch. Its version, sandbox ID,
+generation and stage survive driver replacement. Atomic rename follows file sync and
+precedes directory sync. Successful companion readiness removes the intent; an interrupted
+operation keeps it. Get and watch composition expose `ProvisioningObservation=Unknown`
+independently of current authenticated readiness. Startup and Running Start refuse an
+unfinished or unreadable intent before changing generation, credentials or trust files.
+Startup orphan cleanup preserves auxiliary containers and volumes with a sandbox ID
+whose private intent is unfinished or unreadable, including an intent without an observed
+guest. Ordinary Stop and Delete refuse that intent before dropping pending or monitor
+ownership. They cannot infer successful rollback from a missing managed lookup.
+Start, Stop and Delete resolve an ID or name to one consistent managed or pending
+sandbox identity before choosing the per-sandbox admission lock. Under that lock they
+re-resolve the request, reject a changed name or physical container, and admit the
+current private intent and pending ownership before effects. The lock covers monitor
+ownership and all lifecycle effects. Stop waits for the same admission owner; it cannot
+grant destructive interruption authority to a fresh Create. An absent explicit ID permits
+an idempotent Delete only when no private state exists. An absent or ambiguous name
+refuses before effects.
+
+Confirmed supervisor exit and explicit Stop of a settled sandbox keep their existing
+cleanup profile. No background retry or automatic redispatch settles this state. The operator must obtain
+current authoritative resource observations and qualify explicit Stop or deletion before
+cleanup. A directory replaced after the operation's exclusive claim cannot inherit its
+cleanup authority. Failed pending records carry the same closed ownership and settlement
+values. Unowned refusals cannot authorize a later Stop or Delete. A safe local failure
+whose owned directory was removed, or whose owned absence is observed, permits explicit
+Delete to forget its in-memory pending record without an Engine mutation. Replacement
+inodes and uncertain filesystem observations preserve the record. The failed-record
+registry is intentionally in-memory; a missing managed lookup after driver replacement
+cannot authorize removal of pre-existing private state.
+
+The private persistence cut accepts only version 1 files produced by the matched
+provider profile. Reverting to a pre-adoption candidate requires an explicit drain; its older
+startup cleanup cannot safely adopt this format, and does not recognize the new record
+as a reason to refuse destructive cleanup. Immutable image and source-profile admission
+must therefore prevent mixed rolling overlap and drain-free rollback. Matching protocol versions do not
+qualify a different source profile. Recovery and failed admission preserve the guest,
+retained home, private journal and binding records. An operator must qualify a
+replacement or explicit stop before destructive cleanup. Existing owned sandbox deletion removes its private
+boundary directory while preserving the external retained home. Source controls cover
+private commit, immutable and credential refusal, actual startup candidate/volume
+preservation and Running adoption without destructive Engine calls or credential rewrites.
+The maintained Docker wait POST observes the selected container. A decoded no-error exit
+or the SDK's typed positive exit-code error confirms the same-ID exit. Transport errors,
+EOF and structured wait errors without a qualified exit report `Ready=Unknown` and
+`ControlObservation=Unknown`. They preserve the companion, guest, binding and owned
+monitor fence. Repeated Running Start refuses this unresolved observation. The monitor
+waits for an explicit Stop/Delete and does not reconnect, poll or redispatch. A dropped
+shutdown sender does not authorize cleanup. An independently authenticated current
+supervisor session can establish its own readiness while the control observation stays
+unknown; condition composition preserves that distinction.
+Native qualification must establish current authenticated reconnect and retained bytes
+before this recovery profile is accepted for an installed candidate.
 
 ## Completion And Recovery
 
@@ -513,7 +611,9 @@ cannot establish recovery. The case checks the preserved main-process epoch befo
 reattachment through current authority.
 The case compares the daemon, guest container, selected image, external home and private
 restart-state digest, reads retained file bytes through current authenticated access,
-and requires one replacement supervisor. Stop/Start must then change the main process
+and requires the same physical supervisor container, StartedAt and PID. Fresh authenticated
+terminal replay and retained-file reads traverse the replacement gateway after its
+predecessor has been reaped. Stop/Start must then change the main process
 identity while preserving those resource identities and bytes. Process-group admission
 and separate abrupt-loss and graceful TERM/KILL/reap controls run locally without a provider fixture.
 Reconciliation observes stopped and restarted epochs without dispatch. This case does
