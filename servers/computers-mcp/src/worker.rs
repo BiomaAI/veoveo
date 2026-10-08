@@ -37,6 +37,42 @@ type Result<T> = std::result::Result<T, WorkerError>;
 const LEASE_DURATION: Duration = Duration::from_secs(60);
 const OPERATION_NEEDS_RECOVERY: &str = "Needs recovery: this operation's outcome is uncertain, so it won't run again automatically. Open the Computer to check before retrying.";
 
+#[derive(Clone, Copy, Debug)]
+enum LifecycleDiagnosticStage {
+    AuthorityAdmission,
+    Dispatch,
+    Wait,
+    ObservationAdmission,
+    Reconcile,
+}
+#[derive(Clone, Copy, Debug)]
+enum LifecycleDiagnosticCause {
+    Runtime(veoveo_computers_runtime::RuntimeFailure),
+    Deadline,
+    AuthorityUnavailable,
+    Pending,
+    Read,
+    Wait,
+    RecoveryRequired,
+}
+fn lifecycle_diagnostic(
+    stage: LifecycleDiagnosticStage,
+    cause: LifecycleDiagnosticCause,
+) -> String {
+    match cause {
+        LifecycleDiagnosticCause::Runtime(error) => {
+            format!("stage={stage:?} cause=Runtime({error:?})")
+        }
+        other => format!("stage={stage:?} cause={other:?}"),
+    }
+}
+fn diagnose_lifecycle(stage: LifecycleDiagnosticStage, cause: LifecycleDiagnosticCause) {
+    eprintln!(
+        "computer lifecycle worker: {}",
+        lifecycle_diagnostic(stage, cause)
+    );
+}
+
 pub struct LifecycleWorker<G> {
     store: ComputersStore,
     tasks: TaskRuntime,
@@ -173,7 +209,12 @@ impl<G: Preflight> LifecycleWorker<G> {
                     self.project(&aborted).await?;
                     return Ok(WorkerStep::Settled);
                 }
-                _ => {
+                unavailable => {
+                    let cause = match unavailable {
+                        Err(_) => LifecycleDiagnosticCause::Deadline,
+                        Ok(_) => LifecycleDiagnosticCause::AuthorityUnavailable,
+                    };
+                    diagnose_lifecycle(LifecycleDiagnosticStage::AuthorityAdmission, cause);
                     self.waiting(id, "Current action authority is unavailable")
                         .await?;
                     return Ok(WorkerStep::Waiting);
@@ -214,6 +255,17 @@ impl<G: Preflight> LifecycleWorker<G> {
                 tokio::time::timeout_at(authority_deadline, dispatched),
             )
             .await?;
+        match &outcome {
+            Err(_) => diagnose_lifecycle(
+                LifecycleDiagnosticStage::Dispatch,
+                LifecycleDiagnosticCause::Deadline,
+            ),
+            Ok(Err(error)) => diagnose_lifecycle(
+                LifecycleDiagnosticStage::Dispatch,
+                LifecycleDiagnosticCause::Runtime(*error),
+            ),
+            Ok(Ok(_)) => {}
+        }
         if let Ok(Ok(current)) = outcome {
             let reached = self
                 .with_lease(
@@ -222,6 +274,12 @@ impl<G: Preflight> LifecycleWorker<G> {
                         .wait_for_lifecycle(&checkpoint, &current, ticket.remaining()),
                 )
                 .await?;
+            if let Err(error) = &reached {
+                diagnose_lifecycle(
+                    LifecycleDiagnosticStage::Wait,
+                    LifecycleDiagnosticCause::Runtime(*error),
+                );
+            }
             if let Ok(seen) = reached {
                 let completed = self
                     .store
@@ -242,6 +300,10 @@ impl<G: Preflight> LifecycleWorker<G> {
         let (_, checkpoint, _) = native_intent(operation)?;
         match self.store.admit_observation(claimed).await? {
             ObservationAdmission::Read(ticket) => {
+                diagnose_lifecycle(
+                    LifecycleDiagnosticStage::ObservationAdmission,
+                    LifecycleDiagnosticCause::Read,
+                );
                 let seen = self
                     .with_lease(
                         claimed,
@@ -249,6 +311,17 @@ impl<G: Preflight> LifecycleWorker<G> {
                             .reconcile_lifecycle(&checkpoint, ticket.remaining()),
                     )
                     .await?;
+                match &seen {
+                    Err(error) => diagnose_lifecycle(
+                        LifecycleDiagnosticStage::Reconcile,
+                        LifecycleDiagnosticCause::Runtime(*error),
+                    ),
+                    Ok(LifecycleObservation::Pending(_)) => diagnose_lifecycle(
+                        LifecycleDiagnosticStage::Reconcile,
+                        LifecycleDiagnosticCause::Pending,
+                    ),
+                    Ok(LifecycleObservation::Reached(_)) => {}
+                }
                 if let Ok(LifecycleObservation::Reached(seen)) = seen {
                     let completed = self
                         .store
@@ -258,8 +331,17 @@ impl<G: Preflight> LifecycleWorker<G> {
                     return Ok(WorkerStep::Settled);
                 }
             }
-            ObservationAdmission::Wait { .. } => {}
+            ObservationAdmission::Wait { .. } => {
+                diagnose_lifecycle(
+                    LifecycleDiagnosticStage::ObservationAdmission,
+                    LifecycleDiagnosticCause::Wait,
+                );
+            }
             ObservationAdmission::RecoveryRequired => {
+                diagnose_lifecycle(
+                    LifecycleDiagnosticStage::ObservationAdmission,
+                    LifecycleDiagnosticCause::RecoveryRequired,
+                );
                 self.waiting(operation.task_id(), OPERATION_NEEDS_RECOVERY)
                     .await?;
                 return Ok(WorkerStep::RecoveryRequired);
@@ -373,4 +455,47 @@ fn reached_state(operation: &Operation, seen: Observation) -> Result<ReachedStat
             _ => return Err(WorkerError::Configuration),
         },
     })
+}
+
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    #[test]
+    fn lifecycle_diagnostics_distinguish_dispatch_and_observation_without_payloads() {
+        let status =
+            tonic::Status::unavailable("credential=synthetic-secret ?token=synthetic-token");
+        // This is the same closed failure returned at the runtime RPC boundary.
+        assert_eq!(status.code(), tonic::Code::Unavailable);
+        let output = lifecycle_diagnostic(
+            LifecycleDiagnosticStage::Dispatch,
+            LifecycleDiagnosticCause::Runtime(
+                veoveo_computers_runtime::RuntimeFailure::LifecycleUnknown,
+            ),
+        );
+        assert_eq!(output, "stage=Dispatch cause=Runtime(LifecycleUnknown)");
+        assert!(!output.contains("synthetic"));
+        assert_eq!(
+            lifecycle_diagnostic(
+                LifecycleDiagnosticStage::Dispatch,
+                LifecycleDiagnosticCause::Deadline
+            ),
+            "stage=Dispatch cause=Deadline"
+        );
+        assert_eq!(
+            lifecycle_diagnostic(
+                LifecycleDiagnosticStage::Reconcile,
+                LifecycleDiagnosticCause::Pending
+            ),
+            "stage=Reconcile cause=Pending"
+        );
+        assert_eq!(
+            lifecycle_diagnostic(
+                LifecycleDiagnosticStage::Wait,
+                LifecycleDiagnosticCause::Runtime(
+                    veoveo_computers_runtime::RuntimeFailure::WatchFailed
+                )
+            ),
+            "stage=Wait cause=Runtime(WatchFailed)"
+        );
+    }
 }

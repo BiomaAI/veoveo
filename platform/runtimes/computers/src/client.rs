@@ -14,6 +14,27 @@ pub const GATEWAY_VERSION: &str = env!("VEOVEO_OPENSHELL_GATEWAY_VERSION");
 pub const CLI_VERSION: &str = env!("VEOVEO_OPENSHELL_CLI_VERSION");
 pub(crate) type Client = api::open_shell_client::OpenShellClient<Channel>;
 
+#[derive(Clone, Copy, Debug)]
+enum StopDiagnosticStage {
+    GetBefore,
+    Rpc,
+    ResponseAdmission,
+}
+#[derive(Clone, Copy, Debug)]
+enum StopDiagnosticCause {
+    Rpc(Code),
+    Runtime(RuntimeFailure),
+}
+fn stop_diagnostic(stage: StopDiagnosticStage, cause: StopDiagnosticCause) -> String {
+    match cause {
+        StopDiagnosticCause::Rpc(code) => format!("stage={stage:?} cause=Rpc({code:?})"),
+        StopDiagnosticCause::Runtime(error) => format!("stage={stage:?} cause=Runtime({error:?})"),
+    }
+}
+fn diagnose_stop(stage: StopDiagnosticStage, cause: StopDiagnosticCause) {
+    eprintln!("computer lifecycle stop: {}", stop_diagnostic(stage, cause));
+}
+
 pub struct GatewayConfig {
     provider_instance_id: veoveo_computers_contract::ProviderInstanceId,
     endpoint: String,
@@ -216,6 +237,13 @@ impl OpenShellRuntime {
         )
     }
     pub async fn get(&self, binding: &Binding) -> Result<Option<Observation>> {
+        self.get_observed(binding, None).await
+    }
+    async fn get_observed(
+        &self,
+        binding: &Binding,
+        diagnostic: Option<StopDiagnosticStage>,
+    ) -> Result<Option<Observation>> {
         match self
             .client
             .clone()
@@ -230,7 +258,12 @@ impl OpenShellRuntime {
         {
             Ok(response) => self.observation(response.into_inner(), binding).map(Some),
             Err(status) if status.code() == Code::NotFound => Ok(None),
-            Err(_) => Err(RuntimeFailure::Unavailable),
+            Err(status) => {
+                if let Some(stage) = diagnostic {
+                    diagnose_stop(stage, StopDiagnosticCause::Rpc(status.code()));
+                }
+                Err(RuntimeFailure::Unavailable)
+            }
         }
     }
     pub async fn create(
@@ -310,17 +343,39 @@ impl OpenShellRuntime {
         Ok(observed)
     }
     pub async fn stop(&self, binding: &Binding, before: &Observation) -> Result<Observation> {
-        check_source(before, Phase::Ready)?;
-        let current = self.get(binding).await?.ok_or(RuntimeFailure::NotFound)?;
+        check_source(before, Phase::Ready).inspect_err(|error| {
+            diagnose_stop(
+                StopDiagnosticStage::GetBefore,
+                StopDiagnosticCause::Runtime(*error),
+            );
+        })?;
+        let current = self
+            .get_observed(binding, Some(StopDiagnosticStage::GetBefore))
+            .await
+            .and_then(|current| current.ok_or(RuntimeFailure::NotFound))
+            .inspect_err(|error| {
+                diagnose_stop(
+                    StopDiagnosticStage::GetBefore,
+                    StopDiagnosticCause::Runtime(*error),
+                )
+            })?;
         if current.sandbox_id != before.sandbox_id
             || current.main_process_instance_id != before.main_process_instance_id
         {
+            diagnose_stop(
+                StopDiagnosticStage::GetBefore,
+                StopDiagnosticCause::Runtime(RuntimeFailure::BindingMismatch),
+            );
             return Err(RuntimeFailure::BindingMismatch);
         }
         if matches!(current.phase, Phase::Stopped | Phase::Stopping) {
             return Ok(current);
         }
         if current.phase != Phase::Ready {
+            diagnose_stop(
+                StopDiagnosticStage::GetBefore,
+                StopDiagnosticCause::Runtime(RuntimeFailure::InvalidState),
+            );
             return Err(RuntimeFailure::InvalidState);
         }
         let response = self
@@ -335,9 +390,26 @@ impl OpenShellRuntime {
                 30,
             ))
             .await
-            .map_err(|_| RuntimeFailure::LifecycleUnknown)?;
-        let observed = self.observation(response.into_inner(), binding)?;
+            .map_err(|status| {
+                diagnose_stop(
+                    StopDiagnosticStage::Rpc,
+                    StopDiagnosticCause::Rpc(status.code()),
+                );
+                RuntimeFailure::LifecycleUnknown
+            })?;
+        let observed = self
+            .observation(response.into_inner(), binding)
+            .inspect_err(|error| {
+                diagnose_stop(
+                    StopDiagnosticStage::ResponseAdmission,
+                    StopDiagnosticCause::Runtime(*error),
+                )
+            })?;
         if observed.sandbox_id != current.sandbox_id {
+            diagnose_stop(
+                StopDiagnosticStage::ResponseAdmission,
+                StopDiagnosticCause::Runtime(RuntimeFailure::BindingMismatch),
+            );
             return Err(RuntimeFailure::BindingMismatch);
         }
         Ok(observed)
@@ -380,5 +452,35 @@ pub(crate) fn timestamp_from_millis(value: i64) -> prost_types::Timestamp {
     prost_types::Timestamp {
         seconds: value.div_euclid(1000),
         nanos: (value.rem_euclid(1000) * 1_000_000) as i32,
+    }
+}
+
+#[cfg(test)]
+mod stop_diagnostic_tests {
+    use super::*;
+    #[test]
+    fn stop_rpc_diagnostics_disclose_only_the_code_and_closed_stage() {
+        let status =
+            tonic::Status::unavailable("credential=synthetic-secret ?token=synthetic-token");
+        let output = stop_diagnostic(
+            StopDiagnosticStage::Rpc,
+            StopDiagnosticCause::Rpc(status.code()),
+        );
+        assert_eq!(output, "stage=Rpc cause=Rpc(Unavailable)");
+        assert!(!output.contains("synthetic"));
+        assert_eq!(
+            stop_diagnostic(
+                StopDiagnosticStage::GetBefore,
+                StopDiagnosticCause::Runtime(RuntimeFailure::Unavailable)
+            ),
+            "stage=GetBefore cause=Runtime(Unavailable)"
+        );
+        assert_eq!(
+            stop_diagnostic(
+                StopDiagnosticStage::ResponseAdmission,
+                StopDiagnosticCause::Runtime(RuntimeFailure::BindingMismatch)
+            ),
+            "stage=ResponseAdmission cause=Runtime(BindingMismatch)"
+        );
     }
 }

@@ -36,6 +36,60 @@ use veoveo_computers_runtime::{Binding, DevelopmentTemplate, ExecIntent, PERSIST
 use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{TaskRuntime, TaskStatus};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WaitingClassification {
+    AuthorityUnavailable,
+    ObservingOriginal,
+    StorageUnavailable,
+    PreparingStorage,
+    RecoveryRequired,
+    Absent,
+    Unclassified,
+}
+fn waiting_classification(message: Option<&str>) -> WaitingClassification {
+    match message {
+        Some("Current action authority is unavailable") => {
+            WaitingClassification::AuthorityUnavailable
+        }
+        Some("Observing the original operation; files are retained") => {
+            WaitingClassification::ObservingOriginal
+        }
+        Some("Retained storage is unavailable; files are retained") => {
+            WaitingClassification::StorageUnavailable
+        }
+        Some("Preparing retained storage") => WaitingClassification::PreparingStorage,
+        Some(
+            "Needs recovery: this operation's outcome is uncertain, so it won't run again automatically. Open the Computer to check before retrying.",
+        ) => WaitingClassification::RecoveryRequired,
+        None => WaitingClassification::Absent,
+        Some(_) => WaitingClassification::Unclassified,
+    }
+}
+async fn diagnose_step(store: &ComputersStore, tasks: &TaskRuntime, operation: &Operation) {
+    let snapshot = tokio::time::timeout(Duration::from_secs(5), async {
+        let current = store
+            .operation(&operation.owner, operation.operation_id)
+            .await
+            .ok();
+        let task = tasks.get(operation.task_id()).await.ok().flatten();
+        (
+            current.map(|current| current.stage),
+            task.as_ref().map(|task| task.status),
+            waiting_classification(
+                task.as_ref()
+                    .and_then(|task| task.status_message.as_deref()),
+            ),
+        )
+    })
+    .await;
+    match snapshot {
+        Ok((operation_stage, task_status, classification)) => eprintln!(
+            "Native lifecycle step: operationStage={operation_stage:?} taskStatus={task_status:?} waitingClassification={classification:?}"
+        ),
+        Err(_) => eprintln!("Native lifecycle step: snapshot=Deadline"),
+    }
+}
+
 /// Counts entry to production preflight without replacing its allocation or the
 /// domain's independent current action-authority check.
 #[derive(Clone)]
@@ -268,10 +322,11 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
                 .await
                 .unwrap();
             home.stop_service().await;
-            assert_eq!(
-                worker_b.step(stop).boxed().await.unwrap(),
-                WorkerStep::Settled
-            );
+            let stop_result = worker_b.step(stop.clone()).boxed().await;
+            if !matches!(stop_result, Ok(WorkerStep::Settled)) {
+                diagnose_step(&a, &tasks_a, &stop).await;
+            }
+            assert_eq!(stop_result.unwrap(), WorkerStep::Settled);
             home.start_service().await;
             let start = a
                 .queue_operation(
@@ -486,4 +541,29 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         drop(provider);
         home.finish(None).await;
     }).await;
+}
+
+#[cfg(test)]
+mod step_diagnostic_tests {
+    use super::*;
+    #[test]
+    fn waiting_messages_are_classified_without_exposing_unrecognized_content() {
+        let secret = "credential=synthetic-secret https://private.test/?token=synthetic-token";
+        assert_eq!(
+            waiting_classification(Some(secret)),
+            WaitingClassification::Unclassified
+        );
+        let output = format!("{:?}", waiting_classification(Some(secret)));
+        assert_eq!(output, "Unclassified");
+        assert!(!output.contains("synthetic"));
+        assert_eq!(waiting_classification(None), WaitingClassification::Absent);
+        assert_eq!(
+            waiting_classification(Some("Current action authority is unavailable")),
+            WaitingClassification::AuthorityUnavailable
+        );
+        assert_eq!(
+            waiting_classification(Some("Observing the original operation; files are retained")),
+            WaitingClassification::ObservingOriginal
+        );
+    }
 }
