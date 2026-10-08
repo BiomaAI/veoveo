@@ -123,9 +123,13 @@ privacy controls pass. The fresh diagnostic identifies a Docker supervisor resta
 without the required sandbox template: reconstruction from the container loses
 the admitted specification. The repair persists driver-owned restart facts and
 readmits them before Start effects; its 23 driver controls, eight gateway controls
-and two mTLS controls pass. Independent source review, final provider artifact
-checks, the repaired native journeys, Host replacement and installed execution
-remain open.
+and two mTLS controls pass. Independent source review and the gateway/driver
+artifact checks pass. The existing native lifecycle fixture now restarts the owned
+controller with retained launch inputs and storage; compiler checks, three process
+controls, generated-config comparison and independent review pass. It restarts
+the gateway's in-process Docker driver without requiring a separate driver process.
+Final image qualification, the
+repaired native journeys, Host replacement and installed execution remain open.
 Previous-profile results do not qualify this candidate.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
@@ -1296,8 +1300,15 @@ uncertain commit. Its [lane retry policy](../platform/modules/DESIGN.md#history-
 permits 16 attempts within a 60-second admission window and rechecks preparation,
 history and prerequisites before another attempt. Timeouts, transport failures and
 nested conflict causes cannot admit replay. The repaired RocksDB control, rollback,
-timeout/drop and conflict-classification controls pass. Installed Job replay and
-installation acceptance remain open.
+timeout/drop and conflict-classification controls pass. The fresh installed run
+completes all generation-1 migration and publication Jobs and both NetworkPolicy
+canaries. Managed-object setup then fails after creating the agent Namespace and
+before any Deployment. The helper omits the failing resource identity and stderr,
+so the cause is unknown. Its diagnostic repair records the operation, purpose,
+resource identity, exit status and a closed API error category without exposing
+stderr or manifests. Compiler checks, nine focused controls and independent review
+pass. The next installed run must use the refreshed executable; later generations
+and installation acceptance remain open.
 The failed run's disposable cluster and owned resources are removed.
 Production SQL redistribution belongs to Phase 3.
 
