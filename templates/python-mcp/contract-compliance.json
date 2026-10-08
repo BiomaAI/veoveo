@@ -138,7 +138,7 @@
     {
       "id": "C33",
       "status": "pending",
-      "note": "Owner naming producers, consumers and installed qualification are pending."
+      "note": "Owner camelCase schemas, tool/resource/Task producers, Workbench receiver and version-2 cursors are qualified locally; installed qualification remains pending."
     }
   ],
   "contractRevision": 4,

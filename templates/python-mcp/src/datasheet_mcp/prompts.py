@@ -5,6 +5,7 @@ from __future__ import annotations
 import mcp.types as types
 
 from . import uris
+from .contract import DatasetSelector
 from veoveo_mcp.tasks import parse_task_id
 
 PROFILE_PROMPT = "datasheet-profile-dataset"
@@ -22,7 +23,7 @@ def list_prompts() -> list[types.Prompt]:
             ),
             arguments=[
                 types.PromptArgument(
-                    name="dataset_uri",
+                    name="datasetUri",
                     description="Artifact URI of the CSV or Parquet dataset.",
                     required=True,
                 ),
@@ -34,7 +35,7 @@ def list_prompts() -> list[types.Prompt]:
             description="Summarize one completed datasheet profile task.",
             arguments=[
                 types.PromptArgument(
-                    name="task_id",
+                    name="taskId",
                     description="Completed profile task id.",
                     required=True,
                 ),
@@ -46,7 +47,9 @@ def list_prompts() -> list[types.Prompt]:
 def get_prompt(name: str, arguments: dict[str, str] | None) -> types.GetPromptResult:
     arguments = arguments or {}
     if name == PROFILE_PROMPT:
-        dataset_uri = arguments.get("dataset_uri", "<artifact uri>")
+        if set(arguments) != {"datasetUri"}:
+            raise ValueError("profile prompt requires only datasetUri")
+        dataset_uri = DatasetSelector.model_validate(arguments).dataset_uri
         text = (
             f"Profile the dataset at `{dataset_uri}`.\n\n"
             "1. Call `preview_dataset` with the dataset URI to inspect the "
@@ -68,7 +71,9 @@ def get_prompt(name: str, arguments: dict[str, str] | None) -> types.GetPromptRe
             ],
         )
     if name == REVIEW_PROMPT:
-        task_id = parse_task_id(arguments.get("task_id", ""))
+        if set(arguments) != {"taskId"}:
+            raise ValueError("review prompt requires only taskId")
+        task_id = parse_task_id(arguments["taskId"])
         text = (
             f"Review datasheet profile task `{task_id}`.\n\n"
             f"Read `{uris.usage_task_uri(task_id)}` for recorded usage and the "

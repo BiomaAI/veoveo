@@ -113,12 +113,12 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
             "prompt".into(),
             "datasheet-profile-dataset".into(),
             "--arguments".into(),
-            r#"{"dataset_uri":"artifact://01900000-0000-7000-8000-000000000001"}"#.into(),
+            r#"{"datasetUri":"artifact://01900000-0000-7000-8000-000000000001"}"#.into(),
         ],
     )?;
     contains(&prompt, "profile_dataset")?;
 
-    let preview_args = serde_json::json!({"inline_csv": SMOKE_CSV, "rows": 3}).to_string();
+    let preview_args = serde_json::json!({"inlineCsv": SMOKE_CSV, "rows": 3}).to_string();
     let preview = run_datasheet_mcp(
         conformance,
         &mcp_url,
@@ -132,14 +132,14 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
     )?;
     contains(&preview, "previewed 3 of 5 row(s)")?;
     let previewed: Value = structured_from_output(&preview)?;
-    if previewed.pointer("/row_count").and_then(Value::as_i64) != Some(5) {
-        bail!("preview output had wrong row_count: {previewed}");
+    if previewed.pointer("/rowCount").and_then(Value::as_i64) != Some(5) {
+        bail!("preview output had wrong rowCount: {previewed}");
     }
     if previewed.pointer("/columns/1/name").and_then(Value::as_str) != Some("population") {
         bail!("preview output had wrong column order: {previewed}");
     }
 
-    let stats_args = serde_json::json!({"inline_csv": SMOKE_CSV, "column": "region"}).to_string();
+    let stats_args = serde_json::json!({"inlineCsv": SMOKE_CSV, "column": "region"}).to_string();
     let stats = run_datasheet_mcp(
         conformance,
         &mcp_url,
@@ -152,16 +152,16 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
         ],
     )?;
     let stats: Value = structured_from_output(&stats)?;
-    if stats.pointer("/distinct_count").and_then(Value::as_i64) != Some(2) {
-        bail!("column_stats output had wrong distinct_count: {stats}");
+    if stats.pointer("/distinctCount").and_then(Value::as_i64) != Some(2) {
+        bail!("column_stats output had wrong distinctCount: {stats}");
     }
-    if stats.pointer("/top_values/0/value").and_then(Value::as_str) != Some("sierra") {
+    if stats.pointer("/topValues/0/value").and_then(Value::as_str) != Some("sierra") {
         bail!("column_stats output had wrong top value: {stats}");
     }
 
     // The task-required tool must reject direct invocation with an in-band
     // tool error and no structured output.
-    let direct_args = serde_json::json!({"inline_csv": SMOKE_CSV}).to_string();
+    let direct_args = serde_json::json!({"inlineCsv": SMOKE_CSV}).to_string();
     let rejected = run_datasheet_mcp(
         conformance,
         &mcp_url,
@@ -179,7 +179,7 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
     )?;
     not_contains(&rejected, "structured:")?;
 
-    let profile_args = serde_json::json!({"inline_csv": SMOKE_CSV, "artifact": true}).to_string();
+    let profile_args = serde_json::json!({"inlineCsv": SMOKE_CSV, "artifact": true}).to_string();
     let profiled = run_datasheet_mcp(
         conformance,
         &mcp_url,
@@ -196,11 +196,11 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
     contains(&profiled, "output: datasheet://artifact/")?;
     let profile_output: Value = structured_from_output(&profiled)?;
     if profile_output
-        .pointer("/profile/row_count")
+        .pointer("/profile/rowCount")
         .and_then(Value::as_i64)
         != Some(5)
     {
-        bail!("profile output had wrong row_count: {profile_output}");
+        bail!("profile output had wrong rowCount: {profile_output}");
     }
     if profile_output
         .pointer("/profile/columns/2/histogram/0/count")
@@ -209,26 +209,9 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
     {
         bail!("profile output had no elevation histogram: {profile_output}");
     }
-    let artifact_id = profile_output
-        .pointer("/artifact/artifact_id")
-        .and_then(Value::as_str)
-        .ok_or_else(|| anyhow!("profile output had no artifact id: {profile_output}"))?
-        .to_string();
-    let artifact_uri = profile_output
-        .pointer("/artifact/artifact_uri")
-        .and_then(Value::as_str)
-        .ok_or_else(|| anyhow!("profile output had no artifact uri: {profile_output}"))?
-        .to_string();
-    if artifact_uri != format!("datasheet://artifact/{artifact_id}") {
-        bail!("profile artifact URI `{artifact_uri}` did not match id `{artifact_id}`");
-    }
-    if profile_output
-        .pointer("/artifact/metadata/task_id")
-        .and_then(Value::as_str)
-        != Some(task_id.as_str())
-    {
-        bail!("profile artifact metadata did not carry task id `{task_id}`: {profile_output}");
-    }
+    let artifact = admit_profile_artifact(&profile_output, &task_id)?;
+    let artifact_id = artifact.artifact_id().to_string();
+    let artifact_uri = artifact.artifact_uri.to_string();
 
     run_datasheet_mcp(
         conformance,
@@ -345,7 +328,7 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
     contains(&reports, &task_id)?;
     contains(&reports, "\"status\": \"succeeded\"")?;
     contains(&reports, "\"limit\": 100")?;
-    contains(&reports, "\"next_uri\": null")?;
+    contains(&reports, "\"nextUri\": null")?;
 
     let usage_catalog = run_datasheet_mcp(
         conformance,
@@ -354,7 +337,7 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
     )?;
     contains(&usage_catalog, &task_id)?;
     contains(&usage_catalog, "\"limit\": 100")?;
-    contains(&usage_catalog, "\"next_cursor\": null")?;
+    contains(&usage_catalog, "\"nextCursor\": null")?;
 
     datasheet_child.stop_checked().await?;
     cleanup.remove_on_drop();
@@ -378,4 +361,83 @@ fn run_datasheet_mcp(
         all_args,
         [("MCP_BEARER_TOKEN", bearer.into())],
     )
+}
+
+// Datasheet's nested Artifact value is governed by the public Artifact owner.
+// Profile column values remain the Python owner's JSON at this language edge.
+fn admit_profile_artifact(
+    output: &Value,
+    task_id: &str,
+) -> Result<veoveo_artifact_contract::ArtifactMetadata> {
+    let artifact: veoveo_artifact_contract::ArtifactMetadata = serde_json::from_value(
+        output
+            .get("artifact")
+            .cloned()
+            .context("profile output omitted Artifact metadata")?,
+    )
+    .context("profile output had invalid Artifact metadata")?;
+    let scheme = veoveo_types::ResourceScheme::parse("datasheet")?;
+    let expected =
+        veoveo_artifact_contract::ArtifactUri::presented(&scheme, artifact.artifact_id());
+    let result_uri: veoveo_artifact_contract::ArtifactUri = serde_json::from_value(
+        output
+            .get("resultUri")
+            .cloned()
+            .context("profile output omitted resultUri")?,
+    )
+    .context("profile output had invalid resultUri")?;
+    anyhow::ensure!(
+        artifact.artifact_uri == expected && result_uri == expected,
+        "profile resultUri and Artifact parent must agree"
+    );
+    anyhow::ensure!(
+        artifact.metadata.get("taskId").and_then(Value::as_str) == Some(task_id)
+            && artifact.metadata.get("task_id").is_none(),
+        "profile Artifact metadata must carry current taskId"
+    );
+    Ok(artifact)
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::*;
+
+    #[test]
+    fn current_profile_product_admits_owner_artifact_and_rejects_retired_or_mismatched_values() {
+        let mut artifact: veoveo_artifact_contract::ArtifactMetadata =
+            serde_json::from_str(include_str!(
+                "../../../../../../platform/artifacts/contract/tests/fixtures/metadata-output.json"
+            ))
+            .unwrap();
+        artifact = artifact
+            .presented_under_scheme(&veoveo_types::ResourceScheme::parse("datasheet").unwrap());
+        let task = "0197f78e-f2f0-7a6e-8a5d-f41c691e4471";
+        artifact.metadata =
+            serde_json::json!({"taskId": task, "artifactFormat": "datasheet_profile_json"});
+        let output = serde_json::json!({"artifact": artifact, "resultUri": artifact.artifact_uri});
+        assert_eq!(
+            admit_profile_artifact(&output, task).unwrap().artifact_id(),
+            artifact.artifact_id()
+        );
+        for retired in ["artifactId", "artifactUri"] {
+            let mut bad = output.clone();
+            let fields = bad["artifact"].as_object_mut().unwrap();
+            let old = if retired == "artifactId" {
+                "artifact_id"
+            } else {
+                "artifact_uri"
+            };
+            fields.insert(old.to_owned(), fields[retired].clone());
+            assert!(admit_profile_artifact(&bad, task).is_err());
+        }
+        let mut bad = output.clone();
+        bad["resultUri"] = serde_json::json!("artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471");
+        assert!(admit_profile_artifact(&bad, task).is_err());
+        let mut bad = output.clone();
+        bad["artifact"]["metadata"]["task_id"] = serde_json::json!(task);
+        assert!(admit_profile_artifact(&bad, task).is_err());
+        let mut bad = output;
+        bad.as_object_mut().unwrap().remove("resultUri");
+        assert!(admit_profile_artifact(&bad, task).is_err());
+    }
 }

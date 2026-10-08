@@ -34,6 +34,10 @@ every change here must keep the template a complete, working reference.
   internal-auth middleware.
 - Tool inputs are published as complete, bounded JSON Schema 2020-12 documents
   with `mcp_input_schema`; local references and composition remain intact.
+- Public controlled fields use camelCase; external admission refuses retired or mixed
+  names. Typed Python constructors keep attribute names. Report and usage cursors
+  require version 2. Follow the coordinated replacement instructions in
+  `DESIGN.md` before replacing Task argument or report writers and receivers.
 - Public Task handlers use `TaskRuntime.for_owner` with this server's typed operation
   selection. Parse Task handles once, then pass UUIDs through queries, mutations and
   subscriptions. Keep trusted worker reads out of caller authorization paths.
@@ -49,6 +53,9 @@ every change here must keep the template a complete, working reference.
 
 - Run `uv sync --locked --all-extras` and `uv run --locked --all-extras pytest`
   from this directory. The SDK resolves from `../../sdk/python`.
+- The owning resource CPU suite requires Node to execute the shipped Workbench script
+  with its bridge collaborators under a 10-second subprocess deadline. It does not
+  establish rendering or installed browser acceptance.
 - Task-runtime integration tests use the SurrealDB container fixture from the
   `veoveo-mcp` SDK test suite; docs, engine, and schema tests run offline.
 - The root Bake target uses `templates/python-mcp/Dockerfile` with the repository
@@ -95,5 +102,5 @@ Catalog revision: 2
 - C30: met — the server is stateless at the MCP boundary and retains only explicit durable domain state
 - C31: met — installed Discover, list surfaces and readiness pass hosted certification
 - C32: pending — typed docs observations and build digests are wired; installed K01–K08 qualification remains
-- C33: pending — Owner naming producers, consumers and installed qualification are pending.
+- C33: pending — Owner camelCase schemas, tool/resource/Task producers, Workbench receiver and version-2 cursors are qualified locally; installed qualification remains pending.
 <!-- veoveo:contract-compliance:end -->

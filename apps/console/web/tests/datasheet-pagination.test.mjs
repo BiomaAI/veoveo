@@ -24,11 +24,11 @@ test('Datasheet loads bounded report pages on request and rejects foreign contin
       reads.push(request.params.uri);
       let value;
       if (request.params.uri === 'datasheet://reports') {
-        value = {items: Array.from({length: 100}, (_, i) => ({task_id: i})), limit: 100,
-          next_cursor: 'opaque', next_uri: foreign ? 'artifact://metadata/private' : next.href};
+        value = {items: Array.from({length: 100}, (_, i) => ({taskId: i})), limit: 100,
+          nextCursor: 'opaque', nextUri: foreign ? 'artifact://metadata/private' : next.href};
       } else {
         assert.equal(request.params.uri, next.href);
-        value = {items: [{task_id: 100}], limit: 100, next_cursor: null, next_uri: null};
+        value = {items: [{taskId: 100}], limit: 100, nextCursor: null, nextUri: null};
       }
       return {contents: [{uri: request.params.uri, text: JSON.stringify(value)}]};
     });
@@ -50,7 +50,7 @@ test('Datasheet loads bounded report pages on request and rejects foreign contin
     await page.getByRole('button', {name: 'More reports', exact: true}).click();
     await page.waitForFunction(() => !document.querySelector('#reports').disabled);
     assert.deepEqual(reads, ['datasheet://reports', next.href]);
-    assert.deepEqual(JSON.parse(await page.locator('#output').textContent()), [{task_id: 100}]);
+    assert.deepEqual(JSON.parse(await page.locator('#output').textContent()), [{taskId: 100}]);
     assert.equal(await page.locator('#more-reports').isDisabled(), true);
     foreign = true;
     await page.getByRole('button', {name: 'Reports', exact: true}).click();

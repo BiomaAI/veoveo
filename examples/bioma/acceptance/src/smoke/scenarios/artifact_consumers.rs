@@ -146,7 +146,7 @@ pub(crate) async fn artifact_upload_consumers(
         &parquet_receipt.artifact_uri,
         &unknown_length_receipt.artifact_uri,
     ] {
-        let arguments = serde_json::to_string(&serde_json::json!({"dataset_uri":uri,"rows":2}))?;
+        let arguments = serde_json::to_string(&serde_json::json!({"datasetUri":uri,"rows":2}))?;
         let result = super::run_public_conformance(
             conformance,
             base,
@@ -164,7 +164,7 @@ pub(crate) async fn artifact_upload_consumers(
         .await?;
         let result = super::structured_output(&result)?;
         ensure!(
-            result.get("row_count").and_then(Value::as_u64) == Some(2),
+            result.get("rowCount").and_then(Value::as_u64) == Some(2),
             "Datasheet did not consume both rows: {result}"
         );
         let rows = result

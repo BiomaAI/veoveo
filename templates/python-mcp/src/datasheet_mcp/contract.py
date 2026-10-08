@@ -7,11 +7,13 @@ advertised over MCP.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_validator
+from pydantic.alias_generators import to_camel
 
 from veoveo_mcp.contract import ArtifactMetadata
+from veoveo_mcp.contract.wire import CurrentWireModel
 from veoveo_mcp.types import ResourceUri
 
 MAX_PREVIEW_ROWS = 100
@@ -19,7 +21,39 @@ MAX_HISTOGRAM_BINS = 50
 MAX_TOP_VALUES = 10
 
 
-class DatasetSelector(BaseModel):
+class WireModel(CurrentWireModel):
+    """Owner JSON uses aliases; Python construction keeps attribute names."""
+
+    model_config = ConfigDict(
+        alias_generator=to_camel, validate_by_name=True, serialize_by_alias=True,
+        extra="forbid", hide_input_in_errors=True,
+    )
+
+    @classmethod
+    def model_validate(cls, value: Any, **kwargs: Any) -> Self:
+        context = kwargs.get("context")
+        kwargs["context"] = {**(context if isinstance(context, dict) else {}), "wire_admission": True}
+        kwargs.setdefault("by_alias", True)
+        kwargs.setdefault("by_name", False)
+        return super().model_validate(value, **kwargs)
+
+    @classmethod
+    def model_validate_json(cls, value: str | bytes | bytearray, **kwargs: Any) -> Self:
+        context = kwargs.get("context")
+        kwargs["context"] = {**(context if isinstance(context, dict) else {}), "wire_admission": True}
+        kwargs.setdefault("by_alias", True)
+        kwargs.setdefault("by_name", False)
+        return super().model_validate_json(value, **kwargs)
+
+    @model_validator(mode="before")
+    @classmethod
+    def current_wire_keys(cls, value: object, info: ValidationInfo) -> object:
+        if info.mode == "json" or (isinstance(info.context, dict) and info.context.get("wire_admission")):
+            return super().current_wire_keys(value)
+        return value
+
+
+class DatasetSelector(WireModel):
     """Exactly one of an artifact URI or inline CSV text."""
 
     model_config = ConfigDict(extra="forbid")
@@ -38,7 +72,7 @@ class DatasetSelector(BaseModel):
     @model_validator(mode="after")
     def _exactly_one_source(self) -> "DatasetSelector":
         if (self.dataset_uri is None) == (self.inline_csv is None):
-            raise ValueError("provide exactly one of dataset_uri or inline_csv")
+            raise ValueError("provide exactly one of datasetUri or inlineCsv")
         return self
 
 
@@ -46,12 +80,12 @@ class PreviewDatasetRequest(DatasetSelector):
     rows: int = Field(default=10, ge=1, le=MAX_PREVIEW_ROWS)
 
 
-class ColumnSchema(BaseModel):
+class ColumnSchema(WireModel):
     name: str
     dtype: str
 
 
-class PreviewDatasetOutput(BaseModel):
+class PreviewDatasetOutput(WireModel):
     columns: list[ColumnSchema]
     row_count: int
     rows: list[dict[str, Any]]
@@ -61,12 +95,12 @@ class ColumnStatsRequest(DatasetSelector):
     column: str = Field(min_length=1)
 
 
-class ValueCount(BaseModel):
+class ValueCount(WireModel):
     value: str
     count: int
 
 
-class ColumnStatsOutput(BaseModel):
+class ColumnStatsOutput(WireModel):
     column: str
     dtype: str
     count: int
@@ -87,13 +121,13 @@ class ProfileDatasetRequest(DatasetSelector):
     histogram_bins: int = Field(default=20, ge=2, le=MAX_HISTOGRAM_BINS)
 
 
-class HistogramBin(BaseModel):
+class HistogramBin(WireModel):
     lower: float
     upper: float
     count: int
 
 
-class ColumnProfile(BaseModel):
+class ColumnProfile(WireModel):
     name: str
     dtype: str
     null_count: int
@@ -106,13 +140,13 @@ class ColumnProfile(BaseModel):
     histogram: list[HistogramBin] = []
 
 
-class CorrelationPair(BaseModel):
+class CorrelationPair(WireModel):
     left: str
     right: str
     pearson: float
 
 
-class DatasetProfile(BaseModel):
+class DatasetProfile(WireModel):
     row_count: int
     column_count: int
     columns: list[ColumnProfile]
@@ -131,7 +165,7 @@ def _profile_product_schema(schema: dict[str, Any]) -> None:
     }]
 
 
-class ProfileDatasetOutput(BaseModel):
+class ProfileDatasetOutput(WireModel):
     model_config = ConfigDict(frozen=True, extra="forbid", json_schema_extra=_profile_product_schema)
     profile: DatasetProfile
     artifact: ArtifactMetadata | None = None

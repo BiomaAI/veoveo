@@ -12,12 +12,12 @@ hosted-server requirements.
 | Standard or protocol | Supported boundary |
 |---|---|
 | Model Context Protocol `2026-07-28` | Stateless Streamable HTTP under `/datasheet/mcp`, mandatory Discover, per-request capabilities, JSON terminal responses, and request-scoped subscription streams |
-| JSON Schema 2020-12 | Complete bounded tool input schemas produced by `veoveo_mcp.schema.mcp_input_schema`, including same-document references and composition |
+| JSON Schema 2020-12 and JSON | Complete bounded tool input schemas produced by `veoveo_mcp.schema.mcp_input_schema`, including same-document references and composition; owner-controlled public fields use camelCase and reject retired or mixed spellings |
 | Tasks extension, SEP-2663 | Server-directed `tools/call`, `tasks/get`, `tasks/update`, `tasks/cancel`, and optional `notifications/tasks` through `subscriptions/listen` |
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://datasheet/workbench.html` Workbench previews and profiles inline CSV or governed artifacts. |
 | CSV and Apache Parquet | Dataset inputs resolved from shared-plane artifacts or bounded inline CSV |
 | `datasheet://` URI scheme | Canonical resource identities for reports, usage, artifacts, and documents |
-| Datasheet catalog cursor version 1 | Collection-bound JSON encoded as unpadded base64url, carried in the URI's `cursor` query parameter |
+| Datasheet catalog cursor version 2 | Collection-bound JSON encoded as unpadded base64url, carried in the URI's `cursor` query parameter |
 | RFC 3986 and RFC 6570 | Checked resource references and templates through the [Python SDK's pinned URI libraries](../../sdk/python/DESIGN.md#standards-and-protocols) |
 
 ## Domain
@@ -31,7 +31,7 @@ capability reserved at submission, usage is recorded per task, and the result
 is a typed `CallToolResult`. An Artifact-backed report declares one `resultUri`
 matching its nested Artifact metadata and one resource link. An inline profile
 omits the address and link. The output decoder rejects a present null address;
-wire serialization excludes absent optional fields. The shared MCP completion
+wire serialization excludes absent optional fields. Tool requests, resource catalogs, nested report JSON and known owner-emitted Artifact metadata keys use the same camelCase profile. Python constructors keep their attribute names; external model admission accepts only current wire aliases. The shared MCP completion
 builder checks address/link agreement before the Task transaction stores the result.
 
 Dataset reads pass the configured `max_dataset_bytes` ceiling to the SDK before
@@ -49,12 +49,12 @@ large-file acceptance does not certify pandas at that scale.
 | `datasheet://docs` and `datasheet://docs/{doc_id}` | Embedded server documents |
 | `datasheet://contract` | Machine-readable contract declaration |
 
-Report and usage catalogs return an object with `items`, `limit: 100`, `next_cursor`
-and `next_uri`. A final page has null continuation fields. The server builds each
+Report and usage catalogs return an object with `items`, `limit: 100`, `nextCursor`
+and `nextUri`. A final page has null continuation fields. The server builds each
 continuation from the last item of a full page after selecting one lookahead row.
 `ReportCursor` carries creation time and UUIDv7 Task ID; `UsageCursor` carries the
 Task ID. Each rejects the other collection, unknown versions, extra or duplicate
-fields and malformed encodings. A cursor is a position, never an authorization grant.
+fields and malformed encodings. Version 2 preserves nanosecond timestamps and the 768-character encoded limit. A cursor is a position, never an authorization grant.
 
 The owner query admits Tasks before SQL ordering and limits. Usage selection applies
 that policy to the linked Task and checks the usage row's server and tenant before
@@ -74,7 +74,7 @@ identity, document coverage, duplicate scopes/resources/templates and resource r
 trips. Datasheet declares an empty domain scope enum; owner authorization uses the
 current gateway identity and SQL selection. MCP handlers consume the checked setup's
 identity and discovery descriptors. Resource discovery lists roots and templates without reading
-stored Tasks. The Workbench requests report pages through the returned `next_uri` when
+stored Tasks. The Workbench requests report pages through the returned `nextUri` when
 the caller selects More reports.
 
 ## Task Admission
@@ -92,6 +92,23 @@ native commit identities to select changed Tasks. LIVE queries wake readers; idl
 subscriptions issue no database queries. A cursor beyond retention selects a fresh
 baseline on the next wake. A disconnected source ends the stream; a new request admits
 its IDs again. The SDK owns reader cleanup through acknowledgement and delivery.
+
+## Coordinated Wire Replacement
+
+Before replacing an installation's writers and receivers, drain queued and running
+profile Tasks. Persisted request arguments use current wire aliases and refuse retired
+or mixed keys on replay; native SDK Task storage and the materialized dataset envelope
+keep their own profiles. Clients restart report and usage traversal when a version-1
+cursor is refused. The unreleased profile report products must be recreated together
+with their readers: the report JSON and known metadata keys share the current profile.
+Their existing unversioned Artifact format value is `datasheet_profile_json`.
+
+The Workbench sends current tool arguments, follows `nextUri`, and admits flattened
+Task replies. Its existing host-context, size and teardown bridge interactions use
+MCP Apps. The owning resource test executes the shipped script in Node under a
+10-second subprocess deadline; it verifies requests, current replies, notifications
+and retired-shape refusal as JavaScript behavior. This CPU test does not qualify
+rendering or an installed graphical workflow.
 
 ## Well-Known Surface
 

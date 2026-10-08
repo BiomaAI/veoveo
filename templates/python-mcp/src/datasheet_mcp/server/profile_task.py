@@ -96,7 +96,7 @@ async def start_profile_task(
             ),
         )
     request_payload: dict[str, Any] = {
-        "args": args.model_dump(mode="json"),
+        "args": args.model_dump(mode="json", by_alias=True),
         "dataset_b64": base64.b64encode(data).decode(),
         "dataset_name": dataset_name,
         "dataset_mime": dataset_mime,
@@ -228,7 +228,7 @@ async def _run_task_inner(
         if capability is None:
             await fail("task did not reserve artifact write capability")
             return
-        report_bytes = output.profile.model_dump_json(indent=2).encode()
+        report_bytes = output.profile.model_dump_json(by_alias=True, indent=2).encode()
         try:
             metadata = await state.artifacts.put_with_capability(
                 capability,
@@ -237,10 +237,10 @@ async def _run_task_inner(
                     mimeType=ARTIFACT_MIME,
                     filename=f"datasheet-profile-{task_id}.json",
                     metadata={
-                        "task_id": task_id,
-                        "artifact_format": "datasheet_profile_json",
-                        "row_count": profile.row_count,
-                        "column_count": profile.column_count,
+                        "taskId": task_id,
+                        "artifactFormat": "datasheet_profile_json",
+                        "rowCount": profile.row_count,
+                        "columnCount": profile.column_count,
                     },
                 ),
                 report_bytes,
@@ -262,8 +262,8 @@ async def _run_task_inner(
             quantity=float(profile.column_count),
             unit="column",
             metadata={
-                "row_count": profile.row_count,
-                "column_count": profile.column_count,
+                "rowCount": profile.row_count,
+                "columnCount": profile.column_count,
             },
         )
     except Exception as error:  # noqa: BLE001

@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from datasheet_mcp import uris
-from datasheet_mcp.catalog import ReportCursor, ReportEntry, ReportPage, UsageCursor
+from datasheet_mcp.catalog import ReportCursor, ReportEntry, ReportPage, UsageCursor, UsagePage
 from datasheet_mcp.server import mcp_server
 from veoveo_mcp.types import ResourceUri
 from veoveo_mcp.contract.artifacts import ArtifactId
@@ -44,8 +44,8 @@ def test_catalog_rejects_unsupported_uri_components(suffix):
 
 
 def test_cursor_rejects_extra_fields_versions_and_unbound_documents():
-    value = {"version": 1, "collection": "usage", "task_id": str(new_task_id())}
-    for invalid in [dict(value, version=True), dict(value, version=2),
+    value = {"version": 2, "collection": "usage", "taskId": str(new_task_id())}
+    for invalid in [dict(value, version=True), dict(value, version=1),
                     dict(value, extra="x"), {key: item for key, item in value.items() if key != "collection"}]:
         with pytest.raises(ValueError):
             UsageCursor.decode(token(invalid))
@@ -112,10 +112,15 @@ async def test_report_handler_follows_typed_cursor_and_emits_checked_pages(monke
     context = SimpleNamespace(session=SimpleNamespace(client_capabilities=None), meta=None)
     first = json.loads((await read(context, types.ReadResourceRequestParams(uri=uris.REPORTS_URI))).contents[0].text)
     assert len(first["items"]) == 100
-    assert first["next_cursor"]
-    second = json.loads((await read(context, types.ReadResourceRequestParams(uri=first["next_uri"]))).contents[0].text)
+    from jsonschema import Draft202012Validator
+    Draft202012Validator(ReportPage.model_json_schema(mode="serialization")).validate(first)
+    assert set(first["items"][0]) == {"taskId", "taskType", "status", "createdAt", "usageUri"}
+    assert first["items"][0]["createdAt"] == str(now)
+    assert uris.parse_resource_uri(ResourceUri(first["nextUri"])).after.encode() == first["nextCursor"]
+    assert first["nextCursor"]
+    second = json.loads((await read(context, types.ReadResourceRequestParams(uri=first["nextUri"]))).contents[0].text)
     assert len(second["items"]) == 3
-    assert second["next_cursor"] is None and second["next_uri"] is None
+    assert second["nextCursor"] is None and second["nextUri"] is None
     assert len(calls) == 2
 
 
@@ -125,4 +130,57 @@ def test_report_cursor_and_schema_preserve_nanosecond_timestamp():
     decoded = ReportCursor.decode(cursor.encode())
     assert str(decoded.created_at) == text
     assert decoded.position().created_at.driver_value().dt == text
-    assert ReportCursor.model_json_schema()["properties"]["created_at"]["format"] == "date-time"
+    assert ReportCursor.model_json_schema()["properties"]["createdAt"]["format"] == "date-time"
+
+
+@pytest.mark.parametrize("kind", ["reports", "usage"])
+def test_v2_cursor_wire_refuses_v1_and_retired_mixed_positions(kind):
+    cls = ReportCursor if kind == "reports" else UsageCursor
+    value = {"version": 2, "collection": kind, "taskId": str(new_task_id())}
+    if kind == "reports": value["createdAt"] = "2026-10-05T00:00:00.123456789Z"
+    cursor = cls.decode(token(value))
+    assert json.loads(base64.urlsafe_b64decode(cursor.encode() + "=" * (-len(cursor.encode()) % 4))) == value
+    for bad in [dict(value, version=1), dict(value, unknownField=1), {k: v for k, v in value.items() if k != "taskId"}]:
+        with pytest.raises(ValueError): cls.decode(token(bad))
+    for current, retired in [("taskId", "task_id")] + ([("createdAt", "created_at")] if kind == "reports" else []):
+        old = dict(value)
+        old[retired] = old.pop(current)
+        for bad in [old, {**value, retired: value[current]}]:
+            with pytest.raises(ValueError): cls.decode(token(bad))
+
+
+async def test_usage_resource_handler_emits_current_aliases_and_v2_continuation(monkeypatch):
+    from jsonschema import Draft202012Validator
+
+    tasks = tuple(new_task_id() for _ in range(101))
+    calls = []
+
+    class Query:
+        def of_type(self, kind):
+            assert kind.value == "profile_dataset"
+            return self
+
+        def usage(self):
+            return self
+
+        async def page(self, after, limit):
+            calls.append((after, limit))
+            if after is None:
+                return SimpleNamespace(task_ids=tasks[:100], next_task_id=tasks[99])
+            assert after == tasks[99]
+            return SimpleNamespace(task_ids=tasks[100:], next_task_id=None)
+
+    server = authenticated_server(SimpleNamespace(for_owner=lambda _owner: Query()), monkeypatch)
+    read = server.get_request_handler("resources/read").handler
+    context = SimpleNamespace(session=SimpleNamespace(client_capabilities=None), meta=None)
+    first = json.loads((await read(context, types.ReadResourceRequestParams(uri=uris.USAGE_ROOT_URI))).contents[0].text)
+    Draft202012Validator(UsagePage.model_json_schema(mode="serialization")).validate(first)
+    assert set(first) == {"items", "limit", "nextCursor", "nextUri"}
+    assert first["items"][0] == {"taskId": str(tasks[0]), "usageUri": str(uris.TaskUsageResource(tasks[0]).to_uri())}
+    continuation = uris.parse_resource_uri(ResourceUri(first["nextUri"])).after
+    assert continuation.encode() == first["nextCursor"]
+    assert continuation.version == 2
+    second = json.loads((await read(context, types.ReadResourceRequestParams(uri=first["nextUri"]))).contents[0].text)
+    assert len(second["items"]) == 1
+    assert second["nextCursor"] is None and second["nextUri"] is None
+    assert len(calls) == 2

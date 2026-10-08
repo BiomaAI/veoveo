@@ -6,10 +6,12 @@ import json
 from typing import Literal, Self
 
 from pydantic import (
-    BaseModel, ConfigDict, Field, UUID7, computed_field,
+    ConfigDict, Field, UUID7, computed_field,
     field_serializer, model_validator,
 )
 from veoveo_mcp.tasks import TaskPageCursor, TaskStatus, TaskTimestamp
+
+from .contract import WireModel
 
 PAGE_SIZE = 100
 
@@ -23,9 +25,9 @@ def _unique_object(pairs):
     return result
 
 
-class _Cursor(BaseModel):
+class _Cursor(WireModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    version: Literal[1] = 1
+    version: Literal[2] = 2
 
     def encode(self) -> str:
         return base64.urlsafe_b64encode(self.model_dump_json().encode()).decode().rstrip("=")
@@ -58,11 +60,11 @@ class UsageCursor(_Cursor):
     task_id: UUID7
 
 
-class UsageEntry(BaseModel):
+class UsageEntry(WireModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     task_id: UUID7
 
-    @computed_field
+    @computed_field(alias="usageUri")
     @property
     def usage_uri(self) -> str:
         from .uris import usage_task_uri
@@ -76,7 +78,7 @@ class ReportEntry(UsageEntry):
     created_at: TaskTimestamp
 
 
-class ReportPage(BaseModel):
+class ReportPage(WireModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     items: tuple[ReportEntry, ...] = Field(max_length=PAGE_SIZE)
     limit: Literal[100] = PAGE_SIZE
@@ -96,7 +98,7 @@ class ReportPage(BaseModel):
     def cursor_wire(self, value: ReportCursor | None) -> str | None:
         return value.encode() if value is not None else None
 
-    @computed_field
+    @computed_field(alias="nextUri")
     @property
     def next_uri(self) -> str | None:
         from .uris import ReportCatalogResource
@@ -104,7 +106,7 @@ class ReportPage(BaseModel):
         return ReportCatalogResource(self.next_cursor).to_uri() if self.next_cursor else None
 
 
-class UsagePage(BaseModel):
+class UsagePage(WireModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     items: tuple[UsageEntry, ...] = Field(max_length=PAGE_SIZE)
     limit: Literal[100] = PAGE_SIZE
@@ -122,7 +124,7 @@ class UsagePage(BaseModel):
     def cursor_wire(self, value: UsageCursor | None) -> str | None:
         return value.encode() if value is not None else None
 
-    @computed_field
+    @computed_field(alias="nextUri")
     @property
     def next_uri(self) -> str | None:
         from .uris import UsageCatalogResource

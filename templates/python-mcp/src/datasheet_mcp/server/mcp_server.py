@@ -219,14 +219,14 @@ def build_mcp_server(state: AppState) -> Server:
                     task_id=page.next_cursor.task_id, created_at=page.next_cursor.created_at,
                 ) if page.next_cursor else None,
             )
-            return _json_result(text, response.model_dump(mode="json"))
+            return _json_result(text, response.model_dump(mode="json", by_alias=True))
         if isinstance(resource, uris.UsageCatalogResource):
             page = await query.usage().page(resource.after.task_id if resource.after else None, PAGE_SIZE)
             response = UsagePage(
                 items=tuple(UsageEntry(task_id=task) for task in page.task_ids),
                 next_cursor=UsageCursor(task_id=page.next_task_id) if page.next_task_id else None,
             )
-            return _json_result(text, response.model_dump(mode="json"))
+            return _json_result(text, response.model_dump(mode="json", by_alias=True))
         if isinstance(resource, uris.TaskUsageResource):
             task_id = resource.task_id
             records = await query.usage().get(task_id)
@@ -321,7 +321,7 @@ def build_mcp_server(state: AppState) -> Server:
 def _structured_result(text: str, output: Any) -> types.CallToolResult:
     return types.CallToolResult(
         content=[types.TextContent(type="text", text=text)],
-        structured_content=output.model_dump(mode="json", exclude_none=True),
+        structured_content=output.model_dump(mode="json", by_alias=True, exclude_none=True),
         is_error=False,
     )
 
