@@ -4,9 +4,11 @@
 
 | Boundary | Supported profile |
 |---|---|
+| `veoveo.ai/module-policy-dry-run-evidence/v1` | Private generation-one policy-only server dry-run report; supplied owner plan and rendered policy hashes; no installed lifecycle qualification |
 | `veoveo.ai/module-installation-evidence/v1` | Typed setup, installed DB/Job outcomes, runtime image observations, redacted failure excerpts and UID-owned cleanup |
 | Kubernetes `networking.k8s.io/v1` NetworkPolicy | Producer-only deny-all ingress/egress; positive and rejected native health probes qualify enforcement |
 | OCI distribution digest references | Maintained OCI parsing admits untagged SHA-256 gateway, manager and kernel images; the gateway image supplies the composition binding |
+| [kubectl v0.37.0 Invalid diagnostics](https://raw.githubusercontent.com/kubernetes/kubectl/v0.37.0/pkg/cmd/util/helpers.go) | Internal formatter profile admits `The <Kind> "<name>" is invalid` only for the selected resource; general stderr stays excluded |
 | Kubernetes admissionregistration `v1` | Actual chart ValidatingAdmissionPolicy and Binding objects restrict managed workload identities and configuration; UID-owned fixture cleanup |
 | SurrealDB 3.3.0 LIVE and Store authoring APIs | Privileged fixture publication/provision, ordered runtime lease observations and explicit owned LIVE query cancellation |
 | `veoveo.ai/module-selection/v1` and `veoveo.ai/module-plan/v1` | Checked camelCase JSON; optional selection, decimal-string generation, nonsecret credential revision and composition-generated lane/runtime bindings |
@@ -309,6 +311,49 @@ cargo xtask smoke module-installation-verify \
   --manager-image "$PINNED_MANAGER_IMAGE" \
   --kernel-image "$PINNED_KERNEL_IMAGE" \
   --evidence-output "$FIXTURE_EVIDENCE"
+```
+
+## Module Policy Diagnosis
+
+The existing `module-installation-verify` command accepts `--policy-server-dry-run`
+with `--policy-plan` for policy diagnosis. The input is a private regular file of
+at most 2 MiB decoded by the owning ModulePlan contract. Admission requires the
+fixture's generation-one Agents and Time selection, `fixture-runtime-1` credential
+revision and the supplied gateway image's composition digest. An operational
+receipt must separately establish that the pinned gateway image produced these
+bytes offline; accepting a supplied plan does not establish image provenance.
+
+This mode builds the same local fixture configuration and renders through the
+same Helm values path. It reads the selected Kubernetes server version and the
+existing API Service/Endpoints egress profile. It creates no Namespace, Secret,
+Job, Store or controller. Before sending any dry-run, it admits the complete
+nonempty rendered ValidatingAdmissionPolicy set. Each object must use
+`admissionregistration.k8s.io/v1`, have an admitted cluster-scoped name and contain
+a nonempty spec. Names must be distinct; the set has at most sixteen objects.
+Only this set reaches `kubectl create --dry-run=server --validate=strict`.
+The Kubernetes request deadline is ten seconds and each subprocess has twenty
+seconds. The first failed or unknown response stops the sequence without replay.
+
+An Invalid response must name the selected policy in kubectl's typed header before
+its validation cause enters the private report. The fixture replaces every owned
+secret's raw, JSON-escaped, base64 and URI-encoded forms before applying its 16 KiB
+limit. Unknown or mismatched headers retain their safe category while excluding
+stderr. General resource diagnostics continue to exclude stderr. Policy response
+admission checks the returned API version, kind and name. The report records the selected server version, all three image references and
+hashes of the supplied plan and rendered policies. It is a new
+create-only mode-0600 file under an existing private directory and sets
+`installationQualified` to false. Policy dry-run success establishes server
+validation for that rendered set; it does not establish admission enforcement,
+workload creation, migration, managed recovery or an installation generation.
+
+```sh
+deployment-smoke module-installation-verify \
+  --context "$FIXTURE_CONTEXT" \
+  --gateway-image "$PINNED_GATEWAY_IMAGE" \
+  --manager-image "$PINNED_MANAGER_IMAGE" \
+  --kernel-image "$PINNED_KERNEL_IMAGE" \
+  --policy-server-dry-run --policy-plan "$PRIVATE_MODULE_PLAN" \
+  --evidence-output "$PRIVATE_POLICY_EVIDENCE"
 ```
 
 ## Discovered Deployment Delivery

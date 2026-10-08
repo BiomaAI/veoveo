@@ -2,6 +2,7 @@
 mod assertions;
 mod fixture;
 mod managed;
+mod policy;
 mod process;
 
 use anyhow::{Context, Result, ensure};
@@ -48,6 +49,11 @@ pub(crate) struct Args {
     pub kernel_image: PinnedImage,
     #[arg(long)]
     pub evidence_output: PathBuf,
+    /// Diagnostic only: validate generation-one rendered policies without installation.
+    #[arg(long, requires = "policy_plan")]
+    pub policy_server_dry_run: bool,
+    #[arg(long, requires = "policy_server_dry_run")]
+    pub policy_plan: Option<PathBuf>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,6 +73,13 @@ struct Evidence {
 }
 
 pub(crate) fn verify(args: Args) -> Result<()> {
+    if args.policy_server_dry_run {
+        return policy::verify(&args);
+    }
+    ensure!(
+        args.policy_plan.is_none(),
+        "policy plan requires diagnostic-only mode"
+    );
     ensure!(
         !args.evidence_output.exists(),
         "evidence output already exists"

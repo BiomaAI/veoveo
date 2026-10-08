@@ -362,6 +362,7 @@ designs above.
 | `testing/deployment-smoke/src/helm_config/gitops.rs` | immutable OCI source and generated Helm values references, checked against the Bioma reference in both component-update directions |
 | `testing/deployment-smoke/src/helm_config/jobs.rs` | rendered initialization Job identity checks across Helm and chart revisions, complete spec changes, and long release names |
 | `testing/deployment-smoke/src/module_installation/` | digest-pinned gateway plan generation and actual chart Job lifecycle in an owned namespace; fresh preparation, credential rotation, disabled histories, stale-generation rejection and redacted failure diagnostics |
+| `testing/deployment-smoke/src/module_installation/policy.rs` | private generation-one ModulePlan admission, identical fixture chart render and policy-only server dry-run diagnostics; separate report never qualifies installation |
 | `testing/deployment-smoke/src/module_installation/managed/` | real gateway, manager and idle kernel fixture; production authoring setup, typed workload watches, database lease recovery, retained identity and volume content, and zero-episode checks through teardown |
 | `testing/deployment-smoke/src/helm_config/object_store.rs` | bundled RustFS worker configuration, schema rejection and separate process liveness/storage readiness probes |
 | `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation, mandatory Console and standalone App host preflights, and live-view recovery checks across container restarts |

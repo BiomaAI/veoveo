@@ -28,6 +28,8 @@ fn generated_configuration_is_admitted_and_der_key_signs_gateway_assertion() {
         manager_image: image("manager", 'b'),
         kernel_image: image("kernel", 'c'),
         evidence_output: directory.path().join("unused-evidence.json"),
+        policy_server_dry_run: false,
+        policy_plan: None,
     };
     let configuration = Configuration::create(&args, "fixture-recovery", directory.path()).unwrap();
     let registry = veoveo_gateway_catalog::registry().unwrap();
@@ -249,6 +251,8 @@ fn published_control_plane_supports_complete_fixture_provision() -> anyhow::Resu
         manager_image: image.parse().unwrap(),
         kernel_image: image.parse().unwrap(),
         evidence_output: directory.path().join("unused"),
+        policy_server_dry_run: false,
+        policy_plan: None,
     };
     let configuration = Configuration::create(&args, "fixture-recovery", directory.path())?;
     let runtime = tokio::runtime::Builder::new_multi_thread()

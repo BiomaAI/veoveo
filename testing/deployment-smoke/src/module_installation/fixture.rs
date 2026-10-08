@@ -147,7 +147,8 @@ impl Fixture {
         };
         Ok(fixture)
     }
-    pub fn initialize(&mut self) -> Result<()> {
+    /// Read only the selected server capabilities needed by the existing Helm render.
+    fn observe_server_version(&mut self) -> Result<()> {
         #[derive(Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct Versions {
@@ -164,9 +165,39 @@ impl Fixture {
         )?)?;
         ensure!(
             !version.server_version.git_version.is_empty(),
-            "selected server Kubernetes version absent"
+            "selected Kubernetes server version absent"
         );
         self.kube_version = Some(version.server_version.git_version);
+        Ok(())
+    }
+    pub(super) fn observe_policy_render_context(&mut self) -> Result<String> {
+        self.observe_server_version()?;
+        self.managed_config.api_egress = managed::Configuration::observe_api_egress(self)?;
+        Ok(self
+            .kube_version
+            .clone()
+            .expect("observed selected server version"))
+    }
+    pub(super) fn dry_run_policy(&mut self, policy: &super::policy::AdmittedPolicy) -> Result<()> {
+        let path = self.file(policy.object())?;
+        let resource = policy.resource();
+        let output = process::checked_policy_dry_run(
+            self.kubectl()
+                .args([
+                    "create",
+                    "--dry-run=server",
+                    "--validate=strict",
+                    "--output=json",
+                    "--filename",
+                ])
+                .arg(path),
+            resource,
+            |stderr| self.redact_diagnostics(String::from_utf8_lossy(stderr).into_owned()),
+        )?;
+        policy.admit_response(&output)
+    }
+    pub fn initialize(&mut self) -> Result<()> {
+        self.observe_server_version()?;
         let created = process::checked(
             self.kubectl()
                 .args(["create", "namespace", &self.namespace, "--output=json"]),
@@ -431,7 +462,7 @@ impl Fixture {
             json!({"installationPreset":"custom","components":["gateway","platform-store","agent-runtime-support"],"mcpServers":[],"global":{"production":true,"installationId":self.namespace,"publicBaseUrl":"https://gateway.invalid"},"gateway":{"image":{"repository":self.image.repository,"tag":"fixture","digest":self.image.digest.as_str()},"existingControlPlaneConfigMap":"fixture-control-plane","controlPlaneRevision":"1".repeat(64),"auditRetentionDays":1,"resources":{"requests":{"memory":"128Mi","cpu":"100m"},"limits":{"memory":"512Mi","cpu":"1"}},"agents":{"models":[config.model],"templates":[config.template],"modelSecrets":{"VEOVEO_AGENT_MODEL_FIXTURE_KEY":{"existingSecret":"fixture-model","key":"api-key"}}}},"agentManager":{"namespace":config.namespace,"image":{"repository":config.manager_image.repository,"tag":"fixture","digest":config.manager_image.digest.as_str()},"existingControlPlaneConfigMap":"fixture-control-plane","kubernetesApiEgress":config.api_egress,"modelEgress":[]},"surrealdb":{"namespace":"fixture","database":"installation"},"moduleInstallation":{"planJson":std::str::from_utf8(raw)?}}),
         )
     }
-    fn render(&mut self, plan: ModulePlanDocument, raw: &[u8]) -> Result<Render> {
+    pub(super) fn render(&mut self, plan: ModulePlanDocument, raw: &[u8]) -> Result<Render> {
         let values = self.chart_values(raw)?;
         let path = self.file(&values)?;
         let rendered = process::checked_redacted(
@@ -864,14 +895,31 @@ impl Fixture {
         }
         Ok(self.redact_diagnostics(output))
     }
-    fn redact_diagnostics(&self, mut output: String) -> String {
+    pub(super) fn redact_diagnostics(&self, mut output: String) -> String {
         for secret in std::iter::once(&self.root_password)
             .chain(std::iter::once(&self.runtime_password))
             .chain(self.prior_passwords.iter())
             .chain(self.managed_config.installation_secrets.values())
         {
             if !secret.is_empty() {
-                output = output.replace(secret, "[REDACTED]");
+                use base64::Engine;
+                let quoted = serde_json::to_string(secret).expect("fixture secret serialization");
+                let mut forms = vec![
+                    secret.clone(),
+                    quoted[1..quoted.len() - 1].to_owned(),
+                    base64::engine::general_purpose::STANDARD.encode(secret),
+                    base64::engine::general_purpose::STANDARD_NO_PAD.encode(secret),
+                    base64::engine::general_purpose::URL_SAFE.encode(secret),
+                    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(secret),
+                    url::form_urlencoded::byte_serialize(secret.as_bytes()).collect::<String>(),
+                ];
+                forms.sort_by_key(|form| std::cmp::Reverse(form.len()));
+                forms.dedup();
+                for form in forms {
+                    if !form.is_empty() {
+                        output = output.replace(&form, "[REDACTED]");
+                    }
+                }
             }
         }
         let end = output
@@ -1057,6 +1105,8 @@ mod tests {
             manager_image: image.parse().map_err(anyhow::Error::msg)?,
             kernel_image: image.parse().map_err(anyhow::Error::msg)?,
             evidence_output: "unused".into(),
+            policy_server_dry_run: false,
+            policy_plan: None,
         })?;
         let resource = fixture.resource(&json!({"kind":"Secret","metadata":{"name":"credentials","namespace":"fixture-agent"},"stringData":{"password":"secret-sentinel"}}))?;
         let diagnostic = format!("{resource:?}");
@@ -1086,9 +1136,14 @@ mod tests {
             manager_image: image.parse().unwrap(),
             kernel_image: image.parse().unwrap(),
             evidence_output: std::path::PathBuf::from("unused"),
+            policy_server_dry_run: false,
+            policy_plan: None,
         };
         let mut fixture = Fixture::create(&args)?;
         fixture.prior_passwords.push("prior-test-password".into());
+        fixture
+            .prior_passwords
+            .push("private-quote\"/plus+\nkey-line".into());
         let secrets: Vec<_> = std::iter::once(&fixture.root_password)
             .chain(std::iter::once(&fixture.runtime_password))
             .chain(fixture.prior_passwords.iter())
@@ -1103,6 +1158,30 @@ mod tests {
             cleanup.contains("observe owned namespace deletion: kubectl timeout: inner [REDACTED]")
         );
         assert!(!cleanup.contains(&fixture.runtime_password));
+        use base64::Engine;
+        let forms = secrets
+            .iter()
+            .flat_map(|secret| {
+                let quoted = serde_json::to_string(secret).unwrap();
+                vec![
+                    secret.clone(),
+                    quoted[1..quoted.len() - 1].to_owned(),
+                    base64::engine::general_purpose::STANDARD.encode(secret),
+                    base64::engine::general_purpose::STANDARD_NO_PAD.encode(secret),
+                    base64::engine::general_purpose::URL_SAFE.encode(secret),
+                    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(secret),
+                    url::form_urlencoded::byte_serialize(secret.as_bytes()).collect::<String>(),
+                ]
+            })
+            .collect::<Vec<_>>();
+        let redacted = fixture.redact_diagnostics(format!(
+            "spec.validations[0].expression: {}",
+            forms.join("\n")
+        ));
+        assert!(redacted.starts_with("spec.validations[0].expression:"));
+        for form in &forms {
+            assert!(!redacted.contains(form));
+        }
         let input = secrets
             .iter()
             .map(|secret| secret.as_str())
@@ -1167,6 +1246,8 @@ mod tests {
             manager_image: image("manager", 'b'),
             kernel_image: image("kernel", 'c'),
             evidence_output: std::path::PathBuf::from("unused-evidence.json"),
+            policy_server_dry_run: false,
+            policy_plan: None,
         };
         let mut fixture = Fixture::create(&args)?;
         fixture.kube_version = Some("v1.37.0".into());
@@ -1245,10 +1326,41 @@ mod tests {
                     .any(|name| name.as_str() == "media"),
                 index == 2
             );
+            if index == 0 {
+                super::super::policy::admit_plan(&plan, &args)?;
+                let input = fixture.directory.path().join("policy-plan.json");
+                fs::write(&input, serde_json::to_vec(&plan)?)?;
+                fs::set_permissions(&input, fs::Permissions::from_mode(0o600))?;
+                let (admitted, _) = super::super::policy::read_plan(&input, &args)?;
+                assert_eq!(admitted, plan);
+                let mut wrong_args = Args {
+                    context: args.context.clone(),
+                    gateway_image: format!("registry.invalid/wrong@sha256:{}", "d".repeat(64))
+                        .parse()
+                        .unwrap(),
+                    manager_image: args.manager_image.clone(),
+                    kernel_image: args.kernel_image.clone(),
+                    evidence_output: args.evidence_output.clone(),
+                    policy_server_dry_run: true,
+                    policy_plan: None,
+                };
+                assert!(super::super::policy::admit_plan(&plan, &wrong_args).is_err());
+                wrong_args.gateway_image = args.gateway_image.clone();
+                let mut wire = serde_json::to_value(&plan)?;
+                wire["credentialRevision"] = json!("foreign-revision");
+                let wrong_revision: ModulePlanDocument = serde_json::from_value(wire)?;
+                assert!(super::super::policy::admit_plan(&wrong_revision, &wrong_args).is_err());
+            } else {
+                assert!(super::super::policy::admit_plan(&plan, &args).is_err());
+            }
             let raw = serde_json::to_vec(&plan)?;
             let rendered = fixture
                 .render(plan, &raw)
                 .with_context(|| format!("native generation {} chart", index + 1))?;
+            if index == 0 {
+                let policies = super::super::policy::select_policies(&rendered.objects)?;
+                assert!(!policies.is_empty());
+            }
             let publication = rendered
                 .objects
                 .iter()

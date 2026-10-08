@@ -139,6 +139,7 @@ pub(super) enum KubernetesPurpose {
     FixtureObject,
     ManagedInstallation,
     InstallationJobObservation,
+    PolicyServerDryRun,
 }
 #[derive(Clone, Copy, Debug)]
 enum KubernetesResourceKind {
@@ -223,10 +224,23 @@ enum KubernetesFailureCategory {
     BadRequest,
     Unclassified,
 }
-fn kubernetes_failure_category(stderr: &[u8]) -> KubernetesFailureCategory {
+fn invalid_header_matches(text: &str, resource: &KubernetesResource) -> bool {
+    let header = format!("The {:?} {:?} is invalid", resource.kind, resource.name);
+    text.strip_prefix(&header)
+        .is_some_and(|suffix| suffix.is_empty() || suffix == "\n" || suffix.starts_with(": "))
+}
+fn kubernetes_failure_category(
+    stderr: &[u8],
+    resource: &KubernetesResource,
+) -> KubernetesFailureCategory {
     let Ok(text) = std::str::from_utf8(stderr) else {
         return KubernetesFailureCategory::Unclassified;
     };
+    // kubectl v0.37.0 formats typed Invalid separately from StandardErrorMessage.
+    // Bind its header to our admitted request identity; never echo the suffix here.
+    if invalid_header_matches(text, resource) {
+        return KubernetesFailureCategory::Invalid;
+    }
     [
         ("Invalid", KubernetesFailureCategory::Invalid),
         ("Forbidden", KubernetesFailureCategory::Forbidden),
@@ -272,8 +286,72 @@ fn kubernetes_command(
     checked_with_diagnostics(command, seconds, &phase, |stderr| {
         format!(
             "Kubernetes category {:?}; stderr excluded to protect credentials",
-            kubernetes_failure_category(stderr)
+            kubernetes_failure_category(stderr, resource)
         )
+    })
+}
+/// Only admitted policy dry-run validation can retain redacted API causes.
+pub(super) fn checked_policy_dry_run(
+    command: &mut Command,
+    resource: &KubernetesResource,
+    redact: impl FnOnce(&[u8]) -> String,
+) -> Result<Vec<u8>> {
+    ensure!(
+        program(command) == "kubectl",
+        "policy dry-run requires kubectl"
+    );
+    ensure!(
+        matches!(
+            resource.kind,
+            KubernetesResourceKind::ValidatingAdmissionPolicy
+        ) && resource.namespace.is_none(),
+        "policy dry-run requires an admitted cluster policy"
+    );
+    let args = command
+        .get_args()
+        .filter_map(|arg| arg.to_str())
+        .collect::<Vec<_>>();
+    ensure!(
+        args.len() == 11
+            && args[0] == "--context"
+            && !args[1].is_empty()
+            && args[2] == "--namespace"
+            && !args[3].is_empty()
+            && args[4] == "--request-timeout=10s"
+            && args[5..10]
+                == [
+                    "create",
+                    "--dry-run=server",
+                    "--validate=strict",
+                    "--output=json",
+                    "--filename"
+                ]
+            && !args[10].is_empty(),
+        "policy dry-run command profile differs"
+    );
+    policy_dry_run_command(command, resource, redact)
+}
+fn policy_dry_run_command(
+    command: &mut Command,
+    resource: &KubernetesResource,
+    redact: impl FnOnce(&[u8]) -> String,
+) -> Result<Vec<u8>> {
+    let phase = format!(
+        "{:?}: Create {:?} cluster/{}",
+        KubernetesPurpose::PolicyServerDryRun,
+        resource.kind,
+        resource.name
+    );
+    checked_with_diagnostics(command, 20, &phase, |stderr| {
+        let category = kubernetes_failure_category(stderr, resource);
+        let cause = if std::str::from_utf8(stderr)
+            .is_ok_and(|text| invalid_header_matches(text, resource))
+        {
+            redact(stderr)
+        } else {
+            "stderr excluded: response has no admitted policy Invalid header".into()
+        };
+        format!("Kubernetes category {category:?}; {cause}")
     })
 }
 /// Only the fixture-owned Helm values boundary opts into redacted stderr.
@@ -380,6 +458,45 @@ impl Background {
 mod tests {
     use super::*;
     #[test]
+    fn kubectl_invalid_formatter_is_classified_without_disclosing_validation_suffix() {
+        let resource =
+            KubernetesResource::new("Deployment", Some("fixture"), "managed-runtime").unwrap();
+        let payload =
+            b"The Deployment \"managed-runtime\" is invalid: spec.template: secret-sentinel";
+        assert_eq!(
+            kubernetes_failure_category(payload, &resource),
+            KubernetesFailureCategory::Invalid
+        );
+        let error = kubernetes_command(
+            Command::new("sh").args([
+                "-c",
+                "printf '%s' \"$1\" >&2; exit 1",
+                "fixture",
+                std::str::from_utf8(payload).unwrap(),
+            ]),
+            2,
+            KubernetesPurpose::ManagedInstallation,
+            KubernetesOperation::Create,
+            &resource,
+        )
+        .unwrap_err();
+        let diagnostic = format!("{error:#}");
+        assert!(diagnostic.contains("Kubernetes category Invalid"));
+        assert!(!diagnostic.contains("secret-sentinel"));
+        for payload in [
+            "The Deployment \"foreign\" is invalid: private",
+            "The Secret \"managed-runtime\" is invalid: private",
+            "The Deployment \"managed-runtime\" is invalidity: private",
+            "prefix The Deployment \"managed-runtime\" is invalid: private",
+            "The request is invalid: private",
+        ] {
+            assert_eq!(
+                kubernetes_failure_category(payload.as_bytes(), &resource),
+                KubernetesFailureCategory::Unclassified
+            );
+        }
+    }
+    #[test]
     fn kubernetes_failure_preserves_resource_and_status_without_child_content() -> Result<()> {
         let resource =
             KubernetesResource::new("Secret", Some("fixture-agent"), "runtime-credentials")?;
@@ -443,8 +560,92 @@ mod tests {
             assert!(!diagnostic.contains("secret-sentinel"));
         }
         assert_eq!(
-            kubernetes_failure_category(&[0xff]),
+            kubernetes_failure_category(&[0xff], &resource),
             KubernetesFailureCategory::Unclassified
+        );
+        Ok(())
+    }
+    #[test]
+    fn policy_dry_run_cause_is_bound_to_admitted_header_and_other_kinds_never_dispatch()
+    -> Result<()> {
+        let resource = KubernetesResource::new("ValidatingAdmissionPolicy", None, "owned-policy")?;
+        let payload = "The ValidatingAdmissionPolicy \"owned-policy\" is invalid: spec.validations[0].expression: private-token";
+        let error = policy_dry_run_command(
+            Command::new("sh").args(["-c", "printf '%s' \"$1\" >&2; exit 1", "fixture", payload]),
+            &resource,
+            |stderr| String::from_utf8_lossy(stderr).replace("private-token", "[REDACTED]"),
+        )
+        .unwrap_err();
+        let diagnostic = format!("{error:#}");
+        assert!(
+            diagnostic.contains(
+                "PolicyServerDryRun: Create ValidatingAdmissionPolicy cluster/owned-policy"
+            )
+        );
+        assert!(diagnostic.contains("Kubernetes category Invalid"));
+        assert!(diagnostic.contains("spec.validations[0].expression: [REDACTED]"));
+        assert!(!diagnostic.contains("private-token"));
+        for payload in [
+            "unknown private-token",
+            "The ValidatingAdmissionPolicy \"foreign\" is invalid: private-token",
+        ] {
+            let error = policy_dry_run_command(
+                Command::new("sh").args([
+                    "-c",
+                    "printf '%s' \"$1\" >&2; exit 1",
+                    "fixture",
+                    payload,
+                ]),
+                &resource,
+                |_| panic!("untrusted response must not enter cause retention"),
+            )
+            .unwrap_err();
+            let diagnostic = format!("{error:#}");
+            assert!(diagnostic.contains("Unclassified"));
+            assert!(!diagnostic.contains("private-token"));
+        }
+        for kind in [
+            "Secret",
+            "Namespace",
+            "Deployment",
+            "Job",
+            "ValidatingAdmissionPolicyBinding",
+        ] {
+            let foreign = KubernetesResource::new(kind, None, "owned-policy")?;
+            let error = checked_policy_dry_run(&mut Command::new("kubectl"), &foreign, |_| {
+                panic!("foreign resource must refuse before spawn")
+            })
+            .unwrap_err();
+            assert!(format!("{error:#}").contains("requires an admitted cluster policy"));
+        }
+        assert!(
+            checked_policy_dry_run(
+                Command::new("kubectl").arg("create"),
+                &resource,
+                |_| panic!("missing server dry-run must refuse before spawn")
+            )
+            .is_err()
+        );
+        let mut tampered = Command::new("kubectl");
+        tampered.args([
+            "--context",
+            "owned",
+            "--namespace",
+            "fixture",
+            "--request-timeout=10s",
+            "create",
+            "--dry-run=server",
+            "--validate=strict",
+            "--output=json",
+            "--filename",
+            "/private/policy.json",
+            "--dry-run=none",
+        ]);
+        assert!(
+            checked_policy_dry_run(&mut tampered, &resource, |_| panic!(
+                "overriding dry-run must refuse before spawn"
+            ))
+            .is_err()
         );
         Ok(())
     }
