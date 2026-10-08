@@ -10,33 +10,35 @@ path = "src/lib.rs"
 [[bin]]
 name = "sumo-mcp"
 path = "src/bin/server.rs"
+required-features = ["mcp"]
 
 [dependencies]
-veoveo-artifact-contract.workspace = true
-veoveo-types.workspace = true
-anyhow.workspace = true
-axum.workspace = true
-chrono.workspace = true
-clap.workspace = true
-dotenvy.workspace = true
-futures.workspace = true
-re_sdk.workspace = true
-re_sdk_types.workspace = true
-rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
-rustls.workspace = true
-schemars.workspace = true
-secrecy.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-tokio = { workspace = true, features = ["full"] }
-tokio-util.workspace = true
-tower-http.workspace = true
-traci-rs.workspace = true
-tracing.workspace = true
-uuid.workspace = true
-veoveo-mcp-contract = { workspace = true, features = ["runtime"] }
-veoveo-artifact-client = { path = "../../../platform/artifacts/client" }
-veoveo-task-runtime = { path = "../../../platform/task-runtime" }
+veoveo-artifact-contract = { workspace = true, optional = true }
+veoveo-types = { workspace = true, optional = true }
+anyhow = { workspace = true, optional = true }
+axum = { workspace = true, optional = true }
+chrono = { workspace = true, optional = true }
+clap = { workspace = true, optional = true }
+dotenvy = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+re_sdk = { workspace = true, optional = true }
+re_sdk_types = { workspace = true, optional = true }
+rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"], optional = true }
+rustls = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
+secrecy = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["full"], optional = true }
+tokio-util = { workspace = true, optional = true }
+tower-http = { workspace = true, optional = true }
+traci-rs = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+veoveo-mcp-contract = { workspace = true, features = ["runtime"], optional = true }
+veoveo-artifact-client = { path = "../../../platform/artifacts/client", optional = true }
+veoveo-task-runtime = { path = "../../../platform/task-runtime", optional = true }
+
 
 [dev-dependencies]
 veoveo-mcp-contract = { workspace = true, features = ["runtime", "testing"] }
@@ -45,3 +47,7 @@ tempfile = "3"
 tower = { workspace = true, features = ["util"] }
 
 [features]
+default = ["mcp"]
+contract = ["dep:veoveo-artifact-contract", "dep:veoveo-types", "dep:schemars", "dep:serde"]
+runtime = ["contract", "dep:anyhow", "dep:re_sdk", "dep:re_sdk_types", "dep:traci-rs"]
+mcp = ["runtime", "dep:axum", "dep:chrono", "dep:clap", "dep:dotenvy", "dep:futures", "dep:rmcp", "dep:rustls", "dep:secrecy", "dep:serde_json", "dep:tokio", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:uuid", "dep:veoveo-mcp-contract", "dep:veoveo-artifact-client", "dep:veoveo-task-runtime"]

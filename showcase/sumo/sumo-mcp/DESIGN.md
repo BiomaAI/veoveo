@@ -4,6 +4,18 @@
 
 The server implements the Veoveo hosted MCP contract revision 4 over MCP 2026-07-28 Streamable HTTP. JSON resources and Schemars-generated tool arguments describe traffic state and controls. Forwarded gateway assertions authenticate the installation profile and server audience. SUMO TraCI supplies the simulation control protocol; Rerun carries recording products. The knowledge-source extension describes embedded owner documentation, with installed collection qualification declared separately in the owner profile.
 
+## Library Profiles
+
+The `contract` feature exposes the current traffic DTOs and `SumoTaskKind` with
+defaults disabled. Its normal/build graph excludes MCP, Task services, TraCI,
+Recording, Rerun and asynchronous runtime implementations. `runtime` selects the
+driver and recording adapter. The default `mcp` profile adds the hosted server
+and preserves its operational dependencies; the binary requires that feature.
+
+The current traffic DTOs and Task operation wire names use snake_case. C33 naming
+qualification is pending; this library profile preserves those forms and does not
+establish the canonical naming cut.
+
 ## Runtime And Ownership
 
 The server holds one simulation driver and publishes its recording through the configured recording proxy. Live controls share that driver. Durable offline operations use the shared Task runtime and Artifact plane, with recorded operation identity and recovery. The server keeps gateway authentication on both MCP and administrative routes. The simulation driver and GPU/provider acceptance keep their existing prerequisites.

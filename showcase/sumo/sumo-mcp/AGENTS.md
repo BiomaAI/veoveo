@@ -10,7 +10,11 @@ Authenticate forwarded internal identity before domain access. Preserve task fen
 
 ## Build And Test
 
-Use the owning Rust contract and deployment tests for protocol checks. Simulation and GPU acceptance run separately with their explicit prerequisites.
+Use `cargo check --locked -p veoveo-sumo-mcp --all-targets` for the full profile and
+`cargo check --locked -p veoveo-sumo-mcp --no-default-features --features contract --lib`
+for the public library. `cargo xtask enforce rust --boundaries-only` inspects its
+independent contract normal/build graph. The owning deployment-contract tests verify
+the preserved DTO schema and Task names; canonical naming qualification is pending. Simulation and GPU acceptance run separately with their explicit prerequisites.
 
 ## Contract Compliance
 
