@@ -16808,6 +16808,7 @@ dependencies = [
  "futures",
  "reqwest 0.13.5",
  "rustls",
+ "schemars 1.2.2",
  "secrecy",
  "serde",
  "serde_json",

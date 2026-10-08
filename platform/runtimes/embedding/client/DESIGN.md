@@ -8,6 +8,7 @@
 | [vLLM 0.31.0 pooling API](https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/entrypoints/pooling/base/protocol.py) | String batches, native-dimension float output, `use_activation` and scalar request priority |
 | [Qwen3 Embedding model card](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/blob/97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3/README.md) | Document text unchanged; queries use the model's instruction prefix and `Query:` without an added space |
 | [Veoveo embedding contract](../contract/DESIGN.md) | Typed input bounds, model identity, embedding spaces and finite normalized vectors |
+| `veoveo.ai/embedding-reference/v2` | Basic Python GPU reference JSON: closed schema marker, checkpoint digest, typed generator provenance, task and query/document samples |
 
 ## Configuration And Identity
 
@@ -75,6 +76,18 @@ servers on drop. They check query formatting, model and vector admission, stream
 limits, secret-safe errors, redirect refusal, shared request limits and deadlines.
 These checks provide no GPU, pooling or retrieval-quality acceptance. Those requirements
 belong to the [runtime verification](../DESIGN.md#verification).
+
+The existing `gpu` target also runs CPU admission controls against the packaged basic
+reference fixture. Its decoder requires the v2 schema and every generator field before
+reading an endpoint or API-key file or connecting to a runtime. It rejects unknown,
+duplicate, missing and retired fields, including mixed marker profiles. Generator
+precision must be `float16` or `bfloat16` and match the declared space; both sample
+sets must be nonempty and every vector passes the shared numeric admission. Runtime
+versions and the NVIDIA GPU name use the embedding contract types. These checks admit
+reported provenance; they do not attest its measurements or qualify current hardware.
+Candidate measurement reports use their separate decoder and format. The Python
+producer and its reference bytes keep their existing v2 identity. Operators must supply
+a matching v2 reference rather than relabel a retained report.
 
 
 ### First Qualification
