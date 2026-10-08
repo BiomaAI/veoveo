@@ -61,7 +61,7 @@ impl Service {
             }
             filesystem.restore(&request.target).await?;
         }
-        self.docker.ensure_volume(&name).await?;
+        self.docker.inspect_volume(&name).await?;
         Ok(capacity)
     }
 }

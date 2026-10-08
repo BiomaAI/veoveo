@@ -54,6 +54,7 @@ fn prepare_result<T>(home: &HomeIdentity, stage: PrepareStage, result: Result<T>
 
 pub struct Service {
     pub(crate) filesystem: Mutex<Filesystem>,
+    preparation: Mutex<()>,
     pub(crate) docker: Docker,
     provider_id: veoveo_computers_runtime::ProviderInstanceId,
     templates: BTreeMap<String, u64>,
@@ -96,6 +97,7 @@ impl Service {
         }
         Ok(Arc::new(Self {
             filesystem: Mutex::new(filesystem),
+            preparation: Mutex::new(()),
             docker,
             provider_id,
             templates: admitted,
@@ -135,6 +137,27 @@ impl Service {
             PrepareStage::EngineAdmission,
             self.docker.verify_engine().await,
         )?;
+        // Serialize Prepare without holding the plugin callback's filesystem
+        // mutex across Engine requests. Fresh publication must follow absence.
+        let _preparation = self.preparation.lock().await;
+        let volume = prepare_result(
+            &home,
+            PrepareStage::VolumeAdmission,
+            volume_name(home.computer_id),
+        )?;
+        let fresh = {
+            let filesystem = self.filesystem.lock().await;
+            filesystem.journal().load(home.computer_id)?.is_none()
+        };
+        let absent = if fresh {
+            Some(prepare_result(
+                &home,
+                PrepareStage::VolumeAdmission,
+                self.docker.admit_absent_volume(home.computer_id).await,
+            )?)
+        } else {
+            None
+        };
         {
             let mut filesystem = self.filesystem.lock().await;
             prepare_result(
@@ -143,16 +166,11 @@ impl Service {
                 filesystem.prepare(home.clone(), capacity).await,
             )?;
         }
-        let volume = prepare_result(
-            &home,
-            PrepareStage::VolumeAdmission,
-            volume_name(home.computer_id),
-        )?;
-        prepare_result(
-            &home,
-            PrepareStage::VolumeAdmission,
-            self.docker.ensure_volume(&volume).await,
-        )?;
+        let admission = match absent {
+            Some(absent) => self.docker.create_admitted_volume(absent).await,
+            None => self.docker.inspect_volume(&volume).await,
+        };
+        prepare_result(&home, PrepareStage::VolumeAdmission, admission)?;
         Ok(capacity)
     }
     pub async fn restore(&self, home: HomeIdentity) -> Result<u64> {
@@ -170,7 +188,7 @@ impl Service {
             filesystem.restore(&home).await?;
         }
         self.docker
-            .ensure_volume(&volume_name(home.computer_id)?)
+            .inspect_volume(&volume_name(home.computer_id)?)
             .await?;
         Ok(capacity)
     }

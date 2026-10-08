@@ -34,6 +34,13 @@ impl RemovedWriter {
 const API: &str = "http://localhost/v1.53";
 const MAX_RESPONSE: usize = 1024 * 1024;
 
+/// Observed before a fresh filesystem allocation becomes visible to the plugin.
+/// This authorizes one Create request, not adoption of a raced existing volume.
+pub(crate) struct AbsentVolume {
+    computer_id: Uuid,
+    engine_id: Uuid,
+}
+
 #[derive(Clone)]
 pub struct Docker {
     client: Client,
@@ -157,10 +164,57 @@ impl Docker {
             .map_err(|_| StorageError::BackendUnavailable)?;
         decode(response).await
     }
-    /// Called without the filesystem mutex: Create calls this plugin back.
-    /// A lost mutation reply returns uncertainty. A later call first reads the
-    /// exact name, and cannot adopt another driver, options or external-resource claims.
-    pub async fn ensure_volume(&self, name: &str) -> Result<()> {
+    pub(crate) async fn admit_absent_volume(&self, computer_id: Uuid) -> Result<AbsentVolume> {
+        let name = crate::service::volume_name(computer_id)?;
+        self.verify_engine().await?;
+        let response = self
+            .client
+            .get(format!("{API}/volumes/{name}"))
+            .send()
+            .await
+            .map_err(|_| StorageError::BackendUnavailable)?;
+        if response.status() != StatusCode::NOT_FOUND {
+            response
+                .error_for_status()
+                .map_err(|_| StorageError::BackendUnavailable)?;
+            return Err(StorageError::IdentityMismatch);
+        }
+        self.verify_engine().await?;
+        Ok(AbsentVolume {
+            computer_id,
+            engine_id: self.engine_id,
+        })
+    }
+
+    /// Filesystem Ready publication follows absence admission. A discovery GET
+    /// here would cache the plugin's volume before Engine approval labels exist.
+    /// Create remains outside the filesystem mutex for plugin callbacks.
+    pub(crate) async fn create_admitted_volume(&self, absent: AbsentVolume) -> Result<()> {
+        if absent.engine_id != self.engine_id {
+            return Err(StorageError::IdentityMismatch);
+        }
+        let name = crate::service::volume_name(absent.computer_id)?;
+        self.verify_engine().await?;
+        let response = self
+            .client
+            .post(format!("{API}/volumes/create"))
+            .json(&Create {
+                name: &name,
+                driver: &self.driver,
+                labels: RetainedVolumeAdmission::DEFAULT.labels(),
+            })
+            .send()
+            .await
+            .map_err(|_| StorageError::BackendUnavailable)?;
+        let volume: Volume = decode(response).await?;
+        self.admit_volume(&name, volume)?;
+        self.verify_engine().await?;
+        Ok(())
+    }
+
+    /// Reuse never dispatches Create. A missing observation after publication or
+    /// a lost Create reply preserves the allocation and requires recovery.
+    pub async fn inspect_volume(&self, name: &str) -> Result<()> {
         crate::service::volume_id(name)?;
         self.verify_engine().await?;
         let response = self
@@ -169,22 +223,15 @@ impl Docker {
             .send()
             .await
             .map_err(|_| StorageError::BackendUnavailable)?;
-        let volume: Volume = if response.status() == StatusCode::NOT_FOUND {
-            let created = self
-                .client
-                .post(format!("{API}/volumes/create"))
-                .json(&Create {
-                    name,
-                    driver: &self.driver,
-                    labels: RetainedVolumeAdmission::DEFAULT.labels(),
-                })
-                .send()
-                .await
-                .map_err(|_| StorageError::BackendUnavailable)?;
-            decode(created).await?
-        } else {
-            decode(response).await?
-        };
+        if response.status() == StatusCode::NOT_FOUND {
+            return Err(StorageError::RecoveryRequired);
+        }
+        let volume: Volume = decode(response).await?;
+        self.admit_volume(name, volume)?;
+        self.verify_engine().await?;
+        Ok(())
+    }
+    fn admit_volume(&self, name: &str, volume: Volume) -> Result<()> {
         if volume.name != name
             || volume.driver != self.driver
             || volume.options.is_some_and(|options| !options.is_empty())
@@ -195,7 +242,6 @@ impl Docker {
         {
             return Err(StorageError::IdentityMismatch);
         }
-        self.verify_engine().await?;
         Ok(())
     }
 }

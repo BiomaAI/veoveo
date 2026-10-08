@@ -80,6 +80,9 @@ struct VolumeDaemon {
     replacement: Option<Uuid>,
     info_calls: usize,
     volume: Option<serde_json::Value>,
+    plugin_visible: Option<serde_json::Value>,
+    gets: usize,
+    get_status: Option<StatusCode>,
     created: serde_json::Value,
     create_status: StatusCode,
     creates: Vec<serde_json::Value>,
@@ -105,6 +108,9 @@ async fn volume_daemon(
         replacement,
         info_calls: 0,
         volume,
+        plugin_visible: None,
+        gets: 0,
+        get_status: None,
         created,
         create_status,
         creates: Vec::new(),
@@ -127,7 +133,15 @@ async fn volume_daemon(
         .route(
             "/v1.53/volumes/{name}",
             get(|State(state): State<Arc<Mutex<VolumeDaemon>>>| async move {
-                match state.lock().unwrap().volume.clone() {
+                let mut state = state.lock().unwrap();
+                state.gets += 1;
+                if let Some(status) = state.get_status {
+                    return status.into_response();
+                }
+                if state.volume.is_none() {
+                    state.volume = state.plugin_visible.clone();
+                }
+                match state.volume.clone() {
                     Some(volume) => Json(volume).into_response(),
                     None => StatusCode::NOT_FOUND.into_response(),
                 }
@@ -140,8 +154,10 @@ async fn volume_daemon(
                  Json(request): Json<serde_json::Value>| async move {
                     let mut state = state.lock().unwrap();
                     state.creates.push(request);
-                    state.volume = Some(state.created.clone());
-                    (state.create_status, Json(state.created.clone()))
+                    if state.volume.is_none() {
+                        state.volume = Some(state.created.clone());
+                    }
+                    (state.create_status, Json(state.volume.clone().unwrap()))
                 },
             ),
         )
@@ -159,13 +175,20 @@ fn approved_volume(name: &str) -> serde_json::Value {
     }})
 }
 
+async fn create_fresh(docker: &Docker, name: &str) -> Result<()> {
+    let absent = docker
+        .admit_absent_volume(crate::service::volume_id(name)?)
+        .await?;
+    docker.create_admitted_volume(absent).await
+}
+
 #[tokio::test]
 async fn created_volume_carries_provider_approval_and_correct_volume_reuses_without_mutation() {
     let name = crate::service::volume_name(Uuid::now_v7()).unwrap();
     let (_directory, docker, state, server) =
         volume_daemon(None, approved_volume(&name), None, StatusCode::CREATED).await;
-    docker.ensure_volume(&name).await.unwrap();
-    docker.ensure_volume(&name).await.unwrap();
+    create_fresh(&docker, &name).await.unwrap();
+    docker.inspect_volume(&name).await.unwrap();
     {
         let state = state.lock().unwrap();
         assert_eq!(
@@ -177,7 +200,7 @@ async fn created_volume_carries_provider_approval_and_correct_volume_reuses_with
                 }})
             ]
         );
-        assert_eq!(state.info_calls, 4);
+        assert_eq!(state.info_calls, 6);
     }
     server.abort();
     let _ = server.await;
@@ -187,7 +210,7 @@ async fn created_volume_carries_provider_approval_and_correct_volume_reuses_with
     reused["Options"] = serde_json::json!({});
     let (_directory, docker, state, server) =
         volume_daemon(Some(reused.clone()), reused, None, StatusCode::CREATED).await;
-    docker.ensure_volume(&name).await.unwrap();
+    docker.inspect_volume(&name).await.unwrap();
     assert!(state.lock().unwrap().creates.is_empty());
     server.abort();
     let _ = server.await;
@@ -219,7 +242,7 @@ async fn inspected_or_created_unapproved_volume_never_adopts_relabels_or_recreat
         )
         .await;
         assert!(matches!(
-            docker.ensure_volume(&name).await,
+            docker.inspect_volume(&name).await,
             Err(StorageError::IdentityMismatch)
         ));
         assert!(state.lock().unwrap().creates.is_empty());
@@ -229,11 +252,11 @@ async fn inspected_or_created_unapproved_volume_never_adopts_relabels_or_recreat
         let (_directory, docker, state, server) =
             volume_daemon(None, rejected, None, StatusCode::CREATED).await;
         assert!(matches!(
-            docker.ensure_volume(&name).await,
+            create_fresh(&docker, &name).await,
             Err(StorageError::IdentityMismatch)
         ));
         assert!(matches!(
-            docker.ensure_volume(&name).await,
+            docker.inspect_volume(&name).await,
             Err(StorageError::IdentityMismatch)
         ));
         assert_eq!(state.lock().unwrap().creates.len(), 1);
@@ -261,7 +284,7 @@ async fn approval_labels_do_not_replace_name_driver_options_or_engine_identity()
         )
         .await;
         assert!(matches!(
-            docker.ensure_volume(&name).await,
+            docker.inspect_volume(&name).await,
             Err(StorageError::IdentityMismatch)
         ));
         assert!(state.lock().unwrap().creates.is_empty());
@@ -270,11 +293,11 @@ async fn approval_labels_do_not_replace_name_driver_options_or_engine_identity()
         let (_directory, docker, state, server) =
             volume_daemon(None, rejected, None, StatusCode::CREATED).await;
         assert!(matches!(
-            docker.ensure_volume(&name).await,
+            create_fresh(&docker, &name).await,
             Err(StorageError::IdentityMismatch)
         ));
         assert!(matches!(
-            docker.ensure_volume(&name).await,
+            docker.inspect_volume(&name).await,
             Err(StorageError::IdentityMismatch)
         ));
         assert_eq!(state.lock().unwrap().creates.len(), 1);
@@ -289,7 +312,7 @@ async fn approval_labels_do_not_replace_name_driver_options_or_engine_identity()
     )
     .await;
     assert!(matches!(
-        docker.ensure_volume(&name).await,
+        docker.inspect_volume(&name).await,
         Err(StorageError::IdentityMismatch)
     ));
     assert_eq!(state.lock().unwrap().info_calls, 2);
@@ -308,15 +331,15 @@ async fn uncertain_create_resolves_only_from_an_approved_inspected_volume() {
         let (_directory, docker, state, server) =
             volume_daemon(None, observed, None, StatusCode::INTERNAL_SERVER_ERROR).await;
         assert!(matches!(
-            docker.ensure_volume(&name).await,
+            create_fresh(&docker, &name).await,
             Err(StorageError::BackendUnavailable)
         ));
         // A mutation error does not prove no effect; only an admitted observation settles it.
         if approved {
-            docker.ensure_volume(&name).await.unwrap();
+            docker.inspect_volume(&name).await.unwrap();
         } else {
             assert!(matches!(
-                docker.ensure_volume(&name).await,
+                docker.inspect_volume(&name).await,
                 Err(StorageError::IdentityMismatch)
             ));
         }
@@ -324,4 +347,135 @@ async fn uncertain_create_resolves_only_from_an_approved_inspected_volume() {
         server.abort();
         let _ = server.await;
     }
+}
+
+#[tokio::test]
+async fn fresh_publication_does_not_discover_and_cache_unapproved_plugin_metadata() {
+    let computer = Uuid::now_v7();
+    let name = crate::service::volume_name(computer).unwrap();
+    let mut discovered = approved_volume(&name);
+    discovered["Labels"] = serde_json::Value::Null;
+
+    // Engine GET discovers plugin Get metadata without Engine labels and caches it.
+    // Even a later labeled POST cannot relabel that already cached volume.
+    let (_directory, docker, state, server) =
+        volume_daemon(None, approved_volume(&name), None, StatusCode::CREATED).await;
+    state.lock().unwrap().plugin_visible = Some(discovered.clone());
+    assert!(matches!(
+        docker.inspect_volume(&name).await,
+        Err(StorageError::IdentityMismatch)
+    ));
+    assert!(matches!(
+        docker.admit_absent_volume(computer).await,
+        Err(StorageError::IdentityMismatch)
+    ));
+    assert!(state.lock().unwrap().creates.is_empty());
+    server.abort();
+    let _ = server.await;
+
+    let (_directory, docker, state, server) =
+        volume_daemon(None, approved_volume(&name), None, StatusCode::CREATED).await;
+    let absent = docker.admit_absent_volume(computer).await.unwrap();
+    // Actual Service publishes filesystem Ready only after the above proof.
+    state.lock().unwrap().plugin_visible = Some(discovered);
+    docker.create_admitted_volume(absent).await.unwrap();
+    {
+        let state = state.lock().unwrap();
+        assert_eq!(
+            state.gets, 1,
+            "no discovery GET between Ready publication and Create"
+        );
+        assert_eq!(state.creates.len(), 1);
+        assert_eq!(state.volume, Some(approved_volume(&name)));
+    }
+    docker.inspect_volume(&name).await.unwrap();
+    assert_eq!(state.lock().unwrap().creates.len(), 1);
+    server.abort();
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn fresh_absence_cannot_adopt_a_raced_cached_volume_or_replay_missing_create() {
+    let computer = Uuid::now_v7();
+    let name = crate::service::volume_name(computer).unwrap();
+    let (_directory, docker, state, server) =
+        volume_daemon(None, approved_volume(&name), None, StatusCode::CREATED).await;
+    let absent = docker.admit_absent_volume(computer).await.unwrap();
+    let mut foreign = approved_volume(&name);
+    foreign["Labels"]["openshell.ai/sandbox-attachable-workspace"] = serde_json::json!("foreign");
+    state.lock().unwrap().volume = Some(foreign.clone());
+    assert!(matches!(
+        docker.create_admitted_volume(absent).await,
+        Err(StorageError::IdentityMismatch)
+    ));
+    assert!(matches!(
+        docker.inspect_volume(&name).await,
+        Err(StorageError::IdentityMismatch)
+    ));
+    assert_eq!(state.lock().unwrap().volume, Some(foreign));
+    assert_eq!(state.lock().unwrap().creates.len(), 1);
+    server.abort();
+    let _ = server.await;
+
+    let (_directory, docker, state, server) = volume_daemon(
+        None,
+        approved_volume(&name),
+        None,
+        StatusCode::INTERNAL_SERVER_ERROR,
+    )
+    .await;
+    let absent = docker.admit_absent_volume(computer).await.unwrap();
+    assert!(matches!(
+        docker.create_admitted_volume(absent).await,
+        Err(StorageError::BackendUnavailable)
+    ));
+    state.lock().unwrap().volume = None;
+    assert!(matches!(
+        docker.inspect_volume(&name).await,
+        Err(StorageError::RecoveryRequired)
+    ));
+    assert_eq!(
+        state.lock().unwrap().creates.len(),
+        1,
+        "missing observation never authorizes another Create"
+    );
+    server.abort();
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn unavailable_engine_volume_observation_never_admits_fresh_create_or_recovery() {
+    let computer = Uuid::now_v7();
+    let name = crate::service::volume_name(computer).unwrap();
+    for status in [
+        StatusCode::INTERNAL_SERVER_ERROR,
+        StatusCode::SERVICE_UNAVAILABLE,
+    ] {
+        let (_directory, docker, state, server) =
+            volume_daemon(None, approved_volume(&name), None, StatusCode::CREATED).await;
+        state.lock().unwrap().get_status = Some(status);
+        assert!(matches!(
+            docker.admit_absent_volume(computer).await,
+            Err(StorageError::BackendUnavailable)
+        ));
+        assert!(matches!(
+            docker.inspect_volume(&name).await,
+            Err(StorageError::BackendUnavailable)
+        ));
+        assert!(state.lock().unwrap().creates.is_empty());
+        server.abort();
+        let _ = server.await;
+    }
+    let (_directory, docker, state, server) =
+        volume_daemon(None, approved_volume(&name), None, StatusCode::CREATED).await;
+    assert!(matches!(
+        docker.inspect_volume(&name).await,
+        Err(StorageError::RecoveryRequired)
+    ));
+    assert!(
+        state.lock().unwrap().creates.is_empty(),
+        "all existing/recovery callers inspect without Create"
+    );
+    server.abort();
+    let _ = server.await;
 }

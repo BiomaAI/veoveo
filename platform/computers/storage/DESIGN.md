@@ -129,13 +129,21 @@ profile. Its Docker volumes carry `openshell.ai/sandbox-attachable=true` and
 workspace to select an external retained volume. These approval claims do not prove
 physical storage identity or grant a user's current authorization.
 
-Creation includes both labels. Before adopting a created or inspected volume, the
+Fresh Prepare admits Engine absence before publishing the filesystem as Ready.
+Its non-cloneable proof binds the Computer and enrolled Engine, and authorizes one
+labeled Create without a discovery GET between publication and dispatch. Docker
+GET can discover plugin metadata before Engine labels exist and cache that
+unapproved identity. Create sends both labels. Before adopting its reply or an inspected volume, the
 allocator requires both claims, its exact volume name and plugin driver, empty
 volume options and the recorded engine identity. Extra labels may coexist with the
 required claims. Missing, null, false or foreign-workspace approval claims produce
 `IdentityMismatch`. The helper never relabels or recreates a rejected existing volume.
-A lost Create reply preserves uncertainty; the next invocation first inspects the
-original name and applies the same admission. No historical volume conversion or
+A lost Create reply or cancellation after filesystem publication preserves the
+Ready allocation and its bytes. Repeated Prepare, Restore, handoff and abandonment
+only inspect the original name and apply the same admission. Missing volume
+observation produces `RecoveryRequired`; unapproved metadata produces
+`IdentityMismatch`. Neither response authorizes another Create or compensation.
+A racing cached volume must pass the complete reply admission and is never relabeled. No historical volume conversion or
 nondefault retained-workspace profile is supported.
 
 ## Writer Handoff And Retention
@@ -236,10 +244,12 @@ Readiness requires the configured provider/template and current engine identity.
 
 The Docker client uses API 1.53 over its explicit Unix socket, bounded replies and
 five-second request deadlines. It disables redirects, proxies and automatic retries.
-Volume creation first reads the exact canonical name and refuses another driver or
-caller options. A missing response cannot authorize formatting. Preparing/restoring
-the filesystem releases its mutex before Docker volume creation, because that call
-can synchronously invoke the plugin's Create/Get methods.
+A separate preparation mutex serializes Prepare through absence admission,
+filesystem publication and the single Create request within the worker's 180-second
+request deadline. Plugin callbacks never acquire that mutex. Engine calls release
+the filesystem mutex because Create and discovery can synchronously invoke plugin
+Create/Get methods. Restore and writer transitions use inspection only. A missing
+response cannot authorize formatting, replay or release of a writer fence.
 
 The plugin accepts the selected Docker volume API shape, including null or empty
 Create options. Create confirms an admitted Ready allocation and cannot allocate one.
