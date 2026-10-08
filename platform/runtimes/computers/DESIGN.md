@@ -17,7 +17,7 @@ and installed acceptance belong to [Computers](../../computers/DESIGN.md#qualifi
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
 | Docker driver supervisor restart JSON version 1 | Private owner-only immutable guest container/image/ownership/resource facts and a credential-free Prost DriverSandboxSpec subset; 1 MiB maximum; restoration admission before Start or supervisor recovery |
 | Docker provisioning intent JSON version 1 | Private credential-free sandbox/generation/stage journal; synced atomic replacement before effects; unresolved observations preserve resources and refuse automatic redispatch |
-| Docker driver companion binding JSON version 1 | Generation-owned private physical companion container ID, StartedAt/PID and immutable configuration hashes; 16 KiB maximum, atomic owner-only commit before readiness publication |
+| Docker driver companion binding JSON version 2 | Runtime-generation and verified credential-epoch-owned private physical companion container ID, StartedAt/PID and immutable configuration hashes; 16 KiB maximum, atomic owner-only commit before readiness publication |
 | OpenShell gateway TOML schema 2 | Host and isolated native generators use the current gateway loader and strict Docker driver schema; package controls consume their generated TOML inputs |
 | Veoveo private policy checkpoint protobuf v2 | `protocol/maintenance.proto`; canonical Prost encoding of exact provider/source/run and selected gateway version with the generated provider configuration. Encrypted journal storage is required; this format grants no authority |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
@@ -281,10 +281,10 @@ its image, ownership and immutable settings to match before start effects. Curre
 resource admission also checks external volume claims. The selected driver has no
 resource-update operation; changing these settings requires an admitted replacement.
 
-The Docker driver separately commits a generation-owned `companion-binding-v1-<digest>.json`
+The Docker driver separately commits `companion-binding-v2-<generation-digest>-<auth-epoch>.json`
 after starting the supervisor and before publishing its readiness. The filename hashes
-the runtime generation. The credential-free record binds the guest, generation,
-namespace, resolved supervisor image, exact companion container ID, StartedAt/PID and
+the runtime generation and selects the verified typed credential epoch. The credential-free record binds the guest, generation,
+credential epoch, namespace, resolved supervisor image, exact companion container ID, StartedAt/PID and
 hashes of its immutable Engine configuration, selected driver settings and verified public
 authentication context. The authentication hash binds issuer, trusted key set, sandbox,
 generation, credential epoch and gateway token lineage from the descriptor and bundle
@@ -374,10 +374,20 @@ inodes and uncertain filesystem observations preserve the record. The failed-rec
 registry is intentionally in-memory; a missing managed lookup after driver replacement
 cannot authorize removal of pre-existing private state.
 
-The private persistence cut accepts only version 1 files produced by the matched
-provider profile. Reverting to a pre-adoption candidate requires an explicit drain; its older
-startup cleanup cannot safely adopt this format, and does not recognize the new record
-as a reason to refuse destructive cleanup. Immutable image and source-profile admission
+Guest restoration keeps its private version-1 profile. Companion adoption accepts
+only binding version 2 produced by the matched provider image/source profile.
+Gateway-only recovery mints from the persisted generation and credential epoch;
+it selects the same binding without changing the physical companion. Explicit
+settled Stop followed by authenticated Start preserves runtime generation and
+increments the credential epoch. After admitted physical absence, the new companion
+commits a separate no-clobber binding for that tuple and preserves its predecessor's
+bytes. Same-tuple duplicate commits and immutable or current-auth mismatches refuse.
+The coordinated private-profile cut requires draining old-profile companions before
+selecting the new image; version-1 binding candidates are quarantined and are not an
+installed compatibility profile. No old-record conversion or fallback is admitted.
+Rollback to a version-1 binding image or a pre-adoption candidate requires draining
+new-profile companions. Pre-adoption startup cleanup cannot safely adopt this format
+and does not recognize the new record as a reason to refuse destructive cleanup. Immutable image and source-profile admission
 must therefore prevent mixed rolling overlap and drain-free rollback. Matching protocol versions do not
 qualify a different source profile. Recovery and failed admission preserve the guest,
 retained home, private journal and binding records. An operator must qualify a
@@ -607,7 +617,7 @@ support diagnosis; they do not establish current session authority or settle an
 unresolved provider operation.
 Driver companion launch failures also report a closed launch stage and tonic code
 at the existing failure boundary. This distinguishes authentication-snapshot,
-instance-inspection and immutable-binding refusal from readiness failure without
+instance-inspection, immutable-binding capture and no-clobber commit refusal from readiness failure without
 copying status messages. The original RPC failure and unresolved resource fences
 continue to govern the operation.
 

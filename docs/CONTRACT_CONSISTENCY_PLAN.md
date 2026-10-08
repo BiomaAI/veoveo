@@ -57,7 +57,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls; the rebuilt file helper selects v2. Remaining operator reports use current fields. The final client-types check verifies all 18 bundles and 36 outputs | Resolve native Computer reattachment and Start failures; qualify full file retention and recovery; reconcile final formats, continuations, producer/consumer links and pins; drain writers and prepare fresh reference state |
+| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls; native gateway-loss recovery delivers authenticated replay and retained bytes. The rebuilt file helper selects v2. Remaining operator reports use current fields. The final client-types check verifies all 18 bundles and 36 outputs | Resolve settled Stop→Start binding admission; qualify full file retention and recovery; reconcile final formats, continuations, producer/consumer links and pins; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
@@ -119,13 +119,20 @@ and its destructive Create branch are removed. The failure → Stop → correcte
 control proves that a safe local refusal cannot poison the later operation.
 
 The current native lifecycle case preserves the physical supervisor, main-process
-epoch, guest and retained-storage identity after abrupt gateway loss. Terminal
-reattachment then fails at forward admission with RPC `Unavailable`; authenticated
-replay, retained-byte readback and subsequent Stop/Start are unqualified. Closed
-terminal stages and bounded diagnostic capture identify the failure without exposing
-credentials or payloads. The owning diagnostic and process-cleanup controls pass.
-Host replacement and installed execution remain open. The candidate stays quarantined and the retained
-rollback image stays selected. Compiler checks do not establish native recovery.
+epoch, guest and retained-storage identity after abrupt gateway loss. Fresh
+authenticated terminal reattachment, replay and retained-byte readback pass.
+Stop settles and reconciles. The subsequent Start returns `LifecycleUnknown`,
+with the driver reporting `ImmutableBinding` and `FailedPrecondition`.
+The server preserves runtime generation and increments authentication epoch for
+this transition. The generation-only binding profile collides with its retained
+predecessor. Its version-2 replacement keys records by typed generation and verified
+credential epoch, preserves no-clobber admission and validates both values during
+decoding. Current gateway-loss recovery keeps both values unchanged. The replacement
+passes 60 provider controls and artifact checks; its native qualification is pending.
+The relay repair passes review, 24 runtime controls and 60 provider controls.
+Both complete native cases still fail; host replacement and installed execution
+remain open. The candidate stays quarantined and the retained rollback image
+stays selected.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
 
@@ -139,7 +146,8 @@ headers before filesystem access. Execution protocol version 1 is unchanged.
 The rebuilt helper-bearing template advertises execution protocol 1 and file protocol 2.
 Its native case passes initial import/export of 1,000,003 bytes and SHA-256 checks,
 rejection cases, uncertain short-body handling and explicit Stop. Start then returns
-`LifecycleUnknown`, so post-Start retention and stale-process checks are unqualified.
+`LifecycleUnknown` with the same binding-stage refusal, so post-Start retention
+and stale-process checks are unqualified.
 The complete native case must pass before the v2 writer is installed. Both native
 fixtures have completed owned cleanup; neither failure authorizes replay or
 compensation of an unsettled operation.
@@ -193,6 +201,7 @@ The current source checkpoints are:
 | Computer companion recovery, unresolved state and lifecycle locking | `796054f1f` |
 | Recording and simulation operator reports and module identity output | `eda9987b7` |
 | Safe terminal stages and bounded native failure diagnostics | `47868a1b5` |
+| Bounded retained-supervisor relay admission and closed launch diagnostics | `eee60fed3` |
 
 These revisions qualify their implemented source concerns. They do not close the
 wider F-register or the hardware and installed gates.

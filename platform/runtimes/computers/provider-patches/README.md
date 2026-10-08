@@ -37,7 +37,7 @@ builds materialize the manifest's workspace and lockfile package version.
 | Docker driver and sandbox identity | Explicit numeric policy users receive no inherited image-account supplementary groups; private PTYs receive the admitted UID/GID and mode 0600 |
 | Sandbox Landlock | O_PATH descriptors classify the same opened inode and permit policy handling of device paths without opening device data |
 | Docker driver logging | Workload and companion Docker logs use configured finite rotation; the actual supervisor companion has the configured finite `/var/log` tmpfs |
-| Docker driver supervisor restart | Private version-1 guest restoration and generation-owned physical companion binding admit the same running supervisor after gateway-only loss; immutable mismatches and expired/superseded authentication refuse without replacement |
+| Docker driver supervisor restart | Private version-1 guest restoration and version-2 generation/verified-credential-epoch-owned physical companion binding admit the same running supervisor after gateway-only loss; immutable mismatches and expired/superseded authentication refuse without replacement |
 | Docker driver volume admission | Typed NoCopy reaches Engine options with and without subpaths; retained-home initialization cannot precede container registration |
 | Gateway mTLS | Exact user common-name allowlist; missing, duplicate and unknown common names cannot become users; guest transport certificates need scoped launch authority |
 | Supervisor attachment | A generated ReplayComplete fence belongs to each attachment cursor; history and live bytes remain unmodified; clients enable input only after their fence |
@@ -226,6 +226,16 @@ Server controls exercise the routed relay against the actual Store and session
 registry, including no-session deadlines, foreign/stale epochs, principal refusal
 and superseded-session selection. Driver launch diagnostics emit only a closed
 stage and tonic code while preserving the original unknown outcome and fences.
+
+Companion binding version 2 selects the verified runtime generation and credential
+epoch. Gateway-only recovery preserves that tuple and the same physical companion.
+The public settled Stop/Start path preserves generation, increments the epoch and
+commits a new append-only binding only after owned companion absence admission.
+Predecessor bytes remain unchanged. Same-tuple duplicates refuse; missing, foreign,
+stale and version-1 records cannot supply adoption authority. This private source/image
+cut requires draining old-profile companions before upgrade and new-profile companions
+before rollback. Quarantined version-1 candidates establish no installed support.
+Guest restoration version 1 and the public provider protocol stay unchanged.
 
 ## Qualification And Maintenance
 

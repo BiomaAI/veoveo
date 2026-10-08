@@ -96,10 +96,10 @@ index e9751f77636611a7a0bd4019a17908f1e14cc001..ee4dd26cd9199c365840b5b973edcf23
  url = { workspace = true }
 diff --git a/crates/openshell-driver-docker/src/companion_state.rs b/crates/openshell-driver-docker/src/companion_state.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487aef4868f6
+index 0000000000000000000000000000000000000000..1a3ac5d7246f0466bf537631f26fa2ebe7ab2499
 --- /dev/null
 +++ b/crates/openshell-driver-docker/src/companion_state.rs
-@@ -0,0 +1,527 @@
+@@ -0,0 +1,581 @@
 +// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 +// SPDX-License-Identifier: Apache-2.0
 +
@@ -119,6 +119,7 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +pub(super) struct AdmittedAuthentication {
 +    public_digest: String,
 +    generation: openshell_core::sandbox_generation::SandboxGenerationId,
++    auth_epoch: openshell_core::jwt::CredentialEpoch,
 +    valid_until: i64,
 +}
 +impl AdmittedAuthentication {
@@ -184,7 +185,10 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +    version: u32,
 +    sandbox_id: String,
 +    guest_id: String,
-+    generation: String,
++    #[serde(deserialize_with = "deserialize_binding_generation")]
++    generation: openshell_core::sandbox_generation::SandboxGenerationId,
++    #[serde(deserialize_with = "deserialize_binding_epoch")]
++    auth_epoch: openshell_core::jwt::CredentialEpoch,
 +    namespace: String,
 +    supervisor_image: String,
 +    container_id: String,
@@ -193,6 +197,21 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +    immutable_digest: String,
 +    profile_digest: String,
 +    authentication_digest: String,
++}
++
++fn deserialize_binding_generation<'de, D: serde::Deserializer<'de>>(
++    deserializer: D,
++) -> Result<openshell_core::sandbox_generation::SandboxGenerationId, D::Error> {
++    let wire = String::deserialize(deserializer)?;
++    openshell_core::sandbox_generation::SandboxGenerationId::parse(wire)
++        .map_err(|_| serde::de::Error::custom("invalid companion binding generation"))
++}
++fn deserialize_binding_epoch<'de, D: serde::Deserializer<'de>>(
++    deserializer: D,
++) -> Result<openshell_core::jwt::CredentialEpoch, D::Error> {
++    let wire = u64::deserialize(deserializer)?;
++    openshell_core::jwt::CredentialEpoch::new(wire)
++        .map_err(|_| serde::de::Error::custom("invalid companion binding credential epoch"))
 +}
 +
 +fn refusal() -> Status {
@@ -298,10 +317,11 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +            return Err(refusal());
 +        }
 +        Ok(Self {
-+            version: 1,
++            version: 2,
 +            sandbox_id: sandbox.id.clone(),
 +            guest_id: guest_id.into(),
-+            generation: generation.into(),
++            generation: authentication.generation.clone(),
++            auth_epoch: authentication.auth_epoch,
 +            namespace: config.sandbox_namespace.clone(),
 +            supervisor_image: config.supervisor_image_id.clone(),
 +            container_id: inspected
@@ -333,10 +353,11 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +            config,
 +            authentication,
 +        )?;
-+        if self.version != 1
++        if self.version != 2
 +            || self.sandbox_id != actual.sandbox_id
 +            || self.guest_id != actual.guest_id
 +            || self.generation != actual.generation
++            || self.auth_epoch != actual.auth_epoch
 +            || self.namespace != actual.namespace
 +            || self.supervisor_image != actual.supervisor_image
 +            || self.container_id != actual.container_id
@@ -352,12 +373,35 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +    }
 +}
 +
-+fn path(directory: &Path, generation: &str) -> PathBuf {
++fn path(
++    directory: &Path,
++    generation: &openshell_core::sandbox_generation::SandboxGenerationId,
++    epoch: openshell_core::jwt::CredentialEpoch,
++) -> PathBuf {
 +    // Opaque admitted generation text never becomes a filesystem component.
 +    directory.join(format!(
-+        "companion-binding-v1-{:x}.json",
-+        Sha256::digest(generation.as_bytes())
++        "companion-binding-v2-{:x}-{}.json",
++        Sha256::digest(generation.as_str().as_bytes()),
++        epoch.get()
 +    ))
++}
++
++pub(super) enum BindingWriteFailure {
++    Capture(Status),
++    Commit(Status),
++}
++impl std::fmt::Debug for BindingWriteFailure {
++    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        let (stage, status) = match self {
++            Self::Capture(status) => ("capture", status),
++            Self::Commit(status) => ("commit", status),
++        };
++        formatter
++            .debug_struct("BindingWriteFailure")
++            .field("stage", &stage)
++            .field("code", &status.code())
++            .finish()
++    }
 +}
 +
 +pub(super) fn write(
@@ -367,7 +411,7 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +    inspected: &ContainerInspectResponse,
 +    config: &DockerDriverRuntimeConfig,
 +    authentication: &AdmittedAuthentication,
-+) -> Result<(), Status> {
++) -> Result<(), BindingWriteFailure> {
 +    let binding = CompanionBinding::capture(
 +        sandbox,
 +        guest_id,
@@ -375,9 +419,11 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +        inspected,
 +        config,
 +        authentication,
-+    )?;
-+    let directory = docker_boundary_state_dir(sandbox, config)?;
-+    write_binding(&directory, &binding)
++    )
++    .map_err(BindingWriteFailure::Capture)?;
++    let directory =
++        docker_boundary_state_dir(sandbox, config).map_err(BindingWriteFailure::Commit)?;
++    write_binding(&directory, &binding).map_err(BindingWriteFailure::Commit)
 +}
 +
 +fn write_binding(directory: &Path, binding: &CompanionBinding) -> Result<(), Status> {
@@ -396,7 +442,7 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +        .and_then(|()| temporary.as_file().sync_all())
 +        .map_err(|_| refusal())?;
 +    temporary
-+        .persist_noclobber(path(directory, generation))
++        .persist_noclobber(path(directory, generation, binding.auth_epoch))
 +        .map_err(|_| refusal())?;
 +    std::fs::File::open(directory)
 +        .and_then(|f| f.sync_all())
@@ -412,6 +458,9 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +    config: &DockerDriverRuntimeConfig,
 +    authentication: &AdmittedAuthentication,
 +) -> Result<String, Status> {
++    if generation != authentication.generation.as_str() {
++        return Err(auth_refusal());
++    }
 +    let directory = docker_boundary_state_dir(sandbox, config)?;
 +    adopt_path(
 +        docker,
@@ -419,7 +468,11 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +        guest_id,
 +        generation,
 +        config,
-+        &path(&directory, generation),
++        &path(
++            &directory,
++            &authentication.generation,
++            authentication.auth_epoch,
++        ),
 +        authentication,
 +    )
 +    .await
@@ -580,6 +633,7 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +    Ok(AdmittedAuthentication {
 +        public_digest: format!("{:x}", Sha256::digest(bytes)),
 +        generation: verified.runtime_generation,
++        auth_epoch: verified.auth_epoch,
 +        valid_until,
 +    })
 +}
@@ -629,10 +683,10 @@ index 0000000000000000000000000000000000000000..9a2fc10284b5562f880f6230aab8487a
 +mod tests;
 diff --git a/crates/openshell-driver-docker/src/companion_state/tests.rs b/crates/openshell-driver-docker/src/companion_state/tests.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f9b30d65a
+index 0000000000000000000000000000000000000000..0071da550dc525d6ce83321a7201926e9e75f758
 --- /dev/null
 +++ b/crates/openshell-driver-docker/src/companion_state/tests.rs
-@@ -0,0 +1,1613 @@
+@@ -0,0 +1,1742 @@
 +use super::*;
 +use crate::tests::{runtime_config, test_sandbox};
 +use bollard::models::{ContainerConfig, ContainerState};
@@ -690,8 +744,17 @@ index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f
 +    (sandbox, inspected, config)
 +}
 +
++fn test_generation(value: &str) -> SandboxGenerationId {
++    SandboxGenerationId::parse(value).unwrap()
++}
++
 +fn authentication_for_generation(generation: &str) -> AdmittedAuthentication {
++    authentication_for_epoch(generation, CredentialEpoch::new(1).unwrap())
++}
++fn authentication_for_epoch(generation: &str, epoch: CredentialEpoch) -> AdmittedAuthentication {
 +    let (mut current, issuer, mut identity) = authentication_fixture();
++    identity.auth_epoch = epoch;
++    current.supervisor.auth_epoch = epoch;
 +    identity.runtime_generation = SandboxGenerationId::parse(generation).unwrap();
 +    let pair = issuer
 +        .mint_pair_with_gateway_token_id(
@@ -717,11 +780,24 @@ index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f
 +        &authentication_for_generation("generation-1"),
 +    )
 +    .unwrap();
++    let current_wire = serde_json::to_value(&binding).unwrap();
++    for (field, invalid) in [
++        ("generation", serde_json::json!("../../foreign")),
++        ("auth_epoch", serde_json::json!(0)),
++    ] {
++        let mut malformed = current_wire.clone();
++        malformed[field] = invalid;
++        assert!(serde_json::from_value::<CompanionBinding>(malformed).is_err());
++    }
 +    let directory = tempfile::tempdir().unwrap();
 +    write_binding(directory.path(), &binding).unwrap();
-+    let bytes = read_private_bytes(&path(directory.path(), "generation-1"))
-+        .await
-+        .unwrap();
++    let bytes = read_private_bytes(&path(
++        directory.path(),
++        &test_generation("generation-1"),
++        CredentialEpoch::new(1).unwrap(),
++    ))
++    .await
++    .unwrap();
 +    let text = String::from_utf8(bytes.clone()).unwrap();
 +    for excluded in [
 +        "credential-sentinel",
@@ -732,18 +808,26 @@ index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f
 +        assert!(!text.contains(excluded));
 +    }
 +    assert_eq!(
-+        std::fs::metadata(path(directory.path(), "generation-1"))
-+            .unwrap()
-+            .permissions()
-+            .mode()
++        std::fs::metadata(path(
++            directory.path(),
++            &test_generation("generation-1"),
++            CredentialEpoch::new(1).unwrap()
++        ))
++        .unwrap()
++        .permissions()
++        .mode()
 +            & 0o777,
 +        0o600
 +    );
 +    assert!(write_binding(directory.path(), &binding).is_err());
 +    assert_eq!(
-+        read_private_bytes(&path(directory.path(), "generation-1"))
-+            .await
-+            .unwrap(),
++        read_private_bytes(&path(
++            directory.path(),
++            &test_generation("generation-1"),
++            CredentialEpoch::new(1).unwrap()
++        ))
++        .await
++        .unwrap(),
 +        bytes
 +    );
 +    let next = CompanionBinding::capture(
@@ -757,10 +841,63 @@ index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f
 +    .unwrap();
 +    write_binding(directory.path(), &next).unwrap();
 +    assert_ne!(
-+        path(directory.path(), "generation-1"),
-+        path(directory.path(), "generation-2")
++        path(
++            directory.path(),
++            &test_generation("generation-1"),
++            CredentialEpoch::new(1).unwrap()
++        ),
++        path(
++            directory.path(),
++            &test_generation("generation-2"),
++            CredentialEpoch::new(1).unwrap()
++        )
 +    );
-+    assert!(path(directory.path(), "../../foreign").starts_with(directory.path()));
++    assert!(SandboxGenerationId::parse("../../foreign").is_err());
++    let successor = CompanionBinding::capture(
++        &sandbox,
++        "guest-id",
++        "generation-1",
++        &inspected,
++        &config,
++        &authentication_for_epoch("generation-1", CredentialEpoch::new(2).unwrap()),
++    )
++    .unwrap();
++    write_binding(directory.path(), &successor).unwrap();
++    assert!(
++        binding
++            .admit(
++                &sandbox,
++                "guest-id",
++                "generation-1",
++                &inspected,
++                &config,
++                &authentication_for_epoch("generation-1", CredentialEpoch::new(2).unwrap())
++            )
++            .is_err()
++    );
++    assert!(
++        successor
++            .admit(
++                &sandbox,
++                "guest-id",
++                "generation-1",
++                &inspected,
++                &config,
++                &authentication_for_generation("generation-1")
++            )
++            .is_err()
++    );
++    assert!(write_binding(directory.path(), &successor).is_err());
++    assert_eq!(
++        read_private_bytes(&path(
++            directory.path(),
++            &test_generation("generation-1"),
++            CredentialEpoch::new(1).unwrap()
++        ))
++        .await
++        .unwrap(),
++        bytes
++    );
 +}
 +
 +#[test]
@@ -1006,7 +1143,11 @@ index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f
 +                "guest-id",
 +                "generation-1",
 +                &config,
-+                &path(directory.path(), "generation-1"),
++                &path(
++                    directory.path(),
++                    &test_generation("generation-1"),
++                    CredentialEpoch::new(1).unwrap(),
++                ),
 +                &authentication_for_generation("generation-1"),
 +            ),
 +        )
@@ -1852,7 +1993,12 @@ index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f
 +        .collect()
 +}
 +fn launch_for_generation(generation: &str) -> SandboxLaunchAuthentication {
++    launch_for_epoch(generation, CredentialEpoch::new(1).unwrap())
++}
++fn launch_for_epoch(generation: &str, epoch: CredentialEpoch) -> SandboxLaunchAuthentication {
 +    let (mut launch, issuer, mut identity) = authentication_fixture();
++    identity.auth_epoch = epoch;
++    launch.supervisor.auth_epoch = epoch;
 +    identity.runtime_generation = SandboxGenerationId::parse(generation).unwrap();
 +    let pair = issuer
 +        .mint_pair_with_gateway_token_id(
@@ -2131,7 +2277,7 @@ index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f
 +    });
 +}
 +#[test]
-+fn companion_state_completed_stop_then_observed_absence_allows_new_generation() {
++fn companion_state_completed_stop_then_observed_absence_allows_epoch_successor() {
 +    let state = tempfile::tempdir().unwrap();
 +    temp_env::with_var("XDG_STATE_HOME", Some(state.path()), || {
 +        let runtime = tokio::runtime::Builder::new_current_thread()
@@ -2154,6 +2300,12 @@ index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f
 +                    .await
 +                    .unwrap()
 +            );
++            let old_binding_path = path(
++                &control.directory,
++                &test_generation("generation-1"),
++                CredentialEpoch::new(1).unwrap(),
++            );
++            let old_binding_bytes = read_private_bytes(&old_binding_path).await.unwrap();
 +            control.engine.owned_cleanup.store(true, Ordering::Release);
 +            tokio::time::timeout(
 +                Duration::from_secs(3),
@@ -2169,13 +2321,17 @@ index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f
 +            .unwrap();
 +            control.engine.requests.lock().await.clear();
 +            control.engine.fresh_creation.store(true, Ordering::Release);
-+            let encoded = serde_json::to_vec(&launch_for_generation("generation-2")).unwrap();
++            let encoded = serde_json::to_vec(&launch_for_epoch(
++                "generation-1",
++                CredentialEpoch::new(2).unwrap(),
++            ))
++            .unwrap();
 +            let result = tokio::time::timeout(
 +                Duration::from_secs(5),
 +                control.driver.start_sandbox(
 +                    &control.sandbox.id,
 +                    &control.sandbox.name,
-+                    "generation-2",
++                    "generation-1",
 +                    &encoded,
 +                ),
 +            )
@@ -2183,31 +2339,44 @@ index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f
 +            .unwrap();
 +            assert!(
 +                result.as_ref().is_ok_and(|started| *started),
-+                "Qualified stopped fresh generation failed: {result:?}"
++                "Qualified stopped credential-epoch successor failed: {result:?}"
 +            );
 +            let descriptor =
 +                read_docker_runtime_descriptor(&control.sandbox.id, &control.driver.config)
 +                    .await
 +                    .unwrap()
 +                    .unwrap();
-+            assert_eq!(descriptor.generation, "generation-2");
++            assert_eq!(descriptor.generation, "generation-1");
 +            let stored: CompanionBinding = serde_json::from_slice(
-+                &read_private_bytes(&path(&control.directory, "generation-2"))
-+                    .await
-+                    .unwrap(),
++                &read_private_bytes(&path(
++                    &control.directory,
++                    &test_generation("generation-1"),
++                    CredentialEpoch::new(2).unwrap(),
++                ))
++                .await
++                .unwrap(),
 +            )
 +            .unwrap();
 +            assert_eq!(stored.container_id, "d".repeat(64));
-+            assert_eq!(stored.generation, "generation-2");
++            assert_eq!(stored.generation, test_generation("generation-1"));
++            assert_eq!(stored.auth_epoch, CredentialEpoch::new(2).unwrap());
 +            assert!(
 +                control
 +                    .directory
 +                    .join(
-+                        path(&control.directory, "generation-1")
-+                            .file_name()
-+                            .unwrap()
++                        path(
++                            &control.directory,
++                            &test_generation("generation-1"),
++                            CredentialEpoch::new(1).unwrap()
++                        )
++                        .file_name()
++                        .unwrap()
 +                    )
 +                    .exists()
++            );
++            assert_eq!(
++                read_private_bytes(&old_binding_path).await.unwrap(),
++                old_binding_bytes
 +            );
 +            let requests = control.engine.requests.lock().await;
 +            let absence = requests
@@ -2242,6 +2411,20 @@ index 0000000000000000000000000000000000000000..f50268720693e5a35cec1b21babc9b5f
 +        failure.diagnostic(),
 +        "stage=PreparedAuthentication code=FailedPrecondition"
 +    );
++    for failure in [
++        BindingWriteFailure::Capture(Status::failed_precondition(
++            "Bearer private-jwt private-payload",
++        )),
++        BindingWriteFailure::Commit(Status::failed_precondition(
++            "Bearer private-jwt private-payload",
++        )),
++    ] {
++        let formatted = format!("{failure:?}");
++        assert!(formatted.contains("FailedPrecondition"));
++        for secret in ["Bearer", "private-jwt", "private-payload"] {
++            assert!(!formatted.contains(secret));
++        }
++    }
 +    for secret in ["Bearer", "private-jwt", "private-payload"] {
 +        assert!(!failure.diagnostic().contains(secret));
 +    }
@@ -3093,7 +3276,7 @@ index 0000000000000000000000000000000000000000..ab1e45d77ec5084db72c0750a81e3054
 +    });
 +}
 diff --git a/crates/openshell-driver-docker/src/lib.rs b/crates/openshell-driver-docker/src/lib.rs
-index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2a9b38e1b 100644
+index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..144642ae262088b4ee989dd3d187559aedfa576d 100644
 --- a/crates/openshell-driver-docker/src/lib.rs
 +++ b/crates/openshell-driver-docker/src/lib.rs
 @@ -5,8 +5,15 @@
@@ -3253,7 +3436,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      fn record_previous_exit(&self, sandbox_id: &str, finished_at: Option<&str>) {
          let mut state = self
              .state
-@@ -461,27 +475,86 @@ impl DockerLifecycleEventFences {
+@@ -461,27 +475,88 @@ impl DockerLifecycleEventFences {
              .cloned()
      }
 
@@ -3311,6 +3494,8 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
 +    InstanceInspection,
 +    RuntimeDescriptor,
 +    ImmutableBinding,
++    ImmutableBindingCapture,
++    ImmutableBindingCommit,
 +    Readiness,
 +}
 +struct ControlSpawnFailure {
@@ -3345,7 +3530,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      reason: &'static str,
      message: String,
  }
-@@ -712,6 +785,8 @@ struct DockerSandboxDriverConfig {
+@@ -712,6 +787,8 @@ struct DockerSandboxDriverConfig {
      )]
      cdi_devices: Option<Vec<String>>,
      mounts: Vec<DockerDriverMountConfig>,
@@ -3354,7 +3539,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
  }
 
  struct ValidatedDockerSandbox<'a> {
-@@ -751,6 +826,8 @@ enum DockerDriverMountConfig {
+@@ -751,6 +828,8 @@ enum DockerDriverMountConfig {
          read_only: bool,
          #[serde(default)]
          subpath: Option<String>,
@@ -3363,7 +3548,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      },
      Tmpfs {
          target: String,
-@@ -901,37 +978,27 @@ impl DockerComputeDriver {
+@@ -901,37 +980,27 @@ impl DockerComputeDriver {
              ))
          })?;
          let supervisor_grpc_endpoint = docker_config.grpc_endpoint.clone();
@@ -3421,7 +3606,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          let guest_tls = docker_guest_tls_paths(&docker_config)?;
          let driver = Self {
              docker: Arc::new(docker),
-@@ -965,6 +1032,7 @@ impl DockerComputeDriver {
+@@ -965,6 +1034,7 @@ impl DockerComputeDriver {
              )),
              lifecycle_event_fences: DockerLifecycleEventFences::default(),
              control_processes: Arc::new(Mutex::new(HashMap::new())),
@@ -3429,7 +3614,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              runtime_failures: Arc::new(Mutex::new(HashMap::new())),
          };
 
-@@ -1048,10 +1116,11 @@ impl DockerComputeDriver {
+@@ -1048,10 +1118,11 @@ impl DockerComputeDriver {
              .ok_or_else(|| Status::invalid_argument("sandbox.spec.template is required"))?;
 
          Self::validate_sandbox_template_base(template)?;
@@ -3442,7 +3627,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          for mount in &driver_config.mounts {
              if matches!(
                  mount,
-@@ -1399,7 +1468,8 @@ impl DockerComputeDriver {
+@@ -1399,7 +1470,8 @@ impl DockerComputeDriver {
          sandbox_id: &str,
          sandbox_name: &str,
      ) -> Result<Option<DriverSandbox>, Status> {
@@ -3452,7 +3637,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              return Ok(Some(pending));
          }
          let container = self
-@@ -1422,6 +1492,11 @@ impl DockerComputeDriver {
+@@ -1422,6 +1494,11 @@ impl DockerComputeDriver {
              let Some(mut sandbox) = sandbox_from_container_summary(summary) else {
                  continue;
              };
@@ -3464,7 +3649,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              if let Some(container_id) = summary.id.as_deref() {
                  match self.docker.inspect_container(container_id, None).await {
                      Ok(inspected) if summary.state == Some(ContainerSummaryStateEnum::EXITED) => {
-@@ -1470,7 +1545,10 @@ impl DockerComputeDriver {
+@@ -1470,7 +1547,10 @@ impl DockerComputeDriver {
          // Provisioning state is authoritative until the supervisor has
          // attached to both the sandbox and gateway. A running workload
          // container alone is not a usable sandbox.
@@ -3476,7 +3661,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          let mut sandboxes = by_id.into_values().collect::<Vec<_>>();
          sandboxes.sort_by(|left, right| left.id.cmp(&right.id));
          Ok(sandboxes)
-@@ -1563,6 +1641,16 @@ impl DockerComputeDriver {
+@@ -1563,6 +1643,16 @@ impl DockerComputeDriver {
          let validated = Self::validated_sandbox(sandbox, &self.config).map_err(|status| {
              DockerProvisioningFailure::new("ContainerCreateFailed", status.message())
          })?;
@@ -3493,7 +3678,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          let template = validated.template;
          let image = async {
              openshell_otel::record_error_result(
-@@ -1587,302 +1675,74 @@ impl DockerComputeDriver {
+@@ -1587,302 +1677,74 @@ impl DockerComputeDriver {
              .map_err(|status| {
                  DockerProvisioningFailure::new("IdentityResolutionFailed", status.message())
              })?;
@@ -3859,7 +4044,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      }
 
      async fn replace_control_process(&self, sandbox_id: &str, process: DockerControlProcess) {
-@@ -1897,6 +1757,12 @@ impl DockerComputeDriver {
+@@ -1897,6 +1759,12 @@ impl DockerComputeDriver {
      }
 
      async fn clear_runtime_failure(&self, sandbox_id: &str) {
@@ -3872,7 +4057,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          self.runtime_failures.lock().await.remove(sandbox_id);
      }
 
-@@ -1917,6 +1783,22 @@ impl DockerComputeDriver {
+@@ -1917,6 +1785,22 @@ impl DockerComputeDriver {
      }
 
      async fn apply_runtime_failure(&self, sandbox: &mut DriverSandbox) {
@@ -3895,7 +4080,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          let container_is_running = sandbox.status.as_ref().is_some_and(|status| {
              status.conditions.iter().any(|condition| {
                  condition.r#type == "Ready"
-@@ -1929,12 +1811,141 @@ impl DockerComputeDriver {
+@@ -1929,12 +1813,141 @@ impl DockerComputeDriver {
          }
          let failure = self.runtime_failures.lock().await.get(&sandbox.id).cloned();
          if let Some(failure) = failure {
@@ -4040,7 +4225,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          if let Some(process) = process {
              stop_docker_control_process(process).await;
          }
-@@ -1944,6 +1955,7 @@ impl DockerComputeDriver {
+@@ -1944,6 +1957,7 @@ impl DockerComputeDriver {
          &self,
          sandbox_id: &str,
      ) -> Result<bool, Status> {
@@ -4048,7 +4233,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          let filters = managed_resource_label_filters(
              &self.config.sandbox_namespace,
              [format!("{LABEL_SANDBOX_ID}={sandbox_id}")],
-@@ -2021,22 +2033,61 @@ impl DockerComputeDriver {
+@@ -2021,22 +2035,61 @@ impl DockerComputeDriver {
              ))
              .await
              .map_err(|error| internal_status("list Docker startup resources", error))?;
@@ -4117,7 +4302,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              let Some(target) = summary_container_target(&container) else {
                  continue;
              };
-@@ -2075,7 +2126,16 @@ impl DockerComputeDriver {
+@@ -2075,7 +2128,16 @@ impl DockerComputeDriver {
              .map_err(|error| internal_status("list Docker startup volumes", error))?;
          for volume in volumes.volumes.unwrap_or_default() {
              let sandbox_id = volume.labels.get(LABEL_SANDBOX_ID);
@@ -4135,7 +4320,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
                  continue;
              }
              self.docker
-@@ -2097,24 +2157,50 @@ impl DockerComputeDriver {
+@@ -2097,24 +2159,50 @@ impl DockerComputeDriver {
          Ok(())
      }
 
@@ -4188,7 +4373,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              stop_docker_control_process(stale).await;
          }
          if read_docker_runtime_descriptor(&sandbox.id, &self.config)
-@@ -2127,49 +2213,159 @@ impl DockerComputeDriver {
+@@ -2127,49 +2215,159 @@ impl DockerComputeDriver {
              let status = Status::failed_precondition(
                  "Docker sandbox runtime descriptor is missing; refusing to leave the workload running without its supervisor",
              );
@@ -4376,7 +4561,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          let pending = self
              .remove_pending_sandbox(sandbox_id, sandbox_name)
              .await?;
-@@ -2179,7 +2375,7 @@ impl DockerComputeDriver {
+@@ -2179,7 +2377,7 @@ impl DockerComputeDriver {
              task.abort();
          }
          if let Some(record) = pending.as_ref() {
@@ -4385,7 +4570,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              self.remove_auxiliary_containers_for_sandbox(&record.sandbox.id)
                  .await?;
          }
-@@ -2188,55 +2384,17 @@ impl DockerComputeDriver {
+@@ -2188,55 +2386,17 @@ impl DockerComputeDriver {
              .find_managed_container_summary(sandbox_id, sandbox_name)
              .await?
          else {
@@ -4449,7 +4634,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          let Some(target) = summary_container_target(&container) else {
              return Ok(pending.is_some());
          };
-@@ -2245,7 +2403,7 @@ impl DockerComputeDriver {
+@@ -2245,7 +2405,7 @@ impl DockerComputeDriver {
              .as_ref()
              .and_then(|labels| labels.get(LABEL_SANDBOX_ID))
              .map_or(sandbox_id, String::as_str);
@@ -4458,7 +4643,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          self.remove_auxiliary_containers_for_sandbox(resolved_sandbox_id)
              .await?;
 
-@@ -2279,10 +2437,24 @@ impl DockerComputeDriver {
+@@ -2279,10 +2439,24 @@ impl DockerComputeDriver {
          }
      }
 
@@ -4484,7 +4669,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          // Startup can still be waiting for supervisor readiness after the
          // workload container exists. Cancel it before removing the supervisor
          // so its failure path cannot delete retained workload storage.
-@@ -2294,22 +2466,14 @@ impl DockerComputeDriver {
+@@ -2294,22 +2468,14 @@ impl DockerComputeDriver {
              let _ = task.await;
          }
          let Some(container) = container else {
@@ -4514,7 +4699,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              return Err(Status::not_found("sandbox not found"));
          };
          let Some(target) = summary_container_target(&container) else {
-@@ -2320,7 +2484,7 @@ impl DockerComputeDriver {
+@@ -2320,7 +2486,7 @@ impl DockerComputeDriver {
              .as_ref()
              .and_then(|labels| labels.get(LABEL_SANDBOX_ID))
              .map_or(sandbox_id, String::as_str);
@@ -4523,7 +4708,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          self.remove_auxiliary_containers_for_sandbox(resolved_sandbox_id)
              .await?;
 
-@@ -2378,12 +2542,14 @@ impl DockerComputeDriver {
+@@ -2378,12 +2544,14 @@ impl DockerComputeDriver {
              generation_id.to_string(),
          )
          .map_err(|error| Status::invalid_argument(error.to_string()))?;
@@ -4542,7 +4727,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              &generation,
              launch_authentication,
          ))
-@@ -2394,17 +2560,19 @@ impl DockerComputeDriver {
+@@ -2394,17 +2562,19 @@ impl DockerComputeDriver {
 
      async fn start_sandbox_with_lifecycle_fence(
          &self,
@@ -4564,7 +4749,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          let Some(target) = summary_container_target(&container) else {
              return Ok(false);
          };
-@@ -2415,6 +2583,10 @@ impl DockerComputeDriver {
+@@ -2415,6 +2585,10 @@ impl DockerComputeDriver {
              .map_err(|error| internal_status("inspect Docker sandbox outer fence", error))?;
          validate_docker_outer_fence(&inspected)?;
          self.admit_container_resources(&inspected).await?;
@@ -4575,7 +4760,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          let state = container.state.unwrap_or(ContainerSummaryStateEnum::EMPTY);
          let previous_finished_at = if state == ContainerSummaryStateEnum::EXITED {
              inspected
-@@ -2435,32 +2607,47 @@ impl DockerComputeDriver {
+@@ -2435,32 +2609,47 @@ impl DockerComputeDriver {
              adopt_or_verify_docker_start_generation(resolved_sandbox_id, &self.config, generation)
                  .await?;
              if launch_authentication.is_empty() {
@@ -4634,7 +4819,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          write_docker_boundary_file(
              &docker_boundary_state_dir_by_id(resolved_sandbox_id, &self.config)?
                  .join(START_GENERATION_FILE),
-@@ -2537,16 +2724,28 @@ impl DockerComputeDriver {
+@@ -2537,16 +2726,28 @@ impl DockerComputeDriver {
 
          match self.docker.start_container(&target, None).await {
              Ok(()) => {}
@@ -4669,7 +4854,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          Ok(true)
      }
 
-@@ -2569,6 +2768,9 @@ impl DockerComputeDriver {
+@@ -2569,6 +2770,9 @@ impl DockerComputeDriver {
                      false,
                  ),
                  task: None,
@@ -4679,7 +4864,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              },
          );
          Ok(())
-@@ -2614,16 +2816,55 @@ impl DockerComputeDriver {
+@@ -2614,16 +2818,55 @@ impl DockerComputeDriver {
          sandbox: &DriverSandbox,
          failure: &DockerProvisioningFailure,
      ) {
@@ -4738,7 +4923,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
                  record.sandbox = snapshot.clone();
                  record.task = None;
              } else {
-@@ -2637,7 +2878,10 @@ impl DockerComputeDriver {
+@@ -2637,7 +2880,10 @@ impl DockerComputeDriver {
                  "docker",
                  "Warning",
                  failure.reason,
@@ -4750,7 +4935,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              ),
          );
          self.publish_sandbox_snapshot(snapshot);
-@@ -2648,7 +2892,8 @@ impl DockerComputeDriver {
+@@ -2648,7 +2894,8 @@ impl DockerComputeDriver {
          sandbox_id: &str,
          sandbox_name: &str,
      ) -> Result<(), Status> {
@@ -4760,7 +4945,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              self.publish_sandbox_snapshot(pending);
              return Ok(());
          }
-@@ -2868,7 +3113,7 @@ impl DockerComputeDriver {
+@@ -2868,7 +3115,7 @@ impl DockerComputeDriver {
              .await
              .map_err(|err| internal_status("find Docker sandbox container", err))?;
 
@@ -4769,7 +4954,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              let Some(labels) = summary.labels.as_ref() else {
                  return false;
              };
-@@ -2884,7 +3129,14 @@ impl DockerComputeDriver {
+@@ -2884,7 +3131,14 @@ impl DockerComputeDriver {
                      .get(LABEL_SANDBOX_NAME)
                      .is_some_and(|value| value == sandbox_name);
              namespace_matches && id_matches && name_matches
@@ -4785,7 +4970,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      }
 
      async fn ensure_image_available(
-@@ -3313,24 +3565,24 @@ impl ComputeDriver for DockerComputeDriver {
+@@ -3313,24 +3567,24 @@ impl ComputeDriver for DockerComputeDriver {
          let request = request.into_inner();
          require_sandbox_identifier(&request.sandbox_id, &request.name)?;
 
@@ -4826,7 +5011,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          span_status.finish(Ok(Response::new(StopSandboxResponse {})))
      }
 
-@@ -3373,12 +3625,15 @@ impl ComputeDriver for DockerComputeDriver {
+@@ -3373,12 +3627,15 @@ impl ComputeDriver for DockerComputeDriver {
          let request = request.into_inner();
          require_sandbox_identifier(&request.sandbox_id, &request.name)?;
 
@@ -4848,7 +5033,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          if deleted && !event_sandbox_id.is_empty() {
              let _ = self.events.send(WatchSandboxesEvent {
                  payload: Some(watch_sandboxes_event::Payload::Deleted(
-@@ -3455,6 +3710,8 @@ impl ComputeDriver for DockerComputeDriver {
+@@ -3455,6 +3712,8 @@ impl ComputeDriver for DockerComputeDriver {
  impl DockerProvisioningFailure {
      fn new(reason: &'static str, message: impl Into<String>) -> Self {
          Self {
@@ -4857,7 +5042,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              reason,
              message: message.into(),
          }
-@@ -3718,9 +3975,28 @@ fn docker_driver_config(
+@@ -3718,9 +3977,28 @@ fn docker_driver_config(
      let config =
          DockerSandboxDriverConfig::from_template(template).map_err(Status::invalid_argument)?;
      validate_docker_driver_mounts(&config.mounts, enable_bind_mounts)?;
@@ -4886,7 +5071,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
  /// Collect user-supplied bind mounts as string-format binds.
  ///
  /// Bind mounts use the legacy `Binds` field (`-v` syntax) rather than the
-@@ -3804,13 +4080,15 @@ fn docker_mount_from_config(config: &DockerDriverMountConfig) -> Result<Option<M
+@@ -3804,13 +4082,15 @@ fn docker_mount_from_config(config: &DockerDriverMountConfig) -> Result<Option<M
              target,
              read_only,
              subpath,
@@ -4904,7 +5089,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
                  ..Default::default()
              }),
              ..Default::default()
-@@ -4066,17 +4344,13 @@ async fn create_docker_channel_volume(
+@@ -4066,17 +4346,13 @@ async fn create_docker_channel_volume(
          docker_channel_volume_name(sandbox, config),
      )
      .await?;
@@ -4924,7 +5109,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      Ok(())
  }
 
-@@ -4132,6 +4406,7 @@ async fn remove_docker_channel_volume_by_id(
+@@ -4132,6 +4408,7 @@ async fn remove_docker_channel_volume_by_id(
      sandbox_id: &str,
      config: &DockerDriverRuntimeConfig,
  ) -> Result<(), Status> {
@@ -4932,7 +5117,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      remove_docker_volume(
          docker,
          &docker_channel_volume_name_by_id(sandbox_id, config),
-@@ -4217,54 +4492,196 @@ async fn write_sandbox_token_file(
+@@ -4217,54 +4494,196 @@ async fn write_sandbox_token_file(
      Ok(true)
  }
 
@@ -5168,7 +5353,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
                  .open(&path)
                  .await
              {
-@@ -4529,6 +4946,11 @@ async fn prepare_docker_boundary_files(
+@@ -4529,6 +4948,11 @@ async fn prepare_docker_boundary_files(
      gpu_requested: bool,
  ) -> Result<(), Status> {
      let directory = docker_boundary_state_dir(sandbox, config)?;
@@ -5180,7 +5365,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      let workspace_root = driver_mounts::resolve_oci_workspace_root(&image.working_dir)
          .map_err(Status::failed_precondition)?;
      let launch_authentication = sandbox
-@@ -4638,10 +5060,15 @@ async fn prepare_docker_boundary_files(
+@@ -4638,10 +5062,15 @@ async fn prepare_docker_boundary_files(
      Ok(())
  }
 
@@ -5197,7 +5382,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      let directory = docker_boundary_state_dir(sandbox, config)?;
      let runtime_descriptor = tokio::fs::read(directory.join(RUNTIME_DESCRIPTOR_FILE))
          .await
-@@ -4656,6 +5083,13 @@ async fn docker_supervisor_bundle_archive(
+@@ -4656,6 +5085,13 @@ async fn docker_supervisor_bundle_archive(
              "Docker supervisor requires launch authentication",
          ));
      }
@@ -5211,7 +5396,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      let mut archive = tar::Builder::new(Vec::new());
      append_docker_archive_file(
          &mut archive,
-@@ -4718,9 +5152,13 @@ async fn docker_supervisor_bundle_archive(
+@@ -4718,9 +5154,13 @@ async fn docker_supervisor_bundle_archive(
              &contents,
          )?;
      }
@@ -5227,7 +5412,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
  }
 
  async fn refresh_docker_boundary_authentication(
-@@ -4761,6 +5199,7 @@ async fn refresh_docker_boundary_authentication(
+@@ -4761,6 +5201,7 @@ async fn refresh_docker_boundary_authentication(
      boundary_config.verification_keys =
          gateway_verification_keys(&authentication.verification_keys)?;
      runtime_descriptor.session_id = session_id;
@@ -5235,7 +5420,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      runtime_descriptor.tls = SandboxTlsClientConfig {
          server_name: tls.server_name,
          trust_anchor_pem: tls.trust_anchor_pem,
-@@ -4800,35 +5239,6 @@ async fn refresh_docker_boundary_authentication(
+@@ -4800,35 +5241,6 @@ async fn refresh_docker_boundary_authentication(
      .await
  }
 
@@ -5271,7 +5456,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
  async fn read_docker_runtime_descriptor(
      sandbox_id: &str,
      config: &DockerDriverRuntimeConfig,
-@@ -4859,12 +5269,14 @@ async fn stage_docker_supervisor_bundle(
+@@ -4859,12 +5271,14 @@ async fn stage_docker_supervisor_bundle(
      archive: Vec<u8>,
  ) -> Result<(), Status> {
      let stager_name = format!("{}-supervisor-stage", container_name_for_sandbox(sandbox));
@@ -5292,7 +5477,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      let created = docker
          .create_container(
              Some(
-@@ -4914,14 +5326,14 @@ async fn stage_docker_supervisor_bundle(
+@@ -4914,14 +5328,14 @@ async fn stage_docker_supervisor_bundle(
          .path(SUPERVISOR_STATE_MOUNT_PATH)
          .copy_uidgid("true")
          .build();
@@ -5309,7 +5494,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      let cleanup = docker
          .remove_container(
              &created.id,
-@@ -4933,7 +5345,6 @@ async fn stage_docker_supervisor_bundle(
+@@ -4933,7 +5347,6 @@ async fn stage_docker_supervisor_bundle(
                  "remove Docker supervisor staging container: {error}"
              ))
          });
@@ -5317,7 +5502,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      cleanup
  }
 
-@@ -4957,13 +5368,22 @@ fn docker_auxiliary_container_labels(
+@@ -4957,13 +5370,22 @@ fn docker_auxiliary_container_labels(
      ])
  }
 
@@ -5341,7 +5526,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          extra_hosts: docker_supervisor_host_aliases(grpc_endpoint),
          mounts: Some(mounts),
          cap_drop: Some(vec!["ALL".to_string()]),
-@@ -4984,10 +5404,12 @@ fn docker_supervisor_host_config(mounts: Vec<Mount>, grpc_endpoint: &str) -> Hos
+@@ -4984,10 +5406,12 @@ fn docker_supervisor_host_config(mounts: Vec<Mount>, grpc_endpoint: &str) -> Hos
              (
                  "/var/log".to_string(),
                  format!(
@@ -5355,7 +5540,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
          restart_policy: None,
          ..Default::default()
      }
-@@ -5019,305 +5441,384 @@ async fn spawn_docker_control_process(
+@@ -5019,305 +5443,396 @@ async fn spawn_docker_control_process(
      sandbox: &DriverSandbox,
      config: &DockerDriverRuntimeConfig,
      failure_context: DockerRuntimeFailureContext,
@@ -5462,27 +5647,27 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
 +            ),
 +            format!("{}={}", openshell_core::sandbox_env::SANDBOX_ID, sandbox.id),
 +            format!("{}={}", openshell_core::sandbox_env::SANDBOX, sandbox.name),
-+            format!(
-+                "{}={}",
-+                openshell_core::sandbox_env::SSH_SOCKET_PATH,
-+                config.ssh_socket_path
-+            ),
              format!(
 -                "{}={SUPERVISOR_STATE_MOUNT_PATH}/tls/ca.pem",
 -                openshell_core::sandbox_env::TLS_CA
-+                "{}=/run/openshell/proxy-tls",
-+                openshell_core::sandbox_env::PROXY_TLS_DIR
++                "{}={}",
++                openshell_core::sandbox_env::SSH_SOCKET_PATH,
++                config.ssh_socket_path
              ),
              format!(
 -                "{}={SUPERVISOR_STATE_MOUNT_PATH}/tls/cert.pem",
 -                openshell_core::sandbox_env::TLS_CERT
-+                "{}={}",
-+                openshell_core::sandbox_env::NETWORK_RUNTIME_CAPABILITIES,
-+                openshell_core::sandbox_env::POLICY_DNS_TRANSPARENT_TCP_CAPABILITY
++                "{}=/run/openshell/proxy-tls",
++                openshell_core::sandbox_env::PROXY_TLS_DIR
              ),
              format!(
 -                "{}={SUPERVISOR_STATE_MOUNT_PATH}/tls/key.pem",
 -                openshell_core::sandbox_env::TLS_KEY
++                "{}={}",
++                openshell_core::sandbox_env::NETWORK_RUNTIME_CAPABILITIES,
++                openshell_core::sandbox_env::POLICY_DNS_TRANSPARENT_TCP_CAPABILITY
++            ),
++            format!(
 +                "{}={}",
 +                openshell_core::sandbox_env::LOG_LEVEL,
 +                openshell_core::driver_utils::sandbox_log_level(sandbox, &config.log_level)
@@ -5712,16 +5897,6 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
 -                    .build(),
 -            ),
 -            create,
--        )
--        .await
--        .map_err(|error| {
--            Status::internal(format!("create Docker supervisor container: {error}"))
--        })?;
--    if let Err(error) = docker.start_container(&created.id, None).await {
--        let _ = docker
--            .remove_container(
--                &created.id,
--                Some(RemoveContainerOptionsBuilder::default().force(true).build()),
 +        };
 +        stage = ControlLaunchStage::ContainerCreate;
 +        let created = docker
@@ -5732,11 +5907,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
 +                        .build(),
 +                ),
 +                create,
-             )
--            .await;
--        return Err(Status::internal(format!(
--            "start Docker supervisor container: {error}"
--        )));
++            )
 +            .await
 +            .map_err(|error| {
 +                Status::internal(format!("create Docker supervisor container: {error}"))
@@ -5771,7 +5942,32 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
 +            &inspected,
 +            config,
 +            &supervisor_archive.authentication,
-+        )?;
+         )
+-        .await
+-        .map_err(|error| {
+-            Status::internal(format!("create Docker supervisor container: {error}"))
++        .map_err(|failure| {
++            let (status, binding_stage) = match failure {
++                companion_state::BindingWriteFailure::Capture(status) => {
++                    (status, ControlLaunchStage::ImmutableBindingCapture)
++                }
++                companion_state::BindingWriteFailure::Commit(status) => {
++                    (status, ControlLaunchStage::ImmutableBindingCommit)
++                }
++            };
++            stage = binding_stage;
++            ControlSpawnFailure::from(status)
+         })?;
+-    if let Err(error) = docker.start_container(&created.id, None).await {
+-        let _ = docker
+-            .remove_container(
+-                &created.id,
+-                Some(RemoveContainerOptionsBuilder::default().force(true).build()),
+-            )
+-            .await;
+-        return Err(Status::internal(format!(
+-            "start Docker supervisor container: {error}"
+-        )));
 +        let readiness_sandbox_id = failure_context.container_id.clone();
 +        let supervisor_id = created.id;
 +        let context = failure_context.clone();
@@ -6006,7 +6202,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
  }
 
  async fn wait_for_docker_supervisor_ready(
-@@ -5398,6 +5899,46 @@ async fn docker_container_log_tail(docker: &Docker, container_id: &str) -> Strin
+@@ -5398,6 +5913,46 @@ async fn docker_container_log_tail(docker: &Docker, container_id: &str) -> Strin
      String::from_utf8_lossy(&output).trim().to_string()
  }
 
@@ -6053,7 +6249,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
  async fn handle_docker_runtime_failure(
      context: DockerRuntimeFailureContext,
      reason: &'static str,
-@@ -5406,6 +5947,7 @@ async fn handle_docker_runtime_failure(
+@@ -5406,6 +5961,7 @@ async fn handle_docker_runtime_failure(
      context.failures.lock().await.insert(
          context.sandbox.id.clone(),
          DockerRuntimeFailure {
@@ -6061,7 +6257,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              reason,
              message: message.clone(),
          },
-@@ -5481,6 +6023,9 @@ fn cleanup_docker_boundary_state(sandbox: &DriverSandbox, config: &DockerDriverR
+@@ -5481,6 +6037,9 @@ fn cleanup_docker_boundary_state(sandbox: &DriverSandbox, config: &DockerDriverR
  }
 
  fn cleanup_docker_boundary_state_by_id(sandbox_id: &str, config: &DockerDriverRuntimeConfig) {
@@ -6071,7 +6267,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      let Ok(directory) = docker_boundary_state_dir_by_id(sandbox_id, config) else {
          return;
      };
-@@ -5661,6 +6206,11 @@ fn build_container_create_body_for_image(
+@@ -5661,6 +6220,11 @@ fn build_container_create_body_for_image(
          .map_err(Status::failed_precondition)?;
      driver_mounts::validate_workspace_control_path(&workspace_root, BOUNDARY_MOUNT_PATH)
          .map_err(Status::failed_precondition)?;
@@ -6083,7 +6279,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      for volume in &image.volumes {
          driver_mounts::validate_container_mount_target(volume).map_err(|error| {
              Status::failed_precondition(format!(
-@@ -5674,6 +6224,9 @@ fn build_container_create_body_for_image(
+@@ -5674,6 +6238,9 @@ fn build_container_create_body_for_image(
          })?;
          driver_mounts::validate_mount_control_path(volume, BOUNDARY_MOUNT_PATH)
              .map_err(Status::failed_precondition)?;
@@ -6093,7 +6289,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      }
      for mount in &driver_config.mounts {
          let target = match mount {
-@@ -5686,8 +6239,14 @@ fn build_container_create_body_for_image(
+@@ -5686,8 +6253,14 @@ fn build_container_create_body_for_image(
              .map_err(Status::failed_precondition)?;
          driver_mounts::validate_mount_control_path(target, BOUNDARY_MOUNT_PATH)
              .map_err(Status::failed_precondition)?;
@@ -6108,7 +6304,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
      user_mounts.push(Mount {
          target: Some(BOUNDARY_MOUNT_PATH.to_string()),
          source: Some(docker_channel_volume_name(sandbox, config)),
-@@ -5776,6 +6335,7 @@ fn build_container_create_body_for_image(
+@@ -5776,6 +6349,7 @@ fn build_container_create_body_for_image(
                  Some(binds)
              },
              mounts: Some(user_mounts),
@@ -6116,7 +6312,7 @@ index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..3866b4d6b1fccf2ad2ed8ab687f1ecc2
              // Canonical main-process exit is terminal. Runtime restart would
              // silently create a new process generation behind the gateway.
              restart_policy: None,
-@@ -6292,48 +6852,30 @@ fn sanitize_docker_name(value: &str) -> String {
+@@ -6292,48 +6866,30 @@ fn sanitize_docker_name(value: &str) -> String {
          .to_string()
  }
 
