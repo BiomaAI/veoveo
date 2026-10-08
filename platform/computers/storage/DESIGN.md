@@ -10,6 +10,7 @@ admission. The [Computers design](../DESIGN.md#qualification-limits) records qua
 | `veoveo.ai/computer-storage/v1` | Private bounded JSON frames over TLS 1.3 with worker client authentication; exact provider, Computer, template and instance identity |
 | Docker volume-plugin API v1 | Named retained volumes, local scope and a private Unix socket; notifications do not transfer writer authority |
 | Docker Engine API `1.53` | Exact engine identity, retained-volume approval labels and registered-container observation; provider lifecycle mutations remain with the Computers worker |
+| Private JSON Prepare observations | camelCase typed correlation fields and closed snake_case stage/error values; diagnostic only, with no allocation-settlement claim |
 | Linux ext4 and loop devices | Fixed logical-size sparse backing files, `nodev,nosuid`, numeric UID/GID 10001 and a confined `home` subdirectory |
 | `veoveo.ai/retained-storage-host/v1` and `veoveo.ai/retained-home/v1` | Closed local JSON records, atomic publication, explicit incomplete-allocation state and host/engine binding |
 | Linux file locks and filesystem durability | One helper owns the metadata root; file and parent-directory synchronization precede success |
@@ -58,6 +59,18 @@ discard, mount the filesystem, establish the admitted home
 permissions and persist Ready with the backing-file identity. A crash leaves explicit
 incomplete state. Repeating Prepare cannot reformat that state or silently seed a new
 home. Files from incomplete allocation continue to count against physical capacity.
+
+Prepare failure diagnostics select one closed stage: capacity admission, engine
+admission, filesystem preparation or volume admission. They emit the existing unit
+Storage error category with typed provider and Computer identities. These observations
+identify the failed request's producer stage; they do not settle a dispatched allocation
+or permit another mutation. The worker protocol and public allocation failure stay
+unchanged. The native service fixture captures only matching closed observations before
+cleanup, with sixteen records and an 8 KiB report limit. Unrelated requests and arbitrary
+allocator log text cannot enter that report. The read-only Docker CLI captures at most
+8193 bytes per pipe within five seconds and gets a one-second kill/reap cleanup bound
+on every spawned path. A missing capture leaves the stage unknown; an unresolved reader
+reap is reported separately and does not settle an allocation or container.
 
 A repeated Prepare may recover a completed, unclaimed allocation. Recovery verifies
 the full allocation identity, private regular backing file, exact capacity and ext4

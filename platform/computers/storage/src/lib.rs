@@ -18,9 +18,12 @@ pub use filesystem::Filesystem;
 pub use handoff::{Handoff, PhysicalWriter, WriterState};
 pub use identity::{HomeIdentity, HostIdentity};
 pub use journal::{AllocationRecord, AllocationState, BackingIdentity, Journal, Reservation};
-pub use service::{Service, Template};
+pub use service::{
+    PREPARE_FAILURE_PREFIX, PrepareFailureObservation, PrepareStage, Service, Template,
+};
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, thiserror::Error)]
+#[serde(rename_all = "snake_case")]
 pub enum StorageError {
     #[error("invalid retained storage configuration or identity")]
     InvalidIdentity,

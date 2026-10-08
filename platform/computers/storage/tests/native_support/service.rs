@@ -211,6 +211,53 @@ impl Fixture {
     pub fn docker_socket(&self) -> PathBuf {
         self.daemon.as_ref().unwrap().socket.clone()
     }
+    /// Capture only the allocator's closed, selected Prepare observations before Drop.
+    pub async fn prepare_home(
+        &self,
+        worker: &HomeAllocator,
+        binding: &Binding,
+    ) -> Result<(), veoveo_computers_runtime::RuntimeFailure> {
+        let result = worker.prepare(binding).await;
+        if result.is_err() {
+            let mut command = host();
+            command
+                .args(["logs", "--tail", "64", &self.service_name])
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .kill_on_drop(true);
+            let mut capture = match command.spawn() {
+                Ok(mut child) => {
+                    capture_prepare_reader(
+                        &mut child,
+                        self.provider,
+                        binding.computer_id(),
+                        Duration::from_secs(5),
+                    )
+                    .await
+                }
+                Err(_) => PrepareCapture {
+                    observations: Vec::new(),
+                    read_status: PrepareReadStatus::SpawnUnavailable,
+                    cleanup_status: PrepareCleanupStatus::NotSpawned,
+                },
+            };
+            // Empty capture cannot establish a failure stage or settle allocation effects.
+            let mut encoded = serde_json::to_vec(&capture).ok();
+            if encoded.as_ref().is_some_and(|bytes| bytes.len() > 8192) {
+                capture.observations.clear();
+                capture.read_status = PrepareReadStatus::Truncated;
+                encoded = serde_json::to_vec(&capture).ok();
+            }
+            if let Some(bytes) = encoded {
+                let _ = fs::write(self.dir.join("prepare-failure-diagnostics.json"), &bytes);
+                eprintln!(
+                    "Selected allocator Prepare capture: {}",
+                    String::from_utf8_lossy(&bytes)
+                );
+            }
+        }
+        result
+    }
     pub fn allocation_config(&self) -> AllocationConfig {
         AllocationConfig::new(
             self.endpoint.clone(),
@@ -761,4 +808,211 @@ pub fn cleanup() {
         Some(nix::unistd::Gid::from_raw(owner.gid())),
     )
     .unwrap();
+}
+
+fn selected_prepare_observations(
+    bytes: &[u8],
+    provider: veoveo_computers_runtime::ProviderInstanceId,
+    computer: Uuid,
+) -> Vec<veoveo_computer_storage::PrepareFailureObservation> {
+    use veoveo_computer_storage::{PREPARE_FAILURE_PREFIX, PrepareFailureObservation};
+    let mut admitted = Vec::new();
+    let mut size = 2; // JSON array delimiters; count each comma below.
+    for line in bytes.split(|byte| *byte == b'\n') {
+        if line.len() > 1024 || admitted.len() == 16 {
+            continue;
+        }
+        let Ok(text) = std::str::from_utf8(line) else {
+            continue;
+        };
+        let Some(json) = text.strip_prefix(PREPARE_FAILURE_PREFIX) else {
+            continue;
+        };
+        let Ok(observation) = serde_json::from_str::<PrepareFailureObservation>(json) else {
+            continue;
+        };
+        if observation.provider_id != provider || observation.computer_id != computer {
+            continue;
+        }
+        let Ok(encoded) = serde_json::to_vec(&observation) else {
+            continue;
+        };
+        let added = encoded.len() + usize::from(!admitted.is_empty());
+        if size + added > 8192 - 256 {
+            break;
+        }
+        size += added;
+        admitted.push(observation);
+    }
+    admitted
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+enum PrepareReadStatus {
+    Captured,
+    #[vocabulary(rename = "spawn_unavailable")]
+    SpawnUnavailable,
+    #[vocabulary(rename = "missing_pipe")]
+    MissingPipe,
+    #[vocabulary(rename = "read_unavailable")]
+    ReadUnavailable,
+    Deadline,
+    Truncated,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+enum PrepareCleanupStatus {
+    #[vocabulary(rename = "not_spawned")]
+    NotSpawned,
+    Reaped,
+    Unresolved,
+}
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PrepareCapture {
+    observations: Vec<veoveo_computer_storage::PrepareFailureObservation>,
+    read_status: PrepareReadStatus,
+    cleanup_status: PrepareCleanupStatus,
+}
+async fn capture_prepare_reader(
+    child: &mut tokio::process::Child,
+    provider: veoveo_computers_runtime::ProviderInstanceId,
+    computer: Uuid,
+    budget: Duration,
+) -> PrepareCapture {
+    use tokio::io::AsyncReadExt;
+    let read = async {
+        let (Some(stdout), Some(stderr)) = (child.stdout.take(), child.stderr.take()) else {
+            return (Vec::new(), PrepareReadStatus::MissingPipe);
+        };
+        let mut stdout = stdout.take(8193);
+        let mut stderr = stderr.take(8193);
+        let mut out = Vec::new();
+        let mut err = Vec::new();
+        let (a, b) = tokio::join!(stdout.read_to_end(&mut out), stderr.read_to_end(&mut err));
+        if a.is_err() || b.is_err() {
+            return (Vec::new(), PrepareReadStatus::ReadUnavailable);
+        }
+        let truncated = out.len() > 8192 || err.len() > 8192;
+        let observations =
+            selected_prepare_observations(&err[..err.len().min(8192)], provider, computer);
+        if truncated {
+            return (observations, PrepareReadStatus::Truncated);
+        }
+        match child.wait().await {
+            Ok(status) if status.success() => (observations, PrepareReadStatus::Captured),
+            _ => (observations, PrepareReadStatus::ReadUnavailable),
+        }
+    };
+    let (observations, read_status) = match tokio::time::timeout(budget, read).await {
+        Ok(result) => result,
+        Err(_) => (Vec::new(), PrepareReadStatus::Deadline),
+    };
+    // Only this read-only CLI PID is owned; reaping never settles allocation or a container.
+    let cleanup_status = if matches!(child.try_wait(), Ok(Some(_))) {
+        PrepareCleanupStatus::Reaped
+    } else {
+        let _ = child.start_kill();
+        match tokio::time::timeout(Duration::from_secs(1), child.wait()).await {
+            Ok(Ok(_)) => PrepareCleanupStatus::Reaped,
+            _ => PrepareCleanupStatus::Unresolved,
+        }
+    };
+    PrepareCapture {
+        observations,
+        read_status,
+        cleanup_status,
+    }
+}
+
+#[cfg(test)]
+mod prepare_diagnostic_tests {
+    use super::*;
+    use veoveo_computer_storage::{
+        PREPARE_FAILURE_PREFIX, PrepareFailureObservation, PrepareStage, StorageError,
+    };
+    #[test]
+    fn selected_prepare_failure_reports_keep_actual_stage_and_exclude_untrusted_messages() {
+        let provider = veoveo_computers_runtime::ProviderInstanceId::new();
+        let computer = Uuid::now_v7();
+        let mut bytes = b"private-path certificate SYNTHETIC_SECRET\nretained-storage: authenticated request failed: identity mismatch\n".to_vec();
+        for stage in [
+            PrepareStage::CapacityAdmission,
+            PrepareStage::EngineAdmission,
+            PrepareStage::FilesystemPreparation,
+            PrepareStage::VolumeAdmission,
+        ] {
+            let observation = PrepareFailureObservation {
+                provider_id: provider,
+                computer_id: computer,
+                stage,
+                cause: StorageError::IdentityMismatch,
+            };
+            bytes.extend_from_slice(
+                format!(
+                    "{PREPARE_FAILURE_PREFIX}{}\n",
+                    serde_json::to_string(&observation).unwrap()
+                )
+                .as_bytes(),
+            );
+        }
+        let foreign = PrepareFailureObservation {
+            provider_id: provider,
+            computer_id: Uuid::now_v7(),
+            stage: PrepareStage::VolumeAdmission,
+            cause: StorageError::WriterDenied,
+        };
+        bytes.extend_from_slice(
+            format!(
+                "{PREPARE_FAILURE_PREFIX}{}\n",
+                serde_json::to_string(&foreign).unwrap()
+            )
+            .as_bytes(),
+        );
+        bytes.extend_from_slice(format!("{PREPARE_FAILURE_PREFIX}{{\"providerId\":\"{provider}\",\"computerId\":\"{computer}\",\"stage\":\"volume_admission\",\"cause\":\"identity_mismatch\",\"message\":\"SYNTHETIC_SECRET\"}}\n").as_bytes());
+        let reports = selected_prepare_observations(&bytes, provider, computer);
+        assert_eq!(reports.len(), 4);
+        assert_eq!(reports[0].stage, PrepareStage::CapacityAdmission);
+        assert_eq!(reports[3].stage, PrepareStage::VolumeAdmission);
+        let json = serde_json::to_string(&reports).unwrap();
+        assert!(json.contains("computerId"));
+        assert!(json.contains("identity_mismatch"));
+        assert!(!json.contains("SYNTHETIC_SECRET"));
+        assert!(!json.contains("private-path"));
+        assert!(selected_prepare_observations(&bytes, provider, Uuid::now_v7()).is_empty());
+    }
+    #[tokio::test]
+    async fn diagnostic_reader_bounds_bytes_and_reaps_oversize_missing_pipe_and_deadline() {
+        use std::process::Stdio;
+        let provider = veoveo_computers_runtime::ProviderInstanceId::new();
+        let computer = Uuid::now_v7();
+        let mut oversized = Command::new("/bin/sh");
+        oversized
+            .args(["-c", "printf '%10000s' '' >&2"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true);
+        let mut child = oversized.spawn().unwrap();
+        let capture =
+            capture_prepare_reader(&mut child, provider, computer, Duration::from_secs(2)).await;
+        assert_eq!(capture.read_status, PrepareReadStatus::Truncated);
+        assert_eq!(capture.cleanup_status, PrepareCleanupStatus::Reaped);
+        assert!(serde_json::to_vec(&capture).unwrap().len() <= 8192);
+        for (pipes, expected) in [
+            (false, PrepareReadStatus::MissingPipe),
+            (true, PrepareReadStatus::Deadline),
+        ] {
+            let mut command = Command::new("/bin/sleep");
+            command.arg("10").kill_on_drop(true);
+            if pipes {
+                command.stdout(Stdio::piped()).stderr(Stdio::piped());
+            }
+            let mut child = command.spawn().unwrap();
+            let capture =
+                capture_prepare_reader(&mut child, provider, computer, Duration::from_millis(20))
+                    .await;
+            assert_eq!(capture.read_status, expected);
+            assert_eq!(capture.cleanup_status, PrepareCleanupStatus::Reaped);
+            assert!(child.try_wait().unwrap().is_some());
+        }
+    }
 }

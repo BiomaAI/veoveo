@@ -45,8 +45,14 @@ async fn native_service_shared_mount_and_restart() {
     .unwrap();
     guest.ready().await.unwrap_err();
 
-    worker.prepare(&fixture.initial).await.unwrap();
-    worker.prepare(&fixture.initial).await.unwrap();
+    fixture
+        .prepare_home(&worker, &fixture.initial)
+        .await
+        .unwrap();
+    fixture
+        .prepare_home(&worker, &fixture.initial)
+        .await
+        .unwrap();
     worker.restore(&fixture.replacement).await.unwrap_err();
     fixture.create("a", &fixture.initial).await;
     fixture.start_container("a", true).await;

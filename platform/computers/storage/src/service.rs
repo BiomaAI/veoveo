@@ -13,6 +13,45 @@ pub struct Template {
     pub fingerprint: String,
     pub capacity_bytes: u64,
 }
+/// Closed diagnostic prefix; the worker protocol and allocation outcome are unchanged.
+pub const PREPARE_FAILURE_PREFIX: &str = "retained-storage-prepare: ";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
+pub enum PrepareStage {
+    #[vocabulary(rename = "capacity_admission")]
+    CapacityAdmission,
+    #[vocabulary(rename = "engine_admission")]
+    EngineAdmission,
+    #[vocabulary(rename = "filesystem_preparation")]
+    FilesystemPreparation,
+    #[vocabulary(rename = "volume_admission")]
+    VolumeAdmission,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PrepareFailureObservation {
+    pub provider_id: veoveo_computers_runtime::ProviderInstanceId,
+    pub computer_id: Uuid,
+    pub stage: PrepareStage,
+    pub cause: StorageError,
+}
+
+fn prepare_result<T>(home: &HomeIdentity, stage: PrepareStage, result: Result<T>) -> Result<T> {
+    result.map_err(|cause| {
+        let observation = PrepareFailureObservation {
+            provider_id: home.provider_id,
+            computer_id: home.computer_id,
+            stage,
+            cause,
+        };
+        if let Ok(encoded) = serde_json::to_string(&observation) {
+            eprintln!("{PREPARE_FAILURE_PREFIX}{encoded}");
+        }
+        observation.cause
+    })
+}
+
 pub struct Service {
     pub(crate) filesystem: Mutex<Filesystem>,
     pub(crate) docker: Docker,
@@ -86,15 +125,34 @@ impl Service {
         Ok(capacity)
     }
     pub async fn prepare(&self, home: HomeIdentity) -> Result<u64> {
-        let capacity = self.capacity(home.provider_id, &home.template_fingerprint)?;
-        self.docker.verify_engine().await?;
+        let capacity = prepare_result(
+            &home,
+            PrepareStage::CapacityAdmission,
+            self.capacity(home.provider_id, &home.template_fingerprint),
+        )?;
+        prepare_result(
+            &home,
+            PrepareStage::EngineAdmission,
+            self.docker.verify_engine().await,
+        )?;
         {
             let mut filesystem = self.filesystem.lock().await;
-            filesystem.prepare(home.clone(), capacity).await?;
+            prepare_result(
+                &home,
+                PrepareStage::FilesystemPreparation,
+                filesystem.prepare(home.clone(), capacity).await,
+            )?;
         }
-        self.docker
-            .ensure_volume(&volume_name(home.computer_id)?)
-            .await?;
+        let volume = prepare_result(
+            &home,
+            PrepareStage::VolumeAdmission,
+            volume_name(home.computer_id),
+        )?;
+        prepare_result(
+            &home,
+            PrepareStage::VolumeAdmission,
+            self.docker.ensure_volume(&volume).await,
+        )?;
         Ok(capacity)
     }
     pub async fn restore(&self, home: HomeIdentity) -> Result<u64> {
