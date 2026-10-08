@@ -65,10 +65,9 @@ pub fn observe(error: &anyhow::Error) -> Option<ObservedFailure> {
     for cause in error.chain() {
         if let Some(rmcp::service::ClientInitializeError::TransportError { error, .. }) =
             cause.downcast_ref::<rmcp::service::ClientInitializeError>()
+            && let Some(observed) = transport_observation(error.error.as_ref())
         {
-            if let Some(observed) = transport_observation(error.error.as_ref()) {
-                return Some(observed);
-            }
+            return Some(observed);
         }
         if let Some(rmcp::service::ClientInitializeError::JsonRpcError(error)) =
             cause.downcast_ref::<rmcp::service::ClientInitializeError>()
@@ -80,10 +79,9 @@ pub fn observe(error: &anyhow::Error) -> Option<ObservedFailure> {
         }
         if let Some(rmcp::service::ServiceError::TransportSend(error)) =
             cause.downcast_ref::<rmcp::service::ServiceError>()
+            && let Some(observed) = transport_observation(error.error.as_ref())
         {
-            if let Some(observed) = transport_observation(error.error.as_ref()) {
-                return Some(observed);
-            }
+            return Some(observed);
         }
 
         if cause.downcast_ref::<AuthRequiredError>().is_some() {
@@ -99,12 +97,12 @@ pub fn observe(error: &anyhow::Error) -> Option<ObservedFailure> {
                 status: status.as_u16(),
             });
         }
-        if let Some(error) = cause.downcast_ref::<reqwest::Error>() {
-            if let Some(status) = error.status() {
-                return Some(ObservedFailure::Http {
-                    status: status.as_u16(),
-                });
-            }
+        if let Some(error) = cause.downcast_ref::<reqwest::Error>()
+            && let Some(status) = error.status()
+        {
+            return Some(ObservedFailure::Http {
+                status: status.as_u16(),
+            });
         }
         if let Some(rmcp::service::ServiceError::McpError(error)) =
             cause.downcast_ref::<rmcp::service::ServiceError>()

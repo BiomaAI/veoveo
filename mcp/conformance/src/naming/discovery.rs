@@ -264,8 +264,10 @@ pub fn check_discovery(
     evidence: &NamingEvidence<'_>,
 ) -> crate::CheckResult {
     check_discovery_since(
-        std::time::Instant::now(),
-        complete,
+        DiscoveryProgress {
+            started: std::time::Instant::now(),
+            complete,
+        },
         tools,
         resources,
         templates,
@@ -275,9 +277,13 @@ pub fn check_discovery(
     )
 }
 
+pub(crate) struct DiscoveryProgress {
+    pub started: std::time::Instant,
+    pub complete: bool,
+}
+
 pub(crate) fn check_discovery_since(
-    started: std::time::Instant,
-    complete: bool,
+    progress: DiscoveryProgress,
     tools: &[Tool],
     resources: &[Resource],
     templates: &[ResourceTemplate],
@@ -292,11 +298,17 @@ pub(crate) fn check_discovery_since(
         summary: "C33 requires complete discovery and selected owner observations".into(),
         evidence: None,
     };
-    if !complete || !evidence.has_required_observations() {
+    if !progress.complete || !evidence.has_required_observations() {
         return result;
     }
     match inspect_discovery_since(
-        started, tools, resources, templates, prompts, extensions, evidence,
+        progress.started,
+        tools,
+        resources,
+        templates,
+        prompts,
+        extensions,
+        evidence,
     ) {
         Ok(inspection) if !inspection.roots().is_empty() => {
             result.status = CheckStatus::Passed;

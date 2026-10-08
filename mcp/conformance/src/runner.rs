@@ -359,8 +359,10 @@ pub async fn run_hosted_server_conformance_with_evidence(
         && (!resources_advertised || templates.is_some())
         && (!prompts_advertised || prompts.is_some());
     checks.push(crate::naming::check_discovery_since(
-        naming_started,
-        complete_catalogs,
+        crate::naming::DiscoveryProgress {
+            started: naming_started,
+            complete: complete_catalogs,
+        },
         tools.as_deref().unwrap_or_default(),
         resources.as_deref().unwrap_or_default(),
         templates.as_deref().unwrap_or_default(),

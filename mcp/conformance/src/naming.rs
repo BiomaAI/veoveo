@@ -16,7 +16,7 @@ use veoveo_types::{NamingRole, NamingSchemaContext, ScalarNaming};
 
 mod discovery;
 mod literal;
-pub(crate) use discovery::check_discovery_since;
+pub(crate) use discovery::{DiscoveryProgress, check_discovery_since};
 pub use discovery::{check_discovery, inspect_discovery};
 
 pub const MAX_NAMING_BYTES: usize = 32 * 1024 * 1024;
@@ -163,8 +163,8 @@ impl NamingInspection {
             definitions: Vec::new(),
         };
         walker.node(schema.as_value(), "#", Context::default(), 0, 0)?;
-        if let Some(path) = definitions {
-            if let Some(container) = schema
+        if let Some(path) = definitions
+            && let Some(container) = schema
                 .as_value()
                 .pointer(
                     path.strip_prefix('#')
@@ -173,12 +173,11 @@ impl NamingInspection {
                         .unwrap_or(path.strip_prefix('#').unwrap_or(path)),
                 )
                 .and_then(Value::as_object)
-            {
-                for (name, definition) in container {
-                    walker
-                        .definitions
-                        .push((definition, format!("{path}{name}")));
-                }
+        {
+            for (name, definition) in container {
+                walker
+                    .definitions
+                    .push((definition, format!("{path}{name}")));
             }
         }
         // A reached definition is inspected in every actual use context. Only
@@ -434,10 +433,9 @@ impl<'a, 'r> Walker<'a, 'r> {
         if let Some(role) = node
             .get(veoveo_types::naming::NAMING_PROFILE_KEY)
             .and_then(|marker| marker.get("role"))
+            && role.get("kind").and_then(Value::as_str) == Some("dictionary")
         {
-            if role.get("kind").and_then(Value::as_str) == Some("dictionary") {
-                return Ok(role.get("keySchema").map(|key| (key, node)));
-            }
+            return Ok(role.get("keySchema").map(|key| (key, node)));
         }
         if let Some(reference) = node.get("$ref").and_then(Value::as_str) {
             let target = self
@@ -627,19 +625,19 @@ impl<'a, 'r> Walker<'a, 'r> {
                 _ => {}
             }
         }
-        if !context.exempt {
-            if let Some(map) = node.get("dependentSchemas").and_then(Value::as_object) {
-                for name in map.keys() {
-                    self.inspection.tick()?;
-                    ensure!(
-                        if let Some(validator) = key_validator {
-                            validator.is_valid(&Value::String(name.clone()))
-                        } else {
-                            dto_field_name(name)
-                        },
-                        "invalid dependent schema field at {path}/{name}"
-                    );
-                }
+        if !context.exempt
+            && let Some(map) = node.get("dependentSchemas").and_then(Value::as_object)
+        {
+            for name in map.keys() {
+                self.inspection.tick()?;
+                ensure!(
+                    if let Some(validator) = key_validator {
+                        validator.is_valid(&Value::String(name.clone()))
+                    } else {
+                        dto_field_name(name)
+                    },
+                    "invalid dependent schema field at {path}/{name}"
+                );
             }
         }
         if !context.exempt {
@@ -653,10 +651,10 @@ impl<'a, 'r> Walker<'a, 'r> {
                 self.inspection.tick()?;
                 self.literal(node, value, path, context.clone(), 0, &mut BTreeSet::new())?;
             }
-            if let Some(profile) = &context.scalar {
-                if !matches!(profile, ScalarNaming::Builtin { .. }) {
-                    self.source_review = true;
-                }
+            if let Some(profile) = &context.scalar
+                && !matches!(profile, ScalarNaming::Builtin { .. })
+            {
+                self.source_review = true;
             }
         }
         if let Some(reference) = node.get("$ref").and_then(Value::as_str) {

@@ -68,16 +68,14 @@ impl<'a, 'r> Walker<'a, 'r> {
             let mut locations = BTreeSet::new();
             for unit in output.details {
                 self.inspection.tick()?;
-                if unit.valid {
-                    if let Some(keyword) = unit
+                if unit.valid
+                    && let Some(keyword) = unit
                         .evaluation_path
                         .strip_prefix('/')
                         .and_then(|path| path.split('/').next())
-                    {
-                        if matches!(keyword, "unevaluatedProperties" | "unevaluatedItems") {
-                            locations.insert((keyword.to_owned(), unit.instance_location));
-                        }
-                    }
+                    && matches!(keyword, "unevaluatedProperties" | "unevaluatedItems")
+                {
+                    locations.insert((keyword.to_owned(), unit.instance_location));
                 }
             }
             self.literal_evaluations.insert(key, locations);
@@ -116,14 +114,13 @@ impl<'a, 'r> Walker<'a, 'r> {
             .map(jsonschema::Draft::from_schema_uri)
             .unwrap_or_default()
             == jsonschema::Draft::Draft7
+            && let Some(reference) = schema.get("$ref").and_then(Value::as_str)
         {
-            if let Some(reference) = schema.get("$ref").and_then(Value::as_str) {
-                let target = self
-                    .registry
-                    .resolver(jsonschema::uri::from_str("urn:veoveo:conformance:schema")?)
-                    .lookup(reference)?;
-                return self.sources(target.contents(), value, depth + 1, seen, sources);
-            }
+            let target = self
+                .registry
+                .resolver(jsonschema::uri::from_str("urn:veoveo:conformance:schema")?)
+                .lookup(reference)?;
+            return self.sources(target.contents(), value, depth + 1, seen, sources);
         }
         let profile = if schema.is_object() || schema.is_boolean() {
             veoveo_types::naming_profile(&Schema::try_from(schema.clone())?, self.context)?
@@ -208,10 +205,10 @@ impl<'a, 'r> Walker<'a, 'r> {
                 }
             }
         }
-        if children.is_empty() {
-            if let Some(additional) = schema.get("additionalProperties") {
-                children.push(additional);
-            }
+        if children.is_empty()
+            && let Some(additional) = schema.get("additionalProperties")
+        {
+            children.push(additional);
         }
         Ok(children)
     }
@@ -409,17 +406,16 @@ impl<'a, 'r> Walker<'a, 'r> {
                             if let Some(item) = source.schema.get("additionalItems") {
                                 children.push(item);
                             }
-                        } else if prefix.is_none_or(|items| index >= items.len()) {
-                            if let Some(item) =
+                        } else if prefix.is_none_or(|items| index >= items.len())
+                            && let Some(item) =
                                 source.schema.get("items").filter(|item| !item.is_array())
-                            {
-                                children.push(item);
-                            }
+                        {
+                            children.push(item);
                         }
-                        if let Some(contains) = source.schema.get("contains") {
-                            if self.matches_literal(contains, child)? {
-                                children.push(contains);
-                            }
+                        if let Some(contains) = source.schema.get("contains")
+                            && self.matches_literal(contains, child)?
+                        {
+                            children.push(contains);
                         }
                     }
                     for source in &active {

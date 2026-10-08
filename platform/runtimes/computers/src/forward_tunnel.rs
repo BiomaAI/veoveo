@@ -80,10 +80,10 @@ where
                 .map_err(|_| RuntimeFailure::TerminalFailed)?
                 .ok_or(RuntimeFailure::TerminalBounds)?;
             validate_init(&init, &sandbox, &sandbox_id)?;
-            if let Some(api::tcp_forward_frame::Payload::Init(header)) = &init.payload {
-                if header.workspace != runtime.workspace {
-                    return Err(RuntimeFailure::BindingMismatch);
-                }
+            if let Some(api::tcp_forward_frame::Payload::Init(header)) = &init.payload
+                && header.workspace != runtime.workspace
+            {
+                return Err(RuntimeFailure::BindingMismatch);
             }
             let (mut client, _transport) =
                 crate::attachment_transport::connect(&runtime.endpoint, &runtime.address).await?;
