@@ -89,6 +89,40 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_pointer_width = "64")]
+    fn offset_cursor_usize64_matches_python_admission_corpus() {
+        for (wire, expected) in [
+            ("v1:0", 0),
+            ("v1:+0", 0),
+            ("v1:0002", 2),
+            ("v1:+0002", 2),
+            ("v1:18446744073709551615", usize::MAX),
+        ] {
+            assert_eq!(decode_cursor(wire).unwrap(), expected);
+        }
+        assert_eq!(
+            decode_cursor(&format!("v1:{}2", "0".repeat(5000))).unwrap(),
+            2
+        );
+        for wire in [
+            "v1:",
+            "v1:+",
+            "v1:++2",
+            "v1:-2",
+            "v1: 2",
+            "v1:2 ",
+            "v1:٢",
+            "v1:²",
+            "v1:2.0",
+            "v2:2",
+            "v1:18446744073709551616",
+        ] {
+            assert!(decode_cursor(wire).is_err(), "{wire:?}");
+        }
+        assert!(decode_cursor(&format!("v1:{}", "9".repeat(5000))).is_err());
+    }
+
+    #[test]
     fn paginate_returns_next_cursor() {
         let page = paginate(vec![1, 2, 3], None, 2).unwrap();
         assert_eq!(page.items, vec![1, 2]);

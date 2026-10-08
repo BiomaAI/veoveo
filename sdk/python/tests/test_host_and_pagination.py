@@ -91,3 +91,26 @@ def test_paginate_rejects_unknown_cursor_shape():
         paginate([1, 2, 3], "2", 2)
     with pytest.raises(PaginationError):
         paginate([1], None, 0)
+
+
+@pytest.mark.parametrize("wire, offset", [
+    ("v1:0", 0), ("v1:+0", 0), ("v1:0002", 2), ("v1:+0002", 2),
+    ("v1:18446744073709551615", 2**64 - 1),
+    ("v1:" + "0" * 5000 + "2", 2),
+])
+def test_offset_cursor_matches_usize64_alias_admission(wire, offset):
+    from veoveo_mcp.pagination import _decode_cursor
+    assert _decode_cursor(wire) == offset
+    page = paginate([0, 1, 2, 3], wire, 1)
+    assert page.items == ([offset] if offset < 4 else [])
+    assert page.next_cursor == (f"v1:{offset + 1}" if offset + 1 < 4 else None)
+
+
+@pytest.mark.parametrize("wire", [
+    "v1:", "v1:+", "v1:++2", "v1:-2", "v1: 2", "v1:2 ",
+    "v1:٢", "v1:²", "v1:2.0", "v2:2",
+    "v1:18446744073709551616", "v1:" + "9" * 5000,
+])
+def test_offset_cursor_refuses_non_usize64_through_domain_error(wire):
+    with pytest.raises(PaginationError):
+        paginate([0, 1, 2, 3], wire, 1)

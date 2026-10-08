@@ -34,6 +34,16 @@ def _decode_cursor(cursor: str) -> int:
     if not cursor.startswith(CURSOR_PREFIX):
         raise PaginationError(f"invalid pagination cursor {cursor!r}")
     offset = cursor[len(CURSOR_PREFIX) :]
-    if not offset.isdigit():
+    if offset.startswith("+"):
+        offset = offset[1:]
+    if not offset or not offset.isascii() or not offset.isdecimal():
         raise PaginationError(f"invalid pagination cursor {cursor!r}")
-    return int(offset)
+    # Compare significant digits before conversion: unlimited leading zero aliases
+    # must not trigger Python's integer-string limit or admit a value beyond usize64.
+    significant = offset.lstrip("0") or "0"
+    maximum = "18446744073709551615"
+    if len(significant) > len(maximum) or (
+        len(significant) == len(maximum) and significant > maximum
+    ):
+        raise PaginationError(f"invalid pagination cursor {cursor!r}")
+    return int(significant)

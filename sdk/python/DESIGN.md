@@ -252,3 +252,7 @@ common currency and sum used by their builder. Generic MCP Task IDs remain opaqu
 the native owner query checks its selected UUIDv7 parent separately. Usage models
 do not establish caller permission, provider billing accuracy or an owner's
 resource route. SQL selection and the template's typed address own those checks.
+
+## Offset Pagination
+
+The hosted list helper shares the 64-bit Rust `usize` offset profile: `v1:` followed by ASCII decimal digits, optionally preceded by one `+`. Leading zeros are admitted without a wire-length limit. Values must fit unsigned 64 bits; nondecimal, Unicode and overflowing values produce `PaginationError` before listing. Emission uses `v1:N` without a sign or leading zeros. The local `Page` attribute names are internal Python values; MCP result aliases belong to the upstream SDK.

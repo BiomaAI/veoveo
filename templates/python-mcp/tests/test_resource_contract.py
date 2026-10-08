@@ -182,3 +182,30 @@ def test_prompt_arguments_share_advertised_current_wire_and_refuse_retired_keys(
         for arguments in ({old: value}, {old: value, current: value}, {}, {current: value, "unknown": value}):
             with pytest.raises(ValueError):
                 get_prompt(name, arguments)
+
+
+async def test_bound_resource_listing_matches_usize64_offset_admission(monkeypatch):
+    """Invoke the registered SDK handler with its actual incoming params model."""
+    from types import SimpleNamespace
+    from mcp.shared.exceptions import MCPError
+    import mcp.types as types
+    from datasheet_mcp.server import mcp_server
+
+    monkeypatch.setattr(mcp_server, "request_scope", lambda _ctx: object())
+    monkeypatch.setattr(mcp_server, "identity_from_scope", lambda _scope: object())
+    monkeypatch.setattr(mcp_server, "LIST_PAGE_SIZE", 1)
+    server = mcp_server.build_mcp_server(SimpleNamespace())
+    entry = server.get_request_handler("resources/list")
+    assert entry is not None
+    resources = SERVER_SETUP.resources()
+    assert len(resources) > 1
+    for wire in ["v1:0", "v1:+0000", "v1:" + "0" * 5000]:
+        result = await entry.handler(None, entry.params_type.model_validate({"cursor": wire}))
+        assert result.resources == resources[:1]
+        assert result.next_cursor == "v1:1"
+    result = await entry.handler(None, entry.params_type.model_validate({"cursor": "v1:18446744073709551615"}))
+    assert result.resources == [] and result.next_cursor is None
+    for wire in ["v1:٢", "v1:²", "v1:++0", "v1:18446744073709551616", "v1:" + "9" * 5000]:
+        with pytest.raises(MCPError) as error:
+            await entry.handler(None, entry.params_type.model_validate({"cursor": wire}))
+        assert error.value.code == types.INVALID_REQUEST
