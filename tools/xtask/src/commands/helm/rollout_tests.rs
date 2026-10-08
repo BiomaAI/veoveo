@@ -562,7 +562,7 @@ fn helm_evidence_enrichment_admits_only_current_selected_release() {
             name: "veoveo",
             archive: directory.path().join("veoveo-1.2.3.tgz"),
             filename: "veoveo-1.2.3.tgz".to_owned(),
-            sha256: veoveo_deploy_contract::ArtifactDigest::parse(&format!(
+            sha256: veoveo_deploy_contract::ArtifactDigest::parse(format!(
                 "sha256:{}",
                 "a".repeat(64)
             ))
@@ -658,7 +658,7 @@ fn helm_push_preflight_refuses_before_helm_effects() {
                 archive: directory.join("veoveo-1.2.3.tgz"),
                 filename: "veoveo-1.2.3.tgz".to_owned(),
                 sha256: veoveo_deploy_contract::ArtifactDigest::parse(
-                    &std::env::var("VEOVEO_HELM_PREFLIGHT_SELECTED_DIGEST").unwrap(),
+                    std::env::var("VEOVEO_HELM_PREFLIGHT_SELECTED_DIGEST").unwrap(),
                 )
                 .unwrap(),
                 oci: None,

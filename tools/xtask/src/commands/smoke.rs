@@ -401,11 +401,10 @@ fn prepare_group(
                     && value["target"]["kind"]
                         .as_array()
                         .is_some_and(|k| k.iter().any(|k| k == if test { "test" } else { "bin" }))
+                    && let Some(path) = value["executable"].as_str()
                 {
-                    if let Some(path) = value["executable"].as_str() {
-                        ensure!(executable.is_none(), "ambiguous observed executable");
-                        executable = Some(PathBuf::from(path));
-                    }
+                    ensure!(executable.is_none(), "ambiguous observed executable");
+                    executable = Some(PathBuf::from(path));
                 }
                 if let Some(files) = value["filenames"].as_array() {
                     for path in files.iter().filter_map(Value::as_str) {

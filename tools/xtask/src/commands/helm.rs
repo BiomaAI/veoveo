@@ -303,7 +303,20 @@ pub(crate) fn build(
         let (name, relative) = selected.definition();
         let chart = source.join(relative);
         ensure!(chart.is_dir(), "missing Helm chart {}", chart.display());
-        process::status("helm", ["lint", path_text(&chart)?], Some(source))?;
+        let mut lint = vec![OsString::from("lint"), chart.as_os_str().to_owned()];
+        if selected == Chart::Veoveo {
+            // The chart requires an installation plan. Anonymous render fixtures only
+            // qualify lint; package continues to use the unchanged chart defaults.
+            let values = source.join("testing/fixtures/platform-selection/platform-values.yaml");
+            let plan = source.join("testing/fixtures/module-schema-consumer/module-plan.json");
+            lint.extend([
+                OsString::from("--values"),
+                values.into_os_string(),
+                OsString::from("--set-file"),
+                OsString::from(format!("moduleInstallation.planJson={}", path_text(&plan)?)),
+            ]);
+        }
+        process::status("helm", lint, Some(source))?;
         process::status(
             "helm",
             [
@@ -462,7 +475,7 @@ fn validate_digest(digest: &str) -> Result<()> {
 
 fn sha256_file(path: &Path) -> Result<ArtifactDigest> {
     let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-    ArtifactDigest::parse(&format!("sha256:{}", hex::encode(Sha256::digest(bytes))))
+    ArtifactDigest::parse(format!("sha256:{}", hex::encode(Sha256::digest(bytes))))
         .map_err(Into::into)
 }
 
@@ -493,4 +506,58 @@ fn copy_immutable(source: &Path, target: &Path, expected_sha256: &ArtifactDigest
 fn path_text(path: &Path) -> Result<&str> {
     path.to_str()
         .with_context(|| format!("path is not UTF-8: {}", path.display()))
+}
+
+#[cfg(test)]
+#[test]
+fn veoveo_build_lints_with_render_inputs_and_retains_unconfigured_archive_evidence() -> Result<()> {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .context("xtask repository root")?;
+    let output = TempDir::new()?;
+    let release = build(
+        source,
+        output.path(),
+        "9.9.9",
+        "render-fixture-source",
+        &[Chart::Veoveo],
+    )?;
+    ensure!(
+        release.artifacts.len() == 1,
+        "selected build produced unrelated charts"
+    );
+    let artifact = &release.artifacts[0];
+    ensure!(
+        artifact.name == "veoveo"
+            && artifact.filename == "veoveo-9.9.9.tgz"
+            && artifact.archive.is_file(),
+        "chart archive missing or incorrectly selected"
+    );
+    ensure!(
+        sha256_file(&artifact.archive)? == artifact.sha256,
+        "retained archive digest differs"
+    );
+    let evidence = read_evidence(&output.path().join("release-evidence.json"))?;
+    ensure!(
+        evidence.source_revision == "render-fixture-source"
+            && evidence.version == "9.9.9"
+            && evidence.artifacts.len() == 1
+            && evidence.artifacts[0].sha256 == artifact.sha256
+            && evidence.artifacts[0].oci.is_none(),
+        "local build evidence differs from actual archive"
+    );
+    // Release packaging must retain required installation inputs, never bake the
+    // anonymous lint fixture or installation-specific runtime values into defaults.
+    let values = process::output_text(
+        "helm",
+        ["show", "values", path_text(&artifact.archive)?],
+        Some(source),
+    )?;
+    let values: serde_yaml_ng::Value = serde_yaml_ng::from_str(&values)?;
+    ensure!(
+        values["moduleInstallation"]["planJson"].as_str() == Some(""),
+        "render-only module plan leaked into packaged chart defaults"
+    );
+    Ok(())
 }
