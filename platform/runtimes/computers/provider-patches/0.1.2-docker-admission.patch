@@ -1,5 +1,17 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index c6330b8897cd7b6b3b6bece9b125a8505facc163..c8aab130c6808d44acc69e348ee77d2f1b66d9db 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -4137,6 +4137,7 @@ dependencies = [
+  "openshell-sandbox-backend",
+  "opentelemetry",
+  "opentelemetry_sdk",
++ "prost",
+  "prost-types",
+  "rand 0.9.4",
+  "rustix 1.1.4",
 diff --git a/crates/openshell-core/src/config.rs b/crates/openshell-core/src/config.rs
-index c85fc430..155ef3da 100644
+index c85fc4308ab3c863fdc390f0e4c0fd8664bb6660..155ef3dabbfeb75561a95937186d47e68c64584c 100644
 --- a/crates/openshell-core/src/config.rs
 +++ b/crates/openshell-core/src/config.rs
 @@ -387,6 +387,27 @@ pub struct MtlsAuthConfig {
@@ -32,7 +44,7 @@ index c85fc430..155ef3da 100644
  /// Gateway user authentication settings.
 diff --git a/crates/openshell-core/tests/mtls_user_admission.rs b/crates/openshell-core/tests/mtls_user_admission.rs
 new file mode 100644
-index 00000000..251ec76d
+index 0000000000000000000000000000000000000000..251ec76d84193255743455dbba47074a38e7ed23
 --- /dev/null
 +++ b/crates/openshell-core/tests/mtls_user_admission.rs
 @@ -0,0 +1,34 @@
@@ -70,23 +82,35 @@ index 00000000..251ec76d
 +    config.enabled = false;
 +    assert!(!config.allows_user("worker"));
 +}
+diff --git a/crates/openshell-driver-docker/Cargo.toml b/crates/openshell-driver-docker/Cargo.toml
+index e9751f77636611a7a0bd4019a17908f1e14cc001..ee4dd26cd9199c365840b5b973edcf230f1e1b1b 100644
+--- a/crates/openshell-driver-docker/Cargo.toml
++++ b/crates/openshell-driver-docker/Cargo.toml
+@@ -32,6 +32,7 @@ tracing-subscriber = { workspace = true }
+ bytes = { workspace = true }
+ serde = { workspace = true }
+ serde_json = { workspace = true }
++prost = { workspace = true }
+ prost-types = { workspace = true }
+ bollard = { version = "0.20" }
+ url = { workspace = true }
 diff --git a/crates/openshell-driver-docker/src/lib.rs b/crates/openshell-driver-docker/src/lib.rs
-index 6e6b1d07..637eff25 100644
+index 6e6b1d07ed66d6fdd0cd1f0f4103ec5ed3f54843..821d88ccb5eb7b22d869791db0c32254ab702aa1 100644
 --- a/crates/openshell-driver-docker/src/lib.rs
 +++ b/crates/openshell-driver-docker/src/lib.rs
-@@ -6,8 +6,11 @@
+@@ -6,7 +6,11 @@
  #![allow(clippy::result_large_err)]
  
  mod isolation;
 +mod log_limits;
  pub mod otel_tracing;
- 
-+use log_limits::{DockerLogLimits, deserialize_optional_log_limits};
++mod restart_state;
 +
++use log_limits::{DockerLogLimits, deserialize_optional_log_limits};
+
  use bollard::Docker;
  use bollard::errors::Error as BollardError;
- use bollard::models::{
-@@ -28,8 +31,8 @@ use openshell_core::driver_mounts;
+@@ -28,8 +32,8 @@ use openshell_core::driver_mounts;
  use openshell_core::driver_utils::{
      CONDITION_EXITED, CONDITION_RUNTIME_RESTART, LABEL_MANAGED_BY, LABEL_MANAGED_BY_VALUE,
      LABEL_SANDBOX_ID, LABEL_SANDBOX_NAME, LABEL_SANDBOX_NAMESPACE, LABEL_SANDBOX_WORKSPACE,
@@ -97,7 +121,7 @@ index 6e6b1d07..637eff25 100644
  };
  use openshell_core::gpu::{
      CdiGpuDefaultSelector, CdiGpuInventory, CdiGpuSelectionError, driver_gpu_requirements,
-@@ -712,6 +715,8 @@ struct DockerSandboxDriverConfig {
+@@ -712,6 +716,8 @@ struct DockerSandboxDriverConfig {
      )]
      cdi_devices: Option<Vec<String>>,
      mounts: Vec<DockerDriverMountConfig>,
@@ -106,7 +130,7 @@ index 6e6b1d07..637eff25 100644
  }
  
  struct ValidatedDockerSandbox<'a> {
-@@ -751,6 +756,8 @@ enum DockerDriverMountConfig {
+@@ -751,6 +757,8 @@ enum DockerDriverMountConfig {
          read_only: bool,
          #[serde(default)]
          subpath: Option<String>,
@@ -115,7 +139,7 @@ index 6e6b1d07..637eff25 100644
      },
      Tmpfs {
          target: String,
-@@ -901,37 +908,27 @@ impl DockerComputeDriver {
+@@ -901,37 +909,27 @@ impl DockerComputeDriver {
              ))
          })?;
          let supervisor_grpc_endpoint = docker_config.grpc_endpoint.clone();
@@ -173,7 +197,7 @@ index 6e6b1d07..637eff25 100644
          let guest_tls = docker_guest_tls_paths(&docker_config)?;
          let driver = Self {
              docker: Arc::new(docker),
-@@ -1048,10 +1045,11 @@ impl DockerComputeDriver {
+@@ -1048,10 +1046,11 @@ impl DockerComputeDriver {
              .ok_or_else(|| Status::invalid_argument("sandbox.spec.template is required"))?;
  
          Self::validate_sandbox_template_base(template)?;
@@ -186,7 +210,41 @@ index 6e6b1d07..637eff25 100644
          for mount in &driver_config.mounts {
              if matches!(
                  mount,
-@@ -3718,9 +3716,28 @@ fn docker_driver_config(
+@@ -2101,11 +2100,21 @@ impl DockerComputeDriver {
+         &self,
+         container: &ContainerSummary,
+     ) -> Result<(), Status> {
+-        let Some(sandbox) = sandbox_from_container_summary(container) else {
++        let Some(mut sandbox) = sandbox_from_container_summary(container) else {
+             return Err(Status::internal(
+                 "managed Docker container is missing sandbox identity labels",
+             ));
+         };
++        let container_id = summary_container_target(container)
++            .ok_or_else(|| Status::internal("managed Docker container has no id or name"))?;
++        let inspected = self
++            .docker
++            .inspect_container(&container_id, None)
++            .await
++            .map_err(|error| internal_status("inspect Docker supervisor restart binding", error))?;
++        restart_state::restore(&mut sandbox, &inspected, &self.config).await?;
++        validate_docker_outer_fence(&inspected)?;
++        self.admit_container_resources(&inspected).await?;
+         let stale = {
+             let mut processes = self.control_processes.lock().await;
+             match processes.get(&sandbox.id) {
+@@ -2415,6 +2424,10 @@ impl DockerComputeDriver {
+             .map_err(|error| internal_status("inspect Docker sandbox outer fence", error))?;
+         validate_docker_outer_fence(&inspected)?;
+         self.admit_container_resources(&inspected).await?;
++        let mut restart_sandbox = sandbox_from_container_summary(&container).ok_or_else(|| {
++            Status::failed_precondition("Docker restart ownership identity is missing")
++        })?;
++        restart_state::restore(&mut restart_sandbox, &inspected, &self.config).await?;
+         let state = container.state.unwrap_or(ContainerSummaryStateEnum::EMPTY);
+         let previous_finished_at = if state == ContainerSummaryStateEnum::EXITED {
+             inspected
+@@ -3718,9 +3731,28 @@ fn docker_driver_config(
      let config =
          DockerSandboxDriverConfig::from_template(template).map_err(Status::invalid_argument)?;
      validate_docker_driver_mounts(&config.mounts, enable_bind_mounts)?;
@@ -215,7 +273,7 @@ index 6e6b1d07..637eff25 100644
  /// Collect user-supplied bind mounts as string-format binds.
  ///
  /// Bind mounts use the legacy `Binds` field (`-v` syntax) rather than the
-@@ -3804,13 +3821,15 @@ fn docker_mount_from_config(config: &DockerDriverMountConfig) -> Result<Option<M
+@@ -3804,13 +3836,15 @@ fn docker_mount_from_config(config: &DockerDriverMountConfig) -> Result<Option<M
              target,
              read_only,
              subpath,
@@ -233,7 +291,19 @@ index 6e6b1d07..637eff25 100644
                  ..Default::default()
              }),
              ..Default::default()
-@@ -4957,13 +4976,22 @@ fn docker_auxiliary_container_labels(
+@@ -4529,6 +4563,11 @@ async fn prepare_docker_boundary_files(
+     gpu_requested: bool,
+ ) -> Result<(), Status> {
+     let directory = docker_boundary_state_dir(sandbox, config)?;
++    let inspected = docker
++        .inspect_container(container_id, None)
++        .await
++        .map_err(|error| internal_status("inspect admitted Docker restart state", error))?;
++    restart_state::write(sandbox, &inspected, config)?;
+     let workspace_root = driver_mounts::resolve_oci_workspace_root(&image.working_dir)
+         .map_err(Status::failed_precondition)?;
+     let launch_authentication = sandbox
+@@ -4957,13 +4996,22 @@ fn docker_auxiliary_container_labels(
      ])
  }
  
@@ -257,7 +327,7 @@ index 6e6b1d07..637eff25 100644
          extra_hosts: docker_supervisor_host_aliases(grpc_endpoint),
          mounts: Some(mounts),
          cap_drop: Some(vec!["ALL".to_string()]),
-@@ -4984,10 +5012,12 @@ fn docker_supervisor_host_config(mounts: Vec<Mount>, grpc_endpoint: &str) -> Hos
+@@ -4984,10 +5032,12 @@ fn docker_supervisor_host_config(mounts: Vec<Mount>, grpc_endpoint: &str) -> Hos
              (
                  "/var/log".to_string(),
                  format!(
@@ -271,7 +341,7 @@ index 6e6b1d07..637eff25 100644
          restart_policy: None,
          ..Default::default()
      }
-@@ -5020,6 +5050,16 @@ async fn spawn_docker_control_process(
+@@ -5020,6 +5070,16 @@ async fn spawn_docker_control_process(
      config: &DockerDriverRuntimeConfig,
      failure_context: DockerRuntimeFailureContext,
  ) -> Result<DockerControlProcess, Status> {
@@ -288,7 +358,7 @@ index 6e6b1d07..637eff25 100644
      let directory = docker_boundary_state_dir(sandbox, config)?;
      let main_process_spec = tokio::fs::read_to_string(directory.join(MAIN_PROCESS_SPEC_FILE))
          .await
-@@ -5186,6 +5226,9 @@ async fn spawn_docker_control_process(
+@@ -5186,6 +5246,9 @@ async fn spawn_docker_control_process(
          host_config: Some(docker_supervisor_host_config(
              supervisor_mounts,
              &config.supervisor_grpc_endpoint,
@@ -298,7 +368,7 @@ index 6e6b1d07..637eff25 100644
          )),
          ..Default::default()
      };
-@@ -5661,6 +5704,11 @@ fn build_container_create_body_for_image(
+@@ -5661,6 +5724,11 @@ fn build_container_create_body_for_image(
          .map_err(Status::failed_precondition)?;
      driver_mounts::validate_workspace_control_path(&workspace_root, BOUNDARY_MOUNT_PATH)
          .map_err(Status::failed_precondition)?;
@@ -310,7 +380,7 @@ index 6e6b1d07..637eff25 100644
      for volume in &image.volumes {
          driver_mounts::validate_container_mount_target(volume).map_err(|error| {
              Status::failed_precondition(format!(
-@@ -5674,6 +5722,9 @@ fn build_container_create_body_for_image(
+@@ -5674,6 +5742,9 @@ fn build_container_create_body_for_image(
          })?;
          driver_mounts::validate_mount_control_path(volume, BOUNDARY_MOUNT_PATH)
              .map_err(Status::failed_precondition)?;
@@ -320,7 +390,7 @@ index 6e6b1d07..637eff25 100644
      }
      for mount in &driver_config.mounts {
          let target = match mount {
-@@ -5686,8 +5737,14 @@ fn build_container_create_body_for_image(
+@@ -5686,8 +5757,14 @@ fn build_container_create_body_for_image(
              .map_err(Status::failed_precondition)?;
          driver_mounts::validate_mount_control_path(target, BOUNDARY_MOUNT_PATH)
              .map_err(Status::failed_precondition)?;
@@ -335,7 +405,7 @@ index 6e6b1d07..637eff25 100644
      user_mounts.push(Mount {
          target: Some(BOUNDARY_MOUNT_PATH.to_string()),
          source: Some(docker_channel_volume_name(sandbox, config)),
-@@ -5776,6 +5833,7 @@ fn build_container_create_body_for_image(
+@@ -5776,6 +5853,7 @@ fn build_container_create_body_for_image(
                  Some(binds)
              },
              mounts: Some(user_mounts),
@@ -343,7 +413,7 @@ index 6e6b1d07..637eff25 100644
              // Canonical main-process exit is terminal. Runtime restart would
              // silently create a new process generation behind the gateway.
              restart_policy: None,
-@@ -6292,48 +6350,30 @@ fn sanitize_docker_name(value: &str) -> String {
+@@ -6292,48 +6370,30 @@ fn sanitize_docker_name(value: &str) -> String {
          .to_string()
  }
  
@@ -411,7 +481,7 @@ index 6e6b1d07..637eff25 100644
      inspect.id.filter(|id| !id.is_empty()).ok_or_else(|| {
 diff --git a/crates/openshell-driver-docker/src/log_limits.rs b/crates/openshell-driver-docker/src/log_limits.rs
 new file mode 100644
-index 00000000..97d19fc7
+index 0000000000000000000000000000000000000000..97d19fc7c6b67466974cf5d5b234169f049edd63
 --- /dev/null
 +++ b/crates/openshell-driver-docker/src/log_limits.rs
 @@ -0,0 +1,127 @@
@@ -542,10 +612,460 @@ index 00000000..97d19fc7
 +        }
 +    }
 +}
+diff --git a/crates/openshell-driver-docker/src/restart_state.rs b/crates/openshell-driver-docker/src/restart_state.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..b0dc28fb6dd410615405abb4f47baec50366f293
+--- /dev/null
++++ b/crates/openshell-driver-docker/src/restart_state.rs
+@@ -0,0 +1,426 @@
++// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
++// SPDX-License-Identifier: Apache-2.0
++
++//! Immutable driver-private facts for restoring the exact admitted supervisor.
++use super::*;
++use bollard::models::ContainerInspectResponse;
++use openshell_core::proto::compute::v1::DriverSandboxSpec;
++use prost::Message;
++use serde::{Deserialize, Serialize};
++use std::io::Write;
++use std::os::unix::fs::{MetadataExt, PermissionsExt};
++use tokio::io::AsyncReadExt;
++
++const FILE: &str = "supervisor-restart-v1.json";
++const MAX_BYTES: usize = 1_048_576;
++
++#[derive(Serialize, Deserialize)]
++#[serde(deny_unknown_fields)]
++struct RestartState {
++    version: u32,
++    sandbox_id: String,
++    sandbox_name: String,
++    workspace: String,
++    namespace: String,
++    supervisor_image: String,
++    container_id: String,
++    image_id: String,
++    ownership_labels: HashMap<String, String>,
++    host_config: HostConfig,
++    // Maintained Prost encoding of the typed, credential-free immutable spec subset.
++    spec: Vec<u8>,
++}
++
++fn refusal(message: &'static str) -> Status {
++    Status::failed_precondition(message)
++}
++
++// These fields are immutable in the selected driver (no resource-update RPC).
++// Docker transport options, logging state and mutable process status are excluded.
++fn immutable_resources(config: &HostConfig) -> HostConfig {
++    HostConfig {
++        nano_cpus: config.nano_cpus,
++        memory: config.memory,
++        pids_limit: config.pids_limit,
++        device_requests: config.device_requests.clone(),
++        binds: config.binds.clone(),
++        mounts: config.mounts.clone(),
++        group_add: config.group_add.clone(),
++        cap_drop: config.cap_drop.clone(),
++        cap_add: config.cap_add.clone(),
++        security_opt: config.security_opt.clone(),
++        network_mode: config.network_mode.clone(),
++        privileged: config.privileged,
++        readonly_rootfs: config.readonly_rootfs,
++        tmpfs: config.tmpfs.clone(),
++        sysctls: config.sysctls.clone(),
++        ..Default::default()
++    }
++}
++
++fn immutable_spec(sandbox: &DriverSandbox) -> Result<DriverSandboxSpec, Status> {
++    let spec = sandbox
++        .spec
++        .as_ref()
++        .ok_or_else(|| refusal("Docker restart spec is missing"))?;
++    let mut template = spec
++        .template
++        .clone()
++        .ok_or_else(|| refusal("Docker restart template is missing"))?;
++    // Workload environment is already materialized in the exact container; it is
++    // not needed to recreate its supervisor and can contain caller secrets.
++    template.environment.clear();
++    Ok(DriverSandboxSpec {
++        log_level: spec.log_level.clone(),
++        template: Some(template),
++        resource_requirements: spec.resource_requirements.clone(),
++        ..Default::default()
++    })
++}
++
++impl RestartState {
++    fn capture(
++        sandbox: &DriverSandbox,
++        inspected: &ContainerInspectResponse,
++        config: &DockerDriverRuntimeConfig,
++    ) -> Result<Self, Status> {
++        let _ = DockerComputeDriver::validated_sandbox(sandbox, config)?;
++        let state = Self {
++            version: 1,
++            sandbox_id: sandbox.id.clone(),
++            sandbox_name: sandbox.name.clone(),
++            workspace: sandbox.workspace.clone(),
++            namespace: config.sandbox_namespace.clone(),
++            supervisor_image: config.supervisor_image_id.clone(),
++            container_id: inspected
++                .id
++                .clone()
++                .ok_or_else(|| refusal("Docker restart container identity is missing"))?,
++            image_id: inspected
++                .image
++                .clone()
++                .ok_or_else(|| refusal("Docker restart image identity is missing"))?,
++            ownership_labels: inspected
++                .config
++                .as_ref()
++                .and_then(|c| c.labels.clone())
++                .ok_or_else(|| refusal("Docker restart ownership labels are missing"))?,
++            host_config: immutable_resources(
++                inspected
++                    .host_config
++                    .as_ref()
++                    .ok_or_else(|| refusal("Docker restart resource configuration is missing"))?,
++            ),
++            spec: immutable_spec(sandbox)?.encode_to_vec(),
++        };
++        state.admit(sandbox, inspected, config)?;
++        Ok(state)
++    }
++
++    fn admit(
++        &self,
++        sandbox: &DriverSandbox,
++        inspected: &ContainerInspectResponse,
++        config: &DockerDriverRuntimeConfig,
++    ) -> Result<DriverSandboxSpec, Status> {
++        if self.version != 1
++            || self.sandbox_id != sandbox.id
++            || self.sandbox_name != sandbox.name
++            || self.workspace != sandbox.workspace
++            || self.namespace != config.sandbox_namespace
++            || self.supervisor_image != config.supervisor_image_id
++            || inspected.id.as_deref() != Some(self.container_id.as_str())
++            || inspected.image.as_deref() != Some(self.image_id.as_str())
++            || inspected.config.as_ref().and_then(|c| c.labels.as_ref())
++                != Some(&self.ownership_labels)
++            || inspected
++                .host_config
++                .as_ref()
++                .map(immutable_resources)
++                .as_ref()
++                != Some(&self.host_config)
++        {
++            return Err(refusal(
++                "Docker restart state does not match the exact owned container, image or resource profile",
++            ));
++        }
++        for (key, expected) in [
++            (LABEL_MANAGED_BY, LABEL_MANAGED_BY_VALUE),
++            (LABEL_SANDBOX_ID, self.sandbox_id.as_str()),
++            (LABEL_SANDBOX_NAME, self.sandbox_name.as_str()),
++            (LABEL_SANDBOX_WORKSPACE, self.workspace.as_str()),
++            (LABEL_SANDBOX_NAMESPACE, self.namespace.as_str()),
++            (LABEL_ISOLATION_BACKEND, LABEL_ISOLATION_BACKEND_OPEN_SHELL),
++            (LABEL_ISOLATION_ROLE, LABEL_ISOLATION_ROLE_SANDBOX),
++        ] {
++            if self.ownership_labels.get(key).map(String::as_str) != Some(expected) {
++                return Err(refusal(
++                    "Docker restart state has incomplete or foreign ownership labels",
++                ));
++            }
++        }
++        let spec = DriverSandboxSpec::decode(self.spec.as_slice())
++            .map_err(|_| refusal("Docker restart typed spec is corrupt"))?;
++        let mut candidate = sandbox.clone();
++        candidate.spec = Some(spec.clone());
++        if immutable_spec(&candidate)? != spec {
++            return Err(refusal(
++                "Docker restart state contains credentials or unsupported mutable spec fields",
++            ));
++        }
++        let _ = DockerComputeDriver::validated_sandbox(&candidate, config)?;
++        validate_docker_outer_fence(inspected)?;
++        Ok(spec)
++    }
++}
++
++pub(super) fn write(
++    sandbox: &DriverSandbox,
++    inspected: &ContainerInspectResponse,
++    config: &DockerDriverRuntimeConfig,
++) -> Result<(), Status> {
++    let state = RestartState::capture(sandbox, inspected, config)?;
++    let bytes = serde_json::to_vec(&state)
++        .map_err(|_| refusal("Docker restart state cannot be encoded"))?;
++    if bytes.len() > MAX_BYTES {
++        return Err(refusal("Docker restart state exceeds its 1 MiB limit"));
++    }
++    let directory = docker_boundary_state_dir(sandbox, config)?;
++    write_bytes(&directory, &bytes)
++}
++
++fn write_bytes(directory: &Path, bytes: &[u8]) -> Result<(), Status> {
++    let mut temporary = tempfile::NamedTempFile::new_in(&directory)
++        .map_err(|_| refusal("Docker restart state private staging failed"))?;
++    temporary
++        .as_file()
++        .set_permissions(std::fs::Permissions::from_mode(0o600))
++        .map_err(|_| refusal("Docker restart state private permissions failed"))?;
++    temporary
++        .write_all(&bytes)
++        .and_then(|()| temporary.as_file().sync_all())
++        .map_err(|_| refusal("Docker restart state write failed"))?;
++    temporary
++        .persist_noclobber(directory.join(FILE))
++        .map_err(|_| {
++            refusal(
++                "Docker restart state already exists or cannot be committed; refusing replacement",
++            )
++        })?;
++    std::fs::File::open(directory)
++        .and_then(|f| f.sync_all())
++        .map_err(|_| refusal("Docker restart state directory sync failed"))?;
++    Ok(())
++}
++
++pub(super) async fn restore(
++    sandbox: &mut DriverSandbox,
++    inspected: &ContainerInspectResponse,
++    config: &DockerDriverRuntimeConfig,
++) -> Result<(), Status> {
++    let path = docker_boundary_state_dir(sandbox, config)?.join(FILE);
++    restore_path(sandbox, inspected, config, &path).await
++}
++
++async fn restore_path(
++    sandbox: &mut DriverSandbox,
++    inspected: &ContainerInspectResponse,
++    config: &DockerDriverRuntimeConfig,
++    path: &Path,
++) -> Result<(), Status> {
++    let metadata = tokio::fs::symlink_metadata(&path).await
++        .map_err(|_| refusal("Docker immutable restart state is missing or unreadable; retained container cannot restart under this profile"))?;
++    if !metadata.is_file()
++        || metadata.permissions().mode() & 0o077 != 0
++        || metadata.uid() != rustix::process::geteuid().as_raw()
++    {
++        return Err(refusal(
++            "Docker restart state is not an owner-only regular file",
++        ));
++    }
++    let file = tokio::fs::OpenOptions::new()
++        .read(true)
++        .custom_flags(libc::O_NOFOLLOW)
++        .open(path)
++        .await
++        .map_err(|_| refusal("Docker restart state cannot be opened"))?;
++    let mut bytes = Vec::new();
++    file.take((MAX_BYTES + 1) as u64)
++        .read_to_end(&mut bytes)
++        .await
++        .map_err(|_| refusal("Docker restart state cannot be read"))?;
++    if bytes.len() > MAX_BYTES {
++        return Err(refusal("Docker restart state exceeds its 1 MiB limit"));
++    }
++    let state: RestartState = serde_json::from_slice(&bytes)
++        .map_err(|_| refusal("Docker restart state is corrupt or has an unsupported shape"))?;
++    sandbox.spec = Some(state.admit(sandbox, inspected, config)?);
++    Ok(())
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::tests::{runtime_config, test_sandbox};
++    use bollard::models::ContainerConfig;
++
++    fn fixture() -> (
++        DriverSandbox,
++        ContainerInspectResponse,
++        DockerDriverRuntimeConfig,
++    ) {
++        let mut sandbox = test_sandbox();
++        sandbox.workspace = "default".into();
++        let config = runtime_config();
++        let inspected = ContainerInspectResponse {
++            id: Some("a".repeat(64)),
++            image: Some(format!("sha256:{}", "b".repeat(64))),
++            config: Some(ContainerConfig {
++                labels: Some(HashMap::from([
++                    (LABEL_MANAGED_BY.into(), LABEL_MANAGED_BY_VALUE.into()),
++                    (LABEL_SANDBOX_ID.into(), sandbox.id.clone()),
++                    (LABEL_SANDBOX_NAME.into(), sandbox.name.clone()),
++                    (LABEL_SANDBOX_WORKSPACE.into(), sandbox.workspace.clone()),
++                    (
++                        LABEL_SANDBOX_NAMESPACE.into(),
++                        config.sandbox_namespace.clone(),
++                    ),
++                    (
++                        LABEL_ISOLATION_BACKEND.into(),
++                        LABEL_ISOLATION_BACKEND_OPEN_SHELL.into(),
++                    ),
++                    (
++                        LABEL_ISOLATION_ROLE.into(),
++                        LABEL_ISOLATION_ROLE_SANDBOX.into(),
++                    ),
++                ])),
++                ..Default::default()
++            }),
++            host_config: Some(HostConfig {
++                network_mode: Some("none".into()),
++                memory: Some(2 * 1024 * 1024 * 1024),
++                mounts: Some(vec![Mount {
++                    typ: Some(MountTypeEnum::VOLUME),
++                    source: Some("exact-retained-home".into()),
++                    target: Some("/sandbox/persistent".into()),
++                    read_only: Some(false),
++                    volume_options: Some(MountVolumeOptions {
++                        no_copy: Some(true),
++                        subpath: Some("home".into()),
++                        ..Default::default()
++                    }),
++                    ..Default::default()
++                }]),
++                ..Default::default()
++            }),
++            ..Default::default()
++        };
++        (sandbox, inspected, config)
++    }
++
++    #[tokio::test]
++    async fn docker_restart_state_restores_selected_template_and_retained_home_without_credentials()
++    {
++        let (sandbox, inspected, config) = fixture();
++        let state = RestartState::capture(&sandbox, &inspected, &config).unwrap();
++        let bytes = serde_json::to_vec(&state).unwrap();
++        assert!(!String::from_utf8_lossy(&bytes).contains("gateway.token.value"));
++        let spec = DriverSandboxSpec::decode(state.spec.as_slice()).unwrap();
++        assert!(spec.launch_authentication.is_empty());
++        assert!(spec.sandbox_token.is_empty());
++        assert!(spec.environment.is_empty());
++        assert!(spec.template.as_ref().unwrap().environment.is_empty());
++        let directory = tempfile::tempdir().unwrap();
++        write_bytes(directory.path(), &bytes).unwrap();
++        let path = directory.path().join(FILE);
++        assert_eq!(
++            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
++            0o600
++        );
++        // A new controller has no remembered Create request or old process state.
++        let mut recovered = sandbox.clone();
++        recovered.spec = None;
++        recovered.status = None;
++        restore_path(&mut recovered, &inspected, &config, &path)
++            .await
++            .unwrap();
++        assert_eq!(
++            recovered.spec.unwrap().template.unwrap().image,
++            sandbox.spec.unwrap().template.unwrap().image
++        );
++        assert_eq!(
++            state.host_config.mounts,
++            inspected.host_config.unwrap().mounts
++        );
++        assert!(write_bytes(directory.path(), b"replacement").is_err());
++        assert_eq!(std::fs::read(path).unwrap(), bytes);
++    }
++
++    #[test]
++    fn docker_restart_state_refuses_foreign_parent_image_labels_mounts_and_owner_profile() {
++        let (sandbox, inspected, config) = fixture();
++        let state = RestartState::capture(&sandbox, &inspected, &config).unwrap();
++        let mut foreign = sandbox.clone();
++        foreign.id = "foreign".into();
++        assert!(state.admit(&foreign, &inspected, &config).is_err());
++        let mut changed = inspected.clone();
++        changed.id = Some("c".repeat(64));
++        assert!(state.admit(&sandbox, &changed, &config).is_err());
++        changed = inspected.clone();
++        changed.image = Some("sha256:foreign".into());
++        assert!(state.admit(&sandbox, &changed, &config).is_err());
++        changed = inspected.clone();
++        changed
++            .config
++            .as_mut()
++            .unwrap()
++            .labels
++            .as_mut()
++            .unwrap()
++            .remove(LABEL_SANDBOX_WORKSPACE);
++        assert!(state.admit(&sandbox, &changed, &config).is_err());
++        changed = inspected.clone();
++        changed
++            .host_config
++            .as_mut()
++            .unwrap()
++            .mounts
++            .as_mut()
++            .unwrap()[0]
++            .source = Some("foreign-home".into());
++        assert!(state.admit(&sandbox, &changed, &config).is_err());
++        let mut profile = config;
++        profile.supervisor_image_id = "sha256:other-supervisor".into();
++        assert!(state.admit(&sandbox, &inspected, &profile).is_err());
++    }
++
++    #[tokio::test]
++    async fn docker_restart_state_missing_corrupt_and_unsupported_records_refuse_before_spec_or_auth_change()
++     {
++        let (mut sandbox, inspected, config) = fixture();
++        sandbox.spec = None;
++        let directory = tempfile::tempdir().unwrap();
++        let path = directory.path().join(FILE);
++        assert!(
++            restore_path(&mut sandbox, &inspected, &config, &path)
++                .await
++                .is_err()
++        );
++        write_bytes(directory.path(), b"not-json").unwrap();
++        assert!(
++            restore_path(&mut sandbox, &inspected, &config, &path)
++                .await
++                .is_err()
++        );
++        assert!(sandbox.spec.is_none());
++        let (original, _, _) = fixture();
++        let mut state = RestartState::capture(&original, &inspected, &config).unwrap();
++        state.version = 2;
++        assert!(state.admit(&sandbox, &inspected, &config).is_err());
++        state.version = 1;
++        state.spec = vec![255];
++        assert!(state.admit(&sandbox, &inspected, &config).is_err());
++        state.spec = original.spec.unwrap().encode_to_vec();
++        assert!(state.admit(&sandbox, &inspected, &config).is_err());
++    }
++}
 diff --git a/crates/openshell-driver-docker/src/tests.rs b/crates/openshell-driver-docker/src/tests.rs
-index caefe483..e26b47b9 100644
+index caefe483619f7c9d672d88668f84f394042e1644..5c61545b59ccf70d4bb4bc0bdb11df14f2d0156b 100644
 --- a/crates/openshell-driver-docker/src/tests.rs
 +++ b/crates/openshell-driver-docker/src/tests.rs
+@@ -47,7 +47,7 @@ fn test_launch_authentication() -> Vec<u8> {
+     .unwrap()
+ }
+
+-fn test_sandbox() -> DriverSandbox {
++pub(super) fn test_sandbox() -> DriverSandbox {
+     // Mirrors the gateway-supplied request: the public `Sandbox` API no
+     // longer carries `namespace`, so the gateway elides the field and the
+     // driver must source it from its own runtime config.
+@@ -168,7 +168,7 @@ fn gpu_resources(count: Option<u32>) -> ResourceRequirements {
+     }
+ }
+
+-fn runtime_config() -> DockerDriverRuntimeConfig {
++pub(super) fn runtime_config() -> DockerDriverRuntimeConfig {
+     DockerDriverRuntimeConfig {
+         // Existing lifecycle fixtures exercise the explicitly opted-out contract.
+         allow_driver_config: true,
 @@ -221,6 +221,401 @@ fn json_struct(value: serde_json::Value) -> prost_types::Struct {
          .expect("test JSON must convert to a protobuf Struct")
  }
@@ -1266,7 +1786,7 @@ index caefe483..e26b47b9 100644
 +    }
 +}
 diff --git a/crates/openshell-server/src/cli.rs b/crates/openshell-server/src/cli.rs
-index f531d88c..9b4cad0b 100644
+index f531d88c5dff40bc35c37215fb7371d7d2a9dbf6..9b4cad0b7a47043a7d80e4d651a42c6460e0c583 100644
 --- a/crates/openshell-server/src/cli.rs
 +++ b/crates/openshell-server/src/cli.rs
 @@ -450,6 +450,12 @@ fn prepare_server_config_with_drivers(
@@ -1283,7 +1803,7 @@ index f531d88c..9b4cad0b 100644
  
      // Listener addresses for the health and metrics endpoints. The file may
 diff --git a/crates/openshell-server/src/config_file.rs b/crates/openshell-server/src/config_file.rs
-index 87180766..9f8a205d 100644
+index 87180766abd54b7cc586972337f6b5c338e1af9b..88843b2a1605552f28275e9909b2b607d4a416ab 100644
 --- a/crates/openshell-server/src/config_file.rs
 +++ b/crates/openshell-server/src/config_file.rs
 @@ -663,6 +663,135 @@ mod tests {
@@ -1423,7 +1943,7 @@ index 87180766..9f8a205d 100644
      fn empty_file_requires_schema_version() {
          let tmp = write_raw_tmp("");
 diff --git a/crates/openshell-server/src/multiplex.rs b/crates/openshell-server/src/multiplex.rs
-index 8988542b..4f841085 100644
+index 8988542b1a99abf89fa8d206cfb7e2a934287276..4f841085e41e5141c6f70215e42ce6dbe725dcb8 100644
 --- a/crates/openshell-server/src/multiplex.rs
 +++ b/crates/openshell-server/src/multiplex.rs
 @@ -257,7 +257,11 @@ impl MultiplexService {

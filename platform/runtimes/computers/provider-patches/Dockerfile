@@ -173,7 +173,7 @@ RUN --mount=type=cache,id=veoveo-openshell-rust195-bookworm-cargo,target=/usr/lo
 set -eu
 cargo metadata --locked --no-deps --format-version=1 > /tmp/provider-packages.json
 cargo test --locked --release -p openshell-core --test mtls_user_admission \
-    && provider-control openshell-driver-docker --lib log_limits supervisor_logs retained_volume_no_copy docker_identity_resolution lifecycle_fence start_generation provider_runtime_images veoveo_generated_configs_pass_actual_docker_schema \
+    && provider-control openshell-driver-docker --lib docker_restart_state_restores_selected_template_and_retained_home_without_credentials docker_restart_state_refuses_foreign_parent_image_labels_mounts_and_owner_profile docker_restart_state_missing_corrupt_and_unsupported_records_refuse_before_spec_or_auth_change log_limits supervisor_logs retained_volume_no_copy docker_identity_resolution lifecycle_fence start_generation provider_runtime_images veoveo_generated_configs_pass_actual_docker_schema \
     && provider-control openshell-server --lib stop_and_start_follow_durable_state_machine authenticated_start_commits_identity_with_starting_phase request_cancellation_does_not_cancel_start_worker failed_start_reconciles_backend_that_already_started stale_container_exit_queued_before_start_cannot_regress_restart live_container_exit_during_start_still_transitions_to_error start_persisted_sandboxes_supplies_fresh_authentication veoveo_generated_configs_pass_actual_gateway_loader \
     && (cargo build --locked --release --message-format=json-render-diagnostics --features openshell-gateway/bundled-z3 -p openshell-gateway -p openshell-driver-docker > /tmp/provider-artifacts.jsonl || { cat /tmp/provider-artifacts.jsonl; exit 1; })
 

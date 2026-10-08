@@ -15,6 +15,7 @@ and installed acceptance belong to [Computers](../../computers/DESIGN.md#qualifi
 | `veoveo.ai/computer-storage/v1` | Bounded mTLS prepare/restore/handoff/abandon adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
+| Docker driver supervisor restart JSON version 1 | Private owner-only immutable container/image/ownership/resource facts and a credential-free Prost DriverSandboxSpec subset; 1 MiB maximum; exact restoration admission before Start or supervisor recovery |
 | OpenShell gateway TOML schema 2 | Host and isolated native generators use the current gateway loader and strict Docker driver schema; package controls consume their generated TOML inputs |
 | Veoveo private policy checkpoint protobuf v2 | `protocol/maintenance.proto`; canonical Prost encoding of exact provider/source/run and selected gateway version with the generated provider configuration. Encrypted journal storage is required; this format grants no authority |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
@@ -261,6 +262,33 @@ fixture-owned directories. Removing the daemon also discards its plugin client c
 Axum and Reqwest reuse the qualified workspace versions as development dependencies.
 The Docker plugin request decoder accepts bounded JSON bytes because the actual daemon
 does not supply the ordinary JSON Content-Type expected by Axum's JSON extractor.
+
+## Driver Supervisor Restart State
+
+The Docker driver commits `supervisor-restart-v1.json` in its existing private sandbox
+boundary directory before starting the workload or supervisor. The record binds the
+original container ID, resolved image ID, complete ownership labels and admitted mount,
+resource, device and outer-fence settings. Its typed spec subset contains the selected
+template, log level and resource requirements. It excludes workload environment,
+launch authentication, bearer tokens, TLS material, policy, process progress and status.
+The existing main-process record owns command and TTY restoration.
+
+Start and controller reconciliation restore this record through the driver template
+and outer-fence admission functions. They inspect the same Docker container and require
+its image, ownership and immutable settings to match before refreshing credentials or
+starting either process. Current resource admission also checks external volume claims.
+The selected driver has no resource-update operation; changing these settings requires
+an explicitly admitted replacement. Supervisor recovery uses the current controller
+endpoint and current launch credentials rather than stored credentials.
+
+The private persistence cut supports only version 1 and files created by this profile.
+Missing, corrupt, foreign or mismatched state refuses restart; the driver cannot infer a
+template from defaults or recreate a retained sandbox. The record is committed without
+overwriting an existing file, with mode 0600 and a 1 MiB decoding limit. Existing owned
+sandbox deletion removes the boundary directory and its record while preserving the
+external retained home. Source controls qualify typed restoration and refusal. Native
+Stop/Start and controller-restart controls must establish retained identity, credential
+rotation and containment for the selected built profile.
 
 ## Completion And Recovery
 

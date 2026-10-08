@@ -37,6 +37,7 @@ builds materialize the manifest's workspace and lockfile package version.
 | Docker driver and sandbox identity | Explicit numeric policy users receive no inherited image-account supplementary groups; private PTYs receive the admitted UID/GID and mode 0600 |
 | Sandbox Landlock | O_PATH descriptors classify the same opened inode and permit policy handling of device paths without opening device data |
 | Docker driver logging | Workload and companion Docker logs use configured finite rotation; the actual supervisor companion has the configured finite `/var/log` tmpfs |
+| Docker driver supervisor restart | Immutable private version-1 record restores the admitted template for the same container/image/labels/mounts before auth or start effects; missing/corrupt/foreign state refuses; credentials and mutable status are excluded |
 | Docker driver volume admission | Typed NoCopy reaches Engine options with and without subpaths; retained-home initialization cannot precede container registration |
 | Gateway mTLS | Exact user common-name allowlist; missing, duplicate and unknown common names cannot become users; guest transport certificates need scoped launch authority |
 | Supervisor attachment | A generated ReplayComplete fence belongs to each attachment cursor; history and live bytes remain unmodified; clients enable input only after their fence |
@@ -45,7 +46,11 @@ builds materialize the manifest's workspace and lockfile package version.
 The gateway package runs the existing upstream start-cancellation, durable stop/start,
 failed-start reconciliation, launch-auth renewal and stale-exit generation controls.
 Docker driver controls cover identity, NoCopy, log bounds, profile image admission and
-runtime generations. Supervisor controls cover replay and SSH attachments; sandbox
+runtime generations. Focused restart-state controls cover controller-memory loss, exact
+selected-template and retained-home restoration, non-overwrite and private permissions,
+foreign image/container/labels/mount refusal, missing or corrupt records and credential
+exclusion. The driver uses the existing locked Prost codec for this private record.
+Supervisor controls cover replay and SSH attachments; sandbox
 controls cover process identity and Landlock. `control.sh` uses the maintained libtest
 runner's multiple OR filters in one invocation per owner target, requires nonzero
 passing tests and checks that each selected control ran.
