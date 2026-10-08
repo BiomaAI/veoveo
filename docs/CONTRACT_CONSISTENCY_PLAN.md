@@ -57,7 +57,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | The C33 implementation and selected owner naming, Artifact and `resultUri` controls pass. Workspace passes lint, build, 23 unit checks and two headed NVIDIA browser cases. SUMO's nine public families and typed Bioma consumer pass. Python Task admission passes 16 protocol controls. The coordinated Python template cut passes 58 owning CPU checks, its typed Bioma receiver and the Console pagination behavior test | Finish Computer recovery, UAV collection-page naming, Chart App fallback removal and stale caller/schema fixtures; reconcile final formats, continuations, producer/consumer links and pins; qualify final generated artifacts, drain writers and prepare fresh reference state |
+| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. The final client-types check verifies all 18 bundles and 36 outputs | Finish Computer lifecycle identity and locking, then qualify native recovery; reconcile final formats, continuations, producer/consumer links and pins; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
@@ -105,40 +105,25 @@ Computers selects OpenShell 0.1.2 with matched provider artifacts, typed selecto
 and a drained private checkpoint cut. Its GCC 16.2 build passes C++20 format and
 static C++ probes against glibc 2.36; gateway and driver require at most GLIBC 2.34.
 Native and Host generators pass byte comparison and effective TLS-loader admission.
-The driver persists admitted restart facts before effects and readmits them before
-Start; its 23 controls, eight gateway controls and two mTLS controls pass independent
-source review. Retained-volume writer exclusion, provisioning claims and the packaged
-default-workspace guard pass their owning controls.
+The recovery candidate passes 40 driver, nine gateway and two mTLS controls,
+packaged-source admission and release binary/ELF checks. Source review accepts
+same-supervisor authentication, uncertain Docker wait containment, fresh Start
+admission and preservation of ambiguous volume mounts. Typed cleanup ownership
+and settlement preserve private state and journals after applied-but-lost Docker
+replies.
 
-The rebuilt `df38` provider profile passes manifest-label, packaged-source,
-five-binary identity, version and ELF admission. The image planner binds its label
-to the selected source manifest. Its native file journey passes transfer, retention,
-refusal and Stop/Start. The controller fixture passes retained-resource identity
-checks, then fails to reopen the terminal with `InvalidState`. Source investigation
-shows that graceful provider shutdown intentionally terminates sandbox sessions;
-the fixture also assessed an old Ready snapshot instead of fetching current state.
-The corrected fixture separates abrupt controller loss from graceful cleanup and
-fetches fresh state before assessing recovery. Compiler checks, five process controls,
-generated-config comparison and independent review pass. The matching `d884` image
-passes source, label, binary and ELF admission. Its native crash run finds the retained
-sandbox but fails fresh readiness with `LifecycleUnknown`: startup recovery removes
-the original supervisor, and the sandbox refuses the replacement process. The repair
-must preserve that physical supervisor and prove its authenticated reconnect through
-the replacement controller while retaining the canonical main-process epoch.
-Recovered terminal delivery and bytes, later lifecycle assertions, Host replacement
-and installed execution remain open. Earlier provider profiles do not qualify these
-gates.
-The same-supervisor repair passes 35 driver, nine server and two mTLS controls.
-Uncertain Docker waits preserve resources and their unresolved condition. Fresh Start
-admits companion absence before changing guest credentials or generation, and startup
-preserves volumes with incomplete mount observations. Independent review accepts those
-protections. The subsequent ownership repair passes 38 driver controls and preserves
-pre-existing private state on Create refusal. Final review requires a separate safe
-cleanup disposition: ownership alone cannot authorize deletion after an uncertain
-Docker Create or Start. Applied-but-lost replies must preserve private state and
-resource fences. The revised public Create controls must pass before native
-qualification. The candidate stays quarantined; a compiler-only image cannot
-satisfy recovery acceptance.
+Final review identifies two related gaps. Name-only lifecycle calls must resolve the
+actual sandbox ID before selecting a journal or lock. Stop and Delete must recheck
+admission after acquiring that lock and hold it through their effects; a concurrent
+Start can otherwise invalidate an earlier check. A refused or waiting Stop cannot
+grant Create permission to destroy an unsettled companion. Actual public name-only
+and deterministic race controls must qualify the repair before native execution.
+
+The existing native lifecycle case must prove fresh authenticated terminal delivery
+and retained bytes after abrupt gateway loss while preserving the physical supervisor
+and main-process epoch. It then qualifies settled Stop/Start. Host replacement and
+installed execution remain open. The candidate stays quarantined and the retained
+rollback image stays selected. Compiler checks do not establish native recovery.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
 
@@ -184,6 +169,8 @@ The current source checkpoints are:
 | Recorded video, Stream, Reason and Timeseries relationships | `09540a03d` |
 | Artifact wire ownership, Task bindings and access-progress admission | `6bdcbb919` |
 | Time, Computers, Speech, Media, Optimization, UAV, Recording and SDK value admission | `2b32885bf` |
+| Remaining current-wire consumers and complete UAV/Reason schema refresh | `e86d7a28f` |
+| Isolated browser/report contracts and standalone Flight dependencies | `944e95496` |
 
 These revisions qualify their implemented source concerns. They do not close the
 wider F-register or the hardware and installed gates.
