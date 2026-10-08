@@ -57,7 +57,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls. The native gateway-loss recovery, settled Stop→Start and file-retention cases pass with typed binding version 2 and file helper version 2. Remaining operator reports use current fields. The final client-types check verifies all 18 bundles and 36 outputs | Qualify the remaining Computer host and provider matrix; reconcile final formats, continuations, producer/consumer links and pins; drain writers and prepare fresh reference state |
+| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls. Native gateway-loss recovery, settled Stop→Start, file retention and the full MCP Files case pass with typed binding version 2 and file helper version 2. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify Computer Worker, Commands, Maintenance and Host against rebuilt images; qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
@@ -140,13 +140,26 @@ advance beyond the original overflow. Worker exposes two fixture defects: an uns
 stock-CLI exit deadline after revocation, then a tunnel URL that drops the server mount.
 The repaired oracle checks relay closure, refusal of a fresh revoked-grant connection
 and absence of post-revocation output before owned process cleanup. Its typed URL builder
-preserves the mount; the affected compiler and offline controls pass. Native confirmation
-is pending. Commands reaches maintenance capture, which reports `RecoveryRequired`.
-The selected provider stamps a UUIDv4 attachment epoch into the returned spec, while
-capture compares it against an unstamped template. The runtime repair is under review.
-Files still aborts with a stack overflow; its owned containers, gateway process and
-loop-backed filesystem are cleaned up. Worker, Commands, Files, Maintenance and Host
-replacement still require native qualification. Installed execution stays open.
+preserves the mount; the affected compiler and offline controls pass. The fresh Worker
+case advances through CLI revocation and terminal checks, then returns `Waiting` from
+Stop while the allocator service is absent. Its failing branch is not established by
+the retained logs. Policy capture now admits the provider's UUIDv4 attachment epoch
+separately from immutable template settings and preserves it through same-instance
+reads and watches. Independent review and all 98 runtime controls pass. The fresh
+Commands case passes capture, command execution, revocation containment, Stop and
+policy loading, then reports `RecoveryRequired` during restoration. The separate
+Maintenance case also stops at Restore and records `BudgetExhausted`. Source inspection
+proves that the qualified provider gives each supervisor a configuration-instance UUID;
+the replacement comparison incorrectly requires the source and target values to agree.
+A provider-shaped control reproduces that refusal. Its repair passes 103 runtime
+controls and independent review; native confirmation is pending. Closed lifecycle
+diagnostics preserve typed stages and error categories without provider payloads;
+their 24 controls and independent review pass. The original native Stop failure's
+discarded branch remains unknown. Files passes its
+complete native case after splitting the large assertion phases; import/export,
+duplicate and clearance refusals, cancellation, lost-dispatch containment and restart
+inspection all complete. Every terminal fixture is cleaned up. Worker, Commands,
+Maintenance and Host replacement still require native qualification. Installed execution stays open.
 The candidate remains quarantined and
 the rollback image stays selected.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
@@ -176,8 +189,9 @@ It identifies no additional changed-version format without a corresponding versi
 cut or current receiver. Nested DTOs, diagnostics and scalar encodings are classified
 without counting them as independent formats. AppCatalog event decoding now uses the
 generated owner schema before callbacks; its seven controls, type checks, lint and build
-pass independent review. Final source reconciliation and installed qualification remain
-open.
+pass independent review. Independent review accepts this materialized source closure;
+historical ledger statuses are reconciled with the accepted repair receipts. Installed
+format consumers and image qualification remain open.
 
 The full Python enforcement passes 551 SDK, 60 template and ten independent-fork cases.
 Its Task-storage exchange uses the actual Cargo-selected Rust receiver against a fresh
@@ -185,8 +199,12 @@ SDK store. Typed caller fixtures and owned-container timeout cleanup replace sta
 test assumptions. Conformance discovery preserves one original deadline in its typed
 progress context, and transport error handling preserves the admitted I/O error.
 The owning runtime and conformance libraries pass 93 and 58 controls and strict lint.
-Strict all-target lint still requires a separate shared native-fixture and provider
-provenance batch.
+The shared native-fixture batch passes isolated Runtime and Host all-target lint and
+all four MCP native-target lint checks. Fourteen owning controls verify controller,
+profile and packaging behavior and both generated provider configurations. Their
+TOML bytes are unchanged; the manifest updates only the native producer's source hash.
+Independent review accepts the fixture and provenance changes. Fresh provider and
+Host image qualification remain open.
 
 The Python SDK admits the preserved `v1:N` offset grammar and 64-bit range,
 including Rust's admitted leading-plus and leading-zero aliases. It refuses
@@ -2698,33 +2716,18 @@ each codec's actual bytes. The unversioned authoring continuation carries only a
 feature-ID bytes and needs no casing change. Preserve each encoding, parent and query
 context when advancing a changed format.
 
-The final format review must record each producer, receiving validator and digest
-preimage against the current source. The former 201-entry summary has no materialized
-ledger that establishes closure. Textual marker and version-constant searches supply
-candidates, including document and negative-test references; they do not count
-implemented formats. The focused report review resolves 74 candidate roles, including
-eleven existing machine-reader links and 46 one-way operator outputs with current fields.
-Its two emitted naming omissions are repaired in the Recording and simulation reports;
-the module identity producer supplies its current field names directly. This review
-does not establish the complete format denominator or final image qualification.
-Wider classification, implementation and qualification remain open.
-Include the shared smoke declaration, compiler artifact, framework outcome,
-client failure, process launch, stop and teardown formats, plus Bioma's Candidate
-launch receipt, when refreshing that inventory. Their initial camelCase encoding
-does not require an artificial version advance. Qualify each actual receiving
-validator and keep private diagnostic receipts distinct from passing test results.
-A naming annotation can change schema or package bytes without changing instance
-bytes; classify and rebind those identities separately. The simulation-overlay
-identity files and their Docker COPY routes supply the reader's actual producers.
-Verify their final image bytes with the receiving probe. An open report does not
-need a format bump solely because it contains a new admitted requirement value.
+The materialized format review records producers, receiving validators and digest
+preimages, including the smoke and process formats, Bioma's Candidate receipts and
+Phase 7's Embedding contract and consumers. Independent review accepts this source
+closure and its repair receipts; the current scope is recorded under Current Status.
+Private diagnostics do not establish a passing test result. Unchanged camelCase
+formats need no artificial version advance, and schema or package identity changes
+are classified separately from instance-byte changes.
 
-Include Phase 7's Embedding contract and client, candidate collectors and production
-report consumers in that inventory. Space, execution-profile, qualification and report
-shapes already use camelCase; classify unchanged formats accordingly. Changes to
-serialized bytes require the matching format and digest updates and tests of the
-receiving validators. Recompute reports bound to changed inputs through their owning
-tools. Historical hardware reports cannot be relabeled as qualification of new bytes.
+Final image and installed qualification remain open. Verify the simulation-overlay
+identity files through their Docker COPY routes and receiving probes. Recompute
+reports bound to changed inputs through their owning tools and qualify the installed
+receivers. Historical hardware reports cannot qualify new image bytes.
 
 Preserve the implemented `veoveo.ai/gateway-internal-assertion/v2` and
 `veoveo.ai/gateway-request-context/v2` formats. Include every Rust and Python producer
