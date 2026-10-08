@@ -325,6 +325,9 @@ async fn native_failed_body_rolls_back_and_unknown_history_blocks_pending_effect
         let prepared = prepare(failure.select(vec![]).unwrap()).unwrap();
         let error = prepared.apply(&a).await.unwrap_err();
         assert!(!format!("{error:?} {error}").contains("private-token"));
+        assert!(error.to_string().contains("migration body transaction failed"));
+        assert!(error.to_string().contains("Thrown"));
+        assert!(error.to_string().contains("statement "));
         assert_eq!(markers(&a, "fixture_marker").await.len(), 1);
         assert_eq!(prepared.status(&a).await.unwrap().lane(&name("store")).unwrap().current, Some(MigrationVersion::new(0)));
         a.query(include_str!("../../queries/tests/executor/native_failed_body_rolls_back_and_unknown_history_blocks_pending_effects/create_platform_module_lane_unknown_set.surql")).await.unwrap().check().unwrap();

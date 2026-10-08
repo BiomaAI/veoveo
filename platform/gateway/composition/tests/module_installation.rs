@@ -57,7 +57,7 @@ fn path(path: &Path) -> &str {
 async fn process_preparation_lanes_publication_and_stale_generation_fail_closed() {
     tokio::time::timeout(Duration::from_secs(300), async {
         let root_password = format!("fixture-{}", uuid::Uuid::now_v7().simple());
-        let (_container, endpoint) = container::Container::start(container::Docker::default(), "memory", &root_password).await.unwrap();
+        let (_container, endpoint) = container::Container::start(container::Docker::default(), "rocksdb:/tmp/veoveo-test.db", &root_password).await.unwrap();
         let directory = Directory(std::env::temp_dir().join(format!("veoveo-installation-process-{}", uuid::Uuid::now_v7().simple())));
         std::fs::create_dir(&directory.0).unwrap();
         let selection = directory.0.join("selection.json"); let plan_path = directory.0.join("plan.json"); let seed = directory.0.join("control-plane.json");
@@ -88,10 +88,12 @@ async fn process_preparation_lanes_publication_and_stale_generation_fail_closed(
         }}).await.unwrap();
         let mut runtime = root.clone();
         for (name,value) in &mut runtime { match *name {"VEOVEO_SURREAL_AUTH_LEVEL" => *value="database".into(), "VEOVEO_SURREAL_USERNAME" => *value="runtime".into(), "VEOVEO_SURREAL_PASSWORD" => *value="runtime-secret".into(), _ => {} } }
+        // Own both waiting process tasks across early exit, sibling failure and timeout.
+        // Their guards abort before the earlier-declared directory and database guards drop.
         let waiting_lane_env = root.clone();
-        let waiting_lane = tokio::spawn(async move { process(&["module-migrate", "--module", "time", "--wait-seconds", "60"], &waiting_lane_env).await });
+        let waiting_lane = tokio_util::task::AbortOnDropHandle::new(tokio::spawn(async move { process(&["module-migrate", "--module", "time", "--wait-seconds", "60"], &waiting_lane_env).await }));
         let waiting_publish_env = runtime.clone(); let waiting_seed = seed.clone();
-        let waiting_publish = tokio::spawn(async move { process(&["control-plane-publish", "--control-plane", path(&waiting_seed), "--applied-by", "declared-operator", "--wait-seconds", "60"], &waiting_publish_env).await });
+        let waiting_publish = tokio_util::task::AbortOnDropHandle::new(tokio::spawn(async move { process(&["control-plane-publish", "--control-plane", path(&waiting_seed), "--applied-by", "declared-operator", "--wait-seconds", "60"], &waiting_publish_env).await }));
         tokio::time::sleep(Duration::from_millis(300)).await;
         if waiting_lane.is_finished() { let output = waiting_lane.await.unwrap(); panic!("lane exited before preparation: status {} stdout {} stderr {}", output.status, String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr)); }
         if waiting_publish.is_finished() { let output = waiting_publish.await.unwrap(); panic!("publisher exited before preparation: status {} stdout {} stderr {}", output.status, String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr)); }
@@ -101,7 +103,18 @@ async fn process_preparation_lanes_publication_and_stale_generation_fail_closed(
         assert!(!process(&publish, &runtime).await.status.success(), "publication must wait for selected lane headers");
         assert!(!process(&["module-migrate","--module","map","--wait-seconds","0"], &root).await.status.success());
         assert!(!process(&["module-migrate","--module","time","--wait-seconds","0"], &root).await.status.success(), "dependency lane is not complete");
-        for lane in plan.lanes() { if lane.module.as_str() == "time" { continue; } success(process(&["module-migrate","--module",lane.module.as_str(),"--wait-seconds","0"], &root).await); }
+        // Chart Jobs start selected lanes concurrently. Each real process must wait
+        // for its declared dependencies and preparation rather than a serial harness.
+        let mut migration_jobs = tokio::task::JoinSet::new();
+        for lane in plan.lanes() {
+            if lane.module.as_str() == "time" { continue; }
+            let module = lane.module.to_string();
+            let env = root.clone();
+            migration_jobs.spawn(async move {
+                success(process(&["module-migrate", "--module", &module, "--wait-seconds", "60"], &env).await);
+            });
+        }
+        while let Some(job) = migration_jobs.join_next().await { job.unwrap(); }
         success(waiting_lane.await.unwrap());
         let original_publication = success(waiting_publish.await.unwrap());
         let original: serde_json::Value = serde_json::from_str(&original_publication).unwrap();

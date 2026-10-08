@@ -397,7 +397,10 @@ impl PreparedInstallation<'_> {
                     .initialized
                 {
                     return Err(failure(
-                        "lane initialization failed without a matching committed winner",
+                        &format!(
+                            "lane initialization failed without a matching committed winner: {}",
+                            error.error
+                        ),
                         Some(name),
                     ));
                 }
@@ -459,8 +462,9 @@ impl PreparedInstallation<'_> {
                 {
                     return Err(failure(
                         &format!(
-                            "migration {} failed without a matching committed winner",
-                            migration.version().get()
+                            "migration {} failed without a matching committed winner: {}",
+                            migration.version().get(),
+                            error.error
                         ),
                         Some(name),
                     ));

@@ -152,6 +152,10 @@ EDITOR or system user does not provide per-module table isolation.
 The executor applies each body and its history in one native transaction and explicitly
 cancels failed transactions. It compares fixed migration identity, rejects gaps and drift,
 and reads persisted history to distinguish a matching concurrent winner from a failure.
+Migration failures report their phase, failed statement positions and structured database
+error categories, including conflict, cancellation and timeout. Messages and detail
+values stay redacted. Absence of a matching committed winner preserves the original
+redacted failure; it does not establish that an uncertain operation had no effects.
 Read-only status supports publication readiness without trusting Job launch order.
 Catalog inspection compares parsed table, field and index declarations before accepting
 bookkeeping infrastructure; `IF NOT EXISTS` and an empty SELECT do not prove its shape.

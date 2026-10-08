@@ -53,7 +53,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | Phase | Current state | Remaining gate |
 |---|---|---|
 | 0 — Shared declarations | Source qualification passes; owner admission, wire forms and schema metadata are preserved | Qualify affected installed consumers with the final cut |
-| 1–4 — Modules, extension points and storage | Qualified checkpoints cover selected lanes, owner SQL, native records, authority and recovery. Current native rollback and concurrent-lane controls pass; the current installed gateway migration Job fails without a matching committed winner | Preserve safe database causes, resolve the installed failure, reconcile required owner coverage and qualify the final installation lifecycle |
+| 1–4 — Modules, extension points and storage | Qualified checkpoints cover selected lanes, owner SQL, native records, authority and recovery. Native rollback passes; concurrent RocksDB lanes reproduce the installed gateway migration failure as `Query.TransactionConflict` at commit | Resolve the conflict while preserving uncertain outcomes, reconcile required owner coverage and qualify the final installation lifecycle |
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
@@ -1281,10 +1281,14 @@ kernel and selected chart resources; full Helm lifecycle, hosted domain startup 
 reference activation remain open.
 The final-cut installation run at `003353fb8` fails in gateway migration 0 without
 a matching committed winner. The original runner discarded the database cause.
-Current native rollback/redaction and concurrent production-lane controls pass,
-so they do not reproduce or resolve that installed failure. Safe typed diagnostics
-must identify the cause on the actual image path before installation acceptance
-can pass. The failed run's disposable cluster and owned resources are removed.
+Native rollback/redaction passes. The concurrent production-lane control passes
+with in-memory storage but reproduces the failure on the chart's RocksDB backend:
+gateway migration 0 returns typed `Query.TransactionConflict` at commit. Safe
+diagnostics preserve that category and statement context while redacting database
+messages and values. Both waiting processes and sibling migration tasks are owned
+through fixture cleanup. The conflict requires a repair that distinguishes an
+authoritative abort from an uncertain commit; installation acceptance remains open.
+The failed run's disposable cluster and owned resources are removed.
 Production SQL redistribution belongs to Phase 3.
 
 | Work | Detail |

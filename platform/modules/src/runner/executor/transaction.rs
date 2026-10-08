@@ -94,6 +94,51 @@ impl TransactionError {
         }
     }
 }
+// Database messages and detail values can contain bound credentials or owner data.
+// Preserve structured causes and statement positions without formatting those values.
+fn database_failure(phase: &str, error: &surrealdb::Error) -> RunnerError {
+    let mut categories = Vec::new();
+    let mut current = Some(error);
+    for _ in 0..8 {
+        let Some(error) = current else { break };
+        let category = match error.query_details() {
+            Some(surrealdb::types::QueryError::TransactionConflict) => "Query.TransactionConflict",
+            Some(surrealdb::types::QueryError::NotExecuted) => "Query.NotExecuted",
+            Some(surrealdb::types::QueryError::Cancelled) => "Query.Cancelled",
+            Some(surrealdb::types::QueryError::TimedOut { .. }) => "Query.TimedOut",
+            _ => error.kind_str(),
+        };
+        categories.push(category);
+        current = error.cause();
+    }
+    failure(
+        &format!(
+            "{phase}: {} (database message and values redacted)",
+            categories.join(" caused by ")
+        ),
+        None,
+    )
+}
+fn checked_response(
+    mut response: surrealdb::IndexedResults,
+    phase: &str,
+) -> Result<surrealdb::IndexedResults, RunnerError> {
+    let mut errors: Vec<_> = response.take_errors().into_iter().collect();
+    errors.sort_by_key(|(index, _)| *index);
+    if errors.is_empty() {
+        return Ok(response);
+    }
+    let count = errors.len();
+    let causes: Vec<_> = errors
+        .into_iter()
+        .take(16)
+        .map(|(index, error)| database_failure(&format!("statement {index}"), &error).to_string())
+        .collect();
+    Err(failure(
+        &format!("{phase}: {count} failed statements; {}", causes.join("; ")),
+        None,
+    ))
+}
 async fn wait<F: IntoFuture>(
     cancel: &mut oneshot::Receiver<()>,
     limit: Duration,
@@ -124,7 +169,7 @@ pub(crate) async fn execute<C: Connection>(
                     None,
                 )
             })?
-            .map_err(|_| failure("cannot begin transaction", None))?;
+            .map_err(|error| database_failure("cannot begin transaction", &error))?;
         let result = async {
             let preparation = match &operation {
                 Operation::Header { preparation, .. }
@@ -140,10 +185,12 @@ pub(crate) async fn execute<C: Connection>(
                         .bind(("record", record_id())),
                 )
                 .await?
-                .map_err(|_| failure("installation lane fence inspection failed", None))?;
-                let record: Option<PreparationRecord> = response
-                    .take(0)
-                    .map_err(|_| failure("invalid installation lane fence", None))?;
+                .map_err(|error| {
+                    database_failure("installation lane fence inspection failed", &error)
+                })?;
+                let record: Option<PreparationRecord> = response.take(0).map_err(|error| {
+                    database_failure("installation lane fence response decoding failed", &error)
+                })?;
                 if record.is_none_or(|record| !record.matches(key) || !record.complete) {
                     return Err(failure(
                         "installation preparation changed before lane mutation",
@@ -159,8 +206,10 @@ pub(crate) async fn execute<C: Connection>(
                         transaction.query(INFRASTRUCTURE),
                     )
                     .await?
-                    .and_then(|response| response.check())
-                    .map_err(|_| failure("infrastructure transaction failed", None))?;
+                    .map_err(|error| database_failure("infrastructure transaction failed", &error))
+                    .and_then(|response| {
+                        checked_response(response, "infrastructure transaction failed")
+                    })?;
                 }
                 Operation::PreparationFence(key) | Operation::PreparationComplete { key, .. } => {
                     let mut response = wait(
@@ -171,10 +220,13 @@ pub(crate) async fn execute<C: Connection>(
                             .bind(("record", record_id())),
                     )
                     .await?
-                    .map_err(|_| failure("preparation fence inspection failed", None))?;
-                    let existing: Option<PreparationRecord> = response
-                        .take(0)
-                        .map_err(|_| failure("invalid preparation fence", None))?;
+                    .map_err(|error| {
+                        database_failure("preparation fence inspection failed", &error)
+                    })?;
+                    let existing: Option<PreparationRecord> =
+                        response.take(0).map_err(|error| {
+                            database_failure("preparation fence response decoding failed", &error)
+                        })?;
                     if let Some(record) = &existing {
                         record.check_advance(key)?;
                     }
@@ -200,7 +252,9 @@ pub(crate) async fn execute<C: Connection>(
                             )
                             .await?
                             .and_then(|r| r.check())
-                            .map_err(|_| failure("database-editor rotation failed", None))?;
+                            .map_err(|error| {
+                                database_failure("database-editor rotation failed", &error)
+                            })?;
                         }
                         wait(
                             &mut receiver,
@@ -212,7 +266,9 @@ pub(crate) async fn execute<C: Connection>(
                         )
                         .await?
                         .and_then(|r| r.check())
-                        .map_err(|_| failure("preparation marker write failed", None))?;
+                        .map_err(|error| {
+                            database_failure("preparation marker write failed", &error)
+                        })?;
                     }
                 }
                 Operation::Header { content, .. } => {
@@ -225,8 +281,12 @@ pub(crate) async fn execute<C: Connection>(
                             .bind(("content", content.clone())),
                     )
                     .await?
-                    .and_then(|response| response.check())
-                    .map_err(|_| failure("lane initialization transaction failed", None))?;
+                    .map_err(|error| {
+                        database_failure("lane initialization transaction failed", &error)
+                    })
+                    .and_then(|response| {
+                        checked_response(response, "lane initialization transaction failed")
+                    })?;
                 }
                 Operation::Migration { sql, content, .. } => {
                     wait(
@@ -235,8 +295,10 @@ pub(crate) async fn execute<C: Connection>(
                         transaction.query(*sql),
                     )
                     .await?
-                    .and_then(|response| response.check())
-                    .map_err(|_| failure("migration body transaction failed", None))?;
+                    .map_err(|error| database_failure("migration body transaction failed", &error))
+                    .and_then(|response| {
+                        checked_response(response, "migration body transaction failed")
+                    })?;
                     wait(
                         &mut receiver,
                         limits.operation_timeout,
@@ -246,8 +308,12 @@ pub(crate) async fn execute<C: Connection>(
                             .bind(("content", content.clone())),
                     )
                     .await?
-                    .and_then(|response| response.check())
-                    .map_err(|_| failure("migration history transaction failed", None))?;
+                    .map_err(|error| {
+                        database_failure("migration history transaction failed", &error)
+                    })
+                    .and_then(|response| {
+                        checked_response(response, "migration history transaction failed")
+                    })?;
                 }
                 Operation::History | Operation::Prerequisites { .. } => {
                     if let Operation::Prerequisites { key, .. } = &operation {
@@ -259,10 +325,16 @@ pub(crate) async fn execute<C: Connection>(
                                 .bind(("record", record_id())),
                         )
                         .await?
-                        .map_err(|_| failure("runtime preparation inspection failed", None))?;
-                        let record: Option<PreparationRecord> = response
-                            .take(0)
-                            .map_err(|_| failure("invalid runtime preparation marker", None))?;
+                        .map_err(|error| {
+                            database_failure("runtime preparation inspection failed", &error)
+                        })?;
+                        let record: Option<PreparationRecord> =
+                            response.take(0).map_err(|error| {
+                                database_failure(
+                                    "runtime preparation marker response decoding failed",
+                                    &error,
+                                )
+                            })?;
                         let record = record.ok_or_else(|| {
                             failure("runtime installation preparation is absent", None)
                         })?;
@@ -282,13 +354,13 @@ pub(crate) async fn execute<C: Connection>(
                     };
                     let mut response = wait(&mut receiver, limits.operation_timeout, query)
                         .await?
-                        .map_err(|_| failure("history transaction failed", None))?;
-                    let headers = response
-                        .take(0)
-                        .map_err(|_| failure("invalid lane history", None))?;
-                    let applied = response
-                        .take(1)
-                        .map_err(|_| failure("invalid migration history", None))?;
+                        .map_err(|error| database_failure("history transaction failed", &error))?;
+                    let headers = response.take(0).map_err(|error| {
+                        database_failure("lane history response decoding failed", &error)
+                    })?;
+                    let applied = response.take(1).map_err(|error| {
+                        database_failure("migration history response decoding failed", &error)
+                    })?;
                     return Ok(Output::History(headers, applied));
                 }
             }
@@ -304,7 +376,7 @@ pub(crate) async fn execute<C: Connection>(
         {
             tokio::time::timeout(limits.cancel_timeout, transaction.cancel()).await
                 .map_err(|_| failure("transaction cancel timed out; database session cleanup required", None))?
-                .map_err(|_| failure("transaction cancel could not be confirmed; database session cleanup required", None))?;
+                .map_err(|error| database_failure("transaction cancel could not be confirmed; database session cleanup required", &error))?;
             if result.is_ok()
                 && !matches!(
                     operation,
@@ -322,7 +394,7 @@ pub(crate) async fn execute<C: Connection>(
         // cannot pretend to revoke it; let this owned task settle or report uncertainty.
         tokio::time::timeout(limits.operation_timeout, transaction.commit()).await
             .map_err(|_| TransactionError::observe(failure("transaction commit timed out; observe committed history before further action", None)))?
-            .map_err(|_| TransactionError::observe(failure("transaction commit not confirmed; observe committed history before further action", None)))?;
+            .map_err(|error| TransactionError::observe(database_failure("transaction commit not confirmed; observe committed history before further action", &error)))?;
         result.map_err(TransactionError::observe)
     });
     task.await.map_err(|_| {
@@ -331,4 +403,24 @@ pub(crate) async fn execute<C: Connection>(
             None,
         )
     })?
+}
+
+#[cfg(test)]
+mod diagnostics_tests {
+    use super::*;
+    #[test]
+    fn structured_causes_preserve_conflicts_without_disclosing_messages() {
+        let error = surrealdb::Error::query(
+            "private-token".into(),
+            Some(surrealdb::types::QueryError::TransactionConflict),
+        )
+        .with_cause(surrealdb::Error::thrown("private-token".into()));
+        let diagnostic = database_failure("migration body transaction failed", &error);
+        assert!(
+            diagnostic
+                .to_string()
+                .contains("Query.TransactionConflict caused by Thrown")
+        );
+        assert!(!format!("{diagnostic:?} {diagnostic}").contains("private-token"));
+    }
 }
