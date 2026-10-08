@@ -69,6 +69,32 @@ fn write_private(path: &Path, bytes: &[u8]) {
     fs::write(path, bytes).unwrap();
     fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
 }
+fn revoked_grant_tunnel_url(
+    worker_base: &str,
+    computer: &veoveo_computers_contract::ComputerId,
+) -> reqwest::Url {
+    let mut url = reqwest::Url::parse(worker_base).expect("fixture worker base URL");
+    assert_eq!(
+        url.path_segments()
+            .and_then(|mut segments| segments.next_back()),
+        Some("admin"),
+        "fixture worker base ends in the admin route",
+    );
+    assert!(url.query().is_none() && url.fragment().is_none());
+    let scheme = match url.scheme() {
+        "http" => "ws",
+        "https" => "wss",
+        _ => panic!("fixture worker base uses HTTP or HTTPS"),
+    };
+    url.set_scheme(scheme).unwrap();
+    let computer_segment = computer.to_string();
+    url.path_segments_mut()
+        .expect("fixture worker base has hierarchical path segments")
+        .pop()
+        .extend(["cli", "operator", computer_segment.as_str(), "_ws_tunnel"]);
+    url
+}
+
 pub async fn qualify(
     db: &support::TestDb,
     runtime: OpenShellRuntime,
@@ -289,13 +315,7 @@ async fn run(
         .await;
     for worker in [&a, &b] {
         use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-        let mut url: reqwest::Url = format!(
-            "{}/cli/operator/{computer}/_ws_tunnel",
-            worker.base.trim_end_matches("/computers/admin")
-        )
-        .parse()
-        .unwrap();
-        url.set_scheme("ws").unwrap();
+        let url = revoked_grant_tunnel_url(&worker.base, &computer);
         let mut request = url.as_str().into_client_request().unwrap();
         request.headers_mut().insert(
             "authorization",
@@ -357,4 +377,30 @@ async fn run(
     write_private(&directory.join("result.txt"), b"HTTP pairing and one-use confirmation across replicas; stock CLI 0.1.2 retains shell through source-token and initial-lease expiry across two service replicas and two relay hops; owner revocation closes all relay hops within five seconds, fresh admission is forbidden on both workers, no revoked command output is observed, and Computer remains Ready; vendor reconnect can retry for sixty seconds and owned teardown follows security assertions; public SSO and ingress remain unqualified\n");
     println!("Native CLI diagnostics: {}", directory.display());
     support::policy::install_default(&db.a).await;
+}
+
+#[cfg(test)]
+mod route_tests {
+    use super::revoked_grant_tunnel_url;
+
+    #[test]
+    fn revoked_grant_route_preserves_worker_mount_and_computer_identity() {
+        let computer =
+            veoveo_computers_contract::ComputerId::parse("00000000-0000-7000-8000-000000000064")
+                .unwrap();
+        for (base, expected) in [
+            (
+                "http://127.0.0.1:3210/computers/admin",
+                "ws://127.0.0.1:3210/computers/cli/operator/00000000-0000-7000-8000-000000000064/_ws_tunnel",
+            ),
+            (
+                "https://worker.example/tenant/computers/admin",
+                "wss://worker.example/tenant/computers/cli/operator/00000000-0000-7000-8000-000000000064/_ws_tunnel",
+            ),
+        ] {
+            let url = revoked_grant_tunnel_url(base, &computer);
+            assert_eq!(url.as_str(), expected);
+            assert!(url.query().is_none() && url.fragment().is_none());
+        }
+    }
 }
