@@ -33,7 +33,6 @@
     "comparisonContext": "independent-review",
     "scopes": [
       "operator:use",
-      "uav-sim:read",
       "uav-sim:control",
       "uav-sim:stream",
       "view:read",
@@ -41,12 +40,7 @@
       "view:capture",
       "map:dataset:read",
       "map:route",
-      "time:read",
-      "artifact:upload",
-      "knowledge:embed",
-      "knowledge:read",
-      "knowledge:search",
-      "map:feature:read"
+      "time:read"
     ]
   },
   "recordingCatalog": {
