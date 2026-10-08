@@ -153,6 +153,7 @@ enum KubernetesResourceKind {
     NetworkPolicy,
     Service,
     Deployment,
+    StatefulSet,
     Job,
     Pod,
 }
@@ -178,6 +179,7 @@ impl KubernetesResource {
             "NetworkPolicy" => KubernetesResourceKind::NetworkPolicy,
             "Service" => KubernetesResourceKind::Service,
             "Deployment" => KubernetesResourceKind::Deployment,
+            "StatefulSet" => KubernetesResourceKind::StatefulSet,
             "Job" => KubernetesResourceKind::Job,
             "Pod" => KubernetesResourceKind::Pod,
             _ => anyhow::bail!("unsupported diagnostic resource kind"),

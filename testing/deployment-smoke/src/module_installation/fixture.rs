@@ -44,6 +44,24 @@ fn managed_objects(objects: &[Value]) -> impl Iterator<Item = &Value> {
     })
 }
 
+fn installation_objects<'a>(
+    objects: &'a [Value],
+    agent_namespace: &'a str,
+) -> impl Iterator<Item = &'a Value> {
+    objects.iter().filter(move |object| {
+        let component = object["metadata"]["labels"]["app.kubernetes.io/component"]
+            .as_str()
+            .unwrap_or("");
+        (object["kind"] == "ServiceAccount" && object["metadata"]["namespace"] != agent_namespace)
+            || matches!(component, "surrealdb" | "module-plan")
+            || (object["kind"] == "Job"
+                && matches!(
+                    component,
+                    "installation-prepare" | "module-migration" | "control-plane-publication"
+                ))
+    })
+}
+
 fn probe_job(template: &Value, name: &str, args: &[&str]) -> Result<Value> {
     let mut job = template.clone();
     job["metadata"] = json!({"name":name});
@@ -442,22 +460,20 @@ impl Fixture {
         Ok(Render { plan, objects })
     }
     pub fn install(&mut self, render: &Render) -> Result<()> {
-        for object in &render.objects {
-            let component = object["metadata"]["labels"]["app.kubernetes.io/component"]
-                .as_str()
-                .unwrap_or("");
-            if (object["kind"] == "ServiceAccount"
-                && object["metadata"]["namespace"] != self.managed_config.namespace)
-                || component == "surrealdb"
-                || component == "module-plan"
-                || (object["kind"] == "Job"
-                    && matches!(
-                        component,
-                        "installation-prepare" | "module-migration" | "control-plane-publication"
-                    ))
-            {
-                self.apply(object)?;
-            }
+        let selected = installation_objects(&render.objects, &self.managed_config.namespace)
+            .chain(managed_objects(&render.objects))
+            .chain(
+                render
+                    .objects
+                    .iter()
+                    .filter(|object| object["kind"] == "Namespace"),
+            );
+        for object in selected {
+            self.resource(object)?;
+        }
+        let namespace = self.managed_config.namespace.clone();
+        for object in installation_objects(&render.objects, &namespace) {
+            self.apply(object)?;
         }
         for job in render.objects.iter().filter(|o| o["kind"] == "Job") {
             self.wait_job(
@@ -1312,6 +1328,27 @@ mod tests {
                     .get("initContainers")
                     .is_none()
             );
+            let initial =
+                installation_objects(&rendered.objects, &fixture.managed_config.namespace)
+                    .collect::<Vec<_>>();
+            assert!(
+                initial.iter().any(|object| object["kind"] == "StatefulSet"),
+                "native chart must exercise the actual selected Store workload"
+            );
+            for object in initial
+                .into_iter()
+                .chain(managed_objects(&rendered.objects))
+                .chain(
+                    rendered
+                        .objects
+                        .iter()
+                        .filter(|object| object["kind"] == "Namespace"),
+                )
+            {
+                fixture.resource(object).with_context(|| {
+                    format!("generation {} selected chart resource admission", index + 1)
+                })?;
+            }
             let applied = managed_objects(&rendered.objects).collect::<Vec<_>>();
             let agent_namespace = fixture.managed_config.namespace.as_str();
             for (kind, name) in [
