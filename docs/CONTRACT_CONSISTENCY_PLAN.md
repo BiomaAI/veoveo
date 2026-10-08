@@ -57,7 +57,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33, shared Artifact and SDK controls pass; selected Map and Time native controls, Speech's Rust/Python protocol and Media's current receiver checks pass. Knowledge's collector, Video's current receivers and UAV's repaired private protocol pass. Computers' focused contract, private-byte and hosted file-admission controls pass. Selected Agents/Workspace native and generated-receiver checks pass. Recording's selected native and producer comparisons, Stream's actual SDK parser controls and gateway/deployment preflight pass. The shared C02 writer and Rust/Python admission now use `resultUri`; the current Map travel-model and Optimization native read controls pass | Finish Computer recovery; reconcile the format, continuation, producer/consumer and pin inventory, including SUMO's pending naming profile; supply Workspace lint; qualify final generated artifacts, drain writers and prepare fresh reference state |
+| 8 — Installation and naming cut | C33, shared Artifact and SDK controls pass; selected Map and Time native controls, Speech's Rust/Python protocol and Media's current receiver checks pass. Knowledge's collector, Video's current receivers and UAV's repaired private protocol pass. Computers' focused contract, private-byte and hosted file-admission controls pass. Selected Agents/Workspace native and generated-receiver checks pass. Workspace now owns lint and passes its build, 23 unit checks and two headed NVIDIA browser cases. SUMO's nine public model families, complete tool catalog, resource and Task serializers and typed Bioma receiver pass their source checks. Recording's selected native and producer comparisons, Stream's actual SDK parser controls and gateway/deployment preflight pass. The shared C02 writer and Rust/Python admission now use `resultUri`; the current Map travel-model and Optimization native read controls pass | Finish Computer recovery, strict Python Task admission, the Python template naming cut and Chart App fallback removal; reconcile format, continuation, producer/consumer and pin inventories; qualify final generated artifacts, drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
@@ -128,12 +128,17 @@ the replacement controller while retaining the canonical main-process epoch.
 Recovered terminal delivery and bytes, later lifecycle assertions, Host replacement
 and installed execution remain open. Earlier provider profiles do not qualify these
 gates.
-The same-supervisor repair passes its existing compiler and source controls.
-Independent review requires three additional protections before native qualification:
-an uncertain Docker wait must preserve the retained resources, fresh Start must admit
-companion absence before changing guest credentials or generation, and cleanup must
-preserve volumes when mount observations are incomplete. The revised controls must
-exercise those actual paths; a compiler-only image cannot satisfy recovery acceptance.
+The same-supervisor repair passes 35 driver, nine server and two mTLS controls.
+Uncertain Docker waits preserve resources and their unresolved condition. Fresh Start
+admits companion absence before changing guest credentials or generation, and startup
+preserves volumes with incomplete mount observations. Independent review accepts those
+protections. The subsequent ownership repair passes 38 driver controls and preserves
+pre-existing private state on Create refusal. Final review requires a separate safe
+cleanup disposition: ownership alone cannot authorize deletion after an uncertain
+Docker Create or Start. Applied-but-lost replies must preserve private state and
+resource fences. The revised public Create controls must pass before native
+qualification. The candidate stays quarantined; a compiler-only image cannot
+satisfy recovery acceptance.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
 
@@ -2325,7 +2330,7 @@ their image and hardware checks in Phase 10, rather than another source migratio
 | Gate | Pass condition |
 |---|---|
 | Client types | `cargo xtask release client-types --check` |
-| Console and Workspace | Both clients run `npm test` and `npm run build`; Console also runs `npm run lint` (Workspace has no lint script) |
+| Console and Workspace | Both clients run `npm test`, `npm run build` and `npm run lint` |
 | Python | Protocol schema comparison tests and each package's suite |
 
 Kernel schema generation preserves the current tool behavior and removes the
@@ -2589,7 +2594,7 @@ timestamps; that owner requires its own final schema and decoder qualification.
 | Hosted MCP contract revision 3, `veoveo.ai/hosted-mcp/v3`; requirement catalog revision 1 | Revision 4 / `veoveo.ai/hosted-mcp/v4`; catalog revision 2 with C33; registrations and all declarations change together |
 | Hosted-server conformance profile v1 | v2; its admitted hosted-revision grammar advances from v3 to v4 |
 | Development image lock v1 | v2; tagged origin payload fields change alongside the already camelCase root |
-| Independent fork fixture state v2 | v3; public decoding rejects snake_case field aliases, and internal constructors adapt to the admitted camelCase wire profile |
+| Independent fork fixture state v2 | v2; emitted keys and values already use the current profile. Public decoding rejects snake_case aliases and closes markers; bind the changed schema and package identities |
 | Recording manifest v9 | v10 |
 | Playback manifest v10 | v11, coordinated with the Console BFF |
 | Reason and stream results, speech transcript, travel-model artifact, optimization problem and solution documents | Next version with a `veoveo.ai/<name>/v<N>` tag |
@@ -2612,15 +2617,18 @@ Stream and Reason reuse those models. The snapshot's SHA-256 covers its ordered 
 JSON, so the renamed fields change the digest input. Producers and receiving validators
 must agree on the recomputed digest; native reader records and source blob bytes keep
 their existing profiles.
-The refreshed continuation inventory spans 26 version-1 owner files with multiple variants,
-plus Map's version-2 source-feature query domain. Inspect each codec's actual bytes;
-the unversioned authoring continuation carries only admitted feature-ID bytes and
-needs no casing change. Preserve each encoding, parent and query context when
-advancing a changed format.
+The current source census locates 35 `CursorCodec` implementations, including three
+shared test fixtures; generic codecs can serve several concrete collection profiles.
+Other continuation implementations and consumers require their own review. Inspect
+each codec's actual bytes. The unversioned authoring continuation carries only admitted
+feature-ID bytes and needs no casing change. Preserve each encoding, parent and query
+context when advancing a changed format.
 
-The complete format review classifies 201 entries across the current producer and
-consumer graph: 90 changed formats, 89 unchanged formats, four mixed profiles and
-eighteen digest preimages. Implementation and qualification are still required.
+The final format review must record each producer, receiving validator and digest
+preimage against the current source. The former 201-entry summary has no materialized
+ledger that establishes closure. Textual marker and version-constant searches supply
+candidates, including document and negative-test references; they do not count
+implemented formats. Classification, implementation and qualification remain open.
 Include the shared smoke declaration, compiler artifact, framework outcome,
 client failure, process launch, stop and teardown formats, plus Bioma's Candidate
 launch receipt, when refreshing that inventory. Their initial camelCase encoding
