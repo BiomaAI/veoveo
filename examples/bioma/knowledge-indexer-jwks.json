@@ -5,8 +5,8 @@
       "crv": "Ed25519",
       "alg": "EdDSA",
       "use": "sig",
-      "kid": "bioma-knowledge-indexer-v1",
-      "x": "KgnpIOWiDoQbJYrn5ANEgULh7f0YWGkqgqjwFoZoZpo"
+      "kid": "bioma-knowledge-indexer-20261008-9c84ed7277e2",
+      "x": "PDE1NmcUORFGj_Hu3P8itWVnTS_lCIlB1T6CP1eYLTI"
     }
   ]
 }

@@ -137,7 +137,7 @@ gateway:
         - reference: agent_model_api_key
           secret: veoveo-workspace-models
           key: api-key
-  controlPlaneRevision: abfb648d9e1e94793ac984e99804d69c07f686ef3282289c91bfbbd1f3d98c32
+  controlPlaneRevision: 0bb8126661ec3efb610bd4bea6bb49e090183218a8384d0763531139ef1140a0
 consoleBff:
   workspace:
     oauthScopes:
@@ -264,5 +264,5 @@ knowledge:
   existingConfigMap: bioma-knowledge-configuration
   embeddingRuntimeConfigKey: embedding-runtime.json
   indexingConfigKeys: [indexing.json]
-  configurationRevision: 90e1bd2e6149a6ba58049339218a6f49df58130c01f8df9b53a7839542d3f4bc
+  configurationRevision: 958811a6d2572d5b67ebf28bf81a756b11c55dbbc546494a604ee8caf401b2f7
   existingSigningSecret: bioma-knowledge-indexer

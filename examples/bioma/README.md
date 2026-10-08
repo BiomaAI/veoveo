@@ -487,7 +487,7 @@ jq -n '{apiVersion:"v1",kind:"Secret",metadata:{name:"veoveo-embedding",namespac
 
 Knowledge authenticates with its own Ed25519 private key. The matching public key is
 in [knowledge-indexer-jwks.json](knowledge-indexer-jwks.json), with key ID
-`bioma-knowledge-indexer-v1`. Provision the installation-held private key before
+`bioma-knowledge-indexer-20261008-9c84ed7277e2`. Provision the installation-held private key before
 starting Knowledge:
 
 ~~~bash

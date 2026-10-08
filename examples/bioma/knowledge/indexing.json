@@ -1,7 +1,7 @@
 {
   "tenant": "bioma",
   "clientId": "knowledge-indexer",
-  "keyId": "bioma-knowledge-indexer-v1",
+  "keyId": "bioma-knowledge-indexer-20261008-9c84ed7277e2",
   "signingAlgorithm": "ed_dsa",
   "privateKeyFile": "/etc/veoveo/knowledge/signing/private.pem",
   "trustedCaFile": null,

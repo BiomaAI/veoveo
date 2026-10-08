@@ -1,10 +1,13 @@
 # Platform Foundations And Contract Consistency Plan
 
 Status: The 34-image closure and both Helm charts for source `6431c30c6621` are
-published and verified. Matching image locks, module plan and staged workload
-references pass source and render checks and independent review. The reference cluster
-remains stopped; fresh-install, Knowledge readiness, installed-consumer, separate
-Agent Manager namespace readiness, and hardware acceptance gates remain open. See
+published and verified. Matching release inputs are committed and pushed at
+`55a9c57840be02b32d13c5df76d20d6ed3a448e1`. The fresh reference cluster and Flux
+platform controllers are running. Matching credentials are generated outside Git
+and four public configuration updates are frozen for validation and review;
+application bootstrap is held until their commit. Installed A/F/H checks have not
+run against this fresh release. Fresh-install, Knowledge readiness, installed-consumer,
+separate Agent Manager namespace readiness and hardware acceptance remain open. See
 [Current Status](#current-status) for accepted checks and remaining gates.
 
 This is the single implementation plan for the former Foundations, Contract
@@ -59,7 +62,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls. Native gateway-loss recovery, settled Stop→Start, file retention and full MCP Files, Commands, Maintenance, Worker and Host cases pass with typed binding version 2 and file helper version 2. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both matching charts are published for source `6431c30c6621`. Generated image locks, outside-Pod runtime references and the 19-lane module plan use those published digests. Source/render checks and independent review accept the release inputs; commit and push are pending. The reference cluster remains stopped | Commit and push the coherent release inputs, then pass the required fresh-install, Knowledge readiness, installed-consumer, separate Agent Manager namespace readiness and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both matching charts are published for source `6431c30c6621`. Generated image locks, outside-Pod runtime references and the 19-lane module plan use those published digests. Source/render checks and review accept the release inputs, committed and pushed at `55a9c57840be02b32d13c5df76d20d6ed3a448e1`. The fresh reference cluster and Flux platform controllers are running; matching credentials are generated outside Git and four public configuration updates await validation/review and commit before application bootstrap. Installed A/F/H checks have not run against this fresh release | Validate and commit the matching public configuration, admit application bootstrap, then pass the required fresh-install, Knowledge readiness, installed-consumer, separate Agent Manager namespace readiness and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -217,9 +220,8 @@ TOML bytes are unchanged; the manifest updates only the native producer's source
 Independent review accepts the fixture and provenance changes. Both maintained image
 builds and package admission pass against the current manifest. Provider controls pass
 45 driver and two mTLS cases; the Host embeds the same five provider executables.
-The candidates remain quarantined, canonical images and caches are preserved, and
-the cluster stays stopped. The selected Computer native gates pass. Scoped Cargo
-cleanup retains dependency libraries, current executable links, the newest
+The selected Computer native gates pass; their source qualification does not close
+installed acceptance. Scoped Cargo cleanup retains dependency libraries, current executable links, the newest
 incremental variants and frozen acceptance inputs. The two repaired Python image
 contexts pass their locked package builds and development-stage publication;
 these checks do not qualify the full release. Console and Workspace build-input
@@ -230,13 +232,24 @@ The `veoveo` and `uav-sim` charts are published at `0.1.0-6431c30c6621` with
 manifest digests `ea8f452d…7e44f` and `c88d51f2…b4bc1f`. The generated module plan
 binds all 19 owner lanes to the released Gateway image. Full values keep every locked
 image and Deployment in the render; the HelmRelease stages Computer-dependent and
-out-of-batch GPU workloads at zero replicas while the initial target runs Knowledge,
+out-of-batch GPU workloads at zero replicas while the initial target selects Knowledge,
 Embedding, Datasheet's Artifact consumer and their CPU source services. The UAV
 HelmRelease is suspended for this first acceptance batch. Image locks and outside-Pod
 runtime references use the published runnable digests. Source and render checks and
-independent review accept the release inputs; commit and push precede activation. The
-cluster remains stopped, and fresh-install, Knowledge readiness, installed-consumer,
-separate Agent Manager namespace readiness and hardware gates remain open.
+independent review accept the release inputs, committed and pushed at
+`55a9c57840be02b32d13c5df76d20d6ed3a448e1`. The fresh reference k3d cluster and Flux
+platform controllers are running. Its RTX 4090 uses NVIDIA driver `610.57.04` and
+the device plugin advertises eight shares; this does not qualify a GPU workload.
+Matching Knowledge signing and Embedding credentials are generated outside Git;
+four public configuration updates are frozen for validation and review. Application
+bootstrap is held until their commit. Dependent secrets and GitOps applications
+have not been applied. Normal frozen conformance and
+installation executables are ready at
+`/tmp/veoveo-first-installed-gates-artifacts-55a9-20261008`. Installed A/F/H checks
+have not run against this fresh release. The old shared 197.9 GB checkpoint/model volume is preserved
+because fourteen retained containers mount it; the new cluster uses fresh volumes.
+Fresh-install, Knowledge readiness, installed-consumer, separate Agent Manager
+namespace readiness and hardware gates remain open.
 The installation target checks Deployments in `veoveo`; Agent Manager in
 `veoveo-agents` needs its separate bounded KubeOps rollout check and JSON receipt.
 
