@@ -45,6 +45,25 @@ spec:
   postRenderers:
     - kustomize:
         patches:
+          # Allow cold image pulls and model staging within the twenty-minute Helm budget.
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: embedding
+            patch: |-
+              - op: add
+                path: /spec/progressDeadlineSeconds
+                value: 1200
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: knowledge-mcp
+            patch: |-
+              - op: add
+                path: /spec/progressDeadlineSeconds
+                value: 1200
           - target:
               group: apps
               version: v1

@@ -707,9 +707,14 @@ flux --context k3d-veoveo-bioma get helmreleases
 kubectl --context k3d-veoveo-bioma -n veoveo get deployments,statefulsets,pods
 ~~~
 
-The Git source and root Kustomization must be Ready at the same revision. Both
-HelmReleases must be Ready with non-empty inventories. Do not operate concurrent Helm
-releases for the same resources.
+The Git source and root Kustomization must be Ready at the same revision. During
+initial staging, the active Veoveo HelmRelease must be Ready with a non-empty
+inventory. UAV is intentionally suspended; do not wait for its Ready condition in
+this stage. Full activation requires both HelmReleases to be Ready with non-empty
+inventories. Do not operate concurrent Helm releases for the same resources.
+The reference release gives Embedding and Knowledge twenty minutes to make
+Deployment progress, matching its Helm timeout while cold image pulls and model
+staging precede the application startup probe.
 
 ## Provision the Reason checkpoint
 
@@ -729,6 +734,7 @@ bioma_model_name=qwen3-vl-4b-instruct-fp8-$bioma_model_revision
 bioma_model_dir="$PWD/output/models/$bioma_model_name"
 mkdir -p "$bioma_model_dir"
 while read -r checksum filename; do
+  mkdir -p "$(dirname "$bioma_model_dir/$filename")"
   curl --fail --location --proto '=https' --proto-redir '=https' \
     --max-time 600 --retry 2 --retry-max-time 620 \
     "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-FP8/resolve/$bioma_model_revision/$filename" \
@@ -812,6 +818,25 @@ The full installation includes `embedding`. Its init container waits for the pin
 checkpoint under `embedding-model-cache`. Stage revision
 `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` of `Qwen/Qwen3-Embedding-0.6B` using
 [the runtime manifest](../../platform/runtimes/embedding/checkpoint.sha256).
+Download the pinned files into a host staging directory, creating each file's
+parent directory for nested paths such as `1_Pooling/config.json`:
+
+~~~bash
+set -euo pipefail
+bioma_model_revision=97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3
+bioma_model_dir="$PWD/output/models/qwen3-embedding-0.6b-$bioma_model_revision"
+mkdir -p "$bioma_model_dir"
+while read -r checksum filename; do
+  mkdir -p "$(dirname "$bioma_model_dir/$filename")"
+  curl --fail --location --proto '=https' --proto-redir '=https' \
+    --max-time 600 --retry 2 --retry-max-time 620 \
+    "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/resolve/$bioma_model_revision/$filename" \
+    --output "$bioma_model_dir/$filename"
+done < platform/runtimes/embedding/checkpoint.sha256
+cp platform/runtimes/embedding/checkpoint.sha256 "$bioma_model_dir/SHA256SUMS"
+(cd "$bioma_model_dir" && sha256sum --check SHA256SUMS)
+~~~
+
 Use the temporary transfer Pod procedure above with PVC `embedding-model-cache`,
 Deployment `embedding`, transfer Pod `embedding-model-stage`, and final directory
 `qwen3-embedding-0.6b-97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3`. The manifest's ten
