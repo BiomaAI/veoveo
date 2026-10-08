@@ -134,11 +134,20 @@ the allocator's shared mounts and restart. Fresh volume allocation admits Engine
 absence before publishing the filesystem as Ready and consumes one typed proof for
 labeled creation. Existing allocations only inspect approval; missing or unapproved
 metadata cannot authorize another Create. The repair passes independent review and
-its complete Storage library and diagnostic controls. The MCP worker fixture aborts
-with a stack overflow after controller connection; its exact failing callee is unknown.
-Static inspection finds large async poll frames across all four MCP fixtures. Their
-worker, command, file and maintenance cases and Host replacement still require native
-qualification. Installed execution stays open. The candidate remains quarantined and
+its complete Storage library and diagnostic controls. Heap-pinned setup and assertion
+phases reduce the four MCP fixtures' large async poll frames. Worker and Commands
+advance beyond the original overflow. Worker exposes two fixture defects: an unsupported
+stock-CLI exit deadline after revocation, then a tunnel URL that drops the server mount.
+The repaired oracle checks relay closure, refusal of a fresh revoked-grant connection
+and absence of post-revocation output before owned process cleanup. Its typed URL builder
+preserves the mount; the affected compiler and offline controls pass. Native confirmation
+is pending. Commands reaches maintenance capture, which reports `RecoveryRequired`.
+The selected provider stamps a UUIDv4 attachment epoch into the returned spec, while
+capture compares it against an unstamped template. The runtime repair is under review.
+Files still aborts with a stack overflow; its owned containers, gateway process and
+loop-backed filesystem are cleaned up. Worker, Commands, Files, Maintenance and Host
+replacement still require native qualification. Installed execution stays open.
+The candidate remains quarantined and
 the rollback image stays selected.
 The [provider build](../platform/runtimes/computers/provider-patches/README.md#oci-build)
 binds each copied executable to the selected Cargo package and emitted artifact.
@@ -153,8 +162,7 @@ pass their owning controls and independent review. The installation-pin fixture 
 uses the actual seven-file Gateway bundle preimage; current pins are unchanged.
 Client generation agrees across all 18 bundles and 36 outputs. The maintained Helm
 configuration smoke verifies the approved Agent template's complete two-file ConfigMap,
-immutable name and owner-computed digest. This source review does not close the wider
-format inventory or installed consumer gates.
+immutable name and owner-computed digest. Installed consumer gates remain open.
 
 The required harness, Embedding, authentication and image-copy review records 27
 additional producer and receiver families with explicit diagnostic and internal
@@ -162,7 +170,23 @@ roles. The basic Embedding reference decoder now admits its complete typed v2
 document before endpoint or credential access. It rejects retired, mixed and
 unsupported markers and checks precision and vector relationships. Its current
 fixture and CPU admission controls pass; producer bytes and hardware captures are
-unchanged. These finite reviews do not establish the complete format denominator.
+unchanged. The final source-use review classifies all 1,351 previously unlinked
+serialization expressions and materializes their outer envelopes and receiving owners.
+It identifies no additional changed-version format without a corresponding version
+cut or current receiver. Nested DTOs, diagnostics and scalar encodings are classified
+without counting them as independent formats. AppCatalog event decoding now uses the
+generated owner schema before callbacks; its seven controls, type checks, lint and build
+pass independent review. Final source reconciliation and installed qualification remain
+open.
+
+The full Python enforcement passes 551 SDK, 60 template and ten independent-fork cases.
+Its Task-storage exchange uses the actual Cargo-selected Rust receiver against a fresh
+SDK store. Typed caller fixtures and owned-container timeout cleanup replace stale
+test assumptions. Conformance discovery preserves one original deadline in its typed
+progress context, and transport error handling preserves the admitted I/O error.
+The owning runtime and conformance libraries pass 93 and 58 controls and strict lint.
+Strict all-target lint still requires a separate shared native-fixture and provider
+provenance batch.
 
 The Python SDK admits the preserved `v1:N` offset grammar and 64-bit range,
 including Rust's admitted leading-plus and leading-zero aliases. It refuses
