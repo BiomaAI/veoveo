@@ -1309,10 +1309,14 @@ chart's Store StatefulSet and every initial, managed and Namespace object; the a
 three-generation chart control and privacy and identity controls pass independent
 review. The refreshed installed run completes generation-1 preparation and migration
 Jobs and both NetworkPolicy canaries, then fails while creating the managed-agent
-`ValidatingAdmissionPolicy`. Kubectl returns exit 1 with category `Unclassified`;
-the API response is unavailable, so its cause is still unknown. No generation's
-managed lifecycle is qualified. All failed runs' owned resources and clusters are
-removed. Diagnosis, all generations and installation acceptance remain open.
+`ValidatingAdmissionPolicy`. The reviewed policy-only diagnostic reuses the actual
+image-produced plan and chart without starting installation workloads. Its server
+dry-run identifies an empty CEL model-key condition. The templates read obsolete
+snake_case fields from camelCase owner contracts, losing model bindings and other
+workload settings. The owner-to-Helm correction is in progress; all generations and
+installation acceptance remain open. The diagnostic creates no persisted policy and
+does not qualify a generation. All failed runs' owned resources and clusters are
+removed.
 Production SQL redistribution belongs to Phase 3.
 
 | Work | Detail |
