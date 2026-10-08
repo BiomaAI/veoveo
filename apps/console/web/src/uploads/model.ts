@@ -63,7 +63,7 @@ export interface Entry {
   restartRequired?: boolean;
 }
 
-export const savedSchema = z.array(z.object({
+export const savedSchema = z.array(z.strictObject({
   key: id, descriptor: descriptorSchema, lastModified: bytes,
   uploadId: id.optional(), receipt: receiptSchema.optional(), accepted: bytes,
   cancelRequested: z.boolean().optional(), cancelled: z.boolean().optional(), admissionStarted: z.boolean().optional(),

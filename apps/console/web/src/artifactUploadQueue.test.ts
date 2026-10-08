@@ -93,6 +93,43 @@ async function fixture() {
   return { memory, file, key, uploadId, receipt, status, queue, calls, receipts, respond: (value: typeof response) => { response = value; }, respondPolicy: (value: Policy) => { policyResponse = value; } };
 }
 
+test("saved v2 upload rows refuse retired and unknown fields before restoration", async () => {
+  const f = await fixture();
+  f.queue.dispose();
+  const required = { key: f.key, descriptor: f.status.descriptor, lastModified: f.file.lastModified,
+    uploadId: f.uploadId, accepted: 8 };
+  const current = { ...required, cancelRequested: true, admissionStarted: true, restartRequired: true };
+  assert.deepEqual(savedSchema.parse([current]), [current]);
+  f.memory.set(storageKey, JSON.stringify([current]));
+  const admitted = new UploadQueue("alice", "operations", "tenant", () => assert.fail("restoration cannot settle a receipt"));
+  try {
+    assert.equal(admitted.snapshot().persistenceError, undefined);
+    const entry = admitted.snapshot().entries[0];
+    assert.equal(entry.key, current.key);
+    assert.equal(entry.cancelRequested, true);
+    assert.equal(entry.admissionStarted, true);
+    assert.equal(entry.restartRequired, true);
+    assert.deepEqual(f.calls, []);
+  } finally { admitted.dispose(); }
+  const refused: unknown[] = [{ ...current, unexpected: "closed row" }];
+  for (const [retired, active] of [
+    ["cancel_requested", "cancelRequested"], ["admission_started", "admissionStarted"], ["restart_required", "restartRequired"],
+  ]) {
+    refused.push({ ...required, [retired]: true }, { ...required, [active]: false, [retired]: true });
+  }
+  for (const row of refused) {
+    assert.equal(savedSchema.safeParse([row]).success, false, "unknown or retired keys must refuse rather than disappear");
+    f.memory.set(storageKey, JSON.stringify([row]));
+    const queue = new UploadQueue("alice", "operations", "tenant", () => assert.fail("invalid restoration cannot settle a receipt"));
+    try {
+      assert.deepEqual(queue.snapshot().entries, []);
+      assert.match(queue.snapshot().persistenceError!, /could not be restored/);
+      assert.deepEqual(f.calls, []);
+      assert.equal(f.memory.get(storageKey), JSON.stringify([row]));
+    } finally { queue.dispose(); }
+  }
+});
+
 async function until(check: () => boolean) {
   const deadline = Date.now() + 3000;
   while (!check()) { assert.ok(Date.now() < deadline, "queue did not settle"); await new Promise((resolve) => setTimeout(resolve, 5)); }

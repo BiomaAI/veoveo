@@ -18,7 +18,9 @@ Workspace HTTP, CSRF and login boundary through `browserApp.ts`; no transport ch
 authority from a pathname, caller header or upload descriptor. Workspace metadata
 adds its application name to the version-2 storage scope. The `veoveo.uploads.v2:`
 key stores camelCase owner descriptors and receipts; the queue never restores v1
-descriptors. A shared origin is not isolation from same-origin scripts.
+descriptors. Saved v2 rows are closed objects: retired, mixed, or unknown fields
+refuse restoration before any status request. The queue preserves the stored bytes
+and reports the admission failure. A shared origin is not isolation from same-origin scripts.
 The panel receives its inert background selector from its host and runs in a portal
 beside that background. A file-details dialog temporarily replaces the upload panel,
 which prevents competing keyboard focus traps.
@@ -90,7 +92,7 @@ receipts for a separate retained-home import.
 ## Notification Admission
 
 The Artifact transfer owner generates the `artifact_upload` notification schema.
-Notifications preserve `op`, `upload_id` and `state` snake_case keys and admit
+Notifications use `op`, `uploadId` and `state` in the current camelCase profile and admit
 finalizing, verifying, completed, cancelled, expired and failed states. The emitted
 upload identity uses canonical RFC UUIDv7 spelling in this notification profile. Receipt,
 authority and provider data do not enter this profile. The queue validates the
