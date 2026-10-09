@@ -140,10 +140,13 @@ explicit `computers.host.issuerEgress` IPv4 CIDRs for HTTPS discovery/JWKS; miss
 destinations refuse rendering. Worker discovery/token HTTPS requires the separate
 `networkPolicy.externalEgressCidrs` installation declaration and qualification.
 The chart supplies no issuer credentials.
-The selected design assigns a dedicated worker credential profile. Actual issuer,
-audience, roles and service credentials are installation prerequisites. Reuse of an
-existing installation OAuth application is being qualified; the provider does
-not itself require a newly registered application. Owner authorization permits
+The installation profile should reuse Veoveo's authorization server, signing keys,
+JWKS and private-key client authentication. Computers owns a separate non-MCP
+audience and the worker's role authority. The worker uses its own restricted client
+identity and key; this does not require another Entra application. Stock-compatible
+discovery, private-key token acquisition and owner-contributed role issuance need
+implementation and qualification before this profile can replace the current
+client-secret adapter. OpenShell stays unmodified. Owner authorization permits
 native qualification with the owning test-only issuer. Installed activation requires
 the admitted external inputs. Stock driver config now emits only supported mount fields. The owned
 image leaves `/sandbox/persistent` absent to skip Docker copy initialization before
@@ -295,10 +298,18 @@ identity before starting its listener. Correlated native and gateway Task reads
 settle the original export as cancelled with no result URI and zero produced Artifacts.
 Unknown unlinked partial effects remain untouched. Normal OAuth Task completion/listen
 qualification and subscription fixtures remain open.
-Earlier Frames and installation verification delivery failures occurred before
-service or MCP mutation, with no World created. Corrected executable/library
-admission passes with manifest
-`d2167d97ffe00062d7a37bedac7afb28542bd53c0dfd1b9edadc6b545691aabe`.
+The installed Frames case stops at its 15-second OAuth admission deadline before
+creating a World. A separate exchange with the same normal operator client,
+resource, nine scopes and Work Context succeeds with HTTP 200. The failing case
+does not reach an observed gateway token POST; preparation and deadline composition
+need diagnosis before another run. Earlier executable/library admission repairs
+remain source-qualified. The CPU `installed-host` selector reuses the installation
+harness for one bounded query Task, delivered completion, an admitted DuckDB process
+drain and completed-result retention. Compiler checks, focused behavioral
+controls and independent review pass. Installed acceptance is pending. Artifact
+preparation now hashes each shared file once per fresh admission and selects the
+OAuth executable and runtime together; its installed effect on the deadline still
+needs qualification.
 The direct unsigned Media webhook returned 401 with an invalid-signature rejection.
 Installed A/F/H, unattended Knowledge startup, installed consumers and hardware
 gates remain open.
