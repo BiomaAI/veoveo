@@ -3,6 +3,16 @@ use crate::{HostIdentity, Journal};
 use axum::{Json, Router, extract::State, routing::get};
 use std::sync::{Arc, Mutex};
 
+#[test]
+fn engine_client_initializes_tls_before_network_or_daemon_effects() {
+    let directory = tempfile::tempdir().unwrap();
+    let socket = directory.path().join("absent-engine.sock");
+    assert!(!socket.exists());
+    let _client = engine_client(&socket).unwrap();
+    assert!(!socket.exists());
+    assert!(rustls::crypto::CryptoProvider::get_default().is_some());
+}
+
 #[tokio::test]
 async fn enrollment_binds_the_first_engine_and_cannot_adopt_a_replacement() {
     let directory = tempfile::tempdir().unwrap();

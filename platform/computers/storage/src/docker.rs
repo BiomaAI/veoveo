@@ -250,6 +250,7 @@ fn engine_client(socket: &Path) -> Result<Client> {
     if !socket.is_absolute() {
         return Err(StorageError::InvalidIdentity);
     }
+    let _ = rustls::crypto::ring::default_provider().install_default();
     Client::builder()
         .unix_socket(socket.to_owned())
         .no_proxy()
