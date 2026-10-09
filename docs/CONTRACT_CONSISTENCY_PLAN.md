@@ -346,6 +346,13 @@ Ops confirms unchanged deployment/Pod identities, image IDs, configuration and R
 state after the run. F35's actual dynamic producer, F37's process crash/restart recovery and final
 source/image agreement stay open; this pass does not establish those guarantees.
 
+F35 has no implemented timestamped frame-transform producer to qualify. Frames
+admits typed stream references in authored trees, but its conversion path and the
+UAV world-binding consumer reject dynamic ancestry. An installed reference-storage
+check cannot establish a producer's route, parent identity or timestamp semantics.
+Qualify those against an implemented producer before advertising dynamic conversion;
+keep F35 open until its installed admission and producer conditions are resolved.
+
 The focused Knowledge A08 case at source `07742e1623` passes once in 10.29 seconds
 through normal Gateway OAuth on retained generation
 `01a11c6f-7316-7d01-8485-291e027ea5f8`. It verifies 16 collections, four sources
