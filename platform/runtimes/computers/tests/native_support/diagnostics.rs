@@ -127,6 +127,11 @@ fn snapshot_matches(sandbox: &api::Sandbox, binding: &Binding, before: &Observat
             .all(|(key, value)| metadata.labels.get(key) == Some(value))
 }
 
+#[allow(dead_code)] // Shared diagnostics are included by fixtures without CLI output.
+pub(super) fn sanitized_output(text: &str, private_values: &[&str], maximum: usize) -> String {
+    redacted(text, private_values, maximum).text
+}
+
 fn redacted(text: &str, private_values: &[&str], maximum: usize) -> RedactedText {
     let mut output = String::new();
     let mut pem = false;

@@ -190,6 +190,11 @@ fn quoted(path: &std::path::Path) -> String {
 }
 
 impl Provider {
+    #[allow(dead_code)] // Only the stock CLI fixture writes its supported OIDC cache.
+    pub(super) fn test_issuer(&self) -> &worker_issuer::TestIssuer {
+        &self.authentication
+    }
+
     /// Installation-policy fixture calls use the same authorized worker as the runtime.
     #[allow(dead_code)] // Only maintenance-policy fixtures use raw provider RPCs.
     pub fn authenticated_request<T>(&self, message: T, timeout: Duration) -> tonic::Request<T> {
