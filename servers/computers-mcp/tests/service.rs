@@ -36,6 +36,14 @@ async fn bioma_reference_configuration_admits_its_selected_execution_template() 
     assert_eq!(selected["id"], "development");
     input["capacity"]["gateway"]["transport"] = files.tls();
     input["capacity"]["allocator"] = files.tls();
+    input["capacity"]["gateway"]["authentication"]["privateKeyFile"] = files
+        .0
+        .join("worker-private-key.pem")
+        .to_string_lossy()
+        .into_owned()
+        .into();
+    input["capacity"]["gateway"]["authentication"]["caFile"] =
+        files.0.join("ca.pem").to_string_lossy().into_owned().into();
     input["capacity"]["execution"]["keys"][0]["file"] = files
         .0
         .join("command.key")

@@ -50,8 +50,8 @@
     "templates": [
       {
         "id": "development",
-        "fingerprint": "9f89114727524880a1a5ec2168b5cae4f028ede98964146e89d19900c38e31e2",
-        "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:43d91b61d1943d0582a3c37a188096fbe875d7eb10eb7df6d1fe6497db73ae32",
+        "fingerprint": "5b21c478958fd36a2846df01569e8dac62981f62fd02b906425a470cd092a84e",
+        "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:77eca42bc69fac651d7cee8bfaec0a9640d9818c1d3a0125784ea4acd2b8a93f",
         "cpus": 2,
         "memoryMib": 2048,
         "homeCapacityMib": 8192,
@@ -94,7 +94,7 @@
         }
       }
     ],
-    "defaultTemplate": "9f89114727524880a1a5ec2168b5cae4f028ede98964146e89d19900c38e31e2",
+    "defaultTemplate": "5b21c478958fd36a2846df01569e8dac62981f62fd02b906425a470cd092a84e",
     "execution": {
       "policy": {
         "maxGrants": 8,
@@ -103,18 +103,18 @@
         "maximumOutputBytes": 8388608
       },
       "artifactEndpoint": "http://artifact-service:8790",
-      "activeKeyId": "01a0f65c-71a0-72a3-885f-2e4c99c482f7",
+      "activeKeyId": "01a12181-a9b2-7710-a5f2-9ad5940d3bf0",
       "keys": [
         {
-          "id": "01a0f65c-71a0-72a3-885f-2e4c99c482f7",
+          "id": "01a12181-a9b2-7710-a5f2-9ad5940d3bf0",
           "file": "/etc/veoveo/computers/trust/command-key.bin"
         }
       ],
       "templateFingerprints": [
-        "9f89114727524880a1a5ec2168b5cae4f028ede98964146e89d19900c38e31e2"
+        "5b21c478958fd36a2846df01569e8dac62981f62fd02b906425a470cd092a84e"
       ],
       "fileTemplateFingerprints": [
-        "9f89114727524880a1a5ec2168b5cae4f028ede98964146e89d19900c38e31e2"
+        "5b21c478958fd36a2846df01569e8dac62981f62fd02b906425a470cd092a84e"
       ]
     },
     "maintenanceTransitions": []
