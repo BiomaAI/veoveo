@@ -52,6 +52,25 @@ impl InstalledSource {
         connect(&self.endpoint, &self.caller_token_file).await
     }
 
+    /// Connect with official Tasks support using the admitted private token file.
+    pub async fn task_caller(&self) -> Result<crate::SmokeMcpClient> {
+        let bearer = token(&self.caller_token_file)?;
+        let connection = crate::SmokeMcpHandler
+            .serve_with_lifecycle(
+                transport(&self.endpoint, &bearer)?,
+                ClientLifecycleMode::Discover {
+                    preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
+                },
+            )
+            .await?;
+        Ok(crate::SmokeMcpClient::admitted(
+            connection,
+            self.endpoint.as_str(),
+            &bearer,
+            None,
+        ))
+    }
+
     pub fn report(&self, report: &ConformanceReport) -> Result<()> {
         let mut options = fs::OpenOptions::new();
         options.write(true).create_new(true);
@@ -105,16 +124,7 @@ pub async fn connect(
     endpoint: &HttpsUrl,
     token_file: &Path,
 ) -> Result<RunningService<RoleClient, ClientConfig>> {
-    let _ = rustls::crypto::ring::default_provider().install_default();
-    let transport = StreamableHttpClientTransport::with_client(
-        reqwest::Client::builder()
-            .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(65))
-            .redirect(reqwest::redirect::Policy::none())
-            .build()?,
-        StreamableHttpClientTransportConfig::with_uri(endpoint.as_str())
-            .auth_header(token(token_file)?),
-    );
+    let transport = transport(endpoint, &token(token_file)?)?;
     Ok(ClientConfig::default()
         .serve_with_lifecycle(
             transport,
@@ -123,6 +133,22 @@ pub async fn connect(
             },
         )
         .await?)
+}
+
+fn transport(
+    endpoint: &HttpsUrl,
+    bearer: &str,
+) -> Result<StreamableHttpClientTransport<reqwest::Client>> {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    Ok(StreamableHttpClientTransport::with_client(
+        reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(65))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?,
+        StreamableHttpClientTransportConfig::with_uri(endpoint.as_str())
+            .auth_header(bearer.to_owned()),
+    ))
 }
 
 pub async fn read<T: serde::de::DeserializeOwned>(
