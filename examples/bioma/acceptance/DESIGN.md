@@ -23,7 +23,7 @@
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
 | Installed View fixture | `veoveo.ai/view-installed-fixture/v1` closed JSON; nonzero Kubernetes UIDs, opaque resourceVersions, immutable ConfigMap bytes and qualified image release; relative release paths resolve beside the declaration |
 | View fixture preparation | `veoveo.ai/view-fixture-preparation/v1` JSON utility receipt; preparation produces no smoke acceptance outcome |
-| Installed Frames evidence | `veoveo.ai/frames-installed-evidence/v1` camelCase JSON with closed snake_case outcomes; Frames owner world/revision identities and retained append-only fixture declaration |
+| Installed Frames evidence | `veoveo.ai/frames-installed-evidence/v2` camelCase JSON with typed dispatch intents and observations, owner world/revision/native usage identities, gateway Task routes and separate cleanup outcomes |
 | Installed CPU Host fixture | Closed owner JSON with `deployment`, `pod` and `container`; private absolute regular-file input capped at 64 KiB; database identity enters through the DuckDB owner type |
 | Installed CPU Host evidence | `veoveo.ai/installed-cpu-host/v1` JSON with gateway Task identity, admitted process/drain identities and separate completion, retained-payload and connection-cleanup results |
 | Installed View evidence | `veoveo.ai/view-installed-evidence/v1` private JSON; official OAuth/MCP Tasks and the shared selected-container Kubernetes drain profile |
@@ -262,27 +262,80 @@ The descriptor preserves the 3600-second preparation-inclusive budget and
 apply within that outer preparation budget.
 
 `frames-mcp` selects the isolated local fixture and keeps its existing native
-service prerequisites. It accepts no installed-mode inputs. Installed execution
-consumes an acknowledged worlds-resource baseline before creating one uniquely
-named world, then requires a separate invalidation and a fresh owned-world read.
-It publishes the local scenario's deterministic three-frame tree, reads the
-admitted immutable revision and observes terminal invalid-params refusal of a
-revision subscription after any protocol acknowledgement.
+service prerequisites. It accepts no installed-mode inputs. The installed case
+requires the installation's operator and administrator credentials. Their admitted
+principals must differ. Both clients use ordinary gateway OAuth; Frames gateway
+access requires the installation's declared scopes (`operator:use` in the reference
+profile), current WorkContext membership and writer policy. Frames declares no
+additional domain scope.
 
-The installed scenario has a 90-second deadline from entry. OAuth issuance,
-MCP discovery and listener admission each have at most 15 seconds within that
-deadline; resource waits have 15-second limits. Listener/client cleanup each
-has a separate five-second limit. Before network admission, the scenario reserves
-a new writable mode-0600 receipt file with exclusive creation and retains its
-handle through outcome writes. The unresolved mutation intent is written and
-synced before the first tool dispatch; an admitted revision identity is persisted
-before subsequent reads or subscription assertions. Failed intent persistence
-refuses dispatch. Mutations use the SDK one-dispatch call and
-require a complete response; input-required responses never cause redispatch. The private receipt
-records current world and revision identities, mutation uncertainty and connection
-cleanup independently. Lost or malformed mutation replies never cause redispatch.
-Frames has no public world deletion operation, so installed fixture worlds and
-revisions are retained append-only data owned by the selected caller. Connection
-cleanup does not claim deletion of these records. Source controls establish CLI
-admission and report/resource identity handling; installed delivery requires the
-selected gateway, credentials and actual scenario run.
+Installed execution consumes an acknowledged worlds-resource baseline before
+creating a fresh named world, then requires a separate invalidation and a complete
+metadata read. It closes that listener after the authored update. Two identical
+concurrent publications must return one creation and one replay of the same revision.
+Two distinct trees then compete against that revision's expected head; one must
+publish and the other must return invalid params. Each publication must preserve the original world identity, name, description and
+creation time. The winning head and revision must contain its submitted admitted
+tree. Resource reads, source digests and frame metadata must agree with that result. An immutable revision
+subscription must terminate with invalid params after any protocol acknowledgement.
+
+The case creates 101 caller-visible worlds and follows actual returned cursors across
+100-item world pages. It checks distinct ordered identities and complete metadata for
+every owned world. World completion must return 100 of the 101 matching names with
+`hasMore`; revision and frame completion must bind their typed parent contexts.
+Missing world or revision context cannot produce frame candidates.
+
+One direct conversion and 101 real batch Tasks traverse the published static tree.
+Every batch uses `artifact:false`. Groups contain at most four mutation dispatches.
+The client observes acknowledged Task notifications, verifies completed current
+state and admits the typed result before comparing operation-resource provenance
+and immutable revision sources. Conversion points and provenance must name the
+requested robot frame rather than merely agree with one another. Gateway Task identities use `CanonicalTaskId`;
+usage page entries supply native `TaskId` values. Actual usage records correlate
+these results through their operation identity, carry one point without a monetary
+charge and must appear in multiple usage pages. The foreign principal must receive
+resource-not-found for direct and Task-linked operation reads and exact Task-usage
+reads. Its usage pages cannot expose the owned Tasks, and its exact usage listener
+must terminate with resource-not-found.
+
+A usage listener consumes its acknowledged baseline before batch dispatch, requires
+an authored invalidation after the first completed group and then closes. Each Task
+group closes its listener after result verification. Handles and confirmed closure
+states remain owned outside the cancellable operation timer. Each caller catalog has
+a 32-page traversal ceiling; excessive existing data fails admission to the fixture
+budget. More than four unrelated new usage entries during the run fails observation
+instead of attributing them to this fixture.
+
+The operation deadline is 300 seconds from entry. OAuth issuance, MCP discovery,
+typed resource reads and initial listener admission have at most 15 seconds within it;
+resource notifications have 15-second waits and each Task group has a 30-second
+delivery limit. The selected operation budget includes dispatch and observation.
+Completion, foreign read checks and remaining admissions share the 300-second
+operation deadline. Final owned listener/client cleanup runs outside that timer with five seconds per
+handle. The outer descriptor keeps its 180-second cleanup allowance.
+
+Before network admission, the scenario exclusively creates a mode-0600 receipt and
+retains its open handle. Version 2 records each typed intent before its dispatch,
+then records independently admitted results, gateway Task routes, native usage
+reports and cleanup status as each request resolves. A slow sibling cannot hide an
+already received response when the operation timer expires. After an observation
+write or validation failure, the collector retains responses from requests already
+started and refuses unstarted siblings. The first failure stays owned outside the
+operation timer. A failed intent write refuses dispatch. At most 207
+mutation requests may be sent: 101 creates, four publications, one direct conversion
+and 101 batch Tasks. A successful run retains 101 worlds, two revisions, 102
+operation records and 101 Tasks with actual usage. Input-required, lost or malformed
+responses never trigger another dispatch. Concurrent identical publications are
+predeclared assertions, each with its own persisted intent.
+
+Frames exposes no public world/revision deletion. The fixture's append-only records
+remain owned by the selected caller; connection cleanup does not claim their
+removal. Tasks follow the server's ordinary seven-day TTL; expiry can retire their
+usage and hide Task-linked operations. The case does not extend that retention. Receipts from earlier versions remain intact, and this scenario writes only
+version 2. Source controls qualify receipt admission, dispatch limits, cursor
+continuation and notification handling. Installed delivery requires a reviewed run
+against the selected gateway and credentials.
+
+This CPU case publishes static transforms. It does not qualify an external stream
+producer's routes or timestamped transform delivery. Current-format operation
+readback does not establish crash or restart recovery.
