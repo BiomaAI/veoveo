@@ -154,11 +154,14 @@ Host fixture supplies the profile and passes source checks. The reference
 `examples/bioma/computers/host.json` supplies the matching installation resource and
 roles with the admitted official supervisor image. The worker registration and
 public JWKS are checked in; its private key stays outside Git. The chart mounts that
-file and requires its new configuration digest. Configured Host NetworkPolicy requires
-explicit `computers.host.issuerEgress` IPv4 CIDRs for HTTPS discovery/JWKS; missing
-destinations refuse rendering. Worker discovery/token HTTPS requires the separate
-`networkPolicy.externalEgressCidrs` installation declaration and qualification.
-The chart supplies no issuer credentials.
+file and requires its new configuration digest. The current reference keeps
+`networkPolicy.enabled=false`; OIDC TLS, JWT, audience and role checks and separate
+CA roles still apply. Enabling Host NetworkPolicy requires explicit
+`computers.host.issuerEgress` IPv4 CIDRs for HTTPS discovery/JWKS. Host network
+isolation remains unqualified. Do not add `networkPolicy.externalEgressCidrs`
+independently: it creates a policy for other workload selectors even with the global
+flag disabled and requires qualification of their allowed paths. The chart supplies
+no issuer credentials.
 The worker private-key Secret is referenced only by its Deployment and uses numeric
 mode 288 (`0440`). The checked public bundle includes its JWKS. Ops verified the
 official supervisor's manifest and config in the reference registry. The node-facing
@@ -224,8 +227,8 @@ The reference stock catalog, command-key IDs and matching public revisions are
 committed at `1666b8f66`. The existing worker OAuth key matches its checked public
 JWKS; fresh trust is prepared offline without live Secrets. All 27 Computers tables
 are empty, and the unbound Host PVC is expected WaitForFirstConsumer state. Matching
-images/chart/configuration, Secrets, actual issuer CIDRs and installed qualification
-remain required.
+images/chart/configuration, Secrets and installed qualification remain required.
+Stable CDN CIDRs do not block stock authentication under the current network profile.
 The runtime DinD fixture uses two CPUs, 1 GiB and 512 PIDs. The installed chart
 declares eight CPUs and 12 GiB. Ops generated its complete OCI base with pinned
 `ctr` 2.3.4-k3s1 and verified the sole 4096-PID transformation. Node configuration
@@ -3314,7 +3317,10 @@ supervisor mirror's manifest and config digests. Publish the matching Veoveo cha
 and select it with the five image locks and installation values in one Git revision.
 Update Host and worker configuration digests with their actual OIDC profiles,
 three-role trust inputs, projected private key and optional admitted issuer CA.
-Declare Host issuer/JWKS and worker discovery/token HTTPS CIDRs explicitly.
+The current reference keeps NetworkPolicy disabled while preserving all TLS and
+token checks. Enabling Host isolation requires actual issuer/JWKS CIDRs and separate
+network qualification; worker egress policy changes must qualify every selected
+workload path together.
 
 The committed reference inputs materialize the admitted template catalog and new
 fingerprints in Host, worker, default and execution/file lists. Preserve retained catalog identities; a changed
