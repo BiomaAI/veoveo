@@ -6,8 +6,8 @@ use veoveo_types::TaskTypeDefinition;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalKind};
 use veoveo_task_runtime::{
-    CreateTask, RecoveryClass, TaskFailure, TaskOwner, TaskRetentionPin, TaskSnapshot,
-    TaskTransition,
+    CreateTask, RecoveryClass, ResumeCancellationPolicy, TaskFailure, TaskOwner, TaskRetentionPin,
+    TaskSnapshot, TaskTransition,
 };
 use veoveo_types::TaskId;
 
@@ -23,6 +23,9 @@ const TASK_TTL_MS: u64 = 24 * 60 * 60 * 1_000;
 const TASK_POLL_INTERVAL_MS: u64 = 1_000;
 const TASK_LEASE_DURATION: Duration = Duration::from_secs(180);
 const TASK_LEASE_HEARTBEAT: Duration = Duration::from_secs(60);
+
+pub(super) const CANCELLATION_POLICY: ResumeCancellationPolicy =
+    ResumeCancellationPolicy::PreserveFailure;
 
 #[derive(Clone)]
 pub(crate) struct ViewTaskExtension {
@@ -274,18 +277,13 @@ async fn run_capture_task_inner(
     recovered: bool,
     cancellation: CancellationToken,
 ) {
-    update_task(
-        &state,
-        task_id,
-        TaskTransition::Running {
-            message: "selecting and loading visible 3D tiles".to_owned(),
-            progress: 0.05,
-        },
-    )
-    .await;
+    if let Err(error) = running_checkpoint(&state.tasks, task_id, &cancellation).await {
+        tracing::warn!(%task_id, %error, "View execution stopped before capture");
+        return;
+    }
     let permit = tokio::select! {
         () = cancellation.cancelled() => {
-            update_task(&state, task_id, TaskTransition::Cancelled).await;
+            update_task(&state, task_id, TaskTransition::Cancelled, Some(&cancellation)).await;
             return;
         }
         permit = state.captures.acquire() => match permit {
@@ -322,7 +320,13 @@ async fn run_capture_task_inner(
     };
     drop(permit);
     if cancellation.is_cancelled() {
-        update_task(&state, task_id, TaskTransition::Cancelled).await;
+        update_task(
+            &state,
+            task_id,
+            TaskTransition::Cancelled,
+            Some(&cancellation),
+        )
+        .await;
         return;
     }
     match result {
@@ -337,12 +341,18 @@ async fn run_capture_task_inner(
                     .subscriptions
                     .notify_resource_updated(uris::FRAMES)
                     .await;
-                update_task(&state, task_id, transition).await;
+                update_task(&state, task_id, transition, Some(&cancellation)).await;
             }
             Err(error) => fail_task(&state, task_id, "result_serialization_failed", error).await,
         },
         Err(crate::state::ServiceError::Cancelled) => {
-            update_task(&state, task_id, TaskTransition::Cancelled).await;
+            update_task(
+                &state,
+                task_id,
+                TaskTransition::Cancelled,
+                Some(&cancellation),
+            )
+            .await;
         }
         Err(error) => fail_task(&state, task_id, "view_capture_failed", error).await,
     }
@@ -353,12 +363,45 @@ async fn fail_task(state: &AppState, task_id: TaskId, code: &str, error: impl st
         state,
         task_id,
         TaskTransition::Failed(TaskFailure::new(code, error.to_string())),
+        None,
     )
     .await;
 }
 
-async fn update_task(state: &AppState, task_id: TaskId, transition: TaskTransition) {
-    if let Err(error) = state.tasks.transition(task_id, transition).await {
+async fn running_checkpoint(
+    tasks: &veoveo_task_runtime::TaskRuntime,
+    task_id: TaskId,
+    cancellation: &CancellationToken,
+) -> anyhow::Result<()> {
+    let current = tasks
+        .transition_resumable(
+            task_id,
+            TaskTransition::Running {
+                message: "selecting and loading visible 3D tiles".to_owned(),
+                progress: 0.05,
+            },
+            CANCELLATION_POLICY,
+            Some(cancellation),
+        )
+        .await?;
+    anyhow::ensure!(
+        current.status == veoveo_task_runtime::TaskStatus::Running,
+        "View Task stopped before capture"
+    );
+    Ok(())
+}
+
+async fn update_task(
+    state: &AppState,
+    task_id: TaskId,
+    transition: TaskTransition,
+    stop: Option<&CancellationToken>,
+) {
+    if let Err(error) = state
+        .tasks
+        .transition_resumable(task_id, transition, CANCELLATION_POLICY, stop)
+        .await
+    {
         tracing::warn!(%task_id, "View task update failed: {error}");
     }
 }

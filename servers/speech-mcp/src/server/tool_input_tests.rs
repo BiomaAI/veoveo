@@ -5,10 +5,9 @@ mod context;
 #[path = "../../../../testing/fixtures/tool_inputs.rs"]
 mod input_fixture;
 use super::*;
+use crate::store_fixture as fixture;
 use serde_json::json;
 use veoveo_mcp_contract::hosting::testing::{self, TestGateway};
-#[path = "../../../../testing/fixtures/store.rs"]
-mod fixture;
 
 #[tokio::test]
 async fn unknown_tool_arguments_complete_before_transcription_admission() {
@@ -123,8 +122,7 @@ async fn unknown_tool_arguments_complete_before_transcription_admission() {
 
 #[path = "../../tests/support/signing.rs"]
 mod signing;
-#[path = "../../tests/support/mod.rs"]
-mod support;
+use crate::test_support as support;
 
 struct ObservedListener {
     inner: super::mcp::SpeechListener,

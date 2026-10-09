@@ -129,12 +129,14 @@ pub(super) async fn resume_task(state: Arc<AppState>, snapshot: TaskSnapshot) ->
                 .await?;
             state
                 .tasks
-                .transition(
+                .transition_resumable(
                     task_id.task_id(),
                     TaskTransition::Failed(TaskFailure::new(
                         "invalid_task_request",
                         error.to_string(),
                     )),
+                    super::app_state::CANCELLATION_POLICY,
+                    None,
                 )
                 .await?;
             return Ok(());
@@ -217,36 +219,44 @@ async fn run_task_inner(
     progress: Option<TaskProgress>,
     cancellation: CancellationToken,
 ) {
-    set_progress(
+    if !set_progress(
         &state,
         task_id,
         &progress,
         0.02,
         "waiting for local stream capacity",
+        &cancellation,
     )
-    .await;
+    .await
+    {
+        return;
+    }
     let work_slot = tokio::select! {
         permit = state.work_slots.clone().acquire_owned() => match permit {
             Ok(permit) => permit,
             Err(error) => {
-                fail_task(&state, task_id, format!("stream work queue closed: {error}")).await;
+                fail_task(&state, task_id, format!("stream work queue closed: {error}"), Some(&cancellation)).await;
                 return;
             },
         },
         () = cancellation.cancelled() => {
-            update_task(&state, task_id, TaskTransition::Cancelled).await;
+            update_task(&state, task_id, TaskTransition::Cancelled, Some(&cancellation)).await;
             return;
         }
     };
     let _work_slot = work_slot;
-    set_progress(
+    if !set_progress(
         &state,
         task_id,
         &progress,
         0.1,
         "resolving governed recording",
+        &cancellation,
     )
-    .await;
+    .await
+    {
+        return;
+    }
     let video = request.input.video().clone();
     let materialize = materialize_video(
         state.recordings.clone(),
@@ -262,16 +272,27 @@ async fn run_task_inner(
         result = materialize => match result {
             Ok(source) => source,
             Err(error) => {
-                fail_task(&state, task_id, format!("video materialization failed: {error:#}")).await;
+                fail_task(&state, task_id, format!("video materialization failed: {error:#}"), Some(&cancellation)).await;
                 return;
             },
         },
         () = cancellation.cancelled() => {
-            update_task(&state, task_id, TaskTransition::Cancelled).await;
+            update_task(&state, task_id, TaskTransition::Cancelled, Some(&cancellation)).await;
             return;
         }
     };
-    set_progress(&state, task_id, &progress, 0.35, "video clip materialized").await;
+    if !set_progress(
+        &state,
+        task_id,
+        &progress,
+        0.35,
+        "video clip materialized",
+        &cancellation,
+    )
+    .await
+    {
+        return;
+    }
     let result = match request.input {
         StreamTaskInput::RunRecording(input) => {
             let Some(pipeline) = state.catalog.pipeline(&input.pipeline_id).cloned() else {
@@ -279,6 +300,7 @@ async fn run_task_inner(
                     &state,
                     task_id,
                     format!("unknown pipeline `{}`", input.pipeline_id),
+                    Some(&cancellation),
                 )
                 .await;
                 return;
@@ -291,6 +313,7 @@ async fn run_task_inner(
                         "pipeline `{}` does not expose typed perception results",
                         pipeline.id
                     ),
+                    Some(&cancellation),
                 )
                 .await;
                 return;
@@ -300,6 +323,7 @@ async fn run_task_inner(
                     &state,
                     task_id,
                     format!("pipeline model `{}` disappeared", model_id),
+                    Some(&cancellation),
                 )
                 .await;
                 return;
@@ -314,6 +338,7 @@ async fn run_task_inner(
                         &state,
                         task_id,
                         format!("creating task workspace failed: {error}"),
+                        Some(&cancellation),
                     )
                     .await;
                     return;
@@ -325,22 +350,27 @@ async fn run_task_inner(
                     &state,
                     task_id,
                     format!("writing runner input failed: {error}"),
+                    Some(&cancellation),
                 )
                 .await;
                 return;
             }
-            set_progress(
+            if !set_progress(
                 &state,
                 task_id,
                 &progress,
                 0.45,
                 "running DeepStream inference",
+                &cancellation,
             )
-            .await;
+            .await
+            {
+                return;
+            }
             let timeline_kind = match timeline_kind(&source.clip) {
                 Ok(kind) => kind,
                 Err(error) => {
-                    fail_task(&state, task_id, format!("{error:#}")).await;
+                    fail_task(&state, task_id, format!("{error:#}"), Some(&cancellation)).await;
                     return;
                 }
             };
@@ -364,23 +394,27 @@ async fn run_task_inner(
                 result = execute => match result {
                     Ok(result) => result,
                     Err(error) => {
-                        fail_task(&state, task_id, format!("DeepStream analysis failed: {error:#}")).await;
+                        fail_task(&state, task_id, format!("DeepStream analysis failed: {error:#}"), Some(&cancellation)).await;
                         return;
                     },
                 },
                 () = cancellation.cancelled() => {
-                    update_task(&state, task_id, TaskTransition::Cancelled).await;
+                    update_task(&state, task_id, TaskTransition::Cancelled, Some(&cancellation)).await;
                     return;
                 }
             };
-            set_progress(
+            if !set_progress(
                 &state,
                 task_id,
                 &progress,
                 0.8,
                 "writing derived annotation layer",
+                &cancellation,
             )
-            .await;
+            .await
+            {
+                return;
+            }
             let annotation_task_id = task_id;
             let annotation_results = analysis.clone();
             let annotations_rrd = match tokio::task::spawn_blocking(move || {
@@ -390,7 +424,13 @@ async fn run_task_inner(
             {
                 Ok(Ok(bytes)) => bytes,
                 Ok(Err(error)) => {
-                    fail_task(&state, task_id, format!("annotation RRD failed: {error:#}")).await;
+                    fail_task(
+                        &state,
+                        task_id,
+                        format!("annotation RRD failed: {error:#}"),
+                        Some(&cancellation),
+                    )
+                    .await;
                     return;
                 }
                 Err(error) => {
@@ -398,6 +438,7 @@ async fn run_task_inner(
                         &state,
                         task_id,
                         format!("annotation worker failed: {error}"),
+                        Some(&cancellation),
                     )
                     .await;
                     return;
@@ -418,7 +459,13 @@ async fn run_task_inner(
         }
     };
     if cancellation.is_cancelled() {
-        update_task(&state, task_id, TaskTransition::Cancelled).await;
+        update_task(
+            &state,
+            task_id,
+            TaskTransition::Cancelled,
+            Some(&cancellation),
+        )
+        .await;
         return;
     }
     let result = match result {
@@ -428,6 +475,7 @@ async fn run_task_inner(
                 &state,
                 task_id,
                 format!("publishing stream artifacts failed: {error:#}"),
+                Some(&cancellation),
             )
             .await;
             return;
@@ -444,12 +492,13 @@ async fn run_task_inner(
                 &state,
                 task_id,
                 format!("serializing stream result failed: {error}"),
+                Some(&cancellation),
             )
             .await;
             return;
         }
     };
-    update_task(&state, task_id, transition).await;
+    update_task(&state, task_id, transition, Some(&cancellation)).await;
 }
 
 async fn set_progress(
@@ -458,21 +507,41 @@ async fn set_progress(
     progress: &Option<TaskProgress>,
     value: f64,
     message: &str,
-) {
-    if let Err(error) = state
-        .tasks
-        .transition(
+    cancellation: &CancellationToken,
+) -> bool {
+    if let Err(error) =
+        progress_checkpoint(&state.tasks, task_id, value, message, cancellation).await
+    {
+        tracing::warn!(%task_id, "stream execution stopped at progress checkpoint: {error}");
+        return false;
+    }
+    notify_progress(progress, value, message).await;
+    true
+}
+
+pub(super) async fn progress_checkpoint(
+    tasks: &veoveo_task_runtime::TaskRuntime,
+    task_id: RunId,
+    value: f64,
+    message: &str,
+    cancellation: &CancellationToken,
+) -> Result<()> {
+    let current = tasks
+        .transition_resumable(
             task_id.task_id(),
             TaskTransition::Running {
                 message: message.to_owned(),
                 progress: value,
             },
+            super::app_state::CANCELLATION_POLICY,
+            Some(cancellation),
         )
-        .await
-    {
-        tracing::warn!(%task_id, "failed to persist stream progress: {error}");
-    }
-    notify_progress(progress, value, message).await;
+        .await?;
+    ensure!(
+        current.status == veoveo_task_runtime::TaskStatus::Running,
+        "Task stopped at progress checkpoint"
+    );
+    Ok(())
 }
 
 async fn notify_progress(progress: &Option<TaskProgress>, value: f64, message: &str) {
@@ -481,7 +550,12 @@ async fn notify_progress(progress: &Option<TaskProgress>, value: f64, message: &
     }
 }
 
-async fn complete_tool_error(state: &AppState, task_id: RunId, message: String) {
+async fn complete_tool_error(
+    state: &AppState,
+    task_id: RunId,
+    message: String,
+    stop: Option<&CancellationToken>,
+) {
     let result = CallToolResult::error(vec![ContentBlock::text(message.clone())]);
     let transition = match veoveo_task_runtime::mcp_task_completion(message, result) {
         Ok(transition) => transition,
@@ -490,7 +564,7 @@ async fn complete_tool_error(state: &AppState, task_id: RunId, message: String) 
             error.to_string(),
         )),
     };
-    update_task(state, task_id, transition).await;
+    update_task(state, task_id, transition, stop).await;
 }
 
 fn validate_input(state: &AppState, input: &StreamTaskInput) -> Result<()> {
@@ -519,7 +593,12 @@ fn validate_input(state: &AppState, input: &StreamTaskInput) -> Result<()> {
     Ok(())
 }
 
-async fn fail_task(state: &AppState, task_id: RunId, message: String) {
+async fn fail_task(
+    state: &AppState,
+    task_id: RunId,
+    message: String,
+    stop: Option<&CancellationToken>,
+) {
     tracing::warn!(%task_id, "stream task failed: {message}");
-    complete_tool_error(state, task_id, message).await;
+    complete_tool_error(state, task_id, message, stop).await;
 }

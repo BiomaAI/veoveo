@@ -370,3 +370,177 @@ async fn unrelated_malformed_operation_is_excluded_before_task_and_resource_deco
         assert_eq!(error.code, rmcp::model::ErrorCode::RESOURCE_NOT_FOUND);
     }).await.expect("operation isolation exceeded 60 seconds");
 }
+
+#[tokio::test]
+async fn resumable_cancellation_settlement_preserves_owner_policy_and_product_links() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        use tokio_util::sync::CancellationToken;
+        use veoveo_task_runtime::{TaskError, TaskFailure, TaskStatus, TaskTransition};
+        let db = fixture::TestDb::new().await;
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_stream_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("stream").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
+        let writer = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "stream",
+            "settlement-writer",
+        ))
+        .unwrap();
+        let reader = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.b.clone(),
+            "stream",
+            "settlement-reader",
+        ))
+        .unwrap();
+        let policy = crate::app_state::CANCELLATION_POLICY;
+        #[derive(surrealdb::types::SurrealValue)]
+        struct Publication {
+            outcome: String,
+            no_product: bool,
+        }
+        for kind in 0..4 {
+            let id = TaskId::new();
+            create(&writer, owner(), id).await;
+            let before = writer.get(id).await.unwrap().unwrap();
+            let canonical =
+                recording_result(serde_json::from_value(current_output(id)).unwrap()).unwrap();
+            let transition = if kind == 1 {
+                TaskTransition::Failed(TaskFailure::new(
+                    "fixture_failure",
+                    "known execution failure",
+                ))
+            } else if kind == 2 {
+                veoveo_task_runtime::mcp_task_completion(
+                    "tool error",
+                    CallToolResult::error(vec![ContentBlock::text("known tool error")]),
+                )
+                .unwrap()
+            } else {
+                veoveo_task_runtime::mcp_task_completion("complete", canonical.clone()).unwrap()
+            };
+            if kind < 3 {
+                reader.cancel(id).await.unwrap();
+                // Raw CAS demonstrates the original race without a workload delay.
+                assert!(matches!(
+                    writer
+                        .transition_if_current(&before, transition.clone())
+                        .await,
+                    Err(TaskError::Conflict(_))
+                ));
+            }
+            let after = writer
+                .transition_resumable_if_current(&before, transition, policy, None)
+                .await
+                .unwrap();
+            assert_eq!(after.owner, before.owner);
+            assert_eq!(after.request, before.request);
+            if kind < 3 {
+                assert_eq!(after.status, TaskStatus::Cancelled);
+                assert!(after.result.is_none() && after.result_uri.is_none());
+            } else {
+                assert_eq!(after.status, TaskStatus::Succeeded);
+                assert_eq!(reader.cancel(id).await.unwrap(), after);
+                assert_eq!(after.result, Some(serde_json::to_value(canonical).unwrap()));
+            }
+            let mut query =
+                db.b.client()
+                    .query(include_str!(
+                        "../../../queries/bin/server/task_results_tests/no_product_settlement.surql"
+                    ))
+                    .bind((
+                        "lookup",
+                        surrealdb::types::RecordId::new("stream_run", id.to_string()),
+                    ))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+            let published: Publication = query.take::<Option<Publication>>(0).unwrap().unwrap();
+            assert_eq!(published.no_product, kind < 3);
+            if kind < 3 {
+                assert_eq!(published.outcome, "cancelled");
+            }
+        }
+        let id = TaskId::new();
+        create(&writer, owner(), id).await;
+        let before = writer.get(id).await.unwrap().unwrap();
+        let stop = CancellationToken::new();
+        stop.cancel();
+        let canonical =
+            recording_result(serde_json::from_value(current_output(id)).unwrap()).unwrap();
+        let stopped = writer
+            .transition_resumable_if_current(
+                &before,
+                veoveo_task_runtime::mcp_task_completion("complete", canonical).unwrap(),
+                policy,
+                Some(&stop),
+            )
+            .await
+            .unwrap();
+        assert_eq!(stopped, before);
+        assert!(reader.get(id).await.unwrap().unwrap().result.is_none());
+    })
+    .await
+    .expect("stream resumable settlement controls exceeded 60 seconds");
+}
+
+#[tokio::test]
+async fn cancelled_progress_stops_before_the_next_effect() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = fixture::TestDb::new().await;
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_stream_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("stream").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
+        let writer = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "stream",
+            "progress-writer",
+        ))
+        .unwrap();
+        let canceller = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.b.clone(),
+            "stream",
+            "progress-canceller",
+        ))
+        .unwrap();
+        let id = TaskId::new();
+        create(&writer, owner(), id).await;
+        canceller.cancel(id).await.unwrap();
+        let effects = std::sync::atomic::AtomicUsize::new(0);
+        let work = async {
+            crate::tasks::progress_checkpoint(
+                &writer,
+                veoveo_stream_mcp::contract::RunId::try_from(id)?,
+                0.1,
+                "before next effect",
+                &tokio_util::sync::CancellationToken::new(),
+            )
+            .await?;
+            effects.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok::<_, anyhow::Error>(())
+        };
+        assert!(work.await.is_err());
+        assert_eq!(effects.load(std::sync::atomic::Ordering::SeqCst), 0);
+        let current = writer.get(id).await.unwrap().unwrap();
+        assert_eq!(current.status, veoveo_task_runtime::TaskStatus::Cancelled);
+        assert!(current.result.is_none() && current.result_uri.is_none());
+    })
+    .await
+    .expect("owner progress control exceeded 60 seconds");
+}

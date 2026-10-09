@@ -54,6 +54,11 @@ provider-neutral.
   Current stored Task products must match their Task, pipeline and content link;
   authorize before decoding them and return a redacted diagnostic for corruption.
 
+Task execution uses `TaskRuntime::transition_resumable` with the owner policy that
+lets durable cancellation override Failed outcomes. Keep the active worker token in final success
+settlement. Preserve owner GPU draining, Artifact publication and MCP tool-error
+profiles; the Resume helper does not undo effects or establish hosted stop linkage.
+
 ## Build And Test
 
 - Public consumers select `default-features = false, features = ["contract"]`.

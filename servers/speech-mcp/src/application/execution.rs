@@ -10,7 +10,12 @@ use veoveo_artifact_contract::ArtifactTaskId;
 use veoveo_mcp_contract::ArtifactReadAuthority;
 use veoveo_speech_contract::transcript::{MAX_RECORDING_SECONDS, Transcript};
 use veoveo_speech_contract::{MAX_SOURCE_BYTES, TranscriptionId, validate_source};
-use veoveo_task_runtime::{TaskFailure, TaskSnapshot, TaskStatus, TaskTransition};
+use veoveo_task_runtime::{
+    ResumeCancellationPolicy, TaskFailure, TaskSnapshot, TaskStatus, TaskTransition,
+};
+
+pub(super) const CANCELLATION_POLICY: ResumeCancellationPolicy =
+    ResumeCancellationPolicy::CancellationWins;
 
 const LEASE: Duration = Duration::from_secs(60);
 
@@ -86,32 +91,22 @@ impl SpeechService {
         };
         // Disconnect inference and remove its private source before terminal acknowledgement.
         drop(work);
-        let transition = if self
+        if let Err(error) = self
             .tasks
-            .is_cancel_requested(task.task_id())
+            .transition_resumable(
+                task.task_id(),
+                transition,
+                CANCELLATION_POLICY,
+                Some(&cancel),
+            )
             .await
-            .unwrap_or(true)
         {
-            TaskTransition::Cancelled
-        } else {
-            transition
-        };
-        if let Err(error) = self.tasks.transition(task.task_id(), transition).await {
-            tracing::warn!(%task, %error, "speech Task settlement lost its lease");
+            tracing::warn!(%task, %error, "speech Task settlement remains unresolved");
         }
     }
 
     async fn progress(&self, task: TranscriptionId, message: &str, progress: f64) -> Result<()> {
-        self.tasks
-            .transition(
-                task.task_id(),
-                TaskTransition::Running {
-                    message: message.into(),
-                    progress,
-                },
-            )
-            .await?;
-        Ok(())
+        progress_checkpoint(&self.tasks, task, message, progress).await
     }
 
     async fn execute(
@@ -216,4 +211,32 @@ impl SpeechService {
         )
         .await
     }
+}
+
+#[cfg(test)]
+mod tests;
+
+/// Progress must leave execution running before the next source or output effect.
+async fn progress_checkpoint(
+    tasks: &veoveo_task_runtime::TaskRuntime,
+    task: TranscriptionId,
+    message: &str,
+    progress: f64,
+) -> Result<()> {
+    let current = tasks
+        .transition_resumable(
+            task.task_id(),
+            TaskTransition::Running {
+                message: message.into(),
+                progress,
+            },
+            CANCELLATION_POLICY,
+            None,
+        )
+        .await?;
+    ensure!(
+        current.status == TaskStatus::Running,
+        "Speech Task stopped at progress checkpoint"
+    );
+    Ok(())
 }

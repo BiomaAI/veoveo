@@ -633,6 +633,17 @@ An unowned, expired or own-worker lease after a failed claim ends serving.
 The observer covers only Tasks admitted at startup; normal capture admission owns
 new Tasks and active workers.
 
+Capture progress and terminal Task publication use the shared Resume settlement
+API. Durable cancellation suppresses unfinished success, while genuine capture
+failures keep their failure code and message. A terminal outcome that committed
+first wins. The capture token reaches final success settlement after asynchronous
+notifications and snapshot reads. A local stop without durable cancel intent
+suppresses success before shared transition dispatch and leaves the request for
+recovery. Once dispatched, the Store CAS determines settlement; a later token stop
+cannot undo the write. Explicit view-close cancellation keeps its owner behavior.
+This Task settlement does not roll back captured in-memory frames or change native
+GPU completion and storage-drain requirements.
+
 The shared `TaskRecoveryObserver` owns observation independently of renderer and Task-held
 state clones. Hosted exit cancels and drains it within five seconds. A stalled
 drain aborts the observer and returns an error. Observer query, admission or
@@ -834,3 +845,20 @@ This qualifies completed result retention;
 interruption of an actively claimed capture and hardware visual acceptance retain
 their own qualification requirements. Fixture export and CPU observer tests do not
 establish an installed or hardware pass.
+
+## Resume Settlement Controls
+
+The worker proceeds beyond each natural progress checkpoint only when settlement
+returns Running. A terminal snapshot or settlement error stops execution before
+the next source, inference, rendering or Artifact operation. The native owner
+checkpoint control commits cancellation through a second runtime on the same
+Store and verifies that the following inert effect is never polled. This check
+does not make cancellation atomic with an already dispatched operation.
+
+
+The owning native Task tests use distinct workers on the same isolated Store.
+They demonstrate the raw stale-CAS rejection, then check cancellation against the
+selected owner policy and preserve completion that committed first. Local-stop
+controls reject success publication without inventing durable cancellation.
+Frame payloads are inert fixtures. These controls do not qualify renderer output,
+GPU cancellation or installed process interruption.

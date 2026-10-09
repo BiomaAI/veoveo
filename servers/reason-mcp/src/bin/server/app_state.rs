@@ -1,12 +1,16 @@
 use std::sync::Arc;
 
+use tokio_util::sync::CancellationToken;
 use veoveo_reason_mcp::{
     artifacts::ArtifactRepository, catalog::PipelineCatalog, contract::AnalysisId,
     executor::ReasonExecutor,
 };
 use veoveo_recording_reader::RecordingReader;
 use veoveo_recording_video::runtime::VideoSourceLimits;
-use veoveo_task_runtime::{TaskRuntime, TaskTransition};
+use veoveo_task_runtime::{ResumeCancellationPolicy, TaskRuntime, TaskTransition};
+
+pub(super) const CANCELLATION_POLICY: ResumeCancellationPolicy =
+    ResumeCancellationPolicy::CancellationWins;
 
 pub(super) struct AppState {
     pub(super) tasks: TaskRuntime,
@@ -22,18 +26,17 @@ pub(super) struct AppState {
     pub(super) work_slots: Arc<tokio::sync::Semaphore>,
 }
 
-pub(super) async fn update_task(state: &AppState, task_id: AnalysisId, transition: TaskTransition) {
-    let transition = if state
+pub(super) async fn update_task(
+    state: &AppState,
+    task_id: AnalysisId,
+    transition: TaskTransition,
+    stop: Option<&CancellationToken>,
+) {
+    if let Err(error) = state
         .tasks
-        .is_cancel_requested(task_id.task_id())
+        .transition_resumable(task_id.task_id(), transition, CANCELLATION_POLICY, stop)
         .await
-        .unwrap_or(false)
     {
-        TaskTransition::Cancelled
-    } else {
-        transition
-    };
-    if let Err(error) = state.tasks.transition(task_id.task_id(), transition).await {
-        tracing::warn!(%task_id, "failed to transition durable reason task: {error}");
+        tracing::warn!(%task_id, "reason Task settlement remains unresolved: {error}");
     }
 }

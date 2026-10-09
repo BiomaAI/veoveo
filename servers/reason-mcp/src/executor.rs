@@ -358,6 +358,21 @@ fn validate_event(
     Ok(())
 }
 
+fn runner_request_format_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    veoveo_types::scalar_schema(
+        schemars::json_schema!({"type":"string", "const": RUNNER_REQUEST_SCHEMA}),
+        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
+    )
+    .expect("declared Reason format naming profile")
+}
+fn runner_response_format_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    veoveo_types::scalar_schema(
+        schemars::json_schema!({"type":"string", "const": RUNNER_RESPONSE_SCHEMA}),
+        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
+    )
+    .expect("declared Reason format naming profile")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -659,19 +674,4 @@ mod tests {
         changed["answer"]["events"][0]["range"]["end"] = serde_json::json!(u64::MAX);
         assert!(serde_json::from_value::<RunnerResponse>(changed).is_err());
     }
-}
-
-fn runner_request_format_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    veoveo_types::scalar_schema(
-        schemars::json_schema!({"type":"string", "const": RUNNER_REQUEST_SCHEMA}),
-        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
-    )
-    .expect("declared Reason format naming profile")
-}
-fn runner_response_format_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    veoveo_types::scalar_schema(
-        schemars::json_schema!({"type":"string", "const": RUNNER_RESPONSE_SCHEMA}),
-        veoveo_types::ScalarNaming::builtin(veoveo_types::ScalarGrammar::FormatTag),
-    )
-    .expect("declared Reason format naming profile")
 }

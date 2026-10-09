@@ -1,12 +1,16 @@
 use std::sync::Arc;
 
+use tokio_util::sync::CancellationToken;
 use veoveo_recording_reader::RecordingReader;
 use veoveo_recording_video::runtime::VideoSourceLimits;
 use veoveo_stream_mcp::{
     artifacts::ArtifactRepository, catalog::PipelineCatalog, contract::RunId,
     executor::StreamExecutor,
 };
-use veoveo_task_runtime::{TaskRuntime, TaskTransition};
+use veoveo_task_runtime::{ResumeCancellationPolicy, TaskRuntime, TaskTransition};
+
+pub(super) const CANCELLATION_POLICY: ResumeCancellationPolicy =
+    ResumeCancellationPolicy::CancellationWins;
 
 use super::live::LiveSessionManager;
 
@@ -24,18 +28,17 @@ pub(super) struct AppState {
     pub(super) live: Arc<LiveSessionManager>,
 }
 
-pub(super) async fn update_task(state: &AppState, task_id: RunId, transition: TaskTransition) {
-    let transition = if state
+pub(super) async fn update_task(
+    state: &AppState,
+    task_id: RunId,
+    transition: TaskTransition,
+    stop: Option<&CancellationToken>,
+) {
+    if let Err(error) = state
         .tasks
-        .is_cancel_requested(task_id.task_id())
+        .transition_resumable(task_id.task_id(), transition, CANCELLATION_POLICY, stop)
         .await
-        .unwrap_or(false)
     {
-        TaskTransition::Cancelled
-    } else {
-        transition
-    };
-    if let Err(error) = state.tasks.transition(task_id.task_id(), transition).await {
-        tracing::warn!(%task_id, "failed to transition durable stream task: {error}");
+        tracing::warn!(%task_id, "stream Task settlement remains unresolved: {error}");
     }
 }

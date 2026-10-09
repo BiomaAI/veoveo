@@ -35,6 +35,11 @@ Use `TranscriptionId` and `DictationSessionId` through application calls and con
 addresses with the matching owner types. Hosted declarations belong to `server/setup.rs`;
 startup and discovery consume the shared checked setup.
 
+Task execution uses `TaskRuntime::transition_resumable` with the owner policy that
+lets durable cancellation override Failed outcomes. Keep the active worker token in final success
+settlement. Preserve owner GPU draining, Artifact publication and MCP tool-error
+profiles; the Resume helper does not undo effects or establish hosted stop linkage.
+
 ## Build And Test
 
 `cargo test -p veoveo-speech-mcp --lib` checks the public runtime adapters.

@@ -17,3 +17,10 @@ pub mod worker;
 
 #[cfg(feature = "gateway")]
 pub mod gateway;
+
+#[cfg(all(test, feature = "runtime"))]
+#[path = "../../../testing/fixtures/store.rs"]
+pub(crate) mod store_fixture;
+#[cfg(all(test, feature = "runtime"))]
+#[path = "../tests/support/mod.rs"]
+pub(crate) mod test_support;

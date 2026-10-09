@@ -507,6 +507,19 @@ The producer constructs terminal success through one result builder. Authorized 
 and subscription reconnects deliver the stored current result without rewriting it.
 Task recovery reuses the current request, validated grounding subset and issued
 capabilities. There are no readers or migrations for historical result formats.
+Recording Task progress and terminal publication use the shared Resume settlement
+API with cancellation-over-failure policy. Durable cancellation wins unfinished
+success and failure settlement; a terminal outcome that committed first wins.
+Explicit MCP tool errors keep their successful no-product envelope when cancellation
+has not won. The worker carries its local token into final success publication.
+A token stop without durable cancel intent suppresses success before shared
+transition dispatch and leaves the request for recovery. Once dispatched, the
+Store CAS determines settlement; local cancellation cannot undo that write.
+Unexpected storage, lease and unrelated snapshot conflicts do not qualify success.
+Already published Artifact occurrences keep their idempotency keys and access
+policy. Task cancellation neither deletes those occurrences nor rolls back GPU work.
+These worker tokens do not establish hosted shutdown linkage.
+
 After binding its Task lookup contribution, startup registers the shared recovery
 stream for unfinished Tasks in the startup baseline. Native Store changes and
 retained lease deadlines wake recovery. The shared `TaskRecoveryObserver`
@@ -704,3 +717,21 @@ Observation listens to the Reason lookup through its owner-declared one-day
 changefeed as well as kernel Task and Artifact changes. Fingerprints cover the
 complete admitted collection and its integrity material. Task retention, Artifact
 retention and future grant expiries determine the next recheck deadline.
+
+## Resume Settlement Controls
+
+The worker proceeds beyond each natural progress checkpoint only when settlement
+returns Running. A terminal snapshot or settlement error stops execution before
+the next source, inference, rendering or Artifact operation. The native owner
+checkpoint control commits cancellation through a second runtime on the same
+Store and verifies that the following inert effect is never polled. This check
+does not make cancellation atomic with an already dispatched operation.
+
+
+The owning native Task tests use distinct workers on the same isolated Store.
+They demonstrate the raw stale-CAS rejection, then check cancellation against the
+selected owner policy and preserve completion that committed first. Local-stop
+controls reject success publication without inventing durable cancellation.
+The bound owner contribution also checks that cancelled Tasks publish no product
+links and completed Tasks preserve their admitted product. These controls perform
+no inference or Artifact writes and do not qualify installed GPU cancellation.

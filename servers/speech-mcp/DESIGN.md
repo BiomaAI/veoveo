@@ -159,6 +159,17 @@ The shared Task runtime persists the request, progress, lease and result. Recove
 reruns only accepted resumable work. Stable publication keys prevent duplicate
 transcript and caption Artifacts. Output inherits the current source classification,
 data labels and retention deadline under the Work Context output policy.
+Transcription progress and final Task publication use the shared Resume settlement
+API with cancellation-over-failure policy. A cancellation committed by another
+replica wins an unfinished completion CAS, including a failed transcription; an
+already committed terminal outcome wins. The worker carries its local token into
+success settlement. A local stop without durable cancel intent suppresses success
+and leaves the request and lease for recovery. Entering the shared transition starts
+settlement; a later token stop cannot undo its database outcome. Snapshot, storage
+and lease errors are unresolved execution errors, not successful publication.
+Idempotent Artifact writes already dispatched may complete despite cancellation.
+Task cancellation does not revoke or delete those occurrences.
+
 Speech establishes the shared recovery stream's SQL and contribution baseline before
 serving, then selects `TaskRecoveryObserver::start_deferred` because retained work
 may exceed the 64-slot queue. Its supervised callback validates retained requests
@@ -326,3 +337,20 @@ Speech identity declarations use `Id` with owner UUID admission. Transcription a
 Transcription publication returns a typed MCP result until Task completion admission.
 The completion stores the transcript's canonical `resultUri` alongside the complete
 MCP envelope, preserving its single resource link.
+
+## Resume Settlement Controls
+
+The worker proceeds beyond each natural progress checkpoint only when settlement
+returns Running. A terminal snapshot or settlement error stops execution before
+the next source, inference, rendering or Artifact operation. The native owner
+checkpoint control commits cancellation through a second runtime on the same
+Store and verifies that the following inert effect is never polled. This check
+does not make cancellation atomic with an already dispatched operation.
+
+
+The owning native Task tests use distinct workers on the same isolated Store.
+They demonstrate the raw stale-CAS rejection, then check cancellation against the
+selected owner policy and preserve completion that committed first. Local-stop
+controls reject success publication without inventing durable cancellation.
+Typed source and output metadata are inert fixtures. The controls perform no
+inference or Artifact writes and do not qualify installed CUDA cancellation.

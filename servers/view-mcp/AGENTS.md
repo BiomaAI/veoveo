@@ -71,6 +71,11 @@ and attribution.
   app stays self contained (vendored three.js and draco, at most 2 MiB) and
   drives the real tool lifecycle; never add parallel convenience tools.
 
+Task execution uses `TaskRuntime::transition_resumable` with the owner policy that
+preserves genuine Failed outcomes. Keep the active worker token in final success
+settlement. Preserve owner GPU draining, Artifact publication and MCP tool-error
+profiles; the Resume helper does not undo effects or establish hosted stop linkage.
+
 ## Build And Test
 
 - `cargo check -p veoveo-view-mcp`

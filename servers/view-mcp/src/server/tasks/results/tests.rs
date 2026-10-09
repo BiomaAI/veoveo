@@ -259,3 +259,107 @@ async fn sql_rejects_foreign_context_and_operation_before_completion_decoding() 
     .await
     .expect("View completion SQL selection exceeded 60 seconds");
 }
+
+#[tokio::test]
+async fn resumable_capture_settlement_preserves_failure_and_completed_frame() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        use tokio_util::sync::CancellationToken;
+        use veoveo_task_runtime::{TaskError, TaskFailure, TaskStatus, TaskTransition};
+        let db = fixture::TestDb::new().await;
+        let writer = TaskRuntime::new(db.a.clone(), "view", "capture-writer");
+        let reader = TaskRuntime::new(db.b.clone(), "view", "capture-canceller");
+        let identity = identity();
+        let request = capture(&identity);
+        let policy = super::super::CANCELLATION_POLICY;
+        for kind in 0..3 {
+            let id = create(&writer, &identity, &request).await;
+            let before = writer.get(id).await.unwrap().unwrap();
+            let failure = TaskFailure::new("view_capture_failed", "known capture failure");
+            let transition = if kind == 1 {
+                TaskTransition::Failed(failure.clone())
+            } else {
+                veoveo_task_runtime::mcp_task_completion(
+                    "Frame captured",
+                    serde_json::from_value(completed(&request)).unwrap(),
+                )
+                .unwrap()
+            };
+            if kind < 2 {
+                reader.cancel(id).await.unwrap();
+                assert!(matches!(
+                    writer
+                        .transition_if_current(&before, transition.clone())
+                        .await,
+                    Err(TaskError::Conflict(_))
+                ));
+            }
+            let after = writer
+                .transition_resumable_if_current(&before, transition, policy, None)
+                .await
+                .unwrap();
+            assert_eq!(after.owner, before.owner);
+            assert_eq!(after.request, before.request);
+            if kind == 0 {
+                assert_eq!(after.status, TaskStatus::Cancelled);
+                assert!(after.result.is_none() && after.result_uri.is_none());
+            } else if kind == 1 {
+                assert_eq!(after.status, TaskStatus::Failed);
+                assert_eq!(after.error, Some(failure));
+                assert!(after.result.is_none() && after.result_uri.is_none());
+            } else {
+                assert_eq!(after.status, TaskStatus::Succeeded);
+                assert_eq!(after.result, Some(completed(&request)));
+                assert_eq!(reader.cancel(id).await.unwrap(), after);
+            }
+        }
+        let id = create(&writer, &identity, &request).await;
+        let before = writer.get(id).await.unwrap().unwrap();
+        let stop = CancellationToken::new();
+        stop.cancel();
+        let transition = veoveo_task_runtime::mcp_task_completion(
+            "Frame captured",
+            serde_json::from_value(completed(&request)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            writer
+                .transition_resumable_if_current(&before, transition, policy, Some(&stop))
+                .await
+                .unwrap(),
+            before
+        );
+        assert!(reader.get(id).await.unwrap().unwrap().result.is_none());
+    })
+    .await
+    .expect("View resumable settlement controls exceeded 60 seconds");
+}
+
+#[tokio::test]
+async fn cancelled_initial_progress_stops_before_the_next_effect() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = fixture::TestDb::new().await;
+        let writer = TaskRuntime::new(db.a.clone(), "view", "progress-writer");
+        let canceller = TaskRuntime::new(db.b.clone(), "view", "progress-canceller");
+        let identity = identity();
+        let id = create(&writer, &identity, &capture(&identity)).await;
+        canceller.cancel(id).await.unwrap();
+        let effects = std::sync::atomic::AtomicUsize::new(0);
+        let work = async {
+            super::super::running_checkpoint(
+                &writer,
+                id,
+                &tokio_util::sync::CancellationToken::new(),
+            )
+            .await?;
+            effects.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok::<_, anyhow::Error>(())
+        };
+        assert!(work.await.is_err());
+        assert_eq!(effects.load(std::sync::atomic::Ordering::SeqCst), 0);
+        let current = writer.get(id).await.unwrap().unwrap();
+        assert_eq!(current.status, veoveo_task_runtime::TaskStatus::Cancelled);
+        assert!(current.result.is_none() && current.result_uri.is_none());
+    })
+    .await
+    .expect("View progress control exceeded 60 seconds");
+}
