@@ -202,6 +202,13 @@ async fn process_preparation_lanes_publication_and_stale_generation_fail_closed(
         assert_eq!(control_store.revision_count().await.unwrap(), 1);
         db.query(include_str!("queries/module_installation/process_preparation_lanes_publication_and_stale_generation_fail_closed/statement_4.surql")).bind(("record",marker.id.clone())).bind(("content",marker)).await.unwrap().check().unwrap();
         let retained_session = runtime_login(address, &old_password, true).await.unwrap();
+        let old_runtime_token = tokio::time::timeout(Duration::from_secs(15), retained_session.signin(Database {
+            namespace: "module_cli".into(),
+            database: "fresh_install".into(),
+            username: "runtime".into(),
+            password: old_password.clone(),
+        })).await.expect("runtime token acquisition exceeded 15 seconds")
+            .unwrap_or_else(|_| panic!("runtime token acquisition failed"));
         let active_before = control_store.load_active_revision().await.unwrap().unwrap();
         let stale_preparation = root.clone();
         // A newer preparation can have identical empty lane histories. Its generation
@@ -228,6 +235,37 @@ async fn process_preparation_lanes_publication_and_stale_generation_fail_closed(
                 eprintln!("runtime credential replacement existing-session-query: authentication_denied");
             }
         }
+        // A fresh connection tests the old bearer independently of the retained
+        // WebSocket session and of fresh password authentication.
+        tokio::time::timeout(Duration::from_secs(15), async {
+            let bearer_session = Surreal::new::<Ws>(address).await
+                .unwrap_or_else(|_| panic!("old runtime bearer transport failed"));
+            match bearer_session.authenticate(old_runtime_token).await {
+                Ok(_) => {
+                    eprintln!("runtime credential replacement old-bearer-authentication: authorized");
+                    assert!(bearer_session.use_ns("module_cli").use_db("fresh_install").await.is_ok(),
+                        "old runtime bearer session selection failed");
+                    let probe = bearer_session.query(include_str!("queries/module_installation/runtime_session_probe.surql"))
+                        .await.and_then(|response| response.check());
+                    match probe {
+                        Ok(mut response) => {
+                            let count: Option<i64> = response.take(0)
+                                .unwrap_or_else(|_| panic!("old runtime bearer count decoding failed"));
+                            assert_eq!(count, Some(1), "old runtime bearer returned a different revision ledger");
+                            eprintln!("runtime credential replacement old-bearer-query: authorized");
+                        }
+                        Err(error) => {
+                            assert!(authentication_denied(&error), "old runtime bearer query failed outside authentication denial");
+                            eprintln!("runtime credential replacement old-bearer-query: authentication_denied");
+                        }
+                    }
+                }
+                Err(error) => {
+                    assert!(authentication_denied(&error), "old runtime bearer authentication failed outside authentication denial");
+                    eprintln!("runtime credential replacement old-bearer-authentication: authentication_denied");
+                }
+            }
+        }).await.expect("old runtime bearer observation exceeded 15 seconds");
         assert!(!process(&["installation-prepare"], &stale_preparation).await.status.success(), "stale generation cannot restore retired password");
         runtime_login(address, &new_password, true).await.unwrap();
         assert!(runtime_login(address, &old_password, false).await.is_none());

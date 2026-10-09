@@ -251,3 +251,281 @@ async fn root_password_replacement_observes_existing_sessions_and_recovers_data(
     .await
     .expect("root credential qualification exceeded180seconds");
 }
+
+async fn bootstrap_step<T>(
+    stage: &'static str,
+    future: impl std::future::IntoFuture<Output = T>,
+) -> T {
+    tokio::time::timeout(Duration::from_secs(15), future.into_future())
+        .await
+        .unwrap_or_else(|_| panic!("bootstrap credential {stage} exceeded 15 seconds"))
+}
+
+async fn ready_bootstrap(endpoint: &str) -> Surreal<Client> {
+    let address = endpoint
+        .strip_prefix("ws://")
+        .expect("owned WebSocket endpoint");
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            if let Ok(Ok(client)) =
+                tokio::time::timeout(Duration::from_secs(5), Surreal::new::<Ws>(address)).await
+            {
+                return client;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("bootstrap server readiness exceeded 30 seconds")
+}
+
+async fn bootstrap_marker(client: &Surreal<Client>, marker: &str) {
+    let result = bootstrap_step(
+        "marker namespace",
+        client.use_ns("bootstrap_rotation").use_db("retained"),
+    )
+    .await;
+    assert!(
+        result.is_ok(),
+        "bootstrap marker namespace selection failed"
+    );
+    let mut result = bootstrap_step(
+        "marker read",
+        client.query(include_str!(
+            "../queries/surreal_integration/credentials/read_marker.surql"
+        )),
+    )
+    .await
+    .and_then(|response| response.check())
+    .unwrap_or_else(|_| panic!("bootstrap retained marker read failed"));
+    let retained: Option<String> = result
+        .take(0)
+        .unwrap_or_else(|_| panic!("bootstrap marker decoding failed"));
+    assert_eq!(
+        retained.as_deref(),
+        Some(marker),
+        "bootstrap retained marker differs"
+    );
+}
+
+#[tokio::test]
+async fn bootstrap_root_replacement_survives_persistent_server_restart() {
+    tokio::time::timeout(Duration::from_secs(240), async {
+        let original: SecretString = uuid::Uuid::now_v7().to_string().into();
+        let replacement: SecretString = uuid::Uuid::now_v7().to_string().into();
+        let alternate: SecretString = uuid::Uuid::now_v7().to_string().into();
+        let (container, endpoint) = super::fixture::Container::start(
+            super::fixture::Docker::default(),
+            "rocksdb:/tmp/veoveo-test.db",
+            original.expose_secret(),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{error}"));
+        let startup = ready_bootstrap(&endpoint).await;
+        let old_token = bootstrap_step(
+            "initial login",
+            startup.signin(credentials("fixture_admin", &original)),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("bootstrap ROOT login failed"));
+        assert!(
+            bootstrap_step("initial authority", privileged(&startup)).await
+                == SessionObservation::Authorized,
+            "bootstrap ROOT lacks authority"
+        );
+        bootstrap_step(
+            "alternate setup",
+            replace(&startup, DEFINE, "bootstrap_recovery", &alternate),
+        )
+        .await;
+        let recovery = bootstrap_step("alternate connection", connect(&endpoint)).await;
+        assert!(
+            bootstrap_step(
+                "alternate login",
+                recovery.signin(credentials("bootstrap_recovery", &alternate))
+            )
+            .await
+            .is_ok(),
+            "alternate ROOT login failed"
+        );
+        assert!(
+            bootstrap_step("alternate authority", privileged(&recovery)).await
+                == SessionObservation::Authorized,
+            "alternate ROOT authority must precede replacement"
+        );
+        let marker = uuid::Uuid::now_v7().to_string();
+        assert!(
+            bootstrap_step(
+                "marker setup",
+                recovery
+                    .query(include_str!(
+                        "../queries/surreal_integration/credentials/setup_bootstrap_marker.surql"
+                    ))
+                    .bind(("value", marker.clone()))
+            )
+            .await
+            .and_then(|r| r.check())
+            .is_ok(),
+            "bootstrap marker setup failed"
+        );
+        bootstrap_step(
+            "marker before replacement",
+            bootstrap_marker(&recovery, &marker),
+        )
+        .await;
+        bootstrap_step(
+            "replacement",
+            replace(&recovery, DEFINE, "fixture_admin", &replacement),
+        )
+        .await;
+        let retired = bootstrap_step("retired connection", connect(&endpoint)).await;
+        assert!(
+            observe(
+                bootstrap_step(
+                    "retired login",
+                    retired.signin(credentials("fixture_admin", &original))
+                )
+                .await
+                .map(|_| ())
+            ) == SessionObservation::AuthenticationDenied,
+            "old bootstrap password authenticated"
+        );
+        let current = bootstrap_step("replacement connection", connect(&endpoint)).await;
+        assert!(
+            bootstrap_step(
+                "replacement login",
+                current.signin(credentials("fixture_admin", &replacement))
+            )
+            .await
+            .is_ok(),
+            "replacement bootstrap password rejected"
+        );
+        assert!(
+            bootstrap_step("replacement authority", privileged(&current)).await
+                == SessionObservation::Authorized,
+            "replacement bootstrap authority failed"
+        );
+        let bearer = bootstrap_step("retired JWT connection", connect(&endpoint)).await;
+        assert!(
+            observe(
+                bootstrap_step(
+                    "retired JWT",
+                    bearer.authenticate((old_token.access.clone(), None))
+                )
+                .await
+                .map(|_| ())
+            ) == SessionObservation::AuthenticationDenied,
+            "old bootstrap JWT reused"
+        );
+        let existing_session = bootstrap_step("existing session", privileged(&startup)).await;
+        // Docker restart retains this exact guarded --rm container and writable layer.
+        // Its unchanged startup environment still contains the ORIGINAL password.
+        let endpoint = container
+            .restart()
+            .await
+            .unwrap_or_else(|error| panic!("{error}"));
+        let after = ready_bootstrap(&endpoint).await;
+        assert!(
+            bootstrap_step(
+                "post-restart replacement login",
+                after.signin(credentials("fixture_admin", &replacement))
+            )
+            .await
+            .is_ok(),
+            "restart did not preserve replacement password"
+        );
+        assert!(
+            bootstrap_step("post-restart authority", privileged(&after)).await
+                == SessionObservation::Authorized,
+            "post-restart replacement authority failed"
+        );
+        bootstrap_step("post-restart data", bootstrap_marker(&after, &marker)).await;
+        let old_after = bootstrap_step("post-restart retired connection", connect(&endpoint)).await;
+        assert!(
+            observe(
+                bootstrap_step(
+                    "post-restart retired login",
+                    old_after.signin(credentials("fixture_admin", &original))
+                )
+                .await
+                .map(|_| ())
+            ) == SessionObservation::AuthenticationDenied,
+            "startup environment restored the old password"
+        );
+        let old_bearer =
+            bootstrap_step("post-restart retired JWT connection", connect(&endpoint)).await;
+        assert!(
+            observe(
+                bootstrap_step(
+                    "post-restart retired JWT",
+                    old_bearer.authenticate(old_token)
+                )
+                .await
+                .map(|_| ())
+            ) == SessionObservation::AuthenticationDenied,
+            "restart restored the old bootstrap JWT"
+        );
+        let recovery = bootstrap_step("post-restart recovery connection", connect(&endpoint)).await;
+        assert!(
+            bootstrap_step(
+                "post-restart recovery login",
+                recovery.signin(credentials("bootstrap_recovery", &alternate))
+            )
+            .await
+            .is_ok(),
+            "alternate ROOT did not survive restart"
+        );
+        assert!(
+            bootstrap_step("post-restart recovery authority", privileged(&recovery)).await
+                == SessionObservation::Authorized,
+            "alternate ROOT lost authority"
+        );
+        bootstrap_step(
+            "post-restart recovery data",
+            bootstrap_marker(&recovery, &marker),
+        )
+        .await;
+        bootstrap_step(
+            "restore original",
+            replace(&recovery, DEFINE, "fixture_admin", &original),
+        )
+        .await;
+        let restored = bootstrap_step("restored connection", connect(&endpoint)).await;
+        assert!(
+            bootstrap_step(
+                "restored login",
+                restored.signin(credentials("fixture_admin", &original))
+            )
+            .await
+            .is_ok(),
+            "original ROOT recovery login failed"
+        );
+        assert!(
+            bootstrap_step("restored authority", privileged(&restored)).await
+                == SessionObservation::Authorized,
+            "original ROOT recovery authority failed"
+        );
+        bootstrap_step("restored data", bootstrap_marker(&restored, &marker)).await;
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct BootstrapObservation {
+            existing_session_before_restart: SessionObservation,
+            original_environment_did_not_restore_password: bool,
+            alternate_root_and_data_retained: bool,
+            original_root_recovered: bool,
+        }
+        println!(
+            "{}",
+            serde_json::to_string(&BootstrapObservation {
+                existing_session_before_restart: existing_session,
+                original_environment_did_not_restore_password: true,
+                alternate_root_and_data_retained: true,
+                original_root_recovered: true,
+            })
+            .expect("bootstrap safe observation encoding failed")
+        );
+        drop(container); // Await the maintained guard's cleanup before the result is reported.
+    })
+    .await
+    .expect("persistent bootstrap credential qualification exceeded 240 seconds");
+}

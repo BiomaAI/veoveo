@@ -8,7 +8,7 @@ const IMAGE: &str =
     "surrealdb/surrealdb@sha256:681c6c22c287421b5c7d99e0fde79b6e0d32c36c1ddeaab2762a1661cb04cd20";
 
 #[derive(Clone)]
-pub(super) struct Docker {
+pub struct Docker {
     pub program: PathBuf,
     pub creation_timeout: Duration,
     pub command_timeout: Duration,
@@ -27,7 +27,7 @@ impl Default for Docker {
 }
 
 #[derive(Debug)]
-pub(super) struct Failure {
+pub struct Failure {
     pub stage: &'static str,
     container: String,
     reason: String,
@@ -46,7 +46,7 @@ impl fmt::Display for Failure {
 
 impl std::error::Error for Failure {}
 
-pub(super) struct Container {
+pub struct Container {
     name: String,
     docker: Docker,
     creation: Creation,
@@ -188,17 +188,63 @@ impl Container {
         container
             .run(start, "container startup", container.docker.command_timeout)
             .await?;
-        let mut port = container.command();
-        port.args(["port", &container.name, "8000/tcp"]);
-        let output = container
-            .run(port, "published port", container.docker.command_timeout)
+        let endpoint = container.endpoint().await?;
+        Ok((container, endpoint))
+    }
+
+    /// Restart only this guard's container; its writable layer and identity must survive.
+    #[allow(
+        dead_code,
+        reason = "Only retained-store qualification restarts its server"
+    )]
+    pub async fn restart(&self) -> Result<String, Failure> {
+        let mut inspect = self.command();
+        inspect.args(["inspect", "--format", "{{.Id}}", &self.name]);
+        let identity = self
+            .run(inspect, "pre-restart identity", self.docker.command_timeout)
+            .await?;
+        if identity.is_empty() {
+            return Err(self.failure("pre-restart identity", "missing container identity"));
+        }
+        let mut restart = self.command();
+        restart.args(["restart", "--timeout", "10", &self.name]);
+        self.run(restart, "container restart", self.docker.command_timeout)
+            .await?;
+        let mut inspect = self.command();
+        inspect.args(["inspect", "--format", "{{.Id}}", &self.name]);
+        let after = self
+            .run(
+                inspect,
+                "post-restart identity",
+                self.docker.command_timeout,
+            )
+            .await?;
+        if identity != after {
+            return Err(self.failure("post-restart identity", "container identity changed"));
+        }
+        let mut inspect = self.command();
+        inspect.args(["inspect", "--format", "{{.State.Running}}", &self.name]);
+        let running = self
+            .run(inspect, "post-restart state", self.docker.command_timeout)
+            .await?;
+        if running != b"true\n" {
+            return Err(self.failure("post-restart state", "server container is not running"));
+        }
+        self.endpoint().await
+    }
+
+    async fn endpoint(&self) -> Result<String, Failure> {
+        let mut port = self.command();
+        port.args(["port", &self.name, "8000/tcp"]);
+        let output = self
+            .run(port, "published port", self.docker.command_timeout)
             .await?;
         let port = std::str::from_utf8(&output)
             .ok()
             .and_then(|value| value.trim().strip_prefix("127.0.0.1:"))
             .and_then(|value| value.parse::<std::num::NonZeroU16>().ok())
-            .ok_or_else(|| container.failure("published port", "expected one loopback TCP port"))?;
-        Ok((container, format!("ws://127.0.0.1:{port}")))
+            .ok_or_else(|| self.failure("published port", "expected one loopback TCP port"))?;
+        Ok(format!("ws://127.0.0.1:{port}"))
     }
 
     fn command(&self) -> Command {

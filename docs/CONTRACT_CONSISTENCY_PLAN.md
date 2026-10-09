@@ -91,11 +91,17 @@ memory fixture and the actual Gateway preparation commands in a RocksDB fixture.
 Both reject fresh logins with the old password and accept the replacement, while
 established authenticated WebSockets retain access. ROOT `ALTER USER` also leaves
 old JWTs usable; `DEFINE USER OVERWRITE` rejects their reuse in the owned fixture.
-Gateway preparation advances generation and credential revision with the same
-composition, owner selection and active catalog revision/hash. A stale preparation
-cannot restore the old password, and replaying a completed identity cannot rotate
-it again. These controls do not qualify installed rotation, bootstrap ROOT
-replacement or global session revocation. The isolated RustFS root-credential
+The actual startup-created ROOT account also passes overwrite and same-container
+RocksDB restart: replacement and alternate ROOT authority and the protected marker
+survive, unchanged startup environment does not restore the old password, and old
+JWT fresh authentication denies before and after restart. Alternate ROOT restores
+the original password, authority and data. Gateway preparation advances generation
+and credential revision with the same composition, owner selection and active catalog
+revision/hash; it rejects fresh old-password and old DATABASE JWT authentication.
+A stale preparation cannot restore the old password, and replaying a completed
+identity cannot rotate it again. Existing authenticated WebSockets retain access.
+Owning fixture controls and cleanup pass. Installed rotation, container replacement
+and global remote-session revocation remain unqualified. The isolated RustFS root-credential
 replacement also passes with the same image and retained volume: the new pair
 reads the multipart object of 18 MiB plus 137 bytes with matching full/range bytes
 and SHA-256, and signed HEAD with the old pair returns HTTP 401 or 403. The owned

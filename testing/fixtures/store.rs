@@ -5,7 +5,7 @@ use veoveo_platform_store::audit::AuditTargetRegistry;
 mod container;
 #[path = "store/io.rs"]
 pub mod io;
-use container::{Container, Docker};
+pub use container::{Container, Docker};
 #[path = "module_lanes.rs"]
 pub mod module_lanes;
 use uuid::Uuid;
