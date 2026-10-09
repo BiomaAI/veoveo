@@ -14,7 +14,10 @@ refresh, owner authority and focused Gateway native controls; independent review
 approves its contracts and Secret wiring. Optional admitted
 issuer CA inputs configure issuer HTTPS trust with verification enabled. The focused
 installed DuckDB Task, completion subscription and graceful-restart check passes
-through normal Gateway OAuth. The selected DuckDB, Timeseries, Frames and Media
+through normal Gateway OAuth. Focused installed DuckDB catalog/source paging,
+CSV/schema, Artifact publication and usage consumers also pass; headed Workbench,
+physical owner-directory/metadata, further recovery and final-image qualification
+stay open. The selected DuckDB, Timeseries, Frames and Media
 protocol case also passes authenticated discovery, anonymous discovery refusal,
 documents, transport and Gateway health/audit checks on admitted deployed images.
 Frames completed-state retention passes across one actual same-Pod process crash.
@@ -75,7 +78,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the actual Computer Host workload boundary, final installed profile/current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. Full stock-provider native security, lifecycle and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The selected four-server CPU protocol case at `1393fdc36` passes authenticated discovery, all four anonymous discovery refusals, documents, transport, Gateway health/audit and prompt isolation. Frames completed-state retention passes across one same-Pod process crash. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`. GitOps is suspended; Knowledge and Embedding are restored and Ready, while Reason and other GPU workloads stay off. Focused Frames and Knowledge installed cases also pass on admitted deployed images | Complete remaining owner fixtures, remaining owner-required recovery cases, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The selected four-server CPU protocol case at `1393fdc36` passes authenticated discovery, all four anonymous discovery refusals, documents, transport, Gateway health/audit and prompt isolation. Frames completed-state retention passes across one same-Pod process crash. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`; catalog/source paging, CSV/schema, Artifact publication and usage consumers pass at `374e25f345`. GitOps is suspended; Knowledge and Embedding are restored and Ready, while Reason and other GPU workloads stay off. Focused Frames and Knowledge installed cases also pass on admitted deployed images | Complete remaining owner fixtures, remaining owner-required recovery cases, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -416,6 +419,21 @@ and Deployment, image, PVC and PV identities are preserved. Cleanup awaits both
 listeners and the MCP client; the Task and existing database are retained. This
 qualifies the focused A05/A12 case on the admitted deployed image and configuration,
 without proving all-server acceptance or final source/image agreement.
+The canonical `cargo xtask smoke installation-verify --scope duckdb` passes once
+at source `374e25f3450a4ff0f2c34df5822bd59f15253888`, exiting 0 in 239.499 seconds
+including preparation. It creates 100 fresh fixture databases and completes 102
+Tasks with all 102 updates delivered. Its 114 typed reads cover three database and
+three usage page observations, 101 corpus usage entries, the four-row CSV schema
+and output, Artifact bytes and digest, native Task provenance and usage quantity/unit.
+The final database set equals the baseline plus owned fixtures; the distinct
+administrator receives owner-specific refusals. Listener and client cleanup is
+awaited. Ops confirms unchanged admitted images, core Ready and suspended
+controllers. These public consumers qualify the named F41/F58 checks; headed
+Workbench, physical owner-directory/metadata inspection, further recovery and final
+images remain open. The private scenario receipt SHA-256 is
+`5ca9d5ca9094caf7e41937907f26802833ed09e66dbf29eb18ad9c400d5f021f`;
+the separate Ops postcheck is
+`3a4fa2f0abae7fb2a0b8bae300551232b453d6c32215cc5867b13aaee2a1d953`.
 The database runtime credential is rotated. Replacement authentication, the existing
 EDITOR role, both namespaced Secrets and the local runtime input agree. Eleven CPU
 services are restored and Ready, and normal nine-scope OAuth and the owned DuckDB
@@ -600,7 +618,7 @@ dependency layers. That image passes offline CUDA worker startup as UID 10001
 with networking disabled and a read-only root filesystem; readiness identifies
 the pinned checkpoint and RTX 4090. Owned-container cleanup completes with Docker's
 forced-stop fallback. This direct-worker check does not qualify production host
-shutdown. Installed Speech is Ready on the corrected image and its mounted
+shutdown. Installed Speech image `7f7e27c242bd` is Ready and its mounted
 `healthz` and `readyz` return 200. The strict single-Deployment rollout gate fails:
 Helm restored Gateway's checksum annotation from its saved manifest and restarted
 that Pod. Gateway recovered Ready with the same admitted active policy revision
@@ -3381,7 +3399,7 @@ reason rather than growing an unbounded generic typing task.
 | F21 | Time activation preflight | Qualify installed activation and concurrent conflict rollback |
 | F22 | Digest wire profiles | Preserve each owner's admitted bare-hex spelling and hash preimage through typed Speech, UAV, Optimization and Recording/publication APIs; qualify installed Time and changed consumers |
 | F23 | Computers | Qualify final image pins and installed pairing, grant/Execute-limit and collection consumers; preserve the qualified matched provider image, retained maintenance/recovery native matrix, shared admission and live permission checks |
-| F24 | Speech | Transcript/source/Task/Artifact admission and the current runner's CUDA transcription, dictation, recovery, cancellation and GPU-host conformance pass their owning controls. Qualify fresh image assembly, offline packaging and installed consumers. |
+| F24 | Speech | Transcript/source/Task/Artifact admission, CUDA transcription, dictation, recovery, cancellation and GPU-host conformance pass owning controls. Offline image assembly and no-network CUDA worker packaging pass; selected image `7f7e27c242bd` is Ready with health/readiness 200. Installed browser/notification consumers and coordinated replacement remain open; the strict Speech-only rollout gate failed on Gateway checksum drift. |
 | F25 | Artifact plane model | Qualify installed access/service consumers and external byte stores with the source-qualified lightweight Artifact contract; keep verified caller, policy and transport in their adapters and reuse unaffected byte-plane/SQL controls |
 | F26 | Artifact identity and URI admission | Qualify installed consumption of the current identity and URI contract |
 | F27 | Remaining Artifact references | Qualify installed issuance/redemption, current-format capability recovery and multi-page SDK consumers with the source-qualified Task/digest, access-decision and metadata/address admission; preserve external transfer locations and the declared coordinated profile cut |
@@ -3398,7 +3416,7 @@ reason rather than growing an unbounded generic typing task.
 | F38 | Timeseries resource admission | Installed Artifact metadata, bytes and RRD provenance consumption pass at `027e9bdee`; qualify current consumers on the final selected images |
 | F39 | Timeseries forecast admission | Installed four-row NaiveTrend output and Artifact handoff pass at `027e9bdee`; qualify final selected images and preserve summary/preview relationships, finite-point checks before publication and the 501-point bound |
 | F40 | Timeseries usage | Installed caller-scoped usage and foreign-administrator refusal pass at `027e9bdee`; qualify coordinated replica replacement and current consumers on the final selected images |
-| F41 | DuckDB usage and discovery | Qualify installed page consumers and headed hardware Workbench acceptance |
+| F41 | DuckDB usage and discovery | Focused installed database/usage page consumers, exact fixture membership, usage quantity/unit and owner refusal pass at `374e25f345`. Headed hardware Workbench and final images remain open |
 | F42 | Optimization usage and contract | Qualify the coordinated control/executor replacement and installed reads |
 | F43 | Optimization catalogs | Qualify current catalog permissions and installed consumers |
 | F44 | Optimization resource admission | Qualify installed mandatory GPU readiness and problem/run/solution/output resource reads with the source-qualified admission, verification findings and digest preimages; preserve contextual feasibility |
@@ -3415,7 +3433,7 @@ reason rather than growing an unbounded generic typing task.
 | F55 | Media generation result | Qualify current-format installed delivery, caller isolation and restart behavior |
 | F56 | Native Task identity | Qualify installed consumption; native APIs, changed admission adapters and isolated-contract consumers already have a passing checkpoint. |
 | F57 | Shared public Task reads and notifications | Qualify current-format installed delivery and audit domain-specific adapters for additional policy; preserve transactional owner/context/operation rechecks and the qualified rollback/race cases. |
-| F58 | DuckDB source contract | Qualify installed source consumption, catalog pages, the fresh owner-directory/metadata formats and Artifact publication/recovery |
+| F58 | DuckDB source contract | Focused installed CSV/schema/source consumption, catalog pages and Artifact publication/readback with bytes/digest and native Task provenance pass at `374e25f345`. Physical owner-directory/metadata inspection, further recovery and final images remain open |
 | F59 | UAV contract | Qualify installed GPU consumers and recovery with the source-qualified adapter reply parents and accepted/rejected semantics, shared world digest/frame and Rust/Python portable state/child admission |
 | F60 | UAV scopes | Qualify current scope enforcement on every installed UAV replica |
 | F61 | Reason | Qualify installed delivery, restart recovery and GPU behavior with source-qualified full results, visible summary/provenance relationships and owner-derived summaries |
