@@ -129,7 +129,10 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     .await
     .expect("fresh shell and numeric identity");
     assert!(!output.is_empty());
-    terminal.write(b"export VEOVEO_NATIVE_RETAINED=pre-restart; printf '%s' 'controller-retained-bytes-v1' > \"$HOME/controller-native-marker\" && sync \"$HOME/controller-native-marker\" && printf '\\npre-restart-marker=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\"\r").await.unwrap();
+    // Stock fresh PTY shells use the numeric identity's workspace HOME (/sandbox).
+    // Retention belongs to the explicitly admitted mount, independently of HOME
+    // and of the main workload's login environment.
+    terminal.write(b"export VEOVEO_NATIVE_RETAINED=pre-restart; printf '%s' 'controller-retained-bytes-v1' > \"/sandbox/persistent/controller-native-marker\" && sync \"/sandbox/persistent/controller-native-marker\" && printf '\\npre-restart-marker=%s\\n' \"$(cat \"/sandbox/persistent/controller-native-marker\")\"\r").await.unwrap();
     marker_output(
         &mut terminal,
         &provider.dir,
@@ -201,7 +204,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         recovered.main_process_instance_id,
         "terminal must use the replacement controller's admitted current run"
     );
-    terminal.write(b"printf '\\npost-controller-marker=%s shell-state=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\" \"${VEOVEO_NATIVE_RETAINED-unset}\"\r").await.unwrap();
+    terminal.write(b"printf '\\npost-controller-marker=%s shell-state=%s\\n' \"$(cat \"/sandbox/persistent/controller-native-marker\")\" \"${VEOVEO_NATIVE_RETAINED-unset}\"\r").await.unwrap();
     marker_output(
         &mut terminal,
         &provider.dir,
@@ -264,7 +267,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         .attach(&binding, TerminalSize::new(100, 30).unwrap(), final_lease)
         .await
         .unwrap();
-    terminal.write(b"printf '\\npost-start-marker=%s uid=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\" \"$(id -u)\"\r").await.unwrap();
+    terminal.write(b"printf '\\npost-start-marker=%s uid=%s\\n' \"$(cat \"/sandbox/persistent/controller-native-marker\")\" \"$(id -u)\"\r").await.unwrap();
     marker_output(
         &mut terminal,
         &provider.dir,

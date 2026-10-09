@@ -400,7 +400,11 @@ authenticated acceptance of that request; a later native exec failure closes the
 attachment with an error. Reconnection starts a new shell and restores no previous
 terminal output. Files on retained volumes follow the storage contract. Keyboard,
 paste, IME, mouse reporting and normal terminal query responses use the same byte
-stream. No provider metadata or historical-output fence delays input.
+stream. No provider metadata or historical-output fence delays input. Fresh
+attachments with the numeric sandbox identity
+use stock workspace `HOME=/sandbox`. Retained files belong to the separately
+mounted `/sandbox/persistent`; the main workload's initial login command and
+profile do not configure the attached shell.
 
 `Terminal` exposes its checked resource and process identities for the owning service
 to compare against the durable grant before forwarding bytes. Its narrow `TerminalInput`
