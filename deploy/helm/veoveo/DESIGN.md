@@ -7,6 +7,7 @@
 | `veoveo.ai/module-selection/v1` and `veoveo.ai/module-plan/v1` | Checked camelCase JSON; optional selection, decimal-string generation, nonsecret credential revision and composition-generated lane/runtime bindings |
 | Helm v2 chart format and JSON Schema draft-07 | Closed installation values, rendered Kubernetes resources and immutable image references |
 | Kubernetes apps/v1 and core/v1 | Deployments, Services, ConfigMaps and references to installation-owned Secrets |
+| Kubernetes node.k8s.io/v1 RuntimeClass | Host-only selection of an installation-owned stock runc handler; containerd base OCI specification supplies the aggregate PID ceiling |
 | Kubernetes admissionregistration.k8s.io/v1 and CEL | Fail-closed managed kernel and controller resource validation; requires Kubernetes 1.30 or newer |
 | Kubernetes networking.k8s.io/v1 | Namespace-isolated managed ingress/egress and fixed destination admission |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only Redap route on a separate Ingress with native HTTP/2 gRPC to the recording service; browser gRPC-Web uses the same path |
@@ -290,6 +291,16 @@ Configured capacity also deploys one [private compute host](../../../platform/co
 `computers.host.configurationRevision`. `computers.host.existingTrustSecret` provides
 only the host-side fixed trust files. Worker private keys remain in the control
 service's separate Secret. Host trust is projected read-only with mode 0400.
+
+Configured capacity requires `computers.host.runtimeClassName`. Only the Host
+selects this node-owned runtime. It must supply a finite container PID ceiling
+in addition to the chart's CPU and memory limits; startup rejects an unbounded
+aggregate cgroup. The reference uses stock runc with a complete containerd-generated
+OCI base specification whose sole changed value is `linux.resources.pids.limit=4096`.
+The [reference node runbook](../../../examples/bioma/computers/node-runtime/README.md)
+describes installation and preservation of default and NVIDIA handlers. Node
+activation and new-Pod containment qualification precede provider activation.
+Supervisors share the aggregate Host budget without separate resource maxima.
 
 The host uses its own network, PID and mount namespaces, root privileges and a
 private Docker socket inside the container. It receives no installation host socket,

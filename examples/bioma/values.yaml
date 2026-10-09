@@ -209,6 +209,7 @@ computers:
   existingOAuthSecret: veoveo-computers-worker-oauth
   oauthCredentialRevision: 1ed8ff9127d82b5eff6704ba50e4f5d165bf3c30e6911bb94925c50612898b29
   host:
+    runtimeClassName: veoveo-computer-host
     existingConfigMap: bioma-computer-host-configuration
     resources:
       requests: {cpu: "0", memory: "0"}

@@ -226,9 +226,13 @@ Computers workers need issuer discovery and token HTTPS access through
 `computers.host.issuerEgress`. Supply actual installation CIDRs. Upgrade the matched
 worker, Host, public registration and chart through a coordinated drain that preserves
 unresolved operations and retained writer fences. Stock native and installed
-qualification remain open, including the supervisor resource-budget decision and
-node-facing registry access. Source configuration and trust enrollment do not
-activate this profile.
+qualification remain open under the accepted aggregate resource profile. The
+[node runtime runbook](computers/node-runtime/README.md) configures the Host-only
+`veoveo-computer-host` class with 4096 PIDs while the chart supplies eight CPUs and
+12 GiB. Node installation and a new Host Pod must prove those limits. The configured
+registry route and official supervisor content pass read-only inspection; actual
+provider pulls and lifecycle qualification remain open. Source configuration and
+trust enrollment do not activate this profile.
 
 Set `execution.activeKeyId` and the matching key entry in `computers.json` to the
 public identifier in `worker/command-key-id`, then recompute the configuration revision.

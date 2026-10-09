@@ -138,6 +138,8 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
         "--set",
         "computers.host.existingConfigMap=admitted-host",
         "--set",
+        "computers.host.runtimeClassName=fixture-computer-host",
+        "--set",
         "computers.host.existingTrustSecret=computers-host-trust",
         "--set",
         &host_revision,
@@ -171,7 +173,24 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
         ensure!(String::from_utf8_lossy(&rejected.stderr).contains("issuerEgress"));
     }
     ensure!(object(&configured, "ConfigMap", "computers-configuration").is_err());
+    for workload in configured
+        .iter()
+        .filter(|item| item["kind"] == "Deployment" && item["metadata"]["name"] != "computer-host")
+    {
+        ensure!(
+            workload["spec"]["template"]["spec"]["runtimeClassName"] != "fixture-computer-host"
+        );
+    }
+    let mut missing_runtime = arguments.clone();
+    missing_runtime.extend(["--set", "computers.host.runtimeClassName="]);
+    let rejected_runtime = render(&missing_runtime);
+    ensure!(!rejected_runtime.status.success());
+    ensure!(
+        String::from_utf8_lossy(&rejected_runtime.stderr)
+            .contains("computers.host.runtimeClassName")
+    );
     let deployment = object(&configured, "Deployment", "computers-mcp")?;
+    ensure!(deployment["spec"]["template"]["spec"]["runtimeClassName"].is_null());
     let volumes = deployment["spec"]["template"]["spec"]["volumes"]
         .as_array()
         .unwrap();
@@ -238,6 +257,7 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
             && pod["hostIPC"] == false
             && pod["automountServiceAccountToken"] == false
     );
+    ensure!(pod["runtimeClassName"] == "fixture-computer-host");
     ensure!(pod["terminationGracePeriodSeconds"] == 60);
     ensure!(pod["containers"][0]["securityContext"]["privileged"] == true);
     let resources = &pod["containers"][0]["resources"];

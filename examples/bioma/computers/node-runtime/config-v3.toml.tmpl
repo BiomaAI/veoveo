@@ -1,0 +1,8 @@
+{{ template "base" . }}
+
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.veoveo-computer-host]
+  runtime_type = "io.containerd.runc.v2"
+  base_runtime_spec = "/var/lib/rancher/k3s/agent/etc/containerd/computer-host-oci.json"
+
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.veoveo-computer-host.options]
+  SystemdCgroup = false

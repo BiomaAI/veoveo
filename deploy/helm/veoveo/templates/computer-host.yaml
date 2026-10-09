@@ -5,6 +5,7 @@
 {{- if not (regexMatch "^[a-f0-9]{64}$" $host.configurationRevision) -}}
 {{- fail "configured Computer host requires computers.host.configurationRevision (SHA-256 of host.json)" -}}
 {{- end -}}
+{{- $_ := required "configured Computer host requires computers.host.runtimeClassName selecting a node runtime with a finite aggregate PID limit; see examples/bioma/computers/node-runtime/README.md" $host.runtimeClassName -}}
 {{- $claim := default "computer-host-data" $host.persistence.existingClaim -}}
 {{- if not $host.persistence.existingClaim }}
 apiVersion: v1
@@ -70,6 +71,7 @@ spec:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
         checksum/computer-host-configuration: {{ $host.configurationRevision | quote }}
     spec:
+      runtimeClassName: {{ $host.runtimeClassName | quote }}
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
       automountServiceAccountToken: false
       hostNetwork: false

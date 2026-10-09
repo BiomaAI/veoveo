@@ -199,6 +199,7 @@ designs above.
 | `deploy/contract/src/source_chart.rs` | source chart content identity shared by release publication and installation; hashes actual files independently of commit and archive metadata |
 | `docs/GPU_PLACEMENT.md` | managed NVIDIA DRA artifacts, installation schema, lifecycle, conflict transition, validation, upgrade, rollback, and recovery contract |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
+| `examples/bioma/computers/node-runtime/` | opt-in Computer Host RuntimeClass and K3s containerd extension; stock-generated complete OCI base, aggregate PID configuration, node activation and rollback runbook |
 | `AGENTS.md` | contract evolution, provider recovery, dependency qualification, GPU evidence, type/module, and test-harness rules |
 | `docs/` | general architecture, code index, recording design, and rendered publications |
 | `agents/` | agent kernel and durable agent runtime |
