@@ -18,6 +18,8 @@ use veoveo_platform_store::{
 mod audit_transactions;
 #[path = "surreal_integration/changefeed.rs"]
 mod changefeed;
+#[path = "surreal_integration/credentials.rs"]
+mod credentials;
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
 #[path = "surreal_integration/query_semantics.rs"]

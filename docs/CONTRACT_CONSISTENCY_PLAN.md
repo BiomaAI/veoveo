@@ -74,16 +74,29 @@ Installed node activation and the stock rollout are halted after Secret values
 accidentally appeared in a tool transcript. The namespace inventory contains
 sixteen Secret objects: thirteen application Secrets and three Helm Secrets. All
 eight baseline services are Ready; the node is unchanged and uncordoned, and no
-credentials have changed. The eighteen selected stock native cases stay qualified,
-including the implemented aggregate Host profile of 1 CPU, 6 GiB and 1,024 PIDs.
+installed credentials have changed. The eighteen selected stock native cases stay
+qualified, including the implemented aggregate Host profile of 1 CPU, 6 GiB and 1,024 PIDs.
 The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated. Owners are
 preparing a private credential replacement plan; external account rotations
 require their account owners. The matching worker catalog section and client must stay unpublished until every
 deployed catalog reader admits the full catalog. Credential replacement must preserve the actual live catalog,
-policy and module generation. The strict full-catalog readers are Gateway, Computers
-MCP, Agent Manager and Knowledge. Retained Manager `affcaf` and Knowledge `7f2bd`
+policy and enabled module composition. The strict full-catalog readers are Gateway,
+Computers MCP, Agent Manager and Knowledge. Retained Manager `affcaf` and Knowledge `7f2bd`
 images have no source provenance admitting the worker section introduced at
 `b6e7e0e00`; their replacement and old-reader drain must precede publication.
+
+Isolated SurrealDB 3.3.0 credential controls pass for an owned ROOT account in a
+memory fixture and the actual Gateway preparation commands in a RocksDB fixture.
+Both reject fresh logins with the old password and accept the replacement, while
+established authenticated WebSockets retain access. ROOT `ALTER USER` also leaves
+old JWTs usable; `DEFINE USER OVERWRITE` rejects their reuse in the owned fixture.
+Gateway preparation advances generation and credential revision with the same
+composition, owner selection and active catalog revision/hash. A stale preparation
+cannot restore the old password, and replaying a completed identity cannot rotate
+it again. These controls do not qualify installed rotation, bootstrap ROOT
+replacement or global session revocation. RustFS qualification is pending its
+corrected isolated fixture sequence; installed changes and external account
+rotations stay held.
 
 | Phase | Current state | Remaining gate |
 |---|---|---|

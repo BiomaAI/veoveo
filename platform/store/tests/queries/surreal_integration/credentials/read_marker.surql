@@ -1,0 +1,1 @@
+RETURN credential_rotation_marker:retained.value;
