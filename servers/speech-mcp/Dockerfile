@@ -2,6 +2,10 @@
 # Staging resolves this dependency to an already normalized immutable OCI digest.
 FROM speech-dependencies
 
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.source="https://github.com/BiomaAI/veoveo"
+
 # Independent layers keep Rust/Python edits from unpacking or rewriting CUDA.
 COPY --link --from=veoveo-image-assets /servers/speech-mcp/runner/src /opt/speech-source
 COPY --link --from=veoveo-image-assets /servers/speech-mcp/runner/ATTRIBUTION.md /usr/share/doc/speech/ATTRIBUTION.md
