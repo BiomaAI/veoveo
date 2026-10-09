@@ -32,8 +32,14 @@ async fn ready(
         .unwrap()
 }
 async fn python(runtime: &OpenShellRuntime, binding: &Binding, program: &str) -> String {
+    // Filesystem retention assertions do not depend on distribution site hooks.
     let intent = ExecIntent::new(
-        vec!["/usr/bin/python3".into(), "-c".into(), program.into()],
+        vec![
+            "/usr/bin/python3".into(),
+            "-S".into(),
+            "-c".into(),
+            program.into(),
+        ],
         PERSISTENT_HOME.into(),
         30,
         65536,

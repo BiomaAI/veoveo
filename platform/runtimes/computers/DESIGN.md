@@ -443,8 +443,9 @@ a retained mount; stock SSH attachments start independent shells. It requires
 terminal data after repeated two-second leases
 and the provider's three-second admission credential have expired. The same shell
 stays attached. Explicit revocation must deny further input/output, and fresh
-authority must open a new shell in the admitted Computer process. Stock-provider
-qualification of this case is pending. Local real-mTLS fixtures cover bidirectional
+authority must open a new shell in the admitted Computer process. This selected
+stock-provider case is qualified; the [active plan](../../../docs/CONTRACT_CONSISTENCY_PLAN.md)
+records its current delivery status. Local real-mTLS fixtures cover bidirectional
 backpressure, buffered output denial, late mint cleanup and non-revivable deadlines.
 
 ## Execution Argument Boundary
@@ -570,7 +571,8 @@ mTLS user promotion disabled and anonymous access refused, a supervisor certific
 without a JWT must complete TLS and fail user RPCs. A current Sandbox JWT must pass
 only its declared supervisor methods. Worker tokens must pass required control methods
 and fail expired, wrong-issuer, wrong-audience and unauthorized-role cases. These
-native security controls and stock retained lifecycle acceptance remain open.
+native security controls require their own qualification; selected stopped-maintenance
+and renewal cases do not establish the complete native acceptance profile.
 
 Run this ignored integration test explicitly with `VEOVEO_COMPUTERS_NATIVE_GATEWAY`,
 `VEOVEO_COMPUTERS_NATIVE_SUPERVISOR`, and `VEOVEO_COMPUTERS_NATIVE_OUTPUT` set to absolute
@@ -593,8 +595,9 @@ the lifecycle assessor applies the original Stop checkpoint to that observation.
 An explicit Start must then establish a new current process identity. The case
 requires a new supervisor, preserved workload container/image/home and actual
 retained-file reads through fresh authenticated access. Reconnection opens an
-empty shell with no historical replay. Process-group cleanup controls run locally;
-stock stopped-lifecycle and renewal qualification remain open. This case does not
+empty shell with no historical replay. The selected stopped-lifecycle and renewal
+cases are qualified, with current results and remaining native, image-upgrade and
+installed gates in the [active plan](../../../docs/CONTRACT_CONSISTENCY_PLAN.md). This case does not
 qualify transparent running-controller crash recovery, host reboot, storage quotas
 or public ingress.
 

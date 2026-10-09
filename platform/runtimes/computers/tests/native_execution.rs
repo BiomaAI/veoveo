@@ -54,8 +54,9 @@ async fn execute(
 }
 
 fn python(program: &str) -> ExecutionRequest {
+    // This fixture qualifies guest execution, not distribution site initialization.
     ExecutionRequest::new(
-        vec!["python3".into(), "-c".into(), program.into()],
+        vec!["python3".into(), "-S".into(), "-c".into(), program.into()],
         ".".into(),
         BTreeMap::new(),
         vec![],
@@ -63,7 +64,7 @@ fn python(program: &str) -> ExecutionRequest {
     .unwrap()
 }
 
-async fn initial_shell_uses_retained_home(runtime: &OpenShellRuntime, binding: &Binding) {
+async fn fresh_shell_can_select_retained_home(runtime: &OpenShellRuntime, binding: &Binding) {
     let (_authority, lease) =
         LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(30)).unwrap();
     let mut terminal = runtime
@@ -72,7 +73,7 @@ async fn initial_shell_uses_retained_home(runtime: &OpenShellRuntime, binding: &
         .unwrap();
     tokio::time::timeout(Duration::from_secs(10), async {
         terminal
-            .write(b"printf '\\ninitial-home=%s\\n' \"$PWD\"\r")
+            .write(b"printf '\\nstock-shell-home=%s cwd=%s uid=%s\\n' \"$HOME\" \"$PWD\" \"$(id -u)\"; cd /sandbox/persistent && printf '\\nselected-retained-directory=%s\\n' \"$PWD\"\r")
             .await
             .unwrap();
         let mut bytes = Vec::new();
@@ -80,7 +81,10 @@ async fn initial_shell_uses_retained_home(runtime: &OpenShellRuntime, binding: &
             if let Some(TerminalOutput::Data(chunk)) = terminal.read().await.unwrap() {
                 bytes.extend(chunk);
                 assert!(bytes.len() <= 65536);
-                if String::from_utf8_lossy(&bytes).contains("initial-home=/sandbox/persistent") {
+                let observed = String::from_utf8_lossy(&bytes);
+                if observed.contains("stock-shell-home=/sandbox cwd=/sandbox uid=10001")
+                    && observed.contains("selected-retained-directory=/sandbox/persistent")
+                {
                     break;
                 }
             } else {
@@ -89,7 +93,7 @@ async fn initial_shell_uses_retained_home(runtime: &OpenShellRuntime, binding: &
         }
     })
     .await
-    .expect("initial retained shell directory");
+    .expect("stock fresh shell identity and explicit retained directory");
     terminal.detach().await.unwrap();
 }
 
@@ -125,7 +129,7 @@ async fn structured_execution_preserves_values_and_stop_fences_uncertain_descend
         .await
         .unwrap();
     home.assert_registered_retained_mount();
-    initial_shell_uses_retained_home(runtime, &binding).await;
+    fresh_shell_can_select_retained_home(runtime, &binding).await;
 
     let setup = python(
         "import os; os.mkdir('private-directory-fixture'); os.symlink('private-directory-fixture', 'current'); os.symlink('/etc', 'escape')",
@@ -138,7 +142,7 @@ async fn structured_execution_preserves_values_and_stop_fences_uncertain_descend
         String::from_utf8_lossy(&output.stderr)
     );
     let request = ExecutionRequest::new(
-        vec!["python3".into(), "-c".into(), "import os,sys; assert os.getuid()==os.getgid()==10001; assert os.getcwd()=='/sandbox/persistent/private-directory-fixture'; assert sys.argv[1:]==['',\"private 'quoted' argument\"]; assert os.environ['FIXTURE_VALUE']=='private-environment-fixture\\nlast'; sys.stdout.buffer.write(sys.stdin.buffer.read()); sys.stderr.write('stderr-fixture'); sys.exit(23)".into(), String::new(), "private 'quoted' argument".into()],
+        vec!["python3".into(), "-S".into(), "-c".into(), "import os,sys; assert os.getuid()==os.getgid()==10001; assert os.getcwd()=='/sandbox/persistent/private-directory-fixture'; assert sys.argv[1:]==['',\"private 'quoted' argument\"]; assert os.environ['FIXTURE_VALUE']=='private-environment-fixture\\nlast'; sys.stdout.buffer.write(sys.stdin.buffer.read()); sys.stderr.write('stderr-fixture'); sys.exit(23)".into(), String::new(), "private 'quoted' argument".into()],
         "current".into(),
         BTreeMap::from([("FIXTURE_VALUE".into(), "private-environment-fixture\nlast".into())]),
         (0..100_000).map(|index| (index % 256) as u8).collect(),

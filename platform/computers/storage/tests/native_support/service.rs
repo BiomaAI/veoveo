@@ -161,6 +161,27 @@ impl Fixture {
             cleanup_test,
             template_capacities,
         };
+        // Stock user mounts use Engine copy-on-mount behavior. An absent target
+        // avoids initialization before the allocator can register its writer.
+        // This probe is inside the owned daemon, whose cleanup owns every child.
+        checked(fixture.docker().args([
+            "run",
+            "--rm",
+            "--pull=never",
+            "--name=fixture-image-absence",
+            "--network=none",
+            "--read-only",
+            "--user=10001:10001",
+            "--cap-drop=ALL",
+            "--security-opt=no-new-privileges",
+            "--memory=64m",
+            "--pids-limit=32",
+            "--entrypoint=/bin/sh",
+            &fixture.daemon.as_ref().unwrap().image_id,
+            "-c",
+            "test ! -e /probe && test ! -L /probe",
+        ]))
+        .await;
         fixture.start_service().await;
         fixture
             .daemon
@@ -393,7 +414,7 @@ impl Fixture {
     }
     pub async fn create(&self, suffix: &str, binding: &Binding) {
         let mount = format!(
-            "type=volume,source={},target=/probe,volume-subpath=home,volume-nocopy",
+            "type=volume,source={},target=/probe,volume-subpath=home",
             PersistentHome::volume_name(binding.computer_id()).unwrap()
         );
         let mut command = self.docker();

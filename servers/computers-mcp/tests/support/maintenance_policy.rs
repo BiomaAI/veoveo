@@ -1,9 +1,6 @@
 //! Installation-only native fixture grant. No public policy-administration API.
 use std::time::Duration;
-use tonic::{
-    Request,
-    transport::{Certificate, ClientTlsConfig, Endpoint, Identity},
-};
+use tonic::transport::{Certificate, ClientTlsConfig, Endpoint, Identity};
 use veoveo_computers_runtime::{
     Binding, Phase,
     protocol::{
@@ -38,12 +35,15 @@ pub async fn add_grant(provider: &crate::provider::Provider, binding: &Binding) 
             .max_decoding_message_size(1024 * 1024)
             .max_encoding_message_size(1024 * 1024);
         let source = client
-            .get_sandbox(api::GetSandboxRequest {
-                name: binding.name(),
-                workspace_scope: Some(WorkspaceSelector {
-                    selection: Some(Selection::Workspace("default".into())),
-                }),
-            })
+            .get_sandbox(provider.authenticated_request(
+                api::GetSandboxRequest {
+                    name: binding.name(),
+                    workspace_scope: Some(WorkspaceSelector {
+                        selection: Some(Selection::Workspace("default".into())),
+                    }),
+                },
+                Duration::from_secs(15),
+            ))
             .await
             .unwrap()
             .into_inner()
@@ -52,52 +52,57 @@ pub async fn add_grant(provider: &crate::provider::Provider, binding: &Binding) 
         let metadata = source.metadata.unwrap();
         assert_eq!(metadata.id, before.sandbox_id);
         let mut watch = client
-            .watch_sandbox(api::WatchSandboxRequest {
-                sandbox: binding.name(),
-                workspace_scope: Some(WorkspaceSelector {
-                    selection: Some(Selection::Workspace("default".into())),
-                }),
-                follow_status: true,
-                stop_on_terminal: false,
-                ..Default::default()
-            })
+            .watch_sandbox(provider.authenticated_request(
+                api::WatchSandboxRequest {
+                    sandbox: binding.name(),
+                    workspace_scope: Some(WorkspaceSelector {
+                        selection: Some(Selection::Workspace("default".into())),
+                    }),
+                    follow_status: true,
+                    stop_on_terminal: false,
+                    ..Default::default()
+                },
+                Duration::from_secs(30),
+            ))
             .await
             .unwrap()
             .into_inner();
         assert!(watch.message().await.unwrap().is_some());
         let name = "retained-policy-fixture";
-        let mut request = Request::new(api::UpdateConfigRequest {
-            sandbox: binding.name(),
-            workspace_scope: Some(WorkspaceSelector {
-                selection: Some(Selection::Workspace("default".into())),
-            }),
-            expected_resource_version: metadata.resource_version,
-            merge_operations: vec![api::PolicyMergeOperation {
-                operation: Some(api::policy_merge_operation::Operation::AddRule(
-                    api::AddNetworkRule {
-                        rule_name: name.into(),
-                        rule: Some(policy::NetworkPolicyRule {
-                            name: name.into(),
-                            endpoints: vec![policy::NetworkEndpoint {
-                                host: "retained-policy.example.com".into(),
-                                port: 443,
-                                ports: vec![443],
-                                protocol: "rest".into(),
-                                tls: policy::NetworkTlsMode::Unspecified.into(),
-                                enforcement: policy::NetworkEnforcementMode::Enforce.into(),
-                                access: policy::NetworkAccessPreset::ReadOnly.into(),
-                                ..Default::default()
-                            }],
-                            binaries: vec![policy::NetworkBinary {
-                                path: "/usr/bin/curl".into(),
-                            }],
-                        }),
-                    },
-                )),
-            }],
-            ..Default::default()
-        });
-        request.set_timeout(Duration::from_secs(15));
+        let request = provider.authenticated_request(
+            api::UpdateConfigRequest {
+                sandbox: binding.name(),
+                workspace_scope: Some(WorkspaceSelector {
+                    selection: Some(Selection::Workspace("default".into())),
+                }),
+                expected_resource_version: metadata.resource_version,
+                merge_operations: vec![api::PolicyMergeOperation {
+                    operation: Some(api::policy_merge_operation::Operation::AddRule(
+                        api::AddNetworkRule {
+                            rule_name: name.into(),
+                            rule: Some(policy::NetworkPolicyRule {
+                                name: name.into(),
+                                endpoints: vec![policy::NetworkEndpoint {
+                                    host: "retained-policy.example.com".into(),
+                                    port: 443,
+                                    ports: vec![443],
+                                    protocol: "rest".into(),
+                                    tls: policy::NetworkTlsMode::Unspecified.into(),
+                                    enforcement: policy::NetworkEnforcementMode::Enforce.into(),
+                                    access: policy::NetworkAccessPreset::ReadOnly.into(),
+                                    ..Default::default()
+                                }],
+                                binaries: vec![policy::NetworkBinary {
+                                    path: "/usr/bin/curl".into(),
+                                }],
+                            }),
+                        },
+                    )),
+                }],
+                ..Default::default()
+            },
+            Duration::from_secs(15),
+        );
         let updated = client.update_config(request).await.unwrap().into_inner();
         println!(
             "Native maintenance: policy update accepted at version {}",

@@ -139,6 +139,7 @@ fn actual_guest_preserves_argv_environment_stdin_and_exit_while_rejecting_escape
     let request = ExecutionRequest::new(
         vec![
             "python3".into(),
+            "-S".into(),
             "-c".into(),
             script.into(),
             String::new(),

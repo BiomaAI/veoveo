@@ -190,6 +190,12 @@ fn quoted(path: &std::path::Path) -> String {
 }
 
 impl Provider {
+    /// Installation-policy fixture calls use the same authorized worker as the runtime.
+    #[allow(dead_code)] // Only maintenance-policy fixtures use raw provider RPCs.
+    pub fn authenticated_request<T>(&self, message: T, timeout: Duration) -> tonic::Request<T> {
+        fixture_authenticated_request(message, &self.authentication.token, timeout)
+    }
+
     pub fn process_id(&self) -> Option<u32> {
         self.cleanup.child.as_ref().map(Child::id)
     }
@@ -520,3 +526,41 @@ pub async fn registry_child() -> bool {
 
 // Ignored native execution requires an explicitly supplied dedicated fixture
 // registration. Compilation never substitutes for that external prerequisite.
+
+fn fixture_authenticated_request<T>(
+    message: T,
+    token: &str,
+    timeout: Duration,
+) -> tonic::Request<T> {
+    let mut request = tonic::Request::new(message);
+    let mut bearer = format!("Bearer {token}")
+        .parse::<tonic::metadata::MetadataValue<_>>()
+        .unwrap_or_else(|_| panic!("fixture worker authorization metadata admission failed"));
+    bearer.set_sensitive(true);
+    request.metadata_mut().insert("authorization", bearer);
+    request.set_timeout(timeout);
+    request
+}
+
+#[cfg(test)]
+mod authenticated_request_tests {
+    use super::*;
+
+    #[test]
+    fn fixture_authorization_is_sensitive_and_preserves_message_and_deadline() {
+        let request = fixture_authenticated_request(
+            17_u32,
+            "synthetic-fixture-token",
+            Duration::from_secs(15),
+        );
+        assert_eq!(*request.get_ref(), 17);
+        let authorization = request.metadata().get("authorization").unwrap();
+        assert!(authorization.is_sensitive());
+        assert_eq!(
+            authorization.to_str().unwrap(),
+            "Bearer synthetic-fixture-token"
+        );
+        assert!(request.metadata().get("grpc-timeout").is_some());
+        assert!(!format!("{request:?}").contains("synthetic-fixture-token"));
+    }
+}
