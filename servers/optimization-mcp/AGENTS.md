@@ -79,7 +79,17 @@ Python adapter, and executor-native indices must not become the MCP contract.
 - `docker buildx bake cuopt-executor`
 - `VEOVEO_CUOPT_TEST_SOCKET=/absolute/path/executor.sock cargo test -p veoveo-optimization-mcp --test cuopt_gpu -- --ignored --nocapture`
 
-The last test requires a real NVIDIA GPU and the pinned cuOpt executor image.
+The existing `reads` target also contains the opt-in installed read consumer:
+
+- `VEOVEO_OPTIMIZATION_CONSUMERS_INPUT=/absolute/private/input.json cargo test -p veoveo-optimization-mcp --test reads installed_optimization_read_consumers -- --ignored --nocapture`
+- `cargo test -p veoveo-optimization-mcp --test reads installed_consumers -- --nocapture`
+
+The installed case requires the private input and independently retained completed
+real-GPU corpus described in [Installed Read Consumers](DESIGN.md#installed-read-consumers).
+It performs reads only. Native controls do not open installed connections and do
+not qualify GPU execution, rollout, cross-replica recovery or policy revocation.
+
+The `cuopt_gpu` test requires a real NVIDIA GPU and the pinned cuOpt executor image.
 It must exercise health, routing, convex LP, and MILP through the Rust client.
 
 ## Contract Compliance

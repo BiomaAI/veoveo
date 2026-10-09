@@ -103,8 +103,8 @@ impl ArtifactRepository {
     }
 
     /// Fetch bytes + metadata if the caller may read them. `Ok(None)` for a
-    /// missing artifact; a denial surfaces as an error so it is never silently
-    /// treated as absent.
+    /// missing or unauthorized artifact, preserving resource non-disclosure.
+    /// Transport, authentication and backend errors remain failures.
     pub async fn get(
         &self,
         caller: &PlaneCaller,
@@ -115,7 +115,7 @@ impl ArtifactRepository {
                 object.metadata = object.metadata.presented_under_scheme(&SCHEME);
                 Ok(Some(object))
             }
-            Err(ArtifactPlaneError::NotFound) => Ok(None),
+            Err(ArtifactPlaneError::NotFound | ArtifactPlaneError::Denied(_)) => Ok(None),
             Err(other) => Err(plane_err(other)),
         }
     }

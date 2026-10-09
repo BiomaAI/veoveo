@@ -43,6 +43,8 @@ Map owns the v2 travel-model artifact wire type. Optimization decodes that owner
 | CUDA | CUDA 13.3 runtime supplied by the pinned cuOpt image. A hardware NVIDIA GPU is mandatory. |
 | GNU OpenMP runtime | Ubuntu Jammy `libgomp1` `12.3.0-1ubuntu1~22.04.3` satisfies the cuDSS `libcudss_mtlayer_gomp.so.0` runtime dependency omitted by the cuOpt 26.08 image. The executor image build verifies that the threading layer has no unresolved shared libraries. |
 | `veoveo.ai/optimization/v2` | Repository-owned Optimization resource and result profile. |
+| `veoveo.ai/optimization-consumer-fixture/v1` | Closed private profile for independently supplied completed-solve expectations used by installed read acceptance; outside the public MCP API. |
+| `veoveo.ai/optimization-installed-consumers/v1` | Private JSONL qualification outcome profile for installed read intentions, checks, failures and caller cleanup; outside the public MCP API. |
 | `veoveo.ai/routing-problem/v2` | Repository-owned routing problem profile for service or pickup-delivery orders. |
 | `veoveo.ai/convex-problem/v2` | Repository-owned continuous LP, QP, QCQP, and quadratic SOCP representation. |
 | `veoveo.ai/milp-problem/v2` | Repository-owned linear MILP profile with continuous, integer, and semi-continuous variables. |
@@ -731,6 +733,83 @@ The ignored `cuopt_gpu` test is acceptance evidence only when run against the
 pinned executor image on an NVIDIA GPU. It performs a health request and real
 routing, convex LP, and MILP solves through the Rust client. A software solver
 or mocked CUDA result cannot satisfy this test.
+
+## Installed Read Consumers
+
+The opt-in `installed_optimization_read_consumers` case lives in the existing
+`reads` test target. It uses the official MCP client through the installation's
+public operator profile. The fixture selects already completed products from a
+real NVIDIA cuOpt producer; the case creates no solves, grants or cluster changes.
+Retained engine metadata describes those products and does not establish fresh GPU
+readiness. The installation must remain prepared and healthy throughout the case.
+
+`VEOVEO_OPTIMIZATION_CONSUMERS_INPUT` selects an absolute private JSON file of at
+most 64 KiB. Its closed fields are `installation` (the maintained installed-source
+input), `corpusFile`, `alternateTokenFile` and typed `alternateContext`. The endpoint must equal the route
+built from the target's public origin and operator profile. The target declares
+`optimization-mcp` and positive GPU capacity. Caller token files remain private;
+the test does not acquire or expand their authority.
+
+`corpusFile` selects an absolute private regular file of at most 8 MiB. The closed
+`veoveo.ai/optimization-consumer-fixture/v1` model contains `schema`, `visible` and
+`denied`. Each solve supplies its native `taskId`, original public
+`gatewayTaskId`, checked `problem`, completed `run`, checked `solution`, checked
+Task `output` and expected `usage` report. Operators obtain these expectations
+from independently retained producer receipts and products. They must not build
+them from the reads being qualified. Canonical problem definitions and solution
+digest preimages, verification findings, feasibility, Artifact metadata and
+engine provenance are admitted before connections open.
+
+The visible product Work Context must equal the target operator context;
+`alternateContext` must equal its distinct declared `comparisonContext`. Both
+private callers must already be admitted to Optimization resource reads through
+the selected Gateway profile, and the primary caller must be admitted to Tasks.get.
+The isolated stable caller and Work Context expose exactly 101–128 completed
+solves with usage. The visible array declares catalog order by native Task creation
+time and ID. One to eight denied solves use distinct identities; at least one lies
+between visible positions before the first full page ends in both catalog and
+native Task usage order. The alternate caller has no visible Optimization
+catalog or usage entries and cannot read the first two visible products. Static
+alternate authority establishes current admission, not a mid-run policy revocation.
+All fixture Tasks, canonical Artifacts and their public Gateway routes must outlive
+the case, with no concurrent additions, policy transitions or retention expiry.
+
+The case compares full problem, run, solution and usage traversal with independent
+fixture membership, order and continuation positions. It checks every visible
+Task output, exact resource, verification report and canonical Artifact body.
+It repeats discovery after exact reads. Negative reads require the current MCP
+resource-not-found refusal; transport and backend errors cannot satisfy them.
+Optimization's Artifact GET adapter maps the plane's typed denial to the same
+non-disclosing absence as a missing occurrence. Authentication, malformed response,
+transport and backend failures remain errors. HEAD and resolve keep their own
+existing error behavior.
+
+Each connection has a 30-second acquisition limit. The read operation has a
+240-second limit, each read has a 15-second limit, and each collection permits at
+most three pages. JSON resource and completed Task bodies are limited to 64 KiB;
+canonical Artifact bodies are limited to 256 KiB. Corpus size and these limits also
+bound request count and aggregate response bytes. SDK response caches are cleared
+before resource reads to reach current service policy.
+
+A create-new mode-0600 JSONL report is fsynced before network work. It records the
+fixture digest, typed read intentions, completed solve checks, closed failure
+categories and cleanup outcomes without raw transport errors or bearer material.
+The outer shared owner registers retained caller slots before acquisition; each
+slot owns its original consuming SDK close future. Local timeout and global owner
+drop share the original cleanup deadline, and a failed close stays failed after its
+handle is consumed. Native controls exercise fixture refusal, independent page and
+exact assertions, loopback HTTP error mapping, and actual SDK transport closure in
+isolated owner-cancellation subprocesses. They establish no installed or GPU result.
+
+Run only with explicitly supplied installed credentials and completed GPU fixtures:
+
+```sh
+VEOVEO_OPTIMIZATION_CONSUMERS_INPUT=/absolute/private/input.json cargo test -p veoveo-optimization-mcp --test reads installed_optimization_read_consumers -- --ignored --nocapture
+```
+
+Coordinated control/executor replacement, unfinished Task claim recovery,
+cross-replica claim and subscription delivery, mid-run label revocation, fresh GPU
+readiness, and Task creation/cancellation remain separate qualification gates.
 
 ## Contract Compliance
 

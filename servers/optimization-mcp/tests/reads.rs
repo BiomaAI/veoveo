@@ -824,3 +824,6 @@ pub async fn update(runtime: &TaskRuntime, task: TaskId, sql: &str) {
         .check()
         .unwrap();
 }
+
+#[path = "support/installed_consumers/mod.rs"]
+mod installed_consumers;
