@@ -151,8 +151,10 @@ nondefault retained-workspace profile is supported.
 A mount uses the runtime's exact registered-writer matcher. It requires the recorded
 engine and one registered container with the current namespace and complete binding.
 Stopped containers still reserve ownership. Mount/Unmount retries and nested `docker
-cp` never decrement a counter that grants another writer. Producer mounts require
-Docker NoCopy, as qualified by the selected provider patch.
+cp` never decrement a counter that grants another writer. The stock provider owns Docker copy-on-mount behavior. Any retained-home
+initialization must use that behavior after writer admission or an allocator-owned
+step outside the provider. The allocator must qualify the selected ordering before
+accepting stock retained mounts.
 
 The first successful mount persists the exact Docker container ID and provider
 resource ID before returning its path. A later container that copies the same labels

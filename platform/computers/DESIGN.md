@@ -1123,15 +1123,19 @@ transactional admission still arbitrates concurrent commands and file transfers.
 
 ## Qualification Limits
 
-The selected OpenShell 0.1.2 / patched provider 0.1.2-veoveo.1 profile requires its
-own source-built and native acceptance. Consumer controls establish private selector,
+The selected unmodified OpenShell 0.1.2 profile requires official artifact admission
+and its own native acceptance. Dedicated installation OIDC worker registration is
+a prerequisite. Provider configuration disables certificate-to-user promotion and
+keeps upstream user/admin role checks and mandatory Sandbox JWT. Consumer controls establish private selector,
 serialization and grant fencing behavior. They do not qualify provider binaries or
 installed journeys. The runtime's [installation and persistence rules](../runtimes/computers/DESIGN.md#installation-and-persistence-compatibility)
 require a coordinated drain and current-format maintenance readers.
 
 
-The selected profile has installed browser and stock CLI continuity, named agent
-execution, lifecycle authority, retained maintenance and governed file handoff.
+Stock-profile installed browser/CLI, named agent execution, retained lifecycle and
+file handoff qualification remain open. Source checks establish artifact/configuration
+admission and typed consumer behavior; earlier provider results do not qualify this
+profile.
 Backup/key ownership and restore acceptance, clean/offline installation and full
 release qualification need separate checks. Comparative performance and additional
 provider profiles are also unqualified.

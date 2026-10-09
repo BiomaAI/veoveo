@@ -21,7 +21,7 @@ unimplemented or unqualified capability.
 | OAuth security, RFC 9700; native applications, RFC 8252 | Design guidance for scoped authority, safe renewal, and native-client redirects; these decisions do not certify every OAuth feature |
 | WebSocket, RFC 6455; SSH | Terminal and CLI attachment transports; Veoveo lease, replay, and revocation controls are repository-owned extensions |
 | gRPC and Protocol Buffers | Internal OpenShell adapter protocol pinned with the selected provider artifacts; a watch alone is not a durable delivery guarantee |
-| OpenShell `0.1.2` | Selected private protocol; matched `0.1.2-veoveo.1` provider candidate requires source-built and native qualification before installation |
+| OpenShell `0.1.2` | Unmodified official release profile; selected external OIDC worker authentication; native security/lifecycle qualification required before installation |
 | JSON Schema `2020-12` | Generated controlled-domain contracts |
 | OCI, Helm, Git content identities | Existing exact artifact publication and installation-owned deployment boundaries |
 | NVIDIA GPU APIs, WebGPU, WebGL | Hardware workload and headed visual evidence remain required; headless behavior checks have a separate evidence class |
@@ -213,8 +213,9 @@ receive an owner, mitigation, and replacement deadline.
 A provider profile records exact deployed artifacts and the behaviors they qualify.
 Adding another supported version requires targeted compatibility evidence rather
 than a string alias. Handshake capabilities are necessary where relevant but cannot
-replace tests of retention, security, replay, and recovery. Keep provider patches
-small with regression cases and an upstream/removal plan.
+replace tests of retention, security and recovery. Third-party runtime source,
+protocols, build and behavior use unmodified upstream releases. Veoveo adapts its
+own edge or supported configuration; required provider changes belong upstream.
 
 Internal names and models use hard cuts. Published client edges and data formats
 use declared versioned transitions when consumers cannot change together. Document
@@ -222,9 +223,15 @@ the supported window, owner, migration, downgrade limits, telemetry, and retirem
 condition. An adapter projects the canonical domain and policy. It cannot disguise
 unsupported Tasks, weaken authentication, or select a legacy profile silently.
 
-The Computers runtime selects one matched gateway, driver, supervisor and sandbox
-profile. Its private maintenance checkpoint version 2 requires a coordinated drain:
-settle pending operations with the qualified previous workers before replacing
+The Computers runtime selects one official gateway, supervisor and sandbox profile
+with the Docker driver inside the gateway. Worker user authority uses a dedicated
+installation OIDC registration, exact issuer/audience and explicit upstream roles.
+Provider configuration disables certificate-to-user promotion and anonymous user
+access while preserving complete supervisor TLS and mandatory Sandbox JWT. Stock
+gateway restart replaces the supervisor and revives the guest; terminal sessions
+reset while retained-volume files persist. Native security and retained lifecycle
+qualification precede activation. The private maintenance checkpoint version 2
+requires a coordinated drain: settle pending operations with the qualified previous workers before replacing
 provider artifacts and readers. Unresolved outcomes keep their resource fences and
 recovery inputs. Mixed readers and historical checkpoint conversion are unsupported.
 The [owning runtime design](../platform/runtimes/computers/DESIGN.md#installation-and-persistence-compatibility)

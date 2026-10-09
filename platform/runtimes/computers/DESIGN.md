@@ -2,7 +2,7 @@
 
 The private adapter admits one OpenShell 0.1.2 provider profile. Consumer compilation
 and owning controls qualify typed admission, identity fencing and private serialization.
-Source-built provider and native acceptance are separate release gates; public ingress
+Official artifact admission and native acceptance are separate release gates; public ingress
 and installed acceptance belong to [Computers](../../computers/DESIGN.md#qualification-limits).
 
 ## Standards And Protocols
@@ -10,33 +10,33 @@ and installed acceptance belong to [Computers](../../computers/DESIGN.md#qualifi
 | Boundary | Selected profile |
 |---|---|
 | OpenShell `0.1.2` protobuf/gRPC | Vendored protocol verified by `protocol/SHA256SUMS`; internal generated client/server types over mTLS |
-| OpenShell retained Docker provider | Candidate gateway/driver/supervisor/sandbox `0.1.2-veoveo.1`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
+| OpenShell retained Docker provider | Unmodified released gateway/supervisor/sandbox/CLI `0.1.2`; in-process Docker driver; exact artifacts in `provider/manifest.json`; native installation qualification pending |
+| OIDC Discovery 1.0, OAuth 2.0 and JWT/JWKS | Installation-supplied HTTPS issuer and dedicated private worker client; exact audience and explicit upstream roles; mTLS user promotion and anonymous user access disabled |
+| `veoveo.ai/openshell-release-profile/v1` | Closed official source/artifact declaration; archive/executable hashes and gateway/supervisor OCI manifest/config identities |
+| `veoveo.ai/openshell-native-profile/v2` | Closed pre-effect fixture receipt; four released executables, unchanged companion image and separately injected sandbox; 16 KiB maximum |
 | SSH terminal | Stock authenticated `shell_request` with a fresh PTY and shell per attachment; byte-preserving stdout/stderr and terminal resize |
 | `veoveo.ai/computer-storage/v1` | Bounded mTLS prepare/restore/handoff/abandon adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
-| Docker driver supervisor restart JSON version 1 | Private owner-only immutable guest container/image/ownership/resource facts and a credential-free Prost DriverSandboxSpec subset; 1 MiB maximum; restoration admission before Start or supervisor recovery |
-| Docker provisioning intent JSON version 1 | Private credential-free sandbox/generation/stage journal; synced atomic replacement before effects; unresolved observations preserve resources and refuse automatic redispatch |
-| Docker driver companion binding JSON version 2 | Runtime-generation and verified credential-epoch-owned private physical companion container ID, StartedAt/PID and immutable configuration hashes; 16 KiB maximum, atomic owner-only commit before readiness publication |
-| OpenShell gateway TOML schema 2 | Host and isolated native generators use the current gateway loader and strict Docker driver schema; package controls consume their generated TOML inputs |
+| OpenShell gateway TOML schema 2 | Host emits supported stock gateway and Docker driver settings; native authenticated qualification is pending |
 | Veoveo private policy checkpoint protobuf v2 | `protocol/maintenance.proto`; canonical Prost encoding of exact provider/source/run and selected gateway version with the generated provider configuration. Encrypted journal storage is required; this format grants no authority |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
 | `veoveo.ai/computer-files/v2` | Private framed JSON header with raw binary file stream and typed SHA-256 receipt; regular files up to 64 MiB, no archive extraction, fixed guest helper command; numeric header version 2, export `maximumBytes`; execution protocol stays version 1 |
-| Rust 1.99.0, Tonic and Prost | Provider builds use the official Bookworm compiler image; qualified workspace Tonic `0.14.6` and Prost `0.14.4`; generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
+| Rust workspace toolchain, Tonic and Prost | Provider executables are official release artifacts; qualified workspace Tonic `0.14.6` and Prost `0.14.4`; generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
 | Docker volume-plugin API v1; Engine HTTP API `1.53` | Selected volume methods and registered-container enumeration; the worker fixture composes the production allocator with the native provider |
 
 OpenShell's selected stable release is
 [v0.1.2](https://github.com/NVIDIA/OpenShell/releases/tag/v0.1.2), commit
 `6648bd0c290efbc41ba131ee9831ee45cd431f94`. The exact licensed protocol tree and
 hashes bind the generated client to that release. The provider package declares the
-patched binary/ABI graph and owning qualification matrix in
-[its README](provider-patches/README.md).
+official archive/executable hashes and OCI identities in
+[its README](provider/README.md).
 
 ## Installation And Persistence Compatibility
 
-Install the gateway, Docker driver, supervisor companion and static musl sandbox as
-one matched `0.1.2-veoveo.1` profile. The adapter checks both gateway and driver
-versions/capabilities before effects. Generated requests select the checked binding's
+Install the official gateway, supervisor companion and static musl sandbox from
+the declared `0.1.2` release profile. The gateway contains the Docker driver. The
+adapter checks gateway version and provider capabilities before effects. Generated requests select the checked binding's
 provider name and explicit workspace; public Computer UUIDs and grants keep their
 existing domain identity. Public callers cannot provide private provider selectors.
 
@@ -86,13 +86,12 @@ count allocations and do not promise memory reservations. Stop/retirement and cl
 must settle all supervised resources while the storage allocator independently
 establishes physical writer exclusion.
 
-Gateway Z3 uses upstream's `bundled-z3` feature with locked stable Z3 5.1.0 source
-(`z3-src` 501.0.0). It builds a static library with the selected Rust 1.99 Bookworm
-compiler, CMake and Python build inputs. Gateway tests/builds select the same feature.
-ELF closure checks reject a dynamic libz3 dependency before the image omits it.
-The GNU supervisor/gateway use the selected glibc 2.36 runtime; the musl sandbox must
-have neither an interpreter nor DT_NEEDED dependencies. Provider image compilation,
-ELF/version closure and the affected native cases remain qualification gates.
+The package verifies official archive and executable hashes and consumes the pinned
+upstream gateway image. It compiles no provider source or solver. The official GNU
+gateway and supervisor depend on the glibc runtime; the released musl sandbox is
+static. The Host's actual ELF closure and mounted runtime require native qualification.
+The unchanged supervisor image and installation mirror must preserve the selected
+amd64 manifest and config digests.
 
 Russh enables the existing Ring crypto backend and omits its unused RSA/compression
 defaults. Canonical-main pins an Ed25519 host identity. The stable Russh release
@@ -265,147 +264,18 @@ Axum and Reqwest reuse the qualified workspace versions as development dependenc
 The Docker plugin request decoder accepts bounded JSON bytes because the actual daemon
 does not supply the ordinary JSON Content-Type expected by Axum's JSON extractor.
 
-## Driver Supervisor Restart State
+## Provider Restart
 
-The Docker driver commits `supervisor-restart-v1.json` in its existing private sandbox
-boundary directory before starting the workload or supervisor. The record binds the
-original container ID, resolved image ID, complete ownership labels and admitted mount,
-resource, device and outer-fence settings. Its typed spec subset contains the selected
-template, log level and resource requirements. It excludes workload environment,
-launch authentication, bearer tokens, TLS material, policy, process progress and status.
-The existing main-process record owns command and TTY restoration.
+The adapter accepts stock OpenShell restart behavior. Gateway restart replaces the
+supervisor and revives the guest. Terminal sessions reset; retained-volume files
+persist. Veoveo observes the provider's resulting resource and process identity before
+admitting another attachment or settling an operation. A disconnected stream or
+missing observation preserves the original operation fence.
 
-Start and controller reconciliation restore this record through the driver template
-and outer-fence admission functions. They inspect the same guest container and require
-its image, ownership and immutable settings to match before start effects. Current
-resource admission also checks external volume claims. The selected driver has no
-resource-update operation; changing these settings requires an admitted replacement.
-
-The Docker driver separately commits `companion-binding-v2-<generation-digest>-<auth-epoch>.json`
-after starting the supervisor and before publishing its readiness. The filename hashes
-the runtime generation and selects the verified typed credential epoch. The credential-free record binds the guest, generation,
-credential epoch, namespace, resolved supervisor image, exact companion container ID, StartedAt/PID and
-hashes of its immutable Engine configuration, selected driver settings and verified public
-authentication context. The authentication hash binds issuer, trusted key set, sandbox,
-generation, credential epoch and gateway token lineage from the descriptor and bundle
-byte snapshot staged into that companion. Token issue/expiry times and JWT text do not
-form the immutable identity. Environment,
-arguments and installation paths contribute to those hashes without being copied into
-the record. The driver writes a mode-0600 temporary file, synchronizes it, commits
-without overwrite and synchronizes the private directory. Decoding permits 16 KiB.
-The guest restart record keeps its independent 1 MiB limit.
-
-A gateway-only outage can recover a running guest by adopting the recorded, still-running
-companion. The driver inspects its recorded ID, checks every binding and uses the maintained
-JWT verifier to admit the retained private launch bundle against current trusted launch
-keys, issuer, runtime generation, credential epoch and gateway token lineage. Expired or
-superseded retained credentials refuse adoption. Startup reconciliation preserves companion
-candidates and their mounted trust volumes until this admission; an empty driver map
-cannot authorize removal. Missing mount lists, mount types or volume names preserve
-channel volumes because startup cannot establish their independence from the candidate. The driver leaves the companion and
-credential files untouched and takes ownership of the existing same-ID Docker monitor.
-Its physical supervisor identity and canonical main-process epoch must survive. The
-supervisor's maintained authenticated reconnect supplies the replacement gateway's
-current registry. Local companion health indicates readiness; authenticated terminal
-traffic through that replacement registry establishes current session acceptance.
-Relay admission waits up to fifteen seconds for the maintained authenticated
-reconnect even when a fresh owner record points to the previous local-only gateway
-replica. It never dials a local-only endpoint or alters owner leases. The same
-supervisor instance with a higher connection epoch must pass the existing ownership
-CAS and current authentication before registering. An absent current session still
-refuses by the deadline. The terminal adapter allows twenty seconds for ForwardTcp
-admission, including transport overhead, inside its credential/setup deadline and
-renewable attachment lease. It checks both lease and mint-credential expiry before
-dispatch and after admission; an awaited response cannot revive expired access.
-
-Explicit Start on an observed stopped generation keeps the admitted fresh-generation
-path. One per-sandbox admission lock covers the absence check, generation/authentication
-and TLS updates, archive staging, guest Start and companion creation. A sealed observed-absence
-value binds sandbox, companion name, namespace and image before these effects. The
-runtime descriptor generation follows that same admitted launch. The previous owned
-companion must have been removed by the completed stop path;
-a new launch cannot remove an existing or uncertain companion by name. A new runtime
-generation receives its own immutable binding file. An outage between companion start
-and binding commit leaves recovery unqualified. Missing, corrupt, foreign, dead or
-mismatched companions and expired or revoked credentials cannot trigger replacement,
-credential overwrite or replay of a running workload. This profile does not recover a
-dead companion into an existing running sandbox generation.
-
-Fresh Create checks companion absence and private-state absence before image preparation
-or identity resolution. Existing private directories, files, symlinks and uncertain
-metadata refuse without cleanup. The provisioning operation claims cleanup ownership
-only after exclusively creating its owner-only directory. Failure settlement carries
-that closed ownership value and checks the directory's device and inode before removing
-it. Cleanup also requires the separate safe-local-refusal disposition, which applies
-before provisioning dispatch. An unowned refusal preserves existing bindings, trust
-files and journals. After the first runtime-volume dispatch, failure preserves the
-private directory and resources because this profile has no qualified automatic rollback.
-Lost Create or Start responses cannot authorize compensating Delete or Stop.
-
-The driver commits a credential-free `provisioning-intent-v1.json` before runtime-volume
-creation, guest creation, guest Start and companion launch. Its version, sandbox ID,
-generation and stage survive driver replacement. Atomic rename follows file sync and
-precedes directory sync. Successful companion readiness removes the intent; an interrupted
-operation keeps it. Get and watch composition expose `ProvisioningObservation=Unknown`
-independently of current authenticated readiness. Startup and Running Start refuse an
-unfinished or unreadable intent before changing generation, credentials or trust files.
-Startup orphan cleanup preserves auxiliary containers and volumes with a sandbox ID
-whose private intent is unfinished or unreadable, including an intent without an observed
-guest. Ordinary Stop and Delete refuse that intent before dropping pending or monitor
-ownership. They cannot infer successful rollback from a missing managed lookup.
-Start, Stop and Delete resolve an ID or name to one consistent managed or pending
-sandbox identity before choosing the per-sandbox admission lock. Under that lock they
-re-resolve the request, reject a changed name or physical container, and admit the
-current private intent and pending ownership before effects. The lock covers monitor
-ownership and all lifecycle effects. Stop waits for the same admission owner; it cannot
-grant destructive interruption authority to a fresh Create. An absent explicit ID permits
-an idempotent Delete only when no private state exists. An absent or ambiguous name
-refuses before effects.
-
-Confirmed supervisor exit and explicit Stop of a settled sandbox keep their existing
-cleanup profile. No background retry or automatic redispatch settles this state. The operator must obtain
-current authoritative resource observations and qualify explicit Stop or deletion before
-cleanup. A directory replaced after the operation's exclusive claim cannot inherit its
-cleanup authority. Failed pending records carry the same closed ownership and settlement
-values. Unowned refusals cannot authorize a later Stop or Delete. A safe local failure
-whose owned directory was removed, or whose owned absence is observed, permits explicit
-Delete to forget its in-memory pending record without an Engine mutation. Replacement
-inodes and uncertain filesystem observations preserve the record. The failed-record
-registry is intentionally in-memory; a missing managed lookup after driver replacement
-cannot authorize removal of pre-existing private state.
-
-Guest restoration keeps its private version-1 profile. Companion adoption accepts
-only binding version 2 produced by the matched provider image/source profile.
-Gateway-only recovery mints from the persisted generation and credential epoch;
-it selects the same binding without changing the physical companion. Explicit
-settled Stop followed by authenticated Start preserves runtime generation and
-increments the credential epoch. After admitted physical absence, the new companion
-commits a separate no-clobber binding for that tuple and preserves its predecessor's
-bytes. Same-tuple duplicate commits and immutable or current-auth mismatches refuse.
-The coordinated private-profile cut requires draining old-profile companions before
-selecting the new image; version-1 binding candidates are quarantined and are not an
-installed compatibility profile. No old-record conversion or fallback is admitted.
-Rollback to a version-1 binding image or a pre-adoption candidate requires draining
-new-profile companions. Pre-adoption startup cleanup cannot safely adopt this format
-and does not recognize the new record as a reason to refuse destructive cleanup. Immutable image and source-profile admission
-must therefore prevent mixed rolling overlap and drain-free rollback. Matching protocol versions do not
-qualify a different source profile. Recovery and failed admission preserve the guest,
-retained home, private journal and binding records. An operator must qualify a
-replacement or explicit stop before destructive cleanup. Existing owned sandbox deletion removes its private
-boundary directory while preserving the external retained home. Source controls cover
-private commit, immutable and credential refusal, actual startup candidate/volume
-preservation and Running adoption without destructive Engine calls or credential rewrites.
-The maintained Docker wait POST observes the selected container. A decoded no-error exit
-or the SDK's typed positive exit-code error confirms the same-ID exit. Transport errors,
-EOF and structured wait errors without a qualified exit report `Ready=Unknown` and
-`ControlObservation=Unknown`. They preserve the companion, guest, binding and owned
-monitor fence. Repeated Running Start refuses this unresolved observation. The monitor
-waits for an explicit Stop/Delete and does not reconnect, poll or redispatch. A dropped
-shutdown sender does not authorize cleanup. An independently authenticated current
-supervisor session can establish its own readiness while the control observation stays
-unknown; condition composition preserves that distinction.
-Native qualification must establish current authenticated reconnect and retained bytes
-before this recovery profile is accepted for an installed candidate.
+The provider owns its private state formats and restoration behavior. Veoveo neither
+adds companion binding files nor adopts a running supervisor through a private
+protocol. Native qualification must establish retained file contents, fresh terminal
+attachment and domain fencing across the released provider's restart path.
 
 ## Completion And Recovery
 
@@ -626,32 +496,19 @@ Cold private-daemon container creation has an explicit sixty-second setup allowa
 It logs its duration and names its owned container if the reply is lost; it never
 resends Create. This setup allowance does not extend provider operation budgets.
 
-`tests/native_lifecycle.rs` starts the exact patched gateway and supervisor against
-an isolated Docker namespace. It generates mTLS credentials and a separate Ed25519
-provider JWT signer with a finite lifetime. The fixture uses a digest-pinned Computer
-image, disables host bind mounts, and removes its own containers, network, credentials
-and database on completion. Its private output directory retains diagnostics.
-Terminal setup failures report only a closed stage and tonic status code or I/O
-error kind. SDK error messages, credentials and process bytes are excluded. The
-lifecycle fixture enables the maintained info logging profile and, before cleanup
-on replacement-gateway attachment failure, reads the already-admitted physical
-companion's final 32 log records with a five-second subprocess deadline. It records
-closed session/relay or OCSF network categories, omitted-line counts and the
-replacement gateway PID in a private receipt capped at 16 KiB. Every spawned
-reader outcome passes through a separate one-second kill/reap budget; an unresolved
-reap is recorded separately from the original read failure. These log facts
-support diagnosis; they do not establish current session authority or settle an
-unresolved provider operation.
-Driver companion launch failures also report a closed launch stage and tonic code
-at the existing failure boundary. This distinguishes authentication-snapshot,
-instance-inspection, immutable-binding capture and no-clobber commit refusal from readiness failure without
-copying status messages. The original RPC failure and unresolved resource fences
-continue to govern the operation.
+`tests/native_lifecycle.rs` owns isolated provider lifecycle qualification. The stock
+profile requires the exact official gateway and supervisor, complete supervisor TLS
+and a separate gateway Sandbox JWT signer. It must use a test-only OIDC issuer in
+its owning harness; an installation requires its own dedicated worker registration.
+The fixture must remove its owned containers, network, credentials and database.
+Diagnostics expose closed stages and error classes without provider payloads or secrets.
 
-Worker and guest transport certificates are distinct. The provider's mTLS user
-allowlist admits only the worker common name. A guest certificate alone must reach
-TLS and fail ListSandboxes with Unauthenticated; the real supervisor continues with
-its scoped sandbox JWT. This negative gate runs before every native provider fixture.
+Stock certificate authentication cannot establish user authority. With OIDC configured,
+mTLS user promotion disabled and anonymous access refused, a supervisor certificate
+without a JWT must complete TLS and fail user RPCs. A current Sandbox JWT must pass
+only its declared supervisor methods. Worker tokens must pass required control methods
+and fail expired, wrong-issuer, wrong-audience and unauthorized-role cases. These
+native security controls and stock retained lifecycle acceptance remain open.
 
 Run this ignored integration test explicitly with `VEOVEO_COMPUTERS_NATIVE_GATEWAY`,
 `VEOVEO_COMPUTERS_NATIVE_SUPERVISOR`, and `VEOVEO_COMPUTERS_NATIVE_OUTPUT` set to absolute
@@ -669,20 +526,16 @@ continuity of the running canonical process.
 The replacement controller uses the original private database, trust and launch inputs.
 A fresh Get supplies the replacement controller observation to the lifecycle assessor,
 which opens a current watch if readiness is pending. The previous Create response
-cannot establish recovery. The case checks the preserved main-process epoch before
-reattachment through current authority.
-The case compares the daemon, guest container, selected image, external home and private
-restart-state digest, reads retained file bytes through current authenticated access,
-and requires the same physical supervisor container, StartedAt and PID. Fresh authenticated
-terminal attachment and retained-file reads traverse the replacement gateway after its
-predecessor has been reaped. Stop/Start must then change the main process
-identity while preserving those resource identities and bytes. Process-group admission
-and separate abrupt-loss and graceful TERM/KILL/reap controls run locally without a provider fixture.
-Reconciliation observes stopped and restarted epochs without dispatch. This case does
-not qualify host reboot, storage quotas, renewable access, stock CLI or public ingress.
+cannot establish recovery. The case admits the current process identity observed
+from the replacement controller. It requires a replacement supervisor, preserved
+workload container/image/home and actual retained-file reads through fresh authenticated
+access. Reconnection opens an empty shell with no historical replay. Stop/Start must
+then publish its current process identity while preserving admitted retained resources.
+Process-group cleanup controls run locally; stock native restart qualification remains
+open. This case does not qualify host reboot, storage quotas or public ingress.
 
 The stock CLI fixture uses the verified `0.1.2` binary supplied by
-`VEOVEO_COMPUTERS_NATIVE_CLI`. It registers an isolated mTLS gateway with a three-second
+`VEOVEO_COMPUTERS_NATIVE_CLI`. It uses isolated worker OIDC authentication and complete supervisor TLS with a three-second
 SSH session TTL. The unmodified client keeps the same shell and exchanges input/output
 after that admission credential expires. The pinned provider validates SSH credentials
 when admitting a tunnel; it does not expire an established bridge with that credential.

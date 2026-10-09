@@ -91,8 +91,7 @@ impl ProviderInput {
             .transpose()
     }
     fn admit(context_path: &Path) -> Result<Self> {
-        let manifest =
-            context_path.join("platform/runtimes/computers/provider-patches/manifest.json");
+        let manifest = context_path.join("platform/runtimes/computers/provider/manifest.json");
         ensure!(
             fs::symlink_metadata(&manifest)
                 .with_context(|| format!(

@@ -1,0 +1,78 @@
+{
+  "schema": "veoveo.ai/openshell-release-profile/v1",
+  "upstreamRepository": "https://github.com/NVIDIA/OpenShell",
+  "upstreamRevision": "6648bd0c290efbc41ba131ee9831ee45cd431f94",
+  "upstreamTag": "v0.1.2",
+  "upstreamSourceTree": "26f142d5c3be825e72f4d1a705ecf6aa5d4d6b10",
+  "cliVersion": "0.1.2",
+  "gatewayVersion": "0.1.2",
+  "supervisorVersion": "0.1.2",
+  "sandboxVersion": "0.1.2",
+  "driver": "docker",
+  "driverIntegration": "gateway_in_process",
+  "platform": "linux/amd64",
+  "binaries": [
+    {
+      "name": "openshell",
+      "version": "0.1.2",
+      "sourceTree": "26f142d5c3be825e72f4d1a705ecf6aa5d4d6b10",
+      "target": "x86_64-unknown-linux-musl",
+      "imagePath": "/usr/local/bin/openshell",
+      "releaseAsset": {
+        "url": "https://github.com/NVIDIA/OpenShell/releases/download/v0.1.2/openshell-x86_64-unknown-linux-musl.tar.gz",
+        "archiveSha256": "7eb6917285331a09e3300266a0558616481a5e9927cae2612ea07c4045b6dd6f",
+        "executableSha256": "f334da80f867776dde9034e0ca3c2406d48ba77b0d0abe64b5aa610490a34fca"
+      }
+    },
+    {
+      "name": "openshell-gateway",
+      "version": "0.1.2",
+      "sourceTree": "26f142d5c3be825e72f4d1a705ecf6aa5d4d6b10",
+      "target": "x86_64-unknown-linux-gnu",
+      "imagePath": "/usr/local/bin/openshell-gateway",
+      "releaseAsset": {
+        "url": "https://github.com/NVIDIA/OpenShell/releases/download/v0.1.2/openshell-gateway-x86_64-unknown-linux-gnu.tar.gz",
+        "archiveSha256": "218d887845b3a020ab7535c9985eb9c666d6938f144044957f8b82b42892aadb",
+        "executableSha256": "37c3d29f6305b42df349407ddc946b8c4755e464aaf875bdf2eb5af833b5de45"
+      }
+    },
+    {
+      "name": "openshell-supervisor",
+      "version": "0.1.2",
+      "sourceTree": "26f142d5c3be825e72f4d1a705ecf6aa5d4d6b10",
+      "target": "x86_64-unknown-linux-gnu",
+      "imagePath": "/usr/local/bin/openshell-supervisor",
+      "releaseAsset": {
+        "url": "https://github.com/NVIDIA/OpenShell/releases/download/v0.1.2/openshell-supervisor-x86_64-unknown-linux-gnu.tar.gz",
+        "archiveSha256": "801d717f4211b4c24449b08a47ce5571ff623ce993c10d44e133dbe2edc36611",
+        "executableSha256": "7185e4e5a2c3292c4b044d92a6d083e6c1dce0e48dee12f49ca425ce53e2ba92"
+      }
+    },
+    {
+      "name": "openshell-sandbox",
+      "version": "0.1.2",
+      "sourceTree": "26f142d5c3be825e72f4d1a705ecf6aa5d4d6b10",
+      "target": "x86_64-unknown-linux-musl",
+      "imagePath": "/usr/local/bin/openshell-sandbox",
+      "releaseAsset": {
+        "url": "https://github.com/NVIDIA/OpenShell/releases/download/v0.1.2/openshell-sandbox-x86_64-unknown-linux-musl.tar.gz",
+        "archiveSha256": "f07ad7177f4c3ff7743f89531eda36bb784c56b45b166f49c5a51fbcfa5274a6",
+        "executableSha256": "5b2178f3b64a6c96eff9ed61bd7feeada4b4a4b3c68f3664e3b8f4f2b264a9b1"
+      }
+    }
+  ],
+  "images": {
+    "gateway": {
+      "repository": "ghcr.io/nvidia/openshell/gateway",
+      "indexDigest": "sha256:2fe4dad9118e14ab80a8258b545ea6e6cd74c3469e24ad4e6610f964d98913a2",
+      "manifestDigest": "sha256:e0e18aa7a497290eed1f6ffb36f51540f037cec967c6d4354a264fecfd988620",
+      "configDigest": "sha256:d6a87806b557730d55c95b4b3bd99ab74ccab0ad479166e116fae545e2b2f45e"
+    },
+    "supervisor": {
+      "repository": "ghcr.io/nvidia/openshell/supervisor",
+      "indexDigest": "sha256:d7b5264bb6bc56f4796e6fa3617b8e4a8d785be0b7293542efd8cc250b0fb67a",
+      "manifestDigest": "sha256:90a6f1a7257a8d3c76f89cc7cc1a1050567cf065a59ce76888f23dfd4f4c757d",
+      "configDigest": "sha256:494b86855b51987cd68e205aa1b08d67592d4ea7b989f94c66e7179e17a97388"
+    }
+  }
+}

@@ -1,71 +1,38 @@
-//! Admit the exact companion image before the private provider can start.
-use anyhow::{Context, Result, ensure};
+//! Admit the unchanged official companion image before provider startup.
+use anyhow::{Result, ensure};
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
 use std::time::Duration;
 use veoveo_types::Sha256Digest;
 
 const MAX_INSPECTION_BYTES: usize = 64 * 1024;
-const SOURCE: &[u8] = include_bytes!("../../../runtimes/computers/provider-patches/manifest.json");
+const SOURCE: &[u8] = include_bytes!("../../../runtimes/computers/provider/manifest.json");
 
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub(crate) struct Inspection {
     pub(crate) id: Sha256Digest,
     repo_digests: Vec<String>,
-    config: ImageConfig,
 }
 #[derive(Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct ImageConfig {
-    labels: SourceLabels,
-}
-#[derive(Default, Deserialize)]
-struct SourceLabels {
-    #[serde(default, rename = "ai.veoveo.provider.profile")]
-    profile: Option<String>,
-    #[serde(
-        default,
-        rename = "ai.veoveo.provider.manifest-sha256",
-        with = "veoveo_types::sha256_hex::optional"
-    )]
-    manifest_sha256: Option<Sha256Digest>,
-    #[serde(default, rename = "ai.veoveo.provider.supervisor-source-tree")]
-    supervisor_source_tree: Option<String>,
-}
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct ProviderProfile {
-    gateway_version: String,
-    binaries: Vec<ProfileBinary>,
+    images: ProfileImages,
+}
+#[derive(Deserialize)]
+struct ProfileImages {
+    supervisor: ProfileImage,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ProfileBinary {
-    name: BinaryName,
-    version: String,
-    source_tree: String,
-    target: String,
-}
-#[derive(Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
-enum BinaryName {
-    #[vocabulary(rename = "openshell")]
-    Cli,
-    #[vocabulary(rename = "openshell-gateway")]
-    Gateway,
-    #[vocabulary(rename = "openshell-driver-docker")]
-    Driver,
-    #[vocabulary(rename = "openshell-supervisor")]
-    Supervisor,
-    #[vocabulary(rename = "openshell-sandbox")]
-    Sandbox,
+struct ProfileImage {
+    manifest_digest: Sha256Digest,
+    config_digest: Sha256Digest,
 }
 impl Inspection {
     pub(crate) fn admit(&self, reference: &str, authority: &str) -> Result<Sha256Digest> {
-        let (repository, digest) = reference
-            .split_once("@sha256:")
-            .context("digest-pinned supervisor image required")?;
-        Sha256Digest::from_hex(digest)?;
+        let profile: ProviderProfile = serde_json::from_slice(SOURCE)?;
+        let Some((repository, digest)) = reference.split_once('@') else {
+            anyhow::bail!("digest-pinned supervisor image required")
+        };
         ensure!(
             repository
                 .split_once('/')
@@ -73,49 +40,17 @@ impl Inspection {
             "supervisor image must use the Computer installation registry"
         );
         ensure!(
+            Sha256Digest::parse(digest)? == profile.images.supervisor.manifest_digest,
+            "supervisor requires the unchanged official release manifest digest"
+        );
+        ensure!(
             self.repo_digests.iter().any(|value| value == reference),
             "supervisor image digest is not locally admitted"
         );
-        let profile: ProviderProfile = serde_json::from_slice(SOURCE)?;
-        let supervisors: Vec<_> = profile
-            .binaries
-            .iter()
-            .filter(|binary| binary.name == BinaryName::Supervisor)
-            .collect();
-        let sandboxes: Vec<_> = profile
-            .binaries
-            .iter()
-            .filter(|binary| binary.name == BinaryName::Sandbox)
-            .collect();
         ensure!(
-            supervisors.len() == 1 && sandboxes.len() == 1,
-            "matched supervisor and sandbox source declarations required"
+            self.id == profile.images.supervisor.config_digest,
+            "supervisor image config differs from the official release"
         );
-        let supervisor = supervisors[0];
-        let sandbox = sandboxes[0];
-        ensure!(
-            !profile.gateway_version.is_empty()
-                && supervisor.version == profile.gateway_version
-                && sandbox.version == profile.gateway_version
-                && supervisor.source_tree.len() == 40
-                && supervisor
-                    .source_tree
-                    .bytes()
-                    .all(|byte| byte.is_ascii_hexdigit())
-                && supervisor.source_tree == sandbox.source_tree
-                && supervisor.target == "x86_64-unknown-linux-gnu"
-                && sandbox.target == "x86_64-unknown-linux-musl",
-            "matched GNU supervisor and static musl sandbox profile required"
-        );
-        let digest = Sha256Digest::from_bytes(Sha256::digest(SOURCE).into());
-        let labels = &self.config.labels;
-        ensure!(
-            labels.profile.as_ref() == Some(&profile.gateway_version)
-                && labels.manifest_sha256 == Some(digest)
-                && labels.supervisor_source_tree.as_ref() == Some(&supervisor.source_tree),
-            "supervisor image differs from the compiled provider source profile"
-        );
-        // Docker's local config/image ID is distinct from the registry manifest digest.
         Ok(self.id.clone())
     }
 }
@@ -173,70 +108,50 @@ pub(crate) mod tests {
     use super::*;
     pub(crate) fn source_image() -> (String, serde_json::Value) {
         let profile: ProviderProfile = serde_json::from_slice(SOURCE).unwrap();
-        let tree = profile
-            .binaries
-            .iter()
-            .find(|binary| binary.name == BinaryName::Supervisor)
-            .unwrap()
-            .source_tree
-            .clone();
-        let manifest = Sha256Digest::from_bytes(Sha256::digest(SOURCE).into());
-        let reference = format!("registry.internal/provider@sha256:{}", "a".repeat(64));
-        let value = serde_json::json!({"Id":format!("sha256:{}", "b".repeat(64)),"RepoDigests":[reference],"Config":{"Labels":{
-            "ai.veoveo.provider.profile":profile.gateway_version,
-            "ai.veoveo.provider.manifest-sha256":manifest.hex(),
-            "ai.veoveo.provider.supervisor-source-tree":tree
-        }}});
+        let reference = format!(
+            "registry.internal/provider@{}",
+            profile.images.supervisor.manifest_digest
+        );
+        let value = serde_json::json!({"Id":profile.images.supervisor.config_digest,
+            "RepoDigests":[reference], "Config":{"Labels":null}});
         (reference, value)
     }
     #[test]
-    fn exact_source_image_admits_distinct_local_id_and_registry_manifest_digest() {
+    fn official_image_admits_unchanged_mirror_without_private_labels() {
         let (reference, value) = source_image();
         let image = decode(&serde_json::to_vec(&value).unwrap()).unwrap();
-        let id = image.admit(&reference, "registry.internal").unwrap();
-        assert_eq!(id.hex(), "b".repeat(64));
-        assert_ne!(id.hex(), reference.split_once("@sha256:").unwrap().1);
+        image.admit(&reference, "registry.internal").unwrap();
+        assert_ne!(image.id.to_string(), reference.split_once('@').unwrap().1);
     }
     #[test]
-    fn image_admission_rejects_foreign_missing_and_unpatched_source() {
-        let (reference, original) = source_image();
-        let image = decode(&serde_json::to_vec(&original).unwrap()).unwrap();
+    fn image_admission_rejects_foreign_missing_and_changed_images() {
+        let (reference, value) = source_image();
+        let image = decode(&serde_json::to_vec(&value).unwrap()).unwrap();
         assert!(image.admit(&reference, "foreign.internal").is_err());
         assert!(
             image
                 .admit("registry.internal/provider:latest", "registry.internal")
                 .is_err()
         );
-        let mut foreign = original.clone();
-        foreign["RepoDigests"] = serde_json::json!([]);
-        assert!(
-            decode(&serde_json::to_vec(&foreign).unwrap())
-                .unwrap()
-                .admit(&reference, "registry.internal")
-                .is_err()
-        );
-        for key in [
-            "ai.veoveo.provider.profile",
-            "ai.veoveo.provider.manifest-sha256",
-            "ai.veoveo.provider.supervisor-source-tree",
-        ] {
-            for missing in [false, true] {
-                let mut bad = original.clone();
-                if missing {
-                    bad["Config"]["Labels"].as_object_mut().unwrap().remove(key);
-                } else {
-                    bad["Config"]["Labels"][key] = serde_json::json!("unpatched-or-foreign-source");
-                }
-                assert!(
-                    decode(&serde_json::to_vec(&bad).unwrap())
-                        .and_then(|image| image.admit(&reference, "registry.internal"))
-                        .is_err()
-                );
-            }
+        for key in ["Id", "RepoDigests"] {
+            let mut changed = value.clone();
+            changed[key] = if key == "Id" {
+                serde_json::json!(format!("sha256:{}", "a".repeat(64)))
+            } else {
+                serde_json::json!([])
+            };
+            assert!(
+                decode(&serde_json::to_vec(&changed).unwrap())
+                    .unwrap()
+                    .admit(&reference, "registry.internal")
+                    .is_err()
+            );
         }
+        let changed = format!("registry.internal/provider@sha256:{}", "a".repeat(64));
+        assert!(image.admit(&changed, "registry.internal").is_err());
     }
     #[test]
-    fn inspection_bounds_and_errors_do_not_expose_body_and_url_encodes_reference() {
+    fn inspection_bounds_redact_errors_and_encode_reference() {
         assert!(decode(&vec![b' '; MAX_INSPECTION_BYTES + 1]).is_err());
         let message = decode(b"{\"Id\":\"SECRET-fixture\"}")
             .err()

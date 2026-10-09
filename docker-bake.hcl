@@ -229,7 +229,7 @@ target "_rust-bookworm-runtime" {
 
 target "computer-provider" {
   inherits   = ["base"]
-  dockerfile = "platform/runtimes/computers/provider-patches/Dockerfile"
+  dockerfile = "platform/runtimes/computers/provider/Dockerfile"
   tags       = [image_ref("computer-provider")]
 }
 

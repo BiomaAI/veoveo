@@ -3,17 +3,15 @@
 FROM docker:29.8.0-dind@sha256:77759fdec1efef224ba7110ef7b5b3c6af6164ffaef5441d3beba059bde8b857 AS engine
 FROM veoveo-computer-storage
 
-# The storage parent retains its signed Debian snapshot sources. The provider
-# statically builds locked Z3 source and verifies its GNU dynamic closure.
+# The storage parent supplies the GNU runtime for unmodified release binaries.
 RUN apt-get update --error-on=any \
-    && apt-get install -y --no-install-recommends iptables nftables iproute2 kmod libstdc++6 \
+    && apt-get install -y --no-install-recommends iptables nftables iproute2 kmod \
     && dpkg-query -W > /usr/share/veoveo-computer-host-packages.txt \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=engine /usr/local/bin/dockerd /usr/local/bin/docker /usr/local/bin/containerd /usr/local/bin/containerd-shim-runc-v2 /usr/local/bin/ctr /usr/local/bin/runc /usr/local/bin/docker-init /usr/local/bin/docker-proxy /usr/local/bin/dind /usr/local/bin/
 COPY --from=veoveo-computer-provider /usr/local/bin/ /usr/local/bin/
 COPY --from=veoveo-computer-provider /usr/share/veoveo-computer-provider /usr/share/veoveo-computer-provider
 COPY --from=veoveo-computer-provider /usr/share/doc/veoveo-computer-provider /usr/share/doc/veoveo-computer-provider
-COPY --from=veoveo-computer-provider /usr/share/veoveo-computer-provider-packages.txt /usr/share/veoveo-computer-provider-packages.txt
 COPY --from=veoveo-rust-artifacts /bin/veoveo-computer-host /usr/local/bin/veoveo-computer-host
 RUN /usr/local/bin/openshell-gateway --version \
     && /usr/local/bin/openshell-supervisor --version \
@@ -22,7 +20,7 @@ RUN /usr/local/bin/openshell-gateway --version \
     && /usr/local/bin/dockerd --version \
     && /usr/local/bin/veoveo-computer-host --help \
     && cd /usr/local/bin \
-    && sha256sum veoveo-computer-host veoveo-computer-storage openshell-gateway openshell-driver-docker openshell-supervisor openshell-sandbox openshell dockerd docker containerd containerd-shim-runc-v2 runc docker-init docker-proxy dind > /usr/share/veoveo-computer-host-binaries.sha256
+    && sha256sum veoveo-computer-host veoveo-computer-storage openshell-gateway openshell-supervisor openshell-sandbox openshell dockerd docker containerd containerd-shim-runc-v2 runc docker-init docker-proxy dind > /usr/share/veoveo-computer-host-binaries.sha256
 EXPOSE 8805 8806
 USER root
 # Rust scopes cgroups before upstream dind enables nested container controllers.

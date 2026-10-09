@@ -9,7 +9,8 @@ The [Computers design](../DESIGN.md#qualification-limits) records installed qual
 |---|---|
 | `veoveo.ai/computer-host/v1` | Closed installation-owned JSON configuration; one provider UUID/namespace and a digest-pinned local image catalog |
 | Docker Engine 29.8.0, API 1.53 and volume-plugin API v1 | Dedicated private Unix socket, overlay2 on ext4, local retained-volume plugin; no host daemon access |
-| OpenShell `0.1.2`, maintained provider/supervisor/sandbox `0.1.2-veoveo.1` | Exact source and patch trees; GNU provider and supervisor, static musl sandbox; private mTLS gRPC and selected SSH transport |
+| OpenShell `0.1.2` | Unmodified official GNU gateway/supervisor and static musl sandbox; in-process Docker driver; private TLS gRPC and selected SSH transport |
+| OIDC Discovery 1.0, OAuth 2.0 and JWT/JWKS | HTTPS installation issuer, exact audience and explicit worker roles; mTLS user promotion disabled; mandatory Sandbox JWT |
 | TLS 1.3 and `veoveo.ai/computer-storage/v1` | Separate worker trust for retained storage; provider guest certificates are denied provider user authority |
 | OCI images | Exact manifest references from one installation registry, HTTPS or explicitly declared development HTTP |
 | Linux namespaces, cgroup v2, signals and ext4 | One privileged compute container with owned mount/network/PID/cgroup namespaces, finite CPU/RAM ceilings and persistent local ext4 data |
@@ -27,15 +28,12 @@ operations; it has no privileged mounts or daemon socket.
 The `computer-host` Bake image composes the independent storage and provider targets.
 It adds the exact Docker 29.8.0 static executable closure used in native qualification,
 its matching DinD initializer and a small Rust launcher. The Host inherits the
-storage image's Debian trixie runtime. Provider binaries are built against the
-Bookworm GNU profile with glibc 2.36 and a shared C++ runtime; their minimum ABI
-and actual Host library closure require ELF qualification. The supervisor companion
-retains its matched GNU runtime image. The provider compiles locked Z3 5.1.0
-source through the bundled-Z3 feature. The gateway's ELF inventory must confirm
-it has no shared Z3 dependency before image admission. The injected sandbox is a
-static musl executable from the supervisor's matched patched source tree.
-Package and binary inventories remain inside the image. Building this image does not
-by itself qualify the resulting runtime ABI or mount behavior.
+storage image's Debian trixie runtime. The provider target packages official release
+executables and verifies archive and executable hashes. It uses no provider compiler
+or custom solver build. Gateway and supervisor require the GNU glibc closure;
+the injected sandbox is the official static musl executable. The supervisor companion
+uses its unchanged official image. The manifest and binary inventory travel with the
+Host. Image construction alone does not qualify its ABI or mounted runtime.
 
 The host requires its own container network and mount namespaces. Kubernetes must use
 `hostNetwork: false`, no host PID sharing, one replica and a replacement rollout. The
@@ -96,13 +94,13 @@ uses `image_pull_policy=Never`. The installation selects the qualified superviso
 image and includes its digest in the catalog. Before starting the provider, the
 launcher inspects that reference through the private engine with a two-second
 deadline and a 64 KiB response limit. Shared image admission requires the exact
-RepoDigest, provider-profile, source-manifest SHA-256 and supervisor source-tree
-labels from the included source declarations. The native fixture uses the same
+RepoDigest and official config digest from the included release manifest. It
+accepts unchanged installation mirrors without private labels on the upstream image. The native fixture uses the same
 admission and compares the companion's local image ID with the admitted image ID;
 Docker's local image ID differs from the registry manifest digest.
-The supervisor and static sandbox come from the same patched tree. An offline
-installation includes that local registry closure and the Host image; retained
-Start requires no upstream Internet download.
+The official supervisor image contains only the supervisor executable. The Host
+supplies the separately released sandbox for workload injection. An offline
+installation includes this artifact closure and an accessible qualified OIDC issuer.
 
 The host mounts its operator-owned trust Secret at
 `/etc/veoveo/computers/host-trust`. Fixed inputs are `provider-ca.pem`,
@@ -113,13 +111,25 @@ Inputs are regular files with no group/world write permission and a 64 KiB bound
 Copies under the private runtime directory have mode 0600. The storage loader keeps
 its existing no-symlink/private-key checks. The host receives no worker private key.
 
-Provider client admission allows only exact CN `veoveo-computers-worker`. The guest
-supervisor uses a separate certificate/key with its own CN and receives no user
-authority. Storage's worker CA is a separate trust root that never signs guests.
-Provider server certificates must cover the worker endpoint and
-`host.openshell.internal`; storage certificates must cover its worker endpoint.
-JWT signing material is stable installation-owned Secret state, independent of the
-container's temporary files. Key rotation requires a separately qualified transition.
+Configuration requires `providerAuthentication`: HTTPS `issuer`, exact `audience`,
+`rolesClaim`, nonempty `adminRole` and `userRole`, and `jwksTtlSecs` in 1..3600.
+The installation provides a dedicated private worker OAuth registration with the
+selected roles and short-lived credentials. The issuer's certificate must validate
+against the provider process's system trust store. With chart NetworkPolicy enabled,
+`computers.host.issuerEgress` declares explicit IPv4 CIDRs with prefixes 1..32
+for issuer/JWKS HTTPS on TCP 443. Missing destinations refuse configured rendering;
+the chart infers no issuer IP or reference-installation network. Computers MCP worker
+discovery/token HTTPS egress uses the separate `networkPolicy.externalEgressCidrs`
+installation declaration; Host egress does not admit that worker path. Worker credential acquisition and
+refresh belong to the runtime edge; the Host receives no worker OAuth secret.
+
+Provider configuration disables mTLS certificate-to-user promotion and anonymous
+user access. The supervisor keeps its complete TLS certificate/key/CA bundle and
+mandatory Sandbox JWT. Stock client certificate issuer/subject values confer no user
+role. Storage uses its separate worker CA. Provider server certificates cover the
+worker endpoint and `host.openshell.internal`; storage certificates cover its worker
+endpoint. Sandbox JWT signing material is stable installation-owned Secret state.
+Key rotation requires a separately qualified transition.
 
 The launcher validates both server TLS key/certificate pairs before spawning children
 and rejects identical provider/storage CA inputs. A malformed trust input identifies its
@@ -136,7 +146,7 @@ reopens its journal without waiting for Docker's API. That lets the daemon resto
 volume metadata. All physical storage operations still verify the original engine.
 
 Docker listens only on the private Unix socket. The provider listens on port 8805 with
-mandatory worker mTLS and guest identity separation. Inside the private Host
+TLS and OIDC worker authentication; supervisor JWT authenticates its own methods. Inside the private Host
 namespace the supervisor connects to `127.0.0.1:8805`; the provider server
 certificate includes that IP SAN. Standalone native fixtures use their inspected
 private bridge address and its IP SAN as a separate route profile. Storage listens on port 8806 with
@@ -175,8 +185,8 @@ Computer image comes from the locally admitted RepoDigest in
 `VEOVEO_COMPUTERS_HOST_PULL_REGISTRY` selects one DNS/IPv4 authority reachable
 inside the private Host. The fixture replaces only the authority in both image
 references and preserves repository paths and manifest digests. Before creating
-fixture state, it admits the local RepoDigests and ImageIDs, including the compiled
-supervisor source profile, and reads each mapped manifest with redirects and proxies
+fixture state, it admits the local RepoDigests and ImageIDs, including the official
+supervisor manifest and config identities, and reads each mapped manifest with redirects and proxies
 disabled. Each read has a five-second deadline and a 64 KiB body limit. The body
 SHA-256 and Docker-Content-Digest must equal the selected manifest digest; the
 runnable OCI/Docker schema-2 manifest config digest must equal the local ImageID.
@@ -222,8 +232,8 @@ and log/tmpfs costs. Its limits are separate from the workload limits, while bot
 count toward the aggregate Host ceiling. Template admission does not reserve
 capacity for either child. Operators must budget their combined working sets.
 
-Source checks qualify configuration and fixture refusal rules. Provider compilation,
-GNU/musl ELF closure, companion resource enforcement and retained composite Host
+Source checks qualify configuration and fixture refusal rules. Official
+artifact/ELF closure, companion resource enforcement and retained composite Host
 replacement require the exact candidate images and ordinary owned native fixture.
 Installed trust, rollout and host-loss recovery require their installation checks.
 A source or compiler pass establishes none of those runtime outcomes.

@@ -221,7 +221,7 @@ async fn serve(config: &Config, retained: bool, children: &mut Children) -> Resu
         }
         children.check()?;
     }
-    // A successful preload does not prove the companion's source provenance.
+    // Require the unchanged official manifest and config after mirror preload.
     let _supervisor_image_id = images::inspect(
         &docker_client()?,
         &config.supervisor_image,
@@ -246,7 +246,7 @@ async fn serve(config: &Config, retained: bool, children: &mut Children) -> Resu
             "--tls-client-ca",
             &format!("{RUN}/trust/provider-ca.pem"),
             "--enable-mtls-auth",
-            "true",
+            "false",
             "--enable-loopback-service-http",
             "false",
         ]);

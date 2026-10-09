@@ -109,7 +109,7 @@ fn provider_plan(input: Option<super::ProviderInput>, target: &str) -> super::Bu
 fn provider_manifest_uses_selected_context_and_refuses_resolved_tampering() {
     let invoking = tempfile::tempdir().unwrap();
     let selected = tempfile::tempdir().unwrap();
-    let relative = "platform/runtimes/computers/provider-patches/manifest.json";
+    let relative = "platform/runtimes/computers/provider/manifest.json";
     for (directory, bytes) in [
         (invoking.path(), b"invoking".as_slice()),
         (selected.path(), b"selected".as_slice()),
@@ -169,7 +169,7 @@ fn provider_manifest_admission_refuses_missing_and_nonfile_inputs() {
     std::fs::create_dir_all(
         selected
             .path()
-            .join("platform/runtimes/computers/provider-patches/manifest.json"),
+            .join("platform/runtimes/computers/provider/manifest.json"),
     )
     .unwrap();
     assert!(
@@ -208,7 +208,7 @@ fn provider_manifest_admits_host_dependency_without_changing_other_targets() {
     assert!(super::ProviderInput::for_targets(selected.path(), &closure).is_err());
     let manifest = selected
         .path()
-        .join("platform/runtimes/computers/provider-patches/manifest.json");
+        .join("platform/runtimes/computers/provider/manifest.json");
     std::fs::create_dir_all(manifest.parent().unwrap()).unwrap();
     std::fs::write(&manifest, b"admitted dependency").unwrap();
     let captured = super::ProviderInput::for_targets(selected.path(), &closure)
@@ -265,11 +265,10 @@ fn provider_manifest_arguments_leave_unrelated_plans_unchanged() {
             .collect(),
     };
     super::verify_override(&plan, &definition).unwrap();
-    let dockerfile =
-        include_str!("../../../../../platform/runtimes/computers/provider-patches/Dockerfile");
+    let dockerfile = include_str!("../../../../../platform/runtimes/computers/provider/Dockerfile");
     assert!(dockerfile.contains("test -n \"${PROVIDER_MANIFEST_SHA256:-}\""));
-    assert!(dockerfile.contains("test \"$(sha256sum /patches/manifest.json | cut -d' ' -f1)\" = \"$PROVIDER_MANIFEST_SHA256\""));
-    assert!(
-        dockerfile.contains("ai.veoveo.provider.manifest-sha256=\"$PROVIDER_MANIFEST_SHA256\"")
-    );
+    assert!(dockerfile.contains("test \"$(sha256sum /release/manifest.json | cut -d' ' -f1)\" = \"$PROVIDER_MANIFEST_SHA256\""));
+    assert!(dockerfile.contains("releaseAsset"));
+    assert!(!dockerfile.contains("cargo build"));
+    assert!(!dockerfile.contains("git apply"));
 }

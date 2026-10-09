@@ -10,8 +10,6 @@ enum BinaryName {
     Openshell,
     #[vocabulary(rename = "openshell-gateway")]
     OpenshellGateway,
-    #[vocabulary(rename = "openshell-driver-docker")]
-    OpenshellDriverDocker,
     #[vocabulary(rename = "openshell-supervisor")]
     OpenshellSupervisor,
     #[vocabulary(rename = "openshell-sandbox")]
@@ -25,7 +23,6 @@ impl BinaryName {
         match self {
             Self::Openshell => "VEOVEO_COMPUTERS_NATIVE_CLI",
             Self::OpenshellGateway => "VEOVEO_COMPUTERS_NATIVE_GATEWAY",
-            Self::OpenshellDriverDocker => "VEOVEO_COMPUTERS_NATIVE_DRIVER",
             Self::OpenshellSupervisor => "VEOVEO_COMPUTERS_NATIVE_SUPERVISOR",
             Self::OpenshellSandbox => "VEOVEO_COMPUTERS_NATIVE_SANDBOX",
         }
@@ -40,8 +37,8 @@ impl BinaryName {
 }
 #[derive(Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 enum ReceiptSchema {
-    #[vocabulary(rename = "veoveo.ai/openshell-native-profile/v1")]
-    V1,
+    #[vocabulary(rename = "veoveo.ai/openshell-native-profile/v2")]
+    V2,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -60,7 +57,7 @@ struct SupervisorImage {
     #[serde(with = "veoveo_types::sha256_hex")]
     supervisor_sha256: veoveo_types::Sha256Digest,
     #[serde(with = "veoveo_types::sha256_hex")]
-    sandbox_sha256: veoveo_types::Sha256Digest,
+    injected_sandbox_sha256: veoveo_types::Sha256Digest,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -77,22 +74,34 @@ struct Receipt {
 struct ProfileBinary {
     name: BinaryName,
     source_tree: String,
+    release_asset: ReleaseAsset,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReleaseAsset {
+    #[serde(with = "veoveo_types::sha256_hex")]
+    executable_sha256: veoveo_types::Sha256Digest,
 }
 #[derive(Deserialize)]
 struct Profile {
     binaries: Vec<ProfileBinary>,
+    images: ProfileImages,
+}
+#[derive(Deserialize)]
+struct ProfileImages {
+    supervisor: ProfileImage,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProfileImage {
+    manifest_digest: veoveo_types::Sha256Digest,
+    config_digest: veoveo_types::Sha256Digest,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct ImageInspection {
     id: veoveo_types::Sha256Digest,
     repo_digests: Vec<String>,
-    config: ImageConfig,
-}
-#[derive(Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct ImageConfig {
-    labels: std::collections::BTreeMap<String, String>,
 }
 fn pinned_image(value: &str) -> bool {
     value
@@ -108,8 +117,8 @@ fn pinned_image(value: &str) -> bool {
 }
 impl Receipt {
     fn admit(&self) {
-        let ReceiptSchema::V1 = self.schema;
-        let manifest = include_bytes!("../../provider-patches/manifest.json");
+        let ReceiptSchema::V2 = self.schema;
+        let manifest = include_bytes!("../../provider/manifest.json");
         assert!(
             self.manifest_sha256
                 == veoveo_types::Sha256Digest::from_bytes(Sha256::digest(manifest).into()),
@@ -133,15 +142,24 @@ impl Receipt {
             .unwrap();
         assert!(
             supervisor.source_tree == self.supervisor_image.source_tree,
-            "companion source tree differs from patched profile"
+            "companion source tree differs from official release"
         );
         assert!(
-            self.binaries.len() == 5,
-            "all five profile binaries required"
+            self.binaries.len() == 4,
+            "all four released profile binaries required"
         );
         let mut names = BTreeSet::new();
         for binary in &self.binaries {
             assert!(names.insert(binary.name), "duplicate native binary");
+            let released = profile
+                .binaries
+                .iter()
+                .find(|entry| entry.name == binary.name)
+                .expect("native product belongs to release profile");
+            assert!(
+                binary.sha256 == released.release_asset.executable_sha256,
+                "native executable differs from official release bytes"
+            );
             assert!(
                 binary.path.is_absolute()
                     && binary.path.is_file()
@@ -166,8 +184,8 @@ impl Receipt {
             }
             if binary.name == BinaryName::OpenshellSandbox {
                 assert!(
-                    binary.sha256 == self.supervisor_image.sandbox_sha256,
-                    "companion image sandbox differs from injected artifact"
+                    binary.sha256 == self.supervisor_image.injected_sandbox_sha256,
+                    "injected sandbox differs from released artifact"
                 );
             }
         }
@@ -265,7 +283,7 @@ pub async fn preflight() -> std::net::Ipv4Addr {
     let image = images.pop().unwrap();
     assert!(
         image_matches_receipt(&receipt, &image),
-        "local companion image differs from patched artifact/source profile"
+        "local companion image differs from official release identity"
     );
     for binary in receipt.binaries {
         let input = tokio::fs::File::open(&binary.path)
@@ -305,25 +323,18 @@ pub async fn preflight() -> std::net::Ipv4Addr {
 }
 
 fn image_matches_receipt(receipt: &Receipt, image: &ImageInspection) -> bool {
-    image.id == receipt.supervisor_image.id
+    let profile: Profile = serde_json::from_slice(include_bytes!("../../provider/manifest.json"))
+        .expect("official release profile");
+    receipt
+        .supervisor_image
+        .reference
+        .split_once('@')
+        .is_some_and(|(_, digest)| digest == profile.images.supervisor.manifest_digest.to_string())
+        && receipt.supervisor_image.id == profile.images.supervisor.config_digest
+        && image.id == receipt.supervisor_image.id
         && image
             .repo_digests
             .contains(&receipt.supervisor_image.reference)
-        && image
-            .config
-            .labels
-            .get("ai.veoveo.provider.manifest-sha256")
-            .is_some_and(|value| value == receipt.manifest_sha256.hex())
-        && image
-            .config
-            .labels
-            .get("ai.veoveo.provider.supervisor-source-tree")
-            == Some(&receipt.supervisor_image.source_tree)
-        && image
-            .config
-            .labels
-            .get("ai.veoveo.provider.profile")
-            .is_some_and(|value| value == veoveo_computers_runtime::GATEWAY_VERSION)
 }
 #[cfg(test)]
 mod tests {
@@ -332,59 +343,35 @@ mod tests {
         veoveo_types::Sha256Digest::from_bytes([value; 32])
     }
     #[test]
-    fn native_profile_image_admission_rejects_unpatched_or_unmatched_artifacts() {
-        let reference = format!("registry.internal/provider@{}", digest(1));
+    fn native_profile_admits_unchanged_official_image_and_refuses_modified_identity() {
+        let profile: Profile =
+            serde_json::from_slice(include_bytes!("../../provider/manifest.json")).unwrap();
+        let reference = format!(
+            "registry.internal/provider@{}",
+            profile.images.supervisor.manifest_digest
+        );
         let receipt = Receipt {
-            schema: ReceiptSchema::V1,
+            schema: ReceiptSchema::V2,
             manifest_sha256: digest(2),
             native_gateway_ip: "172.17.0.1".parse().unwrap(),
             supervisor_image: SupervisorImage {
                 reference: reference.clone(),
-                id: digest(3),
-                source_tree: "patched-tree".into(),
+                id: profile.images.supervisor.config_digest.clone(),
+                source_tree: "26f142d5c3be825e72f4d1a705ecf6aa5d4d6b10".into(),
                 supervisor_sha256: digest(4),
-                sandbox_sha256: digest(5),
+                injected_sandbox_sha256: digest(5),
             },
             binaries: Vec::new(),
         };
-        let labels = std::collections::BTreeMap::from([
-            (
-                "ai.veoveo.provider.profile".into(),
-                veoveo_computers_runtime::GATEWAY_VERSION.into(),
-            ),
-            (
-                "ai.veoveo.provider.manifest-sha256".into(),
-                digest(2).hex().into(),
-            ),
-            (
-                "ai.veoveo.provider.supervisor-source-tree".into(),
-                "patched-tree".into(),
-            ),
-        ]);
-        let image = |labels| ImageInspection {
-            id: digest(3),
-            repo_digests: vec![reference.clone()],
-            config: ImageConfig { labels },
+        let mut image = ImageInspection {
+            id: receipt.supervisor_image.id.clone(),
+            repo_digests: vec![reference],
         };
-        assert!(image_matches_receipt(&receipt, &image(labels.clone())));
-        assert!(
-            !image_matches_receipt(&receipt, &image(std::collections::BTreeMap::new())),
-            "unpatched official image cannot supply patched companion"
-        );
-        for key in [
-            "ai.veoveo.provider.profile",
-            "ai.veoveo.provider.manifest-sha256",
-            "ai.veoveo.provider.supervisor-source-tree",
-        ] {
-            let mut altered = labels.clone();
-            altered.insert(key.into(), "other-profile".into());
-            assert!(!image_matches_receipt(&receipt, &image(altered)));
-        }
-        let mut different = image(labels.clone());
-        different.id = digest(9);
-        assert!(!image_matches_receipt(&receipt, &different));
-        let mut different = image(labels);
-        different.repo_digests.clear();
-        assert!(!image_matches_receipt(&receipt, &different));
+        assert!(image_matches_receipt(&receipt, &image));
+        image.id = digest(9);
+        assert!(!image_matches_receipt(&receipt, &image));
+        image.id = receipt.supervisor_image.id.clone();
+        image.repo_digests.clear();
+        assert!(!image_matches_receipt(&receipt, &image));
     }
 }

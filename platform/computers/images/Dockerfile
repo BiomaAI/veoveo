@@ -23,6 +23,7 @@ RUN dpkg-deb --extract /tmp/ca-certificates.deb /tmp/bootstrap-ca \
 FROM packages
 RUN groupadd --gid 10001 computer \
     && useradd --uid 10001 --gid 10001 --home-dir /sandbox/persistent --shell /bin/bash computer \
+    && test "$(id -G computer)" = "10001" \
     && mkdir -p /sandbox/persistent \
     && chown 10001:10001 /sandbox/persistent
 
