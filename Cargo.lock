@@ -17186,6 +17186,7 @@ dependencies = [
  "veoveo-platform-store",
  "veoveo-policy",
  "veoveo-reason-mcp",
+ "veoveo-testing-support",
  "veoveo-time-mcp",
  "veoveo-types",
 ]
@@ -17575,6 +17576,7 @@ dependencies = [
  "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-testing-support",
  "veoveo-types",
 ]
 
@@ -18034,6 +18036,7 @@ dependencies = [
  "veoveo-platform-store",
  "veoveo-speech-contract",
  "veoveo-task-runtime",
+ "veoveo-testing-support",
  "veoveo-types",
 ]
 

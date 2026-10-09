@@ -45,6 +45,7 @@ tokio = { workspace = true, features = ["time"], optional = true }
 thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
+veoveo-testing-support = { path = "../../testing/support" }
 veoveo-embedding-client = { workspace = true, features = ["verification"] }
 veoveo-agent-runtime = { workspace = true, default-features = false, features = ["internal-clients"] }
 veoveo-modules = { workspace = true, features = ["runner"] }

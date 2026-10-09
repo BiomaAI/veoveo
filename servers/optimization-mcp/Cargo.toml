@@ -134,3 +134,4 @@ veoveo-modules = { workspace = true, features = ["runner"] }
 # Qualified RFC 6570 expansion, matching the foundation's exact 0.7.14 pin.
 iri-string.workspace = true
 tempfile = "3"
+veoveo-testing-support = { path = "../../testing/support" }
