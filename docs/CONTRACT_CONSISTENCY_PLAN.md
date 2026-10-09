@@ -21,8 +21,9 @@ stay open. The selected DuckDB, Timeseries, Frames and Media
 protocol case also passes authenticated discovery, anonymous discovery refusal,
 documents, transport and Gateway health/audit checks on admitted deployed images.
 Frames completed-state retention passes across one actual same-Pod process crash.
-The installed worker Secret, full native security and
-retained lifecycle, and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
+The selected stock Host native same-image restart passes authentication, retained
+lifecycle and aggregate containment checks. Remaining runtime-native cases, the
+installed worker Secret and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
 and owning controls. Task/subscription fixtures and complete installed A/F/H
 qualification remain open. See [Current Status](#current-status).
 
@@ -76,7 +77,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the actual Computer Host workload boundary, final installed profile/current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. Full stock-provider native security, lifecycle and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
+| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. The selected stock Host native same-image restart passes security, retained lifecycle and aggregate containment. Remaining runtime-native cases, image upgrade, node RuntimeClass activation and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The selected four-server CPU protocol case at `1393fdc36` passes authenticated discovery, all four anonymous discovery refusals, documents, transport, Gateway health/audit and prompt isolation. Frames completed-state retention passes across one same-Pod process crash. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`; catalog/source paging, CSV/schema, Artifact publication and usage consumers pass at `374e25f345`. GitOps is suspended; Knowledge and Embedding are restored and Ready, while Reason and other GPU workloads stay off. Focused Frames and Knowledge installed cases also pass on admitted deployed images. Speech Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture audio on headed RTX 4090 WebGL | Complete remaining owner fixtures, remaining owner-required recovery cases, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
 
@@ -146,8 +147,7 @@ centralized injection and refresh pass nine OAuth/issuer controls. The signer,
 checked worker registration, current role authority and exclusive Gateway owner
 controls pass. Focused Gateway native discovery, managed identity and token
 authentication controls pass with isolated fixture cleanup. These checks qualify
-the Veoveo edge; complete stock-provider security and lifecycle qualification remains
-open. Host `providerAuthentication` is required; the native
+the Veoveo edge. Remaining runtime-native and installed qualification stays open. Host `providerAuthentication` is required; the native
 Host fixture supplies the profile and passes source checks. The reference
 `examples/bioma/computers/host.json` supplies the matching installation resource and
 roles with the admitted official supervisor image. The worker registration and
@@ -162,8 +162,9 @@ mode 288 (`0440`). The checked public bundle includes its JWKS. Ops verified the
 official supervisor's manifest and config in the reference registry. The node-facing
 configured authority returns HTTP 200, and its pinned manifest/config match the
 official identities. The earlier curl refusal came from `.localhost` handling;
-no registry repair or mutation was required. Actual provider/containerd image pulls
-and full stock runtime qualification remain open.
+no registry repair or mutation was required. The native Host case consumes the
+stock supervisor; installed provider/containerd pulls and complete stock runtime
+qualification remain open.
 The accepted installation profile reuses Veoveo's authorization server, signing
 keys, JWKS and `private_key_jwt` client authentication. Computers owns the checked
 `ai.veoveo/computer-worker-authorization` catalog section, non-MCP resource audience
@@ -176,14 +177,15 @@ and disabled-client fallback. Shared assertion signing belongs in `platform/oaut
 credential-file admission, token caching and provider role decisions stay with their
 owners. Stock-compatible discovery exposes the JWT access-token verification
 fields without claiming unsupported OpenID login or ID-token flows. The source batch
-and reference guide pass independent review. Full stock-provider native and installed
-qualification remain open. OpenShell stays unmodified. Owner authorization permits
+and reference guide pass independent review. Remaining runtime-native and installed
+qualification stays open. OpenShell stays unmodified. Owner authorization permits
 native qualification with the owning test-only issuer; stock activation requires
 qualification of the accepted aggregate resource profile below. Stock driver config now emits only supported mount fields. The owned
 image leaves `/sandbox/persistent` absent to skip Docker copy initialization before
 registration; the allocator initializes its home outside the provider and writer
 fences stay enforced. Compilation and 17 focused mount/lifecycle diagnostic controls
-pass; real plugin-mounted owned-image qualification remains open. The changed
+pass; the selected native Host case also exercises the real plugin-mounted owned
+image and retained bytes. The changed
 retained-template fingerprint requires catalog materialization and a coordinated
 drain.
 
@@ -191,14 +193,21 @@ The owner accepts stock OpenShell resource behavior. The outer Host must bound
 aggregate CPU, memory and PIDs for all descendants, including supervisors; supported
 workload settings retain their upstream semantics. Separate supervisor CPU, memory
 and PID maxima depended on deleted private patches and are not part of this profile.
-The earlier native run observed authentication across Host recovery, Start and
-retained bytes, then stopped at an obsolete resource-inspection assertion. Those
-partial observations do not qualify aggregate containment or complete native and
-installed acceptance. The Host fixture uses one CPU, 6 GiB and 1024 PIDs; the runtime
-DinD fixture uses two CPUs, 1 GiB and 512 PIDs. The installed chart declares eight
-CPUs and 12 GiB; the selected node runtime will supply an aggregate 4096-PID ceiling.
-Node handler installation and new-Pod verification must be
-qualified before activation.
+The selected native Host case passes at source `5ec40a4a5` with Host image
+`6b5617f73f5a` and owned template `77eca42bc69f`, using official stock supervisor `90a6f1a7`.
+It verifies authentication across replacement, allocation interruption, retained
+Create/Start bytes, guest identity and supported child security/limits. Aggregate
+containment checks pass under one CPU, 6 GiB and 1024 PIDs. Replacement uses the same
+image and takes 2339 ms; it does not qualify image upgrade. Independent postcheck
+confirms owned fixture cleanup and preserved core workloads. The first runtime-native
+case reaches Create/Ready and a fresh shell with UID 10001 and no inherited fixture
+shell variable,
+then times out waiting 15 seconds for its pre-restart output marker. That command's
+outcome is unknown; controller restart, Stop/Start and renewal are not reached, and
+the second case is held. Ops confirms runtime fixture cleanup. Runtime-native and
+installed qualification stay open. The runtime DinD fixture uses two CPUs, 1 GiB and 512 PIDs. The installed chart declares eight CPUs and 12 GiB; its node
+RuntimeClass source supplies a 4096-PID base specification. Node handler installation
+and finite-limit verification in a new Host Pod must pass before activation.
 Fresh volume allocation admits Engine
 absence before publishing the filesystem as Ready and consumes one typed proof for
 labeled creation. Existing allocations only inspect approval; missing or unapproved
@@ -3263,10 +3272,10 @@ requires a materialized catalog and coordinated drain. The existing Veoveo issue
 restricted worker registration, public JWKS and reference Host/worker/chart inputs
 are implemented with `private_key_jwt`. Installation must provision the worker-only
 projected private-key Secret and activate the matching admitted images and
-configuration through the coordinated drain. Complete native security, the actual
-plugin-mounted owned image and stock retained lifecycle remain prerequisites for
-activation and installed acceptance. Qualification of the accepted stock aggregate resource profile, actual
-provider/containerd pulls and full stock runtime qualification remain open.
+configuration through the coordinated drain. The selected native Host result is
+recorded in [Current Status](#current-status). Remaining runtime-native cases, image
+upgrade, node RuntimeClass activation and installed provider/containerd pulls remain
+qualification gates.
 
 Earlier patched-provider containment, companion adoption and terminal replay results
 apply to the pre-stock profile. Each current attachment opens a fresh SSH shell with
@@ -3287,9 +3296,9 @@ default and execution/file lists. Preserve retained catalog identities; a change
 default applies to new requests. Existing bindings need a qualified maintenance
 transition, and the reference's empty transition list grants no automatic adoption.
 Drain previous readers and workers after settling pending operations. Keep unresolved
-resource fences, retained homes, journals and matched rollback artifacts. Native
-stock authentication, the actual plugin-mounted owned image and retained lifecycle
-must pass before installed public OAuth, terminal, CLI and file journeys. Headed
+resource fences, retained homes, journals and matched rollback artifacts. Preserve
+the qualified native Host profile while qualifying remaining runtime-native cases
+and installed public OAuth, terminal, CLI and file journeys. Headed
 terminal acceptance still requires hardware graphics.
 
 Publish the complete affected image closure for the final wire/storage cut: servers,
@@ -3420,7 +3429,7 @@ reason rather than growing an unbounded generic typing task.
 | F21 | Time activation preflight | Qualify installed activation and concurrent conflict rollback |
 | F22 | Digest wire profiles | Preserve each owner's admitted bare-hex spelling and hash preimage through typed Speech, UAV, Optimization and Recording/publication APIs; qualify installed Time and changed consumers |
 | F23 | Computers | Qualify final image pins and installed pairing, grant/Execute-limit and collection consumers; preserve the qualified matched provider image, retained maintenance/recovery native matrix, shared admission and live permission checks |
-| F24 | Speech | Owning CUDA/dictation/recovery/cancellation controls, offline image assembly and no-network worker packaging pass; image `7f7e27c242bd` is Ready with health/readiness 200. Installed Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture AudioWorklet input and headed RTX 4090 WebGL. Selected production Rust host idle SIGTERM passes with successful old-container exit inside grace and a same-image Ready replacement. Physical microphone, raw subscription/cancel-recovery and coordinated replacement remain open; the strict Speech-only rollout gate failed on Gateway checksum drift. |
+| F24 | Speech | Owning CUDA/dictation/recovery/cancellation controls, offline image assembly and no-network worker packaging pass; image `7f7e27c242bd` is Ready with health/readiness 200. Installed Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture AudioWorklet input and headed RTX 4090 WebGL. Selected production Rust host idle SIGTERM passes with successful old-container exit inside grace and a same-image Ready replacement. Raw subscription/cancel-recovery and coordinated replacement remain open; the strict Speech-only rollout gate failed on Gateway checksum drift. |
 | F25 | Artifact plane model | Qualify installed access/service consumers and external byte stores with the source-qualified lightweight Artifact contract; keep verified caller, policy and transport in their adapters and reuse unaffected byte-plane/SQL controls |
 | F26 | Artifact identity and URI admission | Qualify installed consumption of the current identity and URI contract |
 | F27 | Remaining Artifact references | Qualify installed issuance/redemption, current-format capability recovery and multi-page SDK consumers with the source-qualified Task/digest, access-decision and metadata/address admission; preserve external transfer locations and the declared coordinated profile cut |
