@@ -322,7 +322,26 @@ impl Provider {
         )
         .await;
         eprintln!("Native provider diagnostics: {}", dir.display());
-        guest_authority::assert_denied(&dir, &endpoint).await;
+        use worker_issuer::WorkerTokenProbe;
+        let authorized = authentication.probe_token(WorkerTokenProbe::Authorized);
+        let wrong_signature = authentication.probe_token(WorkerTokenProbe::WrongSignature);
+        let wrong_issuer = authentication.probe_token(WorkerTokenProbe::WrongIssuer);
+        let wrong_audience = authentication.probe_token(WorkerTokenProbe::WrongAudience);
+        let expired = authentication.probe_token(WorkerTokenProbe::Expired);
+        let unauthorized_roles = authentication.probe_token(WorkerTokenProbe::UnauthorizedRoles);
+        guest_authority::assert_provider_security(
+            &dir,
+            &endpoint,
+            guest_authority::ProviderProbeTokens {
+                authorized: &authorized,
+                wrong_signature: &wrong_signature,
+                wrong_issuer: &wrong_issuer,
+                wrong_audience: &wrong_audience,
+                expired: &expired,
+                unauthorized_roles: &unauthorized_roles,
+            },
+        )
+        .await;
         let provider = Self {
             dir,
             runtime,

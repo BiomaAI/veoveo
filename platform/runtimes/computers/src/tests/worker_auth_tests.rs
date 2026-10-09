@@ -91,3 +91,80 @@ async fn ambiguous_mutation_auth_reply_does_not_refresh_or_replay() {
     );
     assert_eq!(running.authentication.requests.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+async fn issuer_probes_preserve_known_key_and_selected_defects_then_shutdown() {
+    use worker_issuer::WorkerTokenProbe;
+    let tls = TlsFiles::new();
+    let mut issuer = TestIssuer::start(&tls.dir, &tls.server_cert, &tls.server_key).await;
+    let client = reqwest::Client::builder()
+        .add_root_certificate(reqwest::Certificate::from_pem(tls.ca.as_bytes()).unwrap())
+        .timeout(Duration::from_secs(3))
+        .build()
+        .unwrap();
+    let jwks_url = issuer.config.issuer().as_url().join("jwks").unwrap();
+    let jwks: jsonwebtoken::jwk::JwkSet = client
+        .get(jwks_url.clone())
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let key = jsonwebtoken::DecodingKey::from_jwk(&jwks.keys[0]).unwrap();
+    let mut signature_only = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::EdDSA);
+    signature_only.validate_exp = false;
+    signature_only.validate_aud = false;
+    for probe in [
+        WorkerTokenProbe::Authorized,
+        WorkerTokenProbe::WrongSignature,
+        WorkerTokenProbe::WrongIssuer,
+        WorkerTokenProbe::WrongAudience,
+        WorkerTokenProbe::Expired,
+        WorkerTokenProbe::UnauthorizedRoles,
+    ] {
+        let token = issuer.probe_token(probe);
+        assert_eq!(
+            jsonwebtoken::decode_header(&token).unwrap().kid.as_deref(),
+            Some("fixture-worker")
+        );
+        let result = jsonwebtoken::decode::<serde_json::Value>(&token, &key, &signature_only);
+        if matches!(probe, WorkerTokenProbe::WrongSignature) {
+            assert!(
+                result.is_err(),
+                "foreign key must fail the published JWKS key"
+            );
+            continue;
+        }
+        let claims = result.unwrap().claims;
+        assert_eq!(
+            claims["iss"].as_str() == Some(issuer.config.issuer().as_str()),
+            !matches!(probe, WorkerTokenProbe::WrongIssuer)
+        );
+        assert_eq!(
+            claims["aud"].as_str() == Some(issuer.config.audience()),
+            !matches!(probe, WorkerTokenProbe::WrongAudience)
+        );
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        assert_eq!(
+            claims["exp"].as_u64().unwrap() > now,
+            !matches!(probe, WorkerTokenProbe::Expired)
+        );
+        assert_eq!(
+            claims["roles"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|role| role == "openshell-user"),
+            !matches!(probe, WorkerTokenProbe::UnauthorizedRoles)
+        );
+    }
+    issuer.shutdown().await;
+    assert!(
+        client.get(jwks_url).send().await.is_err(),
+        "owned issuer listener closed"
+    );
+}

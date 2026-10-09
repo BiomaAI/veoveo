@@ -55,6 +55,16 @@ async fn stop(
 #[tokio::test]
 #[ignore = "requires local candidate host image, reachable digest-pinned Computer image, privileged Docker and ext4; owns all fixture state"]
 async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Result<()> {
+    exercise(fixture::HostReplacementProfile::ImageUpgrade).await
+}
+
+#[tokio::test]
+#[ignore = "requires stock host image, reachable digest-pinned Computer image, privileged Docker and ext4; owns all fixture state"]
+async fn composite_host_restarts_stock_image_and_retains_the_computer() -> Result<()> {
+    exercise(fixture::HostReplacementProfile::Restart).await
+}
+
+async fn exercise(profile: fixture::HostReplacementProfile) -> Result<()> {
     if let Ok(mode) = std::env::var("VEOVEO_HOST_PROBE_FAULT") {
         return faults::run(&mode);
     }
@@ -64,14 +74,15 @@ async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Res
     }
     let images = fixture::FixtureImages::admit().await?;
     let template = template::retained_template(images.template_image().to_owned());
-    let mut fixture = fixture::Fixture::start(&template, &images).await?;
+    let mut fixture = fixture::Fixture::start(&template, &images, profile).await?;
+    fixture.assert_template_home_absent(&images).await?;
     let engine = fixture.engine().await?;
     let runtime = fixture.runtime().await?;
     ensure!(
         fixture.runtime_in("not-provisioned").await.is_err(),
         "a missing provider workspace advertised ready capacity"
     );
-    guest_authority::assert_denied(&fixture.dir.join("provider"), &fixture.endpoint).await;
+    fixture.assert_provider_security().await?;
     let allocator = fixture.allocator(&template).await?;
     allocator.ready().await?;
     let binding = Binding::new(Uuid::now_v7(), template.fingerprint())?;
@@ -95,7 +106,7 @@ async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Res
     let original = runtime
         .wait_for_lifecycle(&create, &initial, Duration::from_secs(30))
         .await?;
-    exec(&runtime, &binding, "import os; from pathlib import Path; assert os.getuid()==10001; Path('retained.txt').write_text('same retained Computer'); assert not Path('/run/veoveo-computers').exists(); assert not Path('/var/run/docker.sock').exists()").await?;
+    exec(&runtime, &binding, "import os; from pathlib import Path; assert os.getuid()==10001; assert Path('allocation-marker').read_bytes()==b'retained before Ready acknowledgement', 'stock Create changed allocator-seeded bytes'; Path('retained.txt').write_text('same retained Computer'); assert not Path('/run/veoveo-computers').exists(); assert not Path('/var/run/docker.sock').exists()").await?;
     stop(&runtime, fixture.provider, &binding).await?;
     drop(runtime);
     drop(allocator);
@@ -112,6 +123,7 @@ async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Res
         before.phase == Phase::Stopped && before.sandbox_id == original.sandbox_id,
         "retained provider resource changed"
     );
+    fixture.assert_provider_security().await?;
     let start = LifecycleCheckpoint::start(
         fixture.provider,
         LifecycleOperationId::new(),
@@ -126,7 +138,7 @@ async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Res
         restored.main_process_instance_id != original.main_process_instance_id,
         "Start reused the old process"
     );
-    exec(&runtime, &binding, "import os; from pathlib import Path; assert os.getuid()==10001; assert Path('retained.txt').read_text()=='same retained Computer'").await?;
+    exec(&runtime, &binding, "import os; from pathlib import Path; assert os.getuid()==10001; assert Path('allocation-marker').read_bytes()==b'retained before Ready acknowledgement', 'stock Start changed allocator-seeded bytes'; assert Path('retained.txt').read_text()=='same retained Computer'").await?;
     fixture
         .fault("limits-before", binding.computer_id())
         .await?;
@@ -135,7 +147,7 @@ async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Res
     stop(&runtime, fixture.provider, &binding).await?;
     std::fs::write(
         fixture.dir.join("result.txt"),
-        "Distinct composite OCI images, private network/mount namespace replacement, stable Docker/provider identity, retained bytes, new process and guest user-authority denial passed.\n",
+        "Composite Host profile, private network/mount namespace replacement, stable Docker/provider identity, absent image mount target, allocator-seeded bytes unchanged across stock Create/Start, retained bytes, new process and guest user-authority denial passed.\n",
     )?;
     fixture.finish().await
 }

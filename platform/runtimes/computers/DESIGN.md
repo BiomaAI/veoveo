@@ -555,7 +555,7 @@ Run this ignored integration test explicitly with `VEOVEO_COMPUTERS_NATIVE_GATEW
 `VEOVEO_COMPUTERS_NATIVE_SUPERVISOR`, and `VEOVEO_COMPUTERS_NATIVE_OUTPUT` set to absolute
 paths and `VEOVEO_COMPUTERS_NATIVE_IMAGE` set to an available image digest. The command
 is `cargo test --locked --offline -p veoveo-computers-runtime --test native_lifecycle
--- --ignored --nocapture`. Record it through the repository evidence recorder.
+-- --ignored --nocapture`. The fixture writes private diagnostic logs beneath its configured output directory.
 
 The lifecycle case requires native creation, fresh terminal attachment, numeric UID 10001,
 and settled observations before abrupt loss of its admitted gateway process group.

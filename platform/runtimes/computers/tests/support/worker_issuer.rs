@@ -7,10 +7,20 @@ use axum::{
 };
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::{
-    path::Path,
+    path::{Path, PathBuf},
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
+
+#[derive(Clone, Copy)]
+pub enum WorkerTokenProbe {
+    Authorized,
+    WrongSignature,
+    WrongIssuer,
+    WrongAudience,
+    Expired,
+    UnauthorizedRoles,
+}
 
 #[derive(Clone)]
 struct IssuerState {
@@ -36,22 +46,72 @@ pub struct TestIssuer {
     pub token: Arc<String>,
     #[allow(dead_code)] // Unit targets control token endpoint expiry.
     pub lifetime: Arc<AtomicU64>,
-    task: tokio::task::JoinHandle<()>,
+    signing: jsonwebtoken::EncodingKey,
+    secret_file: PathBuf,
+    handle: axum_server::Handle<std::net::SocketAddr>,
+    task: Option<tokio::task::JoinHandle<()>>,
 }
 impl TestIssuer {
+    #[allow(dead_code)] // Host supplies its inspected bridge through start_on.
     pub async fn start(dir: &Path, server_cert: &str, server_key: &str) -> Self {
+        Self::listen(
+            dir,
+            std::net::Ipv4Addr::LOCALHOST,
+            server_cert,
+            server_key,
+            true,
+        )
+        .await
+    }
+    /// Bind only the inspected private interface; trust and SAN belong to this fixture.
+    #[allow(dead_code)] // Unit transport controls supply their own TLS fixture.
+    pub async fn start_on(dir: &Path, address: std::net::Ipv4Addr) -> Self {
+        use rcgen::{
+            BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
+            KeyUsagePurpose,
+        };
+        use std::os::unix::fs::PermissionsExt;
+        assert!(address.is_private() && !address.is_loopback());
+        std::fs::create_dir(dir).unwrap();
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut ca = CertificateParams::new(vec![]).unwrap();
+        ca.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+        ca.key_usages = vec![
+            KeyUsagePurpose::KeyCertSign,
+            KeyUsagePurpose::DigitalSignature,
+        ];
+        let root_key = KeyPair::generate().unwrap();
+        std::fs::write(dir.join("ca.pem"), ca.self_signed(&root_key).unwrap().pem()).unwrap();
+        std::fs::set_permissions(dir.join("ca.pem"), std::fs::Permissions::from_mode(0o600))
+            .unwrap();
+        let authority = Issuer::new(ca, root_key);
+        let mut leaf = CertificateParams::new(vec![address.to_string()]).unwrap();
+        leaf.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
+        let key = KeyPair::generate().unwrap();
+        let cert = leaf.signed_by(&key, &authority).unwrap();
+        Self::listen(dir, address, &cert.pem(), &key.serialize_pem(), false).await
+    }
+    async fn listen(
+        dir: &Path,
+        address: std::net::Ipv4Addr,
+        server_cert: &str,
+        server_key: &str,
+        localhost_name: bool,
+    ) -> Self {
         use std::os::unix::fs::PermissionsExt;
         let secret = dir.join("worker-secret");
         let credential = format!("fixture-+&%=worker-{}", uuid::Uuid::now_v7());
         std::fs::write(&secret, &credential).unwrap();
         std::fs::set_permissions(&secret, std::fs::Permissions::from_mode(0o600)).unwrap();
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let listener = std::net::TcpListener::bind((address, 0)).unwrap();
         listener.set_nonblocking(true).unwrap();
-        let issuer = veoveo_types::HttpsUrl::parse(&format!(
-            "https://localhost:{}/",
-            listener.local_addr().unwrap().port()
-        ))
-        .unwrap();
+        let mut url = reqwest::Url::parse("https://localhost/").unwrap();
+        if !localhost_name {
+            url.set_ip_host(address.into()).unwrap();
+        }
+        url.set_port(Some(listener.local_addr().unwrap().port()))
+            .unwrap();
+        let issuer = veoveo_types::HttpsUrl::parse(url.as_str()).unwrap();
         let requests = Arc::new(AtomicUsize::new(0));
         let lifetime = Arc::new(AtomicU64::new(3600));
         let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
@@ -65,11 +125,13 @@ impl TestIssuer {
         let jwks = serde_json::json!({"keys":[{"kty":"OKP","crv":"Ed25519","alg":"EdDSA","use":"sig","kid":"fixture-worker","x":base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(signing.public_key_raw())}]});
         let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA);
         header.kid = Some("fixture-worker".into());
+        let signing =
+            jsonwebtoken::EncodingKey::from_ed_pem(signing.serialize_pem().as_bytes()).unwrap();
         let token = Arc::new(
             jsonwebtoken::encode(
                 &header,
                 &serde_json::json!({"iss":issuer,"aud":"fixture-resource","exp":expiration,"sub":"fixture-worker","roles":["openshell-admin","openshell-user"]}),
-                &jsonwebtoken::EncodingKey::from_ed_pem(signing.serialize_pem().as_bytes()).unwrap(),
+                &signing,
             )
             .unwrap(),
         );
@@ -100,9 +162,12 @@ impl TestIssuer {
         )
         .await
         .unwrap();
+        let handle = axum_server::Handle::new();
+        let server_handle = handle.clone();
         let task = tokio::spawn(async move {
             axum_server::from_tcp_rustls(listener, tls_config)
                 .unwrap()
+                .handle(server_handle)
                 .serve(app.into_make_service())
                 .await
                 .unwrap();
@@ -122,12 +187,68 @@ impl TestIssuer {
             requests,
             token,
             lifetime,
-            task,
+            signing,
+            secret_file: dir.join("worker-secret"),
+            handle,
+            task: Some(task),
+        }
+    }
+    /// Deliberately exposed test credentials; callers must keep diagnostics static.
+    #[allow(dead_code)] // Used by actual native security controls, not mocked transport.
+    pub fn probe_token(&self, probe: WorkerTokenProbe) -> String {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let issuer = match probe {
+            WorkerTokenProbe::WrongIssuer => "https://foreign.fixture/",
+            _ => self.config.issuer().as_str(),
+        };
+        let audience = match probe {
+            WorkerTokenProbe::WrongAudience => "foreign-resource",
+            _ => self.config.audience(),
+        };
+        let expiry = match probe {
+            WorkerTokenProbe::Expired => now - 120,
+            _ => now + 3600,
+        };
+        let roles = match probe {
+            WorkerTokenProbe::UnauthorizedRoles => vec!["unrecognized-role"],
+            _ => vec!["openshell-admin", "openshell-user"],
+        };
+        let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA);
+        header.kid = Some("fixture-worker".into());
+        let foreign;
+        let signing = if matches!(probe, WorkerTokenProbe::WrongSignature) {
+            let key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ED25519).unwrap();
+            foreign =
+                jsonwebtoken::EncodingKey::from_ed_pem(key.serialize_pem().as_bytes()).unwrap();
+            &foreign
+        } else {
+            &self.signing
+        };
+        jsonwebtoken::encode(&header, &serde_json::json!({"iss":issuer,"aud":audience,"exp":expiry,"sub":"fixture-worker","roles":roles}), signing).unwrap()
+    }
+    #[allow(dead_code)] // Runtime fixture Drop aborts immediately; Host normal completion awaits.
+    pub async fn shutdown(&mut self) {
+        self.handle
+            .graceful_shutdown(Some(std::time::Duration::from_secs(2)));
+        if let Some(mut task) = self.task.take()
+            && tokio::time::timeout(std::time::Duration::from_secs(3), &mut task)
+                .await
+                .is_err()
+        {
+            task.abort();
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(1), task).await;
         }
     }
 }
 impl Drop for TestIssuer {
     fn drop(&mut self) {
-        self.task.abort();
+        self.handle.shutdown();
+        if let Some(task) = self.task.take() {
+            task.abort();
+        }
+        let _ = std::fs::remove_file(&self.secret_file);
     }
 }

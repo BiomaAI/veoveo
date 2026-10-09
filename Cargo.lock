@@ -16420,7 +16420,11 @@ name = "veoveo-computer-host"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
+ "axum-server",
+ "base64 0.23.1",
  "clap",
+ "jsonwebtoken 11.0.0",
  "nix",
  "rcgen",
  "reqwest 0.13.5",

@@ -192,8 +192,11 @@ guest transport and the exact composite image ABI. Installed template maintenanc
 backup/restore, host-loss durability and encryption/key ownership retain their separate
 release gates in the Computers plan.
 
-`tests/native_host.rs` resolves the source `VEOVEO_COMPUTERS_HOST_IMAGE` and target
-`VEOVEO_COMPUTERS_HOST_REPLACEMENT_IMAGE` to distinct immutable local image IDs. The
+`tests/native_host.rs` uses an explicit replacement profile. `Restart` recreates the
+entire Host container from the immutable `VEOVEO_COMPUTERS_HOST_IMAGE`.
+`ImageUpgrade` resolves that source and `VEOVEO_COMPUTERS_HOST_REPLACEMENT_IMAGE`
+to distinct immutable local image IDs. Both inputs use the stock release profile;
+the restart case does not establish an image upgrade. The
 Computer image comes from the locally admitted RepoDigest in
 `VEOVEO_COMPUTERS_HOST_TEST_IMAGE`; the matched supervisor uses
 `VEOVEO_COMPUTERS_NATIVE_SUPERVISOR_IMAGE`. The required
@@ -208,8 +211,14 @@ runnable OCI/Docker schema-2 manifest config digest must equal the local ImageID
 Missing manifests, image indexes and mismatched identities refuse admission. Ops
 stages the selected immutable manifests before qualification. The retained template
 fingerprint and Host configuration use the mapped pull references; inputs preserve
-both local and pull identities. The fixture creates separate
-provider/storage trust, preloads a Computer from the explicit local registry and runs
+both local and pull identities. The fixture creates separate provider server,
+worker client, supervisor client and storage roots. Its private test issuer binds
+the inspected Docker bridge gateway, uses that IP in its HTTPS certificate SAN
+and issues a fresh private client credential. The worker adds only the issuer CA;
+the Host child receives the mounted issuer CA through `SSL_CERT_FILE` with TLS
+verification enabled. Read-only provider probes require authorized bearer access
+and reject certificate-only users, invalid signatures, mismatched issuer or
+audience, expired tokens and unrecognized roles. The fixture preloads a Computer from the explicit local registry and runs
 the production runtime and allocator clients. A Computer writes a retained file under
 UID 10001, stops, and resumes after replacement of the entire compute container and
 its mount/network namespaces. The test requires the same Docker UUID and provider
@@ -218,8 +227,8 @@ authentication cannot acquire provider user authority. The fixture verifies that
 installation bridge identity is unchanged, removes its own containers, verifies loop
 detachment and deletes only its owned retained state and trust. Root-owned fixture
 configuration uses the same read-only file permission contract as mounted configuration.
-The fixture records both host image IDs and the replacement duration in
-`host-upgrade.json`. `inputs.json` preserves the exact template URI/fingerprint,
+The fixture records the explicit profile, both Host image IDs and replacement
+duration in `host-restart.json` or `host-upgrade.json`. `inputs.json` preserves the exact template URI/fingerprint,
 home capacity and both host image IDs after fixture cleanup. The template registry
 must be reachable from the private bridge namespace. A publication endpoint bound
 only to the host's loopback cannot be substituted with the host bridge's gateway;
@@ -239,8 +248,11 @@ allows two. A three-second guest workload must increase the host's throttling co
 This qualifies aggregate enforcement without exhausting installation RAM.
 Its retained template remains the 512 MiB native host profile;
 the service's separate template-transition fixture qualifies exact installation
-template capacities. This test establishes forward host replacement, not rollback
-to older readers after new storage journal operations have been admitted.
+template capacities. The fixture checks that the selected image leaves the retained
+target absent before allocation. Bytes seeded by the external allocator must survive
+first Create/Start and Host replacement. Restart and image upgrade establish their
+selected forward replacement case; rollback to older readers after new storage
+journal operations have been admitted requires separate qualification.
 
 Each active Computer adds one supervisor container with its own CPU, memory, PID
 and log/tmpfs costs. Its limits are separate from the workload limits, while both
@@ -257,5 +269,5 @@ Policy checkpoints use version 2 and its current provider-policy fingerprint.
 Host/provider updates require a coordinated drain of version-1 operations before
 the matched binaries start. Unsupported checkpoint versions fail admission; no
 rolling overlap or rollback to a version-1 reader is admitted. The retained Host
-fixture compares distinct images within the matched version-2 profile and preserves
+fixture uses the explicitly selected image replacement within the matched version-2 profile and preserves
 the backing inode, home bytes and provider resource identity.

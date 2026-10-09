@@ -10,7 +10,10 @@ use tokio::process::Command;
 use uuid::Uuid;
 use veoveo_computers_runtime::{
     AllocationConfig, DevelopmentTemplate, GatewayConfig, HomeAllocator, OpenShellRuntime,
+    WorkerOAuthConfig, WorkerOAuthFields, WorkerTokenAuthentication,
 };
+#[path = "../../../../runtimes/computers/tests/support/worker_issuer.rs"]
+mod worker_issuer;
 const HOST: &str = "unix:///var/run/docker.sock";
 const TEST: &str = "composite_host_replaces_its_namespace_and_retains_the_computer";
 pub fn host() -> Command {
@@ -34,6 +37,35 @@ fn bridge() -> (String, String) {
         fs::read_to_string("/sys/class/net/docker0/ifindex").unwrap(),
         fs::read_to_string("/sys/class/net/docker0/address").unwrap(),
     )
+}
+async fn issuer_bridge_address() -> Result<std::net::Ipv4Addr> {
+    #[derive(serde::Deserialize)]
+    struct BridgeAddress {
+        #[serde(rename = "Gateway")]
+        gateway: Option<std::net::Ipv4Addr>,
+    }
+    let body = checked(host().args([
+        "network",
+        "inspect",
+        "bridge",
+        "--format",
+        "{{json .IPAM.Config}}",
+    ]))
+    .await?;
+    let addresses: Vec<BridgeAddress> =
+        serde_json::from_str(&body).context("decode inspected fixture bridge")?;
+    ensure!(
+        addresses.len() == 1,
+        "one inspected IPv4 fixture bridge required"
+    );
+    let address = addresses[0]
+        .gateway
+        .context("inspected fixture bridge gateway absent")?;
+    ensure!(
+        address.is_private() && !address.is_loopback(),
+        "private fixture bridge gateway required"
+    );
+    Ok(address)
 }
 #[path = "../../src/images.rs"]
 pub(crate) mod images;
@@ -306,6 +338,11 @@ impl FixtureImages {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum HostReplacementProfile {
+    Restart,
+    ImageUpgrade,
+}
 pub struct Fixture {
     pub dir: PathBuf,
     pub provider: veoveo_computers_runtime::ProviderInstanceId,
@@ -317,9 +354,15 @@ pub struct Fixture {
     bridge: (String, String),
     generation: u8,
     finished: bool,
+    authentication: worker_issuer::TestIssuer,
+    profile: HostReplacementProfile,
 }
 impl Fixture {
-    pub async fn start(template: &DevelopmentTemplate, selected: &FixtureImages) -> Result<Self> {
+    pub async fn start(
+        template: &DevelopmentTemplate,
+        selected: &FixtureImages,
+        profile: HostReplacementProfile,
+    ) -> Result<Self> {
         let computer_image = selected.template_image();
         ensure!(
             template.image() == computer_image,
@@ -333,17 +376,23 @@ impl Fixture {
             image.starts_with("sha256:") && image.len() == 71,
             "immutable host image identity"
         );
-        let replacement = std::env::var("VEOVEO_COMPUTERS_HOST_REPLACEMENT_IMAGE")
-            .context("replacement compute host image")?;
-        let replacement_image =
-            checked(host().args(["image", "inspect", &replacement, "--format", "{{.Id}}"])).await?;
+        let replacement_image = match profile {
+            HostReplacementProfile::Restart => image.clone(),
+            HostReplacementProfile::ImageUpgrade => {
+                let replacement = std::env::var("VEOVEO_COMPUTERS_HOST_REPLACEMENT_IMAGE")
+                    .context("replacement compute host image")?;
+                checked(host().args(["image", "inspect", &replacement, "--format", "{{.Id}}"]))
+                    .await?
+            }
+        };
         ensure!(
             replacement_image.starts_with("sha256:") && replacement_image.len() == 71,
             "immutable replacement host image identity"
         );
         ensure!(
-            replacement_image != image,
-            "host upgrade must change image identity"
+            (profile == HostReplacementProfile::Restart && replacement_image == image)
+                || (profile == HostReplacementProfile::ImageUpgrade && replacement_image != image),
+            "Host replacement image must match the explicit restart or image-upgrade profile"
         );
         let provider = veoveo_computers_runtime::ProviderInstanceId::new();
         let name = format!("veoveo-host-probe-{}", provider.as_uuid().simple());
@@ -385,6 +434,15 @@ impl Fixture {
                 home_capacity_bytes: 536870912,
             })?,
         )?;
+        super::trust::create(&dir);
+        let issuer_address = issuer_bridge_address().await?;
+        let authentication =
+            worker_issuer::TestIssuer::start_on(&dir.join("issuer"), issuer_address).await;
+        fs::copy(dir.join("issuer/ca.pem"), dir.join("trust/issuer-ca.pem"))?;
+        fs::set_permissions(
+            dir.join("trust/issuer-ca.pem"),
+            fs::Permissions::from_mode(0o644),
+        )?;
         let mut fixture = Self {
             dir,
             provider,
@@ -396,14 +454,15 @@ impl Fixture {
             bridge: bridge(),
             generation: 0,
             finished: false,
+            authentication,
+            profile,
         };
-        super::trust::create(&fixture.dir);
         for name in ["data", "config"] {
             fs::create_dir(fixture.dir.join(name))?;
         }
         let authority = selected.registry.authority();
         let supervisor_image = &selected.supervisor.pull;
-        let authentication = native_worker_authentication()?;
+        let authentication = &fixture.authentication.config;
         let config = serde_json::json!({
             "schema": "veoveo.ai/computer-host/v1", "providerId": provider,
             "namespace": "host-qualification", "defaultImage": computer_image,
@@ -477,6 +536,8 @@ impl Fixture {
             "127.0.0.1::8805",
             "--publish",
             "127.0.0.1::8806",
+            "--env",
+            "SSL_CERT_FILE=/etc/veoveo/computers/host-trust/issuer-ca.pem",
         ]);
         for (name, path, options) in [
             ("data", "/var/lib/veoveo-computers", ""),
@@ -573,7 +634,7 @@ impl Fixture {
             dir.join("ca.pem"),
             dir.join("client.pem"),
             dir.join("client-key.pem"),
-            native_worker_authentication()?,
+            self.authentication.config.clone(),
         )?;
         Ok(OpenShellRuntime::connect(config).await?)
     }
@@ -586,6 +647,84 @@ impl Fixture {
             dir.join("client-key.pem"),
         )?;
         Ok(HomeAllocator::new(config, self.provider, template.fingerprint(), 536870912).await?)
+    }
+    pub async fn assert_provider_security(&self) -> Result<()> {
+        use worker_issuer::WorkerTokenProbe;
+        let authorized = self
+            .authentication
+            .probe_token(WorkerTokenProbe::Authorized);
+        let wrong_signature = self
+            .authentication
+            .probe_token(WorkerTokenProbe::WrongSignature);
+        let wrong_issuer = self
+            .authentication
+            .probe_token(WorkerTokenProbe::WrongIssuer);
+        let wrong_audience = self
+            .authentication
+            .probe_token(WorkerTokenProbe::WrongAudience);
+        let expired = self.authentication.probe_token(WorkerTokenProbe::Expired);
+        let unauthorized_roles = self
+            .authentication
+            .probe_token(WorkerTokenProbe::UnauthorizedRoles);
+        super::guest_authority::assert_provider_security(
+            &self.dir.join("provider"),
+            &self.endpoint,
+            super::guest_authority::ProviderProbeTokens {
+                authorized: &authorized,
+                wrong_signature: &wrong_signature,
+                wrong_issuer: &wrong_issuer,
+                wrong_audience: &wrong_audience,
+                expired: &expired,
+                unauthorized_roles: &unauthorized_roles,
+            },
+        )
+        .await;
+        Ok(())
+    }
+    /// Inspect the selected template without a volume or provider process.
+    pub async fn assert_template_home_absent(&self, images: &FixtureImages) -> Result<()> {
+        let name = format!("veoveo-template-probe-{}", Uuid::now_v7().simple());
+        let result = checked(host().args([
+            "exec",
+            &self.name,
+            "docker",
+            "--host",
+            "unix:///run/veoveo-computers/docker.sock",
+            "run",
+            "--rm",
+            "--pull",
+            "never",
+            "--name",
+            &name,
+            "--network",
+            "none",
+            "--read-only",
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges",
+            "--entrypoint",
+            "/bin/sh",
+            images.template_image(),
+            "-c",
+            "test ! -e /sandbox/persistent && test ! -L /sandbox/persistent",
+        ]))
+        .await;
+        if result.is_err() {
+            let _ = checked(host().args([
+                "exec",
+                &self.name,
+                "docker",
+                "--host",
+                "unix:///run/veoveo-computers/docker.sock",
+                "rm",
+                "--force",
+                &name,
+            ]))
+            .await;
+        }
+        result.context("selected template must leave retained target absent")?;
+        Ok(())
     }
     pub async fn fault(&self, mode: &str, computer: Uuid) -> Result<()> {
         checked(host().args([
@@ -648,21 +787,30 @@ impl Fixture {
         #[derive(serde::Serialize)]
         #[serde(rename_all = "camelCase")]
         struct Upgrade<'a> {
+            profile: &'a str,
             source_image_id: &'a str,
             target_image_id: &'a str,
             elapsed_millis: u128,
         }
         let evidence = Upgrade {
+            profile: match self.profile {
+                HostReplacementProfile::Restart => "container_restart",
+                HostReplacementProfile::ImageUpgrade => "image_upgrade",
+            },
             source_image_id: &source,
             target_image_id: &self.image,
             elapsed_millis: started.elapsed().as_millis(),
         };
         fs::write(
-            self.dir.join("host-upgrade.json"),
+            self.dir.join(match self.profile {
+                HostReplacementProfile::Restart => "host-restart.json",
+                HostReplacementProfile::ImageUpgrade => "host-upgrade.json",
+            }),
             serde_json::to_vec_pretty(&evidence)?,
         )?;
         eprintln!(
-            "Native host image upgrade: {} ms",
+            "Native Host {}: {} ms",
+            evidence.profile,
             started.elapsed().as_millis()
         );
         Ok(())
@@ -731,6 +879,7 @@ impl Fixture {
             "owned compute host cleanup failed; data preserved for recovery"
         );
         self.finished = true;
+        self.authentication.shutdown().await;
         Ok(())
     }
 }
@@ -743,15 +892,6 @@ impl Drop for Fixture {
             );
         }
     }
-}
-
-fn native_worker_authentication() -> Result<veoveo_computers_runtime::WorkerOAuthConfig> {
-    let path = std::env::var_os("VEOVEO_COMPUTERS_NATIVE_WORKER_OAUTH")
-        .context("native Host requires a dedicated external worker OAuth configuration in VEOVEO_COMPUTERS_NATIVE_WORKER_OAUTH")?;
-    let bytes = std::fs::read(path).context("read native worker OAuth configuration")?;
-    serde_json::from_slice(&bytes).map_err(|_| {
-        anyhow::anyhow!("invalid native worker OAuth configuration; credential details withheld")
-    })
 }
 
 #[cfg(test)]
