@@ -18137,6 +18137,7 @@ dependencies = [
  "chrono",
  "futures",
  "rmcp",
+ "schemars 1.2.2",
  "secrecy",
  "serde",
  "serde_json",

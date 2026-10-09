@@ -1,3 +1,5 @@
+#[path = "support/resumable_cases.rs"]
+mod resumable_cases;
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
 #[path = "support/result_shape_cases.rs"]

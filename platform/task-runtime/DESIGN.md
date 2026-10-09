@@ -260,6 +260,37 @@ Existing classes keep their behavior. Deterministic Resume work can be reclaimed
 WebhookWait work stays on its qualified webhook path, and interrupted indeterminate
 execution produces its declared failure. Media retains its existing profile.
 
+## Resume Execution Settlement
+
+`transition_resumable` and `transition_resumable_if_current` admit only the existing
+Resume recovery class. The selected-snapshot form reads current durable identity
+before entering the caller's original version/status CAS. It checks Task ID, owner,
+request, server, operation, recovery class, creation time and retained TTL/poll settings. A foreign or expired
+execution lease cannot settle work. Control cancellation requests use the ordinary
+cancellation API.
+
+`ResumeCancellationPolicy::CancellationWins` settles committed cancellation over
+success or failure. `PreserveFailure` preserves a genuine Failed outcome while
+cancellation suppresses success. A rejected CAS permits one reread and one
+cancellation reconciliation; unrelated progress, lease and Store errors propagate.
+A committed terminal outcome under the same identity is preserved.
+
+The optional retained stop token is checked after awaited admission/reconciliation
+reads and immediately before success dispatch. Shutdown alone returns unchanged
+nonterminal state, which is a suppressed delivery rather than an applied result.
+Existing durable cancellation still settles. Once a transition future is entered,
+its database outcome may be uncertain; local stop cannot undo it. These mechanics
+change Task delivery only. Each owner keeps its existing effect, replay and
+idempotency profile. WebhookWait, ProviderWait and InterruptedIndeterminate work
+must use their own provider or physical-outcome settlement paths.
+
+The existing `surreal_integration` target's `resumable_cases` controls use two real
+Store clients to compare rejected raw CAS with finite reconciliation, qualify both
+failure policies and first-terminal preservation, reject forged/excluded identity
+and foreign leases, and verify shutdown-only success suppression. A private final-dispatch control uses
+actual Store snapshots to apply a stop after admission, settle an already observed
+cancel and preserve newer progress without advancing an ordinary selected CAS.
+
 ## Webhook Provider Journals
 
 `TaskRuntime::webhooks` binds a provider to the runtime's server. Every journal

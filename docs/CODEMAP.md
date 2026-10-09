@@ -771,6 +771,7 @@ observation lease and cancellation epoch in one transaction.
 | `../types/src/task.rs` and `../store/src/task_ids.rs` | foundational native Task identity and explicit Store record conversion |
 | [`DESIGN.md`](../platform/task-runtime/DESIGN.md) | durable Task and recovery-class contract, provider observation, migration and rollback |
 | `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune; native APIs carry foundational Task IDs and admit RFC UUIDv7 before Store access |
+| `src/resumable.rs` | finite Resume execution settlement under a live lease, typed cancellation-versus-failure policy and optional local-stop checks; provider and physical-operation recovery classes are excluded |
 | `admission.rs`, `tests/admission.rs` | shared queued-Task transaction guard and native qualification; domains supply their own admission SQL and retain ownership of resource policy |
 | `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |
 | `runtime/owner_query.rs`, `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | typed owner/context/operation query builder and shared SQL selection for exact reads, cancellation, collection pages and public Task delivery; current-state projection from native Task identities |
@@ -1020,9 +1021,9 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp/app/contracts.js`, `artifact.js` | browser forecast relationship checks, exact row-count admission and owner-specific Artifact address parsing before chart state changes |
 | `servers/timeseries-mcp/src/contract/resources.rs`, `artifact_uri.rs`, `src/bin/server/setup.rs`, `resources.rs` | typed Artifact and hosted routes, checked startup/discovery and exhaustive authorized resource dispatch |
 | `servers/timeseries-mcp/src/usage.rs` | Timeseries usage pages and exact reads through TaskRuntime's SQL owner policy before grouping and limits |
-| `servers/timeseries-mcp/src/bin/server/app_state/settlement.rs`, `tests.rs` | finite forecast outcome reconciliation after remote cancellation, with executing-lease guards and native two-runtime controls |
+| `servers/timeseries-mcp/src/bin/server/app_state/settlement.rs`, `tests.rs` | forecast cancellation policy over shared Resume settlement, with native two-runtime controls |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
-| `servers/time-mcp/src/server/tasks.rs`, `tasks/settlement.rs`, `tasks/tests.rs` | calculation scheduling, durable cancellation checkpoints, local stopping and finite final settlement, with native two-runtime and publication-seam controls |
+| `servers/time-mcp/src/server/tasks.rs`, `tasks/settlement.rs`, `tasks/tests.rs` | calculation scheduling, durable cancellation checkpoints and local stopping over shared Resume settlement, with native two-runtime and publication-seam controls |
 | `servers/view-mcp` | immutable scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
 | `servers/view-mcp/src/server/mod.rs` and `server/tasks.rs` | shared hosted recovery observer composition and capture-owned snapshot admission, claim handoff and scheduling |
 | `servers/view-mcp/src/renderer` | serial NVIDIA Vulkan/CUDA JPEG ownership, GPU stored-byte RGB packing, pinned generated nvJPEG bindings and native completion deadlines; runtime-only |

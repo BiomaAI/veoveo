@@ -15,6 +15,8 @@ mod provider_resume;
 mod provider_transaction;
 mod recovery;
 pub use recovery::{TaskRecoveryObserver, TaskRecoveryStream};
+mod resumable;
+pub use resumable::ResumeCancellationPolicy;
 mod resource_subscriptions;
 mod runtime;
 mod service;
