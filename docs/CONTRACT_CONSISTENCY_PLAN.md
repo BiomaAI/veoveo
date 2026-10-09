@@ -71,7 +71,8 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 ## Current Status
 
 Installed node activation and the stock rollout are halted after Secret values
-accidentally appeared in a tool transcript. The namespace inventory contains
+accidentally appeared in a tool transcript. Both tracked Veoveo and UAV HelmReleases
+explicitly suspend application reconciliation to preserve this installation hold. The namespace inventory contains
 sixteen Secret objects: thirteen application Secrets and three Helm Secrets. All
 eight baseline services are Ready; the node is unchanged and uncordoned, and no
 installed credentials have changed. The eighteen selected stock native cases stay

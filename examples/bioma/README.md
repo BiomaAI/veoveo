@@ -230,14 +230,17 @@ adding it. The stock rollout must cover seven images: Computer Host, Computer
 template, Computers MCP, Gateway, Console BFF, Agent Manager and Knowledge. Gateway,
 Computers MCP, Manager and Knowledge decode the full catalog. Before publishing the
 matching worker authorization section and client, qualify source-bound Manager and
-Knowledge images against the actual live catalog, policy and module generation,
+Knowledge images against the actual live catalog, policy and enabled module composition,
 replace their old readers, and prove Manager Ready.
 The current registry accepts the old catalog without both the worker section and
 its client. A reader that does not register the new section rejects it; retained image
 admission is unproven. Preserve Knowledge desired replicas at one through its Recreate
 transition, then restore Ready and functional indexing and search before publication.
 Keep Embedding and Speech Ready. Ordinary chart reconciliation starts Deployments
-and publication Jobs concurrently and cannot enforce that order. After compatible-reader admission
+and publication Jobs concurrently and cannot enforce that order. The tracked Veoveo
+and UAV HelmReleases explicitly suspend application reconciliation during this
+installation hold; source refresh must not publish the candidate catalog or resume UAV
+work. A later reviewed rollout must explicitly release each hold. After compatible-reader admission
 and drain are proved, publish the matching section and client atomically in one full
 catalog and activate the matched worker, Host and chart through the coordinated drain, preserving unresolved
 operations and retained writer fences. Selected native stopped-maintenance,
