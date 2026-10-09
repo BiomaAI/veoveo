@@ -578,6 +578,32 @@ them every 40 seconds. Both temporal task types use `Resume` recovery because th
 outputs are deterministic under the persisted authority-bound request. Terminal task
 records retain for seven days unless a retention pin extends their lifetime.
 
+Workers read durable cancellation before scope resolution, after scope resolution,
+and after authority and epoch loading. These checkpoints observe requests committed
+through another server replica without relying on a shared local cancellation token.
+Schedule expansion and timeline validation execute synchronously; cancellation does
+not interrupt their CPU loops. The checkpoints also honor the local worker token.
+A local shutdown stop without durable cancellation prevents result publication and
+leaves the current lease and request for `Resume` recovery; it does not fabricate a
+terminal cancellation. Success publication carries that token through snapshot
+selection and checks it immediately before entering each shared transition. A stop
+observed after selection reads current state once to settle durable cancellation or
+leave the unfinished request for recovery. Entering the shared transition starts
+settlement: its internal database awaits and compare-and-set determine the outcome.
+A later local stop cannot undo that dispatch, and shutdown may leave its outcome
+unresolved until current-state reconciliation. Local token cancellation and database
+settlement do not form an atomic operation.
+
+Final calculation settlement uses the selected Task snapshot and the runtime's
+compare-and-set transition. If cancellation wins that transition, the executing
+worker rereads current state once and settles `CancelRequested` as `Cancelled`
+without publishing the calculated result. An already committed terminal outcome
+wins. A genuine calculation failure keeps its failure code and message, including
+when cancellation precedes its settlement. The worker checks its current, unexpired
+lease before attempting a write; the runtime also enforces its transactional lease
+and snapshot guards. Unrelated progress conflicts and storage errors stop execution
+without being reported as successful settlement. This path performs no polling.
+
 Startup recovery observes the finite set of retained Tasks.
 The shared observer applies the initial report before HTTP starts and revisits live
 leases through SQL change notifications and lease deadlines. Each resumable request
@@ -974,6 +1000,16 @@ Examples of agent requests include:
 authority pair, clock, resolution and conversion vectors, versioned calendar and epoch,
 epoch arithmetic, window intersection and HTTPS authority-source metadata. Its closed
 input and private receipt follow the [installed harness contract](../../testing/installed/DESIGN.md#time-consumers).
+Native Task controls use two worker identities on separate connections to the same
+isolated Store. They commit cancellation between completion snapshot selection and
+settlement, verify remote and local cancellation, preserve completion and calculation
+failure outcomes, and reject unrelated conflicts or another worker's live lease.
+A local-token control checks that shutdown without durable cancel intent leaves the
+original Task unfinished without a result. Selected-snapshot controls stop success
+publication after owner reads and exercise the reconciliation dispatch seam against
+actual retained Task state.
+These controls do not qualify installed cancellation or unfinished process restart.
+
 Local controls qualify fixture and receipt handling, clock classification, touching
 and one-nanosecond interval assertions, and incomplete HTTP response tracing. Installed execution,
 Task delivery, restart recovery, authority activation and conflict rollback require

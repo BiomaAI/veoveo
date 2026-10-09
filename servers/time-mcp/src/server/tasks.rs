@@ -1,3 +1,7 @@
+mod settlement;
+#[cfg(test)]
+mod tests;
+
 use crate::contract::TimeTaskKind;
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 use veoveo_types::TaskTypeDefinition;
@@ -237,7 +241,12 @@ async fn run_time_task(
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     heartbeat.tick().await;
     loop {
-        tokio::select! { () = &mut work => break, _ = heartbeat.tick() => { if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await { tracing::warn!(%task_id, "Time task lease heartbeat failed: {error}"); cancellation.cancel(); break; } } }
+        tokio::select! { result = &mut work => {
+            if let Err(error) = result {
+                tracing::warn!(%task_id, "Time task execution did not settle: {error}");
+            }
+            break;
+        }, _ = heartbeat.tick() => { if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await { tracing::warn!(%task_id, "Time task lease heartbeat failed: {error}"); cancellation.cancel(); break; } } }
     }
 }
 
@@ -247,7 +256,7 @@ async fn run_time_task_inner(
     owner: TaskOwner,
     request: TimeTaskRequest,
     cancellation: CancellationToken,
-) {
+) -> anyhow::Result<()> {
     update_task(
         &state,
         task_id,
@@ -255,44 +264,92 @@ async fn run_time_task_inner(
             message: request.description().to_owned(),
             progress: 0.05,
         },
+        &cancellation,
     )
-    .await;
-    if cancellation.is_cancelled() {
-        update_task(&state, task_id, TaskTransition::Cancelled).await;
-        return;
+    .await?;
+    if !settlement::continue_work(&state.tasks, task_id, &cancellation).await? {
+        return Ok(());
     }
-    let result = async {
-        let scope = state.scope_from_task_owner(&owner).await?;
-        match request {
-            TimeTaskRequest::ExpandSchedule(request) => tool_result(
-                "expanded operational schedule",
-                &state.engine(&scope).await?.expand_schedule(&request)?,
-            ),
-            TimeTaskRequest::ValidateTimeline(request) => tool_result(
-                "validated mission timeline",
-                &state
-                    .engine_for_expressions(&scope, request.points.iter().map(|point| &point.at))
-                    .await?
-                    .validate_timeline(&request)?,
-            ),
+    let scope = match state.scope_from_task_owner(&owner).await {
+        Ok(scope) => scope,
+        Err(error) => {
+            return fail_task(
+                &state,
+                task_id,
+                "temporal_calculation_failed",
+                error,
+                &cancellation,
+            )
+            .await;
         }
+    };
+    if !settlement::continue_work(&state.tasks, task_id, &cancellation).await? {
+        return Ok(());
     }
-    .await;
-    if cancellation.is_cancelled() {
-        update_task(&state, task_id, TaskTransition::Cancelled).await;
-        return;
+    let engine = match &request {
+        TimeTaskRequest::ExpandSchedule(_) => state.engine(&scope).await,
+        TimeTaskRequest::ValidateTimeline(request) => {
+            state
+                .engine_for_expressions(&scope, request.points.iter().map(|point| &point.at))
+                .await
+        }
+    };
+    let engine = match engine {
+        Ok(engine) => engine,
+        Err(error) => {
+            return fail_task(
+                &state,
+                task_id,
+                "temporal_calculation_failed",
+                error,
+                &cancellation,
+            )
+            .await;
+        }
+    };
+    if !settlement::continue_work(&state.tasks, task_id, &cancellation).await? {
+        return Ok(());
+    }
+    let result = match request {
+        TimeTaskRequest::ExpandSchedule(request) => engine
+            .expand_schedule(&request)
+            .and_then(|output| tool_result("expanded operational schedule", &output)),
+        TimeTaskRequest::ValidateTimeline(request) => engine
+            .validate_timeline(&request)
+            .and_then(|output| tool_result("validated mission timeline", &output)),
+    };
+    // Shutdown can cancel a local worker without a durable cancellation request.
+    // Stop publication and let the retained lease follow Resume recovery.
+    if settlement::local_stop(&state.tasks, task_id, &cancellation).await? {
+        return Ok(());
     }
     match result {
         Ok(result) => {
             match veoveo_task_runtime::mcp_task_completion("Temporal calculation completed", result)
             {
-                Ok(transition) => update_task(&state, task_id, transition).await,
+                Ok(transition) => update_task(&state, task_id, transition, &cancellation).await,
                 Err(error) => {
-                    fail_task(&state, task_id, "result_serialization_failed", error).await
+                    fail_task(
+                        &state,
+                        task_id,
+                        "result_serialization_failed",
+                        error,
+                        &cancellation,
+                    )
+                    .await
                 }
             }
         }
-        Err(error) => fail_task(&state, task_id, "temporal_calculation_failed", error).await,
+        Err(error) => {
+            fail_task(
+                &state,
+                task_id,
+                "temporal_calculation_failed",
+                error,
+                &cancellation,
+            )
+            .await
+        }
     }
 }
 
@@ -322,18 +379,24 @@ async fn fail_task(
     task_id: TaskId,
     code: &str,
     error: impl std::fmt::Display,
-) {
+    cancellation: &CancellationToken,
+) -> anyhow::Result<()> {
     update_task(
         state,
         task_id,
         TaskTransition::Failed(TaskFailure::new(code, error.to_string())),
+        cancellation,
     )
-    .await;
+    .await
 }
-async fn update_task(state: &TimeApplication, task_id: TaskId, transition: TaskTransition) {
-    if let Err(error) = state.tasks.transition(task_id, transition).await {
-        tracing::warn!(%task_id, "Time task update failed: {error}");
-    }
+async fn update_task(
+    state: &TimeApplication,
+    task_id: TaskId,
+    transition: TaskTransition,
+    cancellation: &CancellationToken,
+) -> anyhow::Result<()> {
+    settlement::update(&state.tasks, task_id, transition, cancellation).await?;
+    Ok(())
 }
 
 fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {

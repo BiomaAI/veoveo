@@ -1022,6 +1022,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp/src/usage.rs` | Timeseries usage pages and exact reads through TaskRuntime's SQL owner policy before grouping and limits |
 | `servers/timeseries-mcp/src/bin/server/app_state/settlement.rs`, `tests.rs` | finite forecast outcome reconciliation after remote cancellation, with executing-lease guards and native two-runtime controls |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
+| `servers/time-mcp/src/server/tasks.rs`, `tasks/settlement.rs`, `tasks/tests.rs` | calculation scheduling, durable cancellation checkpoints, local stopping and finite final settlement, with native two-runtime and publication-seam controls |
 | `servers/view-mcp` | immutable scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
 | `servers/view-mcp/src/server/mod.rs` and `server/tasks.rs` | shared hosted recovery observer composition and capture-owned snapshot admission, claim handoff and scheduling |
 | `servers/view-mcp/src/renderer` | serial NVIDIA Vulkan/CUDA JPEG ownership, GPU stored-byte RGB packing, pinned generated nvJPEG bindings and native completion deadlines; runtime-only |

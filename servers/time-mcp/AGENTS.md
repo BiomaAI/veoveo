@@ -60,6 +60,16 @@ leap second assumptions.
   retains dispatch intent and the opaque Gateway Task ID. Cancellation and unfinished
   restart recovery require separate observable qualification; a completed Task cannot
   qualify either gate.
+- `cargo test -p veoveo-time-mcp --lib server::tasks::tests` qualifies durable
+  cancellation at calculation checkpoints and final settlement using distinct
+  workers on the existing isolated Store fixture. Keep the cancellation/completion
+  CAS interleave deterministic; do not manufacture a slow installed schedule.
+  Preserve completion that committed first, genuine calculation failures and the
+  executing worker's current lease. Local shutdown without durable cancel intent
+  stops success publication before shared transition dispatch and leaves the request
+  for Resume recovery. Keep token checks at both selected-snapshot dispatch seams;
+  a transition already entered may settle despite a later local stop. Installed cancellation and unfinished restart
+  still require their own observable qualification.
 - `cargo test -p veoveo-time-mcp`
 - `tests/gateway_source_conformance.rs` supplies two disposable scheduled events to
   the shared source checker. It cancels one before a Time Deployment restart and one
