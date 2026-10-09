@@ -45,7 +45,9 @@ pub(super) async fn start_operation(
         retention_pins,
     )
     .await?;
-    schedule_operation(state, created.snapshot, operation, None).await
+    schedule_operation(state, created.snapshot, operation, None)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 pub(super) async fn start_vehicle_mission_plan(
@@ -96,7 +98,9 @@ pub(super) async fn start_vehicle_mission_plan(
             return Err(error.to_string());
         }
     };
-    schedule_operation(state, created.snapshot, operation, Some(guard)).await
+    schedule_operation(state, created.snapshot, operation, Some(guard))
+        .await
+        .map_err(|error| error.to_string())
 }
 
 async fn create_task(
@@ -128,37 +132,41 @@ async fn create_task(
 pub(super) async fn resume_queued_operation(
     state: Arc<AppState>,
     snapshot: TaskSnapshot,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     if snapshot.task_type == crate::contract::UavTaskKind::ExecuteMission.name() {
         // The public request contains a plan address, never a replayable simulator command.
         // Recovery has no live dispatch guard. Preserve any retained vehicle fence.
         let id = snapshot.task_id;
-        state
-            .tasks
-            .claim(id, TASK_LEASE_DURATION)
-            .await
-            .map_err(|error| error.to_string())?;
+        match state.tasks.claim(id, TASK_LEASE_DURATION).await {
+            Ok(_) => {}
+            Err(error) => {
+                return state
+                    .tasks
+                    .reconcile_recovery_claim(&snapshot, error.into())
+                    .await;
+            }
+        }
         state
             .tasks
             .transition(
                 id,
                 indeterminate("mission worker interrupted before recovery"),
             )
-            .await
-            .map_err(|error| error.to_string())?;
+            .await?;
         release_settled_pin(&state, snapshot.task_id).await;
         return Ok(());
     }
-    let operation: DurableOperation =
-        serde_json::from_value(snapshot.request.clone()).map_err(|error| error.to_string())?;
+    let operation: DurableOperation = serde_json::from_value(snapshot.request.clone())?;
     if matches!(operation, DurableOperation::ExecuteMission(_))
         || operation.task_type() != snapshot.task_type
     {
-        return Err("retained UAV Task type does not match its declared recovery profile".into());
+        anyhow::bail!("retained UAV Task type does not match its declared recovery profile");
     }
-    schedule_operation(state, snapshot, operation, None)
-        .await
-        .map(|_| ())
+    let admitted = snapshot.clone();
+    match schedule_operation(state.clone(), snapshot, operation, None).await {
+        Ok(_) => Ok(()),
+        Err(error) => state.tasks.reconcile_recovery_claim(&admitted, error).await,
+    }
 }
 
 async fn schedule_operation(
@@ -166,13 +174,13 @@ async fn schedule_operation(
     snapshot: TaskSnapshot,
     operation: DurableOperation,
     authority: Option<MissionExecutionGuard>,
-) -> Result<TaskSnapshot, String> {
+) -> anyhow::Result<TaskSnapshot> {
     let task_id = snapshot.task_id;
     if authority
         .as_ref()
         .is_some_and(|guard| guard.task_id() != task_id)
     {
-        return Err("mission dispatch guard belongs to a different Task".into());
+        anyhow::bail!("mission dispatch guard belongs to a different Task");
     }
     let claimed = match state.tasks.claim(task_id, TASK_LEASE_DURATION).await {
         Ok(claimed) => claimed,
@@ -183,7 +191,7 @@ async fn schedule_operation(
                 tracing::error!(%finalize_error, "failed to release UAV mission authority after task claim failure");
             }
             release_settled_pin(&state, task_id).await;
-            return Err(error.to_string());
+            return Err(error.into());
         }
     };
     let cancellation = CancellationToken::new();
@@ -201,7 +209,7 @@ async fn schedule_operation(
         .await
     {
         worker_cancellation.cancel();
-        return Err(error.to_string());
+        return Err(error.into());
     }
     Ok(claimed.snapshot)
 }

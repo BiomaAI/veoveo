@@ -806,3 +806,79 @@ async fn native_restart_releases_only_the_domain_pin_for_a_never_admitted_task()
     .await
     .expect("pre-admission restart qualification exceeded 65 seconds");
 }
+
+#[tokio::test]
+async fn native_recovery_skips_another_replicas_live_claim_without_dispatch() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    tokio::time::timeout(Duration::from_secs(65), async {
+        let db = test_support::database(test_support::fixture::StoreBackend::Memory).await;
+        let http = HttpFixture::new(Reply::Completed).await;
+        let adapter = Arc::new(Adapter::Http(Box::new(
+            HttpAdapter::new(
+                http.url.clone(),
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                "native-fixture".into(),
+                db.a.clone(),
+                "native",
+            )
+            .unwrap(),
+        )));
+        let state = test_support::state(&db.a, adapter.clone(), "recovering-replica");
+        let rival = test_support::state(&db.a, adapter, "claiming-replica");
+        let caller = PlaneCaller {
+            bearer_token: "native-fixture".into(),
+            identity: test_support::identity("claim-race", "operations", "pilot", &[]),
+            memberships: BTreeSet::new(),
+        };
+        // A rival claim can commit after this replica selects the queued request.
+        let created = create_task(
+            &state,
+            &caller,
+            crate::contract::UavTaskKind::ExecuteMission.name(),
+            serde_json::to_value(ExecuteVehicleMissionPlanRequest {
+                plan_id: crate::contract::MissionPlanId::parse("replica-race-plan").unwrap(),
+                expected_revision: 0,
+            })
+            .unwrap(),
+            RecoveryClass::InterruptedIndeterminate,
+            BTreeSet::new(),
+        )
+        .await
+        .unwrap();
+        let snapshot = state
+            .tasks
+            .recover()
+            .await
+            .unwrap()
+            .resumable
+            .pop()
+            .unwrap();
+        rival
+            .tasks
+            .claim(snapshot.task_id, TASK_LEASE_DURATION)
+            .await
+            .unwrap();
+        let before = rival.tasks.get(snapshot.task_id).await.unwrap().unwrap();
+        resume_queued_operation(state.clone(), snapshot)
+            .await
+            .unwrap();
+        let after = state
+            .tasks
+            .get(created.snapshot.task_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(after.status, before.status);
+        assert_eq!(after.lease_owner, before.lease_owner);
+        assert_eq!(after.lease_expires_at, before.lease_expires_at);
+        assert!(after.error.is_none());
+        assert_eq!(http.state.calls.load(Ordering::SeqCst), 0);
+        state.live_views.shutdown().await.unwrap();
+        state.live_view_audit.shutdown().await.unwrap();
+        rival.live_views.shutdown().await.unwrap();
+        rival.live_view_audit.shutdown().await.unwrap();
+    })
+    .await
+    .expect("replica recovery qualification exceeded 65 seconds");
+}

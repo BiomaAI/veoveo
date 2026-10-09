@@ -209,6 +209,14 @@ current owner, profile, tenant and label visibility in SQL before decoding publi
 reads or subscription updates. Cancellation repeats that selection in its write
 transaction. Workers carry foundational Task IDs through claims and transitions.
 
+The shared startup recovery observer applies the initial retained-Task report before
+HTTP starts. SQL change notifications and lease deadlines revisit that finite startup
+set as live leases settle or expire. Batch recovery validates each retained request
+and claims it before scheduling. A failed claim skips local scheduling only when
+current SQL proves physical absence, terminal settlement, or a matching Task held
+by another worker's unexpired lease. An unproven conflict or observation error
+stops HTTP serving.
+
 ## Resources
 
 ```text

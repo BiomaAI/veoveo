@@ -765,6 +765,8 @@ observation lease and cancellation epoch in one transaction.
 |---|---|
 | `types.rs` | runtime configuration, recovery classes, pins, claims, outcomes |
 | `src/recovery.rs`, `src/recovery/observation.rs`, `queries/recovery/` | one-shot recovery and finite startup lease observation through shared native wakes, deadline timers and current SQL admission |
+| `src/recovery/observer.rs` | public hosted recovery observer: initial owner callback or supervised capacity admission, finite deferred-report lifetime and cancellation/drain; domain owners keep dispatch and cleanup |
+| `src/recovery/handoff.rs` | shared recovery claim reconciliation: current immutable Task identity, physical absence, terminal settlement and another replica's live lease |
 | `../types/src/task.rs` and `../store/src/task_ids.rs` | foundational native Task identity and explicit Store record conversion |
 | [`DESIGN.md`](../platform/task-runtime/DESIGN.md) | durable Task and recovery-class contract, provider observation, migration and rollback |
 | `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune; native APIs carry foundational Task IDs and admit RFC UUIDv7 before Store access |
@@ -994,6 +996,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/speech-mcp/src/dictation/audit.rs` | private dictation open, denial and terminal counts with verified request attribution |
 | `servers/speech-mcp/contract/src/identity.rs`, `resources.rs`, `dictation.rs` | distinct transcription/dictation identities, typed resource families and checked receipt identity shared by Speech, Gateway and Console |
 | `servers/speech-mcp/src/server/setup.rs`, `mcp.rs` | checked hosted declarations and typed resource read/subscription admission; application code owns source/session authorization |
+| `servers/speech-mcp/src/server/lifecycle.rs` | finite startup recovery callback and HTTP shutdown/drain before dictation and audit cleanup |
 | `servers/speech-mcp/src/server/tool_input_tests.rs`, `tests/support/context.rs` | hosted argument admission and transcript listener delivery/cancellation controls, with the Work Context fixture shared by the owning native Task tests |
 | `servers/speech-mcp/runner/src/speech_runner/cache_model.py`, `main.py` | immutable checkpoint identity and three-file integrity admission shared by build caching and offline runtime; verified model directory supplied to the released Photon CUDA loader before warmup and socket readiness |
 | `servers/optimization-mcp` | typed cuOpt routing and route-scenario problems, convex and MILP models, GPU execution, independent verification, and immutable problem/run/solution records |
@@ -1014,7 +1017,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp/src/usage.rs` | Timeseries usage pages and exact reads through TaskRuntime's SQL owner policy before grouping and limits |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
-| `servers/view-mcp/src/server/recovery.rs` | hosted deferred-recovery lifetime, cancellation/drain and error propagation; capture admission and scheduling stay in `server/tasks.rs` |
+| `servers/view-mcp/src/server/mod.rs` and `server/tasks.rs` | shared hosted recovery observer composition and capture-owned snapshot admission, claim handoff and scheduling |
 | `servers/view-mcp/src/renderer` | serial NVIDIA Vulkan/CUDA JPEG ownership, GPU stored-byte RGB packing, pinned generated nvJPEG bindings and native completion deadlines; runtime-only |
 | `servers/uav-sim-mcp/src/server/resources.rs`, `index.rs`, `task_index.rs`, `control_authority/reads.rs`, `bootstrap.rs` | service construction and shutdown, static domain discovery, SQL-scoped pages and completions, direct mission/Task reads, and resource invalidation |
 | `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, principal-to-vehicle grants, Map route admission, exclusive command leases, missions, telemetry, tasks, recording references, simulator-owned logical cameras, one shared tiled GPU product, authenticated H.264 fanout, and the UAV App |

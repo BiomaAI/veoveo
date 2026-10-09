@@ -361,6 +361,16 @@ reauthorizes every committed Artifact occurrence, including cached layers. Expir
 or revoked capabilities fail the task. A persisted request missing a required field
 is claimed and failed without preventing other tasks or the service from starting.
 
+After binding its Task lookup contribution, startup registers the shared recovery
+stream for unfinished Tasks in the startup baseline. Native Store changes and
+retained lease deadlines wake recovery without admitting new Tasks into that
+baseline. The shared `TaskRecoveryObserver` dispatches the first report before
+serving HTTP and supervises later reports for the hosted lifetime. Only resumable
+reports enter the existing request validation and atomic claim path. Held leases
+and competing replica claims leave execution with their current owner; other
+recovery errors stop serving. This observation does not add replay authority for
+uncertain external operations.
+
 Each worker owns a persistent recording cache with an 8 GiB managed ceiling and
 1 GiB of free-space reserve on its default 10 GiB claim. The canonical CLI controls
 are `--catalog-cache-dir`, `--catalog-cache-managed-bytes`, and

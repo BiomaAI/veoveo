@@ -913,6 +913,15 @@ Recovery classes follow side-effect semantics:
 Only query and export are scheduled again during recovery. Execute and ingest
 never gain a polling or replay fallback.
 
+Startup registers the shared Task recovery stream before constructing the server
+state. The stream tracks unfinished Tasks from that startup baseline and revisits
+live leases when their deadlines pass or the native Store source changes. The
+shared `TaskRecoveryObserver` dispatches the first report before serving HTTP and
+supervises later reports for the hosted lifetime. Each resumable snapshot goes
+through the existing request validation and atomic claim. A replica's held lease
+or competing claim does not stop the server; other recovery errors stop serving.
+Newly admitted Tasks continue through normal scheduling.
+
 ## Persistence
 
 The server composes three storage domains:

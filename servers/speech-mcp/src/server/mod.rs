@@ -1,5 +1,6 @@
 mod config;
 mod dictation;
+mod lifecycle;
 mod mcp;
 mod setup;
 mod tasks;
@@ -17,7 +18,7 @@ use veoveo_mcp_contract::{
     docs::ServerDocs,
     hosting::{Hosted, HostedServer},
 };
-use veoveo_task_runtime::{DurableTasks, TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasks, TaskRecoveryObserver, TaskRuntime, TaskRuntimeConfig};
 
 pub(super) static SERVER_DOCS: LazyLock<ServerDocs> =
     LazyLock::new(|| veoveo_mcp_contract::server_docs!("speech"));
@@ -55,65 +56,62 @@ pub async fn run() -> anyhow::Result<()> {
         usize::from(args.inference_capacity) - args.concurrent_recordings,
     ));
     let stop = CancellationToken::new();
-    let recovery = {
+    let reaper = {
         let service = service.clone();
         let stop = stop.clone();
         tokio::spawn(async move {
-            // Lease recovery is runtime maintenance and never initiates new model work.
+            // Completed worker handles need pruning independently of startup recovery.
             let mut tick = tokio::time::interval(Duration::from_secs(30));
             tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 tokio::select! { () = stop.cancelled() => break, _ = tick.tick() => {} }
-                match service.tasks.recover().await {
-                    Ok(report) => {
-                        for snapshot in report.resumable {
-                            if let Err(error) = service.resume(snapshot).await {
-                                tracing::warn!(%error, "Speech recovery could not claim work");
-                            }
-                        }
-                    }
-                    Err(error) => tracing::warn!(%error, "Speech recovery store unavailable"),
-                }
                 service.tasks.reap_workers().await;
             }
         })
     };
-    for host in &args.allowed_hosts {
-        anyhow::ensure!(
-            veoveo_mcp_contract::parse_allowed_host_authority(host).is_some(),
-            "invalid allowed host"
-        );
-    }
-    let server = hosted_server(
-        service.clone(),
-        &deployment,
-        args.allow_loopback_hosts,
-        args.allowed_hosts,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    )?;
-    let address = std::net::SocketAddr::from((std::net::Ipv4Addr::UNSPECIFIED, args.port));
-    // Audit closure stops the server as SIGTERM and Ctrl-C do.
-    let serving = server.serve_with_shutdown(address, {
-        let stop = stop.clone();
-        let audit = service.audit.clone();
-        async move {
-            let mut terminate =
-                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                    .expect("install SIGTERM handler");
-            tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {}, _ = audit.closed() => {} }
-            stop.cancel();
+    let result: anyhow::Result<()> = async {
+        let recovery = service.tasks.observe_startup_recovery().await?;
+        let observer = TaskRecoveryObserver::start_deferred(recovery, {
+            let service = service.clone();
+            move |report| lifecycle::recover(service.clone(), report)
+        });
+        for host in &args.allowed_hosts {
+            anyhow::ensure!(
+                veoveo_mcp_contract::parse_allowed_host_authority(host).is_some(),
+                "invalid allowed host"
+            );
         }
-    });
-    tokio::pin!(serving);
-    let result: anyhow::Result<()> = tokio::select! {
-        result = &mut serving => result,
-        _ = stop.cancelled() => tokio::time::timeout(Duration::from_secs(30), &mut serving)
-            .await.map_err(|_| anyhow::anyhow!("Speech HTTP shutdown deadline exceeded"))
-            .and_then(|result| result),
-    };
+        let server = hosted_server(
+            service.clone(),
+            &deployment,
+            args.allow_loopback_hosts,
+            args.allowed_hosts,
+            GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
+        )?;
+        let address = std::net::SocketAddr::from((std::net::Ipv4Addr::UNSPECIFIED, args.port));
+        // Audit closure stops the server as SIGTERM and Ctrl-C do.
+        let serving = server.serve_with_shutdown(address, {
+            let stop = stop.clone();
+            let audit = service.audit.clone();
+            async move {
+                let mut terminate =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                        .expect("install SIGTERM handler");
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {},
+                    _ = terminate.recv() => {},
+                    _ = audit.closed() => {},
+                    _ = stop.cancelled() => {},
+                }
+                stop.cancel();
+            }
+        });
+        lifecycle::serve(observer, serving, stop.clone()).await
+    }
+    .await;
     stop.cancel();
-    recovery.abort();
-    let _ = recovery.await;
+    reaper.abort();
+    let _ = reaper.await;
     let sessions = service.dictations.shutdown().await;
     let drained = service.audit.shutdown(Duration::from_secs(30)).await;
     result?;

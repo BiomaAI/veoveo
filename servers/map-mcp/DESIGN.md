@@ -570,6 +570,14 @@ as every other raster derivation.
 All tool results use structured content schemas. Tool and resource lists are
 paginated. Task-only tools use the durable task extension.
 
+After contribution binding, the shared recovery observer applies the initial retained
+Task report before HTTP starts. SQL change notifications and lease deadlines revisit
+live leases within that finite startup set. Existing operation, request and claim
+guards admit resumable work. A failed claim skips local scheduling only when current
+SQL proves physical absence, terminal settlement, or a matching Task held by another
+worker's unexpired lease. An unproven conflict or observation error stops HTTP,
+cancels resource observation, and reaches the owned Valhalla shutdown.
+
 The listed scope is necessary but not sufficient for a Work Context-owned
 object. Reads require effective read access, edits require write access, and
 publication, product creation, or archival requires effective admin access.

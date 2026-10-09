@@ -507,6 +507,16 @@ The producer constructs terminal success through one result builder. Authorized 
 and subscription reconnects deliver the stored current result without rewriting it.
 Task recovery reuses the current request, validated grounding subset and issued
 capabilities. There are no readers or migrations for historical result formats.
+After binding its Task lookup contribution, startup registers the shared recovery
+stream for unfinished Tasks in the startup baseline. Native Store changes and
+retained lease deadlines wake recovery. The shared `TaskRecoveryObserver`
+dispatches the first report before serving HTTP and supervises later reports for
+the hosted lifetime. Only resumable reports enter the existing request validation
+and atomic claim path. Held leases and competing replica claims leave execution
+with their current owner; other recovery errors stop serving. Recovery observation
+adds no replay authority for uncertain effects. Newly admitted analyses continue
+through normal scheduling.
+
 The finding requirement ships through a coordinated installation drain: stop Reason
 Task admission and indexing, settle or cancel running analyses, discard disposable
 Reason Tasks and their derived knowledge indexes, then install producers and consumers

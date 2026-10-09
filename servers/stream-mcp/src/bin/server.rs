@@ -41,7 +41,7 @@ use veoveo_stream_mcp::{
     uris,
 };
 use veoveo_task_runtime::{
-    DurableListener, DurableTaskService, DurableTasks, TaskError, TaskRuntime, TaskRuntimeConfig,
+    DurableListener, DurableTaskService, DurableTasks, TaskRuntime, TaskRuntimeConfig,
 };
 
 #[cfg(test)]
@@ -443,7 +443,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
     let tasks = veoveo_stream_mcp::task_lookup::bind(tasks)?;
-    let recovery = tasks.recover().await?;
+    let recovery = tasks.observe_startup_recovery().await?;
     let spool_dir = if args.spool_dir.is_absolute() {
         args.spool_dir.clone()
     } else {
@@ -513,16 +513,22 @@ async fn main() -> anyhow::Result<()> {
         work_slots: Arc::new(tokio::sync::Semaphore::new(args.max_concurrent_jobs)),
         live,
     });
-    for snapshot in recovery.resumable {
-        if let Err(error) = resume_task(state.clone(), snapshot).await {
-            match error.downcast_ref::<TaskError>() {
-                Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
-                    tracing::info!(task_id, "another replica claimed recovered Stream task");
+    let recovery_state = state.clone();
+    let recovery = veoveo_task_runtime::TaskRecoveryObserver::start(recovery, move |report| {
+        let state = recovery_state.clone();
+        async move {
+            for snapshot in report.resumable {
+                if let Err(error) = resume_task(state.clone(), snapshot.clone()).await {
+                    state
+                        .tasks
+                        .reconcile_recovery_claim(&snapshot, error)
+                        .await?;
                 }
-                _ => return Err(error),
             }
+            Ok(())
         }
-    }
+    })
+    .await?;
 
     let readiness_state = state.clone();
     let server = HostedServer::for_domain::<StreamMcp>()
@@ -544,8 +550,8 @@ async fn main() -> anyhow::Result<()> {
             async move { ready(&state).await }
         })
         .build();
-    server
-        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+    recovery
+        .serve(server.serve(SocketAddr::from(([0, 0, 0, 0], args.port))))
         .await
 }
 

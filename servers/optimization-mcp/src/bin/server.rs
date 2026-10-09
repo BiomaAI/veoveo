@@ -14,7 +14,7 @@ use veoveo_optimization_mcp::{
     executor::{ExecutorClient, ExecutorResult},
     problem_store::ProblemStore,
 };
-use veoveo_task_runtime::{DurableTasks, TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasks, TaskRecoveryObserver, TaskRuntime, TaskRuntimeConfig};
 
 #[path = "server/app_state.rs"]
 mod app_state;
@@ -107,7 +107,7 @@ async fn main() -> anyhow::Result<()> {
     .require(tasks.platform_store())
     .await?;
     let tasks = veoveo_optimization_mcp::task_catalog::OptimizationTaskContributions::bind(tasks)?;
-    let recovery = tasks.recover().await?;
+    let recovery = tasks.observe_startup_recovery().await?;
     let state = Arc::new(AppState {
         tasks,
         artifacts: ArtifactRepository::new(args.artifact_service_url.clone()),
@@ -123,7 +123,12 @@ async fn main() -> anyhow::Result<()> {
         max_artifact_bytes: args.max_artifact_bytes,
         max_executor_frame_bytes: args.max_executor_frame_bytes,
     });
-    recover_tasks(state.clone(), recovery.resumable).await?;
+    let recovery_state = state.clone();
+    let recovery_observer = TaskRecoveryObserver::start(recovery, move |report| {
+        let state = recovery_state.clone();
+        async move { recover_tasks(state, report.resumable).await }
+    })
+    .await?;
 
     let observer_state = state.clone();
     let readiness_state = state.clone();
@@ -158,8 +163,8 @@ async fn main() -> anyhow::Result<()> {
         .build();
     let _resource_observer =
         app_state::spawn_resource_observer(observer_state, server.cancellation_token());
-    server
-        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+    recovery_observer
+        .serve(server.serve(SocketAddr::from(([0, 0, 0, 0], args.port))))
         .await
 }
 

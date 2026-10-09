@@ -426,6 +426,17 @@ An executing plan means admission is unsettled; it does not assert current vehic
 Queued mission recovery fails the interrupted Task without decoding its public plan
 request as a simulator command or dispatching it again.
 
+The shared recovery observer applies the initial retained-Task report after
+contribution binding and before HTTP starts. SQL change notifications and lease
+deadlines revisit live leases in that finite startup set. Only resumable reports
+enter queued-operation recovery; provider-wait observations cannot dispatch commands.
+Recovery preserves request and claim guards. A failed claim skips local scheduling
+only when current SQL proves physical absence, terminal settlement, or a matching
+Task held by another worker's unexpired lease. An unproven conflict stops recovery.
+Each report also reconciles mission retention. An observation error
+stops HTTP through the existing live-stream, resource-observer, session and audit
+shutdown sequence, including the HTTP drain.
+
 The worker renews its 120-second Task lease every 40 seconds. Simulator requests use
 the configured operation timeout; scenario and capture requests extend it to at least
 twenty times their requested duration plus 120 seconds. Recording resolution permits

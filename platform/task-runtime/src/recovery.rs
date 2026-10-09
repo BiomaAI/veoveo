@@ -12,8 +12,11 @@ use surrealdb::types::SurrealValue;
 use veoveo_platform_store::TaskRequestRecord;
 use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{TaskRecord, TaskStatus as StoreTaskStatus};
+mod handoff;
 mod observation;
+mod observer;
 pub use observation::TaskRecoveryStream;
+pub use observer::TaskRecoveryObserver;
 
 impl TaskRuntime {
     /// Trusted recovery observation: only physical absence returns `None`.

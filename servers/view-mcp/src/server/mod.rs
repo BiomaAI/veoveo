@@ -1,6 +1,5 @@
 pub(crate) mod auth;
 mod config;
-mod recovery;
 pub(crate) mod setup;
 pub(crate) mod tasks;
 
@@ -81,18 +80,21 @@ pub async fn run() -> Result<()> {
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
     )
     .await?;
-    let mut recovery = tasks.observe_startup_recovery().await?;
-    let initial = futures::StreamExt::next(&mut recovery).await.transpose()?;
+    let recovery = tasks.observe_startup_recovery().await?;
     let state = Arc::new(AppState {
         views,
         tasks,
         captures: Semaphore::new(args.max_captures_in_flight),
         subscriptions: SubscriptionHub::new(),
     });
-    if let Some(initial) = initial {
-        tasks::recover_tasks(state.clone(), initial.resumable).await?;
-    }
-    let observer = recovery::RecoveryObserver::start(state.clone(), recovery);
+    let observer = veoveo_task_runtime::TaskRecoveryObserver::start(recovery, {
+        let state = state.clone();
+        move |report| {
+            let state = state.clone();
+            async move { tasks::recover_tasks(state, report.resumable).await }
+        }
+    })
+    .await?;
 
     let readiness_state = state.clone();
     let server = HostedServer::for_domain::<ViewMcp>()

@@ -6,7 +6,7 @@ use veoveo_types::TaskTypeDefinition;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalKind};
 use veoveo_task_runtime::{
-    CreateTask, RecoveryClass, TaskError, TaskFailure, TaskOwner, TaskRetentionPin, TaskSnapshot,
+    CreateTask, RecoveryClass, TaskFailure, TaskOwner, TaskRetentionPin, TaskSnapshot,
     TaskTransition,
 };
 use veoveo_types::TaskId;
@@ -147,47 +147,13 @@ pub(super) async fn recover_tasks(
         if let Err(error) =
             schedule_capture_task(state.clone(), snapshot.clone(), request, true).await
         {
-            reconcile_recovery_claim(&state.tasks, &snapshot, error).await?;
+            state
+                .tasks
+                .reconcile_recovery_claim(&snapshot, error)
+                .await?;
         }
     }
     Ok(())
-}
-
-// The finite shared observer has handed this Task off. A claim error alone cannot
-// settle that handoff: a control update can conflict without creating a worker.
-async fn reconcile_recovery_claim(
-    runtime: &veoveo_task_runtime::TaskRuntime,
-    admitted: &TaskSnapshot,
-    error: anyhow::Error,
-) -> anyhow::Result<()> {
-    match error.downcast_ref::<TaskError>() {
-        Some(
-            TaskError::Conflict(_)
-            | TaskError::LeaseHeld(_)
-            | TaskError::NotFound(_)
-            | TaskError::InvalidTransition { .. },
-        ) => {}
-        _ => return Err(error),
-    }
-    let Some(current) = runtime.get_for_recovery(admitted.task_id).await? else {
-        return Ok(());
-    };
-    if current.is_terminal() {
-        return Ok(());
-    }
-    validate_claimed_snapshot(admitted, &current)?;
-    if current
-        .lease_owner
-        .as_deref()
-        .is_some_and(|worker| worker != runtime.worker_id())
-        && current
-            .lease_expires_at
-            .is_some_and(|expiry| expiry > chrono::Utc::now())
-    {
-        tracing::info!(task_id = %admitted.task_id, "another replica holds recovered View task lease");
-        return Ok(());
-    }
-    Err(error.context("recovered View Task has no proven live replacement worker"))
 }
 
 fn validate_claimed_snapshot(

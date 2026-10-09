@@ -14,7 +14,7 @@ mod mcp;
 mod provider_resume;
 mod provider_transaction;
 mod recovery;
-pub use recovery::TaskRecoveryStream;
+pub use recovery::{TaskRecoveryObserver, TaskRecoveryStream};
 mod resource_subscriptions;
 mod runtime;
 mod service;

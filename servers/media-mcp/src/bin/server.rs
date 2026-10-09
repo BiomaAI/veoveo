@@ -497,13 +497,20 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
     let tasks = veoveo_media_mcp::task_lookup::bind(tasks)?;
-    let recovery = tasks.recover().await?;
-    if !recovery.webhook_waiting.is_empty() {
-        tracing::info!(
-            count = recovery.webhook_waiting.len(),
-            "recovered media tasks remain waiting for signed provider webhooks"
-        );
-    }
+    let recovery = tasks.observe_startup_recovery().await?;
+    let observer =
+        veoveo_task_runtime::TaskRecoveryObserver::start(recovery, |report| async move {
+            if !report.webhook_waiting.is_empty() {
+                tracing::info!(
+                    count = report.webhook_waiting.len(),
+                    "recovered media tasks remain waiting for signed provider webhooks"
+                );
+            }
+            // Shared class settlement and existing signed event reconciliation never
+            // authorize another provider mutation.
+            Ok(())
+        })
+        .await?;
     let durable = MediaState::new(tasks.platform_store().clone());
 
     let state = Arc::new(AppState {
@@ -580,8 +587,8 @@ async fn main() -> anyhow::Result<()> {
         .build();
     let _resource_observer =
         spawn_subscription_projection(state.clone(), server.cancellation_token());
-    server
-        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+    observer
+        .serve(server.serve(SocketAddr::from(([0, 0, 0, 0], args.port))))
         .await
 }
 

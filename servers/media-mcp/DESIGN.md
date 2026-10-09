@@ -187,6 +187,12 @@ upgrade must requalify that case.
 
 ## Subscriptions And Billing
 
+The shared `TaskRecoveryObserver` settles the startup baseline before serving and
+revisits retained leases after expiry. Its Media callback observes webhook-waiting
+outcomes without submitting provider work. Signed-event reconciliation keeps its
+existing delivery mechanism. Deferred recovery failures end serving, while an empty
+startup set leaves the healthy server running.
+
 Prediction subscription admission uses the same SQL selection as an exact read. Usage
 admission checks the current Task owner and can precede the first ledger row. Index
 and cursor-page subscriptions require authentication; subsequent reads reapply caller

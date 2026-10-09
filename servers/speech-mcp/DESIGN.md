@@ -158,6 +158,19 @@ The shared Task runtime persists the request, progress, lease and result. Recove
 reruns only accepted resumable work. Stable publication keys prevent duplicate
 transcript and caption Artifacts. Output inherits the current source classification,
 data labels and retention deadline under the Work Context output policy.
+Speech establishes the shared recovery stream's SQL and contribution baseline before
+serving, then selects `TaskRecoveryObserver::start_deferred` because retained work
+may exceed the 64-slot queue. Its supervised callback validates retained requests
+and waits for queue capacity while HTTP reads and cancellation stay available.
+Public transcription admission still rejects a full queue immediately. Before
+claiming, recovery rechecks current Task state and settles cancellation through the
+shared runtime. Claim errors require confirmed settlement or a live replica lease;
+unexpected recovery errors stop HTTP serving and run the existing dictation and
+audit cleanup. Worker-handle reaping runs independently of
+this finite observation and does not query Task recovery periodically.
+HTTP shutdown keeps one thirty-second deadline across observer failure; the
+observer's five-second drain follows HTTP completion. Local lifecycle controls
+exercise that ordering and retain the HTTP deadline when supervision is interrupted.
 
 The lightweight Speech contract uses the Artifact owner's
 [`ArtifactUri`](../../platform/artifacts/contract/DESIGN.md#wire-and-construction)
@@ -207,7 +220,8 @@ Audio remains in bounded memory. Idle sessions close after ten seconds. Input is
 limited to 120 seconds, and receipts expire within 165 seconds. Runtime restart
 interrupts capture; the browser keeps its last draft without resubmitting audio.
 Recording and dictation concurrency have separate quotas whose sum equals worker
-capacity. Timers perform cleanup and Task lease recovery, never initiate new work.
+capacity. Timers perform cleanup; retained Task lease expiry wakes the shared
+startup observer without admitting fresh work.
 The first deployment has one GPU replica because dictation state is ephemeral.
 
 ## Contract Compliance

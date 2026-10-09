@@ -11,7 +11,10 @@ use veoveo_artifact_contract::{
 };
 use veoveo_mcp_contract::{ArtifactPlane, GatewayInternalIdentity, PlaneCaller, PrincipalKind};
 use veoveo_speech_contract::{MAX_SOURCE_BYTES, TranscribeRequest, validate_source};
-use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRetentionPin, TaskSnapshot};
+use veoveo_task_runtime::{
+    CreateTask, RecoveryClass, TaskError, TaskOwner, TaskRetentionPin, TaskSnapshot, TaskStatus,
+    TaskTransition,
+};
 use veoveo_types::TaskId;
 use veoveo_types::TaskTypeDefinition;
 
@@ -98,8 +101,110 @@ impl SpeechService {
     }
 
     pub async fn resume(self: &Arc<Self>, snapshot: TaskSnapshot) -> Result<TaskSnapshot> {
-        let permit = self.queue.clone().try_acquire_owned()?;
-        let request = serde_json::from_value(snapshot.request.clone())?;
-        self.schedule(snapshot, request, permit).await
+        let request: DurableRequest = serde_json::from_value(snapshot.request.clone())?;
+        validate_source(&request.source)?;
+        request.input.source()?;
+        let permit = recovery_permit(self.queue.clone()).await?;
+        // Capacity can become available after a client cancels or another replica
+        // settles the Task. Re-read durable state before claiming or dispatching.
+        let current = self
+            .tasks
+            .get_for_recovery(snapshot.task_id)
+            .await?
+            .ok_or_else(|| TaskError::NotFound(snapshot.task_id.to_string()))?;
+        validate_recovery_snapshot(&snapshot, &current)?;
+        if current.is_terminal() {
+            return Ok(current);
+        }
+        if current.status == TaskStatus::CancelRequested {
+            return Ok(self
+                .tasks
+                .transition_if_current(&current, TaskTransition::Cancelled)
+                .await?);
+        }
+        self.schedule(current, request, permit).await
+    }
+}
+
+async fn recovery_permit(
+    queue: Arc<tokio::sync::Semaphore>,
+) -> Result<tokio::sync::OwnedSemaphorePermit> {
+    Ok(queue.acquire_owned().await?)
+}
+
+pub(crate) fn validate_recovery_snapshot(
+    admitted: &TaskSnapshot,
+    current: &TaskSnapshot,
+) -> Result<()> {
+    anyhow::ensure!(
+        admitted.task_id == current.task_id
+            && admitted.server == current.server
+            && admitted.task_type == current.task_type
+            && admitted.recovery_class == current.recovery_class
+            && admitted.owner == current.owner
+            && admitted.request == current.request,
+        "recovered Speech Task changed after admission"
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::sync::{Mutex, Notify, Semaphore};
+    use veoveo_task_runtime::{RecoveryReport, TaskRecoveryObserver};
+
+    #[tokio::test]
+    async fn retained_backlog_exceeding_queue_capacity_keeps_serving_and_eventually_admits()
+    -> Result<()> {
+        let queue = Arc::new(Semaphore::new(64));
+        let permits = Arc::new(Mutex::new(Vec::new()));
+        let admitted = Arc::new(AtomicUsize::new(0));
+        let progress = Arc::new(Notify::new());
+        let stream = futures::stream::once(async { Ok(RecoveryReport::default()) });
+        let observer = TaskRecoveryObserver::start_deferred(Box::pin(stream), {
+            let queue = queue.clone();
+            let permits = permits.clone();
+            let admitted = admitted.clone();
+            let progress = progress.clone();
+            move |_| {
+                let queue = queue.clone();
+                let permits = permits.clone();
+                let admitted = admitted.clone();
+                let progress = progress.clone();
+                async move {
+                    for _ in 0..65 {
+                        let permit = recovery_permit(queue.clone()).await?;
+                        permits.lock().await.push(permit);
+                        admitted.fetch_add(1, Ordering::SeqCst);
+                        progress.notify_one();
+                    }
+                    Ok(())
+                }
+            }
+        });
+        tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            observer.serve(async {
+                while admitted.load(Ordering::SeqCst) < 64 {
+                    progress.notified().await;
+                }
+                assert_eq!(admitted.load(Ordering::SeqCst), 64);
+                // Public admission still rejects immediately while the queue is full.
+                assert!(queue.clone().try_acquire_owned().is_err());
+                // HTTP can process a completion/cancellation while recovery awaits capacity.
+                drop(permits.lock().await.pop());
+                while admitted.load(Ordering::SeqCst) < 65 {
+                    progress.notified().await;
+                }
+                assert_eq!(queue.available_permits(), 0);
+                Ok(())
+            }),
+        )
+        .await??;
+        drop(permits);
+        assert_eq!(queue.available_permits(), 64);
+        Ok(())
     }
 }

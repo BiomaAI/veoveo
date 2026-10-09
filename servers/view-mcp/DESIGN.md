@@ -633,7 +633,7 @@ An unowned, expired or own-worker lease after a failed claim ends serving.
 The observer covers only Tasks admitted at startup; normal capture admission owns
 new Tasks and active workers.
 
-`server/recovery.rs` owns the observer independently of renderer and Task-held
+The shared `TaskRecoveryObserver` owns observation independently of renderer and Task-held
 state clones. Hosted exit cancels and drains it within five seconds. A stalled
 drain aborts the observer and returns an error. Observer query, admission or
 scheduling errors end serving instead of silently abandoning retained Tasks.

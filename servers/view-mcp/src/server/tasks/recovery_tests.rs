@@ -1,5 +1,6 @@
 //! Production scheduling admission controls, with no renderer or GPU claim.
 use super::{test_support::*, *};
+use veoveo_task_runtime::TaskError;
 
 #[tokio::test]
 async fn capture_claim_preserves_admitted_owner_and_immutable_input_before_dispatch() {
@@ -58,19 +59,20 @@ async fn claim_error_handoff_requires_current_settlement_or_another_live_worker(
             .await
             .unwrap_err();
         assert!(matches!(live_error, TaskError::LeaseHeld(_)));
-        reconcile_recovery_claim(&replacement, &admitted, live_error.into())
+        replacement
+            .reconcile_recovery_claim(&admitted, live_error.into())
             .await
             .unwrap();
         let mut changed_admission = admitted.clone();
         changed_admission.owner.profile = "changed-owner".into();
         assert!(
-            reconcile_recovery_claim(
-                &replacement,
-                &changed_admission,
-                TaskError::Conflict(id.to_string()).into()
-            )
-            .await
-            .is_err()
+            replacement
+                .reconcile_recovery_claim(
+                    &changed_admission,
+                    TaskError::Conflict(id.to_string()).into()
+                )
+                .await
+                .is_err()
         );
         // Inject claim error categories at the production reconciliation seam. The
         // durable states below are real Store rows; this does not induce contention.
@@ -78,18 +80,16 @@ async fn claim_error_handoff_requires_current_settlement_or_another_live_worker(
             TaskError::Conflict(id.to_string()),
             TaskError::LeaseHeld(id.to_string()),
         ] {
-            reconcile_recovery_claim(&replacement, &admitted, error.into())
+            replacement
+                .reconcile_recovery_claim(&admitted, error.into())
                 .await
                 .unwrap();
         }
         assert!(
-            reconcile_recovery_claim(
-                &winner,
-                &admitted,
-                TaskError::Conflict(id.to_string()).into()
-            )
-            .await
-            .is_err(),
+            winner
+                .reconcile_recovery_claim(&admitted, TaskError::Conflict(id.to_string()).into())
+                .await
+                .is_err(),
             "own lease is not a replacement worker"
         );
         for state in ["unowned", "expired"] {
@@ -105,13 +105,10 @@ async fn claim_error_handoff_requires_current_settlement_or_another_live_worker(
                 .check()
                 .unwrap();
             assert!(
-                reconcile_recovery_claim(
-                    &replacement,
-                    &admitted,
-                    TaskError::Conflict(id.to_string()).into()
-                )
-                .await
-                .is_err(),
+                replacement
+                    .reconcile_recovery_claim(&admitted, TaskError::Conflict(id.to_string()).into())
+                    .await
+                    .is_err(),
                 "{state} Task was silently abandoned"
             );
         }
@@ -143,13 +140,10 @@ async fn claim_error_handoff_requires_current_settlement_or_another_live_worker(
                     "fixture payload was not malformed"
                 );
             }
-            let error = reconcile_recovery_claim(
-                &replacement,
-                &admitted,
-                TaskError::NotFound(id.to_string()).into(),
-            )
-            .await
-            .unwrap_err();
+            let error = replacement
+                .reconcile_recovery_claim(&admitted, TaskError::NotFound(id.to_string()).into())
+                .await
+                .unwrap_err();
             assert!(
                 matches!(
                     error.downcast_ref::<TaskError>(),
@@ -173,11 +167,22 @@ async fn claim_error_handoff_requires_current_settlement_or_another_live_worker(
             .unwrap();
         winner.claim(id, Duration::from_secs(30)).await.unwrap();
         finish(&winner, id, completed(&request)).await;
+        assert!(
+            replacement
+                .reconcile_recovery_claim(
+                    &changed_admission,
+                    TaskError::Conflict(id.to_string()).into()
+                )
+                .await
+                .is_err(),
+            "terminal Task with a different admitted owner proved settlement"
+        );
         let terminal_error = replacement
             .claim(id, Duration::from_secs(30))
             .await
             .unwrap_err();
-        reconcile_recovery_claim(&replacement, &admitted, terminal_error.into())
+        replacement
+            .reconcile_recovery_claim(&admitted, terminal_error.into())
             .await
             .unwrap();
         for error in [
@@ -187,7 +192,8 @@ async fn claim_error_handoff_requires_current_settlement_or_another_live_worker(
                 to: veoveo_task_runtime::TaskStatus::Running,
             },
         ] {
-            reconcile_recovery_claim(&replacement, &admitted, error.into())
+            replacement
+                .reconcile_recovery_claim(&admitted, error.into())
                 .await
                 .unwrap();
         }
@@ -200,17 +206,17 @@ async fn claim_error_handoff_requires_current_settlement_or_another_live_worker(
             .unwrap()
             .check()
             .unwrap();
-        reconcile_recovery_claim(
-            &replacement,
-            &admitted,
-            replacement
-                .claim(id, Duration::from_secs(30))
-                .await
-                .unwrap_err()
-                .into(),
-        )
-        .await
-        .unwrap();
+        replacement
+            .reconcile_recovery_claim(
+                &admitted,
+                replacement
+                    .claim(id, Duration::from_secs(30))
+                    .await
+                    .unwrap_err()
+                    .into(),
+            )
+            .await
+            .unwrap();
     })
     .await
     .expect("claim handoff control exceeded 60 seconds");

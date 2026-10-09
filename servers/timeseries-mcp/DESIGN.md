@@ -164,6 +164,15 @@ qualified with an independent consumer; runtime-only builds check feature compos
 
 ## Task Admission
 
+Startup registers the shared Task recovery stream before constructing the server
+state. It tracks unfinished Tasks from the startup baseline and revisits live
+leases at their deadlines or on native Store changes. The shared
+`TaskRecoveryObserver` dispatches the first report before serving HTTP and
+supervises later reports for the hosted lifetime. Resumable forecasts use the
+existing request and owner validation before an atomic claim. Held leases and
+competing replica claims leave execution with their current owner; other recovery
+errors stop serving. Newly admitted forecasts use normal scheduling.
+
 Both server dispatch paths delegate Task reads, updates, cancellation and subscriptions
 to the shared Task service. Public reads select current owner visibility in SQL before
 decoding; cancellation checks the same selection in its transaction. Forecast workers

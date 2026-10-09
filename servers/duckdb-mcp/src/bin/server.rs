@@ -42,7 +42,7 @@ use veoveo_mcp_contract::{
     init_server_telemetry,
     server_contract::McpServerSetup,
 };
-use veoveo_task_runtime::{DurableTasks, TaskError, TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasks, TaskRuntime, TaskRuntimeConfig};
 
 #[path = "server/app_state.rs"]
 mod app_state;
@@ -259,7 +259,7 @@ async fn main() -> anyhow::Result<()> {
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
     )
     .await?;
-    let recovery = tasks.recover().await?;
+    let recovery = tasks.observe_startup_recovery().await?;
     let mut source_policy =
         veoveo_duckdb_runtime::HttpsSourcePolicy::new(args.allow_source_hosts.clone());
     source_policy.max_bytes = args.max_source_bytes;
@@ -280,16 +280,22 @@ async fn main() -> anyhow::Result<()> {
         source_policy,
         args.max_artifact_bytes,
     ));
-    for snapshot in recovery.resumable {
-        if let Err(error) = resume_duckdb_task(state.clone(), snapshot).await {
-            match error.downcast_ref::<TaskError>() {
-                Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
-                    tracing::info!(task_id, "another replica claimed recovered DuckDB task");
+    let recovery_state = state.clone();
+    let recovery = veoveo_task_runtime::TaskRecoveryObserver::start(recovery, move |report| {
+        let state = recovery_state.clone();
+        async move {
+            for snapshot in report.resumable {
+                if let Err(error) = resume_duckdb_task(state.clone(), snapshot.clone()).await {
+                    state
+                        .tasks
+                        .reconcile_recovery_claim(&snapshot, error)
+                        .await?;
                 }
-                _ => return Err(error),
             }
+            Ok(())
         }
-    }
+    })
+    .await?;
 
     let readiness_store = state.tasks.platform_store().clone();
     let server = HostedServer::for_domain::<DuckdbMcp>()
@@ -314,8 +320,8 @@ async fn main() -> anyhow::Result<()> {
             ))
         })
         .build();
-    server
-        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+    recovery
+        .serve(server.serve(SocketAddr::from(([0, 0, 0, 0], args.port))))
         .await
 }
 

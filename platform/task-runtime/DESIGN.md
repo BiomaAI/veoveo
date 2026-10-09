@@ -624,8 +624,30 @@ end it with an error for its lifetime owner to handle. The native source's exist
 reconnection contract supplies subsequent current-state reconciliation. No periodic
 recovery query runs while retained leases and native state stay unchanged.
 
+`TaskRecoveryObserver::start` applies the initial report through the owner's callback
+before returning. It then owns deferred reports for the finite startup set. Its
+`serve` method couples observation to the owner's serving future: observer errors
+end serving, while exhaustion keeps a healthy server running. Serving exit cancels
+and drains the observer within five seconds. A stalled drain fails and aborts its
+task; dropping the observer also cancels and aborts it. Domain callbacks retain
+request admission and claim handling. Owners with additional shutdown duties keep
+their serving future and run those duties after observer failure.
+Owners whose admission waits for capacity can select `start_deferred` after
+establishing the stream baseline. It supervises the initial callback with the same
+error, cancellation and five-second drain rules while serving begins.
+
+`TaskRuntime::reconcile_recovery_claim` checks a failed owner handoff against current
+durable state. Physical absence completes the handoff. Every present Task must
+preserve its admitted identity, owner and request. Terminal settlement or another
+replica's live lease then completes the handoff; otherwise the original claim error
+stops serving.
+This check never mutates a Task or retries dispatch.
+
 `tests/support/recovery_cases.rs` qualifies live-lease replacement startup,
 deadline resumption without restart, independent replica claims, renewal, current
 cancellation and terminal exclusion, provider observation and SQL exclusion of
 malformed payloads. The contribution harness also settles an interrupted Task
 through deferred recovery after a real lease expires.
+The hosted-observer case drives a real retained lease through the public observer
+and owner callback. Observer unit controls qualify baseline handling, deferred errors,
+finite completion, cancellation and stalled-callback drain without domain execution.

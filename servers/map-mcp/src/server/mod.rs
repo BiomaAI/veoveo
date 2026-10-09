@@ -12,7 +12,7 @@ use veoveo_mcp_contract::{
     hosting::{Hosted, HostedServer},
     init_server_telemetry,
 };
-use veoveo_task_runtime::{DurableTasks, TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasks, TaskRecoveryObserver, TaskRuntime, TaskRuntimeConfig};
 
 use crate::{
     acquisition::{
@@ -71,7 +71,7 @@ async fn serve(args: Args) -> Result<()> {
     )
     .await?;
     let tasks = crate::task_lookup::bind(tasks)?;
-    let recovery = tasks.recover().await?;
+    let recovery = tasks.observe_startup_recovery().await?;
 
     let catalog = MapCatalog::new(tasks.platform_store().clone());
     if let Some(path) = &args.bootstrap_catalog {
@@ -168,7 +168,12 @@ async fn serve(args: Args) -> Result<()> {
         authoring_task_root,
         max_artifact_bytes: args.max_artifact_bytes,
     });
-    recover_tasks(state.clone(), recovery.resumable).await?;
+    let recovery_state = state.clone();
+    let recovery_observer = TaskRecoveryObserver::start(recovery, move |report| {
+        let state = recovery_state.clone();
+        async move { recover_tasks(state, report.resumable).await }
+    })
+    .await?;
 
     let observer_hub = state.subscriptions.clone();
     let observer_store = catalog.store().clone();
@@ -222,14 +227,16 @@ async fn serve(args: Args) -> Result<()> {
             }
         })
         .build();
+    let shutdown = server.cancellation_token();
     let observer = tokio::spawn(crate::resource_changes::observe(
         observer_store,
         observer_hub,
         server.cancellation_token(),
     ));
-    let serve_result = server
-        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+    let serve_result = recovery_observer
+        .serve(server.serve(SocketAddr::from(([0, 0, 0, 0], args.port))))
         .await;
+    shutdown.cancel();
     let observer_result = observer.await;
     valhalla_process.stop().await;
     observer_result?;

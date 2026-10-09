@@ -70,6 +70,14 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 
 ## Current Status
 
+Twelve hosted Rust owners use TaskRuntime's finite startup recovery observer.
+Retained Tasks with live leases are revisited after expiry, and failed claims require
+current settlement or a matching live replacement worker before recovery skips them.
+Speech schedules its retained backlog behind the existing 64-slot queue while HTTP
+stays available. Shared native recovery controls pass; owner shutdown controls preserve
+one HTTP drain deadline and the observer's separate five-second drain. Installed
+Task lifecycle, restart and final-image qualification remain open.
+
 The read-only Time owner fixture prepares public-gateway authority, clock,
 resolution/conversion, calendar/epoch, window and HTTPS-source consumers. Its native
 fixture and receipt controls pass; installed execution remains held. Task recovery,
@@ -82,7 +90,7 @@ qualification. Installed execution remains held.
 
 Installed node activation and the stock rollout are halted after Secret values
 accidentally appeared in a tool transcript. Both tracked Veoveo and UAV HelmReleases
-explicitly suspend application reconciliation to preserve this installation hold. The namespace inventory contains
+explicitly suspend application reconciliation to preserve this installation hold. The incident inventory comprised
 sixteen Secret objects: thirteen application Secrets and three Helm Secrets. All
 eight baseline services are Ready; the node is unchanged and uncordoned, and no
 installed credentials have changed. The eighteen selected stock native cases stay

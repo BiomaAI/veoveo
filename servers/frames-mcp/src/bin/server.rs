@@ -53,8 +53,8 @@ use veoveo_mcp_contract::{
     server_contract::McpServerSetup,
 };
 use veoveo_task_runtime::{
-    CreateTask as DurableCreateTask, DurableTasks, RecoveryClass, TaskError, TaskFailure,
-    TaskRetentionPin, TaskRuntime, TaskSnapshot, TaskTransition,
+    CreateTask as DurableCreateTask, DurableTasks, RecoveryClass, TaskFailure,
+    TaskRecoveryObserver, TaskRetentionPin, TaskRuntime, TaskSnapshot, TaskTransition,
 };
 use veoveo_types::TaskId;
 
@@ -650,7 +650,7 @@ async fn main() -> anyhow::Result<()> {
         SERVER_SLUG,
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
     );
-    let recovery = tasks.recover().await?;
+    let recovery = tasks.observe_startup_recovery().await?;
     let frames = FramesState::new(tasks.platform_store().clone());
     let state = Arc::new(AppState {
         tasks,
@@ -659,16 +659,23 @@ async fn main() -> anyhow::Result<()> {
         max_artifact_bytes: args.max_artifact_bytes,
         subscriptions: veoveo_mcp_contract::SubscriptionHub::new(),
     });
-    for snapshot in recovery.resumable {
-        if let Err(error) = resume_batch_task(state.clone(), snapshot).await {
-            match error.downcast_ref::<TaskError>() {
-                Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
-                    tracing::info!(%task_id, "another replica claimed recovered Frames task");
+    let recovery_state = state.clone();
+    let recovery_observer = TaskRecoveryObserver::start(recovery, move |report| {
+        let state = recovery_state.clone();
+        async move {
+            for snapshot in report.resumable {
+                let admitted = snapshot.clone();
+                if let Err(error) = resume_batch_task(state.clone(), snapshot).await {
+                    state
+                        .tasks
+                        .reconcile_recovery_claim(&admitted, error)
+                        .await?;
                 }
-                _ => return Err(error),
             }
+            Ok(())
         }
-    }
+    })
+    .await?;
 
     let readiness_store = state.tasks.platform_store().clone();
     let server = HostedServer::for_domain::<FramesMcp>()
@@ -698,8 +705,8 @@ async fn main() -> anyhow::Result<()> {
         })
         .build();
     let _resource_observer = subscriptions::spawn_observer(state, server.cancellation_token());
-    server
-        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+    recovery_observer
+        .serve(server.serve(SocketAddr::from(([0, 0, 0, 0], args.port))))
         .await
 }
 

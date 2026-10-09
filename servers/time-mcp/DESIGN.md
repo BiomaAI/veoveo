@@ -578,6 +578,14 @@ them every 40 seconds. Both temporal task types use `Resume` recovery because th
 outputs are deterministic under the persisted authority-bound request. Terminal task
 records retain for seven days unless a retention pin extends their lifetime.
 
+Startup recovery observes the finite set of retained Tasks.
+The shared observer applies the initial report before HTTP starts and revisits live
+leases through SQL change notifications and lease deadlines. Each resumable request
+passes the existing type and claim guards. A failed claim skips local scheduling
+only when current SQL proves physical absence, terminal settlement, or a matching
+Task held by another worker's unexpired lease. An unproven conflict or recovery
+observation error stops HTTP serving.
+
 ### Zone Completion
 
 Time advertises `time://zones/{+zone_id}` to preserve slash and plus signs in zone

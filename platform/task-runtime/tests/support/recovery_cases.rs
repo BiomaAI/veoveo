@@ -16,6 +16,70 @@ async fn next_resume(stream: &mut TaskRecoveryStream) -> RecoveryReport {
 }
 
 #[tokio::test]
+async fn hosted_observer_dispatches_after_a_retained_lease_expires() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let (db, old) = runtime("observer-old").await;
+        let id = old
+            .create(draft("forecast", RecoveryClass::Resume))
+            .await
+            .unwrap()
+            .snapshot
+            .task_id;
+        let lease = old.claim(id, Duration::from_secs(2)).await.unwrap();
+        let replacement =
+            TaskRuntime::new(db.b.clone(), "integration-server", "observer-replacement");
+        let stream = replacement.observe_startup_recovery().await.unwrap();
+        let (completed, finished) = tokio::sync::oneshot::channel();
+        let mut completed = Some(completed);
+        let observer = veoveo_task_runtime::TaskRecoveryObserver::start(stream, move |report| {
+            let replacement = replacement.clone();
+            let completed = if report.resumable.is_empty() {
+                None
+            } else {
+                completed.take()
+            };
+            async move {
+                if report.resumable.is_empty() {
+                    return Ok(());
+                }
+                assert_eq!(report.resumable.len(), 1);
+                assert_eq!(report.resumable[0].task_id, id);
+                assert!(chrono::Utc::now() >= lease.lease_expires_at);
+                replacement.claim(id, Duration::from_secs(5)).await?;
+                replacement
+                    .transition(
+                        id,
+                        TaskTransition::Succeeded {
+                            result_uri: None,
+                            message: "done".into(),
+                            result: json!({"done":true}),
+                        },
+                    )
+                    .await?;
+                completed.expect("one retained dispatch").send(()).unwrap();
+                Ok(())
+            }
+        })
+        .await
+        .unwrap();
+        assert!(chrono::Utc::now() < lease.lease_expires_at);
+        observer
+            .serve(async {
+                finished.await?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            old.get(id).await.unwrap().unwrap().status,
+            TaskStatus::Succeeded
+        );
+    })
+    .await
+    .expect("hosted observer recovery exceeded 60 seconds");
+}
+
+#[tokio::test]
 async fn replacement_revisits_live_startup_lease_and_replicas_dispatch_once() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let (db, old) = runtime("old").await;

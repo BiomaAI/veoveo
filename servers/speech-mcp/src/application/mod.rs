@@ -56,3 +56,5 @@ struct DurableRequest {
     read: IssuedArtifactReadCapability,
     write: IssuedArtifactWriteCapability,
 }
+
+pub(crate) use admission::validate_recovery_snapshot;

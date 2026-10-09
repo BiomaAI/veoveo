@@ -15,7 +15,7 @@ use crate::{
     contract::SimulationLifecycle,
 };
 use clap::Parser;
-use std::{net::SocketAddr, sync::Arc};
+use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
@@ -23,7 +23,9 @@ use veoveo_mcp_contract::{
     hosting::{Hosted, HostedServer},
     init_server_telemetry,
 };
-use veoveo_task_runtime::{DurableTasks, TaskRuntime, TaskRuntimeConfig, WithResources};
+use veoveo_task_runtime::{
+    DurableTasks, TaskRecoveryObserver, TaskRuntime, TaskRuntimeConfig, WithResources,
+};
 
 pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
@@ -46,7 +48,7 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     )
     .await?;
     let tasks = crate::server::task_catalog::UavTaskContributions::bind(tasks)?;
-    let recovery = tasks.recover().await?;
+    let recovery = tasks.observe_startup_recovery().await?;
     let control_authority = VehicleControlAuthority::new(tasks.platform_store().clone());
     let adapter = match args.adapter {
         AdapterKind::Http => Adapter::Http(Box::new(HttpAdapter::new(
@@ -99,12 +101,17 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
         live_view_audit: live_view_audit.clone(),
         live_view_connect_origin,
     });
-    for snapshot in recovery.resumable {
-        resume_queued_operation(state.clone(), snapshot)
-            .await
-            .map_err(anyhow::Error::msg)?;
-    }
-    super::super::task_worker::reconcile_mission_retention(&state).await?;
+    let recovery_state = state.clone();
+    let recovery_observer = TaskRecoveryObserver::start(recovery, move |report| {
+        let state = recovery_state.clone();
+        async move {
+            for snapshot in report.resumable {
+                resume_queued_operation(state.clone(), snapshot).await?;
+            }
+            super::super::task_worker::reconcile_mission_retention(&state).await
+        }
+    })
+    .await?;
 
     let shutdown = CancellationToken::new();
     let target_observer = tokio::spawn(super::super::agent_targets::observe(
@@ -163,21 +170,37 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     });
     let mut live_stream_task =
         tokio::spawn(live_stream_gate.run(live_stream_address, shutdown.child_token()));
-    tokio::pin!(server);
-    let (result, server_finished) = tokio::select! {
-        _ = shutdown.cancelled() => (Ok(()), false),
-        result = &mut server => (result, true),
-        result = &mut live_stream_task => (match result {
-            Ok(result) => result,
-            Err(error) => Err(error.into()),
-        }, false),
+    let http = drain_http_on_shutdown(server, &shutdown, Duration::from_secs(30));
+    tokio::pin!(http);
+    let mut http_completed = false;
+    let (result, recovery_drain) = {
+        // Borrow the HTTP future so recovery failure still reaches the owned drain below.
+        let serving = recovery_observer.serve(async {
+            let result = (&mut http).await;
+            http_completed = true;
+            result
+        });
+        tokio::pin!(serving);
+        let (result, observed_finished) = tokio::select! {
+            _ = shutdown.cancelled() => (Ok(()), false),
+            result = &mut serving => (result, true),
+            result = &mut live_stream_task => (match result {
+                Ok(result) => result,
+                Err(error) => Err(error.into()),
+            }, false),
+        };
+        shutdown.cancel();
+        let recovery_drain = if observed_finished {
+            Ok(())
+        } else {
+            // The HTTP future owns its thirty-second deadline; recovery drains for five.
+            (&mut serving).await
+        };
+        (result, recovery_drain)
     };
     shutdown.cancel();
-    let http_drain = if !server_finished {
-        tokio::time::timeout(std::time::Duration::from_secs(30), &mut server)
-            .await
-            .map_err(anyhow::Error::from)
-            .and_then(|result| result)
+    let http_drain = if !http_completed {
+        (&mut http).await
     } else {
         Ok(())
     };
@@ -199,6 +222,7 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     observers??;
     sessions?;
     drained?;
+    recovery_drain?;
     result
 }
 
@@ -226,5 +250,52 @@ async fn ready(state: &AppState) -> bool {
             tracing::warn!(%error, "UAV simulation MCP readiness failed");
             false
         }
+    }
+}
+
+/// Keep one shutdown deadline even when recovery stops polling HTTP first.
+async fn drain_http_on_shutdown(
+    serving: impl Future<Output = anyhow::Result<()>>,
+    shutdown: &CancellationToken,
+    timeout: Duration,
+) -> anyhow::Result<()> {
+    tokio::pin!(serving);
+    tokio::select! {
+        result = &mut serving => result,
+        _ = shutdown.cancelled() => tokio::time::timeout(timeout, &mut serving)
+            .await.map_err(anyhow::Error::from).and_then(|result| result),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn interrupted_http_drain_keeps_its_original_deadline() {
+        let shutdown = CancellationToken::new();
+        shutdown.cancel();
+        let http = drain_http_on_shutdown(
+            std::future::pending(),
+            &shutdown,
+            Duration::from_millis(100),
+        );
+        tokio::pin!(http);
+        // Model an outer lifecycle branch stopping observation during HTTP drain.
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut http)
+                .await
+                .is_err()
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let result = tokio::time::timeout(Duration::from_millis(50), &mut http)
+            .await
+            .expect("HTTP drain restarted its deadline");
+        assert!(
+            result
+                .unwrap_err()
+                .downcast_ref::<tokio::time::error::Elapsed>()
+                .is_some()
+        );
     }
 }

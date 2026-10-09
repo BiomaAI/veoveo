@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalKind};
 use veoveo_task_runtime::{
-    CreateTask, RecoveryClass, TaskError, TaskFailure, TaskOwner, TaskRetentionPin, TaskSnapshot,
+    CreateTask, RecoveryClass, TaskFailure, TaskOwner, TaskRetentionPin, TaskSnapshot,
     TaskTransition,
 };
 use veoveo_types::TaskId;
@@ -167,13 +167,12 @@ pub(super) async fn recover_tasks(
         if request.task_type() != snapshot.task_type {
             anyhow::bail!("Time task type does not match its persisted request");
         }
+        let admitted = snapshot.clone();
         if let Err(error) = schedule_time_task(state.clone(), snapshot, request).await {
-            match error.downcast_ref::<TaskError>() {
-                Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
-                    tracing::info!(%task_id, "another replica claimed recovered Time task")
-                }
-                _ => return Err(error),
-            }
+            state
+                .tasks
+                .reconcile_recovery_claim(&admitted, error)
+                .await?;
         }
     }
     Ok(())

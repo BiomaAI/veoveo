@@ -433,6 +433,14 @@ address. A missing, mismatched or already-settled catalog row rolls back settlem
 Worker lifecycle errors propagate; resource notifications follow committed success.
 Intermediate Task status belongs to the Task runtime.
 
+The shared startup recovery observer applies the initial report after contribution
+binding and before HTTP starts. SQL change notifications and lease deadlines revisit
+live leases in the finite retained startup set. Existing operation and request guards
+run before a worker claim. A failed claim skips local scheduling only when current
+SQL proves physical absence, terminal settlement, or a matching Task held by another
+worker's unexpired lease. An unproven conflict or recovery observation error stops
+HTTP serving.
+
 `OptimizationReads` queries catalog keys under the current caller's `TaskOwner`.
 `fn::kernel::tasks::selection_v1` loads the persisted Task by its record link and
 checks owner, tenant, profile, clearance, operation and Work Context. Its return

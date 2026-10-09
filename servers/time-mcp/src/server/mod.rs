@@ -13,7 +13,7 @@ use veoveo_mcp_contract::{
     hosting::{Hosted, HostedServer},
     init_server_telemetry,
 };
-use veoveo_task_runtime::{DurableTasks, TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasks, TaskRecoveryObserver, TaskRuntime, TaskRuntimeConfig};
 
 use crate::{
     acquisition::{AcquisitionService, AcquisitionServiceConfig},
@@ -54,7 +54,7 @@ pub async fn run() -> Result<()> {
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
     )
     .await?;
-    let recovery = tasks.recover().await?;
+    let recovery = tasks.observe_startup_recovery().await?;
     let catalog = TimeCatalog::new(tasks.platform_store().clone());
     let leap_seconds = LeapSecondTable::from_path(&args.bootstrap_leap_seconds_file).await?;
     let bootstrap = AuthorityContext::from_paths(
@@ -103,7 +103,12 @@ pub async fn run() -> Result<()> {
         subscriptions: Arc::new(SubscriptionHub::new()),
         event_watchers: Arc::new(tokio::sync::Mutex::new(BTreeMap::new())),
     });
-    recover_tasks(state.clone(), recovery.resumable).await?;
+    let recovery_state = state.clone();
+    let recovery_observer = TaskRecoveryObserver::start(recovery, move |report| {
+        let state = recovery_state.clone();
+        async move { recover_tasks(state, report.resumable).await }
+    })
+    .await?;
 
     let resource_state = state.clone();
     let _resource_observer = tokio::spawn(async move {
@@ -153,8 +158,8 @@ pub async fn run() -> Result<()> {
             async move { state.clock.quality().await.is_ok() }
         })
         .build();
-    server
-        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+    recovery_observer
+        .serve(server.serve(SocketAddr::from(([0, 0, 0, 0], args.port))))
         .await
 }
 
