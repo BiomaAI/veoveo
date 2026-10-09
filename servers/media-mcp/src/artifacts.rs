@@ -89,8 +89,8 @@ impl ArtifactRepository {
     }
 
     /// Fetch bytes + metadata if the caller may read them. `Ok(None)` for a
-    /// missing artifact; a denial surfaces as an error so it is never silently
-    /// treated as absent.
+    /// missing or policy-denied artifact. The plane records its denial reason;
+    /// Media's public reads do not disclose whether a denied occurrence exists.
     pub async fn get(
         &self,
         caller: &PlaneCaller,
@@ -101,7 +101,7 @@ impl ArtifactRepository {
                 object.metadata = object.metadata.presented_under_scheme(&SCHEME);
                 Ok(Some(object))
             }
-            Err(ArtifactPlaneError::NotFound) => Ok(None),
+            Err(ArtifactPlaneError::NotFound | ArtifactPlaneError::Denied(_)) => Ok(None),
             Err(other) => Err(plane_err(other)),
         }
     }

@@ -176,6 +176,9 @@ retention pins can extend it. Artifact metadata and bytes follow their own polic
 A retained result describes the completed output and does not promise that its
 Artifact bytes are still available. Artifact access rechecks the Artifact plane's
 current policy when a consumer follows an output link.
+Media maps the plane's typed access denial and not-found result to the same public
+unknown-artifact response for resource reads and the artifact tool projection;
+authentication, malformed-request, conflict and transport failures keep their error paths.
 
 Queries interpolate only code-owned clause alternatives. Caller values enter as bound
 parameters at the driver boundary. The SQL continuation includes an explicit inequality
