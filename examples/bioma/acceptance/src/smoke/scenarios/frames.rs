@@ -1,4 +1,6 @@
 use super::*;
+#[path = "frames/immutable_subscription.rs"]
+mod immutable_subscription;
 pub(crate) async fn frames_mcp(
     conformance: &Path,
     frames: &Path,
@@ -517,6 +519,7 @@ pub(crate) async fn frames_installed(
             bail!("installed Frames worlds subscription failed before mutation");
         }
     };
+    let mut immutable_subscription = None;
     let result = tokio::time::timeout_at(deadline, async {
         anyhow::ensure!(
             subscription.acknowledged() == &filter,
@@ -584,19 +587,18 @@ pub(crate) async fn frames_installed(
         let immutable_filter = SubscriptionFilter::builder()
             .resource_subscriptions([revision_uri.to_string()])
             .build();
-        match client.listen(immutable_filter).await {
-            Err(rmcp::ServiceError::McpError(error))
-                if error.code == rmcp::model::ErrorCode::INVALID_PARAMS => {}
-            Ok(mut unexpected) => {
-                let _ = tokio::time::timeout(Duration::from_secs(5), unexpected.cancel()).await;
-                bail!("Frames admitted an immutable revision subscription");
-            }
-            Err(_) => bail!("Frames immutable subscription did not return invalid params"),
-        }
+        immutable_subscription::require_rejection(
+            client.peer(),
+            immutable_filter,
+            frames_admission_deadline(deadline),
+            &mut immutable_subscription,
+        )
+        .await?;
         receipt.outcome = InstalledFramesOutcome::Passed;
         Ok::<(), anyhow::Error>(())
     })
     .await;
+    let immutable_closed = immutable_subscription::cancel_owned(&mut immutable_subscription).await;
     let listener_closed = matches!(
         tokio::time::timeout(Duration::from_secs(5), subscription.cancel()).await,
         Ok(Ok(_))
@@ -605,7 +607,7 @@ pub(crate) async fn frames_installed(
         tokio::time::timeout(Duration::from_secs(5), client.cancel()).await,
         Ok(Ok(_))
     );
-    if listener_closed && client_closed {
+    if immutable_closed && listener_closed && client_closed {
         receipt.cleanup = InstalledFramesCleanup::ConnectionsClosed;
     }
     let written = write_frames_evidence(&mut evidence_file, &receipt);
@@ -613,7 +615,7 @@ pub(crate) async fn frames_installed(
     result.context("installed Frames acceptance exceeded ninety seconds")??;
     written?;
     anyhow::ensure!(
-        listener_closed && client_closed,
+        immutable_closed && listener_closed && client_closed,
         "Frames connection cleanup remains unresolved"
     );
     Ok(())

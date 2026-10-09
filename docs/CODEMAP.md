@@ -1822,6 +1822,7 @@ dispatch preflights and budgeted execution.
 | [`examples/bioma/acceptance/DESIGN.md`](../examples/bioma/acceptance/DESIGN.md) and `src/smoke/installation_smoke.rs` | installation smoke ownership, installed cross-replica acceptance, command dispatch and digest-addressed simulation certification |
 | `examples/bioma/acceptance/src/smoke/scenarios/` | Rust process/deployment scenarios |
 | `examples/bioma/acceptance/src/smoke/scenarios/installation/shared_host.rs` and `shared_host/drain.rs` | installed CPU query Task completion and retained payload through normal operator OAuth, with one admitted DuckDB process drain in the existing installation harness |
+| `examples/bioma/acceptance/src/smoke/scenarios/frames/immutable_subscription.rs` | Frames-owned installed probe observes terminal URI rejection after protocol acknowledgement and retains listener ownership for cancellation after the operation deadline |
 | `examples/bioma/acceptance/src/smoke/scenarios/view/readiness.rs` | typed View readiness and production GPU startup-log admission for the existing renderer smoke; NVIDIA Vulkan, encoder and CUDA UUID checks |
 | `examples/bioma/acceptance/src/smoke/scenarios/view/schema.rs` | current View tool input-schema admission and owner DTO validation through JSON Schema references in the existing renderer smoke |
 | `testing/support/src/installed/restart/drain.rs` | optional selected-container restart admission, native Pod watch, typed termination/grace receipt and CPU refusal/cleanup controls; readiness-only consumers retain their declared scope |
