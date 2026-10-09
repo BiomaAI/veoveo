@@ -579,7 +579,7 @@ sink, and affected source consumers pass. Other owners also observe domain mutat
 grants, usage or live runtime state; those sources keep their current delivery semantics.
 F62's installed consumers and coordinated replacement remain open.
 
-At source `f4bff966e`, Speech's maintained native CUDA v2 and hosted-v4
+At source `f4bff966e`, Speech's maintained native GPU report-v2 and hosted-contract-v4
 controls each pass once on the RTX 4090 with checkpoint
 `73175eb7aeb0d82f1e2a6b53b3aabc10a90bcd0b`; the existing interpreter,
 package and model pins in the [Speech design](../servers/speech-mcp/DESIGN.md#packaging)
@@ -592,10 +592,14 @@ with core Ready at the postcheck. These selected cases do not close the full
 simultaneous peak-load budget.
 The browser's visibility, software-renderer warning and hardware-loss guards pass
 compiler, strict lint, three pure hardware controls and independent review; actual
-headed and installed browser acceptance remain open. The reference Speech index
-is associated with its pinned runnable child, but the shared Rust source closure
-has changed. Final overlay assembly, offline image qualification and installed
-consumers remain open; the unchanged dependency parent needs no rebuild.
+headed and installed browser acceptance remain open. The committed Speech overlay
+at `e38c1b114` stages in 7.07 seconds with the correct Veoveo source/revision labels.
+All eleven filesystem layers match the `d85a05cf5` image, including its eight
+dependency layers. That image passes offline CUDA worker startup as UID 10001
+with networking disabled and a read-only root filesystem; readiness identifies
+the pinned checkpoint and RTX 4090. Owned-container cleanup completes with Docker's
+forced-stop fallback. This direct-worker check does not qualify production host
+shutdown. Installed consumers and production shutdown remain open.
 
 The [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) preserves checkpoint details and
 historical failures. Reuse accepted checks while their source, dependencies and
