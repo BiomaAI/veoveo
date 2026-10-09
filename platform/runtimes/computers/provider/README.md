@@ -44,9 +44,15 @@ containment, retained lifecycle or installed rollout.
 
 ## Lifecycle And Guest Policy
 
-Stock gateway restart replaces the supervisor and revives the guest. Terminal
-sessions reset while retained-volume file contents persist. Veoveo preserves
-uncertain operations until the provider supplies correlated settlement.
+The supported maintenance profile stops the Computer before replacing the gateway,
+verifies Stopped through a fresh read, then explicitly Starts a new process. Each
+attachment opens a fresh shell; retained-volume file contents persist. A running
+guest can retain its prior supervisor binding across a gateway crash and reject
+the replacement supervisor. Recovery of that running Computer is unsupported in
+this release profile. Veoveo preserves uncertain outcomes and run fences until
+correlated settlement; it does not retry mutations to force recovery. The
+[owning runtime design](../DESIGN.md#installation-and-persistence-compatibility)
+declares the qualification and installed transition requirements.
 Owned immutable guest images exclude supplementary image-account groups. The
 private Docker daemon sets its local log driver to three files of 10 MiB each.
 Retained volume initialization uses stock Docker copy-on-mount behavior or an

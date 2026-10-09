@@ -50,7 +50,10 @@ fn template(image: String) -> DevelopmentTemplate {
             }),
             ..Default::default()
         },
-        vec!["/bin/bash".into(), "-l".into()],
+        // This fixture has no retained mount. Keep the main workload alive
+        // without an image login profile that requires /sandbox/persistent;
+        // each stock SSH attachment starts its own independent shell.
+        vec!["/bin/sleep".into(), "infinity".into()],
         None,
     )
     .unwrap()
@@ -58,13 +61,14 @@ fn template(image: String) -> DevelopmentTemplate {
 
 #[tokio::test]
 #[ignore = "requires exact provider binaries and a digest-pinned Computer image; starts an isolated Docker provider"]
-async fn native_lifecycle_terminal_and_epoch_recovery() {
+async fn native_stopped_lifecycle_terminal_and_epoch_recovery() {
     if native_support::registry_child().await {
         return;
     }
-    let mut provider =
-        Provider::start_with_execution_logging("native_lifecycle_terminal_and_epoch_recovery")
-            .await;
+    let mut provider = Provider::start_with_execution_logging(
+        "native_stopped_lifecycle_terminal_and_epoch_recovery",
+    )
+    .await;
     let runtime = provider.runtime.clone();
     let template = retained_template::retained_template(provider.image.clone());
     let computer = Uuid::now_v7();
@@ -151,19 +155,73 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     home.assert_registered_retained_mount();
     let before_controller = retained_identity(&provider, &ready, &home.volume).await;
     let old_supervisor = supervisor_identity(&provider, &ready).await;
+    // The selected stock release cannot transparently replace the supervisor
+    // of a running guest after controller loss. Settle this explicit Stop before
+    // the fault; uncertainty never authorizes an automatic Stop/Start replay.
+    let stop = LifecycleCheckpoint::stop(
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
+        veoveo_computers_runtime::LifecycleOperationId::new(),
+        binding.clone(),
+        &ready,
+    )
+    .unwrap();
+    let stopping = runtime.stop(&binding, &ready).await.unwrap();
+    let stopped = runtime
+        .wait_for_lifecycle(&stop, &stopping, Duration::from_secs(30))
+        .await
+        .unwrap();
+    assert!(matches!(
+        runtime
+            .reconcile_lifecycle(&stop, Duration::from_secs(10))
+            .await
+            .unwrap(),
+        LifecycleObservation::Reached(_)
+    ));
     let controller_pids = provider.crash_controller_and_recover().await;
     let runtime = provider.runtime.clone();
-    // The old Create response is already settled and cannot prove recovery. Read
-    // the replacement controller before assessing readiness or process continuity.
+    // The replacement must authoritatively retain the known Stopped resource.
+    // Neither the old Create response nor a cached Stop response proves that.
     let current = runtime
         .get(&binding)
         .await
         .expect("fresh replacement-controller observation")
-        .expect("retained sandbox exists after abrupt controller loss");
-    let recovered = runtime
-        .wait_for_lifecycle(&create, &current, Duration::from_secs(30))
+        .expect("retained stopped sandbox exists after abrupt controller loss");
+    assert!(
+        current.phase == Phase::Stopped,
+        "replacement controller must observe the already-settled Stopped resource"
+    );
+    assert_eq!(current.sandbox_id, stopped.sandbox_id);
+    assert_eq!(
+        current.main_process_instance_id,
+        stopped.main_process_instance_id
+    );
+    let current_stopped = runtime
+        .wait_for_lifecycle(&stop, &current, Duration::from_secs(30))
         .await
         .unwrap();
+    let start = LifecycleCheckpoint::start(
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
+        veoveo_computers_runtime::LifecycleOperationId::new(),
+        binding.clone(),
+        &current_stopped,
+    )
+    .unwrap();
+    let starting = runtime.start(&binding, &current_stopped).await.unwrap();
+    let recovered = runtime
+        .wait_for_lifecycle(&start, &starting, Duration::from_secs(30))
+        .await
+        .unwrap();
+    assert_ne!(
+        recovered.main_process_instance_id,
+        ready.main_process_instance_id
+    );
+    assert!(matches!(
+        runtime
+            .reconcile_lifecycle(&start, Duration::from_secs(10))
+            .await
+            .unwrap(),
+        LifecycleObservation::Reached(_)
+    ));
     assert_eq!(recovered.sandbox_id, ready.sandbox_id);
     assert!(
         !recovered.main_process_instance_id.is_empty(),
@@ -176,7 +234,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     let current_supervisor = supervisor_identity(&provider, &recovered).await;
     assert_ne!(
         current_supervisor.container_id, old_supervisor.container_id,
-        "stock gateway startup replaces the supervisor container"
+        "explicit Start after settled Stop must admit a new supervisor"
     );
     home.assert_registered_retained_mount();
     let (_fresh_authority, fresh_lease) =
@@ -213,54 +271,6 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     )
     .await;
     terminal.detach().await.unwrap();
-    let stop = LifecycleCheckpoint::stop(
-        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
-        veoveo_computers_runtime::LifecycleOperationId::new(),
-        binding.clone(),
-        &recovered,
-    )
-    .unwrap();
-    let stopping = runtime.stop(&binding, &recovered).await.unwrap();
-    let stopped = runtime
-        .wait_for_lifecycle(&stop, &stopping, Duration::from_secs(30))
-        .await
-        .unwrap();
-    assert!(matches!(
-        runtime
-            .reconcile_lifecycle(&stop, Duration::from_secs(10))
-            .await
-            .unwrap(),
-        LifecycleObservation::Reached(_)
-    ));
-    let start = LifecycleCheckpoint::start(
-        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
-        veoveo_computers_runtime::LifecycleOperationId::new(),
-        binding.clone(),
-        &stopped,
-    )
-    .unwrap();
-    let starting = runtime.start(&binding, &stopped).await.unwrap();
-    let restarted = runtime
-        .wait_for_lifecycle(&start, &starting, Duration::from_secs(30))
-        .await
-        .unwrap();
-    assert_ne!(
-        recovered.main_process_instance_id,
-        restarted.main_process_instance_id
-    );
-    assert!(matches!(
-        runtime
-            .reconcile_lifecycle(&start, Duration::from_secs(10))
-            .await
-            .unwrap(),
-        LifecycleObservation::Reached(_)
-    ));
-    assert_eq!(restarted.sandbox_id, recovered.sandbox_id);
-    assert_eq!(
-        retained_identity(&provider, &restarted, &home.volume).await,
-        before_controller
-    );
-    home.assert_registered_retained_mount();
     let (_final_authority, final_lease) =
         LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(30)).unwrap();
     let mut terminal = runtime
@@ -276,13 +286,13 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     )
     .await;
     terminal.detach().await.unwrap();
-    std::fs::write(provider.dir.join("controller-restart-result.json"), serde_json::to_vec_pretty(&serde_json::json!({"oldControllerPid":controller_pids.0,"newControllerPid":controller_pids.1,"retained":before_controller,"previousSupervisor":old_supervisor,"replacementSupervisor":current_supervisor,"currentRecoveredRun":recovered.main_process_instance_id,"currentAuthenticatedTerminalRelay":true,"sandboxId":restarted.sandbox_id,"newMainProcess":restarted.main_process_instance_id,"scope":"actual controller restart and Stop/Start retained state; no installation claim"})).unwrap()).unwrap();
+    std::fs::write(provider.dir.join("controller-restart-result.json"), serde_json::to_vec_pretty(&serde_json::json!({"oldControllerPid":controller_pids.0,"newControllerPid":controller_pids.1,"retained":before_controller,"previousSupervisor":old_supervisor,"replacementSupervisor":current_supervisor,"currentRecoveredRun":recovered.main_process_instance_id,"currentAuthenticatedTerminalRelay":true,"sandboxId":recovered.sandbox_id,"newMainProcess":recovered.main_process_instance_id,"scope":"known Stop, abrupt controller restart, authoritative Stopped read and explicit Start retained state; no running-crash recovery or installation claim"})).unwrap()).unwrap();
     std::fs::set_permissions(
         provider.dir.join("controller-restart-result.json"),
         std::os::unix::fs::PermissionsExt::from_mode(0o600),
     )
     .unwrap();
-    std::fs::write(provider.dir.join("result.txt"), "native controller/driver restart, retained image/container/home/bytes, current auth, uid, stop/start and reconciled epoch passed\n").unwrap();
+    std::fs::write(provider.dir.join("result.txt"), "native stopped controller/driver restart, retained image/container/home/bytes, current auth, uid, explicit start and reconciled epoch passed\n").unwrap();
     provider.assert_running();
 }
 

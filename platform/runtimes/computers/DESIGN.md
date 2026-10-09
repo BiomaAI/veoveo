@@ -316,16 +316,22 @@ does not supply the ordinary JSON Content-Type expected by Axum's JSON extractor
 
 ## Provider Restart
 
-The adapter accepts stock OpenShell restart behavior. Gateway restart replaces the
-supervisor and revives the guest. Terminal sessions reset; retained-volume files
-persist. Veoveo observes the provider's resulting resource and process identity before
-admitting another attachment or settling an operation. A disconnected stream or
-missing observation preserves the original operation fence.
+The selected stock OpenShell release does not support transparent controller-crash
+recovery for a running guest. Startup removes the old supervisor, but the surviving
+guest rejects a replacement supervisor because it retains the previous supervisor
+binding. Native observation has established this refusal. Veoveo preserves the
+unresolved lifecycle outcome and its operation fence; it does not automatically
+Stop/Start the guest or replay a mutation to bypass that refusal.
+
+Planned recovery settles Stop before replacing the controller. Veoveo then requires
+an authenticated fresh Stopped observation before an explicit Start can admit a new
+process epoch. Terminal attachments start new shells; retained-volume files follow
+the storage contract. Native qualification must establish the stopped resource,
+retained file contents and fresh authenticated access through this sequence.
 
 The provider owns its private state formats and restoration behavior. Veoveo neither
 adds companion binding files nor adopts a running supervisor through a private
-protocol. Native qualification must establish retained file contents, fresh terminal
-attachment and domain fencing across the released provider's restart path.
+protocol.
 
 ## Completion And Recovery
 
@@ -432,7 +438,9 @@ current policy/family renewal belong to `platform/computers`; `servers/computers
 composes their authority with this runtime and shared revocation wakes. Public Console
 and CLI ingress qualification remain delivery work.
 
-The native renewal fixture requires terminal data after repeated two-second leases
+The native renewal fixture uses a non-login `sleep infinity` main workload without
+a retained mount; stock SSH attachments start independent shells. It requires
+terminal data after repeated two-second leases
 and the provider's three-second admission credential have expired. The same shell
 stays attached. Explicit revocation must deny further input/output, and fresh
 authority must open a new shell in the admitted Computer process. Stock-provider
@@ -570,23 +578,25 @@ paths and `VEOVEO_COMPUTERS_NATIVE_IMAGE` set to an available image digest. The 
 is `cargo test --locked --offline -p veoveo-computers-runtime --test native_lifecycle
 -- --ignored --nocapture`. The fixture writes private diagnostic logs beneath its configured output directory.
 
-The lifecycle case requires native creation, fresh terminal attachment, numeric UID 10001,
-and settled observations before abrupt loss of its admitted gateway process group.
-The fault sends SIGKILL once and reaps the owned group within three seconds. The
-qualified gateway hosts its Docker driver in-process; the fixture does not require
-a standalone driver child. Ordinary fixture cleanup keeps graceful TERM/KILL/reap.
-Graceful provider shutdown intentionally stops workloads and does not promise
-continuity of the running canonical process.
-The replacement controller uses the original private database, trust and launch inputs.
-A fresh Get supplies the replacement controller observation to the lifecycle assessor,
-which opens a current watch if readiness is pending. The previous Create response
-cannot establish recovery. The case admits the current process identity observed
-from the replacement controller. It requires a replacement supervisor, preserved
-workload container/image/home and actual retained-file reads through fresh authenticated
-access. Reconnection opens an empty shell with no historical replay. Stop/Start must
-then publish its current process identity while preserving admitted retained resources.
-Process-group cleanup controls run locally; stock native restart qualification remains
-open. This case does not qualify host reboot, storage quotas or public ingress.
+The `native_stopped_lifecycle_terminal_and_epoch_recovery` case requires native
+creation, fresh terminal attachment, numeric UID 10001 and a settled Stop before
+abrupt loss of its admitted gateway process group. The fault sends SIGKILL once
+and reaps the owned group within three seconds. The qualified gateway hosts its
+Docker driver in-process; the fixture does not require a standalone driver child.
+Ordinary fixture cleanup keeps graceful TERM/KILL/reap. Graceful provider shutdown
+intentionally stops workloads and does not promise continuity of the running
+canonical process.
+
+The replacement controller uses the original private database, trust and launch
+inputs. A fresh Get must show the same Stopped resource and stopped process epoch;
+the lifecycle assessor applies the original Stop checkpoint to that observation.
+An explicit Start must then establish a new current process identity. The case
+requires a new supervisor, preserved workload container/image/home and actual
+retained-file reads through fresh authenticated access. Reconnection opens an
+empty shell with no historical replay. Process-group cleanup controls run locally;
+stock stopped-lifecycle and renewal qualification remain open. This case does not
+qualify transparent running-controller crash recovery, host reboot, storage quotas
+or public ingress.
 
 The stock CLI fixture uses the verified `0.1.2` binary supplied by
 `VEOVEO_COMPUTERS_NATIVE_CLI`. It uses isolated worker OIDC authentication and complete supervisor TLS with a three-second

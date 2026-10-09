@@ -230,9 +230,14 @@ with the Docker driver inside the gateway. The selected design assigns worker us
 authority a dedicated credential profile with installation OIDC, exact issuer/audience
 and explicit upstream roles.
 Provider configuration disables certificate-to-user promotion and anonymous user
-access while preserving complete supervisor TLS and mandatory Sandbox JWT. Stock
-gateway restart replaces the supervisor and revives the guest; terminal sessions
-reset while retained-volume files persist. The accepted resource profile bounds
+access while preserving complete supervisor TLS and mandatory Sandbox JWT. A stock
+gateway crash while a Computer is running can leave the guest bound to its prior
+supervisor; the replacement supervisor is rejected and startup fails. This profile
+does not promise running-Computer recovery across that crash. Supported controller
+maintenance first establishes Stopped, replaces the gateway, verifies Stopped again,
+and explicitly Starts a new process with a fresh shell and retained-volume files.
+Native and installed qualification must prove that profile. Unexpected outcomes
+keep their run fences and cannot authorize another mutation. The accepted resource profile bounds
 all descendants through the outer Host's CPU, memory and PID cgroup limits. Stock
 supervisors have no separate CPU, memory or PID maxima; Veoveo does not restore
 those private-patch guarantees. Supported workload settings keep their upstream
