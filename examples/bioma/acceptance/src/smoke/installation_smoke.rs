@@ -49,6 +49,20 @@ enum Cmd {
         #[arg(long)]
         installation: PathBuf,
     },
+    InstalledHost {
+        /// Installation-owned public OAuth target and control plane.
+        #[arg(long)]
+        installation: PathBuf,
+        /// Existing database owned by the selected operator.
+        #[arg(long)]
+        database: veoveo_duckdb_mcp::DuckDbDatabaseId,
+        /// Private declaration of the existing DuckDB deployment, Pod and container.
+        #[arg(long)]
+        installed_fixture: PathBuf,
+        /// New private receipt file; existing files refuse execution.
+        #[arg(long)]
+        evidence_output: PathBuf,
+    },
     ArtifactUploadConsumers {
         #[arg(long)]
         conformance_bin: Option<PathBuf>,
@@ -466,6 +480,20 @@ async fn execute() -> Result<()> {
 
             let target = support::InstalledTarget::load(&installation)?;
             installation_verify(&conformance_bin, &target).await
+        }
+        Cmd::InstalledHost {
+            installation,
+            database,
+            installed_fixture,
+            evidence_output,
+        } => {
+            case_5::shared_host::run(
+                &support::InstalledTarget::load(&installation)?,
+                &database,
+                &installed_fixture,
+                &evidence_output,
+            )
+            .await
         }
         Cmd::ArtifactUploadConsumers {
             conformance_bin,
@@ -1072,5 +1100,71 @@ mod frames_cli_tests {
             ])
             .is_ok()
         );
+    }
+}
+
+#[cfg(test)]
+mod installed_host_cli_tests {
+    use super::*;
+    #[test]
+    fn installed_host_requires_complete_explicit_inputs_and_typed_database() -> Result<()> {
+        let flags = [
+            ("--installation", "target.json"),
+            ("--database", "owned_fixture"),
+            ("--installed-fixture", "/private/fixture.json"),
+            ("--evidence-output", "/private/new-receipt.json"),
+        ];
+        for missing in 0..flags.len() {
+            let mut args = vec!["installation-smoke", "installed-host"];
+            for (index, (name, value)) in flags.iter().enumerate() {
+                if index != missing {
+                    args.extend([*name, *value]);
+                }
+            }
+            assert!(Args::try_parse_from(args).is_err());
+        }
+        let mut args = vec!["installation-smoke", "installed-host"];
+        for (name, value) in flags {
+            args.extend([name, value]);
+        }
+        let parsed = Args::try_parse_from(args.clone())?;
+        let Cmd::InstalledHost { database, .. } = parsed.cmd else {
+            bail!("wrong installed Host command");
+        };
+        assert_eq!(
+            database,
+            veoveo_duckdb_mcp::DuckDbDatabaseId::new("owned_fixture")?
+        );
+        let mut malformed = args.clone();
+        malformed[5] = "../foreign";
+        assert!(Args::try_parse_from(malformed).is_err());
+        for unsupported in ["--fixture", "--pod", "--context"] {
+            let mut undeclared = args.clone();
+            undeclared.extend([unsupported, "foreign"]);
+            assert!(Args::try_parse_from(undeclared).is_err());
+        }
+        Ok(())
+    }
+    #[test]
+    fn installed_host_descriptor_declares_cpu_process_mutation() -> Result<()> {
+        let descriptor: veoveo_testing_support::descriptor::ScenarioDescriptor =
+            serde_json::from_str(include_str!("../../smoke/scenarios.json"))?;
+        let scenario = descriptor
+            .scenarios
+            .iter()
+            .find(|scenario| scenario.id.as_str() == "installed-host")
+            .context("installed Host scenario is absent")?;
+        assert_eq!(scenario.arguments, ["installed-host"]);
+        assert!(
+            scenario.requirements.network
+                && scenario.requirements.credentials
+                && scenario.requirements.cluster_mutation
+        );
+        assert!(
+            !scenario.requirements.nvidia
+                && !scenario.requirements.headed_graphics
+                && !scenario.requirements.billed_effects
+        );
+        Ok(())
     }
 }

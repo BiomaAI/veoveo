@@ -112,6 +112,52 @@
       "cleanupSeconds": 180
     },
     {
+      "id": "installed-host",
+      "description": "Verify installed CPU Task completion and retained output across one admitted DuckDB process drain.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "examples/bioma/acceptance",
+          "package": "veoveo-bioma-acceptance",
+          "target": "installation-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "installed-host"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "The existing owner harness requires a normal operator OAuth client, an existing owned database and a private explicit DuckDB deployment/Pod/container fixture. One read-only query completes before one selected process restart; Task state, retained payload and connection cleanup are reported separately."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
       "id": "artifact-upload-consumers",
       "description": "Verify installed upload interoperability and bounded Python streaming.",
       "target": {

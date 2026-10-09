@@ -8,6 +8,9 @@ use veoveo_duckdb_mcp::{
     DuckDbDatabaseId, DuckDbExecuteOutput, DuckDbExecuteRequest, DuckDbExportOutput,
     DuckDbExportRequest, DuckDbTabularFormat, DuckDbTabularSelection,
 };
+#[path = "installation/shared_host.rs"]
+pub(crate) mod shared_host;
+
 const LARGE_ARTIFACT_ROWS: u64 = 200_000;
 
 const LARGE_ARTIFACT_MINIMUM_BYTES: usize = 8 * 1024 * 1024;
@@ -255,17 +258,51 @@ async fn export_with_task_notification(
     .await
     .context("DuckDB SDK connection exceeded its admission deadline")?
     .map_err(|_| anyhow!("DuckDB SDK connection failed"))?;
+    let mut listener_closed = false;
+    let outcome = complete_tool_with_notification(
+        &client,
+        "duckdb__export",
+        arguments,
+        overall,
+        Duration::from_secs(180),
+        |_| Ok(()),
+        &mut listener_closed,
+    )
+    .await;
+    let close = tokio::time::timeout(Duration::from_secs(10), client.cancel())
+        .await
+        .context("DuckDB SDK cleanup exceeded ten seconds")
+        .and_then(|result| result.map_err(|_| anyhow!("DuckDB SDK cleanup failed")));
+    let (_, payload) = outcome?;
+    close?;
+    payload
+        .structured_content
+        .context("DuckDB export Task omitted structured content")
+}
+
+pub(super) async fn complete_tool_with_notification(
+    client: &SmokeMcpClient,
+    tool: &str,
+    arguments: Value,
+    deadline: tokio::time::Instant,
+    delivery_budget: Duration,
+    mut observed: impl FnMut(&veoveo_types::CanonicalTaskId) -> Result<()>,
+    listener_closed: &mut bool,
+) -> Result<(veoveo_types::CanonicalTaskId, rmcp::model::CallToolResult)> {
     let mut subscription = None;
-    let outcome = tokio::time::timeout_at(overall, async {
-        let task = call_tool_as_task(&client, "duckdb__export", arguments)
+    *listener_closed = false;
+    let outcome = tokio::time::timeout_at(deadline, async {
+        let task = call_tool_as_task(client, tool, arguments)
             .await
             .map_err(|_| {
                 anyhow!("DuckDB Task dispatch failed; original outcome remains unresolved")
             })?;
         let task_id = veoveo_types::CanonicalTaskId::parse(&task.task_id)
             .map_err(|_| anyhow!("DuckDB Task response has an invalid identity"))?;
-        let deadline = overall.min(tokio::time::Instant::now() + Duration::from_secs(180));
-        tokio::time::timeout_at(deadline, async {
+        observed(&task_id)?;
+        let delivery_deadline =
+            task_delivery_deadline(deadline, tokio::time::Instant::now(), delivery_budget);
+        tokio::time::timeout_at(delivery_deadline, async {
             let filter = SubscriptionFilter::builder()
                 .task_ids([task_id.to_string()])
                 .build();
@@ -295,7 +332,7 @@ async fn export_with_task_notification(
                         match update.params.task.status() {
                             TaskStatus::Completed => break,
                             TaskStatus::Working | TaskStatus::InputRequired => {}
-                            _ => bail!("DuckDB export Task did not complete successfully"),
+                            _ => bail!("DuckDB Task did not complete successfully"),
                         }
                     }
                     _ => bail!("DuckDB exact Task listener delivered an unexpected notification"),
@@ -310,43 +347,55 @@ async fn export_with_task_notification(
                     && current.task.status() == TaskStatus::Completed,
                 "DuckDB completed notification disagrees with current Task identity/status"
             );
-            let payload = task_payload(&client, task_id.as_str())
+            let payload = task_payload(client, task_id.as_str())
                 .await
                 .map_err(|_| anyhow!("DuckDB completed Task payload read failed"))?;
             ensure!(
                 payload.is_error != Some(true),
-                "DuckDB export Task returned a tool error"
+                "DuckDB Task returned a tool error"
             );
-            payload
-                .structured_content
-                .context("DuckDB export Task omitted structured content")
+            Ok((task_id, payload))
         })
         .await
-        .context("DuckDB Task notification exceeded the original 180-second deadline")?
+        .context("DuckDB Task delivery exceeded its post-admission deadline")?
     })
     .await
-    .context("DuckDB export exceeded the original 210-second deadline")
+    .context("DuckDB Task notification exceeded its deadline")
     .and_then(|result| result);
-    // Cleanup runs after every dispatch/listener outcome, including a cancelled wait.
-    let unsubscribe = if let Some(mut stream) = subscription {
-        tokio::time::timeout(Duration::from_secs(5), stream.cancel())
-            .await
-            .context("DuckDB Task subscription cleanup exceeded five seconds")
-            .and_then(|result| {
-                result.map_err(|_| anyhow!("DuckDB Task subscription cleanup failed"))
-            })
-    } else {
-        Ok(())
+    let cleanup = async {
+        if let Some(mut stream) = subscription {
+            stream
+                .cancel()
+                .await
+                .map_err(|_| anyhow!("DuckDB Task subscription cleanup failed"))
+        } else {
+            Ok(())
+        }
     };
-    let close = tokio::time::timeout(Duration::from_secs(10), client.cancel())
+    finish_task_cleanup(outcome, cleanup, listener_closed).await
+}
+
+async fn finish_task_cleanup<T>(
+    outcome: Result<T>,
+    cleanup: impl std::future::Future<Output = Result<()>>,
+    listener_closed: &mut bool,
+) -> Result<T> {
+    let unsubscribe = tokio::time::timeout(Duration::from_secs(5), cleanup)
         .await
-        .context("DuckDB SDK cleanup exceeded ten seconds")
-        .and_then(|result| result.map_err(|_| anyhow!("DuckDB SDK cleanup failed")));
-    // Preserve the original failure; cleanup never turns unknown work into success.
+        .context("DuckDB Task subscription cleanup exceeded five seconds")
+        .and_then(|result| result);
+    *listener_closed = unsubscribe.is_ok();
     let value = outcome?;
     unsubscribe?;
-    close?;
     Ok(value)
+}
+
+fn task_delivery_deadline(
+    overall: tokio::time::Instant,
+    acknowledged: tokio::time::Instant,
+    delivery_budget: Duration,
+) -> tokio::time::Instant {
+    overall.min(acknowledged + delivery_budget)
 }
 
 fn assert_artifact_response(
@@ -654,7 +703,79 @@ fn authorization_endpoint_matches(actual: &url::Url, expected: &url::Url) -> boo
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn delivery_budget_begins_after_acknowledgement_and_respects_overall_deadline() {
+        let started = tokio::time::Instant::now();
+        let overall = started + Duration::from_secs(210);
+        let acknowledged = started + Duration::from_secs(20);
+        assert_eq!(
+            task_delivery_deadline(overall, acknowledged, Duration::from_secs(180)),
+            started + Duration::from_secs(200)
+        );
+        assert_eq!(
+            task_delivery_deadline(
+                overall,
+                started + Duration::from_secs(40),
+                Duration::from_secs(180)
+            ),
+            overall
+        );
+        let query_deadline = started + Duration::from_secs(30);
+        assert_eq!(
+            task_delivery_deadline(query_deadline, acknowledged, Duration::from_secs(30)),
+            query_deadline
+        );
+    }
     use super::*;
+
+    #[tokio::test]
+    async fn operation_deadline_still_awaits_owned_cleanup_and_preserves_failure() {
+        let mut closed = false;
+        let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+        let task = tokio::spawn(async move {
+            let outcome: Result<()> =
+                tokio::time::timeout(Duration::from_millis(1), std::future::pending())
+                    .await
+                    .context("operation deadline");
+            let result = finish_task_cleanup(
+                outcome,
+                async {
+                    entered_tx.send(()).unwrap();
+                    release_rx.await.unwrap();
+                    Ok(())
+                },
+                &mut closed,
+            )
+            .await;
+            (result, closed)
+        });
+        entered_rx.await.unwrap();
+        assert!(
+            !task.is_finished(),
+            "operation expiry skipped owned cleanup"
+        );
+        release_tx.send(()).unwrap();
+        let (result, closed) = task.await.unwrap();
+        assert!(closed);
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("operation deadline")
+        );
+        let mut unresolved = true;
+        assert!(
+            finish_task_cleanup(
+                Ok(()),
+                async { anyhow::bail!("remote cleanup unresolved") },
+                &mut unresolved
+            )
+            .await
+            .is_err()
+        );
+        assert!(!unresolved);
+    }
 
     #[test]
     fn identity_redirect_must_match_configured_origin_path_and_static_parameters() {

@@ -24,6 +24,8 @@
 | Installed View fixture | `veoveo.ai/view-installed-fixture/v1` closed JSON; nonzero Kubernetes UIDs, opaque resourceVersions, immutable ConfigMap bytes and qualified image release; relative release paths resolve beside the declaration |
 | View fixture preparation | `veoveo.ai/view-fixture-preparation/v1` JSON utility receipt; preparation produces no smoke acceptance outcome |
 | Installed Frames evidence | `veoveo.ai/frames-installed-evidence/v1` camelCase JSON with closed snake_case outcomes; Frames owner world/revision identities and retained append-only fixture declaration |
+| Installed CPU Host fixture | Closed owner JSON with `deployment`, `pod` and `container`; private absolute regular-file input capped at 64 KiB; database identity enters through the DuckDB owner type |
+| Installed CPU Host evidence | `veoveo.ai/installed-cpu-host/v1` JSON with gateway Task identity, admitted process/drain identities and separate completion, retained-payload and connection-cleanup results |
 | Installed View evidence | `veoveo.ai/view-installed-evidence/v1` private JSON; official OAuth/MCP Tasks and the shared selected-container Kubernetes drain profile |
 | View process interruption | Docker Engine HTTP API 1.44 subset over the fixture's active local Unix socket; version and owned-container inspection precede one STOP signal, followed by durable claim admission and the existing restart checks |
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v2` JSON receipt with the output file SHA-256 |
@@ -204,6 +206,48 @@ successful old-process drain and replacement, that collection must instead prove
 the old in-process View absent; completed Tasks and frame products remain readable.
 These owner cases require installed NVIDIA hardware;
 CPU fixture and observer controls establish admission and lifecycle mechanics only.
+
+## Installed Shared MCP Host
+
+`installed-host` selects the CPU Task and server-process lifecycle case in the
+existing `installation-smoke` harness:
+
+```sh
+cargo xtask smoke installed-host \
+  --installation examples/bioma/installation-target-initial.json \
+  --database <existing-owned-database> \
+  --installed-fixture /private/duckdb-fixture.json \
+  --evidence-output /private/new-host-receipt.json
+```
+
+The installation supplies the registered operator client's
+`VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE` and `VEOVEO_SERVICE_CLIENT_KEY_ID`.
+Normal gateway `private_key_jwt` OAuth resolves the selected profile, scopes and
+Work Context. The database must already belong to that caller. The fixture declares
+the existing `duckdb-mcp` Deployment, current Pod and `duckdb-mcp` container.
+The selected-process helper admits their live UID and resourceVersion identities
+before effects. The fixture is a closed private JSON input; Pod names are operator
+inputs rather than defaults.
+
+The case reads the owned database resource, dispatches one read-only query and
+requires delivered completion for its gateway Task identity. It then drains that
+selected server process once and requires the same completed Task and payload after
+restart. The private receipt separates dispatch or restart uncertainty, observed
+completion, retained payload and connection cleanup. Lost responses do not trigger
+another query or restart. Receipt creation refuses occupied destinations before
+dispatch. The Task and database data stay with their owner.
+
+The owner case has a 180-second deadline from admission. OAuth and MCP connection
+each allow 15 seconds; Task delivery allows 30 seconds. The ordinary server drain
+uses its fixed 30-second profile and the shared 75-second observation budget.
+Connection cleanup runs outside the operation timer. Listener cleanup allows five
+seconds and client cleanup ten seconds. The smoke
+descriptor includes declared compilation in its separate execution budget.
+This case requires a ready CPU target and cluster process-mutation authority.
+Whole-installation deployment and GPU checks belong to `installation-verify`;
+domain cancellation, concurrency and additional lifecycle cases keep their owning
+acceptance gates. Task delivery here establishes completed state without requiring
+an observable Working transition.
 
 ## Installed Frames
 
