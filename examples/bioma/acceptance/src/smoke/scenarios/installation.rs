@@ -14,6 +14,9 @@ pub(crate) mod shared_host;
 #[path = "installation/protocol.rs"]
 pub(crate) mod protocol;
 
+#[path = "installation/duckdb.rs"]
+pub(crate) mod installed_duckdb;
+
 const LARGE_ARTIFACT_ROWS: u64 = 200_000;
 
 const LARGE_ARTIFACT_MINIMUM_BYTES: usize = 8 * 1024 * 1024;

@@ -38,10 +38,22 @@ struct Args {
     #[command(subcommand)]
     cmd: Cmd,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum, veoveo_types::Vocabulary)]
+enum InstallationScope {
+    #[default]
+    Full,
+    Duckdb,
+}
 #[derive(Subcommand, Debug)]
 enum Cmd {
     SurrealIntegration,
     InstallationVerify {
+        /// Select the complete installation gate or the CPU DuckDB owner gate.
+        #[arg(long, value_enum, default_value_t = InstallationScope::Full)]
+        scope: InstallationScope,
+        /// Required new private receipt for the focused DuckDB scope.
+        #[arg(long, required_if_eq("scope", "duckdb"))]
+        evidence_output: Option<PathBuf>,
         /// Built conformance binary used as the public machine OAuth and MCP client.
         #[arg(long)]
         conformance_bin: Option<PathBuf>,
@@ -511,7 +523,20 @@ async fn execute() -> Result<()> {
         Cmd::InstallationVerify {
             conformance_bin,
             installation,
+            scope,
+            evidence_output,
         } => {
+            if matches!(scope, InstallationScope::Duckdb) {
+                let evidence =
+                    evidence_output.context("DuckDB scope requires --evidence-output")?;
+                let target = support::InstalledTarget::load(&installation)?;
+                let control_plane = target.target.control_plane_path(&installation);
+                return case_5::installed_duckdb::run(&target, &control_plane, &evidence).await;
+            }
+            anyhow::ensure!(
+                evidence_output.is_none(),
+                "--evidence-output requires --scope duckdb"
+            );
             let conformance_bin = veoveo_testing_support::artifacts::requested_executable(
                 conformance_bin,
                 "veoveo-mcp-conformance",
@@ -1647,5 +1672,68 @@ mod frames_recovery_cli_tests {
                 && !selected.requirements.billed_effects
                 && !selected.requirements.headed_graphics
         );
+    }
+}
+
+#[cfg(test)]
+mod duckdb_scope_cli_tests {
+    use super::*;
+    #[test]
+    fn focused_scope_requires_receipt_and_preserves_full_default() -> Result<()> {
+        assert!(
+            Args::try_parse_from([
+                "installation-smoke",
+                "installation-verify",
+                "--installation",
+                "target.json",
+                "--scope",
+                "duckdb"
+            ])
+            .is_err()
+        );
+        let focused = Args::try_parse_from([
+            "installation-smoke",
+            "installation-verify",
+            "--installation",
+            "target.json",
+            "--scope",
+            "duckdb",
+            "--evidence-output",
+            "private.json",
+        ])?;
+        assert!(matches!(
+            focused.cmd,
+            Cmd::InstallationVerify {
+                scope: InstallationScope::Duckdb,
+                evidence_output: Some(_),
+                ..
+            }
+        ));
+        let full = Args::try_parse_from([
+            "installation-smoke",
+            "installation-verify",
+            "--installation",
+            "target.json",
+        ])?;
+        assert!(matches!(
+            full.cmd,
+            Cmd::InstallationVerify {
+                scope: InstallationScope::Full,
+                evidence_output: None,
+                ..
+            }
+        ));
+        assert!(
+            Args::try_parse_from([
+                "installation-smoke",
+                "installation-verify",
+                "--installation",
+                "target.json",
+                "--scope",
+                "unknown"
+            ])
+            .is_err()
+        );
+        Ok(())
     }
 }

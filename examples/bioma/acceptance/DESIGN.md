@@ -8,6 +8,7 @@
 | SurrealDB 3.3.0 | Native Rust SDK, parameterized SurrealQL transactions and the platform-store schema; recovery exports use native SQL values |
 | Kubernetes | Existing Deployment, Secret, PersistentVolume and PersistentVolumeClaim APIs; retained local-path storage is installation-owned |
 | Native MCP clients | Official Rust SDK MCP 2026-07-28 Discover, Tasks, resource reads and request-scoped subscriptions over Streamable HTTP; bearer issuance uses the runtime-owned fixture adapter |
+| Installed DuckDB | Existing `installation-verify --scope duckdb` consumer, owner contract CSV/schema/catalog/usage and Artifact provenance over normal Gateway OAuth; private `veoveo.ai/installed-duckdb/v1` receipt |
 | Installed Stream | Owner-library run identities, completion products and analysis results; cross-replica DeepStream replay requires NVIDIA hardware |
 | Candidate process ownership | Python standard-library Linux pidfd APIs; private `veoveo.ai/candidate-launch/v1` JSON with camelCase invocation, process group and start ticks; no public protocol extension |
 | Installation input | Required `--installation` file using `veoveo.ai/installation-target/v1`; identities and endpoints validated against its control-plane document |
@@ -213,6 +214,67 @@ successful old-process drain and replacement, that collection must instead prove
 the old in-process View absent; completed Tasks and frame products remain readable.
 These owner cases require installed NVIDIA hardware;
 CPU fixture and observer controls establish admission and lifecycle mechanics only.
+
+## Installed DuckDB Consumers
+
+The existing installation verifier has a focused CPU selection:
+
+```sh
+cargo xtask smoke installation-verify --scope duckdb \
+  --installation /private/installation.json \
+  --evidence-output /private/new-duckdb-receipt.json
+```
+
+The default `--scope full` keeps the complete installation's deployment and GPU
+checks. The DuckDB selection reports only its owner scope and requires a new
+absolute private receipt. It uses the normal operator OAuth client and a distinct
+administrator principal/profile for foreign reads. The checked control plane must
+expose DuckDB Tasks and its execute, ingest and export tools. Actual negotiated
+Tasks and complete tool/template catalogs are admitted before mutation; missing
+Artifact metadata or occurrence templates stop the case.
+
+The case traverses complete typed database and usage pages before choosing its
+fixture size. It dispatches at most 101 fresh database-create execute Tasks, one
+four-row inline-CSV ingest and one small CSV export. Existing visible databases and
+usage records reduce the number of seed Tasks; they are never modified. The selected
+operator/profile must have exclusive DuckDB mutation use during the case: another
+caller session creating Tasks would invalidate its new usage ledger. Ops must keep
+Artifact/Time setup from dispatching DuckDB work under that identity until cleanup
+finishes. Dispatch is serial. Each fresh database has an unpredictable owner-admitted name and a fixed
+fixture table. The final catalog and usage traversals must both deliver multiple
+pages, preserve ordering and include the selected fixtures. Schema readback checks
+the source columns; export bytes must contain the submitted rows in order.
+
+The export's DuckDB-presented Artifact metadata and current neutral metadata must
+agree through the owner's presentation adapter, excluding only the transient
+download URL. DuckDB's
+public origin supplies the native Task identity, database, operation and row count.
+The consumer compares bytes read through DuckDB and Artifact, records their digest,
+and checks the export usage parent and fields. Every new corpus usage record must
+match a fixture execute or ingest. Gateway Task routes stay opaque; the consumer
+never derives a native Task ID from them. Foreign database and export-usage reads
+must return the current owner's InvalidParams denial.
+
+The receipt is created exclusively with mode 0600 and is limited to four MiB.
+Catalog/resource intents and observed response classifications are persisted before
+assertions. Every mutation intent is persisted before dispatch; Task admission and
+completed output are retained before later awaits. A journal failure stops new
+dispatch. The 600-second operation budget includes admission and observations;
+requests use 15-second limits, catalogs and Tasks use 30 seconds, and each page
+traversal stops after 32 pages. Existing corpora above 3,000 database or usage
+members fail before writes. After operation cancellation, the caller still owns
+its listener, clients and journal. Cleanup allows five seconds for the listener
+and ten seconds per client outside the operation budget. Cleanup failure fails the
+aggregate result. Unknown dispatched outcomes stay unresolved, and cleanup neither
+replays mutations nor cancels domain Tasks.
+
+Fixture database names, mutation outcomes, Task IDs and the Artifact are retained
+in the private receipt. The case leaves its databases, Tasks, usage and Artifact
+for operator reconciliation; it deletes no unrelated data. It checks public owner
+isolation and schema/catalog behavior, without inspecting physical owner-directory
+or storage metadata formats. The accepted `installed-host` graceful-restart case
+is separate. Preterminal cancellation, destructive recovery, headed Workbench
+acceptance and full-installation qualification remain separate gates.
 
 ## Installed Shared MCP Host
 
