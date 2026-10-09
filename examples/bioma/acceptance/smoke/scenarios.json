@@ -827,6 +827,52 @@
       "cleanupSeconds": 180
     },
     {
+      "id": "frames-reference-installed",
+      "description": "Qualify installed typed Frames references, retained revision readback and current dynamic conversion and UAV binding refusals through normal operator OAuth.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "examples/bioma/acceptance",
+          "package": "veoveo-bioma-acceptance",
+          "target": "installation-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "frames-reference-installed"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Required --installation and --evidence-output inputs select normal operator gateway OAuth without an administrator credential. The case retains two domain writes: one world creation and one reference-bearing revision publication. It verifies typed reference admission/readback and current dynamic conversion/UAV binding refusal, then awaits its client cleanup. It starts no UAV process or live producer and makes no timestamped-conversion, GPU, billed-provider or Kubernetes-mutation claim."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
       "id": "timeseries-installed",
       "description": "Qualify one installed inline-CSV NaiveTrend forecast Task, delivered completion, RRD Artifact, provenance and caller-scoped usage through normal OAuth.",
       "target": {

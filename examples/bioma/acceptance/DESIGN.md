@@ -24,6 +24,7 @@
 | Installed View fixture | `veoveo.ai/view-installed-fixture/v1` closed JSON; nonzero Kubernetes UIDs, opaque resourceVersions, immutable ConfigMap bytes and qualified image release; relative release paths resolve beside the declaration |
 | View fixture preparation | `veoveo.ai/view-fixture-preparation/v1` JSON utility receipt; preparation produces no smoke acceptance outcome |
 | Installed Timeseries evidence | `veoveo.ai/installed-timeseries/v2` private JSON with typed catalog intents and expected/actual members, response digests or redacted SDK failures, one forecast dispatch intent, gateway/native Task and Artifact identities, delivered completion, RRD/provenance/usage observations and separate cleanup results |
+| Installed Frames reference evidence | `veoveo.ai/frames-installed-reference/v1` private JSON with fixture-owned synthetic stream references, Create/Publish intents, retained world/revision readback, current consumer refusals and awaited client cleanup |
 | Installed Frames evidence | `veoveo.ai/frames-installed-evidence/v3` camelCase JSON with typed dispatch intents and observations, owner world/revision/native usage identities, gateway Task routes and separate cleanup outcomes |
 | Frames crash fixture | `veoveo.ai/frames-crash-fixture/v1` closed private JSON binds the installation/control-plane digest and selected Deployment/ReplicaSet/Pod/container runtime identities |
 | Frames crash marker and receipt | `veoveo.ai/frames-ready-for-crash/v1` and `veoveo.ai/frames-recovery-evidence/v1`; private settled typed snapshots, caller-owned watch progress, operation outcome and awaited cleanup |
@@ -370,6 +371,34 @@ seconds, and each SDK client has ten seconds after success, failure or timeout. 
 and 180-second cleanup allowance; these outer budgets include artifact preparation
 and do not extend the owner operation deadline. A timeout cannot authorize another
 forecast dispatch or removal of an unresolved retained fixture.
+
+## Installed Frames References
+
+`frames-reference-installed` selects the existing installation smoke executable
+and requires `--installation` and `--evidence-output`. Preparation builds that
+executable and its sole prerequisite, `gateway-smoke-support`. The case uses normal
+operator OAuth and needs no administrator credential. Frames access requires the
+selected profile's scopes, current WorkContext membership and writer policy.
+
+The case creates one uniquely identified world and publishes one revision carrying
+typed dynamic-stream references under the fixture-owned `frames-fixture` scheme.
+Frames stores these declared addresses without fetching a producer. The case reads
+the installed revision back, requires the references to survive owner admission
+unchanged, and checks the current dynamic conversion refusal. The current public
+UAV `SimulationWorldBinding` consumer must also refuse that read-back revision. These assertions qualify reference admission and the current
+consumer refusals. They establish no live producer route, timestamped conversion,
+UAV process, GPU execution or rendering behavior.
+
+The world and revision are two retained domain writes. The case journals mutation
+intent before dispatch, keeps uncertain outcomes and never retries a mutation to
+resolve an expired observation. Its private receipt path must be new. The owner
+operation has a 120-second deadline; OAuth, connection, read and tool requests have
+15 seconds each within it. The caller owns the SDK client beyond operation
+cancellation and allows ten seconds for awaited cleanup. The descriptor preserves
+the 3600-second preparation-inclusive and 180-second cleanup budgets. It declares
+network and credentials, with no billed effects, headed graphics, NVIDIA workload
+or Kubernetes mutation. `clusterMutation:false` does not describe the retained
+domain writes as read-only.
 
 ## Installed Frames
 

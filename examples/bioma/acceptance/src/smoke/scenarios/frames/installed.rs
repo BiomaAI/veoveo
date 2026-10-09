@@ -3,6 +3,8 @@ use super::*;
 mod coverage;
 #[path = "recovery.rs"]
 pub(crate) mod recovery;
+#[path = "stream_references.rs"]
+pub(crate) mod stream_references;
 
 /// Installed qualification uses the same owner scenario and never replays a mutation.
 pub(crate) async fn frames_installed(

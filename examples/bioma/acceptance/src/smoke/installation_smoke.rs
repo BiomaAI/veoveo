@@ -132,6 +132,14 @@ enum Cmd {
         #[arg(long)]
         evidence_output: PathBuf,
     },
+    FramesReferenceInstalled {
+        /// Installation-owned normal operator OAuth target and public control plane.
+        #[arg(long)]
+        installation: PathBuf,
+        /// New private receipt for the retained reference world and revision.
+        #[arg(long)]
+        evidence_output: PathBuf,
+    },
     TimeseriesInstalled {
         /// Installation-owned normal OAuth target and public control plane.
         #[arg(long)]
@@ -616,6 +624,16 @@ async fn execute() -> Result<()> {
             evidence_output,
         } => {
             frames_installed(
+                &support::InstalledTarget::load(&installation)?,
+                &evidence_output,
+            )
+            .await
+        }
+        Cmd::FramesReferenceInstalled {
+            installation,
+            evidence_output,
+        } => {
+            frames_reference_installed(
                 &support::InstalledTarget::load(&installation)?,
                 &evidence_output,
             )
@@ -1251,6 +1269,50 @@ mod frames_cli_tests {
         };
         assert_eq!(installation, PathBuf::from("target.json"));
         assert_eq!(evidence_output, PathBuf::from("receipt.json"));
+        for incomplete in [
+            vec!["installation-smoke", "frames-reference-installed"],
+            vec![
+                "installation-smoke",
+                "frames-reference-installed",
+                "--installation",
+                "target.json",
+            ],
+            vec![
+                "installation-smoke",
+                "frames-reference-installed",
+                "--evidence-output",
+                "receipt.json",
+            ],
+            vec![
+                "installation-smoke",
+                "frames-reference-installed",
+                "--installation",
+                "target.json",
+                "--evidence-output",
+                "receipt.json",
+                "--frames-bin",
+                "local-server",
+            ],
+        ] {
+            assert!(Args::try_parse_from(incomplete).is_err());
+        }
+        let references = Args::try_parse_from([
+            "installation-smoke",
+            "frames-reference-installed",
+            "--installation",
+            "target.json",
+            "--evidence-output",
+            "receipt.json",
+        ])?;
+        let Cmd::FramesReferenceInstalled {
+            installation,
+            evidence_output,
+        } = references.cmd
+        else {
+            bail!("wrong installed Frames reference command");
+        };
+        assert_eq!(installation, PathBuf::from("target.json"));
+        assert_eq!(evidence_output, PathBuf::from("receipt.json"));
         let local = Args::try_parse_from([
             "installation-smoke",
             "frames-mcp",
@@ -1281,7 +1343,11 @@ mod frames_cli_tests {
         };
         let descriptor: ScenarioDescriptor =
             serde_json::from_str(include_str!("../../smoke/scenarios.json"))?;
-        for id in ["frames-installed", "timeseries-installed"] {
+        for id in [
+            "frames-installed",
+            "frames-reference-installed",
+            "timeseries-installed",
+        ] {
             let installed = descriptor
                 .scenarios
                 .iter()

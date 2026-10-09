@@ -475,3 +475,5 @@ mod installed;
 pub(crate) use installed::frames_installed;
 
 pub(crate) use installed::recovery::run as frames_recovery;
+
+pub(crate) use installed::stream_references::run as frames_reference_installed;
