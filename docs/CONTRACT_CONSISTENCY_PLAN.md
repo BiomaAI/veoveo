@@ -624,8 +624,16 @@ Helm restored Gateway's checksum annotation from its saved manifest and restarte
 that Pod. Gateway recovered Ready with the same admitted active policy revision
 and digest; Knowledge and Embedding are Ready. The parent Kustomization and platform
 HelmRelease are suspended again.
-The authenticated Workspace upload-policy read returns 503 before Artifact is
-reached, so headed consumers remain unqualified. Production shutdown remains open.
+The authenticated Workspace upload-policy read returns Artifact's unavailable 503
+with `Retry-After: 2`. An internal administrator read returns 200 and its recomputed
+catalog digest matches active revision digest `bb14ab16b6a7dc2c662b7c275392b010a9c3b6fd2e62e4fd98b356cd5fe6fa45`.
+The naming cut serialized `GatewayProfile` with camelCase while Artifact's upload
+policy decoder expected snake_case. The existing native test reproduces unavailable
+using the actual Gateway serializer. The corrected decoder and typed upload-policy
+and completion fixtures pass four existing native controls, library/binary compiler
+checks and strict lint; independent review approves the source fix. The corrected
+installed Artifact image, browser upload/notification consumers and coordinated
+replacement remain open. Production shutdown remains open.
 
 The [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) preserves checkpoint details and
 historical failures. Reuse accepted checks while their source, dependencies and
