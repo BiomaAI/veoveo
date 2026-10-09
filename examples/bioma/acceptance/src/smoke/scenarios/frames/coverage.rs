@@ -36,6 +36,7 @@ const CONCURRENCY: usize = 4;
 #[path = "assertions.rs"]
 mod assertions;
 use assertions::*;
+pub(super) use assertions::{ForeignProbe, probe_timed_out};
 
 #[derive(serde::Serialize)]
 #[serde(
@@ -105,6 +106,30 @@ fn observe(
     write_frames_evidence(file, receipt)
 }
 
+pub(super) fn finalize_outcome(
+    receipt: &mut InstalledFramesReceipt,
+    operation_failed: bool,
+    cleanup_closed: bool,
+) {
+    if operation_failed || !cleanup_closed {
+        receipt.outcome = failure_outcome(receipt);
+    }
+}
+
+pub(super) fn failure_outcome(receipt: &InstalledFramesReceipt) -> InstalledFramesOutcome {
+    if receipt.mutations.is_empty() {
+        InstalledFramesOutcome::FailedBeforeMutation
+    } else if receipt.mutations.iter().any(|mutation| {
+        matches!(
+            mutation.observation,
+            Observation::Unresolved | Observation::TaskAdmitted { .. }
+        )
+    }) {
+        InstalledFramesOutcome::MutationUnresolved
+    } else {
+        InstalledFramesOutcome::FixtureFailedSettled
+    }
+}
 enum Received<T> {
     Response(Result<T>),
     NotDispatched,
@@ -434,7 +459,11 @@ pub(super) async fn run(
     provenance(client, &direct, &revision, &request).await?;
     require_denied_read(
         foreign,
-        direct.provenance.operation.operation_uri().as_str(),
+        ForeignTarget::Operation {
+            uri: direct.provenance.operation.operation_uri().clone(),
+        },
+        file,
+        receipt,
     )
     .await?;
     let usage_uri = FrameUsageIndexUri::new(None);
@@ -659,9 +688,23 @@ pub(super) async fn run(
         .first_key_value()
         .context("Frames usage fixture is empty")?;
     let operation_uri = FrameOperationUri::new(operation);
-    require_denied_read(foreign, operation_uri.as_str()).await?;
-    require_denied_read(foreign, usage.usage_uri().as_str()).await?;
-    require_denied_subscription(foreign, usage.usage_uri().as_str(), listeners).await?;
+    require_denied_read(
+        foreign,
+        ForeignTarget::Operation { uri: operation_uri },
+        file,
+        receipt,
+    )
+    .await?;
+    require_denied_read(
+        foreign,
+        ForeignTarget::TaskUsage {
+            uri: usage.usage_uri().clone(),
+        },
+        file,
+        receipt,
+    )
+    .await?;
+    require_denied_subscription(foreign, usage.usage_uri(), listeners, file, receipt).await?;
     write_frames_evidence(file, receipt)?;
     Ok(())
 }
@@ -818,7 +861,7 @@ mod installed_mutation_tests {
     use super::*;
     fn receipt() -> Result<InstalledFramesReceipt> {
         Ok(InstalledFramesReceipt {
-            schema_version: "veoveo.ai/frames-installed-evidence/v2",
+            schema_version: "veoveo.ai/frames-installed-evidence/v3",
             world_id: FrameWorldId::parse("receipt-fixture")?,
             revision_uri: None,
             outcome: InstalledFramesOutcome::FailedBeforeMutation,
@@ -829,6 +872,7 @@ mod installed_mutation_tests {
             usage_pages: 0,
             task_subscription_cleanup: false,
             first_error: None,
+            foreign_probes: Vec::new(),
             usage: Vec::new(),
         })
     }
@@ -1152,6 +1196,69 @@ mod installed_mutation_tests {
         let mut wrong_world = request.clone();
         wrong_world.world_id = FrameWorldId::parse("unrelated-world")?;
         assert!(require_publication(&wrong_world, &original, &output, 1).is_err());
+        Ok(())
+    }
+    #[test]
+    fn fixture_failure_distinguishes_settled_mutations_from_pending_dispatch_or_task() -> Result<()>
+    {
+        let mut receipt = receipt()?;
+        assert_eq!(
+            failure_outcome(&receipt),
+            InstalledFramesOutcome::FailedBeforeMutation
+        );
+        let request = request()?;
+        let output = CreateWorldOutput {
+            world: FrameWorldSummary::new(
+                request.world_id.clone(),
+                request.display_name.clone(),
+                chrono::Utc::now(),
+            ),
+        };
+        receipt.mutations = (0..106)
+            .map(|_| Mutation {
+                intent: Intent::Create {
+                    request: request.clone(),
+                },
+                observation: Observation::Created {
+                    output: output.clone(),
+                },
+            })
+            .collect();
+        assert_eq!(
+            failure_outcome(&receipt),
+            InstalledFramesOutcome::FixtureFailedSettled
+        );
+        receipt.outcome = InstalledFramesOutcome::Passed;
+        finalize_outcome(&mut receipt, false, true);
+        assert_eq!(receipt.outcome, InstalledFramesOutcome::Passed);
+        // A completed domain run cannot pass if awaited connection cleanup fails.
+        finalize_outcome(&mut receipt, false, false);
+        assert_eq!(
+            receipt.outcome,
+            InstalledFramesOutcome::FixtureFailedSettled
+        );
+        receipt.mutations[105].observation = Observation::NotDispatched;
+        assert_eq!(
+            failure_outcome(&receipt),
+            InstalledFramesOutcome::FixtureFailedSettled
+        );
+        receipt.mutations[105].observation = Observation::InvalidParams;
+        assert_eq!(
+            failure_outcome(&receipt),
+            InstalledFramesOutcome::FixtureFailedSettled
+        );
+        receipt.mutations[105].observation = Observation::Unresolved;
+        assert_eq!(
+            failure_outcome(&receipt),
+            InstalledFramesOutcome::MutationUnresolved
+        );
+        receipt.mutations[105].observation = Observation::TaskAdmitted {
+            task_id: CanonicalTaskId::parse("gateway-observed-pending-task")?,
+        };
+        assert_eq!(
+            failure_outcome(&receipt),
+            InstalledFramesOutcome::MutationUnresolved
+        );
         Ok(())
     }
     #[test]

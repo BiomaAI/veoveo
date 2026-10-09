@@ -17,7 +17,7 @@ pub(crate) async fn frames_installed(
     let world_uri = FrameWorldUri::new(&world_id);
     let worlds_uri = FrameWorldsUri::new(None);
     let mut receipt = InstalledFramesReceipt {
-        schema_version: "veoveo.ai/frames-installed-evidence/v2",
+        schema_version: "veoveo.ai/frames-installed-evidence/v3",
         world_id: world_id.clone(),
         revision_uri: None,
         outcome: InstalledFramesOutcome::FailedBeforeMutation,
@@ -28,6 +28,7 @@ pub(crate) async fn frames_installed(
         usage_pages: 0,
         task_subscription_cleanup: false,
         first_error: None,
+        foreign_probes: Vec::new(),
         usage: Vec::new(),
     };
     write_frames_evidence(&mut evidence_file, &receipt)?;
@@ -207,9 +208,17 @@ pub(crate) async fn frames_installed(
         tokio::time::timeout(Duration::from_secs(5), client.cancel()).await,
         Ok(Ok(_))
     );
-    if immutable_closed && listener_closed && client_closed && additional_closed && foreign_closed {
+    let cleanup_closed =
+        immutable_closed && listener_closed && client_closed && additional_closed && foreign_closed;
+    if cleanup_closed {
         receipt.cleanup = InstalledFramesCleanup::ConnectionsClosed;
     }
+    if result.is_err() {
+        coverage::probe_timed_out(&mut receipt);
+    }
+    let operation_failed =
+        result.is_err() || matches!(&result, Ok(Err(_))) || receipt.first_error.is_some();
+    coverage::finalize_outcome(&mut receipt, operation_failed, cleanup_closed);
     let written = write_frames_evidence(&mut evidence_file, &receipt);
     if let Some(error) = receipt.first_error.take() {
         return Err(error);
@@ -218,7 +227,7 @@ pub(crate) async fn frames_installed(
     result.context("installed Frames acceptance exceeded 300 seconds")??;
     written?;
     anyhow::ensure!(
-        immutable_closed && listener_closed && client_closed && additional_closed && foreign_closed,
+        cleanup_closed,
         "Frames connection cleanup remains unresolved"
     );
     Ok(())
@@ -278,12 +287,14 @@ struct InstalledFramesReceipt {
     #[serde(skip)]
     first_error: Option<anyhow::Error>,
     usage: Vec<veoveo_mcp_contract::UsageReport>,
+    foreign_probes: Vec<coverage::ForeignProbe>,
 }
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 enum InstalledFramesOutcome {
     FailedBeforeMutation,
     MutationUnresolved,
+    FixtureFailedSettled,
     Passed,
 }
 #[derive(serde::Serialize)]
@@ -434,7 +445,7 @@ mod installed_frames_tests {
         let mut file = admit_frames_evidence(&path)?;
         let world = FrameWorldId::parse("acceptance-intent")?;
         let mut receipt = InstalledFramesReceipt {
-            schema_version: "veoveo.ai/frames-installed-evidence/v2",
+            schema_version: "veoveo.ai/frames-installed-evidence/v3",
             world_id: world.clone(),
             revision_uri: None,
             outcome: InstalledFramesOutcome::FailedBeforeMutation,
@@ -445,6 +456,7 @@ mod installed_frames_tests {
             usage_pages: 0,
             task_subscription_cleanup: false,
             first_error: None,
+            foreign_probes: Vec::new(),
             usage: Vec::new(),
         };
         write_frames_evidence(&mut file, &receipt)?;
@@ -496,7 +508,7 @@ mod installed_frames_tests {
         assert_eq!(revision.world_id(), world);
         assert_eq!(installed_frames_tree()?.frames.len(), 3);
         let receipt = InstalledFramesReceipt {
-            schema_version: "veoveo.ai/frames-installed-evidence/v2",
+            schema_version: "veoveo.ai/frames-installed-evidence/v3",
             world_id: world,
             revision_uri: Some(revision),
             outcome: InstalledFramesOutcome::MutationUnresolved,
@@ -507,6 +519,7 @@ mod installed_frames_tests {
             usage_pages: 0,
             task_subscription_cleanup: false,
             first_error: None,
+            foreign_probes: Vec::new(),
             usage: Vec::new(),
         };
         let value = serde_json::to_value(receipt)?;

@@ -23,7 +23,7 @@
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
 | Installed View fixture | `veoveo.ai/view-installed-fixture/v1` closed JSON; nonzero Kubernetes UIDs, opaque resourceVersions, immutable ConfigMap bytes and qualified image release; relative release paths resolve beside the declaration |
 | View fixture preparation | `veoveo.ai/view-fixture-preparation/v1` JSON utility receipt; preparation produces no smoke acceptance outcome |
-| Installed Frames evidence | `veoveo.ai/frames-installed-evidence/v2` camelCase JSON with typed dispatch intents and observations, owner world/revision/native usage identities, gateway Task routes and separate cleanup outcomes |
+| Installed Frames evidence | `veoveo.ai/frames-installed-evidence/v3` camelCase JSON with typed dispatch intents and observations, owner world/revision/native usage identities, gateway Task routes and separate cleanup outcomes |
 | Installed CPU Host fixture | Closed owner JSON with `deployment`, `pod` and `container`; private absolute regular-file input capped at 64 KiB; database identity enters through the DuckDB owner type |
 | Installed CPU Host evidence | `veoveo.ai/installed-cpu-host/v1` JSON with gateway Task identity, admitted process/drain identities and separate completion, retained-payload and connection-cleanup results |
 | Installed View evidence | `veoveo.ai/view-installed-evidence/v1` private JSON; official OAuth/MCP Tasks and the shared selected-container Kubernetes drain profile |
@@ -293,10 +293,13 @@ and immutable revision sources. Conversion points and provenance must name the
 requested robot frame rather than merely agree with one another. Gateway Task identities use `CanonicalTaskId`;
 usage page entries supply native `TaskId` values. Actual usage records correlate
 these results through their operation identity, carry one point without a monetary
-charge and must appear in multiple usage pages. The foreign principal must receive
-resource-not-found for direct and Task-linked operation reads and exact Task-usage
-reads. Its usage pages cannot expose the owned Tasks, and its exact usage listener
-must terminate with resource-not-found.
+charge and must appear in multiple usage pages. Foreign direct and Task-linked
+operation reads and exact Task-usage reads must return `INVALID_PARAMS` (`-32602`)
+under negotiated MCP 2026-07-28, with the owning Frames missing-resource message
+digest. The case rejects the earlier `-32002` wire code. Foreign usage pages cannot
+expose the owned Tasks. An acknowledged exact usage listener must deliver the
+same current code with the owner's subscription-specific message digest in its
+terminal response.
 
 A usage listener consumes its acknowledged baseline before batch dispatch, requires
 an authored invalidation after the first completed group and then closes. Each Task
@@ -310,12 +313,12 @@ The operation deadline is 300 seconds from entry. OAuth issuance, MCP discovery,
 typed resource reads and initial listener admission have at most 15 seconds within it;
 resource notifications have 15-second waits and each Task group has a 30-second
 delivery limit. The selected operation budget includes dispatch and observation.
-Completion, foreign read checks and remaining admissions share the 300-second
-operation deadline. Final owned listener/client cleanup runs outside that timer with five seconds per
+Foreign read and subscription probes each have a 15-second limit. Completion and
+remaining admissions share the 300-second operation deadline. Final owned listener/client cleanup runs outside that timer with five seconds per
 handle. The outer descriptor keeps its 180-second cleanup allowance.
 
 Before network admission, the scenario exclusively creates a mode-0600 receipt and
-retains its open handle. Version 2 records each typed intent before its dispatch,
+retains its open handle. Version 3 records each typed intent before its dispatch,
 then records independently admitted results, gateway Task routes, native usage
 reports and cleanup status as each request resolves. A slow sibling cannot hide an
 already received response when the operation timer expires. After an observation
@@ -328,11 +331,24 @@ operation records and 101 Tasks with actual usage. Input-required, lost or malfo
 responses never trigger another dispatch. Concurrent identical publications are
 predeclared assertions, each with its own persisted intent.
 
+Each foreign probe records its method, typed resource target and expected
+`ObservedFailure` before dispatch. The receipt records the received MCP code and
+message digest or HTTP status before enforcing the assertion. Unexpected success,
+notifications, missing terminal responses and transport failures have separate
+classifications. Receipt diagnostics exclude response bodies, credentials and raw
+error formatting. An expired probe preserves its requested method and target.
+
+An assertion or awaited cleanup failure with all mutation responses settled records
+`fixture_failed_settled`. A dispatched mutation without an admitted response or a
+Task without a terminal result records `mutation_unresolved`. Cleanup status is
+recorded separately, and the aggregate outcome cannot pass when owned cleanup
+fails. Receipt persistence preserves the first operation or observation failure.
+
 Frames exposes no public world/revision deletion. The fixture's append-only records
 remain owned by the selected caller; connection cleanup does not claim their
 removal. Tasks follow the server's ordinary seven-day TTL; expiry can retire their
 usage and hide Task-linked operations. The case does not extend that retention. Receipts from earlier versions remain intact, and this scenario writes only
-version 2. Source controls qualify receipt admission, dispatch limits, cursor
+version 3. Source controls qualify receipt admission, dispatch limits, cursor
 continuation and notification handling. Installed delivery requires a reviewed run
 against the selected gateway and credentials.
 
