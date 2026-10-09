@@ -367,26 +367,25 @@ process, GPU execution or timestamped conversion. Frames preserves its typed pro
 seam. Qualify each actual producer's route, parent IDs and timestamp semantics before
 advertising it; this requirement does not mandate a new producer implementation.
 
-Timeseries forecast provenance, Artifact metadata and usage metadata now share
-checked owner contracts with the installed consumer. Source qualification and
-independent review pass. The first `timeseries-installed` run at `9bcb23c28`
-stopped before dispatch because Artifact templates were absent. A separate normal
-OAuth catalog read confirms both required templates are missing from the 29 returned
-declarations. The deployed initial operator's Artifact rules omit template discovery and the
-action used for neutral Artifact reads. Reviewed source now repairs those read-only
-permissions and retains catalog observations before preflight assertions. The attempted
-policy rollout was restored to the prior live configuration before publication;
-successful rollout and installed forecast qualification remain open. Qualify the
-forecast, RRD handoff and caller-scoped usage. The failed run created no Task or Artifact;
-client cleanup and the unchanged-cluster postcheck pass. Cancellation, replica
-replacement and final image agreement stay open.
+The installed Timeseries case at `027e9bdee` passes one four-row NaiveTrend Task
+through normal operator OAuth. Delivered completion and the full payload agree with
+owner metadata, RRD Artifact metadata and bytes, recording provenance and caller-scoped
+usage. A distinct administrator receives -32602 for the foreign usage read. The v2
+receipt preserves both preflight catalogs and seven read observations; subscription
+and both client closures pass. The Task, Artifact and usage are retained. Ops confirms
+selected workload identities, images and Ready state are unchanged. Cancellation,
+replica replacement and final image agreement stay open.
 
-The native Media fixture now installs its owner schema explicitly. The case at
-`793bc7875` passes startup, fake-provider cancellation and output generation, then
-fails its first foreign Artifact read: the owner translates the plane's typed denial
-to internal error -32603 instead of its public unknown-artifact response. Ops verified
-native fixture cleanup. The full fake-provider lifecycle is unqualified; retain the
-failed run and qualify the narrow read-error correction before another admitted case.
+Gateway adds template discovery and neutral resource reads to the two existing Artifact rules;
+the selected ConfigMaps, mounted configuration and Ready replacement Pod agree while
+the image stays unchanged. Knowledge recovered from an indexing 503 without restart;
+unattended cold-start and current-policy recovery deadlines are unqualified.
+
+The native Media case at `027e9bdee` passes the full fake-provider lifecycle,
+foreign Artifact refusals, caller-isolated catalogs and stored-generation readback
+after an owned restart. Checked process stops and workspace removal pass; Ops verified
+that the disposable database is gone and both native ports are free. Real paid-provider
+and hardware GPU generation remain unqualified.
 
 The focused Knowledge A08 case at source `07742e1623` passes once in 10.29 seconds
 through normal Gateway OAuth on retained generation
@@ -3376,9 +3375,9 @@ reason rather than growing an unbounded generic typing task.
 | F35 | Frames stream references | Installed synthetic-reference admission and the current UAV library consumer pass at `793bc7875`; qualify the final selected images and each actual producer's route and parent IDs before advertising it |
 | F36 | Frames usage visibility and pages | Installed pages, owned reads, foreign-caller refusal and subscriptions pass at `a140c0571`; qualify current catalog consumers on the final selected images |
 | F37 | Frames operation visibility | Installed completed-state direct/Task retention and foreign operation refusal across one same-Pod process crash pass at `1393fdc36`; qualify the final selected images with current-format consumers |
-| F38 | Timeseries resource admission | Qualify current Artifact handoffs and installed resource consumption |
-| F39 | Timeseries forecast admission | Qualify installed output and Artifact handoff; preserve source-qualified summary/preview relationships, finite-point checks before publication and the 501-point bound |
-| F40 | Timeseries usage | Qualify the coordinated replica replacement and installed reads |
+| F38 | Timeseries resource admission | Installed Artifact metadata, bytes and RRD provenance consumption pass at `027e9bdee`; qualify current consumers on the final selected images |
+| F39 | Timeseries forecast admission | Installed four-row NaiveTrend output and Artifact handoff pass at `027e9bdee`; qualify final selected images and preserve summary/preview relationships, finite-point checks before publication and the 501-point bound |
+| F40 | Timeseries usage | Installed caller-scoped usage and foreign-administrator refusal pass at `027e9bdee`; qualify coordinated replica replacement and current consumers on the final selected images |
 | F41 | DuckDB usage and discovery | Qualify installed page consumers and headed hardware Workbench acceptance |
 | F42 | Optimization usage and contract | Qualify the coordinated control/executor replacement and installed reads |
 | F43 | Optimization catalogs | Qualify current catalog permissions and installed consumers |
