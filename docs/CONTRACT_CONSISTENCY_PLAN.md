@@ -2,7 +2,8 @@
 
 Status: The published 34-image closure and charts for `6431c30c6621` retain their
 recorded qualification. GitOps is suspended during source work, and GPU services,
-including Embedding, remain scaled off. Earlier Ready and warmup observations do
+including Embedding, remain scaled off. Knowledge is paused with its required
+Embedding dependency. Earlier Ready and warmup observations do
 not describe the current running state. The unmodified OpenShell 0.1.2 source
 package passes its focused artifact, Host and packaging checks. The owner approved
 stock OIDC; package image `ea4ffc9f7` is assembled and staged with all four official
@@ -298,18 +299,29 @@ identity before starting its listener. Correlated native and gateway Task reads
 settle the original export as cancelled with no result URI and zero produced Artifacts.
 Unknown unlinked partial effects remain untouched. Normal OAuth Task completion/listen
 qualification and subscription fixtures remain open.
-The installed Frames case stops at its 15-second OAuth admission deadline before
-creating a World. A separate exchange with the same normal operator client,
-resource, nine scopes and Work Context succeeds with HTTP 200. The failing case
-does not reach an observed gateway token POST; preparation and deadline composition
-need diagnosis before another run. Earlier executable/library admission repairs
-remain source-qualified. The CPU `installed-host` selector reuses the installation
+Artifact preparation now hashes each shared file once per fresh admission and
+selects the OAuth executable and runtime together. The installed Frames case
+passes normal OAuth, the worlds listener's authored invalidation, publication and
+typed revision readback. Its immutable-subscription probe then mistakes the
+protocol acknowledgement for domain admission and cancels before observing the
+terminal response. Frames' admission rejects immutable revisions, and the Gateway
+preserves the terminal error. The corrected probe requires terminal -32602 and
+retains listener ownership outside the operation deadline. Compiler checks, eight
+focused controls and independent review pass; the old decision fails the regression
+and the corrected decision passes. Installed immutable-subscription acceptance
+remains unqualified because the earlier run did not observe its final response.
+The authored World and revision are retained without redispatch.
+The CPU `installed-host` selector reuses the installation
 harness for one bounded query Task, delivered completion, an admitted DuckDB process
 drain and completed-result retention. Compiler checks, focused behavioral
-controls and independent review pass. Installed acceptance is pending. Artifact
-preparation now hashes each shared file once per fresh admission and selects the
-OAuth executable and runtime together; its installed effect on the deadline still
-needs qualification.
+controls and independent review pass. Installed acceptance is pending.
+The database runtime credential is rotated. Replacement authentication, the existing
+EDITOR role, both namespaced Secrets and the local runtime input agree. Eleven CPU
+services are restored and Ready, and normal nine-scope OAuth and the owned DuckDB
+schema read pass through `/mcp/operator-initial`. Knowledge is paused because its
+startup requires the paused Embedding runtime; no CPU replacement is selected.
+The old-password rejection check was missed and remains unverified. This maintenance
+does not qualify the installed Task, drain or recovery gates.
 The direct unsigned Media webhook returned 401 with an invalid-signature rejection.
 Installed A/F/H, unattended Knowledge startup, installed consumers and hardware
 gates remain open.
