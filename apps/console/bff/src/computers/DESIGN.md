@@ -8,7 +8,7 @@
 | Existing browser session | Application-specific encrypted cookie, OAuth renewal and constant-time CSRF check for mutations |
 | WebSocket, RFC 6455 | HTTP/1.1 upgrade, exact public Origin and cookie authentication |
 | Veoveo terminal v2 | One-use first frame, fresh-shell Ready, binary terminal, bounded resize and upstream authority deadline |
-| OpenShell CLI `0.0.116` and gRPC over WebSocket | Custom SSO pairing and binary SSH adapter; private lease controls never reach the stock consumer |
+| OpenShell CLI `0.1.2` and gRPC over WebSocket | Custom SSO pairing and binary SSH adapter; private lease controls never reach the stock consumer |
 | MCP `2026-07-28` and server-sent events | Auth-scoped collection subscription projected as typed invalidations over a CSRF-protected HTTP POST |
 
 `control_router(BrowserApp)` serves `/console/api/computers` and
@@ -83,7 +83,7 @@ subscription admission fails.
 
 ## Stock CLI Pairing And Relay
 
-The stock CLI `0.0.116` adapter registers
+The stock CLI `0.1.2` adapter registers
 `/console/computers/{id}` as its gateway endpoint. GET
 `/console/computers/{id}/auth/connect?callback_port={port}&code={code}` serves the
 Console entry document for the dedicated pairing page. Closed query parsing and

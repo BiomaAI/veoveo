@@ -19,7 +19,7 @@ unimplemented or unqualified capability.
 | MCP `2026-07-28` | Existing canonical hosted-server profile in [the MCP contract](../mcp/contract/DESIGN.md); this decision does not change its wire version or claim additional upstream features |
 | HTTP semantics, RFC 9110 | Control requests, explicit admission, bounded transfer, and transport-independent interpretation of uncertain replies |
 | OAuth security, RFC 9700; native applications, RFC 8252 | Design guidance for scoped authority, safe renewal, and native-client redirects; these decisions do not certify every OAuth feature |
-| WebSocket, RFC 6455; SSH | Terminal and CLI attachment transports; Veoveo lease, replay, and revocation controls are repository-owned extensions |
+| WebSocket, RFC 6455; SSH | Fresh SSH shell per terminal attachment; Veoveo acceptance Ready, renewable lease and revocation controls are repository-owned extensions |
 | gRPC and Protocol Buffers | Internal OpenShell adapter protocol pinned with the selected provider artifacts; a watch alone is not a durable delivery guarantee |
 | OpenShell `0.1.2` | Unmodified official release profile; selected external OIDC worker authentication; native security/lifecycle qualification required before installation |
 | JSON Schema `2020-12` | Generated controlled-domain contracts |
@@ -224,8 +224,9 @@ condition. An adapter projects the canonical domain and policy. It cannot disgui
 unsupported Tasks, weaken authentication, or select a legacy profile silently.
 
 The Computers runtime selects one official gateway, supervisor and sandbox profile
-with the Docker driver inside the gateway. Worker user authority uses a dedicated
-installation OIDC registration, exact issuer/audience and explicit upstream roles.
+with the Docker driver inside the gateway. The selected design assigns worker user
+authority a dedicated credential profile with installation OIDC, exact issuer/audience
+and explicit upstream roles.
 Provider configuration disables certificate-to-user promotion and anonymous user
 access while preserving complete supervisor TLS and mandatory Sandbox JWT. Stock
 gateway restart replaces the supervisor and revives the guest; terminal sessions
@@ -702,10 +703,10 @@ stored enum requires compatible readers before admission. Computers now journals
 domain settlement before shared Task projection. The worker integrates those boundaries
 with the native runtime and production retained allocator. Current dispatch authority
 and public action/read projection use the same fresh policy and directory snapshot.
-Durable browser, CLI and named automation grants now have installed public
-observations. Agent execution publishes governed output Artifacts and rejects a
-revoked grant or a different Computer. Governed Artifact import/export and named
-Start/Stop authority also have installed acceptance. The
+Pre-stock installed observations cover browser, CLI and named automation grants,
+Artifact command output and file handoff, and named Start/Stop authority. They do
+not qualify the selected unmodified OpenShell profile. Stock native security,
+retained lifecycle and installed public journeys remain release gates. The
 [Computers design](../platform/computers/DESIGN.md#qualification-limits) records the
 qualification limits. Clean/offline release closure, broader provider
 qualification and full installed-evidence composition remain work. Store-backed

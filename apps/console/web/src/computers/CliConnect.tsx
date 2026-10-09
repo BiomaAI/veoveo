@@ -12,7 +12,7 @@ export function CliConnect({ computerId, canConnect, endpointRoot }: { computerI
   }
   return <details className="computer-cli-connect">
     <summary>Connect from your terminal</summary>
-    <p>Use OpenShell CLI 0.0.116. Register this Computer and confirm the code in your browser.</p>
+    <p>Use OpenShell CLI 0.1.2. Register this Computer and confirm the code in your browser.</p>
     <pre><code>{registration}</code></pre>
     <button className="button button-secondary" onClick={() => void copy(registration)}>Copy registration command</button>
     <p>After pairing, open a shell:</p>

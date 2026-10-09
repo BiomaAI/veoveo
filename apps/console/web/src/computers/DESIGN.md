@@ -8,7 +8,7 @@
 | HTTP, RFC 9110 | Same-origin cookie requests, CSRF mutations, bounded JSON, fixed BFF destinations |
 | Server-sent events | CSRF-protected POST subscription; canonical snapshot reread after each collection invalidation |
 | WebSocket, RFC 6455 | Same-origin terminal, one-use first-frame ticket, no URL credentials |
-| OpenShell CLI `0.0.116` pairing adapter | Explicit code comparison and bounded CORS JSON delivery to the validated IPv4 loopback port; custom profile |
+| OpenShell CLI `0.1.2` pairing adapter | Explicit code comparison and bounded CORS JSON delivery to the validated IPv4 loopback port; custom profile |
 | Browser local-network access permission | Loopback callback may require user consent; the site requests access only to the exact admitted local CLI port |
 | Veoveo terminal v2 | Authenticated SSH acceptance Ready, binary output/input, bounded resize and increasing service lease sequence; fresh shell per attachment |
 | xterm.js | `@xterm/xterm` 6.0.0, fit 0.11.0, WebGL 0.19.0; versions verified at the authoritative npm registry on 2026-09-10 |

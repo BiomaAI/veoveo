@@ -7,8 +7,9 @@ not describe the current running state. The unmodified OpenShell 0.1.2 source
 package passes its focused artifact, Host and packaging checks. The owner approved
 stock OIDC; package image `ea4ffc9f7` is assembled and staged with all four official
 executable hashes and versions verified. Three CA roles, projected credentials,
-stock mount fields and the owned image's absent retained-home target are source
-changes under checks. External server/profile app registration, native security
+stock mount fields and the owned image's absent retained-home target pass source
+controls, including thirteen Host and eight OAuth/issuer cases. Optional admitted
+issuer CA inputs configure issuer HTTPS trust with verification enabled. Installation worker OAuth profile inputs, native security
 and retained lifecycle, and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
 and owning controls. Task/subscription fixtures and complete installed A/F/H
 qualification remain open. See [Current Status](#current-status).
@@ -63,7 +64,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging, Host eight unit controls and six xtask packaging controls pass. External OIDC worker authentication is selected with certificate-to-user promotion disabled. Worker registration/configuration, native security and lifecycle qualification remain open; stock activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
+| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging, thirteen Host, eight OAuth/issuer and six xtask packaging controls pass. External OIDC worker authentication is selected with certificate-to-user promotion disabled. Worker OAuth profile/configuration, native security and lifecycle qualification remain open; stock activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. Earlier initial tool-server and nine-scope checks pass their recorded qualification. GitOps is suspended and GPU services, including Embedding, are scaled off during source work; complete installed fixtures remain open | Qualify corrected initial-target Task and subscription fixtures, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
 
@@ -111,7 +112,7 @@ The selected OpenShell profile consumes unmodified official 0.1.2 release assets
 The source package has four executables with verified archive/executable hashes;
 the official gateway contains the Docker driver. The unchanged supervisor image
 is admitted by its amd64 manifest and config digests, including on installation
-mirrors. Host and xtask all-target compilation, eight Host unit controls and six
+mirrors. Host and xtask all-target compilation, thirteen Host, eight OAuth/issuer and six
 packaging controls pass. Custom provider patches and compiler/solver pipelines
 are removed. The download stage pins the verified current stable Trixie image and
 signed October 5 package snapshots. Ops assembled and staged package image
@@ -122,25 +123,29 @@ The fresh SSH-shell terminal cut passes owning controls and independent review.
 Each attachment opens a new PTY and shell; Ready reports request acceptance and
 normal xterm query responses pass. Deployment and native stock acceptance are open.
 The selected security architecture uses installation-supplied HTTPS OIDC with a
-dedicated private worker OAuth registration, exact issuer/audience, explicit upstream
+dedicated worker OAuth credential profile, exact issuer/audience, explicit upstream
 user/admin roles and short-lived credentials. Host configuration disables mTLS user
 promotion and anonymous user access. Complete supervisor TLS and mandatory Sandbox
 JWT stay required. Separate provider-server, worker-user and sandbox-client CA roles
-and projected credentials are source prerequisites; issuer roles and JWT checks
-establish authorization. Runtime bearer acquisition, centralized injection and
-refresh compile and pass owning OAuth controls. Native positive/negative security
+and projected credentials pass owning source controls; issuer roles and JWT checks
+establish authorization. Optional admitted issuer CA inputs configure HTTPS trust while
+certificate verification stays enabled. Runtime bearer acquisition, centralized
+injection and refresh compile and pass eight OAuth/issuer controls. Native positive/negative security
 qualification remains open. Host `providerAuthentication` is required; the native
-Host fixture supplies the profile under source checks. The reference
-`examples/bioma/computers/host.json` must supply installation registration/configuration
+Host fixture supplies the profile and passes source checks. The reference
+`examples/bioma/computers/host.json` must supply the installation OAuth profile/configuration
 with the admitted official supervisor image. The chart mounts that
 file and requires its new configuration digest. Configured Host NetworkPolicy requires
 explicit `computers.host.issuerEgress` IPv4 CIDRs for HTTPS discovery/JWKS; missing
 destinations refuse rendering. Worker discovery/token HTTPS requires the separate
 `networkPolicy.externalEgressCidrs` installation declaration and qualification.
 The chart supplies no issuer credentials.
-The dedicated external registration is an installation prerequisite, not an invented
-reference credential. Owner authorization permits qualification once those inputs
-are supplied. Stock driver config now emits only supported mount fields. The owned
+The selected design assigns a dedicated worker credential profile. Actual issuer,
+audience, roles and service credentials are installation prerequisites. Reuse of an
+existing installation OAuth application is under investigation; the provider does
+not itself require a newly registered application. Owner authorization permits
+native qualification with the owning test-only issuer. Installed activation requires
+the admitted external inputs. Stock driver config now emits only supported mount fields. The owned
 image leaves `/sandbox/persistent` absent to skip Docker copy initialization before
 registration; the allocator initializes its home outside the provider and writer
 fences stay enforced. Compilation and 17 focused mount/lifecycle diagnostic controls
@@ -164,11 +169,9 @@ preserves the mount; the affected compiler and offline controls pass. Policy con
 admits the provider's UUIDv4 attachment epoch and configuration-instance identity
 separately from immutable template settings. Replacement admits both peers' identities;
 same-instance reads and watches preserve equality. All 103 runtime controls and
-independent review pass. Commands now passes its complete native case, including real
-execution, revocation containment, Stop and retained-policy restoration. Maintenance
-passes retained-home upgrade, explicit recovery, rollback and initial-create recovery.
-Files passes import/export, duplicate and clearance refusals, cancellation,
-lost-dispatch containment and restart inspection.
+independent review pass. Pre-stock native Commands, Maintenance and Files cases
+passed execution, containment, retained-home upgrade and rollback, file transfer
+and refusal controls. They do not qualify the selected stock provider.
 
 Worker's native Stop gate uses the production scheduler to observe the original
 operation through its stored deadline and finite read budget. The fixture must
@@ -180,14 +183,15 @@ requires Task success, original-operation settlement, unchanged resource/process
 identity and the allocator-offline condition. The scheduler repair passes compiler,
 strict lint, four focused controls and independent review. The Task-link correction
 passes its compiler, strict lint, real-store control and independent review. The full
-native case now passes original Stop settlement while the allocator stays offline,
+pre-stock native case passed original Stop settlement while the allocator stayed offline,
 retained Start and proof-file readback, recovery, cancellation, denial and lost-dispatch
 containment. Reviewed closed diagnostics record call stages and phase without provider
 payloads.
 
-Host now passes its full native case, including namespace replacement, retained
-Docker and Computer identity, retained bytes, a new process identity and resource
-limits. Its fixture-only mapping separates local image admission from private pull
+The pre-stock Host native case passed namespace replacement, retained Docker and
+Computer identity, retained bytes, a new process identity and resource limits.
+The selected stock profile requires its own same-image restart and image-upgrade
+qualification, including security probes on the replacement generation. Its fixture-only mapping separates local image admission from private pull
 addresses and checks manifest bytes, headers and image identity before creating
 fixture state. Compiler, five controls, strict lint and independent review pass.
 Every terminal fixture is cleaned up. Installed execution stays open.
@@ -231,7 +235,7 @@ test assumptions. Conformance discovery preserves one original deadline in its t
 progress context, and transport error handling preserves the admitted I/O error.
 The owning runtime and conformance libraries pass 93 and 58 controls and strict lint.
 The current stock runtime/MCP all-target checks and strict lint pass. Host and xtask
-all-target compilation, eight Host unit controls and six packaging controls pass.
+all-target compilation, thirteen Host, eight OAuth/issuer and six packaging controls pass.
 Historical provider image builds and native fixture results apply to the earlier
 patched profile. Stock native authentication, lifecycle, retained storage and installed
 acceptance remain open. Scoped Cargo cleanup retains dependency libraries, current executable links, the newest
@@ -301,7 +305,7 @@ The Computer file writer and helper select numeric header version 2 and
 `maximumBytes`; codec and actual helper-process controls reject old and mixed
 headers before filesystem access. Execution protocol version 1 is unchanged.
 The rebuilt helper-bearing template advertises execution protocol 1 and file protocol 2.
-Its complete native case passes import/export of 1,000,003 bytes and SHA-256 checks,
+Its pre-stock native case passed import/export of 1,000,003 bytes and SHA-256 checks,
 rejection cases, uncertain short-body handling, settled Stop→Start, retained-byte
 readback and stale-process refusal. Both native fixtures have completed owned
 cleanup. Installing the v2 writer still requires the affected image closure,
@@ -3061,17 +3065,38 @@ Official artifact identity and source packaging checks pass. Package image
 `ea4ffc9f7` is assembled and staged; all four official binary hashes and versions
 are verified. The owner approved supported OIDC with certificate-to-user promotion
 disabled, upstream roles, complete supervisor TLS and mandatory Sandbox JWT. Three
-CA roles and projected worker inputs are source changes under checks. Driver config
+CA roles, projected worker inputs and optional admitted issuer CA pass owning source
+controls. Driver config
 uses stock mount fields; the owned image leaves the retained-home target absent to
 preserve registered-writer fencing. Its changed retained-template fingerprint
-requires a materialized catalog and coordinated drain. Dedicated external issuer
-server/profile app registration and complete Host/worker/chart inputs remain
+requires a materialized catalog and coordinated drain. Actual installation issuer,
+worker OAuth profile and complete Host/worker/chart inputs remain
 installation prerequisites. Native positive/negative security, actual plugin-mounted
 owned image and stock retained lifecycle must pass before activation and installed
 acceptance.
-Earlier patched-provider containment, companion adoption and replay results do not
-satisfy these gates. Each terminal attachment opens a fresh SSH shell.
-Qualify this profile before closing F23 or A09.
+Earlier patched-provider containment, companion adoption and terminal replay results
+apply to the pre-stock profile. Each current attachment opens a fresh SSH shell with
+acceptance Ready and renewable lease controls. Qualify this profile before closing
+F23 or A09.
+
+The affected installed image closure is `computer-host`, `computer-template`,
+`computers-mcp`, `mcp-gateway` and `console-bff`; the last packages both browser
+clients. Provider and storage images are Host build inputs. Preserve the official
+supervisor mirror's manifest and config digests. Publish the matching Veoveo chart
+and select it with the five image locks and installation values in one Git revision.
+Update Host and worker configuration digests with their actual OIDC profiles,
+three-role trust inputs, projected client secret and optional admitted issuer CA.
+Declare Host issuer/JWKS and worker discovery/token HTTPS CIDRs explicitly.
+
+Materialize the admitted template catalog and new fingerprints in Host, worker,
+default and execution/file lists. Preserve retained catalog identities; a changed
+default applies to new requests. Existing bindings need a qualified maintenance
+transition, and the reference's empty transition list grants no automatic adoption.
+Drain previous readers and workers after settling pending operations. Keep unresolved
+resource fences, retained homes, journals and matched rollback artifacts. Native
+stock authentication, the actual plugin-mounted owned image and retained lifecycle
+must pass before installed public OAuth, terminal, CLI and file journeys. Headed
+terminal acceptance still requires hardware graphics.
 
 Publish the complete affected image closure for the final wire/storage cut: servers,
 gateway, Console/Workspace, agents, SDK servers, runners, simulation/UAV consumers and

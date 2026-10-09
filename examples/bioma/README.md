@@ -201,13 +201,21 @@ client roots. The Host builds its client-root bundle from these two inputs.
 belongs to the supervisor client CA. Storage keeps its own root and worker identity.
 CA private keys stay in `operator/` outside Kubernetes.
 
-The installation supplies a private worker OAuth registration, issuer and audience,
-configured role claims, and a client-secret projection. Computers workers need
-issuer discovery and token HTTPS access through `networkPolicy.externalEgressCidrs`.
-The private Host needs issuer/JWKS HTTPS access through
-`computers.host.issuerEgress`. Both network declarations require actual installation
-CIDRs. These enrollment commands create TLS and signing material; they do not
-register the OAuth application or activate the provider configuration.
+The selected design uses a dedicated worker OAuth credential profile with the
+installation's HTTPS issuer, audience, role claims and scopes. Reuse of the existing
+installation OAuth application is under investigation; a new application registration
+is not an upstream requirement. Complete
+`host.json` with `providerAuthentication` and the admitted official `supervisorImage`.
+Complete `computers.json` with `capacity.gateway.authentication`, explicit
+`client_secret_post` and the absolute projected client-secret path. Optional admitted
+issuer CA inputs configure issuer HTTPS trust with verification enabled. The
+checked-in reference files still need these inputs before stock deployment.
+Computers workers need issuer discovery and token HTTPS access through
+`networkPolicy.externalEgressCidrs`. The private Host needs issuer/JWKS HTTPS access
+through `computers.host.issuerEgress`. Both declarations require actual installation
+CIDRs. Recompute both configuration revisions after selecting the complete files.
+These enrollment commands create TLS and signing material; they do not register the
+OAuth application or activate the provider configuration.
 
 Set `execution.activeKeyId` and the matching key entry in `computers.json` to the
 public identifier in `worker/command-key-id`, then recompute the configuration revision.
@@ -1270,8 +1278,12 @@ Publish a changed chart with `cargo xtask release helm-charts --chart veoveo` or
 `--chart uav-sim`, together with its required revision and version arguments. An
 image-only digest update needs no chart publication.
 
-Template IDs stay attached to retained Computers. The installed `development`
-template keeps its original ID and fingerprint. The execution-capable image has the
-new ID `development-20260910`; changing the default selects it only for new requests.
-An explicit qualified maintenance operation changes an existing Computer's template.
-Never rename the retained catalog entry merely to make the new default use its name.
+Template IDs stay attached to retained Computers. The reference catalog currently
+contains one `development` entry, and its fingerprint is selected by the default
+and execution/file lists. This pinned catalog does not yet construct the stock
+OpenShell profile. A new qualified image requires its admitted template and
+fingerprint in both Host and worker configurations; changing the default selects
+it only for new requests. An explicit qualified maintenance transition changes an
+existing Computer's template. The reference transition list is empty and permits
+no automatic adoption. Preserve retained entries rather than rename them to reuse
+a default label.
