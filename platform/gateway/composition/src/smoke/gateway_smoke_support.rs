@@ -166,59 +166,49 @@ async fn execute() -> Result<()> {
             output,
             frames_upstream_url,
             optimization_upstream_url,
-        } => {
-            return cmd_gateway_pilot_smoke_control_plane(
-                base.clone(),
-                output.clone(),
-                frames_upstream_url.clone(),
-                optimization_upstream_url.clone(),
-            );
-        }
-        Cmd::ContractSchemas { output_dir } => {
-            return cmd_contract_schemas(output_dir.clone());
-        }
-        Cmd::GatewayJwks => return cmd_gateway_jwks(),
+        } => cmd_gateway_pilot_smoke_control_plane(
+            base.clone(),
+            output.clone(),
+            frames_upstream_url.clone(),
+            optimization_upstream_url.clone(),
+        ),
+        Cmd::ContractSchemas { output_dir } => cmd_contract_schemas(output_dir.clone()),
+        Cmd::GatewayJwks => cmd_gateway_jwks(),
         Cmd::GatewayPrivateKeyDerB64 => {
             cmd_gateway_private_key_der_b64();
-            return Ok(());
+            Ok(())
         }
         Cmd::GatewaySmokeControlPlane {
             base,
             output,
             idp_base_url,
             trusted_ca_path,
-        } => {
-            return cmd_gateway_smoke_control_plane(
-                base.clone(),
-                output.clone(),
-                idp_base_url.clone(),
-                trusted_ca_path.clone(),
-            );
-        }
+        } => cmd_gateway_smoke_control_plane(
+            base.clone(),
+            output.clone(),
+            idp_base_url.clone(),
+            trusted_ca_path.clone(),
+        ),
         Cmd::GatewayTwoServerSmokeControlPlane {
             base,
             output,
             media_upstream_url,
             simulation_upstream_url,
-        } => {
-            return cmd_gateway_two_server_smoke_control_plane(
-                base.clone(),
-                output.clone(),
-                media_upstream_url.clone(),
-                simulation_upstream_url.clone(),
-            );
-        }
+        } => cmd_gateway_two_server_smoke_control_plane(
+            base.clone(),
+            output.clone(),
+            media_upstream_url.clone(),
+            simulation_upstream_url.clone(),
+        ),
         Cmd::GatewayAgentSmokeControlPlane {
             base,
             output,
             duckdb_upstream_url,
-        } => {
-            return cmd_gateway_agent_smoke_control_plane(
-                base.clone(),
-                output.clone(),
-                duckdb_upstream_url.clone(),
-            );
-        }
+        } => cmd_gateway_agent_smoke_control_plane(
+            base.clone(),
+            output.clone(),
+            duckdb_upstream_url.clone(),
+        ),
         Cmd::GatewayFakeOidcIdp {
             port,
             cert_pem,
@@ -228,7 +218,7 @@ async fn execute() -> Result<()> {
             client_id,
             client_secret,
         } => {
-            return cmd_gateway_fake_oidc_idp(
+            cmd_gateway_fake_oidc_idp(
                 *port,
                 cert_pem.clone(),
                 key_pem.clone(),
@@ -237,15 +227,13 @@ async fn execute() -> Result<()> {
                 client_id.clone(),
                 client_secret.clone(),
             )
-            .await;
+            .await
         }
         Cmd::OtlpHttpSink {
             port,
             ready_file,
             hits_file,
-        } => {
-            return cmd_otlp_http_sink(*port, ready_file.clone(), hits_file.clone()).await;
-        }
+        } => cmd_otlp_http_sink(*port, ready_file.clone(), hits_file.clone()).await,
         Cmd::FakeHostedMcp {
             port,
             server,
@@ -253,28 +241,26 @@ async fn execute() -> Result<()> {
             internal_trust_jwks,
             ready_file,
         } => {
-            return cmd_fake_hosted_mcp(
+            cmd_fake_hosted_mcp(
                 *port,
                 server.clone(),
                 scheme.clone(),
                 internal_trust_jwks.clone(),
                 ready_file.clone(),
             )
-            .await;
+            .await
         }
         Cmd::GatewayClientAssertion {
             client_id,
             audience,
             jwt_id,
             ttl_minutes,
-        } => {
-            return cmd_gateway_client_assertion(ClientAssertionInput {
-                client_id: client_id.clone(),
-                audience: audience.clone(),
-                jwt_id: jwt_id.clone(),
-                ttl_minutes: *ttl_minutes,
-            });
-        }
+        } => cmd_gateway_client_assertion(ClientAssertionInput {
+            client_id: client_id.clone(),
+            audience: audience.clone(),
+            jwt_id: jwt_id.clone(),
+            ttl_minutes: *ttl_minutes,
+        }),
         Cmd::GatewayTokenExchange {
             token_url,
             client_id,
@@ -287,7 +273,7 @@ async fn execute() -> Result<()> {
             client_key_file,
             client_key_id,
         } => {
-            return cmd_gateway_token_exchange(TokenExchangeInput {
+            cmd_gateway_token_exchange(TokenExchangeInput {
                 token_url: token_url.clone(),
                 client_assertion: ClientAssertionInput {
                     client_id: client_id.clone(),
@@ -304,7 +290,7 @@ async fn execute() -> Result<()> {
                     client_key_id.as_deref(),
                 )?,
             })
-            .await;
+            .await
         }
         Cmd::GatewayIdJag {
             issuer,
@@ -320,23 +306,21 @@ async fn execute() -> Result<()> {
             principal_assurances,
             jwt_id,
             ttl_minutes,
-        } => {
-            return cmd_gateway_id_jag(IdJagInput {
-                issuer: issuer.clone(),
-                audience: audience.clone(),
-                resource: resource.clone(),
-                client_id: client_id.clone(),
-                subject: subject.clone(),
-                scopes: scopes.clone(),
-                tenant: tenant.clone(),
-                groups: groups.clone(),
-                roles: roles.clone(),
-                data_labels: data_labels.clone(),
-                principal_assurances: principal_assurances.clone(),
-                jwt_id: jwt_id.clone(),
-                ttl_minutes: *ttl_minutes,
-            });
-        }
+        } => cmd_gateway_id_jag(IdJagInput {
+            issuer: issuer.clone(),
+            audience: audience.clone(),
+            resource: resource.clone(),
+            client_id: client_id.clone(),
+            subject: subject.clone(),
+            scopes: scopes.clone(),
+            tenant: tenant.clone(),
+            groups: groups.clone(),
+            roles: roles.clone(),
+            data_labels: data_labels.clone(),
+            principal_assurances: principal_assurances.clone(),
+            jwt_id: jwt_id.clone(),
+            ttl_minutes: *ttl_minutes,
+        }),
         Cmd::GatewayIdJagTokenExchange {
             token_url,
             issuer,
@@ -354,7 +338,7 @@ async fn execute() -> Result<()> {
             jwt_id,
             ttl_minutes,
         } => {
-            return cmd_gateway_id_jag_token_exchange(IdJagTokenExchangeInput {
+            cmd_gateway_id_jag_token_exchange(IdJagTokenExchangeInput {
                 token_url: token_url.clone(),
                 id_jag: IdJagInput {
                     issuer: issuer.clone(),
@@ -373,7 +357,7 @@ async fn execute() -> Result<()> {
                 },
                 requested_scopes: scopes.clone(),
             })
-            .await;
+            .await
         }
     }
 }
