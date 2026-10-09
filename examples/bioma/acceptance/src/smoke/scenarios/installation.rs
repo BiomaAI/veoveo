@@ -262,7 +262,7 @@ async fn export_with_task_notification(
             .map_err(|_| {
                 anyhow!("DuckDB Task dispatch failed; original outcome remains unresolved")
             })?;
-        let task_id = veoveo_types::TaskId::parse(&task.task_id)
+        let task_id = veoveo_types::CanonicalTaskId::parse(&task.task_id)
             .map_err(|_| anyhow!("DuckDB Task response has an invalid identity"))?;
         let deadline = overall.min(tokio::time::Instant::now() + Duration::from_secs(180));
         tokio::time::timeout_at(deadline, async {
@@ -289,7 +289,7 @@ async fn export_with_task_notification(
                 {
                     ServerNotification::TaskStatusNotification(update) => {
                         ensure!(
-                            update.params.task.task.task_id == task_id.to_string(),
+                            update.params.task.task.task_id == task_id.as_str(),
                             "DuckDB Task notification identity mismatch"
                         );
                         match update.params.task.status() {
@@ -306,11 +306,11 @@ async fn export_with_task_notification(
                 .await
                 .map_err(|_| anyhow!("DuckDB current Task read failed"))?;
             ensure!(
-                current.task.task.task_id == task_id.to_string()
+                current.task.task.task_id == task_id.as_str()
                     && current.task.status() == TaskStatus::Completed,
                 "DuckDB completed notification disagrees with current Task identity/status"
             );
-            let payload = task_payload(&client, &task_id.to_string())
+            let payload = task_payload(&client, task_id.as_str())
                 .await
                 .map_err(|_| anyhow!("DuckDB completed Task payload read failed"))?;
             ensure!(

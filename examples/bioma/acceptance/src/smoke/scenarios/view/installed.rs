@@ -10,7 +10,7 @@ use veoveo_testing_support::installed::restart::{
     DeploymentRestart, DrainProfile, SelectedDrainTarget,
 };
 use veoveo_types::ResourceAddress;
-use veoveo_types::{LocalToolName, TaskId};
+use veoveo_types::{CanonicalTaskId, LocalToolName};
 use veoveo_view_mcp::contract::{CloseViewRequest, CloseViewResult, Sha256Digest};
 
 #[derive(Deserialize)]
@@ -518,7 +518,7 @@ async fn tool<T: DeserializeOwned>(
     )
     .map_err(|_| anyhow!("View response failed owner admission"))
 }
-async fn baseline(client: &SmokeMcpClient, task: TaskId) -> Result<()> {
+async fn baseline(client: &SmokeMcpClient, task: &CanonicalTaskId) -> Result<()> {
     let filter = SubscriptionFilter::builder()
         .task_ids([task.to_string()])
         .build();
@@ -535,7 +535,7 @@ async fn baseline(client: &SmokeMcpClient, task: TaskId) -> Result<()> {
         {
             ServerNotification::TaskStatusNotification(update) => {
                 ensure!(
-                    update.params.task.task.task_id == task.to_string()
+                    update.params.task.task.task_id == task.as_str()
                         && update.params.task.status() == TaskStatus::Completed,
                     "independent context received a different Task baseline"
                 );
@@ -547,7 +547,7 @@ async fn baseline(client: &SmokeMcpClient, task: TaskId) -> Result<()> {
     .await
     .context("independent View Task baseline exceeded fifteen seconds")?
 }
-async fn denied(client: &SmokeMcpClient, task: TaskId) -> Result<()> {
+async fn denied(client: &SmokeMcpClient, task: &CanonicalTaskId) -> Result<()> {
     require_isolation_rejection(
         client.get_task(GetTaskParams::new(task.to_string())).await,
         "unknown task id",
@@ -681,13 +681,13 @@ pub(super) async fn run(installation: &Path, fixture: &Path, evidence: &Path) ->
         let mut request:CaptureFrameRequest = serde_json::from_value(capture_request(view.view_id().as_str(),view.revision(),false)?)?;
         request.policy.encoding = FrameEncoding::Jpeg;
         let created = call_tool_as_task(&writer,tool_name("capture_frame")?.as_str(),serde_json::to_value(request)?).await?;
-        let task = TaskId::parse(&created.task_id)?;
-        let terminal = await_task_terminal_with_timeout(&writer,&task.to_string(),Duration::from_secs(30)).await?;
+        let task = CanonicalTaskId::parse(&created.task_id)?;
+        let terminal = await_task_terminal_with_timeout(&writer,task.as_str(),Duration::from_secs(30)).await?;
         ensure!(terminal.status() == TaskStatus::Completed, "installed capture did not complete");
-        baseline(&observer,task).await?;
-        denied(&different_context,task).await?;
-        denied(&different_principal,task).await?;
-        let payload = task_payload(&observer,&task.to_string()).await?;
+        baseline(&observer,&task).await?;
+        denied(&different_context,&task).await?;
+        denied(&different_principal,&task).await?;
+        let payload = task_payload(&observer,task.as_str()).await?;
         let frame = payload.structured_content.as_ref().context("capture has no frame metadata")?;
         let bytes = image_bytes(&payload,"image/jpeg")?;
         assert_local_frame(frame,&bytes,"image/jpeg")?;
@@ -701,13 +701,13 @@ pub(super) async fn run(installation: &Path, fixture: &Path, evidence: &Path) ->
         // A fresh official client must recover the completed owner Task after Pod replacement.
         let recovered = connect_mcp_client(owner_url.as_str(),&observer_token).await?;
         let recovery = async {
-            baseline(&recovered,task).await?;
-            let recovered_payload = task_payload(&recovered,&task.to_string()).await?;
+            baseline(&recovered,&task).await?;
+            let recovered_payload = task_payload(&recovered,task.as_str()).await?;
             let recovered_bytes = image_bytes(&recovered_payload,"image/jpeg")?;
             ensure!(recovered_bytes == bytes,"completed View capture changed across Pod replacement");
             admit_captured_frame(recovered_payload.structured_content.as_ref().context("recovered capture metadata absent")?,&recovered_bytes,"image/jpeg")?;
-            denied(&different_context,task).await?;
-            denied(&different_principal,task).await?;
+            denied(&different_context,&task).await?;
+            denied(&different_principal,&task).await?;
             Ok::<_,anyhow::Error>(())
         }.await;
         let stopped = recovered.cancel().await;
