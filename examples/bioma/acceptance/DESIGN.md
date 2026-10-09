@@ -251,13 +251,23 @@ an observable Working transition.
 
 ## Installed Frames
 
-The existing `frames-mcp` scenario defaults to its isolated local services. Paired
-`--installation` and `--evidence-output` inputs select normal gateway OAuth and
-the installed operator profile. Installed execution consumes an acknowledged
-worlds-resource baseline before creating one uniquely named world, then requires
-a separate invalidation and a fresh owned-world read. It publishes the local
-scenario's deterministic three-frame tree, reads the admitted immutable revision
-and requires invalid-params refusal of a revision subscription. No provider runs.
+`frames-installed` selects `installation-smoke frames-installed` and requires both
+`--installation` and `--evidence-output`. It uses the existing `frames_installed`
+assertions through normal gateway OAuth and the installed operator profile.
+Preparation selects the assertion executable and `gateway-smoke-support`, its sole
+OAuth helper prerequisite. Installed services supply the domain processes; this
+entrypoint builds and launches no local service binaries and activates no provider.
+The descriptor preserves the 3600-second preparation-inclusive budget and
+180-second cleanup budget. The owner operation and connection deadlines below
+apply within that outer preparation budget.
+
+`frames-mcp` selects the isolated local fixture and keeps its existing native
+service prerequisites. It accepts no installed-mode inputs. Installed execution
+consumes an acknowledged worlds-resource baseline before creating one uniquely
+named world, then requires a separate invalidation and a fresh owned-world read.
+It publishes the local scenario's deterministic three-frame tree, reads the
+admitted immutable revision and observes terminal invalid-params refusal of a
+revision subscription after any protocol acknowledgement.
 
 The installed scenario has a 90-second deadline from entry. OAuth issuance,
 MCP discovery and listener admission each have at most 15 seconds within that

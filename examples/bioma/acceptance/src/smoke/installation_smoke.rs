@@ -105,11 +105,14 @@ enum Cmd {
         /// Built artifact-service binary path.
         #[arg(long)]
         artifact_service_bin: Option<PathBuf>,
-        /// Installed normal-OAuth target; paired with an evidence output.
-        #[arg(long, requires = "evidence_output")]
-        installation: Option<PathBuf>,
-        #[arg(long, requires = "installation")]
-        evidence_output: Option<PathBuf>,
+    },
+    FramesInstalled {
+        /// Installation-owned normal OAuth target and public control plane.
+        #[arg(long)]
+        installation: PathBuf,
+        /// New private receipt file; existing files refuse execution.
+        #[arg(long)]
+        evidence_output: PathBuf,
     },
     MapMcp {
         /// Built conformance binary path.
@@ -560,20 +563,21 @@ async fn execute() -> Result<()> {
             )?;
             media_task_run(&conformance_bin, &media_bin, &artifact_service_bin).await
         }
+        Cmd::FramesInstalled {
+            installation,
+            evidence_output,
+        } => {
+            frames_installed(
+                &support::InstalledTarget::load(&installation)?,
+                &evidence_output,
+            )
+            .await
+        }
         Cmd::FramesMcp {
             conformance_bin,
             frames_bin,
             artifact_service_bin,
-            installation,
-            evidence_output,
         } => {
-            if let Some(installation) = installation {
-                return frames_installed(
-                    &support::InstalledTarget::load(&installation)?,
-                    &evidence_output.context("installed Frames requires --evidence-output")?,
-                )
-                .await;
-            }
             let conformance_bin = veoveo_testing_support::artifacts::requested_executable(
                 conformance_bin,
                 "veoveo-mcp-conformance",
@@ -1081,25 +1085,158 @@ mod view_cli_tests {
 mod frames_cli_tests {
     use super::*;
     #[test]
-    fn installed_frames_requires_paired_explicit_inputs_and_preserves_local_default() {
-        assert!(Args::try_parse_from(["installation-smoke", "frames-mcp"]).is_ok());
-        for flag in ["--installation", "--evidence-output"] {
-            assert!(
-                Args::try_parse_from(["installation-smoke", "frames-mcp", flag, "path.json"])
-                    .is_err()
-            );
-        }
-        assert!(
-            Args::try_parse_from([
+    fn installed_frames_requires_explicit_inputs_and_local_rejects_installed_flags() -> Result<()> {
+        let local = Args::try_parse_from(["installation-smoke", "frames-mcp"])?;
+        assert!(matches!(
+            local.cmd,
+            Cmd::FramesMcp {
+                conformance_bin: None,
+                frames_bin: None,
+                artifact_service_bin: None
+            }
+        ));
+        for args in [
+            vec!["installation-smoke", "frames-installed"],
+            vec![
+                "installation-smoke",
+                "frames-installed",
+                "--installation",
+                "target.json",
+            ],
+            vec![
+                "installation-smoke",
+                "frames-installed",
+                "--evidence-output",
+                "receipt.json",
+            ],
+            vec![
+                "installation-smoke",
+                "frames-mcp",
+                "--installation",
+                "target.json",
+            ],
+            vec![
+                "installation-smoke",
+                "frames-mcp",
+                "--evidence-output",
+                "receipt.json",
+            ],
+            vec![
                 "installation-smoke",
                 "frames-mcp",
                 "--installation",
                 "target.json",
                 "--evidence-output",
-                "receipt.json"
-            ])
-            .is_ok()
+                "receipt.json",
+            ],
+        ] {
+            assert!(Args::try_parse_from(args).is_err());
+        }
+        let installed = Args::try_parse_from([
+            "installation-smoke",
+            "frames-installed",
+            "--installation",
+            "target.json",
+            "--evidence-output",
+            "receipt.json",
+        ])?;
+        let Cmd::FramesInstalled {
+            installation,
+            evidence_output,
+        } = installed.cmd
+        else {
+            bail!("wrong installed Frames command");
+        };
+        assert_eq!(installation, PathBuf::from("target.json"));
+        assert_eq!(evidence_output, PathBuf::from("receipt.json"));
+        let local = Args::try_parse_from([
+            "installation-smoke",
+            "frames-mcp",
+            "--conformance-bin",
+            "conformance",
+            "--frames-bin",
+            "frames",
+            "--artifact-service-bin",
+            "artifacts",
+        ])?;
+        let Cmd::FramesMcp {
+            conformance_bin,
+            frames_bin,
+            artifact_service_bin,
+        } = local.cmd
+        else {
+            bail!("wrong local Frames command");
+        };
+        assert_eq!(conformance_bin, Some(PathBuf::from("conformance")));
+        assert_eq!(frames_bin, Some(PathBuf::from("frames")));
+        assert_eq!(artifact_service_bin, Some(PathBuf::from("artifacts")));
+        Ok(())
+    }
+    #[test]
+    fn frames_descriptors_keep_installed_preparation_separate_from_local_coverage() -> Result<()> {
+        use veoveo_testing_support::descriptor::{
+            BuildProfile, PackageName, Preparation, ScenarioDescriptor,
+        };
+        let descriptor: ScenarioDescriptor =
+            serde_json::from_str(include_str!("../../smoke/scenarios.json"))?;
+        let installed = descriptor
+            .scenarios
+            .iter()
+            .find(|scenario| scenario.id.as_str() == "frames-installed")
+            .context("installed Frames scenario is absent")?;
+        assert_eq!(installed.arguments, ["frames-installed"]);
+        let [Preparation::CargoBinary { selection }] = installed.prerequisites.as_slice() else {
+            bail!("installed Frames requires exactly its OAuth utility");
+        };
+        assert_eq!(
+            selection.owner,
+            PathBuf::from("platform/gateway/composition")
         );
+        assert_eq!(
+            selection.package,
+            PackageName::parse("veoveo-gateway-composition")?
+        );
+        assert_eq!(selection.target, "gateway-smoke-support");
+        assert_eq!(selection.features, ["smoke".to_string()].into());
+        assert!(!selection.default_features);
+        assert_eq!(selection.profile, BuildProfile::Dev);
+        assert!(installed.requirements.network && installed.requirements.credentials);
+        assert!(
+            !installed.requirements.nvidia
+                && !installed.requirements.headed_graphics
+                && !installed.requirements.cluster_mutation
+                && !installed.requirements.billed_effects
+        );
+        let local = descriptor
+            .scenarios
+            .iter()
+            .find(|scenario| scenario.id.as_str() == "frames-mcp")
+            .context("local Frames scenario is absent")?;
+        assert_eq!(local.arguments, ["frames-mcp"]);
+        assert_eq!(local.prerequisites.len(), 8);
+        let local_targets = local
+            .prerequisites
+            .iter()
+            .map(|preparation| match preparation {
+                Preparation::CargoBinary { selection } => Ok(selection.target.as_str()),
+                _ => bail!("local Frames requires its native executables"),
+            })
+            .collect::<Result<std::collections::BTreeSet<_>>>()?;
+        assert_eq!(
+            local_targets,
+            [
+                "conformance",
+                "gateway-smoke-support",
+                "media-smoke",
+                "agent-smoke",
+                "artifact-smoke",
+                "deployment-fixtures",
+                "frames-mcp",
+                "artifact-service"
+            ]
+            .into()
+        );
+        Ok(())
     }
 }
 

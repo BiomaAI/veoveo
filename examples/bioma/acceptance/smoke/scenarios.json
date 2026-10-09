@@ -649,7 +649,7 @@
     },
     {
       "id": "frames-mcp",
-      "description": "Smoke-test local Frames or installed OAuth resource delivery and immutable revisions.",
+      "description": "Smoke-test isolated local Frames resource delivery and immutable revisions.",
       "target": {
         "kind": "cargo_binary",
         "selection": {
@@ -775,7 +775,53 @@
         "billedEffects": false,
         "nvidia": false,
         "headedGraphics": false,
-        "explanation": "Local mode owns isolated native fixtures. Optional paired --installation and --evidence-output inputs use normal gateway OAuth; installed mode retains its uniquely named append-only world and revision, closes subscriptions and clients, and does not invoke providers."
+        "explanation": "The owner creates isolated local service and OAuth fixtures, observes resource delivery and immutable revisions, and cleans up its native processes and connections."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
+      "id": "frames-installed",
+      "description": "Qualify installed Frames invalidation, publication and immutable revision refusal through normal OAuth.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "examples/bioma/acceptance",
+          "package": "veoveo-bioma-acceptance",
+          "target": "installation-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "frames-installed"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Required --installation and --evidence-output inputs select normal gateway OAuth and the installed operator profile. The scenario retains its uniquely named append-only world and revision, closes subscriptions and clients, and invokes no providers or cluster mutations."
       },
       "deadlineSeconds": 3600,
       "cleanupSeconds": 180

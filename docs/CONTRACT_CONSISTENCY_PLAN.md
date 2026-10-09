@@ -152,9 +152,11 @@ destinations refuse rendering. Worker discovery/token HTTPS requires the separat
 The chart supplies no issuer credentials.
 The worker private-key Secret is referenced only by its Deployment and uses numeric
 mode 288 (`0440`). The checked public bundle includes its JWKS. Ops verified the
-official supervisor's manifest and config in the reference registry; the node-facing
-registry connection currently refuses requests and still requires installed repair
-and qualification before activation.
+official supervisor's manifest and config in the reference registry. The node-facing
+configured authority returns HTTP 200, and its pinned manifest/config match the
+official identities. The earlier curl refusal came from `.localhost` handling;
+no registry repair or mutation was required. Actual provider/containerd image pulls
+and full stock runtime qualification remain open.
 The accepted installation profile reuses Veoveo's authorization server, signing
 keys, JWKS and `private_key_jwt` client authentication. Computers owns the checked
 `ai.veoveo/computer-worker-authorization` catalog section, non-MCP resource audience
@@ -330,7 +332,9 @@ typed revision readback and terminal -32602 for an immutable revision subscripti
 The run used unchanged deployed Frames image `032ce55005cb` and gateway image
 `ab2d13f78a72`. Connections closed, and the append-only World/revision fixture was
 retained without retry. Ops verified unchanged deployment/configuration and Ready
-state. F31–F37 and the current source/image closure remain open.
+state. The explicit `frames-installed` entrypoint now separates installed
+preparation from local service prerequisites and reuses those assertions without
+another installed run. F31–F37 and the current source/image closure remain open.
 
 The CPU `installed-host` selector reuses the installation
 harness for one bounded query Task, delivered completion, an admitted DuckDB process
@@ -3136,7 +3140,8 @@ projected private-key Secret and activate the matching admitted images and
 configuration through the coordinated drain. Complete native security, the actual
 plugin-mounted owned image and stock retained lifecycle remain prerequisites for
 activation and installed acceptance. The full stock supervisor resource-guarantee
-decision and node-facing registry qualification remain open.
+decision, actual provider/containerd pulls and full stock runtime qualification
+remain open.
 
 Earlier patched-provider containment, companion adoption and terminal replay results
 apply to the pre-stock profile. Each current attachment opens a fresh SSH shell with
