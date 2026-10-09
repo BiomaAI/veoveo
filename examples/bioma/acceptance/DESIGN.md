@@ -87,9 +87,33 @@ delegated signed identity. The latter verifies typed metadata, resolution, one-m
 catalog pages within 60 seconds and 256 pages, isolated-tenant refusal and selected
 bytes. Its request context must pass Artifact service
 audit admission. The private `veoveo.ai/artifact-upload-consumer-acceptance/v3`
-receipt preserves both consumer profiles; earlier receipt versions lack these
-observations. Installed execution and write-capability recovery require their
-own qualification.
+receipt preserves both consumer profiles. Installed execution requires its own
+qualification.
+
+`--service-recovery` additionally selects `artifactConsumer.serviceRecovery` and an
+isolated, stable fixture WorkContext. The case admits the Artifact service's
+namespace, Deployment, Pod and container before retaining a tiny Task-bound write
+capability across one service replacement. It redeems the original request and
+replays its idempotency key, requiring the same occurrence, metadata and bytes.
+The public Artifact index probes the service after replacement. Artifact MCP
+documents alone cannot establish service readiness. Capability secrets stay in
+the child process; receipts record identities and expiry. The API provides no
+capability revoke or Artifact deletion operation, so the fixture uses short expiry
+and retention and records those retained effects for reconciliation. The scenario
+declares Kubernetes mutation because this explicitly selected mode restarts a
+service; its default consumer profile performs no restart.
+The installation must identify the service behind both its private SDK origin and
+the public Artifact index. The selected container is `artifact-service`. The
+synthetic delegated caller keeps empty clearance, so this profile admits only a
+WorkContext whose output policy has no inherited classification or labels. Public
+OAuth capability issuance and interrupted-write recovery require separate cases.
+Recovery work has a 300-second local limit within the scenario's execution budget.
+The actual MCP client's consuming close future is registered before acquisition
+and retained across cancellation. The existing process-group owner drains the SDK
+child. Both use the owner's shared cleanup deadline. Cleanup records preserve
+interrupted work and original close outcomes; an empty slot cannot establish a
+successful close. The private JSONL journal records those facts even when the
+outer scenario drops the recovery operation.
 
 The nondefault `smoke` feature supplies `installation-smoke` and `installation-browser-smoke`. Their single assertion sources own the multi-domain Store, Artifact, Gateway and installation relationships they exercise. The default `native` feature selects the composition and Store dependencies used by the existing native controls. `smoke` includes that profile. The separate `reports` feature exports the same upload report declarations through only Artifact contracts, shared types and browser hardware contracts; it excludes composition, Store, Tasks, service implementations and CDP execution. Production domain packages do not depend on this composition.
 
@@ -427,22 +451,37 @@ recording timestamp is observed rather than fixed by the fixture. A distinct adm
 uses ordinary OAuth to verify the native Task-usage read refusal. Artifact metadata
 is read through the Artifact MCP contract-only library’s `metadata_uri` builder and
 admitted as the owner’s bare metadata resource response. This contract edge adds no
-Artifact runtime integration. The Task, Artifact and usage are retained domain writes. The descriptor’s
-`clusterMutation:false` means the case performs no Kubernetes mutation; it does not
-classify the forecast as read-only. The case establishes no forced-cancellation,
-in-flight recovery, GPU or visual-rendering guarantee.
+Artifact runtime integration. The Task, Artifact and usage are retained domain writes.
+The scenario performs no Kubernetes mutation.
 
-The owner operation has a 300-second deadline. OAuth and MCP connection admissions
+`--lifecycle-input` selects a second typed forecast workload for cancellation or
+connection replacement. The original four-row consumer assertions still run.
+Cancellation requires an observed unfinished Task, dispatches once and requires
+current cancelled state; a completed Task cannot qualify it. Connection replacement
+requires completion of the original Task with matching identity, creation time,
+owner output and Artifact provenance. That Task may finish during reconnection;
+the receipt preserves its observed states. This proves connection independence.
+Unfinished server-restart recovery and selected cross-replica qualification require
+additional owner cases. These data and lifecycle checks establish no GPU or visual
+rendering guarantee.
+
+The baseline operation has a 300-second deadline. OAuth and MCP connection admissions
 have 15 seconds each, catalogs have 30 seconds each, and individual reads have 15
 seconds. Task event delivery has at most 180 seconds within the operation deadline.
 Usage traversal permits 32 pages per baseline or final read and admits at most 3,000
 existing entries before the forecast. Typed intents and known outcomes are written
 to a private receipt capped at 1 MiB before execution advances. Subscription and client
-handles stay outside the cancellable operation future. Listener cleanup has five
-seconds, and each SDK client has ten seconds after success, failure or timeout. The descriptor keeps the 3600-second preparation budget
+handles stay outside the cancellable operation future. Each listener and SDK client
+has ten seconds for cleanup after success, failure or timeout. The descriptor keeps the 3600-second preparation budget
 and 180-second cleanup allowance; these outer budgets include artifact preparation
-and do not extend the owner operation deadline. A timeout cannot authorize another
-forecast dispatch or removal of an unresolved retained fixture.
+and do not extend the owner operation deadline. The optional lifecycle workload has
+its own 300-second operation limit. Baseline success, including SDK cleanup and the
+written receipt, must precede its dispatch. Both phases register retained listener
+and connection slots with the outer scenario owner. Their original consuming close
+futures survive operation cancellation and share the owner's cleanup deadline.
+Receipts preserve pending or failed earlier closes across reconnection. A timeout
+cannot authorize another forecast dispatch or removal of an unresolved retained
+fixture.
 
 ## Installed Frames References
 

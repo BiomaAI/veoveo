@@ -41,7 +41,7 @@ pub(super) fn metadata(
     require_output(request, output)?;
     Ok(metadata)
 }
-fn require_provenance(
+pub(super) fn require_provenance(
     request: &TimeseriesForecastRequest,
     actual: &TimeseriesRrdProvenance,
 ) -> Result<()> {

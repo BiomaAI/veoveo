@@ -1,3 +1,5 @@
+#[path = "artifact_consumers/capability_recovery.rs"]
+mod capability_recovery;
 #[path = "artifact_consumers/python.rs"]
 mod python;
 use super::*;
@@ -37,11 +39,16 @@ pub(crate) async fn artifact_upload_consumers(
     installation: &InstalledTarget,
     browser_evidence: &Path,
     evidence_output: &Path,
+    service_recovery: bool,
 ) -> Result<()> {
     ensure!(
         !evidence_output.exists(),
         "consumer evidence already exists"
     );
+    // Admit opt-in fixture selection before the existing upload side effects.
+    if service_recovery {
+        capability_recovery::admit(installation, evidence_output)?;
+    }
     let browser: BrowserEvidence = serde_json::from_slice(&fs::read(browser_evidence)?)?;
     ensure!(
         browser.schema == BrowserUploadReportSchema::Upload,
@@ -278,6 +285,9 @@ pub(crate) async fn artifact_upload_consumers(
         ),
         "Python foreign tenant could consume the artifact"
     );
+    if service_recovery {
+        capability_recovery::run(installation, evidence_output).await?;
+    }
     let revision = run_checked(Path::new("git"), ["rev-parse".into(), "HEAD".into()], [])?
         .trim()
         .to_owned();

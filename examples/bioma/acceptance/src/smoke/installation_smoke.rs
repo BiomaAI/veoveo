@@ -92,6 +92,9 @@ enum Cmd {
         browser_evidence: PathBuf,
         #[arg(long)]
         evidence_output: PathBuf,
+        /// Opt in to the selected Artifact service recovery fixture.
+        #[arg(long)]
+        service_recovery: bool,
     },
     MediaMcpAuth {
         /// Built conformance binary path.
@@ -159,6 +162,9 @@ enum Cmd {
         /// New private receipt for the retained forecast Task and Artifact.
         #[arg(long)]
         evidence_output: PathBuf,
+        /// Explicit cancellation or reconnect workload fixture.
+        #[arg(long)]
+        lifecycle_input: Option<PathBuf>,
     },
     MapMcp {
         /// Built conformance binary path.
@@ -570,6 +576,7 @@ async fn execute() -> Result<()> {
             installation,
             browser_evidence,
             evidence_output,
+            service_recovery,
         } => {
             let conformance_bin = veoveo_testing_support::artifacts::requested_executable(
                 conformance_bin,
@@ -583,6 +590,7 @@ async fn execute() -> Result<()> {
                 &target,
                 &browser_evidence,
                 &evidence_output,
+                service_recovery,
             )
             .await
         }
@@ -667,10 +675,12 @@ async fn execute() -> Result<()> {
         Cmd::TimeseriesInstalled {
             installation,
             evidence_output,
+            lifecycle_input,
         } => {
             timeseries_installed(
                 &support::InstalledTarget::load(&installation)?,
                 &evidence_output,
+                lifecycle_input.as_deref(),
             )
             .await
         }
@@ -1288,12 +1298,14 @@ mod frames_cli_tests {
         let Cmd::TimeseriesInstalled {
             installation,
             evidence_output,
+            lifecycle_input,
         } = installed.cmd
         else {
             bail!("wrong installed Timeseries command");
         };
         assert_eq!(installation, PathBuf::from("target.json"));
         assert_eq!(evidence_output, PathBuf::from("receipt.json"));
+        assert!(lifecycle_input.is_none());
         for incomplete in [
             vec!["installation-smoke", "frames-reference-installed"],
             vec![
@@ -1361,6 +1373,54 @@ mod frames_cli_tests {
         assert_eq!(artifact_service_bin, Some(PathBuf::from("artifacts")));
         Ok(())
     }
+    #[test]
+    fn lifecycle_profiles_require_explicit_cli_selection() -> Result<()> {
+        for selected in [false, true] {
+            let mut args = vec![
+                "installation-smoke",
+                "artifact-upload-consumers",
+                "--installation",
+                "target.json",
+                "--browser-evidence",
+                "browser.json",
+                "--evidence-output",
+                "receipt.json",
+            ];
+            if selected {
+                args.push("--service-recovery");
+            }
+            let Cmd::ArtifactUploadConsumers {
+                service_recovery, ..
+            } = Args::try_parse_from(args)?.cmd
+            else {
+                bail!("wrong Artifact command")
+            };
+            assert_eq!(service_recovery, selected);
+            let mut args = vec![
+                "installation-smoke",
+                "timeseries-installed",
+                "--installation",
+                "target.json",
+                "--evidence-output",
+                "receipt.json",
+            ];
+            if selected {
+                args.extend(["--lifecycle-input", "lifecycle.json"]);
+            }
+            let Cmd::TimeseriesInstalled {
+                lifecycle_input, ..
+            } = Args::try_parse_from(args)?.cmd
+            else {
+                bail!("wrong Timeseries command")
+            };
+            assert_eq!(
+                lifecycle_input,
+                selected.then(|| PathBuf::from("lifecycle.json"))
+            );
+        }
+        Ok(())
+    }
+
     #[test]
     fn frames_descriptors_keep_installed_preparation_separate_from_local_coverage() -> Result<()> {
         use veoveo_testing_support::descriptor::{

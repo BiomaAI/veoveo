@@ -84,10 +84,17 @@ current result agreement. Its native fixture, receipt and identity controls pass
 Installed execution remains held. Cancellation, unfinished Task restart recovery,
 Time activation and final-image acceptance require their owning qualification.
 
-Artifact's existing consumer prepares delegated SDK metadata, resolution and pagination;
-public OAuth interoperability and delegated byte-plane observations carry distinct
-qualification. Capability recovery and final-image acceptance require their owning
-qualification. Installed execution remains held.
+Artifact's existing consumer prepares delegated SDK reads and optional retention of
+a Task-bound write capability across one explicitly selected service replacement,
+followed by redemption and idempotent replay. Its native SDK and admission controls
+pass. Public OAuth issuance, interrupted-write recovery and installed service
+replacement carry separate qualification; installed execution remains held.
+
+Timeseries preserves its deterministic four-row forecast, RRD Artifact and usage
+consumer checks. An optional typed workload prepares cancellation and connection
+replacement with original Task identity and result checks; owning native controls
+pass. Unfinished server-restart recovery, selected cross-replica routing and final
+installed images remain open.
 
 Installed node activation and the stock rollout are halted after Secret values
 accidentally appeared in a tool transcript. Both tracked Veoveo and UAV HelmReleases

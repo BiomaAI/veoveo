@@ -40,9 +40,9 @@ struct SigningData {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct CallerInput {
-    bearer_token: String,
-    identity: GatewayInternalIdentity,
+pub(super) struct CallerInput {
+    pub(super) bearer_token: String,
+    pub(super) identity: GatewayInternalIdentity,
 }
 
 #[derive(Serialize)]
@@ -70,35 +70,7 @@ pub(super) async fn consume(
     )?;
     let context = &target.kubernetes.context;
     let namespace = &target.kubernetes.namespace;
-    let mut command = tokio::process::Command::new("kubectl");
-    command
-        .args([
-            "--request-timeout=30s",
-            "--context",
-            context,
-            "-n",
-            namespace,
-            "get",
-            "secret",
-            &consumer.internal_signing_secret,
-            "-o",
-            "json",
-        ])
-        .kill_on_drop(true);
-    let result = veoveo_testing_support::output_async(command, Duration::from_secs(45))
-        .await
-        .context("reading installed conformance signing material timed out")?;
-    ensure!(
-        result.status.success(),
-        "could not read installed conformance signing material"
-    );
-    let secret: Secret = serde_json::from_slice(&result.stdout)?;
-    let key_id = String::from_utf8(STANDARD.decode(secret.data.key_id)?)?;
-    let key = STANDARD.decode(String::from_utf8(STANDARD.decode(secret.data.key)?)?.trim())?;
-    let issuer = GatewayInternalTokenIssuer::new(
-        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        GatewayInternalSigningKey::new(key_id, key)?,
-    );
+    let issuer = fixture_issuer(installation).await?;
     let foreign_tenant = TenantId::parse(format!("artifact-consumer-{}", uuid::Uuid::new_v4()))?;
     ensure!(
         foreign_tenant != installation.operator.tenant,
@@ -146,6 +118,51 @@ pub(super) async fn consume(
             .replace(&input.foreign.bearer_token, "<redacted>")
     );
     serde_json::from_slice(&output.stdout).context("invalid Python consumption observations")
+}
+
+pub(super) async fn recovery_caller(installation: &InstalledTarget) -> Result<CallerInput> {
+    let issuer = fixture_issuer(installation).await?;
+    fixture_caller(&issuer, installation, installation.operator.tenant.clone())
+}
+
+async fn fixture_issuer(installation: &InstalledTarget) -> Result<GatewayInternalTokenIssuer> {
+    let target = &installation.target;
+    let consumer = target
+        .artifact_consumer
+        .as_ref()
+        .context("missing Artifact consumer")?;
+    let context = &target.kubernetes.context;
+    let namespace = &target.kubernetes.namespace;
+    let mut command = tokio::process::Command::new("kubectl");
+    command
+        .args([
+            "--request-timeout=30s",
+            "--context",
+            context,
+            "-n",
+            namespace,
+            "get",
+            "secret",
+            &consumer.internal_signing_secret,
+            "-o",
+            "json",
+        ])
+        .kill_on_drop(true);
+    let result = veoveo_testing_support::output_async(command, Duration::from_secs(45))
+        .await
+        .context("reading installed conformance signing material timed out")?;
+    ensure!(
+        result.status.success(),
+        "could not read installed conformance signing material"
+    );
+    let secret: Secret = serde_json::from_slice(&result.stdout)?;
+    let key_id = String::from_utf8(STANDARD.decode(secret.data.key_id)?)?;
+    let key = STANDARD.decode(String::from_utf8(STANDARD.decode(secret.data.key)?)?.trim())?;
+    let issuer = GatewayInternalTokenIssuer::new(
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        GatewayInternalSigningKey::new(key_id, key)?,
+    );
+    Ok(issuer)
 }
 
 fn fixture_caller(

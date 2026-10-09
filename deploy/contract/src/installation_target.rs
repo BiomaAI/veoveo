@@ -66,6 +66,17 @@ pub struct InstallationArtifactConsumer {
     /// Artifact service origin reachable from that deployment.
     #[schemars(with = "String", url)]
     pub artifact_service_url: Url,
+    /// Explicit Artifact service process selected only by recovery acceptance.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_recovery: Option<InstallationArtifactServiceRecovery>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InstallationArtifactServiceRecovery {
+    pub deployment: String,
+    pub pod: String,
+    pub container: String,
 }
 
 /// Kubernetes target without ambient context or namespace defaults.
@@ -195,6 +206,26 @@ impl InstallationTarget {
                 consumer.artifact_service_url.scheme(),
                 "artifactConsumer.artifactServiceUrl",
             )?;
+            if let Some(recovery) = &consumer.service_recovery {
+                ensure!(
+                    dns_name(&recovery.deployment)
+                        && dns_name(&recovery.pod)
+                        && dns_name(&recovery.container),
+                    "artifactConsumer.serviceRecovery workload names must be DNS names"
+                );
+                ensure!(
+                    self.expected_deployments.contains(&recovery.deployment),
+                    "artifactConsumer.serviceRecovery deployment must be declared in expectedDeployments"
+                );
+                ensure!(
+                    recovery.container == "artifact-service",
+                    "artifactConsumer.serviceRecovery.container must select the artifact-service process, not a sidecar"
+                );
+                ensure!(
+                    recovery.deployment != consumer.python_deployment,
+                    "Artifact service recovery must not replace the Python consumer"
+                );
+            }
         }
         Ok(())
     }
@@ -424,6 +455,30 @@ mod tests {
             *value.pointer_mut(path).unwrap() = bad;
             assert!(decode(&value).is_err(), "{path}");
         }
+    }
+
+    #[test]
+    fn artifact_service_recovery_requires_explicit_closed_workload_selection() {
+        let mut value = target();
+        value["expectedDeployments"] = json!(["mcp-gateway", "artifact-service"]);
+        value["artifactConsumer"]["serviceRecovery"] = json!({
+            "deployment":"artifact-service", "pod":"artifact-service-selected", "container":"artifact-service"
+        });
+        decode(&value).unwrap();
+        for (field, invalid) in [
+            ("deployment", json!("artifact-mcp")),
+            ("pod", json!("BadPod")),
+            ("container", json!("bad/container")),
+            ("container", json!("metrics")),
+            ("unknown", json!(true)),
+        ] {
+            let mut invalid_target = value.clone();
+            invalid_target["artifactConsumer"]["serviceRecovery"][field] = invalid;
+            assert!(decode(&invalid_target).is_err(), "{field}");
+        }
+        value["expectedDeployments"] = json!(["mcp-gateway", "python-consumer"]);
+        value["artifactConsumer"]["serviceRecovery"]["deployment"] = json!("python-consumer");
+        assert!(decode(&value).is_err());
     }
 
     #[test]

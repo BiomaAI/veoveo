@@ -501,6 +501,13 @@ fixture. The harness sends short-lived signed read identities to Python over std
 redacts them from failure output. Public upload acceptance obtains its identity through
 the registered OAuth client.
 
+The optional `artifactConsumer.serviceRecovery` selects the Artifact service's
+`deployment`, `pod` and `container` for capability recovery. The deployment must
+also appear in `expectedDeployments`. The owner harness admits the live workload
+and its controlling identities before one restart; an Artifact service URL cannot
+select a workload. Supplying these coordinates alone performs no restart. The
+consumer command also requires `--service-recovery`.
+
 Operator token requests use `VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE` and
 `VEOVEO_SERVICE_CLIENT_KEY_ID`. Administrator requests require the separate
 `VEOVEO_ADMIN_SERVICE_CLIENT_PRIVATE_KEY_FILE` and `VEOVEO_ADMIN_SERVICE_CLIENT_KEY_ID`.

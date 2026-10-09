@@ -159,7 +159,7 @@
     },
     {
       "id": "artifact-upload-consumers",
-      "description": "Verify installed upload interoperability and bounded Python streaming.",
+      "description": "Verify installed upload interoperability, Python streaming and explicitly selected Artifact service capability recovery.",
       "target": {
         "kind": "cargo_binary",
         "selection": {
@@ -263,11 +263,11 @@
       "requirements": {
         "network": true,
         "credentials": true,
-        "clusterMutation": false,
+        "clusterMutation": true,
         "billedEffects": false,
         "nvidia": false,
         "headedGraphics": false,
-        "explanation": "The owner admits operator-supplied installation coordinates and credentials before effects. Its service/provider prerequisites, deadlines and reconciliation policy are checked by the existing assertion source."
+        "explanation": "The owner admits operator-supplied installation coordinates and credentials before effects. Optional --service-recovery selects one explicitly declared Artifact service replacement and retains a short-lived write capability and output in an isolated fixture WorkContext. Its service/provider prerequisites, deadlines and reconciliation policy are checked by the existing assertion source."
       },
       "deadlineSeconds": 3600,
       "cleanupSeconds": 180
@@ -874,7 +874,7 @@
     },
     {
       "id": "timeseries-installed",
-      "description": "Qualify one installed inline-CSV NaiveTrend forecast Task, delivered completion, RRD Artifact, provenance and caller-scoped usage through normal OAuth.",
+      "description": "Qualify an installed NaiveTrend forecast, delivered completion, RRD Artifact and caller-scoped usage, with optional cancellation or connection replacement.",
       "target": {
         "kind": "cargo_binary",
         "selection": {
@@ -913,7 +913,7 @@
         "billedEffects": false,
         "nvidia": false,
         "headedGraphics": false,
-        "explanation": "Required --installation and --evidence-output inputs select normal gateway OAuth with distinct operator and administrator profiles. The case writes and retains one forecast Task, one RRD Artifact and its usage, verifies foreign reads, and closes its subscriptions and clients. clusterMutation describes Kubernetes mutations; the case performs domain writes but no Kubernetes mutation, provider activation, billed model execution or GPU work."
+        "explanation": "Required --installation and --evidence-output inputs select normal gateway OAuth with distinct operator and administrator profiles. The baseline retains one forecast Task, RRD Artifact and usage. Optional --lifecycle-input selects an additional typed workload for cancellation or connection replacement. Cancellation requires an unfinished original Task and actual cancelled state. Reconnection verifies the same Task and completed output without claiming server restart recovery or selected cross-replica routing. The case closes its owned subscriptions and clients and performs no Kubernetes mutation, billed model execution or GPU work."
       },
       "deadlineSeconds": 3600,
       "cleanupSeconds": 180

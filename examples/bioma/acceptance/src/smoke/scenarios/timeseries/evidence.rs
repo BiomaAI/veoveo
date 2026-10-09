@@ -82,6 +82,8 @@ pub(super) enum ReceiptSchema {
 pub(super) struct Receipt {
     schema: ReceiptSchema,
     pub request: TimeseriesForecastRequest,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lifecycle: Option<super::lifecycle::Journal>,
     pub outcome: Outcome,
     pub task_id: Option<CanonicalTaskId>,
     pub native_task_id: Option<TaskId>,
@@ -92,6 +94,10 @@ pub(super) struct Receipt {
     pub catalogs: Vec<CatalogObservation>,
     pub usage_member: bool,
     pub foreign_usage_denied: bool,
+    #[serde(default)]
+    pub operator_cleanup: super::cleanup::Trace,
+    #[serde(default)]
+    pub administrator_cleanup: super::cleanup::Trace,
     pub subscription_closed: bool,
     pub operator_closed: bool,
     pub administrator_closed: bool,
@@ -101,6 +107,7 @@ impl Receipt {
         Self {
             schema: ReceiptSchema::V2,
             request,
+            lifecycle: None,
             outcome: Outcome::NotDispatched,
             task_id: None,
             native_task_id: None,
@@ -111,6 +118,8 @@ impl Receipt {
             catalogs: Vec::new(),
             usage_member: false,
             foreign_usage_denied: false,
+            operator_cleanup: Default::default(),
+            administrator_cleanup: Default::default(),
             subscription_closed: false,
             operator_closed: false,
             administrator_closed: false,

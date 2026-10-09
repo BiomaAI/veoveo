@@ -21,8 +21,12 @@ fn forecast_request() -> Result<TimeseriesForecastRequest> {
 
 #[path = "timeseries/assertions.rs"]
 mod assertions;
+#[path = "timeseries/cleanup.rs"]
+mod cleanup;
 #[path = "timeseries/evidence.rs"]
 mod evidence;
+#[path = "timeseries/lifecycle.rs"]
+mod lifecycle;
 #[path = "timeseries/reads.rs"]
 mod reads;
 use evidence::{Outcome, Receipt, persist};
@@ -34,7 +38,9 @@ use veoveo_types::{ResourceAddress, ResourceUri};
 pub(crate) async fn timeseries_installed(
     installation: &support::InstalledTarget,
     evidence_path: &Path,
+    lifecycle_input: Option<&Path>,
 ) -> Result<()> {
+    let lifecycle_input = lifecycle_input.map(lifecycle::Input::load).transpose()?;
     let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
     let administrator = installation.administrator()?;
     ensure!(
@@ -48,6 +54,7 @@ pub(crate) async fn timeseries_installed(
         "Timeseries receipt requires an absolute path"
     );
     let mut file = std::fs::OpenOptions::new()
+        .read(true)
         .write(true)
         .create_new(true)
         .mode(0o600)
@@ -55,15 +62,19 @@ pub(crate) async fn timeseries_installed(
         .context("Timeseries receipt requires a new private file")?;
     let mut receipt = Receipt::new(forecast_request()?);
     persist(&mut file, &receipt)?;
-    let mut operator = None;
-    let mut foreign = None;
-    let mut notification = TaskNotificationState::default();
+    let (operator_owned, operator_registration) =
+        cleanup::register(&file, cleanup::Role::Operator)?;
+    let (foreign_owned, foreign_registration) =
+        cleanup::register(&file, cleanup::Role::Administrator)?;
+    let mut cleanup_file = file.try_clone()?;
     let result = tokio::time::timeout_at(deadline, async {
+        let mut operator = operator_owned.lock().await;
+        let mut foreign = foreign_owned.lock().await;
         let token = tokio::time::timeout(Duration::from_secs(15), installation.token())
             .await
             .map_err(|_| anyhow!("Timeseries operator OAuth deadline"))?
             .map_err(|_| anyhow!("Timeseries operator OAuth admission failed"))?;
-        operator = Some(
+        operator.opened_client(
             tokio::time::timeout(
                 Duration::from_secs(15),
                 connect_mcp_client(installation.operator.resource.as_str(), &token),
@@ -71,12 +82,14 @@ pub(crate) async fn timeseries_installed(
             .await
             .map_err(|_| anyhow!("Timeseries operator connection deadline"))?
             .map_err(|_| anyhow!("Timeseries operator connection failed"))?,
-        );
+        )?;
+        operator.sync(&mut receipt);
+        persist(&mut file, &receipt)?;
         let token = tokio::time::timeout(Duration::from_secs(15), administrator.token())
             .await
             .map_err(|_| anyhow!("Timeseries administrator OAuth deadline"))?
             .map_err(|_| anyhow!("Timeseries administrator OAuth admission failed"))?;
-        foreign = Some(
+        foreign.opened_client(
             tokio::time::timeout(
                 Duration::from_secs(15),
                 connect_mcp_client(administrator.resource.as_str(), &token),
@@ -84,8 +97,13 @@ pub(crate) async fn timeseries_installed(
             .await
             .map_err(|_| anyhow!("Timeseries administrator connection deadline"))?
             .map_err(|_| anyhow!("Timeseries administrator connection failed"))?,
-        );
-        let client = operator.as_ref().expect("operator connection admitted");
+        )?;
+        foreign.sync(&mut receipt);
+        persist(&mut file, &receipt)?;
+        let client = operator
+            .client
+            .as_ref()
+            .expect("operator connection admitted");
         admit(
             client,
             &installation.operator.resource,
@@ -106,21 +124,9 @@ pub(crate) async fn timeseries_installed(
             receipt.outcome = Outcome::NotDispatched;
             return Err(error);
         }
-        let completed = complete_tool_with_notification(
-            client,
-            "timeseries__forecast",
-            arguments,
-            deadline,
-            Duration::from_secs(180),
-            |event| {
-                receipt.observed(event);
-                persist(&mut file, &receipt)
-            },
-            &mut notification,
-        )
-        .await;
-        receipt.subscription_closed = notification.listener_closed;
-        let (_task_id, payload) = completed?;
+        let (_task_id, payload) =
+            complete_baseline(&mut operator, arguments, deadline, &mut file, &mut receipt).await?;
+        let client = operator.client.as_ref().unwrap();
         let output: TimeseriesForecastOutput = serde_json::from_value(
             payload
                 .structured_content
@@ -173,7 +179,10 @@ pub(crate) async fn timeseries_installed(
         receipt.usage_member = true;
         persist(&mut file, &receipt)?;
         let reply = reads::fetch(
-            foreign.as_ref().expect("administrator connection admitted"),
+            foreign
+                .client
+                .as_ref()
+                .expect("administrator connection admitted"),
             &usage_uri,
             &mut file,
             &mut receipt,
@@ -196,29 +205,164 @@ pub(crate) async fn timeseries_installed(
     .and_then(|result| result);
     // The SDK handles and journal stay owned after operation cancellation. Cleanup
     // never cancels or redispatches an uncertain domain Task.
-    let listener = notification.close().await;
-    receipt.subscription_closed = notification.listener_closed;
-    receipt.operator_closed = close(operator).await;
-    receipt.administrator_closed = close(foreign).await;
-    receipt.settle(result.is_ok());
-    let written = persist(&mut file, &receipt);
-    result?;
-    listener?;
-    written?;
+    let end = tokio::time::Instant::from_std(
+        veoveo_testing_support::lifecycle::owner::cleanup_deadline()?,
+    );
+    let mut operator = operator_owned.lock().await;
+    let operator_close = operator.close_until(end, &mut cleanup_file).await;
+    operator.sync(&mut receipt);
+    let mut foreign = foreign_owned.lock().await;
+    let foreign_close = foreign.close_until(end, &mut cleanup_file).await;
+    foreign.sync(&mut receipt);
+    if operator.closed() {
+        operator_registration.settled()?;
+    }
+    if foreign.closed() {
+        foreign_registration.settled()?;
+    }
+    settle_baseline(
+        &mut file,
+        &mut receipt,
+        result,
+        operator_close,
+        foreign_close,
+    )?;
+    if let Some(input) = lifecycle_input {
+        let lifecycle_result = lifecycle::run(installation, input, &mut file, &mut receipt).await;
+        receipt.settle(lifecycle_result.is_ok());
+        persist(&mut file, &receipt)?;
+        lifecycle_result?;
+    }
+
+    Ok(())
+}
+fn settle_baseline(
+    file: &mut std::fs::File,
+    receipt: &mut Receipt,
+    operation: Result<()>,
+    operator: Result<()>,
+    administrator: Result<()>,
+) -> Result<()> {
+    receipt.settle(operation.is_ok() && operator.is_ok() && administrator.is_ok());
+    persist(file, receipt)?;
+    operation?;
+    operator?;
+    administrator?;
     ensure!(
-        receipt.operator_closed && receipt.administrator_closed,
-        "Timeseries SDK cleanup unresolved"
+        receipt.operator_closed && receipt.administrator_closed && receipt.subscription_closed,
+        "Timeseries baseline SDK cleanup unresolved"
     );
     Ok(())
 }
-async fn close(client: Option<SmokeMcpClient>) -> bool {
-    match client {
-        Some(client) => matches!(
-            tokio::time::timeout(Duration::from_secs(10), client.cancel()).await,
-            Ok(Ok(()))
-        ),
-        None => true,
+#[cfg(test)]
+mod baseline_tests {
+    use super::*;
+    #[test]
+    fn baseline_failure_or_unproven_cleanup_blocks_second_dispatch() -> Result<()> {
+        for failed in 0..5 {
+            let mut receipt = Receipt::new(forecast_request()?);
+            receipt.operator_closed = true;
+            receipt.administrator_closed = true;
+            receipt.subscription_closed = failed != 3;
+            let mut file = if failed == 4 {
+                std::fs::OpenOptions::new().write(true).open("/dev/full")?
+            } else {
+                tempfile::tempfile()?
+            };
+            let gate = settle_baseline(
+                &mut file,
+                &mut receipt,
+                if failed == 0 {
+                    Err(anyhow!("operation failed"))
+                } else {
+                    Ok(())
+                },
+                if failed == 1 {
+                    Err(anyhow!("operator close failed"))
+                } else {
+                    Ok(())
+                },
+                if failed == 2 {
+                    Err(anyhow!("administrator close failed"))
+                } else {
+                    Ok(())
+                },
+            );
+            let dispatched = std::cell::Cell::new(false);
+            let result = gate.and_then(|()| {
+                dispatched.set(true);
+                Ok(())
+            });
+            assert!(result.is_err() && !dispatched.get());
+        }
+        Ok(())
     }
+}
+async fn complete_baseline(
+    handles: &mut cleanup::Handles,
+    arguments: Value,
+    deadline: tokio::time::Instant,
+    file: &mut std::fs::File,
+    receipt: &mut Receipt,
+) -> Result<(veoveo_types::CanonicalTaskId, rmcp::model::CallToolResult)> {
+    tokio::time::timeout_at(
+        deadline.min(tokio::time::Instant::now() + Duration::from_secs(180)),
+        async {
+            let admitted = call_tool_as_task(
+                handles.client.as_ref().unwrap(),
+                "timeseries__forecast",
+                arguments,
+            )
+            .await
+            .map_err(|_| anyhow!("Timeseries baseline dispatch unresolved"))?;
+            let id = veoveo_types::CanonicalTaskId::parse(&admitted.task_id)?;
+            receipt.observed(TaskNotificationObservation::Admitted(&id));
+            persist(file, receipt)?;
+            lifecycle::open_listener(handles, &id).await?;
+            handles.sync(receipt);
+            persist(file, receipt)?;
+            let mut completed = None;
+            for _ in 0..60 {
+                let task =
+                    lifecycle::notification(&mut handles.state, &id, &admitted.created_at).await?;
+                match task.status() {
+                    rmcp::model::TaskStatus::Completed => {
+                        completed = Some(task);
+                        break;
+                    }
+                    rmcp::model::TaskStatus::Working | rmcp::model::TaskStatus::InputRequired => {}
+                    _ => bail!("Timeseries baseline Task did not complete"),
+                }
+            }
+            let completed = completed.context("Timeseries baseline delivery budget exhausted")?;
+            let current = handles
+                .client
+                .as_ref()
+                .unwrap()
+                .get_task(rmcp::model::GetTaskParams::new(id.to_string()))
+                .await
+                .map_err(|_| anyhow!("Timeseries baseline current Task read failed"))?;
+            ensure!(
+                current.task == completed,
+                "Timeseries baseline delivered/current Tasks disagree"
+            );
+            let payload = task_payload(handles.client.as_ref().unwrap(), id.as_str())
+                .await
+                .map_err(|_| anyhow!("Timeseries baseline payload read failed"))?;
+            ensure!(
+                payload.is_error != Some(true),
+                "Timeseries baseline tool error"
+            );
+            receipt.observed(TaskNotificationObservation::Completed {
+                task_id: &id,
+                payload: &payload,
+            });
+            persist(file, receipt)?;
+            Ok((id, payload))
+        },
+    )
+    .await
+    .context("Timeseries baseline delivery deadline")?
 }
 async fn admit(
     client: &SmokeMcpClient,
