@@ -70,7 +70,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the actual Computer Host workload boundary, final installed profile/current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. Full stock-provider native security, lifecycle and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. Initial tool-server and nine-scope checks pass their recorded qualification. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`. GitOps is suspended; Knowledge and Embedding are restored and Ready, while Reason and other GPU workloads stay off. Focused installed cases pass; complete installed fixtures remain open | Complete Frames F31–F37, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. Initial tool-server and nine-scope checks pass their recorded qualification. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`. GitOps is suspended; Knowledge and Embedding are restored and Ready, while Reason and other GPU workloads stay off. Focused DuckDB, Frames and Knowledge installed cases pass on admitted deployed images; complete installed fixtures remain open | Complete Frames F35 actual-producer and F37 crash/restart gates, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -325,15 +325,18 @@ and subscription fixtures remain open.
 Artifact preparation now hashes each shared file once per fresh admission and
 selects the OAuth executable and runtime together.
 
-The corrected Frames A06 consumer at source `b6e7e0e00` passes normal OAuth,
-the worlds listener's authored invalidation, deterministic three-frame publication,
-typed revision readback and terminal -32602 for an immutable revision subscription.
-The run used unchanged deployed Frames image `032ce55005cb` and gateway image
-`ab2d13f78a72`. Connections closed, and the append-only World/revision fixture was
-retained without retry. Ops verified unchanged deployment/configuration and Ready
-state. The explicit `frames-installed` entrypoint now separates installed
-preparation from local service prerequisites and reuses those assertions without
-another installed run. F31–F37 and the current source/image closure remain open.
+The expanded Frames A06/F-register consumer at source `a140c0571` passes once
+through `frames-installed` on admitted deployed Frames image `032ce55005cb` and
+Gateway image `ab2d13f78a72`. It records 207 known outcomes: 101 Created, three
+Published, one expected InvalidParams conflict, one direct Converted and 101
+TaskCompleted. Three worlds pages, two usage pages containing 101 fixture usage
+entries, parent-scoped completion, concurrent publication/replay, current-head and
+immutable metadata agreement, conversion provenance, subscriptions and five foreign
+caller probes qualify the selected F31–F34 and F36 installed behaviors. Connections
+close, Task subscription cleanup succeeds, and append-only fixtures are retained.
+Ops confirms unchanged deployment/Pod identities, image IDs, configuration and Ready
+state after the run. F35's actual dynamic producer, F37's process crash/restart recovery and final
+source/image agreement stay open; this pass does not establish those guarantees.
 
 The focused Knowledge A08 case at source `07742e1623` passes once in 10.29 seconds
 through normal Gateway OAuth on retained generation
@@ -3316,12 +3319,12 @@ reason rather than growing an unbounded generic typing task.
 | F28 | Artifact attribution construction | Qualify installed metadata consumption; native construction, schema/decoder and independent-consumer checks already have a passing checkpoint. |
 | F29 | Media public contract and hosted setup | Qualify installed registration, catalog continuation and Artifact presentation consumers with the source-qualified registry snapshot and admission; qualify real provider recovery budgets when provider execution is permitted. The approved host tracing correction passes its owning controls |
 | F30 | Frames hosted setup | Qualify current resource admission and subscriptions through installed clients |
-| F31 | Frames world reads | Qualify installed paging and completion with current catalog consumers |
-| F32 | Frames mutation inputs | Qualify installed publication and concurrent replay under current writer policy |
-| F33 | Frames world metadata construction | Qualify current world metadata with installed consumers |
-| F34 | Frames operation references | Qualify installed consumption and current provenance checks |
+| F31 | Frames world reads | Installed paging and parent-scoped completion pass at `a140c0571`; qualify the final selected images with current catalog consumers |
+| F32 | Frames mutation inputs | Installed publication, concurrent replay and conflict refusal pass at `a140c0571` under the selected writer policy; repeat qualification on the final selected images |
+| F33 | Frames world metadata construction | Installed current-head, revision and frame metadata agreement pass at `a140c0571`; qualify current world metadata consumers on the final selected images |
+| F34 | Frames operation references | Installed direct and Task conversion provenance reads pass at `a140c0571`; qualify consumption and provenance checks on the final selected images |
 | F35 | Frames stream references | Qualify installed stream-reference admission and current consumers; preserve the independent typed producer seam and qualify each actual producer's route and parent IDs before advertising it |
-| F36 | Frames usage visibility and pages | Qualify installed reads and subscriptions with current catalog consumers |
+| F36 | Frames usage visibility and pages | Installed pages, owned reads, foreign-caller refusal and subscriptions pass at `a140c0571`; qualify current catalog consumers on the final selected images |
 | F37 | Frames operation visibility | Qualify installed direct/Task operation reads and current-format recovery |
 | F38 | Timeseries resource admission | Qualify current Artifact handoffs and installed resource consumption |
 | F39 | Timeseries forecast admission | Qualify installed output and Artifact handoff; preserve source-qualified summary/preview relationships, finite-point checks before publication and the 501-point bound |
