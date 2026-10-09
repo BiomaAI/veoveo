@@ -85,8 +85,12 @@ where
             {
                 return Err(RuntimeFailure::BindingMismatch);
             }
-            let (mut client, _transport) =
-                crate::attachment_transport::connect(&runtime.endpoint, &runtime.address).await?;
+            let (mut client, _transport) = crate::attachment_transport::connect(
+                &runtime.endpoint,
+                &runtime.address,
+                runtime.tokens.clone(),
+            )
+            .await?;
             let (send, receive) = mpsc::channel(1);
             send.send(init)
                 .await

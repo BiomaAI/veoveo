@@ -75,7 +75,7 @@ async fn native_retention_enospc_and_offline_restore() {
         provider.docker_socket(),
     );
     let original = ready(runtime, &binding, &template).await;
-    home.assert_registered_no_copy();
+    home.assert_registered_retained_mount();
     assert_eq!(
         python(
             runtime,
@@ -137,7 +137,7 @@ print('ENOSPC enforced; original file retained')
     let replacement =
         Binding::replacement(computer, Uuid::now_v7(), template.fingerprint()).unwrap();
     let restored = ready(runtime, &replacement, &template).await;
-    home.assert_registered_no_copy();
+    home.assert_registered_retained_mount();
     assert_ne!(original.sandbox_id, restored.sandbox_id);
     assert_ne!(
         original.main_process_instance_id,

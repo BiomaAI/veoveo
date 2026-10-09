@@ -161,49 +161,33 @@ impl PersistentHome {
     pub fn driver_config(&self, id: Uuid) -> Result<Struct> {
         Ok(object([(
             "docker",
-            struct_value(object([
-                (
-                    "mounts",
-                    list(vec![
-                        struct_value(object([
-                            ("type", string_value("volume")),
-                            ("source", string_value(Self::volume_name(id)?)),
-                            ("target", string_value(PERSISTENT_HOME)),
-                            (
-                                "read_only",
-                                Value {
-                                    kind: Some(Kind::BoolValue(false)),
-                                },
-                            ),
-                            ("subpath", string_value("home")),
-                            (
-                                "no_copy",
-                                Value {
-                                    kind: Some(Kind::BoolValue(true)),
-                                },
-                            ),
-                        ])),
-                        struct_value(object([
-                            ("type", string_value("tmpfs")),
-                            ("target", string_value("/tmp")),
-                            (
-                                "size_bytes",
-                                number(self.temporary_mib as u64 * 1024 * 1024),
-                            ),
-                            ("mode", number(0o1777)),
-                            ("options", list(vec![string_value("exec")])),
-                        ])),
-                    ]),
-                ),
-                (
-                    "log_limits",
+            struct_value(object([(
+                "mounts",
+                list(vec![
                     struct_value(object([
-                        ("max_file_bytes", number(10 * 1024 * 1024)),
-                        ("max_files", number(3)),
-                        ("supervisor_tmpfs_bytes", number(32 * 1024 * 1024)),
+                        ("type", string_value("volume")),
+                        ("source", string_value(Self::volume_name(id)?)),
+                        ("target", string_value(PERSISTENT_HOME)),
+                        (
+                            "read_only",
+                            Value {
+                                kind: Some(Kind::BoolValue(false)),
+                            },
+                        ),
+                        ("subpath", string_value("home")),
                     ])),
-                ),
-            ])),
+                    struct_value(object([
+                        ("type", string_value("tmpfs")),
+                        ("target", string_value("/tmp")),
+                        (
+                            "size_bytes",
+                            number(self.temporary_mib as u64 * 1024 * 1024),
+                        ),
+                        ("mode", number(0o1777)),
+                        ("options", list(vec![string_value("exec")])),
+                    ])),
+                ]),
+            )])),
         )]))
     }
     pub(crate) fn fingerprint_bytes(&self) -> Vec<u8> {

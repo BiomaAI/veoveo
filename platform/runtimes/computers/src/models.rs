@@ -16,6 +16,12 @@ pub type Result<T> = std::result::Result<T, RuntimeFailure>;
 pub enum RuntimeFailure {
     #[error("invalid installation runtime configuration")]
     InvalidConfiguration,
+    #[error(
+        "worker authentication requires a dedicated external OIDC registration, issuer, audience, scopes and private credential file"
+    )]
+    InvalidWorkerAuthentication,
+    #[error("external worker authentication is unavailable; provider dispatch was not retried")]
+    WorkerAuthenticationUnavailable,
     #[error("development template is outside the admitted profile")]
     InvalidTemplate,
     #[error("runtime binding mismatch")]

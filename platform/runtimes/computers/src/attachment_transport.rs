@@ -28,6 +28,7 @@ impl Drop for TransportGuard {
 pub(crate) async fn connect(
     endpoint: &Endpoint,
     address: &str,
+    tokens: crate::worker_auth::WorkerTokens,
 ) -> Result<(Client, TransportGuard)> {
     let state = Arc::new(Mutex::new(State::default()));
     let guard = TransportGuard(state.clone());
@@ -75,7 +76,7 @@ pub(crate) async fn connect(
             RuntimeFailure::Unavailable
         })?;
     Ok((
-        Client::new(channel)
+        Client::new(crate::worker_auth::WorkerChannel::new(channel, tokens))
             .max_decoding_message_size(1024 * 1024)
             .max_encoding_message_size(1024 * 1024),
         guard,

@@ -4,8 +4,8 @@ use russh::{Channel, ChannelId, Pty, server};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[path = "renewal_tests.rs"]
 mod renewal_tests;
-#[path = "replay_tests.rs"]
-mod replay_tests;
+#[path = "shell_tests.rs"]
+mod shell_tests;
 #[derive(Clone, Default)]
 pub(super) struct Gate {
     reached: Arc<tokio::sync::Notify>,

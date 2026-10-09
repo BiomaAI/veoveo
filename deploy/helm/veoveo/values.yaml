@@ -206,6 +206,8 @@ computers:
     nodeSelector: {}
     tolerations: []
     registryEgress: []
+    # Installation-supplied issuer/JWKS IPv4 CIDRs; HTTPS only, no catchall.
+    issuerEgress: []
     resources:
       # Explicit zero prevents Kubernetes from copying limits into requests.
       requests:

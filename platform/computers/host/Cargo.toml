@@ -19,6 +19,8 @@ tokio = { workspace = true, features = ["io-util", "macros", "process", "rt-mult
 uuid = { workspace = true, features = ["serde"] }
 veoveo-computer-storage = { path = "../storage" }
 
+x509-parser = { workspace = true, features = ["verify"] }
+
 [dev-dependencies]
 rcgen.workspace = true
 tempfile.workspace = true

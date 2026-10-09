@@ -44,6 +44,8 @@ mod retirement;
 mod storage;
 mod terminal;
 mod terminal_output;
+mod worker_auth;
+pub use worker_auth::{WorkerOAuthConfig, WorkerOAuthFields, WorkerTokenAuthentication};
 
 pub use allocation::{AllocationConfig, HomeAllocator, RetainedHandoff};
 // Private installation protocol shared with the privileged storage service.

@@ -15,6 +15,18 @@ required by the supervisor. It has no installation credentials or host control
 socket. Installed policy governs filesystem and network access. The provider's
 control process and retained allocator are separate trust boundaries.
 
+The `computer` account has primary UID/GID 10001 and no supplementary groups. Its
+home metadata and `HOME` select `/sandbox/persistent`, but the image leaves that
+path absent and asserts the absence during build. The
+[allocator](../storage/DESIGN.md) creates the volume's `home` subdirectory outside
+the provider, sets mode 0700 and ownership 10001:10001, then records it ready.
+Stock Docker skips image-to-volume initialization when the image mount target is
+absent. This allows the plugin's first mount to identify the registered container
+without weakening its single-writer admission. The owning
+[runtime design](../../runtimes/computers/DESIGN.md#native-storage-boundary-probe)
+defines that ordering. Qualification requires the built image on the native
+plugin-mounted path; an inspection fixture alone does not establish it.
+
 The canonical Bake target is `computer-template`, included with the Computers build
 artifacts. It has no dependency on the Console, service binary or provider compiler.
 Installation templates select its exact runnable digest and retain that identity

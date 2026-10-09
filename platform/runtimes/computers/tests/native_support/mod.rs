@@ -7,11 +7,16 @@ use std::{
     time::Duration,
 };
 use uuid::Uuid;
-use veoveo_computers_runtime::{GatewayConfig, OpenShellRuntime};
+use veoveo_computers_runtime::{
+    GatewayConfig, OpenShellRuntime, WorkerOAuthConfig, WorkerOAuthFields,
+    WorkerTokenAuthentication,
+};
 mod controller;
 pub mod docker_daemon;
 mod guest_authority;
 pub mod profile;
+#[path = "../support/worker_issuer.rs"]
+mod worker_issuer;
 pub use profile::preflight;
 
 struct ProviderLaunchSettings<'a> {
@@ -20,6 +25,7 @@ struct ProviderLaunchSettings<'a> {
     sandbox: &'a std::path::Path,
     ssh_session_ttl_secs: u64,
     log_level: &'a str,
+    authentication: &'a veoveo_computers_runtime::WorkerOAuthConfig,
 }
 
 fn provider_config(
@@ -34,6 +40,7 @@ fn provider_config(
         sandbox,
         ssh_session_ttl_secs,
         log_level,
+        authentication,
     } = settings;
     let gateway_ip = host.gateway_ip;
     let namespace = &host.namespace;
@@ -49,9 +56,17 @@ ssh_session_ttl_secs = {ssh_session_ttl_secs}
 guest_tls_ca = {ca}
 guest_tls_cert = {cert}
 guest_tls_key = {key}
+[openshell.gateway.oidc]
+issuer = {issuer}
+audience = {audience}
+roles_claim = "roles"
+admin_role = "openshell-admin"
+user_role = "openshell-user"
+jwks_ttl_secs = 300
 [openshell.gateway.mtls_auth]
-enabled = true
-user_common_names = ["veoveo-computers-worker"]
+enabled = false
+[openshell.gateway.auth]
+allow_unauthenticated_users = false
 [openshell.gateway.gateway_jwt]
 signing_key_path = {jwt_key}
 public_key_path = {jwt_public}
@@ -70,6 +85,8 @@ supervisor_bin = {sandbox}
 sandbox_pids_limit = 256
 enable_bind_mounts = false
 "#,
+        issuer = serde_json::to_string(authentication.issuer().as_str()).unwrap(),
+        audience = serde_json::to_string(authentication.audience()).unwrap(),
         image = serde_json::to_string(&image).unwrap(),
         socket = quoted(socket),
         sandbox = quoted(sandbox),
@@ -99,6 +116,7 @@ pub struct Provider {
     pub endpoint: String,
     cleanup: Cleanup,
     launch: controller::Launch,
+    authentication: worker_issuer::TestIssuer,
 }
 struct Cleanup {
     child: Option<Child>,
@@ -148,6 +166,7 @@ impl Drop for Cleanup {
             "guest-key.pem",
             "server-key.pem",
             "jwt-key.pem",
+            "worker-secret",
         ] {
             let _ = fs::remove_file(self.dir.join(name));
         }
@@ -247,7 +266,6 @@ impl Provider {
         );
         let gateway = required_path("VEOVEO_COMPUTERS_NATIVE_GATEWAY");
         let sandbox = required_path("VEOVEO_COMPUTERS_NATIVE_SANDBOX");
-        let driver = required_path("VEOVEO_COMPUTERS_NATIVE_DRIVER");
         let supervisor_image = std::env::var("VEOVEO_COMPUTERS_NATIVE_SUPERVISOR_IMAGE").unwrap();
         let output = host.output.clone();
         let image = std::env::var("VEOVEO_COMPUTERS_NATIVE_IMAGE")
@@ -272,6 +290,12 @@ impl Provider {
         certificates(&dir, gateway_ip);
         let listener = TcpListener::bind((gateway_ip, 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
+        let authentication = worker_issuer::TestIssuer::start(
+            &dir,
+            &fs::read_to_string(dir.join("server.pem")).unwrap(),
+            &fs::read_to_string(dir.join("server-key.pem")).unwrap(),
+        )
+        .await;
         let config = provider_config(
             &dir,
             &host,
@@ -282,14 +306,21 @@ impl Provider {
                 sandbox: &sandbox,
                 ssh_session_ttl_secs,
                 log_level,
+                authentication: &authentication.config,
             },
         );
         fs::write(dir.join("gateway.toml"), config).unwrap();
-        let launch = controller::Launch::new(gateway, driver, dir.clone());
+        let launch = controller::Launch::new(gateway, dir.clone());
         drop(listener);
         cleanup.child = Some(launch.spawn().expect("start native provider"));
         let endpoint = format!("{gateway_ip}:{port}");
-        let runtime = connect_controller(cleanup.child.as_mut().unwrap(), &dir, &endpoint).await;
+        let runtime = connect_controller(
+            cleanup.child.as_mut().unwrap(),
+            &dir,
+            &endpoint,
+            authentication.config.clone(),
+        )
+        .await;
         eprintln!("Native provider diagnostics: {}", dir.display());
         guest_authority::assert_denied(&dir, &endpoint).await;
         let provider = Self {
@@ -299,6 +330,7 @@ impl Provider {
             endpoint: endpoint.clone(),
             cleanup,
             launch,
+            authentication,
         };
         (provider, format!("https://{endpoint}"))
     }
@@ -325,6 +357,7 @@ impl Provider {
             self.cleanup.child.as_mut().unwrap(),
             &self.dir,
             &self.endpoint,
+            self.authentication.config.clone(),
         )
         .await;
         self.launch
@@ -350,6 +383,7 @@ async fn connect_controller(
     child: &mut Child,
     dir: &std::path::Path,
     endpoint: &str,
+    authentication: WorkerOAuthConfig,
 ) -> OpenShellRuntime {
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
@@ -363,6 +397,7 @@ async fn connect_controller(
                 dir.join("ca.pem"),
                 dir.join("client.pem"),
                 dir.join("client-key.pem"),
+                authentication.clone(),
             )
             .unwrap();
             match OpenShellRuntime::connect(config).await {
@@ -391,22 +426,11 @@ fn certificates(dir: &std::path::Path, gateway_ip: std::net::Ipv4Addr) {
     fs::set_permissions(private_path, fs::Permissions::from_mode(0o600)).unwrap();
     fs::write(dir.join("jwt-public.pem"), jwt_key.public_key_pem()).unwrap();
     fs::write(dir.join("jwt-kid"), Uuid::now_v7().to_string()).unwrap();
-    let mut ca_params = CertificateParams::new(vec![]).unwrap();
-    ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
-    ca_params.key_usages = vec![
-        KeyUsagePurpose::KeyCertSign,
-        KeyUsagePurpose::DigitalSignature,
-    ];
-    let ca_key = KeyPair::generate().unwrap();
-    fs::write(
-        dir.join("ca.pem"),
-        ca_params.self_signed(&ca_key).unwrap().pem(),
-    )
-    .unwrap();
-    let issuer = Issuer::new(ca_params, ca_key);
-    for (name, names, usage) in [
+    let mut client_roots = String::new();
+    for (name, root_name, names, usage) in [
         (
             "server",
+            "ca.pem",
             vec![
                 "localhost".into(),
                 "127.0.0.1".into(),
@@ -414,9 +438,32 @@ fn certificates(dir: &std::path::Path, gateway_ip: std::net::Ipv4Addr) {
             ],
             ExtendedKeyUsagePurpose::ServerAuth,
         ),
-        ("client", vec![], ExtendedKeyUsagePurpose::ClientAuth),
-        ("guest", vec![], ExtendedKeyUsagePurpose::ClientAuth),
+        (
+            "client",
+            "worker-client-ca.pem",
+            vec![],
+            ExtendedKeyUsagePurpose::ClientAuth,
+        ),
+        (
+            "guest",
+            "supervisor-client-ca.pem",
+            vec![],
+            ExtendedKeyUsagePurpose::ClientAuth,
+        ),
     ] {
+        let mut ca_params = CertificateParams::new(vec![]).unwrap();
+        ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+        ca_params.key_usages = vec![
+            KeyUsagePurpose::KeyCertSign,
+            KeyUsagePurpose::DigitalSignature,
+        ];
+        let ca_key = KeyPair::generate().unwrap();
+        let root = ca_params.self_signed(&ca_key).unwrap().pem();
+        fs::write(dir.join(root_name), &root).unwrap();
+        if name != "server" {
+            client_roots.push_str(&root);
+        }
+        let issuer = Issuer::new(ca_params, ca_key);
         let mut params = CertificateParams::new(names).unwrap();
         params.extended_key_usages = vec![usage];
         params.distinguished_name = rcgen::DistinguishedName::new();
@@ -438,6 +485,7 @@ fn certificates(dir: &std::path::Path, gateway_ip: std::net::Ipv4Addr) {
         fs::write(&path, key.serialize_pem()).unwrap();
         fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
     }
+    fs::write(dir.join("provider-client-ca.pem"), client_roots).unwrap();
 }
 
 /// Existing relay child dispatch belongs to the selected native test executable.
@@ -449,3 +497,6 @@ pub async fn registry_child() -> bool {
         false
     }
 }
+
+// Ignored native execution requires an explicitly supplied dedicated fixture
+// registration. Compilation never substitutes for that external prerequisite.

@@ -90,7 +90,7 @@ async fn regular_file_transfer_verifies_bytes_retention_and_uncertain_input() {
         .wait_for_lifecycle(&create, &created, Duration::from_secs(30))
         .await
         .unwrap();
-    home.assert_registered_no_copy();
+    home.assert_registered_retained_mount();
 
     // An archive is an opaque regular file; the helper never extracts its contents.
     let path = "private-transfer-雪.tar";

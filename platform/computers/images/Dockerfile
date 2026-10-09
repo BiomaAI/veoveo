@@ -22,10 +22,10 @@ RUN dpkg-deb --extract /tmp/ca-certificates.deb /tmp/bootstrap-ca \
 
 FROM packages
 RUN groupadd --gid 10001 computer \
-    && useradd --uid 10001 --gid 10001 --home-dir /sandbox/persistent --shell /bin/bash computer \
+    && useradd --uid 10001 --gid 10001 --home-dir /sandbox/persistent --no-create-home --shell /bin/bash computer \
     && test "$(id -G computer)" = "10001" \
-    && mkdir -p /sandbox/persistent \
-    && chown 10001:10001 /sandbox/persistent
+    && test ! -e /sandbox/persistent \
+    && test ! -L /sandbox/persistent
 
 ENV HOME=/sandbox/persistent
 COPY --from=veoveo-rust-artifacts /bin/veoveo-computer-exec /usr/local/bin/veoveo-computer-exec

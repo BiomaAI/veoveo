@@ -51,3 +51,6 @@ veoveo-timeseries-mcp = { path = "../../servers/timeseries-mcp", default-feature
 veoveo-uav-sim-mcp = { path = "../../servers/uav-sim-mcp", default-features = false, features = ["contract"] }
 veoveo-map-mcp = { path = "../../servers/map-mcp", default-features = false, features = ["contract"] }
 veoveo-mcp-apps-extension.workspace = true
+
+[dev-dependencies]
+x509-parser = { workspace = true, features = ["verify"] }

@@ -30,7 +30,6 @@ struct Mount {
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct VolumeOptions {
-    no_copy: bool,
     subpath: Option<String>,
 }
 fn admit_retained_mount(body: &str, volume: &str) -> Result<(), String> {
@@ -47,9 +46,6 @@ fn admit_retained_mount(body: &str, volume: &str) -> Result<(), String> {
         .volume_options
         .as_ref()
         .ok_or("retained-home VolumeOptions absent")?;
-    if !options.no_copy {
-        return Err("retained provider mount must skip pre-registration copy".into());
-    }
     if options.subpath.as_deref() != Some("home") {
         return Err("retained-home mount requires Subpath home".into());
     }
@@ -66,7 +62,6 @@ fn mount_excerpt(body: &str) -> String {
             serde_json::json!({
                 "Source": mount.get("Source"), "Target": mount.get("Target"),
                 "VolumeOptions": {
-                    "NoCopy": mount.pointer("/VolumeOptions/NoCopy"),
                     "Subpath": mount.pointer("/VolumeOptions/Subpath")
                 }
             })
@@ -218,7 +213,7 @@ impl BlockHome {
             checked(remove);
         }
     }
-    pub fn assert_registered_no_copy(&self) {
+    pub fn assert_registered_retained_mount(&self) {
         let mut list = self.docker();
         list.args(["ps", "--all", "--quiet", "--filter"])
             .arg(format!("volume={}", self.volume));
@@ -292,7 +287,7 @@ mod mount_tests {
     fn mounts() -> Value {
         json!([
             {"Source":"retained-home", "Target":"/sandbox/persistent",
-             "VolumeOptions":{"NoCopy":true,"Subpath":"home"}},
+             "VolumeOptions":{"Subpath":"home"}},
             {"Source":"owned-channel", "Target":"/.openshell/channel",
              "VolumeOptions":{"NoCopy":true}},
             {"Type":"tmpfs", "Target":"/tmp"}
@@ -322,12 +317,8 @@ mod mount_tests {
         assert!(admit_retained_mount(&mounts().to_string(), "absent-home").is_err());
     }
     #[test]
-    fn retained_home_target_and_no_copy_remain_mandatory() {
-        for (field, value) in [
-            ("Target", json!("/wrong")),
-            ("VolumeOptions", json!({"NoCopy":false,"Subpath":"home"})),
-            ("VolumeOptions", Value::Null),
-        ] {
+    fn retained_home_target_and_volume_options_remain_mandatory() {
+        for (field, value) in [("Target", json!("/wrong")), ("VolumeOptions", Value::Null)] {
             let mut body = mounts();
             body[0][field] = value;
             assert!(admit_retained_mount(&body.to_string(), "retained-home").is_err());

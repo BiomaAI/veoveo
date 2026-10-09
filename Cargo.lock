@@ -9409,6 +9409,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
+name = "oauth2"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "getrandom 0.2.17",
+ "http",
+ "rand 0.8.8",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "sha2 0.10.9",
+ "thiserror 1.0.69",
+ "url",
+]
+
+[[package]]
 name = "objc2"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16417,6 +16436,7 @@ dependencies = [
  "veoveo-computers-contract",
  "veoveo-computers-runtime",
  "veoveo-types",
+ "x509-parser",
 ]
 
 [[package]]
@@ -16508,11 +16528,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "axum-server",
  "base64 0.23.1",
  "chrono",
  "clap",
  "futures",
  "hex",
+ "jsonwebtoken 11.0.0",
  "nix",
  "rcgen",
  "reqwest 0.13.5",
@@ -16557,9 +16579,14 @@ name = "veoveo-computers-runtime"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "axum-server",
+ "base64 0.23.1",
  "futures",
  "hex",
  "hyper-util",
+ "jsonwebtoken 11.0.0",
+ "nix",
+ "oauth2",
  "prost",
  "prost-build",
  "prost-reflect",
@@ -18414,6 +18441,7 @@ dependencies = [
  "veoveo-uav-sim-mcp",
  "veoveo-view-mcp",
  "veoveo-workspace",
+ "x509-parser",
 ]
 
 [[package]]

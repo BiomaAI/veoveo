@@ -621,8 +621,12 @@ async fn forward(
     lease: AttachmentLease,
     admission_expires: SystemTime,
 ) -> Result<()> {
-    let (mut client, _transport) =
-        crate::attachment_transport::connect(&runtime.endpoint, &runtime.address).await?;
+    let (mut client, _transport) = crate::attachment_transport::connect(
+        &runtime.endpoint,
+        &runtime.address,
+        runtime.tokens.clone(),
+    )
+    .await?;
     let (reader, mut writer) = tokio::io::split(relay);
     let init = api::TcpForwardFrame {
         payload: Some(api::tcp_forward_frame::Payload::Init(api::TcpForwardInit {

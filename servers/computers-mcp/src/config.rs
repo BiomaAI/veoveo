@@ -105,6 +105,7 @@ pub(crate) struct TlsEndpoint {
 pub(crate) struct Gateway {
     transport: TlsEndpoint,
     workspace: String,
+    authentication: veoveo_computers_runtime::WorkerOAuthConfig,
 }
 impl Gateway {
     pub(crate) fn config(
@@ -118,6 +119,7 @@ impl Gateway {
             self.transport.ca_file.clone(),
             self.transport.certificate_file.clone(),
             self.transport.key_file.clone(),
+            self.authentication.clone(),
         )
         .map_err(|_| ApplicationError::Configuration)
     }

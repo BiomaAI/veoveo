@@ -71,17 +71,12 @@ pub async fn run(config: Config) -> Result<()> {
         .load()
         .context("validate retained storage TLS")?;
     veoveo_computer_storage::transport::TlsConfig {
-        worker_ca: format!("{RUN}/trust/provider-ca.pem").into(),
+        worker_ca: format!("{RUN}/trust/provider-client-ca.pem").into(),
         certificate: format!("{RUN}/trust/provider-server.pem").into(),
         private_key: format!("{RUN}/trust/provider-server-key.pem").into(),
     }
     .load()
     .context("validate provider TLS")?;
-    ensure!(
-        files::read(&Path::new(RUN).join("trust/provider-ca.pem"))?
-            != files::read(&Path::new(RUN).join("trust/storage-ca.pem"))?,
-        "provider and storage require separate trust roots"
-    );
     files::write(
         &Path::new(RUN).join("storage.json"),
         &serde_json::to_vec(&config.storage_config())?,
@@ -244,7 +239,7 @@ async fn serve(config: &Config, retained: bool, children: &mut Children) -> Resu
             "--tls-key",
             &format!("{RUN}/trust/provider-server-key.pem"),
             "--tls-client-ca",
-            &format!("{RUN}/trust/provider-ca.pem"),
+            &format!("{RUN}/trust/provider-client-ca.pem"),
             "--enable-mtls-auth",
             "false",
             "--enable-loopback-service-http",

@@ -32,7 +32,7 @@ fn dates(params: &mut CertificateParams, days: i64) {
     params.not_before = rcgen::date_time_ymd(start.year(), start.month() as u8, start.day() as u8);
     params.not_after = rcgen::date_time_ymd(end.year(), end.month() as u8, end.day() as u8);
 }
-fn authority(root: &Path, name: &str, host: &str, provider: bool) -> Result<()> {
+fn authority(root: &Path, name: &str, worker_trust: bool) -> Result<Issuer<'static, KeyPair>> {
     let mut params = CertificateParams::new(vec![])?;
     dates(&mut params, 3650);
     params
@@ -51,60 +51,39 @@ fn authority(root: &Path, name: &str, host: &str, provider: bool) -> Result<()> 
     )?;
     put(&root.join("operator").join(format!("{name}-ca.pem")), &ca)?;
     put(&root.join("host").join(format!("{name}-ca.pem")), &ca)?;
-    put(&root.join("worker").join(format!("{name}-ca.pem")), &ca)?;
-    let issuer = Issuer::new(params, key);
-    for (role, cn, purpose, directory) in [
-        (
-            "server",
-            "veoveo-computers-provider",
-            ExtendedKeyUsagePurpose::ServerAuth,
-            "host",
-        ),
-        (
-            "worker",
-            "veoveo-computers-worker",
-            ExtendedKeyUsagePurpose::ClientAuth,
-            "worker",
-        ),
-        (
-            "guest",
-            "veoveo-computer-supervisor",
-            ExtendedKeyUsagePurpose::ClientAuth,
-            "host",
-        ),
-    ] {
-        if role == "guest" && !provider {
-            continue;
-        }
-        let sans = if role == "server" {
-            let mut names = vec![host.into()];
-            if provider {
-                names.push("host.openshell.internal".into());
-            }
-            names
-        } else {
-            vec![]
-        };
-        let mut params = CertificateParams::new(sans)?;
-        dates(&mut params, 90);
-        params.distinguished_name.push(DnType::CommonName, cn);
-        params.extended_key_usages = vec![purpose];
-        params.key_usages = vec![KeyUsagePurpose::DigitalSignature];
-        let key = KeyPair::generate()?;
-        let filename = if role == "guest" {
-            "guest".into()
-        } else {
-            format!("{name}-{role}")
-        };
-        put(
-            &root.join(directory).join(format!("{filename}.pem")),
-            params.signed_by(&key, &issuer)?.pem(),
-        )?;
-        put(
-            &root.join(directory).join(format!("{filename}-key.pem")),
-            key.serialize_pem(),
-        )?;
+    if worker_trust {
+        put(&root.join("worker").join(format!("{name}-ca.pem")), &ca)?;
     }
+    Ok(Issuer::new(params, key))
+}
+struct Leaf<'a> {
+    filename: &'a str,
+    common_name: &'a str,
+    purpose: ExtendedKeyUsagePurpose,
+    directory: &'a str,
+    sans: Vec<String>,
+}
+fn issue(root: &Path, issuer: &Issuer<'_, KeyPair>, leaf: Leaf<'_>) -> Result<()> {
+    let mut params = CertificateParams::new(leaf.sans)?;
+    dates(&mut params, 90);
+    params
+        .distinguished_name
+        .push(DnType::CommonName, leaf.common_name);
+    params.extended_key_usages = vec![leaf.purpose];
+    params.key_usages = vec![KeyUsagePurpose::DigitalSignature];
+    let key = KeyPair::generate()?;
+    put(
+        &root
+            .join(leaf.directory)
+            .join(format!("{}.pem", leaf.filename)),
+        params.signed_by(&key, issuer)?.pem(),
+    )?;
+    put(
+        &root
+            .join(leaf.directory)
+            .join(format!("{}-key.pem", leaf.filename)),
+        key.serialize_pem(),
+    )?;
     Ok(())
 }
 pub(crate) fn create(output: &Path, host: &str) -> Result<()> {
@@ -126,8 +105,64 @@ pub(crate) fn create(output: &Path, host: &str) -> Result<()> {
     for name in ["host", "worker", "operator"] {
         directory(&output.join(name))?;
     }
-    authority(output, "provider", host, true)?;
-    authority(output, "storage", host, false)?;
+    let provider = authority(output, "provider", true)?;
+    let worker = authority(output, "worker-client", false)?;
+    let supervisor = authority(output, "supervisor-client", false)?;
+    let storage = authority(output, "storage", true)?;
+    for (issuer, leaf) in [
+        (
+            &provider,
+            Leaf {
+                filename: "provider-server",
+                common_name: "veoveo-computers-provider",
+                purpose: ExtendedKeyUsagePurpose::ServerAuth,
+                directory: "host",
+                sans: vec![host.into(), "host.openshell.internal".into()],
+            },
+        ),
+        (
+            &worker,
+            Leaf {
+                filename: "provider-worker",
+                common_name: "veoveo-computers-worker",
+                purpose: ExtendedKeyUsagePurpose::ClientAuth,
+                directory: "worker",
+                sans: vec![],
+            },
+        ),
+        (
+            &supervisor,
+            Leaf {
+                filename: "guest",
+                common_name: "veoveo-computer-supervisor",
+                purpose: ExtendedKeyUsagePurpose::ClientAuth,
+                directory: "host",
+                sans: vec![],
+            },
+        ),
+        (
+            &storage,
+            Leaf {
+                filename: "storage-server",
+                common_name: "veoveo-computers-provider",
+                purpose: ExtendedKeyUsagePurpose::ServerAuth,
+                directory: "host",
+                sans: vec![host.into()],
+            },
+        ),
+        (
+            &storage,
+            Leaf {
+                filename: "storage-worker",
+                common_name: "veoveo-computers-worker",
+                purpose: ExtendedKeyUsagePurpose::ClientAuth,
+                directory: "worker",
+                sans: vec![],
+            },
+        ),
+    ] {
+        issue(output, issuer, leaf)?;
+    }
     let mut command_key = [0; 32];
     File::open("/dev/urandom")?.read_exact(&mut command_key)?;
     put(&output.join("worker/command-key.bin"), command_key)?;
@@ -144,7 +179,7 @@ pub(crate) fn create(output: &Path, host: &str) -> Result<()> {
     )?;
     put(
         &output.join("README.txt"),
-        "Veoveo Computers fresh enrollment. Leaf certificates expire in 90 days.\nInstall host/ and worker/ as separate Secrets. Keep operator/ offline; it contains CA keys.\nSet execution.activeKeyId and execution.keys[0].id to worker/command-key-id; reference /etc/veoveo/computers/trust/command-key.bin.\nKeep the complete bundle in installation-owned encrypted backup. Never rerun enrollment over an installed provider.\n",
+        "Veoveo Computers fresh enrollment. Leaf certificates expire in 90 days.\nInstall host/ and worker/ as separate Secrets. Provider server, worker client and supervisor client have separate CA roots; storage has its own root. Keep operator/ offline; it contains CA keys.\nSet execution.activeKeyId and execution.keys[0].id to worker/command-key-id; reference /etc/veoveo/computers/trust/command-key.bin.\nKeep the complete bundle in installation-owned encrypted backup. Never rerun enrollment over an installed provider.\n",
     )?;
     println!(
         "Created private Computers trust bundle; certificates expire in 90 days. Keep operator CA keys outside Kubernetes."
@@ -178,10 +213,43 @@ mod tests {
             )
             .is_ok()
         );
-        assert_ne!(
-            fs::read(output.join("host/provider-ca.pem")).unwrap(),
-            fs::read(output.join("host/storage-ca.pem")).unwrap()
-        );
+        let roots = ["provider", "worker-client", "supervisor-client", "storage"].map(|name| {
+            let bytes = fs::read(output.join(format!("host/{name}-ca.pem"))).unwrap();
+            x509_parser::pem::parse_x509_pem(&bytes).unwrap().1.contents
+        });
+        let mut keys = std::collections::BTreeSet::new();
+        for der in &roots {
+            let (_, certificate) = x509_parser::parse_x509_certificate(der).unwrap();
+            assert!(certificate.is_ca());
+            certificate.verify_signature(None).unwrap();
+            assert!(keys.insert(certificate.public_key().raw.to_vec()));
+        }
+        for (path, root_index) in [
+            ("host/provider-server.pem", 0),
+            ("worker/provider-worker.pem", 1),
+            ("host/guest.pem", 2),
+            ("host/storage-server.pem", 3),
+            ("worker/storage-worker.pem", 3),
+        ] {
+            let bytes = fs::read(output.join(path)).unwrap();
+            let pem = x509_parser::pem::parse_x509_pem(&bytes).unwrap().1;
+            let certificate = pem.parse_x509().unwrap();
+            for (index, der) in roots.iter().enumerate() {
+                let (_, root) = x509_parser::parse_x509_certificate(der).unwrap();
+                assert_eq!(
+                    certificate
+                        .verify_signature(Some(root.public_key()))
+                        .is_ok(),
+                    index == root_index,
+                    "{path} crossed its declared CA role"
+                );
+            }
+        }
+        for name in ["provider", "worker-client", "supervisor-client", "storage"] {
+            assert!(output.join(format!("operator/{name}-ca-key.pem")).exists());
+            assert!(!output.join(format!("host/{name}-ca-key.pem")).exists());
+            assert!(!output.join(format!("worker/{name}-ca-key.pem")).exists());
+        }
         for directory in ["host", "worker", "operator"] {
             assert_eq!(
                 fs::metadata(output.join(directory))

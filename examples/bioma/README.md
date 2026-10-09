@@ -193,6 +193,22 @@ kubectl --context k3d-veoveo-bioma -n veoveo create secret generic bioma-compute
 kubectl --context k3d-veoveo-bioma -n veoveo create secret generic bioma-computers-worker-trust --from-file=/private/new-computers-trust/worker
 ```
 
+Enrollment creates separate provider server, worker client and supervisor client
+CA roots. `host/provider-ca.pem` authenticates the provider server;
+`host/worker-client-ca.pem` and `host/supervisor-client-ca.pem` supply the listener's
+client roots. The Host builds its client-root bundle from these two inputs.
+`worker/provider-worker.pem` belongs to the worker client CA, and `host/guest.pem`
+belongs to the supervisor client CA. Storage keeps its own root and worker identity.
+CA private keys stay in `operator/` outside Kubernetes.
+
+The installation supplies a private worker OAuth registration, issuer and audience,
+configured role claims, and a client-secret projection. Computers workers need
+issuer discovery and token HTTPS access through `networkPolicy.externalEgressCidrs`.
+The private Host needs issuer/JWKS HTTPS access through
+`computers.host.issuerEgress`. Both network declarations require actual installation
+CIDRs. These enrollment commands create TLS and signing material; they do not
+register the OAuth application or activate the provider configuration.
+
 Set `execution.activeKeyId` and the matching key entry in `computers.json` to the
 public identifier in `worker/command-key-id`, then recompute the configuration revision.
 The reference UUID is installation configuration, not a credential. The command key

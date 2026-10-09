@@ -78,6 +78,10 @@ fn render(chart: &Path, extension: bool, settings: &[&str]) -> Vec<Value> {
     for path in values {
         command.args(["-f", path]);
     }
+    if !extension {
+        // Explicit fixture input; reference issuer networks are installation-owned.
+        command.args(["--set", "computers.host.issuerEgress[0]=198.51.100.10/32"]);
+    }
     for setting in settings {
         command.args(["--set", setting]);
     }

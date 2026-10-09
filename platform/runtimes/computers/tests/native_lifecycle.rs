@@ -127,9 +127,9 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         }
     })
     .await
-    .expect("retained shell and numeric identity");
+    .expect("fresh shell and numeric identity");
     assert!(!output.is_empty());
-    terminal.write(b"printf '%s' 'controller-retained-bytes-v1' > \"$HOME/controller-native-marker\" && sync \"$HOME/controller-native-marker\" && printf '\\npre-restart-marker=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\"\r").await.unwrap();
+    terminal.write(b"export VEOVEO_NATIVE_RETAINED=pre-restart; printf '%s' 'controller-retained-bytes-v1' > \"$HOME/controller-native-marker\" && sync \"$HOME/controller-native-marker\" && printf '\\npre-restart-marker=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\"\r").await.unwrap();
     marker_output(
         &mut terminal,
         "pre-restart-marker=controller-retained-bytes-v1",
@@ -143,7 +143,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
             .unwrap(),
         LifecycleObservation::Reached(_)
     ));
-    home.assert_registered_no_copy();
+    home.assert_registered_retained_mount();
     let before_controller = retained_identity(&provider, &ready, &home.volume).await;
     let old_supervisor = supervisor_identity(&provider, &ready).await;
     let controller_pids = provider.crash_controller_and_recover().await;
@@ -160,20 +160,20 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         .await
         .unwrap();
     assert_eq!(recovered.sandbox_id, ready.sandbox_id);
-    assert_eq!(
-        recovered.main_process_instance_id, ready.main_process_instance_id,
-        "abrupt controller-loss recovery must preserve the running canonical process"
+    assert!(
+        !recovered.main_process_instance_id.is_empty(),
+        "replacement controller must admit the current authenticated run identity"
     );
     assert_eq!(
         retained_identity(&provider, &recovered, &home.volume).await,
         before_controller
     );
-    assert_eq!(
-        supervisor_identity(&provider, &recovered).await,
-        old_supervisor,
-        "gateway-only recovery must preserve the exact running physical supervisor"
+    let current_supervisor = supervisor_identity(&provider, &recovered).await;
+    assert_ne!(
+        current_supervisor.container_id, old_supervisor.container_id,
+        "stock gateway startup replaces the supervisor container"
     );
-    home.assert_registered_no_copy();
+    home.assert_registered_retained_mount();
     let (_fresh_authority, fresh_lease) =
         LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(30)).unwrap();
     let mut terminal = match runtime
@@ -184,27 +184,36 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         Err(error) => {
             // Read-only diagnostics must finish before Provider::drop removes
             // this exact companion. Never replay attachment or change its owner.
-            capture_recovery_attachment(&provider, &old_supervisor, &recovered, controller_pids)
-                .await;
+            capture_recovery_attachment(
+                &provider,
+                &current_supervisor,
+                &recovered,
+                controller_pids,
+            )
+            .await;
             panic!("replacement-gateway terminal attachment failed: {error:?}");
         }
     };
-    terminal.write(b"printf '\\npost-controller-marker=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\"\r").await.unwrap();
+    assert_eq!(
+        terminal.main_process_instance_id(),
+        recovered.main_process_instance_id,
+        "terminal must use the replacement controller's admitted current run"
+    );
+    terminal.write(b"printf '\\npost-controller-marker=%s shell-state=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\" \"${VEOVEO_NATIVE_RETAINED-unset}\"\r").await.unwrap();
     marker_output(
         &mut terminal,
-        "post-controller-marker=controller-retained-bytes-v1",
+        "post-controller-marker=controller-retained-bytes-v1 shell-state=unset",
     )
     .await;
     terminal.detach().await.unwrap();
-    let ready = recovered;
     let stop = LifecycleCheckpoint::stop(
         "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
-        &ready,
+        &recovered,
     )
     .unwrap();
-    let stopping = runtime.stop(&binding, &ready).await.unwrap();
+    let stopping = runtime.stop(&binding, &recovered).await.unwrap();
     let stopped = runtime
         .wait_for_lifecycle(&stop, &stopping, Duration::from_secs(30))
         .await
@@ -229,7 +238,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         .await
         .unwrap();
     assert_ne!(
-        ready.main_process_instance_id,
+        recovered.main_process_instance_id,
         restarted.main_process_instance_id
     );
     assert!(matches!(
@@ -239,12 +248,12 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
             .unwrap(),
         LifecycleObservation::Reached(_)
     ));
-    assert_eq!(restarted.sandbox_id, ready.sandbox_id);
+    assert_eq!(restarted.sandbox_id, recovered.sandbox_id);
     assert_eq!(
         retained_identity(&provider, &restarted, &home.volume).await,
         before_controller
     );
-    home.assert_registered_no_copy();
+    home.assert_registered_retained_mount();
     let (_final_authority, final_lease) =
         LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(30)).unwrap();
     let mut terminal = runtime
@@ -258,7 +267,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     )
     .await;
     terminal.detach().await.unwrap();
-    std::fs::write(provider.dir.join("controller-restart-result.json"), serde_json::to_vec_pretty(&serde_json::json!({"oldControllerPid":controller_pids.0,"newControllerPid":controller_pids.1,"retained":before_controller,"retainedSupervisor":old_supervisor,"currentAuthenticatedTerminalRelay":true,"sandboxId":restarted.sandbox_id,"newMainProcess":restarted.main_process_instance_id,"scope":"actual controller restart and Stop/Start retained state; no installation claim"})).unwrap()).unwrap();
+    std::fs::write(provider.dir.join("controller-restart-result.json"), serde_json::to_vec_pretty(&serde_json::json!({"oldControllerPid":controller_pids.0,"newControllerPid":controller_pids.1,"retained":before_controller,"previousSupervisor":old_supervisor,"replacementSupervisor":current_supervisor,"currentRecoveredRun":recovered.main_process_instance_id,"currentAuthenticatedTerminalRelay":true,"sandboxId":restarted.sandbox_id,"newMainProcess":restarted.main_process_instance_id,"scope":"actual controller restart and Stop/Start retained state; no installation claim"})).unwrap()).unwrap();
     std::fs::set_permissions(
         provider.dir.join("controller-restart-result.json"),
         std::os::unix::fs::PermissionsExt::from_mode(0o600),
@@ -349,7 +358,7 @@ async fn native_terminal_renews_without_reconnecting_and_revokes_access() {
         detached,
         Ok(()) | Err(RuntimeFailure::LeaseExpired)
     ));
-    // Access loss preserves the original process. Fresh authority reattaches to it.
+    // Fresh authority opens a new shell in the same admitted Computer run.
     let (_authority, lease) =
         LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(30)).unwrap();
     let terminal = runtime
@@ -361,7 +370,7 @@ async fn native_terminal_renews_without_reconnecting_and_revokes_access() {
         ready.main_process_instance_id
     );
     terminal.detach().await.unwrap();
-    std::fs::write(provider.dir.join("renewal-result.txt"), "native terminal exchanges data across lease renewal and provider admission credential expiry without reattach; revocation denies input/output, fresh authority retains the same process\n").unwrap();
+    std::fs::write(provider.dir.join("renewal-result.txt"), "native terminal exchanges data across lease renewal and provider admission credential expiry without reattach; revocation denies input/output, fresh authority opens a new shell in the same admitted Computer run\n").unwrap();
     provider.assert_running();
 }
 
@@ -426,7 +435,6 @@ struct MountFact {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
 struct VolumeFact {
-    no_copy: Option<bool>,
     subpath: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
@@ -459,7 +467,6 @@ fn retained_home_mounts<'a>(
     // Docker API 1.53 Mount.ReadOnly is optional. Moby's bool/omitempty
     // request form omits false; Serde default bool rejects explicit null.
     assert!(!request.read_only, "retained home request must be writable");
-    assert_eq!(request.volume_options.as_ref().unwrap().no_copy, Some(true));
     assert_eq!(
         request.volume_options.as_ref().unwrap().subpath.as_deref(),
         Some("home")
@@ -490,7 +497,6 @@ struct RetainedIdentity {
     image_id: String,
     home_mount: MountFact,
     effective_home_mount: EffectiveMountFact,
-    restart_state_sha256: String,
 }
 async fn docker_observation(provider: &Provider, arguments: &[&str]) -> String {
     let mut command = tokio::process::Command::new("docker");
@@ -584,7 +590,6 @@ async fn retained_identity(
     observation: &Observation,
     home: &str,
 ) -> RetainedIdentity {
-    use sha2::{Digest, Sha256};
     let inspected = owned_container(provider, observation, "sandbox").await;
     let image = docker_observation(
         provider,
@@ -605,19 +610,6 @@ async fn retained_identity(
     let (mount, effective_mount) = retained_home_mounts(&inspected, home);
     let home_mount = mount.clone();
     let effective_home_mount = effective_mount.clone();
-    let path = provider
-        .dir
-        .join("state/openshell/docker-sandbox-tokens")
-        .join(provider.namespace())
-        .join(&observation.sandbox_id)
-        .join("supervisor-restart-v1.json");
-    let metadata =
-        std::fs::symlink_metadata(&path).expect("current immutable restart record exists");
-    use std::os::unix::fs::PermissionsExt;
-    assert!(metadata.is_file() && metadata.permissions().mode() & 0o077 == 0);
-    assert!(metadata.len() <= 1_048_576);
-    let bytes = std::fs::read(path).unwrap();
-    assert!(bytes.len() <= 1_048_576);
     use std::os::unix::fs::MetadataExt;
     RetainedIdentity {
         daemon_socket_inode: std::fs::metadata(provider.docker_socket()).unwrap().ino(),
@@ -632,7 +624,6 @@ async fn retained_identity(
         image_id: inspected.image,
         home_mount,
         effective_home_mount,
-        restart_state_sha256: hex::encode(Sha256::digest(bytes)),
     }
 }
 
@@ -645,7 +636,7 @@ mod retained_mount_tests {
             "id":"owned", "image":"admitted", "labels":{},
             "state":{"Running":true,"Pid":123,"StartedAt":"2026-10-07T00:00:00Z"},
             "mounts":[
-                {"Source":"owned-home","Target":"/sandbox/persistent","VolumeOptions":{"NoCopy":true,"Subpath":"home"}},
+                {"Source":"owned-home","Target":"/sandbox/persistent","VolumeOptions":{"Subpath":"home"}},
                 {"Source":"channel","Target":"/.openshell/channel","ReadOnly":true,"VolumeOptions":{"NoCopy":true}}
             ],
             "effective_mounts":[
@@ -665,7 +656,7 @@ mod retained_mount_tests {
     fn omitted_and_explicit_false_requests_admit_only_actual_writable_home() {
         let omitted = inspected();
         let mut explicit = inspected();
-        explicit.mounts[0] = serde_json::from_str(r#"{"Source":"owned-home","Target":"/sandbox/persistent","ReadOnly":false,"VolumeOptions":{"NoCopy":true,"Subpath":"home"}}"#).unwrap();
+        explicit.mounts[0] = serde_json::from_str(r#"{"Source":"owned-home","Target":"/sandbox/persistent","ReadOnly":false,"VolumeOptions":{"Subpath":"home"}}"#).unwrap();
         let omitted = retained_home_mounts(&omitted, "owned-home");
         let explicit = retained_home_mounts(&explicit, "owned-home");
         assert_eq!(
@@ -697,7 +688,7 @@ mod retained_mount_tests {
     }
 
     #[test]
-    fn retained_home_identity_count_and_no_copy_subpath_cannot_be_substituted() {
+    fn retained_home_identity_count_and_subpath_cannot_be_substituted() {
         let mut variants = Vec::new();
         let mut missing = inspected();
         missing.effective_mounts.remove(0);
@@ -721,9 +712,6 @@ mod retained_mount_tests {
         variants.push(duplicate);
         let mut wrong = inspected();
         wrong.mounts[0].source = Some("foreign".into());
-        variants.push(wrong);
-        let mut wrong = inspected();
-        wrong.mounts[0].volume_options.as_mut().unwrap().no_copy = Some(false);
         variants.push(wrong);
         let mut wrong = inspected();
         wrong.mounts[0].volume_options.as_mut().unwrap().subpath = Some("other".into());

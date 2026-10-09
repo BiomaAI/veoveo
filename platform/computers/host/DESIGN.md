@@ -11,7 +11,7 @@ The [Computers design](../DESIGN.md#qualification-limits) records installed qual
 | Docker Engine 29.8.0, API 1.53 and volume-plugin API v1 | Dedicated private Unix socket, overlay2 on ext4, local retained-volume plugin; no host daemon access |
 | OpenShell `0.1.2` | Unmodified official GNU gateway/supervisor and static musl sandbox; in-process Docker driver; private TLS gRPC and selected SSH transport |
 | OIDC Discovery 1.0, OAuth 2.0 and JWT/JWKS | HTTPS installation issuer, exact audience and explicit worker roles; mTLS user promotion disabled; mandatory Sandbox JWT |
-| TLS 1.3 and `veoveo.ai/computer-storage/v1` | Separate worker trust for retained storage; provider guest certificates are denied provider user authority |
+| TLS 1.3, X.509 DER/PEM and `veoveo.ai/computer-storage/v1` | Separate provider server, worker client and supervisor client roots; parsed certificate admission through x509-parser `0.18.1`; retained storage keeps independent worker trust |
 | OCI images | Exact manifest references from one installation registry, HTTPS or explicitly declared development HTTP |
 | Linux namespaces, cgroup v2, signals and ext4 | One privileged compute container with owned mount/network/PID/cgroup namespaces, finite CPU/RAM ceilings and persistent local ext4 data |
 | Kubernetes Secret projection | Read-only fixed-name files, confined resolution inside the mount and bounded copies into root-owned regular files; no user-controlled paths |
@@ -103,13 +103,28 @@ supplies the separately released sandbox for workload injection. An offline
 installation includes this artifact closure and an accessible qualified OIDC issuer.
 
 The host mounts its operator-owned trust Secret at
-`/etc/veoveo/computers/host-trust`. Fixed inputs are `provider-ca.pem`,
-`provider-server.pem`, `provider-server-key.pem`, `guest.pem`, `guest-key.pem`,
-`jwt-key.pem`, `jwt-public.pem`, `jwt-kid`, `storage-ca.pem`, `storage-server.pem` and
-`storage-server-key.pem`. Their canonical targets must remain inside the mount.
-Inputs are regular files with no group/world write permission and a 64 KiB bound.
-Copies under the private runtime directory have mode 0600. The storage loader keeps
-its existing no-symlink/private-key checks. The host receives no worker private key.
+`/etc/veoveo/computers/host-trust`. The provider server root is `provider-ca.pem`.
+Worker and supervisor client roots are `worker-client-ca.pem` and
+`supervisor-client-ca.pem`. Each role supplies one valid self-signed X.509 CA;
+the launcher rejects shared certificate identities or public keys across these
+roles and the separate `storage-ca.pem`. The launcher builds
+`provider-client-ca.pem` from only the worker and supervisor client roots and passes
+that bundle to the provider listener's `--tls-client-ca` option.
+
+The remaining fixed inputs are `provider-server.pem`, `provider-server-key.pem`,
+`guest.pem`, `guest-key.pem`, `jwt-key.pem`, `jwt-public.pem`, `jwt-kid`,
+`storage-server.pem` and `storage-server-key.pem`. The provider server certificate
+must be signed by the server root with ServerAuth usage. The guest certificate must
+be signed by the supervisor root with ClientAuth usage; `guest_tls_ca` supplies the
+server root for the supervisor's TLS connection. The Host receives no worker private
+key. Storage keeps its separate worker trust and server key pair.
+
+ConfigMap and Secret inputs follow their managed revision links. The launcher checks
+file ownership, write permissions and the 64 KiB bound on the opened regular-file
+handle, which keeps one revision through an atomic projection update. Trust input
+links must resolve inside their mounted root. Private keys exclude group/world
+access. Internal state and locks reject final symlinks. Copies under the private
+runtime directory have mode 0600.
 
 Configuration requires `providerAuthentication`: HTTPS `issuer`, exact `audience`,
 `rolesClaim`, nonempty `adminRole` and `userRole`, and `jwksTtlSecs` in 1..3600.
@@ -131,8 +146,8 @@ worker endpoint and `host.openshell.internal`; storage certificates cover its wo
 endpoint. Sandbox JWT signing material is stable installation-owned Secret state.
 Key rotation requires a separately qualified transition.
 
-The launcher validates both server TLS key/certificate pairs before spawning children
-and rejects identical provider/storage CA inputs. A malformed trust input identifies its
+The launcher validates both server TLS key/certificate pairs before spawning children.
+A malformed trust input identifies its
 fixed filename in the diagnostic without printing its contents.
 
 ## Process Lifecycle And Retention

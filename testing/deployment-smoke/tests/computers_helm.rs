@@ -121,7 +121,7 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
     ensure!(String::from_utf8_lossy(&missing.stderr).contains("computers.existingConfigMap"));
     let revision = format!("computers.configurationRevision={}", "a".repeat(64));
     let host_revision = format!("computers.host.configurationRevision={}", "b".repeat(64));
-    let configured = objects(render(&[
+    let configured_arguments = [
         "--set",
         "computerCapacity=openshell-docker",
         "--set",
@@ -140,7 +140,31 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
         "computers.host.registryEgress[0].cidr=192.0.2.10/32",
         "--set",
         "computers.host.registryEgress[0].port=5000",
-    ]))?;
+    ];
+    let missing_issuer = render(&configured_arguments);
+    ensure!(!missing_issuer.status.success());
+    ensure!(
+        String::from_utf8_lossy(&missing_issuer.stderr).contains("computers.host.issuerEgress")
+    );
+    let mut arguments = configured_arguments.to_vec();
+    arguments.extend([
+        "--set",
+        "computers.host.issuerEgress[0]=198.51.100.10/32",
+        "--set",
+        "networkPolicy.externalEgressCidrs[0]=203.0.113.10/32",
+    ]);
+    let configured = objects(render(&arguments))?;
+    for invalid in ["0.0.0.0/0", "192.0.2.999/32", "192.0.2.10/33", "192.0.2.10"] {
+        let mut unsafe_arguments = configured_arguments.to_vec();
+        let setting = format!("computers.host.issuerEgress[0]={invalid}");
+        unsafe_arguments.extend(["--set", &setting]);
+        let rejected = render(&unsafe_arguments);
+        ensure!(
+            !rejected.status.success(),
+            "unsafe issuer egress rendered: {invalid}"
+        );
+        ensure!(String::from_utf8_lossy(&rejected.stderr).contains("issuerEgress"));
+    }
     ensure!(object(&configured, "ConfigMap", "computers-configuration").is_err());
     let deployment = object(&configured, "Deployment", "computers-mcp")?;
     let volumes = deployment["spec"]["template"]["spec"]["volumes"]
@@ -199,6 +223,82 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
             == "computers-mcp"
     );
     ensure!(policy["spec"]["egress"][0]["to"][0]["ipBlock"]["cidr"] == "192.0.2.10/32");
+    ensure!(
+        policy["spec"]["egress"][0]["ports"]
+            == serde_json::json!([{ "protocol": "TCP", "port": 5000 }])
+    );
+    ensure!(policy["spec"]["egress"].as_array().unwrap().len() == 2);
+    ensure!(
+        policy["spec"]["egress"][1]
+            == serde_json::json!({
+                "to": [{"ipBlock": {"cidr": "198.51.100.10/32"}}],
+                "ports": [{"protocol": "TCP", "port": 443}]
+            })
+    );
+    let dns = configured
+        .iter()
+        .find(|o| {
+            o["kind"] == "NetworkPolicy"
+                && o["metadata"]["name"]
+                    .as_str()
+                    .is_some_and(|name| name.ends_with("-dns"))
+        })
+        .context("DNS network policy")?;
+    for (key, value) in dns["spec"]["podSelector"]["matchLabels"]
+        .as_object()
+        .unwrap()
+    {
+        ensure!(policy["spec"]["podSelector"]["matchLabels"][key] == *value);
+    }
+    ensure!(
+        !dns["spec"]["podSelector"]["matchExpressions"][0]["values"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("computer-host"))
+    );
+    ensure!(
+        dns["spec"]["egress"][0]["ports"]
+            == serde_json::json!([
+                {"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}
+            ])
+    );
+    let external = configured
+        .iter()
+        .find(|o| {
+            o["kind"] == "NetworkPolicy"
+                && o["metadata"]["name"]
+                    .as_str()
+                    .is_some_and(|name| name.ends_with("-external-egress"))
+        })
+        .context("worker HTTPS egress policy")?;
+    let worker_labels = &deployment["spec"]["template"]["metadata"]["labels"];
+    for (key, value) in external["spec"]["podSelector"]["matchLabels"]
+        .as_object()
+        .unwrap()
+    {
+        ensure!(worker_labels[key] == *value);
+    }
+    let excluded = &external["spec"]["podSelector"]["matchExpressions"][0];
+    ensure!(excluded["key"] == "app.kubernetes.io/component" && excluded["operator"] == "NotIn");
+    ensure!(
+        !excluded["values"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("computers-mcp"))
+    );
+    ensure!(
+        excluded["values"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("computer-host"))
+    );
+    ensure!(
+        external["spec"]["egress"]
+            == serde_json::json!([{
+                "to": [{"ipBlock": {"cidr": "203.0.113.10/32"}}],
+                "ports": [{"protocol": "TCP", "port": 443}]
+            }])
+    );
     let internal = configured
         .iter()
         .find(|o| {

@@ -6,6 +6,10 @@ publish = false
 build = "build.rs"
 
 [dependencies]
+jsonwebtoken.workspace = true
+nix = { workspace = true, features = ["fs"] }
+oauth2 = { version = "=5.0.0", default-features = false }
+reqwest = { workspace = true, features = ["json", "stream", "rustls-no-provider"] }
 futures.workspace = true
 veoveo-types.workspace = true
 veoveo-computers-contract = { path = "../../computers/contract" }
@@ -41,7 +45,9 @@ tonic-prost-build = "=0.14.6"
 typify = { version = "=0.8.0", default-features = false }
 
 [dev-dependencies]
+base64.workspace = true
 axum.workspace = true
+axum-server.workspace = true
 reqwest = { workspace = true, features = ["json", "query"] }
 rcgen.workspace = true
 tokio = { workspace = true, features = ["process"] }

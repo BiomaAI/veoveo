@@ -66,6 +66,37 @@ a catalog whose bindings and encrypted checkpoints they admit; new-format mainte
 must finish or remain fenced before rollback. Image/home data compatibility requires
 its own declared retained-maintenance transition.
 
+## Worker Authentication
+
+`src/worker_auth.rs` owns required, checked `WorkerOAuthConfig`: an HTTPS issuer,
+exact audience, client ID, absolute projected secret path, explicit
+`client_secret_post`, nonempty typed installation scopes and optional additive CA
+trust. The installation registers a dedicated private worker client with its
+external issuer and supplies the upstream user/admin role mapping. Host disables
+certificate-to-user promotion and anonymous users while preserving complete
+supervisor TLS and mandatory Sandbox JWT. The worker client does not use BFF
+credentials or provide an issuer service.
+
+The reader opens a managed secret symlink once and checks that opened file's
+regular-file type and mode 0400, 0600 or 0440. Root-owned projected inputs may use
+the installation's admitted filesystem group. Secrets and JWTs are at
+most 4096 bytes. Discovery and token acquisition each have a ten-second budget,
+including the cache lock; connection setup has a three-second limit. HTTPS
+redirects are refused and responses are limited to 64 KiB. Cached tokens require
+30 seconds of remaining validity before dispatch; admitted lifetimes are
+31–86400 seconds and also respect JWT expiry. The shared transport injects the
+bearer into every provider RPC and refreshes before dispatch. Authentication does
+not replay a provider mutation.
+
+Local decoding checks JWT issuer, audience and expiry against the supplied
+profile. It does not verify signatures or grant roles. Stock OpenShell verifies
+cryptography and applies upstream RBAC. The test-only issuer in
+`tests/support/worker_issuer.rs` supplies HTTPS discovery, signing and JWKS to the
+existing owning controls; it cannot satisfy installation registration. Native
+gateway children trust its CA through the stock `rustls-native-certs` 0.8.3
+`SSL_CERT_FILE` input; certificate verification stays enabled. Native
+positive/negative security qualification and installed credentials remain gates.
+
 ## Provider Process And Build Profile
 
 The companion supervisor runs with its own UID/GID, all capabilities dropped,
@@ -239,12 +270,22 @@ A late old instance remains denied even when it is the sole registered consumer.
 The fixture explicitly changes its in-memory admission after verifying removal; it
 does not establish a durable allocator, quota enforcement or backup safety.
 
-The selected producer must use `volume-nocopy`. Docker otherwise populates a volume
-before the new container enters its registry, which prevents container enumeration
-from identifying that caller. The provider's seventh patch passes `no_copy` through
-to Docker, and retained templates require it with the `home` subpath. This changes
-the template fingerprint. Production binding must also include the provider,
-template and admitted instance; a Computer label alone is insufficient for handoff.
+OpenShell's stock user-volume configuration selects the `home` subpath and does
+not expose Docker's `NoCopy` option. Veoveo's owned image leaves
+`/sandbox/persistent` absent, and the allocator creates `home` with ownership
+10001:10001 before admitting the volume. Docker's
+[creation path](https://github.com/moby/moby/blob/docker-v29.8.0/daemon/create.go)
+populates volumes before registering the container; its
+[Linux implementation](https://github.com/moby/moby/blob/docker-v29.8.0/daemon/create_unix.go)
+skips population when the image target does not exist. The image's build assertion
+therefore preserves registered-container writer admission on the stock path.
+Templates whose image supplies that target require a separately qualified
+initialization profile. Native qualification must use the built owned image and
+actual plugin mount. The mount inspection checks source, target, `home` subpath and
+one registered consumer; it makes no user-home `NoCopy` guarantee. Upstream's
+internal supervisor mounts keep their own `NoCopy` settings. Production binding
+includes the provider, template and admitted instance; a Computer label alone is
+insufficient for handoff.
 The [Docker volume protocol](https://docs.docker.com/engine/extend/plugins_volume/) and
 [Moby mount implementation](https://github.com/moby/moby/blob/6bc6209/daemon/volume/mounts/mounts.go)
 show why nested mount IDs are not unique operations. Plugin RPC retries make simple

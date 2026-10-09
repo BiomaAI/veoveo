@@ -8,10 +8,14 @@ fn put(root: &Path, name: &str, bytes: impl AsRef<[u8]>) {
     fs::write(root.join(name), bytes).unwrap();
     fs::set_permissions(root.join(name), fs::Permissions::from_mode(0o600)).unwrap();
 }
-fn authority(root: &Path, provider: bool) {
+fn authority(root: &Path, leaves: &[&str]) {
     fs::create_dir(root).unwrap();
     fs::set_permissions(root, fs::Permissions::from_mode(0o700)).unwrap();
     let mut ca = CertificateParams::new(vec![]).unwrap();
+    ca.distinguished_name.push(
+        DnType::CommonName,
+        root.file_name().unwrap().to_str().unwrap(),
+    );
     ca.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
     ca.key_usages = vec![
         KeyUsagePurpose::KeyCertSign,
@@ -44,7 +48,7 @@ fn authority(root: &Path, provider: bool) {
             vec![],
         ),
     ] {
-        if name == "guest" && !provider {
+        if !leaves.contains(&name) {
             continue;
         }
         let mut params = CertificateParams::new(sans).unwrap();
@@ -60,8 +64,25 @@ fn authority(root: &Path, provider: bool) {
     }
 }
 pub fn create(root: &Path) {
-    authority(&root.join("provider"), true);
-    authority(&root.join("storage"), false);
+    authority(&root.join("provider"), &["server"]);
+    authority(&root.join("worker"), &["client"]);
+    authority(&root.join("supervisor"), &["guest"]);
+    authority(&root.join("storage"), &["server", "client"]);
+    // Worker keeps server trust and its own client identity; Host receives only its root.
+    for name in ["client.pem", "client-key.pem"] {
+        put(
+            &root.join("provider"),
+            name,
+            fs::read(root.join("worker").join(name)).unwrap(),
+        );
+    }
+    for name in ["guest.pem", "guest-key.pem"] {
+        put(
+            &root.join("provider"),
+            name,
+            fs::read(root.join("supervisor").join(name)).unwrap(),
+        );
+    }
     let trust = root.join("trust");
     fs::create_dir(&trust).unwrap();
     for (prefix, directory) in [("provider", "provider"), ("storage", "storage")] {
@@ -73,11 +94,21 @@ pub fn create(root: &Path) {
             );
         }
     }
+    for (name, directory) in [
+        ("worker-client-ca.pem", "worker"),
+        ("supervisor-client-ca.pem", "supervisor"),
+    ] {
+        put(
+            &trust,
+            name,
+            fs::read(root.join(directory).join("ca.pem")).unwrap(),
+        );
+    }
     for name in ["guest.pem", "guest-key.pem"] {
         put(
             &trust,
             name,
-            fs::read(root.join("provider").join(name)).unwrap(),
+            fs::read(root.join("supervisor").join(name)).unwrap(),
         );
     }
     let key = KeyPair::generate_for(&rcgen::PKCS_ED25519).unwrap();

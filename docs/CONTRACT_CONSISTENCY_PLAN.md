@@ -4,9 +4,12 @@ Status: The published 34-image closure and charts for `6431c30c6621` retain thei
 recorded qualification. GitOps is suspended during source work, and GPU services,
 including Embedding, remain scaled off. Earlier Ready and warmup observations do
 not describe the current running state. The unmodified OpenShell 0.1.2 source
-package passes its focused artifact, Host and packaging checks. Dedicated external
-OIDC worker registration, credential integration and native security/lifecycle
-qualification remain open. The fresh SSH-shell terminal source cut passes review
+package passes its focused artifact, Host and packaging checks. The owner approved
+stock OIDC; package image `ea4ffc9f7` is assembled and staged with all four official
+executable hashes and versions verified. Three CA roles, projected credentials,
+stock mount fields and the owned image's absent retained-home target are source
+changes under checks. External server/profile app registration, native security
+and retained lifecycle, and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
 and owning controls. Task/subscription fixtures and complete installed A/F/H
 qualification remain open. See [Current Status](#current-status).
 
@@ -111,8 +114,9 @@ is admitted by its amd64 manifest and config digests, including on installation
 mirrors. Host and xtask all-target compilation, eight Host unit controls and six
 packaging controls pass. Custom provider patches and compiler/solver pipelines
 are removed. The download stage pins the verified current stable Trixie image and
-signed October 5 package snapshots; its Python downloader/image build qualification
-remains open. Earlier patched-provider results do not qualify this profile.
+signed October 5 package snapshots. Ops assembled and staged package image
+`ea4ffc9f7`; all four official binary hashes, versions and runtime loader checks pass.
+Earlier patched-provider results do not qualify this profile.
 
 The fresh SSH-shell terminal cut passes owning controls and independent review.
 Each attachment opens a new PTY and shell; Ready reports request acceptance and
@@ -121,19 +125,28 @@ The selected security architecture uses installation-supplied HTTPS OIDC with a
 dedicated private worker OAuth registration, exact issuer/audience, explicit upstream
 user/admin roles and short-lived credentials. Host configuration disables mTLS user
 promotion and anonymous user access. Complete supervisor TLS and mandatory Sandbox
-JWT stay required. Separate certificate CAs do not establish role separation.
-
-Runtime bearer acquisition/injection/refresh and native positive/negative security
-controls remain implementation work. Host `providerAuthentication` is required;
-the native Host fixture and reference `examples/bioma/computers/host.json` producers
-must supply it with the admitted official supervisor image. The chart mounts that
+JWT stay required. Separate provider-server, worker-user and sandbox-client CA roles
+and projected credentials are source prerequisites; issuer roles and JWT checks
+establish authorization. Runtime bearer acquisition, centralized injection and
+refresh compile and pass owning OAuth controls. Native positive/negative security
+qualification remains open. Host `providerAuthentication` is required; the native
+Host fixture supplies the profile under source checks. The reference
+`examples/bioma/computers/host.json` must supply installation registration/configuration
+with the admitted official supervisor image. The chart mounts that
 file and requires its new configuration digest. Configured Host NetworkPolicy requires
 explicit `computers.host.issuerEgress` IPv4 CIDRs for HTTPS discovery/JWKS; missing
 destinations refuse rendering. Worker discovery/token HTTPS requires the separate
 `networkPolicy.externalEgressCidrs` installation declaration and qualification.
 The chart supplies no issuer credentials.
 The dedicated external registration is an installation prerequisite, not an invented
-reference credential. Stock restart must prove replacement supervisor, current run
+reference credential. Owner authorization permits qualification once those inputs
+are supplied. Stock driver config now emits only supported mount fields. The owned
+image leaves `/sandbox/persistent` absent to skip Docker copy initialization before
+registration; the allocator initializes its home outside the provider and writer
+fences stay enforced. Compilation and 17 focused mount/lifecycle diagnostic controls
+pass; real plugin-mounted owned-image qualification remains open. The changed
+retained-template fingerprint requires catalog materialization and a coordinated
+drain. Stock restart must prove replacement supervisor, current run
 identity, retained workload/image/home, actual retained-file reads and fresh empty-shell
 reconnection. No provider activation or installed acceptance is claimed.
 Fresh volume allocation admits Engine
@@ -3044,12 +3057,18 @@ any justified diagnostic replay separately.
 
 Computers selects unmodified
 [`OpenShell 0.1.2`](https://github.com/NVIDIA/OpenShell/releases/tag/v0.1.2).
-Official artifact identity and source packaging checks pass. The selected supported
-OIDC configuration disables certificate-to-user promotion while keeping upstream
-roles, complete supervisor TLS and mandatory Sandbox JWT. Dedicated external worker
-registration and all Host/worker/chart configuration producers are installation
-prerequisites. Bearer integration and native positive/negative security checks remain
-open. Activation waits for those checks and stock retained lifecycle qualification.
+Official artifact identity and source packaging checks pass. Package image
+`ea4ffc9f7` is assembled and staged; all four official binary hashes and versions
+are verified. The owner approved supported OIDC with certificate-to-user promotion
+disabled, upstream roles, complete supervisor TLS and mandatory Sandbox JWT. Three
+CA roles and projected worker inputs are source changes under checks. Driver config
+uses stock mount fields; the owned image leaves the retained-home target absent to
+preserve registered-writer fencing. Its changed retained-template fingerprint
+requires a materialized catalog and coordinated drain. Dedicated external issuer
+server/profile app registration and complete Host/worker/chart inputs remain
+installation prerequisites. Native positive/negative security, actual plugin-mounted
+owned image and stock retained lifecycle must pass before activation and installed
+acceptance.
 Earlier patched-provider containment, companion adoption and replay results do not
 satisfy these gates. Each terminal attachment opens a fresh SSH shell.
 Qualify this profile before closing F23 or A09.

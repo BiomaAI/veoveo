@@ -46,8 +46,7 @@ async fn run(action: Action) -> Result<()> {
                 nix::unistd::geteuid().is_root(),
                 "compute host requires its privileged container"
             );
-            let config = std::fs::canonicalize(config)?;
-            let config: config::Config = serde_json::from_slice(&files::read(&config)?)?;
+            let config: config::Config = serde_json::from_slice(&files::projected_input(&config)?)?;
             config.validate()?;
             runtime::run(config).await
         }

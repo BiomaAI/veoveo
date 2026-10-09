@@ -220,6 +220,8 @@ designs above.
 | `platform/runtimes/computers/tests/native_support/profile.rs` | pre-effect admission of exact provider executables, source manifest and companion image for the existing private-DinD native fixtures |
 | `platform/runtimes/computers/tests/native_support/controller.rs` | native fixture controller process-group ownership, bounded restart and reuse of admitted launch inputs, trust, database and private daemon |
 | `platform/runtimes/computers/tests/native_support/guest_authority.rs` | native TLS-positive, user-authority-negative check for the guest supervisor certificate |
+| `platform/runtimes/computers/src/worker_auth.rs` | required external worker OAuth profile, projected secret admission, HTTPS discovery and token cache, centralized RPC bearer injection; upstream owns signature verification and RBAC |
+| `platform/runtimes/computers/tests/support/worker_issuer.rs` | shared test-only HTTPS discovery, signing and JWKS issuer for owning worker-auth and native fixtures; installation registration is separate |
 | `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
 | `platform/store/src/audit/` | partition-selected audit reads, typed append and indexing records, checked profile/target/detail lookups, nominal native sealing bindings in `blocks.rs`, frozen export documents, export receipts and whole-block retention |
 | `platform/artifacts/contract/src/ledger.rs` | Artifact access-request and capability IDs and the shared private ledger address builder |

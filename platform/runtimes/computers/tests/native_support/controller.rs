@@ -15,16 +15,14 @@ pub(super) struct Launch {
     inputs: Vec<(PathBuf, [u8; 32])>,
 }
 impl Launch {
-    pub(super) fn new(gateway: PathBuf, driver: PathBuf, dir: PathBuf) -> Self {
-        let path = std::env::join_paths(
-            std::iter::once(driver.parent().unwrap().to_path_buf()).chain(std::env::split_paths(
-                &std::env::var_os("PATH").unwrap_or_default(),
-            )),
-        )
-        .unwrap();
+    pub(super) fn new(gateway: PathBuf, dir: PathBuf) -> Self {
+        let path = std::env::var_os("PATH").unwrap_or_default();
         let inputs = [
             "gateway.toml",
             "ca.pem",
+            "worker-client-ca.pem",
+            "supervisor-client-ca.pem",
+            "provider-client-ca.pem",
             "client.pem",
             "client-key.pem",
             "server.pem",
@@ -41,7 +39,7 @@ impl Launch {
             let digest = Sha256::digest(fs::read(&path).expect("owned launch input")).into();
             (path, digest)
         })
-        .chain([gateway.clone(), driver.clone()].into_iter().map(|path| {
+        .chain([gateway.clone()].into_iter().map(|path| {
             let digest =
                 Sha256::digest(fs::read(&path).expect("qualified controller binary")).into();
             (path, digest)
@@ -70,6 +68,7 @@ impl Launch {
         command
             .env_clear()
             .env("PATH", &self.path)
+            .env("SSL_CERT_FILE", self.dir.join("ca.pem"))
             .env("XDG_STATE_HOME", self.dir.join("state"))
             .env("XDG_DATA_HOME", self.dir.join("data"))
             .env("XDG_CONFIG_HOME", self.dir.join("config"))
@@ -85,10 +84,10 @@ impl Launch {
             .arg("--tls-key")
             .arg(self.dir.join("server-key.pem"))
             .arg("--tls-client-ca")
-            .arg(self.dir.join("ca.pem"))
+            .arg(self.dir.join("provider-client-ca.pem"))
             .args([
                 "--enable-mtls-auth",
-                "true",
+                "false",
                 "--enable-loopback-service-http",
                 "false",
             ])
@@ -420,6 +419,9 @@ mod tests {
         for name in [
             "gateway.toml",
             "ca.pem",
+            "worker-client-ca.pem",
+            "supervisor-client-ca.pem",
+            "provider-client-ca.pem",
             "client.pem",
             "client-key.pem",
             "server.pem",
@@ -432,11 +434,7 @@ mod tests {
         ] {
             fs::write(dir.join(name), "private-original").unwrap();
         }
-        let launch = Launch::new(
-            PathBuf::from("/usr/bin/sh"),
-            PathBuf::from("/usr/bin/sleep"),
-            dir.clone(),
-        );
+        let launch = Launch::new(PathBuf::from("/usr/bin/sh"), dir.clone());
         fs::write(dir.join("jwt-key.pem"), "synthetic-private-key-change").unwrap();
         let error = launch.spawn().unwrap_err().to_string();
         assert!(!error.contains("synthetic-private-key-change"));

@@ -7,12 +7,12 @@ use std::{
 };
 use tonic::{
     Code, Request,
-    transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity},
+    transport::{Certificate, ClientTlsConfig, Endpoint, Identity},
 };
 use zeroize::Zeroizing;
 pub const GATEWAY_VERSION: &str = env!("VEOVEO_OPENSHELL_GATEWAY_VERSION");
 pub const CLI_VERSION: &str = env!("VEOVEO_OPENSHELL_CLI_VERSION");
-pub(crate) type Client = api::open_shell_client::OpenShellClient<Channel>;
+pub(crate) type Client = api::open_shell_client::OpenShellClient<crate::worker_auth::WorkerChannel>;
 
 #[derive(Clone, Copy, Debug)]
 enum StopDiagnosticStage {
@@ -46,11 +46,13 @@ pub struct GatewayConfig {
     ca_path: PathBuf,
     cert_path: PathBuf,
     key_path: PathBuf,
+    authentication: crate::WorkerOAuthConfig,
 }
 impl GatewayConfig {
     /// Validate referenced trust material before installation-side writes, without
     /// requiring the provider to be online. This creates no qualified runtime.
     pub async fn validate(&self) -> Result<()> {
+        self.authentication.validate_files().await?;
         self.transport().await.map(|_| ())
     }
     async fn transport(&self) -> Result<Endpoint> {
@@ -75,6 +77,7 @@ impl GatewayConfig {
         ca_path: PathBuf,
         cert_path: PathBuf,
         key_path: PathBuf,
+        authentication: crate::WorkerOAuthConfig,
     ) -> Result<Self> {
         endpoint_parts(&endpoint)?;
         if workspace.is_empty()
@@ -98,6 +101,7 @@ impl GatewayConfig {
             ca_path,
             cert_path,
             key_path,
+            authentication,
         })
     }
 }
@@ -158,6 +162,7 @@ pub(crate) fn request<T>(message: T, seconds: u64) -> Request<T> {
 pub struct OpenShellRuntime {
     pub(crate) provider_instance_id: veoveo_computers_contract::ProviderInstanceId,
     pub(crate) client: Client,
+    pub(crate) tokens: crate::worker_auth::WorkerTokens,
     pub(crate) workspace: String,
     pub(crate) endpoint: Endpoint,
     pub(crate) address: String,
@@ -168,6 +173,8 @@ impl OpenShellRuntime {
     }
     /// Establish an installation-owned mTLS connection and admit the exact pin.
     pub async fn connect(config: GatewayConfig) -> Result<Self> {
+        let tokens =
+            crate::worker_auth::WorkerTokens::connect(config.authentication.clone()).await?;
         let endpoint = config.transport().await?;
         let channel = endpoint
             .connect()
@@ -175,9 +182,13 @@ impl OpenShellRuntime {
             .map_err(|_| RuntimeFailure::Unavailable)?;
         let runtime = Self {
             provider_instance_id: config.provider_instance_id,
-            client: Client::new(channel)
-                .max_decoding_message_size(1024 * 1024)
-                .max_encoding_message_size(1024 * 1024),
+            client: Client::new(crate::worker_auth::WorkerChannel::new(
+                channel,
+                tokens.clone(),
+            ))
+            .max_decoding_message_size(1024 * 1024)
+            .max_encoding_message_size(1024 * 1024),
+            tokens,
             workspace: config.workspace,
             endpoint,
             address: config.endpoint,

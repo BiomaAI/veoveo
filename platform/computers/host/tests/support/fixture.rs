@@ -403,10 +403,13 @@ impl Fixture {
         }
         let authority = selected.registry.authority();
         let supervisor_image = &selected.supervisor.pull;
+        let authentication = native_worker_authentication()?;
         let config = serde_json::json!({
             "schema": "veoveo.ai/computer-host/v1", "providerId": provider,
             "namespace": "host-qualification", "defaultImage": computer_image,
             "supervisorImage": supervisor_image, "images": [computer_image, supervisor_image],
+            "providerAuthentication": {"issuer": authentication.issuer(), "audience": authentication.audience(),
+                "rolesClaim": "roles", "adminRole": "openshell-admin", "userRole": "openshell-user", "jwksTtlSecs": 300},
             "templates": [{"fingerprint": template.fingerprint(), "capacityBytes": 536870912}],
             "reserveBytes": 536870912,
             "registry": {"authority": authority, "transport": "development_http"},
@@ -570,6 +573,7 @@ impl Fixture {
             dir.join("ca.pem"),
             dir.join("client.pem"),
             dir.join("client-key.pem"),
+            native_worker_authentication()?,
         )?;
         Ok(OpenShellRuntime::connect(config).await?)
     }
@@ -739,6 +743,15 @@ impl Drop for Fixture {
             );
         }
     }
+}
+
+fn native_worker_authentication() -> Result<veoveo_computers_runtime::WorkerOAuthConfig> {
+    let path = std::env::var_os("VEOVEO_COMPUTERS_NATIVE_WORKER_OAUTH")
+        .context("native Host requires a dedicated external worker OAuth configuration in VEOVEO_COMPUTERS_NATIVE_WORKER_OAUTH")?;
+    let bytes = std::fs::read(path).context("read native worker OAuth configuration")?;
+    serde_json::from_slice(&bytes).map_err(|_| {
+        anyhow::anyhow!("invalid native worker OAuth configuration; credential details withheld")
+    })
 }
 
 #[cfg(test)]

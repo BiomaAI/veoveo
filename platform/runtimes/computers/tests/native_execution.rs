@@ -124,7 +124,7 @@ async fn structured_execution_preserves_values_and_stop_fences_uncertain_descend
         .wait_for_lifecycle(&create, &created, Duration::from_secs(30))
         .await
         .unwrap();
-    home.assert_registered_no_copy();
+    home.assert_registered_retained_mount();
     initial_shell_uses_retained_home(runtime, &binding).await;
 
     let setup = python(

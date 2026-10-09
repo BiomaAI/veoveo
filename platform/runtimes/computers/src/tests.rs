@@ -19,6 +19,7 @@ mod policy_tests;
 mod recovery_tests;
 mod retirement_tests;
 mod terminal_tests;
+mod worker_auth_tests;
 type BoxStream<T> =
     std::pin::Pin<Box<dyn Stream<Item = std::result::Result<T, Status>> + Send + 'static>>;
 
@@ -96,7 +97,7 @@ fn template_fingerprint_and_full_binding_goldens() {
     );
     assert_eq!(
         template(true).fingerprint(),
-        "ae877bdaa2b65c478ec60cad2e0523f8e4ce5610d806c9f5aa0b99d80c607909"
+        "4e3f764e28c5c763037fca55dcfb16247d0d1a0416deafeff8968634a66e5b2a"
     );
     assert_eq!(binding().name(), "cqnayesomb432fipnee");
     assert_eq!(
@@ -626,6 +627,9 @@ impl api::open_shell_server::OpenShell for Fake {
         );
         state.deletes += 1;
         state.sandbox = None;
+        if state.deletion_reply == 3 {
+            return Err(Status::unauthenticated("SECRET-AMBIGUOUS-AUTH-REPLY"));
+        }
         if state.deletion_reply == 1 {
             return Err(Status::unavailable("SECRET-LOST-DELETE-REPLY"));
         }
@@ -882,7 +886,7 @@ impl TlsFiles {
             server_key: server_key.serialize_pem(),
         }
     }
-    fn config(&self, endpoint: String) -> GatewayConfig {
+    fn config(&self, endpoint: String, authentication: WorkerOAuthConfig) -> GatewayConfig {
         GatewayConfig::new(
             "00000000-0000-7000-8000-000000000064".parse().unwrap(),
             endpoint,
@@ -890,6 +894,7 @@ impl TlsFiles {
             self.dir.join("ca.pem"),
             self.dir.join("cert.pem"),
             self.dir.join("key.pem"),
+            authentication,
         )
         .unwrap()
     }
@@ -900,6 +905,7 @@ impl Drop for TlsFiles {
     }
 }
 struct Running {
+    authentication: worker_auth_tests::TestIssuer,
     leases: Mutex<Vec<LeaseAuthority>>,
     fake: Fake,
     runtime: OpenShellRuntime,
@@ -919,6 +925,8 @@ impl Running {
         // unifies both Rustls provider features through other dependencies.
         let _ = rustls::crypto::ring::default_provider().install_default();
         let tls = TlsFiles::new();
+        let authentication =
+            worker_auth_tests::TestIssuer::start(&tls.dir, &tls.server_cert, &tls.server_key).await;
         let fake = Fake::new();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint = listener.local_addr().unwrap().to_string();
@@ -926,6 +934,7 @@ impl Running {
             let result = listener.accept().await.map(|(s, _)| s);
             Some((result, listener))
         });
+        let expected_bearer = format!("Bearer {}", authentication.token);
         let server = Server::builder()
             .tls_config(
                 ServerTlsConfig::new()
@@ -933,14 +942,29 @@ impl Running {
                     .client_ca_root(Certificate::from_pem(&tls.ca)),
             )
             .unwrap()
-            .add_service(api::open_shell_server::OpenShellServer::new(fake.clone()));
+            .add_service(api::open_shell_server::OpenShellServer::with_interceptor(
+                fake.clone(),
+                move |request: Request<()>| {
+                    if request
+                        .metadata()
+                        .get("authorization")
+                        .and_then(|value| value.to_str().ok())
+                        != Some(expected_bearer.as_str())
+                    {
+                        return Err(Status::unauthenticated("dedicated worker bearer required"));
+                    }
+                    Ok(request)
+                },
+            ));
         let task = tokio::spawn(async move {
             server.serve_with_incoming(incoming).await.unwrap();
         });
-        let runtime = OpenShellRuntime::connect(tls.config(endpoint.clone()))
-            .await
-            .unwrap();
+        let runtime =
+            OpenShellRuntime::connect(tls.config(endpoint.clone(), authentication.config.clone()))
+                .await
+                .unwrap();
         Self {
+            authentication,
             leases: Mutex::new(Vec::new()),
             fake,
             runtime,
@@ -1054,7 +1078,11 @@ async fn gateway_admission_auth_and_identity_fail_closed() {
     // The actual local TLS server rejects a different installation CA/client.
     let stranger = TlsFiles::new();
     assert!(matches!(
-        OpenShellRuntime::connect(stranger.config(running.endpoint.clone())).await,
+        OpenShellRuntime::connect(stranger.config(
+            running.endpoint.clone(),
+            running.authentication.config.clone()
+        ))
+        .await,
         Err(RuntimeFailure::Unavailable)
     ));
     // It also rejects a client offering no certificate, even with trusted CA.
@@ -1069,7 +1097,7 @@ async fn gateway_admission_auth_and_identity_fail_closed() {
         .await;
     if let Ok(channel) = channel {
         assert!(
-            crate::client::Client::new(channel)
+            api::open_shell_client::OpenShellClient::new(channel)
                 .get_gateway_info(crate::client::request(api::GetGatewayInfoRequest {}, 10))
                 .await
                 .is_err()
