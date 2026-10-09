@@ -77,7 +77,20 @@ async fn connect(root: &Path, endpoint: &str, role: ClientRole, scenario: Scenar
     }
 }
 async fn observe(channel: Channel, token: Option<&str>, scenario: Scenario) -> Result<(), Code> {
-    let mut request = Request::new(api::ListSandboxesRequest::default());
+    let mut request = Request::new(api::ListSandboxesRequest {
+        workspace_scope: Some(
+            veoveo_computers_runtime::protocol::datamodel::v1::WorkspaceSelector {
+                selection: Some(
+                    veoveo_computers_runtime::protocol::datamodel::v1::workspace_selector::Selection::Workspace(
+                        "default".into(),
+                    ),
+                ),
+            },
+        ),
+        page_size: 1,
+        page_token: String::new(),
+        label_selector: String::new(),
+    });
     request.set_timeout(DEADLINE);
     if let Some(token) = token {
         let mut bearer = format!("Bearer {token}")
@@ -88,11 +101,39 @@ async fn observe(channel: Channel, token: Option<&str>, scenario: Scenario) -> R
     }
     let mut client = api::open_shell_client::OpenShellClient::new(channel);
     match tokio::time::timeout(DEADLINE, client.list_sandboxes(request)).await {
-        Ok(Ok(_)) => Ok(()),
-        Ok(Err(status)) => Err(status.code()),
+        Ok(Ok(response)) => {
+            assert!(
+                response_is_bounded(&response.into_inner()),
+                "scenario={scenario:?} stage=ResponseBounds"
+            );
+            Ok(())
+        }
+        Ok(Err(status)) => {
+            eprintln!(
+                "scenario={scenario:?} request=ListSandboxes workspace=default page_size=1 code={:?} message={}",
+                status.code(),
+                safe_message(status.message(), token),
+            );
+            Err(status.code())
+        }
         Err(_) => panic!("scenario={scenario:?} stage=RpcDeadline"),
     }
 }
+fn response_is_bounded(response: &api::ListSandboxesResponse) -> bool {
+    response.sandboxes.len() <= 1
+}
+fn safe_message(message: &str, token: Option<&str>) -> String {
+    let redacted = match token.filter(|token| !token.is_empty()) {
+        Some(token) => message.replace(token, "[redacted]"),
+        None => message.to_owned(),
+    };
+    redacted
+        .chars()
+        .filter(|character| !character.is_control())
+        .take(256)
+        .collect()
+}
+
 fn denied(result: Result<(), Code>, expected: Code, scenario: Scenario) {
     assert_eq!(result, Err(expected), "scenario={scenario:?}");
 }
@@ -163,4 +204,30 @@ pub async fn assert_provider_security(
         Ok(()),
         "scenario=Authorized"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn readonly_probe_refuses_an_oversized_page() {
+        let mut response = api::ListSandboxesResponse::default();
+        assert!(response_is_bounded(&response));
+        response.sandboxes.push(Default::default());
+        assert!(response_is_bounded(&response));
+        response.sandboxes.push(Default::default());
+        assert!(!response_is_bounded(&response));
+    }
+
+    #[test]
+    fn rpc_diagnostics_redact_credentials_and_bound_untrusted_messages() {
+        let token = "private-test-credential";
+        let message = format!("invalid bearer {token}\n{}", "x".repeat(300));
+        let safe = safe_message(&message, Some(token));
+        assert!(!safe.contains(token));
+        assert!(!safe.contains('\n'));
+        assert!(safe.contains("[redacted]"));
+        assert_eq!(safe.len(), 256);
+    }
 }
