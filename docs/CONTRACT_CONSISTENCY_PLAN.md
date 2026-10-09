@@ -78,23 +78,24 @@ stays available. Shared native recovery controls pass; owner shutdown controls p
 one HTTP drain deadline and the observer's separate five-second drain. Installed
 Task lifecycle, restart and final-image qualification remain open.
 
-Time's owner harness prepares public-gateway read consumers and a separate schedule
-Task case with independent expected occurrences, exact-ID delivered completion and
-current result agreement. Its native fixture, receipt and identity controls pass.
-Installed execution remains held. Cancellation, unfinished Task restart recovery,
-Time activation and final-image acceptance require their owning qualification.
+The existing owner harnesses prepare the following checks. Their native controls
+pass; the new installed cases remain unexecuted during the installation hold.
+Earlier installed checkpoints keep their recorded scope below.
 
-Artifact's existing consumer prepares delegated SDK reads and optional retention of
-a Task-bound write capability across one explicitly selected service replacement,
-followed by redemption and idempotent replay. Its native SDK and admission controls
-pass. Public OAuth issuance, interrupted-write recovery and installed service
-replacement carry separate qualification; installed execution remains held.
+| Owner | Prepared installed checks | Remaining qualification |
+|---|---|---|
+| Time | Read consumers and schedule Tasks with independent expected occurrences, exact-ID delivered completion and current result agreement | Cancellation, unfinished restart recovery, authority activation and final images |
+| Artifact | Delegated SDK reads and retained Task-bound write capability across one selected service replacement, followed by redemption and idempotent replay | Public OAuth issuance, actual service replacement, interrupted-write recovery and final images |
+| Timeseries | Four-row forecast, RRD Artifact and usage; optional typed cancellation and connection replacement with original Task/result agreement | Unfinished server restart, selected cross-replica routing and final images |
+| Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
+| Knowledge | Full-catalog baseline and separate restricted-caller discovery, collection/completion visibility and document denials, with retained SDK cleanup | Installed caller-policy checks, unattended cold startup, current-generation recovery and final images |
+| Optimization | Multi-page existing solve corpus, exact products, usage, public Task results and canonical Artifact bytes under allowed and denied caller contexts | Installed GPU-produced corpus, mid-run policy changes, coordinated control/executor replacement and unfinished/cross-replica recovery |
 
-Timeseries preserves its deterministic four-row forecast, RRD Artifact and usage
-consumer checks. An optional typed workload prepares cancellation and connection
-replacement with original Task identity and result checks; owning native controls
-pass. Unfinished server-restart recovery, selected cross-replica routing and final
-installed images remain open.
+Optimization's Artifact GET adapter maps typed policy denials to its existing
+missing-resource response. Native HTTP controls distinguish those denials from
+authentication, transport, malformed-response and backend failures. The shared
+restart driver currently proves one selected container's exit; Optimization's
+two-container replacement still needs an owning coordinated drain check.
 
 Installed node activation and the stock rollout are halted after Secret values
 accidentally appeared in a tool transcript. Both tracked Veoveo and UAV HelmReleases
@@ -103,9 +104,13 @@ sixteen Secret objects: thirteen application Secrets and three Helm Secrets. All
 eight baseline services are Ready; the node is unchanged and uncordoned, and no
 installed credentials have changed. The eighteen selected stock native cases stay
 qualified, including the implemented aggregate Host profile of 1 CPU, 6 GiB and 1,024 PIDs.
-The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated. Owners are
-preparing a private credential replacement plan; external account rotations
-require their account owners. The matching worker catalog section and client must stay unpublished until every
+The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated. A private
+credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
+WaveSpeed and Google Maps replacement still requires account-management authority
+or private references to fresh credentials. Recording key retirement and audit
+signing-key verification continuity require their owning qualification. Existing
+authorization applies to the rollout. The matching
+worker catalog section and client must stay unpublished until every
 deployed catalog reader admits the full catalog. Credential replacement must preserve the actual live catalog,
 policy and enabled module composition. The strict full-catalog readers are Gateway,
 Computers MCP, Agent Manager and Knowledge. Retained Manager `affcaf` and Knowledge `7f2bd`
