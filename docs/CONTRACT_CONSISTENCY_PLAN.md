@@ -22,7 +22,8 @@ protocol case also passes authenticated discovery, anonymous discovery refusal,
 documents, transport and Gateway health/audit checks on admitted deployed images.
 Frames completed-state retention passes across one actual same-Pod process crash.
 Selected stock native Host same-image restart, stopped controller maintenance and
-terminal renewal/revocation pass. Other required native consumers, installed identity
+terminal renewal/revocation pass. Twelve additional selected stock native runtime,
+MCP, Execution and Storage cases pass; image transitions, installed identity
 materialization and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
 and owning controls. Task/subscription fixtures and complete installed A/F/H
 qualification remain open. See [Current Status](#current-status).
@@ -77,9 +78,9 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the actual Computer Host workload boundary, final installed profile/current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. Selected stock native Host same-image restart, stopped controller maintenance and terminal renewal/revocation pass. Running-controller crash recovery is unsupported by the accepted stock profile. Other required native consumers, image upgrade, node RuntimeClass activation and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
+| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. Selected stock native Host same-image restart, stopped controller maintenance and terminal renewal/revocation pass. Running-controller crash recovery is unsupported by the accepted stock profile. Twelve selected runtime/MCP/Execution/Storage native cases also pass. Distinct-image Host and directed template transitions, node RuntimeClass activation and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The selected four-server CPU protocol case at `1393fdc36` passes authenticated discovery, all four anonymous discovery refusals, documents, transport, Gateway health/audit and prompt isolation. Frames completed-state retention passes across one same-Pod process crash. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`; catalog/source paging, CSV/schema, Artifact publication and usage consumers pass at `374e25f345`. GitOps is suspended; Knowledge and Embedding are restored and Ready, while Reason and other GPU workloads stay off. Focused Frames and Knowledge installed cases also pass on admitted deployed images. Speech Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture audio on headed RTX 4090 WebGL | Complete remaining owner fixtures, remaining owner-required recovery cases, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The selected four-server CPU protocol case at `1393fdc36` passes authenticated discovery, all four anonymous discovery refusals, documents, transport, Gateway health/audit and prompt isolation. Frames completed-state retention passes across one same-Pod process crash. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`; catalog/source paging, CSV/schema, Artifact publication and usage consumers pass at `374e25f345`. GitOps is suspended; Knowledge, Embedding and Speech are Ready, while Host, Computers, Reason and other GPU workloads stay off. Focused Frames and Knowledge installed cases also pass on admitted deployed images. Speech Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture audio on headed RTX 4090 WebGL | Complete remaining owner fixtures, remaining owner-required recovery cases, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -134,7 +135,8 @@ Earlier patched-provider results do not qualify this profile.
 
 The fresh SSH-shell terminal cut passes owning controls and independent review.
 Each attachment opens a new PTY and shell; Ready reports request acceptance and
-normal xterm query responses pass. Deployment and native stock acceptance are open.
+normal xterm query responses pass. Selected stock native cases pass below; deployment
+and complete installed stock acceptance are open.
 The selected security architecture uses installation-supplied HTTPS OIDC with a
 dedicated worker OAuth credential profile, exact issuer/audience, explicit upstream
 user/admin roles and short-lived credentials. Host configuration disables mTLS user
@@ -185,9 +187,8 @@ image leaves `/sandbox/persistent` absent to skip Docker copy initialization bef
 registration; the allocator initializes its home outside the provider and writer
 fences stay enforced. Compilation and 17 focused mount/lifecycle diagnostic controls
 pass; the selected native Host case also exercises the real plugin-mounted owned
-image and retained bytes. The changed
-retained-template fingerprint requires catalog materialization and a coordinated
-drain.
+image and retained bytes. The reference catalog materializes the stock template and new fingerprint at
+`1666b8f66`; activation still requires a coordinated drain.
 
 The owner accepts stock OpenShell resource behavior. The outer Host must bound
 aggregate CPU, memory and PIDs for all descendants, including supervisors; supported
@@ -209,8 +210,22 @@ The fixture targets `/sandbox/persistent`; stock `HOME=/sandbox` had denied its
 marker write. Running-controller crash recovery is unsupported: the guest retains
 its prior supervisor binding and rejects the replacement, causing startup failure.
 Unexpected outcomes keep their run fences and cannot authorize another mutation.
-Both runtime postchecks confirm owned cleanup and unchanged core workloads. Other
-required native consumers, image upgrade and installed qualification stay open.
+Both runtime postchecks confirm owned cleanup and unchanged core workloads.
+The additional stock native matrix passes twelve selected cases: runtime four, MCP
+three, Execution three and Storage two. Runtime, MCP, Execution and the unchanged
+Storage filesystem use the accepted `28a820619` inputs. Storage service first failed
+because its synthetic writer inherited the Host entrypoint; retained daemon logs
+show its exit before the first write. The reviewed fixture-only explicit sleep
+entrypoint at `2f5f919a3` passes with a newly built test artifact. All twelve cases
+settled within their bounds, and final independent postcheck confirms owned cleanup
+and unchanged core workloads. These cases do not qualify an image transition: two
+distinct current-profile Host images and a directed template-image pair are unavailable.
+The reference stock catalog, command-key IDs and matching public revisions are
+committed at `1666b8f66`. The existing worker OAuth key matches its checked public
+JWKS; fresh trust is prepared offline without live Secrets. All 27 Computers tables
+are empty, and the unbound Host PVC is expected WaitForFirstConsumer state. Matching
+images/chart/configuration, Secrets, actual issuer CIDRs and installed qualification
+remain required.
 The runtime DinD fixture uses two CPUs, 1 GiB and 512 PIDs. The installed chart
 declares eight CPUs and 12 GiB. Ops generated its complete OCI base with pinned
 `ctr` 2.3.4-k3s1 and verified the sole 4096-PID transformation. Node configuration
@@ -252,8 +267,8 @@ payloads.
 
 The pre-stock Host native case passed namespace replacement, retained Docker and
 Computer identity, retained bytes, a new process identity and resource limits.
-The selected stock profile requires its own same-image restart and image-upgrade
-qualification, including security probes on the replacement generation. Its fixture-only mapping separates local image admission from private pull
+The selected stock same-image restart passes security probes on both generations;
+a distinct current-profile image pair is still required for image-upgrade qualification. Its fixture-only mapping separates local image admission from private pull
 addresses and checks manifest bytes, headers and image identity before creating
 fixture state. Compiler, five controls, strict lint and independent review pass.
 Every terminal fixture is cleaned up. Installed execution stays open.
@@ -329,8 +344,8 @@ Embedding/Map claims for Helm keep. Bound or data-bearing deferred claims requir
 an owner recovery plan. Ops has resumed the corrected release and verified kept
 claim UID/PV continuity and all ten pinned checkpoint file checksums after uninstall.
 Knowledge and Embedding are now restored at one Ready replica each with the retained
-model PVC identity unchanged. GitOps is suspended; Reason and other GPU workloads
-stay at zero replicas. Unattended cold-start qualification stays open. The old shared 197.9 GB
+model PVC identity unchanged. Speech also runs at one Ready replica. GitOps is
+suspended; Host, Computers, Reason and other GPU workloads stay at zero replicas. Unattended cold-start qualification stays open. The old shared 197.9 GB
 checkpoint/model volume is preserved because fourteen retained containers mount it.
 The selected `installed-protocol` case at source `1393fdc36` passes once in
 49.683753 seconds through normal `operator-initial` and administrator OAuth clients.
@@ -3275,16 +3290,17 @@ disabled, upstream roles, complete supervisor TLS and mandatory Sandbox JWT. Thr
 CA roles, projected worker inputs and optional admitted issuer CA pass owning source
 controls. Driver config
 uses stock mount fields; the owned image leaves the retained-home target absent to
-preserve registered-writer fencing. Its changed retained-template fingerprint
-requires a materialized catalog and coordinated drain. The existing Veoveo issuer,
+preserve registered-writer fencing. The reference catalog now contains its stock
+image and fingerprint; deployment requires the coordinated drain. The existing Veoveo issuer,
 restricted worker registration, public JWKS and reference Host/worker/chart inputs
 are implemented with `private_key_jwt`. Installation must materialize the worker
 registration, current Host/worker configuration, trust Secrets and worker-only
 projected private-key Secret, then activate matching admitted images and
 configuration through the coordinated drain. The selected stock native results are
-recorded in [Current Status](#current-status). Other required native consumers, image
-upgrade, node RuntimeClass activation and installed provider/containerd pulls remain
-qualification gates.
+recorded in [Current Status](#current-status), including the twelve-case runtime, MCP,
+Execution and Storage matrix. Distinct current-profile Host and directed template
+image transitions, node RuntimeClass activation, new-Pod 4096-PID verification and
+installed provider/containerd pulls remain qualification gates.
 
 Earlier patched-provider containment, companion adoption and terminal replay results
 apply to the pre-stock profile. Each current attachment opens a fresh SSH shell with
@@ -3300,14 +3316,14 @@ Update Host and worker configuration digests with their actual OIDC profiles,
 three-role trust inputs, projected private key and optional admitted issuer CA.
 Declare Host issuer/JWKS and worker discovery/token HTTPS CIDRs explicitly.
 
-Materialize the admitted template catalog and new fingerprints in Host, worker,
-default and execution/file lists. Preserve retained catalog identities; a changed
+The committed reference inputs materialize the admitted template catalog and new
+fingerprints in Host, worker, default and execution/file lists. Preserve retained catalog identities; a changed
 default applies to new requests. Existing bindings need a qualified maintenance
 transition, and the reference's empty transition list grants no automatic adoption.
 Drain previous readers and workers after settling pending operations. Keep unresolved
 resource fences, retained homes, journals and matched rollback artifacts. Preserve
-the qualified native Host profile while qualifying remaining runtime-native cases
-and installed public OAuth, terminal, CLI and file journeys. Headed
+the qualified native Host and selected native consumer profiles while qualifying
+image transitions and installed public OAuth, terminal, CLI and file journeys. Headed
 terminal acceptance still requires hardware graphics.
 
 Publish the complete affected image closure for the final wire/storage cut: servers,
