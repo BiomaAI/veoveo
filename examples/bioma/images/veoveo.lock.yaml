@@ -26,6 +26,6 @@ global:
     veoveo/timeseries-mcp: sha256:d17494a4481c89b51a144c90dd7beb52eef18834f6f886786d2d471bb4734166
     veoveo/view-mcp: sha256:4184d9ca78dfffb634bbf001545f8652b1033152684219c41ba92ad3532b810b
     veoveo/agent-kernel: sha256:b3aff146d3ca6b065077081667b9e4e45f784b5bf4cd9f6a59729e3ab6e9ad85
-    veoveo/agent-manager: sha256:affcaf1485545e3729360b6e86aa7c34622f1888a248d62a9cb2974a8f992058
+    veoveo/agent-manager: sha256:b70f09038e251a9ff02ceefb96de95bb0fcad42cfb5133c901780dcdf413e553
     veoveo/speech-mcp: sha256:7f7e27c242bd63a4aa91c52e59ab05fa2edd2af90ed63c30360b4c70b0ba4e94
-    veoveo/knowledge-mcp: sha256:7f2bd6b0847666dfa8f10d41ab4d392d54105b4bbe6fc697412efbfed037de18
+    veoveo/knowledge-mcp: sha256:4a3097f3df407fb780508ef69694449bc592b6a316885dda6cd08327a3a3ee47

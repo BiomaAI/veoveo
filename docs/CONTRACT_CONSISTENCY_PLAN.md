@@ -272,8 +272,11 @@ state. Node RuntimeClass activation, live Secrets/configuration and installed
 qualification remain required. The remaining stock image closure contains seven
 images: Computer Host, Computer template, Computers MCP, Gateway, Console BFF,
 Agent Manager and Knowledge. The prior five-image publication and native results
-keep their recorded scope. First qualify current Manager and Knowledge images
-against the unchanged live catalog, policy and module generation, replace their old
+keep their recorded scope. Manager `b70f09038e25` and Knowledge `4a3097f3df40`
+are staged from `32023cd58`; their prepared pins preserve the tracked source hold. Stage receipts and BuildKit provenance bind that source; both runtime image
+configs lack an OCI revision label. Registry readback verifies the runnable digests,
+not release eligibility or installed reader admission. First qualify current Manager and Knowledge images
+against the unchanged live catalog, policy and enabled module composition, replace their old
 readers, and restore Ready plus functional Knowledge indexing and search before
 publication. Preserve Knowledge desired replicas at one while its Recreate deployment
 transitions, and keep Embedding and Speech Ready. The current registry admits the old
@@ -3366,12 +3369,20 @@ acceptance Ready and renewable lease controls. Qualify this profile before closi
 F23 or A09.
 
 The affected installed image closure is `computer-host`, `computer-template`,
-`computers-mcp`, `mcp-gateway` and `console-bff`; the last packages both browser
-clients. Provider and storage images are Host build inputs. Preserve the official
-supervisor mirror's manifest and config digests. The matching five image pins,
-published Veoveo chart and installation configuration/module revisions are committed.
-Activate those inputs together with three-role trust, the projected worker private
-key and optional admitted issuer CA through the coordinated drain.
+`computers-mcp`, `mcp-gateway`, `console-bff`, `agent-manager` and `knowledge-mcp`;
+BFF packages both browser clients. Provider and storage images are Host build inputs.
+Preserve the official supervisor mirror's manifest and config digests. The first five
+image pins, published Veoveo chart and matching configuration/module revisions keep
+their recorded artifact qualification. Manager and Knowledge prepared pins add
+source-bound compatible readers whose installed admission still needs proof. Roll
+those readers against the actual old catalog and enabled module composition, drain
+old readers, and prove Manager Ready plus Knowledge Ready and functional indexing
+and search before atomically publishing the matching worker section and client.
+Preserve Knowledge desired replicas at one through Recreate and keep Embedding and
+Speech Ready. Ordinary concurrent Helm reconciliation cannot enforce this sequence;
+the tracked Veoveo and UAV holds stay set. Only the later admitted activation applies
+matched images/configuration, three-role trust, the projected worker private key and
+optional issuer CA through the coordinated drain.
 The current reference keeps NetworkPolicy disabled while preserving all TLS and
 token checks. Enabling Host isolation requires actual issuer/JWKS CIDRs and separate
 network qualification; worker egress policy changes must qualify every selected
