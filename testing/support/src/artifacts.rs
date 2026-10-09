@@ -9,7 +9,7 @@ pub enum ArtifactFormat {
 }
 use sha2::{Digest, Sha256};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     io::Read,
     path::{Path, PathBuf},
 };
@@ -81,6 +81,38 @@ fn read_manifest(reader: impl Read) -> Result<ArtifactManifest> {
     Ok(serde_json::from_slice(&bytes)?)
 }
 
+/// This map belongs to one admission; no file identity survives another call.
+fn admit_file(
+    path: &Path,
+    expected: &veoveo_types::Sha256Digest,
+    admitted: &mut BTreeMap<PathBuf, veoveo_types::Sha256Digest>,
+) -> Result<()> {
+    if let Some(digest) = admitted.get(path) {
+        ensure!(
+            digest == expected,
+            "conflicting artifact digests for one canonical path"
+        );
+        return Ok(());
+    }
+    let mut file = std::fs::File::open(path)?;
+    let mut hash = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let count = file.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        hash.update(&buffer[..count]);
+    }
+    let digest = veoveo_types::Sha256Digest::from_bytes(hash.finalize().into());
+    ensure!(
+        &digest == expected,
+        "compiled artifact changed after preparation"
+    );
+    admitted.insert(path.to_owned(), digest);
+    Ok(())
+}
+
 impl ArtifactManifest {
     pub fn admit(&self, repository: &Path) -> Result<()> {
         ensure!(
@@ -94,6 +126,7 @@ impl ArtifactManifest {
         );
         let target = self.target_root.canonicalize()?;
         let mut selected = BTreeSet::new();
+        let mut admitted = BTreeMap::new();
         for entry in &self.entries {
             entry.selection.check()?;
             relative(&entry.selection.owner)?;
@@ -106,13 +139,8 @@ impl ArtifactManifest {
                 executable.starts_with(&target) && executable.is_file(),
                 "executable escapes observed target root"
             );
-            let digest = veoveo_types::Sha256Digest::from_bytes(
-                Sha256::digest(std::fs::read(&executable)?).into(),
-            );
-            ensure!(
-                digest == entry.sha256,
-                "compiled executable changed after preparation"
-            );
+            admit_file(&executable, &entry.sha256, &mut admitted)
+                .context("compiled executable changed after preparation")?;
             ensure!(
                 !entry.compiler_graph.is_empty(),
                 "compiler dependency graph is absent"
@@ -187,17 +215,12 @@ impl ArtifactManifest {
             );
             for library in &entry.runtime_libraries {
                 let path = library.path.canonicalize()?;
-                let digest = veoveo_types::Sha256Digest::from_bytes(
-                    Sha256::digest(std::fs::read(&path)?).into(),
-                );
-                ensure!(
-                    digest == library.sha256,
-                    "runtime library changed after compiler preparation"
-                );
                 ensure!(
                     path.starts_with(&target) && path.is_file(),
                     "runtime library escapes observed target root"
                 );
+                admit_file(&path, &library.sha256, &mut admitted)
+                    .context("runtime library changed after compiler preparation")?;
             }
         }
         Ok(())
@@ -212,10 +235,44 @@ impl ArtifactManifest {
             .find(|entry| &entry.selection == selection && entry.target_kind == kind)
             .context("required compiler-observed artifact is absent")
     }
-    pub fn from_environment(repository: &Path) -> Result<Self> {
+    fn selected_binary(&self, package: &str, target: &str) -> Result<&ArtifactEntry> {
+        let mut matching = self.entries.iter().filter(|entry| {
+            entry.selection.package.as_str() == package
+                && entry.selection.target == target
+                && entry.target_kind == NativeTargetKind::Binary
+        });
+        let entry = matching
+            .next()
+            .context("required observed native executable is absent")?;
+        ensure!(
+            matching.next().is_none(),
+            "ambiguous native executable selection"
+        );
+        Ok(entry)
+    }
+
+    /// Freshly admit the full manifest, then bind selection and declared runtime together.
+    pub fn prepare_binary_command(
+        &self,
+        repository: &Path,
+        package: &str,
+        target: &str,
+    ) -> Result<std::process::Command> {
+        self.admit(repository)?;
+        let entry = self.selected_binary(package, target)?;
+        let mut command = std::process::Command::new(&entry.executable);
+        configure_runtime(&mut command, entry)?;
+        Ok(command)
+    }
+
+    fn load_environment() -> Result<Self> {
         let path = std::env::var_os("VEOVEO_SMOKE_ARTIFACTS")
             .context("VEOVEO_SMOKE_ARTIFACTS is required")?;
-        let manifest = read_manifest(std::fs::File::open(path)?)?;
+        read_manifest(std::fs::File::open(path)?)
+    }
+
+    pub fn from_environment(repository: &Path) -> Result<Self> {
+        let manifest = Self::load_environment()?;
         manifest.admit(repository)?;
         Ok(manifest)
     }
@@ -241,26 +298,28 @@ pub fn configure_runtime(command: &mut std::process::Command, entry: &ArtifactEn
     Ok(())
 }
 
-pub fn executable(package: &str, target: &str) -> anyhow::Result<PathBuf> {
+fn repository_root() -> Result<PathBuf> {
     let root = std::process::Command::new("git")
         .args(["rev-parse", "--show-toplevel"])
         .output()?;
-    anyhow::ensure!(root.status.success(), "cannot admit repository source root");
-    let root = PathBuf::from(std::str::from_utf8(&root.stdout)?.trim());
+    ensure!(root.status.success(), "cannot admit repository source root");
+    Ok(PathBuf::from(std::str::from_utf8(&root.stdout)?.trim()))
+}
+
+pub fn executable(package: &str, target: &str) -> Result<PathBuf> {
+    let root = repository_root()?;
     let manifest = ArtifactManifest::from_environment(&root)?;
-    let mut matching = manifest.entries.iter().filter(|e| {
-        e.selection.package.as_str() == package
-            && e.selection.target == target
-            && e.target_kind == NativeTargetKind::Binary
-    });
-    let entry = matching
-        .next()
-        .context("required observed native executable is absent")?;
-    anyhow::ensure!(
-        matching.next().is_none(),
-        "ambiguous native executable selection"
-    );
-    Ok(entry.executable.clone())
+    Ok(manifest
+        .selected_binary(package, target)?
+        .executable
+        .clone())
+}
+
+/// Prepare a compiler-observed binary and its runtime with one fresh full admission.
+/// Provider and system programs retain their separately owned command paths.
+pub fn binary_command(package: &str, target: &str) -> Result<std::process::Command> {
+    let root = repository_root()?;
+    ArtifactManifest::load_environment()?.prepare_binary_command(&root, package, target)
 }
 
 /// An explicit native path must identify the same observed target; absent input uses its Cargo receipt.
@@ -316,6 +375,28 @@ mod tests {
         // Size admission does not replace the existing semantic artifact checks.
         let manifest = read_manifest(serde_json::to_vec(&value).unwrap().as_slice()).unwrap();
         assert!(manifest.admit(Path::new("/source")).is_err());
+    }
+
+    #[test]
+    fn streaming_hash_deduplication_is_local_to_one_admission() {
+        let target = tempfile::tempdir().unwrap();
+        let path = target.path().join("large-fixture");
+        std::fs::write(&path, vec![7; 3 * 64 * 1024 + 17]).unwrap();
+        let expected = digest(&path);
+        let mut admitted = BTreeMap::new();
+        admit_file(&path, &expected, &mut admitted).unwrap();
+        admit_file(&path, &expected, &mut admitted).unwrap();
+        assert_eq!(admitted.len(), 1);
+        assert!(
+            admit_file(
+                &path,
+                &veoveo_types::Sha256Digest::from_bytes([0; 32]),
+                &mut admitted
+            )
+            .is_err()
+        );
+        std::fs::write(&path, b"changed after prior admission").unwrap();
+        assert!(admit_file(&path, &expected, &mut BTreeMap::new()).is_err());
     }
 
     #[test]
@@ -391,6 +472,56 @@ mod tests {
             }],
         };
         manifest.admit(source.path()).unwrap();
+        let prepared = manifest
+            .prepare_binary_command(source.path(), "independent-owner", "probe")
+            .unwrap();
+        assert_eq!(prepared.get_program(), executable.as_os_str());
+        for key in ["LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "PATH"] {
+            let runtime = prepared
+                .get_envs()
+                .find(|(name, _)| *name == key)
+                .unwrap()
+                .1
+                .unwrap();
+            assert_eq!(
+                std::env::split_paths(runtime).next().unwrap(),
+                target.path()
+            );
+        }
+        assert!(
+            manifest
+                .prepare_binary_command(source.path(), "another-owner", "probe")
+                .is_err()
+        );
+        assert!(
+            manifest
+                .prepare_binary_command(source.path(), "independent-owner", "absent")
+                .is_err()
+        );
+        // Canonical aliases share hashing, while declarations still bind their digest.
+        let mut shared = manifest.entries[0].runtime_libraries[0].clone();
+        shared.path = target.path().join(".").join("libprobe.so");
+        manifest.entries[0].runtime_libraries.push(shared);
+        manifest
+            .prepare_binary_command(source.path(), "independent-owner", "probe")
+            .unwrap();
+        manifest.entries[0].runtime_libraries[1].sha256 =
+            veoveo_types::Sha256Digest::from_bytes([0; 32]);
+        assert!(
+            manifest
+                .prepare_binary_command(source.path(), "independent-owner", "probe")
+                .is_err()
+        );
+        manifest.entries[0].runtime_libraries.pop();
+        let mut ambiguous = manifest.entries[0].clone();
+        ambiguous.selection.owner = "testing/fixtures/another-owner".into();
+        manifest.entries.push(ambiguous);
+        assert!(
+            manifest
+                .prepare_binary_command(source.path(), "independent-owner", "probe")
+                .is_err()
+        );
+        manifest.entries.pop();
         let mut test_entry = manifest.entries[0].clone();
         test_entry.target_kind = NativeTargetKind::Test;
         manifest.entries.push(test_entry);
@@ -408,9 +539,19 @@ mod tests {
             .insert("smoke".into());
         std::fs::write(&library, b"replaced native library").unwrap();
         assert!(manifest.admit(source.path()).is_err());
+        assert!(
+            manifest
+                .prepare_binary_command(source.path(), "independent-owner", "probe")
+                .is_err()
+        );
         std::fs::write(&library, b"observed fixture library").unwrap();
         manifest.admit(source.path()).unwrap();
         std::fs::write(&executable, b"replaced executable").unwrap();
         assert!(manifest.admit(source.path()).is_err());
+        assert!(
+            manifest
+                .prepare_binary_command(source.path(), "independent-owner", "probe")
+                .is_err()
+        );
     }
 }

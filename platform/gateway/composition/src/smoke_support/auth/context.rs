@@ -46,12 +46,11 @@ pub(crate) struct TokenRequest<'a> {
 pub(crate) async fn exchange_token(request: TokenRequest<'_>) -> Result<String> {
     request.credentials.validate()?;
     let [key_file, key_id] = request.credentials.environment();
-    let executable = veoveo_testing_support::artifacts::executable(
+    let prepared = veoveo_testing_support::artifacts::binary_command(
         "veoveo-gateway-composition",
         "gateway-smoke-support",
     )?;
-    let mut command = tokio::process::Command::new(&executable);
-    veoveo_testing_support::configure_binary_runtime(command.as_std_mut(), &executable)?;
+    let mut command = tokio::process::Command::from(prepared);
     command
         .args([
             "gateway-token-exchange",

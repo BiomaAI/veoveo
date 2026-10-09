@@ -24,6 +24,8 @@ Descriptors contain no shared list of production domains or scenario names. Tool
 
 Tooling groups roots only after admitting their full normal/build and normal/test-dev effective feature sets. Artifact receipts bind compiler-observed package identities, target kinds and both feature projections. The loader requires equality with those admitted sets, hashes the emitted executable and each recorded native library with the owner SHA-256 constructor, and rejects replacement before use. Explicit path overrides must identify the same receipt. Listing and execution use the same runtime library configuration.
 
+Each fresh admission hashes each canonical executable or library path once with a 64 KiB streaming buffer. Repeated declarations must agree on the expected digest. The map is local to that admission; later calls rehash every unique file. Binary command preparation selects the observed package/target/kind and configures its declared runtime from that same freshly admitted manifest.
+
 Artifact receipt readers consume at most 4 MiB plus one byte and reject larger inputs before parsing. The seven-artifact Gateway schema selection occupies about 1.4 MiB with its complete per-entry compiler and feature graphs. Size admission preserves executable, native-library and graph checks.
 
 Descriptors and artifact receipts use camelCase controlled fields and closed version tags. Cargo JSON keeps Cargo's upstream field spellings at its decoder. Ordinary enum values use snake_case. There are no old-key aliases for these initial formats.
