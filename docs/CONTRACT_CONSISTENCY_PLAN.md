@@ -10,7 +10,9 @@ stock OIDC; package image `ea4ffc9f7` is assembled and staged with all four offi
 executable hashes and versions verified. Three CA roles, projected credentials,
 stock mount fields and the owned image's absent retained-home target pass source
 controls, including thirteen Host and eight OAuth/issuer cases. Optional admitted
-issuer CA inputs configure issuer HTTPS trust with verification enabled. Installation worker OAuth profile inputs, native security
+issuer CA inputs configure issuer HTTPS trust with verification enabled. The focused
+installed DuckDB Task, completion subscription and graceful-restart check passes
+through normal Gateway OAuth. Installation worker OAuth profile inputs, native security
 and retained lifecycle, and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
 and owning controls. Task/subscription fixtures and complete installed A/F/H
 qualification remain open. See [Current Status](#current-status).
@@ -67,7 +69,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging, thirteen Host, eight OAuth/issuer and six xtask packaging controls pass. External OIDC worker authentication is selected with certificate-to-user promotion disabled. Worker OAuth profile/configuration, native security and lifecycle qualification remain open; stock activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. Earlier initial tool-server and nine-scope checks pass their recorded qualification. GitOps is suspended and GPU services, including Embedding, are scaled off during source work; complete installed fixtures remain open | Qualify corrected initial-target Task and subscription fixtures, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. Initial tool-server and nine-scope checks pass their recorded qualification. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`. GitOps is suspended and GPU services, including Embedding, are scaled off during source work; complete installed fixtures remain open | Qualify the corrected Frames immutable-subscription probe, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -141,15 +143,22 @@ explicit `computers.host.issuerEgress` IPv4 CIDRs for HTTPS discovery/JWKS; miss
 destinations refuse rendering. Worker discovery/token HTTPS requires the separate
 `networkPolicy.externalEgressCidrs` installation declaration and qualification.
 The chart supplies no issuer credentials.
-The installation profile should reuse Veoveo's authorization server, signing keys,
-JWKS and private-key client authentication. Computers owns a separate non-MCP
-audience and the worker's role authority. The worker uses its own restricted client
-identity and key; this does not require another Entra application. Stock-compatible
-discovery, private-key token acquisition and owner-contributed role issuance need
-implementation and qualification before this profile can replace the current
-client-secret adapter. OpenShell stays unmodified. Owner authorization permits
-native qualification with the owning test-only issuer. Installed activation requires
-the admitted external inputs. Stock driver config now emits only supported mount fields. The owned
+The accepted installation profile reuses Veoveo's authorization server, signing
+keys, JWKS and `private_key_jwt` client authentication. Computers owns the checked
+`ai.veoveo/computer-worker-authorization` catalog section, non-MCP resource audience
+and closed worker role vocabulary. Its restricted client has one resource, one
+scope, client-credentials grant and private-key authentication; the worker key is
+separate from operator and browser credentials. No additional Entra application or
+OAuth service is required. The Gateway decorates the existing registration through
+an exclusive owner claim, checks current membership and rejects owner collisions
+and disabled-client fallback. Shared assertion signing belongs in `platform/oauth`;
+credential-file admission, token caching and provider role decisions stay with their
+owners. Stock-compatible discovery exposes the JWT access-token verification
+fields without claiming unsupported OpenID login or ID-token flows. Three workers
+are implementing this source batch with one Cargo owner. Native and installed
+qualification remain open. OpenShell stays unmodified. Owner authorization permits
+native qualification with the owning test-only issuer; stock activation also requires
+the pending resource-guarantee decision below. Stock driver config now emits only supported mount fields. The owned
 image leaves `/sandbox/persistent` absent to skip Docker copy initialization before
 registration; the allocator initializes its home outside the provider and writer
 fences stay enforced. Compilation and 17 focused mount/lifecycle diagnostic controls
@@ -297,8 +306,9 @@ rejection with -32602. The initial target selects those nine scopes and passes o
 qualification. The DuckDB fixture dispatched export but rejected the returned Task
 identity before starting its listener. Correlated native and gateway Task reads
 settle the original export as cancelled with no result URI and zero produced Artifacts.
-Unknown unlinked partial effects remain untouched. Normal OAuth Task completion/listen
-qualification and subscription fixtures remain open.
+Unknown unlinked partial effects remain untouched. The later focused installed-host
+case qualifies one DuckDB query Task and its completion listener. Other owner Task
+and subscription fixtures remain open.
 Artifact preparation now hashes each shared file once per fresh admission and
 selects the OAuth executable and runtime together. The installed Frames case
 passes normal OAuth, the worlds listener's authored invalidation, publication and
@@ -314,7 +324,15 @@ The authored World and revision are retained without redispatch.
 The CPU `installed-host` selector reuses the installation
 harness for one bounded query Task, delivered completion, an admitted DuckDB process
 drain and completed-result retention. Compiler checks, focused behavioral
-controls and independent review pass. Installed acceptance is pending.
+controls and independent review pass. The canonical installed scenario passes once
+at source `10821ea750985a5f09922d22b8bf69a0fccf3945`: `SELECT 1 AS answer` completes,
+the exact Task listener delivers the completed state, and the full typed result
+agrees before and after one UID-fenced DuckDB restart. The old container exits with
+code 0 inside its 30-second termination grace period, the replacement becomes Ready,
+and Deployment, image, PVC and PV identities are preserved. Cleanup awaits both
+listeners and the MCP client; the Task and existing database are retained. This
+qualifies the focused A05/A12 case on the admitted deployed image and configuration,
+without proving all-server acceptance or final source/image agreement.
 The database runtime credential is rotated. Replacement authentication, the existing
 EDITOR role, both namespaced Secrets and the local runtime input agree. Eleven CPU
 services are restored and Ready, and normal nine-scope OAuth and the owned DuckDB
