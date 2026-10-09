@@ -55,6 +55,16 @@ configured graceful Drop policy. An unresolved forced drain preserves its
 registration for owner reconciliation. Native controls use an owned shell and
 descendant that ignore SIGINT and SIGTERM to qualify timeout and cancellation.
 
+`AsyncChild::cleanup_until` observes an already admitted process group after
+operation cancellation. Both launch paths carry the admission owner's Arc through
+handoff. The first caller deadline is capped by that owner's cleanup end;
+subsequent calls can only shorten it. The method kills the known group and reuses
+WNOWAIT observation, registration removal and leader reaping after all descendants
+exit. An interrupted wait can resume within the same cap. Failed, expired,
+cleared-owner or replaced-owner cleanup preserves its failed state and registration.
+After explicit cleanup begins, fallback Drop uses that captured cap, including when
+a different owner is active. Ordinary Drop behavior applies before explicit entry.
+
 Framework dispatch verifies one exact selected case and reads maintained framework outcomes. Libtest admission checks the executed case name and status as well as summary counts. Extra selection-changing arguments are refused before preparation. Missing, ambiguous, zero-case, skipped and failed outcomes are errors. Failed cleanup or result admission keeps private diagnostic files and exposes only their paths. Successful exit cannot substitute for framework execution.
 
 ## Qualification
@@ -108,6 +118,35 @@ opaque resource versions fail; the observer never orders resource versions.
 Deletion or Ready alone cannot qualify exit. Watch errors, gaps, premature closure and missing terminal state fail.
 Owned process groups are cancelled on every exit path. Replacement readiness and
 public routing are checked independently after drain.
+
+
+The coordinated selected-Pod profile accepts two to eight distinct regular-container
+profiles. Every member shares the admitted namespace, Deployment, ReplicaSet and
+Pod identities. Individual members select ordinary-server or NVIDIA resource
+admission. One watch supplies the full initial Pod snapshot before one fenced
+patch. Each member must report exit code zero for its admitted containerID and
+restartCount inside its own deadline and Pod deletion grace. Partial successful
+exit facts survive a later member failure; group success requires every member.
+A selected group permits one attempt, including after an ambiguous patch response.
+
+Replacement admission requires one ready Pod with new Pod and ReplicaSet UIDs,
+new selected containerIDs, unchanged admitted imageIDs and the same resource
+profiles. The controlling ReplicaSet must belong to the same Deployment. The
+Deployment must advance by exactly one generation; an intervening rollout fails.
+Public routing and the final Deployment guard complete the restart receipt.
+The receipt contains instance/image digests and typed per-member termination facts.
+Owners call `verify_drain_group_replacement` after retained-state reads. It admits
+the current route, then rechecks the receipt’s Pod/ReplicaSet UIDs, selected process
+identities, readiness, resource profiles and the same Deployment generation. Resource
+versions may advance without ordering; a changed process identity fails the fence.
+
+Before watch launch, the group registers its actual retained handle with the shared
+owner. Local timeout, watch gaps and global operation cancellation await the same
+consuming cleanup future within the original cleanup deadline. Sticky cleanup
+failure and partial progress prevent an empty slot from proving successful closure.
+CPU controls exercise profile admission, partial and failed exits, wrong instances,
+stale watches, same-image replacement and real subprocess cleanup. Installed owners
+qualify Kubernetes rollout and GPU workload behavior with their own fixtures.
 
 
 ## Installed Process Crash Observation

@@ -16,8 +16,13 @@ use veoveo_types::ResourceUri;
 
 mod crash;
 mod drain;
+mod group;
 pub use crash::{CrashIdentity, CrashReceipt, CrashTarget, CrashWatch};
 pub use drain::{DrainProfile, DrainReceipt, SelectedDrainIdentity, SelectedDrainTarget};
+pub use group::{
+    ContainerExit, DrainGroupProgress, DrainGroupReceipt, DrainGroupState,
+    ReplacementContainerIdentity, SelectedDrainGroup,
+};
 
 #[derive(Clone)]
 pub struct DeploymentRestart {

@@ -133,7 +133,7 @@ pub struct DrainReceipt {
     pub container_instance_sha256: String,
     pub restart_count: u32,
 }
-fn instance_digest(value: &str) -> String {
+pub(super) fn instance_digest(value: &str) -> String {
     use sha2::{Digest, Sha256};
     hex::encode(Sha256::digest(value.as_bytes()))
 }
@@ -379,7 +379,10 @@ impl DrainObservation {
         let WatchEvent::Added(pod) = event else {
             anyhow::bail!("selected old pod watch did not establish initial state")
         };
-        self.identity(&pod)?;
+        self.initial_pod(&pod)
+    }
+    pub(super) fn initial_pod(&self, pod: &Pod) -> Result<()> {
+        self.identity(pod)?;
         ensure!(
             pod.metadata.resource_version == self.selected.pod_version,
             "old pod changed before watch admission; select it again before effects"
@@ -411,7 +414,15 @@ impl DrainObservation {
             WatchEvent::Modified(pod) | WatchEvent::Deleted(pod) => pod,
             _ => anyhow::bail!("old pod watch gap or unexpected event"),
         };
-        self.identity(&pod)?;
+        self.observe_pod(&pod, deleted, dispatched)
+    }
+    pub(super) fn observe_pod(
+        &mut self,
+        pod: &Pod,
+        deleted: bool,
+        dispatched: DateTime<Utc>,
+    ) -> Result<bool> {
+        self.identity(pod)?;
         version(&pod.metadata.resource_version)?;
         ensure!(
             self.versions.insert(pod.metadata.resource_version.clone()),
@@ -478,6 +489,11 @@ impl DrainObservation {
             "old Pod deleted without a full same-instance terminal snapshot"
         );
         Ok(false)
+    }
+    pub(super) fn qualified(&self) -> Option<(&Terminated, DateTime<Utc>)> {
+        self.qualified
+            .as_ref()
+            .map(|(exit, deletion)| (exit, *deletion))
     }
     pub(super) fn receipt(self, generation: u64) -> Result<DrainReceipt> {
         let (terminated, deletion) = self
@@ -553,6 +569,10 @@ impl PodWatch {
             tokio::time::timeout(Duration::from_secs(5), self._child.wait()).await,
             Ok(Ok(_))
         )
+    }
+    pub(super) async fn close_until(mut self, deadline: std::time::Instant) -> Result<()> {
+        self._child.cleanup_until(deadline).await?;
+        Ok(())
     }
     pub(super) async fn next(&mut self) -> Result<WatchEvent> {
         use tokio::io::AsyncReadExt;

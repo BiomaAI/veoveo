@@ -8,6 +8,12 @@ pub struct ChildGuard {
     settled: Option<std::process::ExitStatus>,
     owner_scope: bool,
     abort_cleanup: Option<std::sync::Arc<crate::lifecycle::owner::CommandCleanup>>,
+    explicit_cleanup: Option<ExplicitCleanup>,
+}
+struct ExplicitCleanup {
+    owner: Option<std::sync::Arc<crate::lifecycle::owner::Active>>,
+    end: std::time::Instant,
+    failed: bool,
 }
 impl ChildGuard {
     pub fn spawn(
@@ -38,6 +44,7 @@ impl ChildGuard {
             settled: None,
             owner_scope: false,
             abort_cleanup: None,
+            explicit_cleanup: None,
             drain_on_drop: None,
         })
     }
@@ -51,6 +58,7 @@ impl ChildGuard {
             settled: None,
             owner_scope: false,
             abort_cleanup: None,
+            explicit_cleanup: None,
             drain_on_drop: None,
         })
     }
@@ -77,6 +85,16 @@ impl ChildGuard {
         if let Some(status) = self.settled {
             return Ok(Some(status));
         }
+        if let Some(cleanup) = &mut self.explicit_cleanup {
+            let end = cleanup
+                .owner
+                .as_ref()
+                .map_or(cleanup.end, |owner| cleanup.end.min(owner.cleanup_end()));
+            if cleanup.failed || std::time::Instant::now() >= end {
+                cleanup.failed = true;
+                anyhow::bail!("owned child cleanup failed or expired; identity retained");
+            }
+        }
         match waitid(
             Id::Pid(Pid::from_raw(self.child.id() as i32)),
             WaitPidFlag::WEXITED | WaitPidFlag::WNOHANG | WaitPidFlag::WNOWAIT,
@@ -99,6 +117,30 @@ impl ChildGuard {
     }
     pub fn stop(&mut self) {
         if self.settled.is_some() {
+            return;
+        }
+        if let Some(cleanup) = &self.explicit_cleanup {
+            // Explicit cleanup never borrows a later owner's grace. Failed
+            // observation preserves the unreaped identity and registration.
+            let end = cleanup
+                .owner
+                .as_ref()
+                .map_or(cleanup.end, |owner| cleanup.end.min(owner.cleanup_end()));
+            let failed = cleanup.failed;
+            if std::time::Instant::now() < end {
+                let _ = nix::sys::signal::killpg(
+                    nix::unistd::Pid::from_raw(self.child.id() as i32),
+                    nix::sys::signal::Signal::SIGKILL,
+                );
+            }
+            if !failed {
+                while std::time::Instant::now() < end {
+                    if matches!(self.observe(), Ok(Some(_))) {
+                        return;
+                    }
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            }
             return;
         }
         if let Some(cleanup) = self.abort_cleanup.clone() {
@@ -342,6 +384,7 @@ async fn cleanup_container(id: &str) -> Result<()> {
         settled: None,
         owner_scope: false,
         abort_cleanup: None,
+        explicit_cleanup: None,
     };
     let scope = crate::lifecycle::owner::active().context("missing fixture cleanup owner")?;
     let end = scope.cleanup_end();
@@ -468,6 +511,7 @@ fn output_command_in_owner(
         settled: None,
         owner_scope: false,
         abort_cleanup: None,
+        explicit_cleanup: None,
         drain_on_drop: Some(Duration::from_secs(1)),
     };
     let end = crate::lifecycle::owner::active()
@@ -585,7 +629,7 @@ mod async_process;
 pub use async_process::{AsyncChild, output_async, spawn_async};
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     // These nested libtest fixtures own their command environment and lease.
@@ -611,11 +655,12 @@ mod tests {
             settled: None,
             owner_scope: false,
             abort_cleanup: Some(cleanup),
+            explicit_cleanup: None,
             drain_on_drop: Some(Duration::ZERO),
         }
     }
 
-    fn isolated_control(name: &str, key: &str, mode: &str) {
+    pub(crate) fn isolated_control(name: &str, key: &str, mode: &str) {
         let root = tempfile::tempdir().unwrap();
         let mut command = Command::new(env::current_exe().unwrap());
         command
@@ -747,6 +792,7 @@ mod tests {
                     settled: None,
                     owner_scope: false,
                     abort_cleanup: Some(helper_cleanup),
+                    explicit_cleanup: None,
                     drain_on_drop: None,
                 };
                 wait.recv().unwrap();
@@ -783,8 +829,9 @@ mod tests {
                     .enable_all()
                     .build()
                     .unwrap();
-                let mut child =
-                    runtime.block_on(async { async_process::from_guard(guard).unwrap() });
+                let mut child = runtime.block_on(async {
+                    async_process::from_guard(guard, Some(original.clone())).unwrap()
+                });
                 assert!(
                     runtime.block_on(child.wait()).is_err(),
                     "late output wait ignored original cancellation"
