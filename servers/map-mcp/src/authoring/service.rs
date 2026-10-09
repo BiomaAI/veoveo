@@ -381,6 +381,30 @@ impl AuthoringService {
     ) -> Result<CommitFeatureChangesOutput> {
         let request_value = serde_json::to_value(&request)?;
         let request_digest_sha256 = sha256(&canonical_json(&request_value)?);
+        // Current Write membership and parent visibility precede retained receipt access.
+        require_access(identity, AccessLevel::Write)?;
+        self.layer(identity, scope, &request.layer_id)
+            .await?
+            .context("unknown feature layer")?;
+        let scoped_key = map_authoring_idempotency_key(
+            &scope.identity.tenant_key,
+            identity.authority.work_context.as_str(),
+            &request.layer_id,
+            &request.idempotency_key,
+        );
+        let changeset_id = FeatureChangeSetId::from_stable_key(scoped_key.as_bytes());
+        if let Some(receipt) = MapRepository::new(self.store.clone())
+            .retained_map_feature_commit(
+                &read_scope(identity, scope)?,
+                &request.layer_id,
+                &changeset_id,
+                &request_digest_sha256,
+                &request.idempotency_key,
+            )
+            .await?
+        {
+            return self.commit_output(scope, receipt).await;
+        }
         let prepared = self
             .prepare_changes(
                 identity,
@@ -409,13 +433,6 @@ impl AuthoringService {
         let mut resulting_layer = prepared.layer.clone();
         resulting_layer.revision += 1;
         resulting_layer.updated_at = Utc::now();
-        let scoped_key = map_authoring_idempotency_key(
-            &scope.identity.tenant_key,
-            identity.authority.work_context.as_str(),
-            &request.layer_id,
-            &request.idempotency_key,
-        );
-        let changeset_id = FeatureChangeSetId::from_stable_key(scoped_key.as_bytes());
         let revisions = prepared
             .features
             .iter()
@@ -440,6 +457,14 @@ impl AuthoringService {
                 revisions,
             })
             .await?;
+        self.commit_output(scope, result).await
+    }
+
+    async fn commit_output(
+        &self,
+        scope: &MapAccessContext,
+        result: crate::persistence::MapFeatureCommitResult,
+    ) -> Result<CommitFeatureChangesOutput> {
         let features = result
             .revisions
             .iter()

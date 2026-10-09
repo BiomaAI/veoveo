@@ -217,6 +217,10 @@ current SQL proves physical absence, terminal settlement, or a matching Task hel
 by another worker's unexpired lease. An unproven conflict or observation error
 stops HTTP serving.
 
+Workers enter domain work only after the initial Task checkpoint returns Running under the executing live lease. A terminal or rejected checkpoint stops dispatch.
+
+Resume worker updates use TaskRuntime settlement with genuine failures preserved. A durable cancellation winning final publication settles Cancelled under the executing worker's live lease. The final success dispatch carries the local stop token. Cancellation affects Task delivery and does not remove an already recorded coordinate operation or Artifact.
+
 ## Resources
 
 ```text

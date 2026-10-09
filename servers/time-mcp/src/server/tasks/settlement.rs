@@ -10,8 +10,14 @@ pub(super) async fn update(
     transition: TaskTransition,
     cancellation: &CancellationToken,
 ) -> Result<TaskSnapshot, TaskError> {
-    let current = snapshot(runtime, id).await?;
-    settle(runtime, &current, transition, cancellation).await
+    runtime
+        .transition_resumable(
+            id,
+            transition,
+            veoveo_task_runtime::ResumeCancellationPolicy::PreserveFailure,
+            Some(cancellation),
+        )
+        .await
 }
 
 /// Observe durable cancellation at existing async calculation checkpoints.
@@ -73,94 +79,28 @@ fn execution_owner(runtime: &TaskRuntime, current: &TaskSnapshot) -> Result<(), 
     Ok(())
 }
 
-fn selected_transition(current: &TaskSnapshot, transition: TaskTransition) -> TaskTransition {
-    // Calculation failures preserve their real cause. Resume Tasks cannot publish
-    // success after durable cancellation; runtime permits Failed or Cancelled.
-    if current.status == TaskStatus::CancelRequested
-        && !matches!(transition, TaskTransition::Failed(_))
-    {
-        TaskTransition::Cancelled
-    } else {
-        transition
-    }
-}
-
 pub(super) async fn settle(
     runtime: &TaskRuntime,
     current: &TaskSnapshot,
     transition: TaskTransition,
     cancellation: &CancellationToken,
 ) -> Result<TaskSnapshot, TaskError> {
-    if current.is_terminal() {
-        return Ok(current.clone());
-    }
-    execution_owner(runtime, current)?;
-    let selected = selected_transition(current, transition.clone());
-    match dispatch(runtime, current, selected, cancellation).await {
-        Ok(settled) => Ok(settled),
-        Err(error @ (TaskError::Conflict(_) | TaskError::InvalidTransition { .. })) => {
-            // One reconciliation for a cancellation/completion race, never a
-            // retry of unrelated progress, lease failures or storage errors.
-            let observed = snapshot(runtime, current.task_id).await?;
-            if !same_identity(current, &observed) {
-                return Err(error);
-            }
-            if observed.is_terminal() {
-                return Ok(observed);
-            }
-            if observed.status != TaskStatus::CancelRequested {
-                return Err(error);
-            }
-            execution_owner(runtime, &observed)?;
-            dispatch(
-                runtime,
-                &observed,
-                selected_transition(&observed, transition),
-                cancellation,
-            )
-            .await
-        }
-        Err(error) => Err(error),
-    }
+    runtime
+        .transition_resumable_if_current(
+            current,
+            transition,
+            veoveo_task_runtime::ResumeCancellationPolicy::PreserveFailure,
+            Some(cancellation),
+        )
+        .await
 }
 
-/// The last owner checkpoint before entering the shared transition. Once that
-/// future starts, its database awaits/CAS decide the outcome; local stop cannot
-/// undo an already-dispatched transition.
+/// Preserve Time's final selected-snapshot dispatch checkpoint.
 pub(super) async fn dispatch(
     runtime: &TaskRuntime,
     current: &TaskSnapshot,
     transition: TaskTransition,
     cancellation: &CancellationToken,
 ) -> Result<TaskSnapshot, TaskError> {
-    let locally_stopped = cancellation.is_cancelled();
-    if matches!(transition, TaskTransition::Succeeded { .. }) && locally_stopped {
-        // A local cancel may have committed after the selected snapshot. Read
-        // once to distinguish durable cancel from shutdown-only stop.
-        let observed = snapshot(runtime, current.task_id).await?;
-        if !same_identity(current, &observed) {
-            return Err(TaskError::Conflict(current.task_id.to_string()));
-        }
-        if observed.is_terminal() {
-            return Ok(observed);
-        }
-        execution_owner(runtime, &observed)?;
-        if observed.status == TaskStatus::CancelRequested {
-            return runtime
-                .transition_if_current(&observed, TaskTransition::Cancelled)
-                .await;
-        }
-        return Ok(observed);
-    }
-    runtime.transition_if_current(current, transition).await
-}
-
-fn same_identity(left: &TaskSnapshot, right: &TaskSnapshot) -> bool {
-    left.task_id == right.task_id
-        && left.owner == right.owner
-        && left.request == right.request
-        && left.server == right.server
-        && left.task_type == right.task_type
-        && left.recovery_class == right.recovery_class
-        && left.created_at == right.created_at
+    settle(runtime, current, transition, cancellation).await
 }

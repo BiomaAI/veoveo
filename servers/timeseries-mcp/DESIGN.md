@@ -179,7 +179,11 @@ decoding; cancellation checks the same selection in its transaction. Forecast wo
 keep foundational Task IDs through native runtime calls and serialize them for external
 Artifact capabilities and RRD store names.
 
-Final settlement gives a committed cancellation priority over success or failure.
+Workers enter domain work only after the initial Task checkpoint returns Running under the executing live lease. A terminal or rejected checkpoint stops dispatch.
+
+Final settlement uses TaskRuntime Resume settlement with CancellationWins, giving a
+committed cancellation priority over success or failure. The final success dispatch
+carries the local stop token.
 If the selected outcome loses its CAS to cancellation, the executing worker reads
 current state once and settles Cancelled under its own live lease. It checks the
 original owner, request and creation identity before accepting that state. A

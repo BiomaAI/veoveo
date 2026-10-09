@@ -166,17 +166,34 @@ async fn authoring_knowledge_uses_current_parent_access_before_decoding_and_page
         assert!(first_revision.modified_by().is_none());
         assert_eq!(first_revision.access().unwrap().read_policy, ReadPolicy::SelectedWorkContextMembers {});
         assert!(first_revision.access().unwrap().grants.is_empty());
+        let mut receipts = Vec::new();
         for (batch, count) in [100, 5].into_iter().enumerate() {
             let mutations = (0..count).map(|i| FeatureMutation::Create { feature: FeatureInput {
                 feature_id: Some(MapFeatureId::new()), geometry: if batch == 0 && i == 0 { FeatureGeometry::LineString((0..20_000).map(|p| GeoJsonPosition::new(f64::from(p) / 20_000., 0., None)).collect()) } else { FeatureGeometry::Point(GeoJsonPosition::new(0., 0., None)) },
                 properties: Default::default(), semantic_type: "inspection".into(), time: None,
                 title: Some(format!("Inspection {batch}-{i}")), related_resources: vec![], evidence_resources: vec![],
             }}).collect();
-            authoring.commit_changes(&identity, &scope, CommitFeatureChangesRequest {
+            let request = CommitFeatureChangesRequest {
                 layer_id: layer.layer_id.clone(), expected_layer_revision: batch as u64,
                 idempotency_key: format!("batch-{batch}"), mutations,
-            }).await.unwrap();
+            };
+            let committed = authoring.commit_import_changes(&identity, &scope, request.clone()).await.unwrap();
+            receipts.push((request, committed));
         }
+        let (retry, original) = &receipts[0];
+        let replay = authoring.commit_import_changes(&identity, &scope, retry.clone()).await.unwrap();
+        assert_eq!(replay.changeset, original.changeset);
+        assert_eq!(replay.features, original.features);
+        assert_eq!(authoring.layer(&identity, &scope, &layer.layer_id).await.unwrap().unwrap().revision, 2);
+        let mut mismatch = retry.clone();
+        mismatch.expected_layer_revision = 99;
+        assert!(authoring.commit_import_changes(&identity, &scope, mismatch).await.is_err());
+        let mut foreign = identity.clone();
+        foreign.authority.work_context = "foreign".parse().unwrap();
+        assert!(authoring.commit_import_changes(&foreign, &scope, retry.clone()).await.is_err());
+        let mut revoked = identity.clone();
+        revoked.authority.membership = WorkContextMembershipLevel::Viewer;
+        assert!(authoring.commit_import_changes(&revoked, &scope, retry.clone()).await.is_err());
         let page = enumerate(&catalog, &analytics, &identity, &scope, &MapKnowledgePageUri::new(MapKnowledgeCollection::Features)).await.unwrap();
         assert_eq!(page.items.len(), 100);
         let last = page.items.last().unwrap().uri.clone();
@@ -223,8 +240,12 @@ async fn authoring_knowledge_uses_current_parent_access_before_decoding_and_page
         assert!(matches!(tokio::time::timeout(Duration::from_secs(30), changes.recv()).await.unwrap().unwrap(), veoveo_mcp_contract::ResourceUpdate::Reconcile));
         stop.cancel();
         observer.await.unwrap();
+        assert!(authoring.commit_import_changes(&identity, &scope, retry.clone()).await.is_err());
         let mut cleared = identity.clone();
         cleared.actor.data_labels.insert("secret".parse().unwrap());
+        let replay = authoring.commit_import_changes(&cleared, &scope, retry.clone()).await.unwrap();
+        assert_eq!(replay.changeset, original.changeset);
+        assert_eq!(replay.features, original.features);
         let before = |address: &MapKnowledgeMember| match address {
             MapKnowledgeMember::Layer { .. } => MapKnowledgeMember::Layer {
                 layer: "feature-layer-00000000-0000-7000-8000-000000000001".parse().unwrap(),

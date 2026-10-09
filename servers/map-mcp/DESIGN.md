@@ -655,6 +655,10 @@ without changing that inventory. Subscription state belongs to each listen reque
 long-running work uses task subscriptions. Shared derivation reads and notifications
 do not change the single-writer deployment profile for release products and Valhalla.
 
+Workers enter domain work only after the initial Task checkpoint returns Running under the executing live lease. A terminal or rejected checkpoint stops dispatch.
+
+Resume worker updates use TaskRuntime settlement with genuine failures preserved. Final success dispatch carries the local stop token and only a committed success triggers the travel-model notification. Cancellation changes Task delivery; it does not undo prior feature imports, Artifact publication or usage. Import recovery retains its stored Resume class. After current Write membership and parent-policy admission, a retry reads the retained changeset and feature revisions before preparing mutations against the original layer revision. The receipt read repeats tenant, Work Context, labels, classification and active-parent guards in one Store snapshot. The request digest must match; no write is replayed. Returned changeset and features are the committed records; projection state describes current reconciliation. New commits keep their revision and idempotency fences.
+
 ## Installation Bootstrap
 
 Map consumes the platform's generic server-bootstrap contract

@@ -317,6 +317,8 @@ and constraints. MILP uses presolve and an integrality tolerance of `1e-5`.
 Balanced and thorough retain MILP incumbents by default. The profile resource
 is the authority; this table documents the current compiled values.
 
+Resume worker updates use TaskRuntime settlement with cancellation priority over success and failure. The final success dispatch carries the local stop token. Task and catalog settlement share a transaction; cancellation does not undo previously published Artifact bytes, usage or executor effects. This settlement path does not retry executor operations.
+
 ## Durable Execution
 
 Submission performs the following bounded sequence:

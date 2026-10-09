@@ -48,10 +48,30 @@ pub(super) async fn update_task(
     task_id: TaskId,
     transition: TaskTransition,
 ) -> Result<TaskSnapshot, TaskError> {
-    let transition = if state.tasks.is_cancel_requested(task_id).await? {
-        TaskTransition::Cancelled
-    } else {
-        transition
-    };
-    state.tasks.transition(task_id, transition).await
+    state
+        .tasks
+        .transition_resumable(
+            task_id,
+            transition,
+            veoveo_task_runtime::ResumeCancellationPolicy::CancellationWins,
+            None,
+        )
+        .await
+}
+
+pub(super) async fn publish_task(
+    state: &AppState,
+    task_id: TaskId,
+    transition: TaskTransition,
+    stop: &tokio_util::sync::CancellationToken,
+) -> Result<TaskSnapshot, TaskError> {
+    state
+        .tasks
+        .transition_resumable(
+            task_id,
+            transition,
+            veoveo_task_runtime::ResumeCancellationPolicy::CancellationWins,
+            Some(stop),
+        )
+        .await
 }

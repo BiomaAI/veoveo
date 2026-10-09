@@ -75,18 +75,141 @@ impl AppState {
     }
 }
 
-pub(super) async fn update_task(state: &AppState, task_id: TaskId, transition: TaskTransition) {
-    let transition = if state
-        .tasks
-        .is_cancel_requested(task_id)
-        .await
-        .unwrap_or(false)
-    {
-        TaskTransition::Cancelled
-    } else {
-        transition
+pub(super) async fn update_task(
+    state: &AppState,
+    task_id: TaskId,
+    transition: TaskTransition,
+) -> bool {
+    update_task_with_stop(state, task_id, transition, None).await
+}
+
+pub(super) async fn update_task_with_stop(
+    state: &AppState,
+    task_id: TaskId,
+    transition: TaskTransition,
+    stop: Option<&tokio_util::sync::CancellationToken>,
+) -> bool {
+    let current = match state.tasks.get(task_id).await {
+        Ok(Some(current)) => current,
+        _ => {
+            tracing::warn!(%task_id, "failed to read durable task for transition");
+            return false;
+        }
     };
-    if let Err(error) = state.tasks.transition(task_id, transition).await {
-        tracing::warn!(%task_id, "failed to transition durable task: {error}");
+    let result = if current.recovery_class == veoveo_task_runtime::RecoveryClass::Resume {
+        state
+            .tasks
+            .transition_resumable_if_current(
+                &current,
+                transition,
+                veoveo_task_runtime::ResumeCancellationPolicy::CancellationWins,
+                stop,
+            )
+            .await
+    } else {
+        settle_interrupted(&state.tasks, &current, transition).await
+    };
+    match result {
+        Ok(snapshot) => snapshot.status == veoveo_task_runtime::TaskStatus::Running,
+        Err(error) => {
+            tracing::warn!(%task_id, "failed to transition durable task: {error}");
+            false
+        }
     }
+}
+
+/// DuckDB mutation settlement changes Task delivery, never the committed database effect.
+pub(super) async fn settle_interrupted(
+    runtime: &TaskRuntime,
+    admitted: &veoveo_task_runtime::TaskSnapshot,
+    transition: TaskTransition,
+) -> Result<veoveo_task_runtime::TaskSnapshot, veoveo_task_runtime::TaskError> {
+    use veoveo_task_runtime::{TaskError, TaskStatus};
+    if matches!(transition, TaskTransition::CancelRequested) {
+        return Err(TaskError::InvalidRecord(
+            "mutation execution cannot request cancellation".into(),
+        ));
+    }
+    let current = runtime
+        .get(admitted.task_id)
+        .await?
+        .ok_or_else(|| TaskError::NotFound(admitted.task_id.to_string()))?;
+    mutation_identity(runtime, admitted, &current)?;
+    if current.is_terminal() {
+        return Ok(current);
+    }
+    mutation_lease(runtime, &current)?;
+    let (selected, transition) = if current.status == TaskStatus::CancelRequested {
+        (&current, TaskTransition::Cancelled)
+    } else {
+        (admitted, transition)
+    };
+    match runtime.transition_if_current(selected, transition).await {
+        Ok(settled) => Ok(settled),
+        Err(error @ (TaskError::Conflict(_) | TaskError::InvalidTransition { .. })) => {
+            let observed = runtime
+                .get(admitted.task_id)
+                .await?
+                .ok_or_else(|| TaskError::NotFound(admitted.task_id.to_string()))?;
+            mutation_identity(runtime, admitted, &observed)?;
+            if observed.is_terminal() {
+                return Ok(observed);
+            }
+            mutation_lease(runtime, &observed)?;
+            if observed.status != TaskStatus::CancelRequested {
+                return Err(error);
+            }
+            runtime
+                .transition_if_current(&observed, TaskTransition::Cancelled)
+                .await
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn mutation_identity(
+    runtime: &TaskRuntime,
+    admitted: &veoveo_task_runtime::TaskSnapshot,
+    current: &veoveo_task_runtime::TaskSnapshot,
+) -> Result<(), veoveo_task_runtime::TaskError> {
+    use veoveo_task_runtime::{RecoveryClass, TaskError};
+    if current.server != runtime.server() {
+        return Err(TaskError::WrongServer(current.task_id.to_string()));
+    }
+    if admitted.recovery_class != RecoveryClass::InterruptedIndeterminate
+        || current.recovery_class != RecoveryClass::InterruptedIndeterminate
+    {
+        return Err(TaskError::InvalidRecord(
+            "DuckDB mutation settlement requires InterruptedIndeterminate".into(),
+        ));
+    }
+    if admitted.task_id != current.task_id
+        || admitted.server != current.server
+        || admitted.task_type != current.task_type
+        || admitted.owner != current.owner
+        || admitted.request != current.request
+        || admitted.created_at != current.created_at
+        || admitted.ttl_ms != current.ttl_ms
+        || admitted.poll_interval_ms != current.poll_interval_ms
+        || admitted.idempotency_key != current.idempotency_key
+    {
+        return Err(TaskError::Conflict(admitted.task_id.to_string()));
+    }
+    Ok(())
+}
+
+fn mutation_lease(
+    runtime: &TaskRuntime,
+    current: &veoveo_task_runtime::TaskSnapshot,
+) -> Result<(), veoveo_task_runtime::TaskError> {
+    if current.lease_owner.as_deref() != Some(runtime.worker_id())
+        || current
+            .lease_expires_at
+            .is_none_or(|expiry| expiry <= chrono::Utc::now())
+    {
+        return Err(veoveo_task_runtime::TaskError::LeaseHeld(
+            current.task_id.to_string(),
+        ));
+    }
+    Ok(())
 }

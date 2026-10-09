@@ -190,6 +190,40 @@ async fn task_operations_check_current_parent_in_read_and_write_transactions() {
         let a = FramesState::new(db.a.clone());
         let b = FramesState::new(db.b.clone());
         let caller = scope(Some("tenant-a"), "owner", "operator", &["cui"]);
+        let id = task(&db, &caller, "frames").await;
+        let worker = TaskRuntime::new(db.a.clone(), "frames", "writer");
+        let remote = TaskRuntime::new(db.b.clone(), "frames", "remote-cancel");
+        let selected = worker
+            .claim(id, Duration::from_secs(30))
+            .await
+            .unwrap()
+            .snapshot;
+        let recorded = provenance();
+        a.record_operation(&caller, Some(id), &recorded)
+            .await
+            .unwrap();
+        remote.cancel(id).await.unwrap();
+        let settled = worker
+            .transition_resumable_if_current(
+                &selected,
+                veoveo_task_runtime::TaskTransition::Succeeded {
+                    message: "late result".into(),
+                    result: serde_json::json!({"content":[]}),
+                    result_uri: None,
+                },
+                veoveo_task_runtime::ResumeCancellationPolicy::PreserveFailure,
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(settled.status, veoveo_task_runtime::TaskStatus::Cancelled);
+        assert_eq!(events(&db, recorded.operation.operation_id()).await, 1);
+        assert!(
+            b.get_operation(&caller, recorded.operation.operation_uri())
+                .await
+                .unwrap()
+                .is_some()
+        );
         for denied in [
             scope(Some("tenant-a"), "other", "operator", &["cui"]),
             scope(Some("tenant-b"), "owner", "operator", &["cui"]),

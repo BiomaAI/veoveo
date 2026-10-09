@@ -533,6 +533,22 @@ async fn native_read_snapshot_survives_settlement_revocation_and_parent_deletion
         let caller = owner(Some("tenant-a"), "owner", "route-plan", &[]);
         let seed = create(&writer, &caller, 1000).await;
         let seed_snapshot = writer.get(seed.task).await.unwrap().unwrap();
+        let cancelled = veoveo_types::TaskId::new();
+        let cancelled_run = veoveo_optimization_mcp::contract::RunId::parse(format!("run-{cancelled}")).unwrap();
+        let cancelled_problem = veoveo_optimization_mcp::contract::ProblemId::parse(format!("problem-{cancelled}")).unwrap();
+        let mut cancelled_request = seed_snapshot.request.clone();
+        cancelled_request["common"]["runId"] = serde_json::to_value(&cancelled_run).unwrap();
+        cancelled_request["common"]["problemId"] = serde_json::to_value(cancelled_problem).unwrap();
+        cancelled_request["common"]["artifactWriteCapability"]["taskId"] = serde_json::to_value(cancelled).unwrap();
+        writer.create(CreateTask { task_id: cancelled, owner: caller.clone(), server: "optimization".into(), task_type: seed_snapshot.task_type.clone(), request: cancelled_request, recovery_class: seed_snapshot.recovery_class, idempotency_key: None, ttl_ms: None, poll_interval_ms: None, retention_pins: Default::default() }).await.unwrap();
+        let selected = writer.claim(cancelled, Duration::from_secs(60)).await.unwrap().snapshot;
+        reader.cancel(cancelled).await.unwrap();
+        let settled = writer.transition_resumable_if_current(&selected, TaskTransition::Succeeded { message: "late solve result".into(), result: seed_snapshot.result.clone().unwrap(), result_uri: seed_snapshot.result_uri.clone() }, veoveo_task_runtime::ResumeCancellationPolicy::CancellationWins, None).await.unwrap();
+        assert_eq!(settled.status, TaskStatus::Cancelled);
+        // The catalog retains the canceled run but cannot expose it as a solution.
+        let reads = OptimizationReads::new(&writer).unwrap();
+        assert_eq!(reads.run(&caller, &cancelled_run).await.unwrap().unwrap().snapshot.status, TaskStatus::Cancelled);
+        assert!(reads.page(&caller, &OptimizationCollectionUri::new(OptimizationCollection::Solutions, None).unwrap()).await.unwrap().items.iter().all(|row| row.snapshot.task_id != cancelled));
         let queued = veoveo_types::TaskId::new();
         let mut request = seed_snapshot.request.clone();
         request["common"]["artifactWriteCapability"]["taskId"] =

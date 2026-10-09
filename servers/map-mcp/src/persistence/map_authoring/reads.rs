@@ -39,6 +39,104 @@ impl MapAuthoringReadScope {
 }
 
 impl MapRepository {
+    /// Parent policy, receipt and retained revisions share one current read snapshot.
+    pub(crate) async fn retained_map_feature_commit(
+        &self,
+        scope: &MapAuthoringReadScope,
+        layer: &crate::contract::FeatureLayerId,
+        changeset: &crate::contract::FeatureChangeSetId,
+        digest: &str,
+        idempotency_key: &str,
+    ) -> anyhow::Result<Option<super::MapFeatureCommitResult>> {
+        let scope = scope.clone();
+        let parent = scope.record("map_feature_layer", layer);
+        let receipt = super::authored_record(
+            "map_feature_changeset",
+            &scope.tenant_key,
+            &[layer.as_str(), changeset.as_str()],
+        );
+        let layer = layer.clone();
+        let changeset = changeset.clone();
+        let digest = digest.to_owned();
+        let idempotency_key = idempotency_key.to_owned();
+        veoveo_platform_store::read_transaction::read(self.client(), move |transaction| {
+            Box::pin(async move {
+                let mut response = transaction
+                    .query(include_str!(
+                        "../queries/map_authoring/reads/retained_feature_commit_parent.surql"
+                    ))
+                    .bind(("record", parent))
+                    .bind(("tenant", scope.tenant.clone()))
+                    .bind(("context", scope.context.clone()))
+                    .bind(("labels", scope.labels))
+                    .await?
+                    .check()?;
+                let admitted: Option<RecordId> = response.take(0)?;
+                anyhow::ensure!(
+                    admitted.is_some(),
+                    "current feature layer policy denies retained commit access"
+                );
+                let mut response = transaction
+                    .query(include_str!("../queries/map_authoring/select_scoped.surql"))
+                    .bind(("record", receipt))
+                    .bind(("tenant", scope.tenant.clone()))
+                    .bind(("context", scope.context.clone()))
+                    .await?
+                    .check()?;
+                let Some(changeset_row): Option<crate::persistence::MapFeatureChangeSetRecord> =
+                    response.take(0)?
+                else {
+                    return Ok(None);
+                };
+                anyhow::ensure!(
+                    changeset_row.layer_key == layer.as_str()
+                        && changeset_row.changeset_key == changeset.as_str(),
+                    "retained commit identity disagrees with the selected layer and changeset"
+                );
+                anyhow::ensure!(
+                    changeset_row.request_digest_sha256 == digest,
+                    "feature changeset idempotency key conflicts with the retained request"
+                );
+                anyhow::ensure!(
+                    changeset_row.idempotency_key == idempotency_key,
+                    "feature changeset idempotency identity disagrees"
+                );
+                let mut response = transaction
+                    .query(include_str!(
+                        "../queries/map_authoring/list_map_feature_revisions_for_changeset.surql"
+                    ))
+                    .bind(("tenant", scope.tenant))
+                    .bind(("context", scope.context))
+                    .bind(("changeset", changeset.to_string()))
+                    .await?
+                    .check()?;
+                let revisions: Vec<crate::persistence::MapFeatureRevisionRecord> =
+                    response.take(0)?;
+                let feature_keys: std::collections::BTreeSet<_> = revisions
+                    .iter()
+                    .map(|row| row.feature_key.as_str())
+                    .collect();
+                let expected: std::collections::BTreeSet<_> = changeset_row
+                    .feature_keys
+                    .iter()
+                    .map(String::as_str)
+                    .collect();
+                anyhow::ensure!(
+                    feature_keys == expected
+                        && revisions.len() == expected.len()
+                        && revisions.iter().all(|row| row.layer_key == layer.as_str()
+                            && row.changeset_key == changeset.as_str()),
+                    "retained commit feature revisions disagree with its membership"
+                );
+                Ok(Some(super::MapFeatureCommitResult {
+                    changeset: changeset_row,
+                    revisions,
+                }))
+            })
+        })
+        .await
+    }
+
     pub async fn map_feature_layer(
         &self,
         scope: &MapAuthoringReadScope,

@@ -75,6 +75,56 @@ async fn execution_and_recovered_query_keep_native_ids_in_results_and_usage() {
             }
         }
 
+        // The owner update path reconciles a foreign replica's cancellation
+        // for Resume reads without changing the earlier committed database write.
+        let task_id = TaskId::new();
+        let args = parse_task_args("query", json!({"db":"metrics","sql":"SELECT answer FROM facts"})).unwrap();
+        state.tasks.create(DurableCreateTask { task_id, owner: owner.clone(), server: SERVER_SLUG.into(), task_type: args.task_type(), request: serde_json::to_value(DuckdbTaskRequest { args, artifact_write_capability: None }).unwrap(), recovery_class: veoveo_task_runtime::RecoveryClass::Resume, idempotency_key: None, ttl_ms: Some(MCP_TASK_TTL_MS), poll_interval_ms: None, retention_pins: BTreeSet::new() }).await.unwrap();
+        state.tasks.claim(task_id, TASK_LEASE_DURATION).await.unwrap();
+        observer.cancel(task_id).await.unwrap();
+        crate::app_state::update_task_with_stop(&state, task_id, TaskTransition::Succeeded { message: "late query".into(), result: json!({"content":[]}), result_uri: None }, Some(&CancellationToken::new())).await;
+        let settled = observer.get(task_id).await.unwrap().unwrap();
+        assert_eq!(settled.status, veoveo_task_runtime::TaskStatus::Cancelled);
+        assert!(settled.result.is_none());
+
+        // Mutation effects and Task delivery are separate: cancellation before
+        // dispatch is inert; cancellation after a committed INSERT retains one row.
+        for (phase, sql) in [("before", "INSERT INTO facts VALUES (99)"), ("after", "INSERT INTO facts VALUES (43)"), ("failure", "INSERT INTO facts VALUES (77)")] {
+            let id = TaskId::new();
+            let args = parse_task_args("execute", json!({"db":"metrics","sql":sql})).unwrap();
+            let request = DuckdbTaskRequest { args, artifact_write_capability: None };
+            state.tasks.create(DurableCreateTask { task_id: id, owner: owner.clone(), server: SERVER_SLUG.into(), task_type: request.args.task_type(), request: serde_json::to_value(&request).unwrap(), recovery_class: RecoveryClass::InterruptedIndeterminate, idempotency_key: None, ttl_ms: Some(MCP_TASK_TTL_MS), poll_interval_ms: None, retention_pins: BTreeSet::new() }).await.unwrap();
+            state.tasks.claim(id, TASK_LEASE_DURATION).await.unwrap();
+            if phase == "before" {
+                observer.cancel(id).await.unwrap();
+                run_task(state.clone(), id, identity.clone(), request, None, CancellationToken::new()).await;
+                assert_eq!(observer.get(id).await.unwrap().unwrap().status, veoveo_task_runtime::TaskStatus::Cancelled);
+            } else if phase == "after" {
+                let TaskArgs::Execute(request) = request.args else { unreachable!() };
+                let output = sql_ops::execute_op(&state, &identity, request).await.unwrap();
+                outputs::record_op_usage(&state, id, output.rows_changed, DuckDbUsageDetails::Execute { db: output.db.clone(), statements: output.statements }).await.unwrap();
+                let transition = veoveo_task_runtime::mcp_task_completion("known committed INSERT", outputs::execute_result(&output).unwrap()).unwrap();
+                let selected = state.tasks.get(id).await.unwrap().unwrap();
+                observer.cancel(id).await.unwrap();
+                assert!(matches!(state.tasks.transition_if_current(&selected, transition.clone()).await, Err(veoveo_task_runtime::TaskError::Conflict(_))));
+                let settled = crate::app_state::settle_interrupted(&state.tasks, &selected, transition.clone()).await.unwrap();
+                assert_eq!(settled.status, veoveo_task_runtime::TaskStatus::Cancelled);
+                assert_eq!(crate::app_state::settle_interrupted(&state.tasks, &selected, transition).await.unwrap().status, settled.status);
+                assert_eq!(DuckDbUsage::new(&observer).unwrap().task(&owner, &veoveo_duckdb_mcp::contract::DuckDbTaskUsageUri::new(id).unwrap()).await.unwrap().len(), 1);
+            } else {
+                let selected = state.tasks.get(id).await.unwrap().unwrap();
+                let failure = TaskTransition::Failed(TaskFailure::new("known_failure", "mutation was not dispatched"));
+                assert!(matches!(crate::app_state::settle_interrupted(&observer, &selected, failure.clone()).await, Err(veoveo_task_runtime::TaskError::LeaseHeld(_))));
+                let failed = crate::app_state::settle_interrupted(&state.tasks, &selected, failure).await.unwrap();
+                assert_eq!(failed.status, veoveo_task_runtime::TaskStatus::Failed);
+                assert_eq!(failed.error.as_ref().unwrap().code, "known_failure");
+                assert_eq!(crate::app_state::settle_interrupted(&state.tasks, &selected, TaskTransition::Cancelled).await.unwrap().status, veoveo_task_runtime::TaskStatus::Failed);
+            }
+        }
+        let writer = ArtifactWriter::caller(veoveo_mcp_contract::PlaneCaller::from_gateway(identity.clone(), veoveo_mcp_contract::hosting::ForwardedBearer::new("fixture-bearer")));
+        let output = sql_ops::query_op(&state, &writer, &identity, serde_json::from_value(json!({"db":"metrics","sql":"SELECT answer, count(*) AS occurrences FROM facts GROUP BY answer ORDER BY answer"})).unwrap()).await.unwrap();
+        assert_eq!(serde_json::to_value(outputs::query_result(&output).unwrap()).unwrap()["structuredContent"]["rows"], json!([[42,1],[43,1]]));
+
         // Exercise the checked source options and preserve the quoted identifier
         // through real ingest, result metadata and a subsequent read.
         let table = "  Order \"Lines\"  ";

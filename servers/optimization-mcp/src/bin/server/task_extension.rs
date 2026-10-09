@@ -498,7 +498,9 @@ async fn run_task_inner(
             match veoveo_task_runtime::mcp_task_completion("cuOpt execution completed", tool_result)
             {
                 Ok(transition) => {
-                    let snapshot = update_task(&state, task_id, transition).await?;
+                    let snapshot =
+                        super::app_state::publish_task(&state, task_id, transition, &cancellation)
+                            .await?;
                     if snapshot.status != veoveo_task_runtime::TaskStatus::Succeeded {
                         return Ok(());
                     }

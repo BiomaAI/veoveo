@@ -416,6 +416,15 @@ fn travel_record(
     .expect("admitted Map fixture")
 }
 async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> TaskId {
+    task_with_recovery(runtime, owner, key, RecoveryClass::InterruptedIndeterminate).await
+}
+
+async fn task_with_recovery(
+    runtime: &TaskRuntime,
+    owner: TaskOwner,
+    key: Option<&str>,
+    recovery_class: RecoveryClass,
+) -> TaskId {
     let id = TaskId::new();
     let principal = veoveo_types::PrincipalId::parse(owner.principal_key.clone()).unwrap();
     let context = owner.authority.work_context.clone();
@@ -433,7 +442,7 @@ async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> Tas
             server: "map".into(),
             task_type: MapTaskKind::BuildTravelModel.name(),
             request: serde_json::json!({"kind":"build_travel_model","request":request}),
-            recovery_class: RecoveryClass::InterruptedIndeterminate,
+            recovery_class,
             idempotency_key: None,
             ttl_ms: None,
             poll_interval_ms: None,
@@ -815,6 +824,83 @@ async fn terminal_contributions_distinguish_tool_error_failure_and_cancellation(
                 crate::task_lookup::Row::from_value(response.take::<Value>(0).unwrap()).unwrap();
             assert!(row.settlement.outcome == outcome);
             assert!(row.settlement.expected_result.is_none());
+        }
+        // A remote cancellation winning final publication settles the owner lookup
+        // atomically; a genuine calculation failure preserves its cause.
+        let remote = TaskRuntime::new(db.b.clone(), "map", "remote-cancel");
+        for (transition, outcome) in [
+            (
+                veoveo_task_runtime::TaskTransition::Succeeded {
+                    message: "late result".into(),
+                    result: serde_json::json!({"content":[]}),
+                    result_uri: None,
+                },
+                crate::task_lookup::Outcome::Cancelled,
+            ),
+            (
+                veoveo_task_runtime::TaskTransition::Failed(veoveo_task_runtime::TaskFailure::new(
+                    "fixture",
+                    "known failure",
+                )),
+                crate::task_lookup::Outcome::Failed,
+            ),
+        ] {
+            let id =
+                task_with_recovery(&runtime, caller.clone(), None, RecoveryClass::Resume).await;
+            let selected = runtime
+                .claim(id, Duration::from_secs(30))
+                .await
+                .unwrap()
+                .snapshot;
+            remote.cancel(id).await.unwrap();
+            runtime
+                .transition_resumable_if_current(
+                    &selected,
+                    transition,
+                    veoveo_task_runtime::ResumeCancellationPolicy::PreserveFailure,
+                    None,
+                )
+                .await
+                .unwrap();
+            let mut response =
+                db.a.client()
+                    .query(include_str!(
+                        "../queries/travel_models/tests/read_lookup.surql"
+                    ))
+                    .bind((
+                        "lookup",
+                        RecordId::new("map_travel_model_task", id.to_string()),
+                    ))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+            let row =
+                crate::task_lookup::Row::from_value(response.take::<Value>(0).unwrap()).unwrap();
+            assert!(row.settlement.outcome == outcome);
+            assert!(row.settlement.expected_result.is_none());
+        }
+        #[cfg(feature = "mcp")]
+        {
+            let id =
+                task_with_recovery(&runtime, caller.clone(), None, RecoveryClass::Resume).await;
+            runtime.claim(id, Duration::from_secs(30)).await.unwrap();
+            remote.cancel(id).await.unwrap();
+            let mut entered = false;
+            if crate::server::tasks::start_work(&runtime, id, "inert checkpoint".into())
+                .await
+                .unwrap()
+            {
+                async {
+                    entered = true;
+                }
+                .await;
+            }
+            assert!(!entered);
+            assert_eq!(
+                runtime.get(id).await.unwrap().unwrap().status,
+                veoveo_task_runtime::TaskStatus::Cancelled
+            );
         }
         let reads = TravelModelReads::new(&db.b);
         assert!(reads.complete(&caller, "").await.unwrap().is_empty());

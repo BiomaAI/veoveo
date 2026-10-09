@@ -719,6 +719,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `artifact_reads.rs`, `artifact_reads/` | task-bound read delegation, current policy identity, and atomic distinct-occurrence quotas; specified in the Artifact service design |
 | `servers/map-mcp/src/persistence/map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
 | `servers/map-mcp/src/persistence/map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, a domain commit counter, heads and publications |
+| `servers/map-mcp/src/authoring/service.rs`, `src/persistence/map_authoring/reads.rs` and `src/persistence/queries/map_authoring/reads/retained_feature_commit_parent.surql` | committed feature-change receipt replay after current parent-policy admission, before rebuilding mutations against an advanced layer revision |
 | `servers/map-mcp/src/persistence/map_projection.rs` | indexed Map changeset replay up to the committed Map head |
 | `servers/map-mcp/src/persistence/map_presentations.rs` | immutable publication products plus publication-pinned map compositions and revisions |
 | `platform/recordings/store/src/recordings.rs`, `platform/recordings/store/src/recordings/reads.rs` | recording lifecycle, SQL tenant/label visibility, cursor pages, bounded completion and layer counts |
@@ -989,6 +990,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/frames-mcp/src/state/operations.rs`, `queries/operations/record.surql` | required typed operation authority, SQL access checks, atomic Task admission and immutable provenance/event recording |
 | `servers/frames-mcp/src/state/completion.rs` | world/revision/frame SQL completion with typed parents and matching before limits |
 | `servers/frames-mcp/src/bin/server/setup.rs`, `resources.rs`, `completion.rs` | checked startup/discovery, typed resource dispatch, and MCP completion adapters |
+| `servers/frames-mcp/src/bin/server/app_state.rs`, `app_state_tests.rs` | leased Task execution gates and cancellation settlement; native controls reuse the existing hosted fixture and stop dispatch after remote cancellation |
 | `servers/map-mcp/src/contract/geodetic_ids.rs` | CRS, datum, and ellipsoid IDs shared through Map's contract feature |
 | `servers/frames-mcp/src/bin/server/subscriptions.rs` | mutable world and usage admission, shared Store LIVE observation, and shutdown of the resource observer |
 | `servers/map-mcp` | Earth geography, feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, logistics routing, and immutable cuOpt travel models |
@@ -1000,6 +1002,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/speech-mcp/contract/src/identity.rs`, `resources.rs`, `dictation.rs` | distinct transcription/dictation identities, typed resource families and checked receipt identity shared by Speech, Gateway and Console |
 | `servers/speech-mcp/src/server/setup.rs`, `mcp.rs` | checked hosted declarations and typed resource read/subscription admission; application code owns source/session authorization |
 | `servers/speech-mcp/src/server/lifecycle.rs` | finite startup recovery callback and HTTP shutdown/drain before dictation and audit cleanup |
+| `servers/speech-mcp/src/application/execution.rs`, `execution/tests.rs` | transcription execution and durable progress checkpoints; native Store controls stop subsequent effects after cancellation and qualify owner settlement policy |
 | `servers/speech-mcp/src/server/tool_input_tests.rs`, `tests/support/context.rs` | hosted argument admission and transcript listener delivery/cancellation controls, with the Work Context fixture shared by the owning native Task tests |
 | `servers/speech-mcp/tests/native_tasks.rs`, `tests/support/installed.rs`, `installed_assertions.rs`, `installed_cleanup.rs` | CUDA-native Task qualification and opt-in public Gateway completion/cancellation; independent transcript and provenance checks, exact-ID delivery, private intent journals and registered SDK cleanup |
 | `servers/speech-mcp/runner/src/speech_runner/cache_model.py`, `main.py` | immutable checkpoint identity and three-file integrity admission shared by build caching and offline runtime; verified model directory supplied to the released Photon CUDA loader before warmup and socket readiness |

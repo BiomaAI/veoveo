@@ -1,0 +1,1 @@
+SELECT VALUE id FROM ONLY $record WHERE tenant = $tenant AND work_context = $context AND archived_at = NONE AND $labels CONTAINSALL data_labels AND (classification = NONE OR classification IN $labels);

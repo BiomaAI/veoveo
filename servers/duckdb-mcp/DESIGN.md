@@ -874,6 +874,8 @@ operation agreement and any supplied origin Task. The writer supplies the output
 Task association and labels. Its idempotency key derives from the typed Task and
 operation. The server converts origin metadata to JSON only at the Artifact API.
 
+Query and Export worker updates use TaskRuntime Resume settlement with cancellation priority over success and failure. A cancellation that wins the final CAS settles under the executing worker's live lease. Execute and Ingest keep their InterruptedIndeterminate recovery class and owner settlement policy. Their final Task transition honors durable cancellation under the executing live lease, reconciles one cancellation CAS conflict, and preserves the first committed terminal outcome. A terminal or rejected initial Running checkpoint stops dispatch. Cancellation changes result delivery and does not undo database writes, usage or Artifact publication; this path never replays the mutation.
+
 ## Durable Tasks and Recovery
 
 The shared task runtime stores DuckDB task requests, owners, leases, progress,

@@ -137,6 +137,21 @@ async fn forecast_settlement_preserves_completion_and_cancellation_execution_fen
         let executor = TaskRuntime::new(db.a.clone(), SERVER_SLUG, "forecast-executor");
         let remote = TaskRuntime::new(db.b.clone(), SERVER_SLUG, "forecast-canceller");
 
+        let before = running(&executor).await;
+        remote.cancel(before.task_id).await.unwrap();
+        let mut entered = false;
+        if super::start_work(&executor, before.task_id).await.unwrap() {
+            async {
+                entered = true;
+            }
+            .await;
+        }
+        assert!(!entered);
+        assert_eq!(
+            executor.get(before.task_id).await.unwrap().unwrap().status,
+            veoveo_task_runtime::TaskStatus::Cancelled
+        );
+
         // Timeseries gives committed cancellation priority even over a failed outcome.
         let before = running(&executor).await;
         remote.cancel(before.task_id).await.unwrap();

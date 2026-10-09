@@ -251,7 +251,7 @@ async fn run_task_inner(
     caller: Option<veoveo_mcp_contract::PlaneCaller>,
     cancellation: CancellationToken,
 ) {
-    update_task(
+    if !update_task(
         &state,
         task_id,
         TaskTransition::Running {
@@ -259,7 +259,10 @@ async fn run_task_inner(
             progress: 0.1,
         },
     )
-    .await;
+    .await
+    {
+        return;
+    }
     let artifact_write_capability = request.artifact_write_capability;
     let result = match request.args {
         TaskArgs::Query(request) => {
@@ -425,7 +428,7 @@ async fn run_task_inner(
                 return;
             }
         };
-    update_task(&state, task_id, transition).await;
+    super::app_state::update_task_with_stop(&state, task_id, transition, Some(&cancellation)).await;
 }
 
 fn query_usage(output: &DuckDbQueryOutput) -> DuckDbQueryUsage {

@@ -501,15 +501,14 @@ async fn run_task_inner(
     request: BatchTaskRequest,
     cancellation: CancellationToken,
 ) {
-    update_task(
-        &state,
-        task_id,
-        TaskTransition::Running {
-            message: "running batch coordinate transform".to_owned(),
-            progress: 0.1,
-        },
-    )
-    .await;
+    match app_state::start_work(&state.tasks, task_id).await {
+        Ok(true) => {}
+        Ok(false) => return,
+        Err(error) => {
+            tracing::warn!(%task_id, "Frames initial Task checkpoint failed: {error}");
+            return;
+        }
+    }
     let scope = match frame_scope_from_runtime(&state, &owner).await {
         Ok(scope) => scope,
         Err(error) => {
@@ -617,7 +616,7 @@ async fn run_task_inner(
             return;
         }
     };
-    update_task(&state, task_id, transition).await;
+    app_state::publish_task(&state, task_id, transition, &cancellation).await;
 }
 
 #[tokio::main]

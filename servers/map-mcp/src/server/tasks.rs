@@ -461,15 +461,24 @@ async fn run_map_task_inner(
 ) {
     let uses_task_directory = request.uses_task_directory();
     let publishes_travel_model = matches!(&request, MapTaskRequest::BuildTravelModel(_));
-    update_task(
-        &state,
+    match start_work(
+        &state.tasks,
         task_id,
-        TaskTransition::Running {
-            message: format!("calculating {}", request.description()),
-            progress: 0.05,
-        },
+        format!("calculating {}", request.description()),
     )
-    .await;
+    .await
+    {
+        Ok(true) => {}
+        result => {
+            if let Err(error) = result {
+                tracing::warn!(%task_id, "Map initial Task checkpoint failed: {error}");
+            }
+            if uses_task_directory {
+                cleanup_task_directory(state.as_ref(), task_id).await;
+            }
+            return;
+        }
+    }
     if cancellation.is_cancelled() {
         update_task(&state, task_id, TaskTransition::Cancelled).await;
         if uses_task_directory {
@@ -546,8 +555,25 @@ async fn run_map_task_inner(
             match veoveo_task_runtime::mcp_task_completion("Map calculation completed", tool_result)
             {
                 Ok(transition) => {
-                    update_task(&state, task_id, transition).await;
-                    if publishes_travel_model {
+                    let settled = state
+                        .tasks
+                        .transition_resumable(
+                            task_id,
+                            transition,
+                            veoveo_task_runtime::ResumeCancellationPolicy::PreserveFailure,
+                            Some(&cancellation),
+                        )
+                        .await;
+                    let succeeded = match settled {
+                        Ok(snapshot) => {
+                            snapshot.status == veoveo_task_runtime::TaskStatus::Succeeded
+                        }
+                        Err(error) => {
+                            tracing::warn!(%task_id, "Map task publication failed: {error}");
+                            false
+                        }
+                    };
+                    if publishes_travel_model && succeeded {
                         state
                             .subscriptions
                             .notify_resource_updated(crate::uris::TRAVEL_MODELS_URI)
@@ -1227,8 +1253,37 @@ async fn fail_task(
     .await;
 }
 
+pub(crate) async fn start_work(
+    runtime: &veoveo_task_runtime::TaskRuntime,
+    task_id: TaskId,
+    message: String,
+) -> Result<bool, veoveo_task_runtime::TaskError> {
+    Ok(runtime
+        .transition_resumable(
+            task_id,
+            TaskTransition::Running {
+                message,
+                progress: 0.05,
+            },
+            veoveo_task_runtime::ResumeCancellationPolicy::PreserveFailure,
+            None,
+        )
+        .await?
+        .status
+        == veoveo_task_runtime::TaskStatus::Running)
+}
+
 async fn update_task(state: &MapApplication, task_id: TaskId, transition: TaskTransition) {
-    if let Err(error) = state.tasks.transition(task_id, transition).await {
+    if let Err(error) = state
+        .tasks
+        .transition_resumable(
+            task_id,
+            transition,
+            veoveo_task_runtime::ResumeCancellationPolicy::PreserveFailure,
+            None,
+        )
+        .await
+    {
         tracing::warn!(%task_id, "Map task update failed: {error}");
     }
 }

@@ -376,6 +376,14 @@ async fn run_task_inner(
     progress: Option<TaskProgress>,
     cancellation: CancellationToken,
 ) {
+    match app_state::start_work(&state.tasks, task_id).await {
+        Ok(true) => {}
+        Ok(false) => return,
+        Err(error) => {
+            tracing::warn!(%task_id, "forecast initial Task checkpoint failed: {error}");
+            return;
+        }
+    }
     notify_task_progress(&progress, 0.1, "materializing source").await;
     let artifact = match tokio::task::spawn_blocking({
         let input = request.input.clone();
@@ -429,7 +437,7 @@ async fn run_task_inner(
                 return;
             }
         };
-    update_task(&state, task_id, transition).await;
+    app_state::publish_task(&state, task_id, transition, &cancellation).await;
 }
 
 #[tokio::main]

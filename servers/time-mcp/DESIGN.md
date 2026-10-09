@@ -594,8 +594,8 @@ A later local stop cannot undo that dispatch, and shutdown may leave its outcome
 unresolved until current-state reconciliation. Local token cancellation and database
 settlement do not form an atomic operation.
 
-Final calculation settlement uses the selected Task snapshot and the runtime's
-compare-and-set transition. If cancellation wins that transition, the executing
+Final calculation settlement delegates the selected Task snapshot to TaskRuntime's
+Resume settlement with the PreserveFailure policy. If cancellation wins that transition, the executing
 worker rereads current state once and settles `CancelRequested` as `Cancelled`
 without publishing the calculated result. An already committed terminal outcome
 wins. A genuine calculation failure keeps its failure code and message, including
