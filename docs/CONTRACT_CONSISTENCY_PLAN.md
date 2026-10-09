@@ -234,8 +234,8 @@ The five images from `2f5f919a3` and Veoveo chart from `1e565a826` are published
 chart digest `38387a5aa7cd` and matching image/configuration/module inputs are
 committed at `1e565a826` and `a508f8e6e`. The preservation update at `26c0f7ec4` keeps qualified Artifact Service and
 Speech images and Speech's one replica. The existing worker OAuth key matches its
-checked public JWKS; fresh trust is prepared offline without live Secrets. All 27
-Computers tables are empty, and the unbound Host PVC is expected WaitForFirstConsumer
+checked public JWKS; fresh trust is prepared offline without live Secrets. All 28
+Computers tables are empty and no nonterminal Tasks are present, and the unbound Host PVC is expected WaitForFirstConsumer
 state. Node RuntimeClass activation, live Secrets/configuration and installed
 qualification remain required.
 Stable CDN CIDRs do not block stock authentication under the current network profile.

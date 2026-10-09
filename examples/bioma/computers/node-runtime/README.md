@@ -53,9 +53,29 @@ belong in these files.
 
 Node configuration installation and new-Pod qualification are open. The chart
 and these files alone do not activate or qualify the handler. Ops owns the
-maintenance window, backups, node changes and rollback. Keep Knowledge and
-Embedding available under the installation's accepted maintenance constraints;
-a K3s restart on the single reference node needs explicit coordination.
+maintenance window, backups, node changes and rollback. Restarting the single
+reference node causes an installation outage, including Knowledge and Embedding.
+The reviewed private Ops runbook controls execution and recovery.
+
+The reference k3d entrypoint handles SIGTERM by force-draining Pods with
+`--delete-emptydir-data` before stopping K3s. PVC-backed data is retained, but Pod
+scratch data and caches in `emptyDir` are deleted. Before restarting, close new
+work and Task admission, settle active Tasks and provider operations, and preserve
+unresolved-operation and retained-writer fences. Confirm workload quiescence and
+backup requirements for every affected scratch owner; an empty Computers catalog
+alone does not establish that the installation is idle.
+
+Suspend application Flux reconciliation throughout the maintenance window. Restore
+and verify the source-controller artifact cache before resuming application
+reconciliation, keeping the selected chart and configuration revisions aligned.
+Startup uncordons the node, so cordoning alone cannot hold workload admission across
+the restart. Prepare the intended replica state and admission controls beforehand.
+
+Save the node configuration and required recovery data through Docker-side access
+before effects. Backups, restoration and rollback must remain possible without the
+Kubernetes API, since the API runs inside the node being restarted. Verify those
+access paths and retained-volume identities in the Ops runbook before installing
+configuration or sending a stop signal.
 
 After configuration review, Ops installs the generated `computer-host-oci.json`
 and extension `config-v3.toml.tmpl` under
@@ -73,9 +93,11 @@ cgroup root reports finite CPU and memory limits and `pids.max=4096`, and requir
 the Host startup checks to pass. Qualify stock workload/supervisor descendants
 under that aggregate budget and retained-home lifecycle controls before activation.
 
-For rollback, stop admitting Computers and drain the Host before restoring the
-saved node template and restarting K3s. Remove the RuntimeClass only after no Pod
-selects it. Preserve retained PVCs and provider operation outcomes throughout.
+For rollback, keep work admission and application reconciliation suspended, drain
+the Host and restore the saved node configuration through the verified Docker-side
+path. A second restart has the same outage and scratch-deletion effects. Remove the
+RuntimeClass only after no Pod selects it. Verify retained PVC identities, source
+artifacts and provider operation outcomes before restoring application admission.
 
 The supported mechanisms are documented by [K3s containerd configuration](https://docs.k3s.io/advanced#configuring-containerd),
 [containerd CRI runtime configuration](https://github.com/containerd/containerd/blob/v2.3.4/docs/cri/config.md),
