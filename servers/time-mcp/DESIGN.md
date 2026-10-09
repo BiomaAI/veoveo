@@ -962,6 +962,15 @@ Examples of agent requests include:
 
 ## Verification
 
+`tests/gateway_consumers.rs` owns read-only public-gateway acceptance for the selected
+authority pair, clock, resolution and conversion vectors, versioned calendar and epoch,
+epoch arithmetic, window intersection and HTTPS authority-source metadata. Its closed
+input and private receipt follow the [installed harness contract](../../testing/installed/DESIGN.md#time-consumers).
+Local controls qualify fixture and receipt handling, clock classification, touching
+and one-nanosecond interval assertions, and incomplete HTTP response tracing. Installed execution,
+Task delivery, restart recovery, authority activation and conflict rollback require
+their separate qualification.
+
 Unit tests cover leap authority validation, positive-leap projection, RFC/GPS/DTG
 equivalence, DST ambiguity, DST-aware schedule expansion, half-open interval algebra,
 timeline violations, clock policy, canonical URIs, acquisition configuration, and

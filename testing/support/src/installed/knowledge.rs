@@ -77,6 +77,15 @@ pub fn credentials(path: &Path) -> Result<ConformanceCredentials> {
     Ok(ConformanceCredentials::bearer(token(path)?))
 }
 
+/// Admit an owner-private token file and return a redacted Authorization header.
+pub fn bearer_header(path: &Path) -> Result<reqwest::header::HeaderValue> {
+    let token = token(path)?;
+    let mut value = reqwest::header::HeaderValue::from_str(&format!("Bearer {token}"))
+        .map_err(|_| anyhow::anyhow!("invalid bearer authorization header"))?;
+    value.set_sensitive(true);
+    Ok(value)
+}
+
 pub async fn close(connection: RunningService<RoleClient, ClientConfig>) -> Result<()> {
     tokio::time::timeout(Duration::from_secs(10), connection.cancel())
         .await
@@ -173,4 +182,35 @@ fn token(path: &Path) -> Result<String> {
     let token = fs::read_to_string(path)?;
     ensure!(!token.trim().is_empty(), "source token file is empty");
     Ok(token.trim().to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bearer_header_requires_private_file_and_redacts_debug() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("token");
+        fs::write(&path, "fixture-private-token")?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o644))?;
+            ensure!(bearer_header(&path).is_err());
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
+        }
+        let header = bearer_header(&path)?;
+        ensure!(header.is_sensitive());
+        ensure!(!format!("{header:?}").contains("fixture-private-token"));
+        fs::write(&path, "fixture\nprivate-token")?;
+        let error = bearer_header(&path).unwrap_err();
+        ensure!(error.to_string() == "invalid bearer authorization header");
+        ensure!(!format!("{error:?}").contains("private-token"));
+        fs::write(&path, " \n")?;
+        ensure!(bearer_header(&path).is_err());
+        ensure!(bearer_header(Path::new("relative-token")).is_err());
+        ensure!(bearer_header(directory.path()).is_err());
+        Ok(())
+    }
 }

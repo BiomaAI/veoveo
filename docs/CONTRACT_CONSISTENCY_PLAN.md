@@ -70,6 +70,16 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 
 ## Current Status
 
+The read-only Time owner fixture prepares public-gateway authority, clock,
+resolution/conversion, calendar/epoch, window and HTTPS-source consumers. Its native
+fixture and receipt controls pass; installed execution remains held. Task recovery,
+Time activation and final-image acceptance require their owning qualification.
+
+Artifact's existing consumer prepares delegated SDK metadata, resolution and pagination;
+public OAuth interoperability and delegated byte-plane observations carry distinct
+qualification. Capability recovery and final-image acceptance require their owning
+qualification. Installed execution remains held.
+
 Installed node activation and the stock rollout are halted after Secret values
 accidentally appeared in a tool transcript. Both tracked Veoveo and UAV HelmReleases
 explicitly suspend application reconciliation to preserve this installation hold. The namespace inventory contains

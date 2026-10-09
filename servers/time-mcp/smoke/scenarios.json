@@ -1,0 +1,38 @@
+{
+  "format": "veoveo.ai/smoke-scenarios/v1",
+  "owner": "servers/time-mcp",
+  "scenarios": [
+    {
+      "id": "time-installed-consumers",
+      "description": "Qualify typed read-only Time consumers through the public gateway.",
+      "target": {
+        "kind": "cargo_test",
+        "selection": {
+          "owner": "servers/time-mcp",
+          "package": "veoveo-time-mcp",
+          "target": "gateway_consumers",
+          "features": [
+            "mcp"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        },
+        "case": "typed_time_consumers_through_public_gateway",
+        "ignored": true
+      },
+      "arguments": [],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Requires VEOVEO_TIME_CONSUMERS_INPUT, an installation target, private caller and administrator token files, selected authority/calendar/epoch/source fixtures and a new receipt path. Reads Time through the public gateway; performs no Task, restart or authority activation."
+      },
+      "deadlineSeconds": 360,
+      "cleanupSeconds": 15
+    }
+  ]
+}

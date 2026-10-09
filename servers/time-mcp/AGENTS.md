@@ -49,6 +49,10 @@ leap second assumptions.
 ## Build And Test
 
 - `cargo check -p veoveo-time-mcp`
+- `cargo test -p veoveo-time-mcp --test gateway_consumers` runs local fixture and
+  receipt controls. Its ignored public-gateway case uses explicit read-only fixtures;
+  `cargo xtask smoke time-installed-consumers --help` lists prerequisites. Follow
+  [the installed input contract](../../testing/installed/DESIGN.md#time-consumers).
 - `cargo test -p veoveo-time-mcp`
 - `tests/gateway_source_conformance.rs` supplies two disposable scheduled events to
   the shared source checker. It cancels one before a Time Deployment restart and one

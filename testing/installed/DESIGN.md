@@ -19,6 +19,8 @@ source report. `restart.rs` controls one Deployment named by the installation ta
 They do not choose domain data, grants, service names or expected search results.
 Owner tests outside source conformance can select their own fixture environment
 variable through `input_from`; the same path and size checks apply.
+`knowledge::bearer_header` admits a private token file for owner HTTP requests and
+returns a sensitive Authorization header. Malformed header diagnostics omit the token.
 
 Each server's integration test owns those choices and imports its library types.
 Artifact owns the grant mutation driver that its metadata test and Reason's finding
@@ -94,6 +96,32 @@ These tests require the `mcp` feature and are ignored by ordinary native test ru
 They need network access to the public gateway, `kubectl` access to the selected
 context and namespace, and ready source dependencies. They perform no inference;
 a reused GPU analysis keeps its original execution evidence.
+
+## Time Consumers
+
+`servers/time-mcp/tests/gateway_consumers.rs` selects a separate closed input with
+`VEOVEO_TIME_CONSUMERS_INPUT`. Its `installation` uses the fields above and selects
+`time-mcp`; this read-only case does not inspect or restart that Deployment. Supply
+the expected `authority`, existing versioned `calendar` and `epoch`, two to sixteen
+`resolutions` with typed `request`, `expected` instant and `expectedUtc`, and distinct
+`zoneIds` and `scales`. Resolution vectors include both subsecond endpoints. The
+calendar contains recurrence windows and the epoch and expectations bind the selected
+current authority. Keep that authority unchanged throughout qualification.
+The `source` is an existing typed HTTPS `TimeSource`. Supply `administrator` with
+the installed admin `profile` and private `tokenFile`; the owner derives its read-only
+source route under the same public Gateway origin.
+
+Run local admission controls with `cargo test -p veoveo-time-mcp --test gateway_consumers`.
+The installed case is ignored and runs through `cargo xtask smoke time-installed-consumers`
+only when installation access is authorized. Its create-new private receipt uses
+`veoveo.ai/time-consumers-acceptance/v1` and records each completed check, failure
+category and separate connection cleanup. Typed request traces retain complete-response
+and error digests, available MCP codes and HTTP statuses without response bodies or tokens.
+Interrupted body reads record status without a complete-response digest.
+MCP response digests cover re-encoded admitted typed values; admin HTTP digests cover
+the complete received body bytes.
+Task delivery, restart recovery, authority
+activation and conflict rollback require additional owning cases.
 
 ## Restart And Cleanup
 
