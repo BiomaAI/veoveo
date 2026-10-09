@@ -13,7 +13,9 @@ refresh, owner authority and focused Gateway native controls; independent review
 approves its contracts and Secret wiring. Optional admitted
 issuer CA inputs configure issuer HTTPS trust with verification enabled. The focused
 installed DuckDB Task, completion subscription and graceful-restart check passes
-through normal Gateway OAuth. The installed worker Secret, full native security and
+through normal Gateway OAuth. The selected DuckDB, Timeseries, Frames and Media
+protocol case also passes discovery, documents, transport and Gateway health/audit
+checks on admitted deployed images. The installed worker Secret, full native security and
 retained lifecycle, and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
 and owning controls. Task/subscription fixtures and complete installed A/F/H
 qualification remain open. See [Current Status](#current-status).
@@ -70,7 +72,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the actual Computer Host workload boundary, final installed profile/current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. Full stock-provider native security, lifecycle and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. Initial tool-server and nine-scope checks pass their recorded qualification. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`. GitOps is suspended; Knowledge and Embedding are restored and Ready, while Reason and other GPU workloads stay off. Focused DuckDB, Frames and Knowledge installed cases pass on admitted deployed images; complete installed fixtures remain open | Complete Frames F35 actual-producer and F37 crash/restart gates, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The selected four-server CPU protocol case at `b4259b1f5` passes discovery, documents, transport, authenticated Gateway health and audit, and prompt isolation. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`. GitOps is suspended; Knowledge and Embedding are restored and Ready, while Reason and other GPU workloads stay off. Focused Frames and Knowledge installed cases also pass on admitted deployed images | Complete anonymous discovery and remaining owner fixtures, Frames F35 actual-producer and F37 crash/restart gates, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -304,26 +306,32 @@ Knowledge and Embedding are now restored at one Ready replica each with the reta
 model PVC identity unchanged. GitOps is suspended; Reason and other GPU workloads
 stay at zero replicas. Unattended cold-start qualification stays open. The old shared 197.9 GB
 checkpoint/model volume is preserved because fourteen retained containers mount it.
-No complete installed shared-host gate has passed against this fresh release.
-Normal frozen conformance and installation executables are ready at
-`/tmp/veoveo-first-installed-gates-artifacts-55a9-20261008`.
-The first normal OAuth discovery attempt on the full operator profile failed on eight
-intentionally staged-off upstreams. `operator-initial` exposes DuckDB, Timeseries,
-Frames and Media tools plus read-only Artifact resources and requires complete tool
-and prompt catalogs. Full operator settings and resource discovery cache behavior
-are unchanged. The installed initial profile rejected the target's six unsupported
-extra scopes with HTTP 400. A normal operator-service exchange requesting its nine
-required scopes succeeds, and all four Ready tool servers pass read-only MCP
-discovery, docs, contracts, `doc_id=de` completion to `design` and nonexistent-document
-rejection with -32602. The initial target selects those nine scopes and passes owning committed-target
-qualification. The DuckDB fixture dispatched export but rejected the returned Task
-identity before starting its listener. Correlated native and gateway Task reads
-settle the original export as cancelled with no result URI and zero produced Artifacts.
-Unknown unlinked partial effects remain untouched. The later focused installed-host
-case qualifies one DuckDB query Task and its completion listener. Other owner Task
-and subscription fixtures remain open.
-Artifact preparation now hashes each shared file once per fresh admission and
-selects the OAuth executable and runtime together.
+The selected `installed-protocol` case at source `b4259b1f5` passes once in
+47.902 seconds through normal `operator-initial` and administrator OAuth clients.
+DuckDB, Timeseries, Frames and Media pass complete tools/resources/templates/prompts
+catalogs, docs index/contract/design reads, `doc_id=de` completion to `design`,
+authenticated admin documents and unknown-address rejection with -32602. Normal
+FullMcp discovery excludes declared compatibility helpers; the receipt preserves all
+four expected and observed tool sets before assertions.
+
+All four mounted liveness/readiness routes return 200, missing Host returns 400 and
+wrong Host returns 421. Media's direct unsigned callback returns 401 with
+`invalid signature`. Administrator health returns all 19 registered server states and
+check times; the operator's own profile returns 403. A filtered public Audit export
+correlates an Allowed ServerHealth admission with the actual caller and request
+interval. Prompt discovery returns 20 prompts while declaring seven actually
+unavailable upstreams. The 51-observation v2 receipt qualifies its selected scope and
+records completed client cleanup. Ops closes every Pod forward and confirms unchanged
+workload UIDs, images, configuration, readiness and GPU selection.
+
+These observations qualify the selected A01, positive A02, A03 transport/resource,
+A04 and unsigned-callback A07 behavior. Anonymous discovery, Recording gRPC, other
+owner fixtures and final source/image/configuration agreement remain open. The earlier
+DuckDB export is settled as cancelled with no result URI and zero produced Artifacts;
+unknown unlinked partial effects remain untouched. The focused installed-host case
+qualifies one DuckDB query Task and its completion listener. Other owner Task and
+subscription fixtures remain open. Artifact preparation hashes each shared file once
+per admission and uses each scenario selection's effective dependency closure.
 
 The expanded Frames A06/F-register consumer at source `a140c0571` passes once
 through `frames-installed` on admitted deployed Frames image `032ce55005cb` and
