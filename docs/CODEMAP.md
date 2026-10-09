@@ -1006,6 +1006,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifact output |
 | `servers/timeseries-mcp/src/contract/usage.rs` | isolated public usage address, cursor and page contracts; native Task IDs and checked component builders |
 | `servers/timeseries-mcp/src/contract/request.rs` | forecast request builders, checked horizon and training filters; DuckDB-owned tabular source profile and column types |
+| `servers/timeseries-mcp/src/contract/provenance.rs` | public RRD/source/recording-Task and checked Artifact forecast metadata models; production recording and installed consumers share the same wire and plain-hex source digest profile |
 | `servers/timeseries-mcp/src/contract/relationships.rs`, `src/forecast.rs` | shared forecast summary/preview/Artifact relationships and finite full-point admission before RRD encoding and publication |
 | `servers/timeseries-mcp/app/contracts.js`, `artifact.js` | browser forecast relationship checks, exact row-count admission and owner-specific Artifact address parsing before chart state changes |
 | `servers/timeseries-mcp/src/contract/resources.rs`, `artifact_uri.rs`, `src/bin/server/setup.rs`, `resources.rs` | typed Artifact and hosted routes, checked startup/discovery and exhaustive authorized resource dispatch |
@@ -1832,6 +1833,7 @@ dispatch preflights and budgeted execution.
 | `examples/bioma/acceptance/src/smoke/scenarios/installation/protocol/discovery.rs` | complete selected owner discovery, typed docs/contracts/completions, current invalid-resource refusal and administrator prompt isolation |
 | `examples/bioma/acceptance/src/smoke/scenarios/installation/protocol/admin.rs` | normal administrator health inventory, matching-profile operator refusal and bounded public Audit export correlation |
 | `examples/bioma/acceptance/src/smoke/scenarios/installation/shared_host.rs` and `shared_host/drain.rs` | installed CPU query Task completion and retained payload through normal operator OAuth, with one admitted DuckDB process drain in the existing installation harness |
+| `examples/bioma/acceptance/src/smoke/scenarios/timeseries.rs` | installed inline-CSV NaiveTrend forecast Task, delivered completion, typed RRD Artifact/provenance and caller-scoped usage/foreign-read assertions; same installation harness and retained fixture owner |
 | `examples/bioma/acceptance/src/smoke/scenarios/frames/recovery.rs` | one settled typed world/revision/direct conversion/Task fixture, operations-owned crash marker and fresh owner/foreign readback |
 | `examples/bioma/acceptance/src/smoke/scenarios/frames/immutable_subscription.rs` | Frames-owned installed probe observes terminal URI rejection after protocol acknowledgement and retains listener ownership for cancellation after the operation deadline |
 | `examples/bioma/acceptance/src/smoke/scenarios/frames/installed.rs`, `coverage.rs` and `assertions.rs` | same acceptance owner composes installed Frames lifecycle, retained-fixture coverage and typed paging/completion/provenance assertions; shared cleanup and receipts stay in the owning scenario |

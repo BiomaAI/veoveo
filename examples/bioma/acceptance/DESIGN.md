@@ -23,6 +23,7 @@
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
 | Installed View fixture | `veoveo.ai/view-installed-fixture/v1` closed JSON; nonzero Kubernetes UIDs, opaque resourceVersions, immutable ConfigMap bytes and qualified image release; relative release paths resolve beside the declaration |
 | View fixture preparation | `veoveo.ai/view-fixture-preparation/v1` JSON utility receipt; preparation produces no smoke acceptance outcome |
+| Installed Timeseries evidence | `veoveo.ai/installed-timeseries/v1` private JSON with one forecast dispatch intent, gateway/native Task and Artifact identities, delivered completion, RRD/provenance/usage observations and separate cleanup results |
 | Installed Frames evidence | `veoveo.ai/frames-installed-evidence/v3` camelCase JSON with typed dispatch intents and observations, owner world/revision/native usage identities, gateway Task routes and separate cleanup outcomes |
 | Frames crash fixture | `veoveo.ai/frames-crash-fixture/v1` closed private JSON binds the installation/control-plane digest and selected Deployment/ReplicaSet/Pod/container runtime identities |
 | Frames crash marker and receipt | `veoveo.ai/frames-ready-for-crash/v1` and `veoveo.ai/frames-recovery-evidence/v1`; private settled typed snapshots, caller-owned watch progress, operation outcome and awaited cleanup |
@@ -315,6 +316,46 @@ process stay owned outside the aggregate timer and receive five seconds each for
 cleanup. Operation success, cleanup and overall qualification are distinct receipt fields.
 The descriptor's 3600-second preparation-inclusive and 180-second cleanup ceilings preserve
 room for compiler prerequisites; they do not extend the owner operation deadline.
+
+## Installed Timeseries
+
+`timeseries-installed` selects `installation-smoke timeseries-installed` with
+required `--installation` and `--evidence-output` inputs. The existing installed
+harness resolves the declared operator and distinct administrator through normal
+Gateway OAuth. Preparation selects `installation-smoke` and its sole prerequisite,
+`gateway-smoke-support`; installed Timeseries and Artifact services supply the domain
+processes. This entrypoint launches no local server or provider.
+
+The case dispatches one inline-CSV forecast using the owner’s NaiveTrend model. It
+requires delivered Task completion, then admits the forecast output and RRD Artifact
+through their owner contracts. It reads both the Timeseries-presented RRD and neutral
+Artifact occurrence, validates RRD Scalar values and timelines, and compares current
+Artifact metadata. The four observations follow source rows 0–3 with values 1–4;
+the two forecast steps have means 5 and 6 and must agree with the typed preview.
+These are data checks and establish no playback or rendering qualification. Provenance and caller-scoped usage must correlate
+with that same forecast. The native Task ID comes from the produced metadata and
+provenance, independently of the opaque Gateway Task route. Exactly one usage record
+must name that native Task, model `timeseries/naive-trend` and quantity 4 in
+`source_row` units. A distinct administrator
+uses ordinary OAuth to verify the native Task-usage read refusal. Artifact metadata
+is read through the Artifact MCP contract-only library’s `metadata_uri` builder and
+admitted as the owner’s bare metadata resource response. This contract edge adds no
+Artifact runtime integration. The Task, Artifact and usage are retained domain writes. The descriptor’s
+`clusterMutation:false` means the case performs no Kubernetes mutation; it does not
+classify the forecast as read-only. The case establishes no forced-cancellation,
+in-flight recovery, GPU or visual-rendering guarantee.
+
+The owner operation has a 300-second deadline. OAuth and MCP connection admissions
+have 15 seconds each, catalogs have 30 seconds each, and individual reads have 15
+seconds. Task event delivery has at most 180 seconds within the operation deadline.
+Usage traversal permits 32 pages per baseline or final read and admits at most 3,000
+existing entries before the forecast. Typed intents and known outcomes are written
+to a private receipt capped at 1 MiB before execution advances. Subscription and client
+handles stay outside the cancellable operation future. Listener cleanup has five
+seconds, and each SDK client has ten seconds after success, failure or timeout. The descriptor keeps the 3600-second preparation budget
+and 180-second cleanup allowance; these outer budgets include artifact preparation
+and do not extend the owner operation deadline. A timeout cannot authorize another
+forecast dispatch or removal of an unresolved retained fixture.
 
 ## Installed Frames
 

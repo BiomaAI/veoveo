@@ -1,0 +1,360 @@
+//! One installed CPU forecast through the existing acceptance harness.
+use super::*;
+use anyhow::ensure;
+use std::collections::BTreeSet;
+use veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbTabularSource};
+use veoveo_timeseries_mcp::contract::{
+    TimeseriesForecastHorizon, TimeseriesForecastRequest, TimeseriesTableMapping,
+};
+
+fn forecast_request() -> Result<TimeseriesForecastRequest> {
+    Ok(TimeseriesForecastRequest::new(
+        DuckDbTabularSource::InlineCsv {
+            csv: "value\n1\n2\n3\n4\n".into(),
+            filename: Some("installed-forecast.csv".into()),
+            options: DuckDbReadOptions::default().with_header(true),
+        },
+        TimeseriesTableMapping::new("value".parse()?),
+        TimeseriesForecastHorizon::new(2)?,
+    ))
+}
+
+#[path = "timeseries/assertions.rs"]
+mod assertions;
+#[path = "timeseries/evidence.rs"]
+mod evidence;
+#[path = "timeseries/reads.rs"]
+mod reads;
+use evidence::{Outcome, Receipt, persist};
+use std::os::unix::fs::OpenOptionsExt;
+use veoveo_artifact_contract::ArtifactMetadata;
+use veoveo_timeseries_mcp::contract::{TimeseriesForecastOutput, TimeseriesTaskUsageUri};
+use veoveo_types::{ResourceAddress, ResourceUri};
+
+pub(crate) async fn timeseries_installed(
+    installation: &support::InstalledTarget,
+    evidence_path: &Path,
+) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
+    let administrator = installation.administrator()?;
+    ensure!(
+        administrator.principal != installation.operator.principal
+            && administrator.profile != installation.operator.profile
+            && administrator.resource != installation.operator.resource,
+        "Timeseries visibility requires a distinct administrator identity/profile"
+    );
+    ensure!(
+        evidence_path.is_absolute(),
+        "Timeseries receipt requires an absolute path"
+    );
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(evidence_path)
+        .context("Timeseries receipt requires a new private file")?;
+    let mut receipt = Receipt::new(forecast_request()?);
+    persist(&mut file, &receipt)?;
+    let mut operator = None;
+    let mut foreign = None;
+    let mut notification = TaskNotificationState::default();
+    let result = tokio::time::timeout_at(deadline, async {
+        let token = tokio::time::timeout(Duration::from_secs(15), installation.token())
+            .await
+            .map_err(|_| anyhow!("Timeseries operator OAuth deadline"))?
+            .map_err(|_| anyhow!("Timeseries operator OAuth admission failed"))?;
+        operator = Some(
+            tokio::time::timeout(
+                Duration::from_secs(15),
+                connect_mcp_client(installation.operator.resource.as_str(), &token),
+            )
+            .await
+            .map_err(|_| anyhow!("Timeseries operator connection deadline"))?
+            .map_err(|_| anyhow!("Timeseries operator connection failed"))?,
+        );
+        let token = tokio::time::timeout(Duration::from_secs(15), administrator.token())
+            .await
+            .map_err(|_| anyhow!("Timeseries administrator OAuth deadline"))?
+            .map_err(|_| anyhow!("Timeseries administrator OAuth admission failed"))?;
+        foreign = Some(
+            tokio::time::timeout(
+                Duration::from_secs(15),
+                connect_mcp_client(administrator.resource.as_str(), &token),
+            )
+            .await
+            .map_err(|_| anyhow!("Timeseries administrator connection deadline"))?
+            .map_err(|_| anyhow!("Timeseries administrator connection failed"))?,
+        );
+        let client = operator.as_ref().expect("operator connection admitted");
+        admit(client).await?;
+        let existing = reads::usage_ids(client, &mut file, &mut receipt).await?;
+        ensure!(
+            existing.len() <= 3000,
+            "Timeseries usage leaves insufficient fixture traversal budget"
+        );
+        let request = receipt.request.clone();
+        let arguments = serde_json::to_value(&request)?;
+        receipt.outcome = Outcome::MutationUnresolved;
+        if let Err(error) = persist(&mut file, &receipt) {
+            // This invocation has not dispatched anything when intent persistence fails.
+            receipt.outcome = Outcome::NotDispatched;
+            return Err(error);
+        }
+        let completed = complete_tool_with_notification(
+            client,
+            "timeseries__forecast",
+            arguments,
+            deadline,
+            Duration::from_secs(180),
+            |event| {
+                receipt.observed(event);
+                persist(&mut file, &receipt)
+            },
+            &mut notification,
+        )
+        .await;
+        receipt.subscription_closed = notification.listener_closed;
+        let (_task_id, payload) = completed?;
+        let output: TimeseriesForecastOutput = serde_json::from_value(
+            payload
+                .structured_content
+                .context("Timeseries completed Task omitted structured output")?,
+        )
+        .map_err(|_| anyhow!("Timeseries completed output failed owner admission"))?;
+        receipt.output = Some(output.clone());
+        persist(&mut file, &receipt)?;
+        let metadata = assertions::metadata(&request, &output)?;
+        receipt.native_task_id = Some(metadata.task_id);
+        persist(&mut file, &receipt)?;
+        ensure!(
+            !existing.contains(&metadata.task_id),
+            "Timeseries native Task identity already existed"
+        );
+        let metadata_uri =
+            veoveo_artifact_mcp::contract::metadata_uri(output.artifact.artifact_id());
+        let current: ArtifactMetadata =
+            reads::json(client, &metadata_uri, &mut file, &mut receipt).await?;
+        assertions::current_metadata(&output, &current)?;
+        let timeseries_bytes = reads::blob(
+            client,
+            &output.result_uri.to_uri()?,
+            &mut file,
+            &mut receipt,
+        )
+        .await?;
+        let artifact_uri = veoveo_artifact_mcp::contract::ArtifactResource::Occurrence(
+            output.artifact.artifact_id(),
+        )
+        .to_uri();
+        let artifact_bytes = reads::blob(client, &artifact_uri, &mut file, &mut receipt).await?;
+        receipt.artifact_digest = Some(assertions::recording(
+            &request,
+            &output,
+            &metadata,
+            &timeseries_bytes,
+            &artifact_bytes,
+        )?);
+        persist(&mut file, &receipt)?;
+        let usage_uri = TimeseriesTaskUsageUri::new(metadata.task_id)?.to_uri()?;
+        let usage: veoveo_mcp_contract::UsageReport =
+            reads::json(client, &usage_uri, &mut file, &mut receipt).await?;
+        require_usage(&usage, metadata.task_id, &usage_uri)?;
+        let ids = reads::usage_ids(client, &mut file, &mut receipt).await?;
+        ensure!(
+            ids.contains(&metadata.task_id),
+            "Timeseries usage pages omit the actual forecast Task"
+        );
+        receipt.usage_member = true;
+        persist(&mut file, &receipt)?;
+        let reply = reads::fetch(
+            foreign.as_ref().expect("administrator connection admitted"),
+            &usage_uri,
+            &mut file,
+            &mut receipt,
+        )
+        .await?;
+        let expected = veoveo_mcp_conformance::client::failure::ObservedFailure::mcp(
+            -32602,
+            format!("unknown usage task '{}'", metadata.task_id),
+        );
+        ensure!(
+            matches!(reply,reads::Reply::Denied(actual) if actual==expected),
+            "Timeseries foreign usage denial differed; see private receipt"
+        );
+        receipt.foreign_usage_denied = true;
+        persist(&mut file, &receipt)?;
+        Ok::<_, anyhow::Error>(())
+    })
+    .await
+    .map_err(|_| anyhow!("Timeseries operation exceeded300seconds; see retained receipt"))
+    .and_then(|result| result);
+    // The SDK handles and journal stay owned after operation cancellation. Cleanup
+    // never cancels or redispatches an uncertain domain Task.
+    let listener = notification.close().await;
+    receipt.subscription_closed = notification.listener_closed;
+    receipt.operator_closed = close(operator).await;
+    receipt.administrator_closed = close(foreign).await;
+    receipt.settle(result.is_ok());
+    let written = persist(&mut file, &receipt);
+    result?;
+    listener?;
+    written?;
+    ensure!(
+        receipt.operator_closed && receipt.administrator_closed,
+        "Timeseries SDK cleanup unresolved"
+    );
+    Ok(())
+}
+async fn close(client: Option<SmokeMcpClient>) -> bool {
+    match client {
+        Some(client) => matches!(
+            tokio::time::timeout(Duration::from_secs(10), client.cancel()).await,
+            Ok(Ok(()))
+        ),
+        None => true,
+    }
+}
+async fn admit(client: &SmokeMcpClient) -> Result<()> {
+    ensure!(
+        client
+            .peer_info()
+            .is_some_and(|info| info.capabilities.supports_tasks()),
+        "Timeseries gateway does not advertise official Tasks"
+    );
+    let tools = tokio::time::timeout(
+        Duration::from_secs(30),
+        veoveo_mcp_conformance::catalog::tools(client.peer()),
+    )
+    .await
+    .map_err(|_| anyhow!("Timeseries tool catalog deadline"))??;
+    ensure!(
+        tools
+            .iter()
+            .filter(|tool| tool.name == "timeseries__forecast")
+            .count()
+            == 1,
+        "Timeseries forecast tool is absent or duplicated"
+    );
+    let templates = tokio::time::timeout(
+        Duration::from_secs(30),
+        veoveo_mcp_conformance::catalog::templates(client.peer()),
+    )
+    .await
+    .map_err(|_| anyhow!("Timeseries template catalog deadline"))??;
+    for required in [
+        veoveo_artifact_mcp::contract::METADATA_TEMPLATE,
+        veoveo_artifact_mcp::contract::ARTIFACT_TEMPLATE,
+    ] {
+        ensure!(
+            templates
+                .iter()
+                .any(|template| template.uri_template.as_str() == required),
+            "Timeseries requires public Artifact metadata and occurrence resource exposure"
+        );
+    }
+    Ok(())
+}
+fn require_usage(
+    usage: &veoveo_mcp_contract::UsageReport,
+    id: veoveo_types::TaskId,
+    uri: &ResourceUri,
+) -> Result<()> {
+    ensure!(
+        usage.task_id.parse::<veoveo_types::TaskId>()? == id
+            && usage.usage_uri == uri.as_str()
+            && usage.records.len() == 1
+            && usage.total_amount.is_none()
+            && usage.currency.is_none()
+            && usage.total_kind == Some(veoveo_mcp_contract::UsageKind::Actual),
+        "Timeseries usage identity or records differ"
+    );
+    for record in &usage.records {
+        let metadata: veoveo_timeseries_mcp::contract::TimeseriesForecastUsageMetadata =
+            serde_json::from_value(record.metadata.clone())
+                .map_err(|_| anyhow!("Timeseries usage metadata failed owner admission"))?;
+        ensure!(
+            metadata.series_count == 1 && metadata.horizon == TimeseriesForecastHorizon::new(2)?,
+            "Timeseries usage metadata differs from the single-series forecast"
+        );
+        ensure!(
+            record.task_id.parse::<veoveo_types::TaskId>()? == id
+                && record.kind == veoveo_mcp_contract::UsageKind::Actual
+                && record.model_id == "timeseries/naive-trend"
+                && record.quantity == Some(4.0)
+                && record.unit.as_deref() == Some("source_row")
+                && record.amount.is_none()
+                && record.currency.is_none()
+                && record.source_id.is_none()
+                && record.provider_job_id.is_none(),
+            "Timeseries usage differs from the four-row forecast"
+        );
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod usage_tests {
+    use super::*;
+    use veoveo_mcp_contract::{UsageKind, UsageRecord, UsageReport};
+    use veoveo_timeseries_mcp::contract::{
+        TimeseriesForecastUsageMetadata, TimeseriesForecastUsageMetadataBuilder,
+    };
+    use veoveo_types::TaskId;
+
+    #[test]
+    fn charged_provider_or_different_forecast_usage_is_rejected() -> Result<()> {
+        let id = TaskId::new();
+        let uri = TimeseriesTaskUsageUri::new(id)?.to_uri()?;
+        let horizon = TimeseriesForecastHorizon::new(2)?;
+        let record = UsageRecord {
+            task_id: id.to_string(),
+            source_id: None,
+            provider_job_id: None,
+            model_id: "timeseries/naive-trend".into(),
+            kind: UsageKind::Actual,
+            quantity: Some(4.0),
+            unit: Some("source_row".into()),
+            amount: None,
+            currency: None,
+            recorded_at: chrono::Utc::now(),
+            metadata: serde_json::to_value(TimeseriesForecastUsageMetadata::new(1, horizon)?)?,
+        };
+        let report =
+            |record| UsageReport::new(id.to_string(), uri.as_str()).with_records(vec![record]);
+        require_usage(&report(record.clone()), id, &uri)?;
+        let mut charged = record.clone();
+        charged.amount = Some(0.1);
+        let mut currency = record.clone();
+        currency.currency = Some("USD".into());
+        let mut source = record.clone();
+        source.source_id = Some("unexpected-source".into());
+        let mut provider = record.clone();
+        provider.provider_job_id = Some("unexpected-job".into());
+        let mut horizon_drift = record.clone();
+        horizon_drift.metadata = serde_json::to_value(TimeseriesForecastUsageMetadata::new(
+            1,
+            TimeseriesForecastHorizon::new(3)?,
+        )?)?;
+        let mut series_drift = record.clone();
+        series_drift.metadata =
+            serde_json::to_value(TimeseriesForecastUsageMetadata::new(2, horizon)?)?;
+        let mut format_drift = record;
+        format_drift.metadata = serde_json::to_value(TimeseriesForecastUsageMetadataBuilder {
+            series_count: 1,
+            horizon,
+            artifact_format: "other".into(),
+        })?;
+        for different in [
+            charged,
+            currency,
+            source,
+            provider,
+            horizon_drift,
+            series_drift,
+            format_drift,
+        ] {
+            assert!(require_usage(&report(different), id, &uri).is_err());
+        }
+        Ok(())
+    }
+}

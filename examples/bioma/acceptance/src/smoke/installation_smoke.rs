@@ -132,6 +132,14 @@ enum Cmd {
         #[arg(long)]
         evidence_output: PathBuf,
     },
+    TimeseriesInstalled {
+        /// Installation-owned normal OAuth target and public control plane.
+        #[arg(long)]
+        installation: PathBuf,
+        /// New private receipt for the retained forecast Task and Artifact.
+        #[arg(long)]
+        evidence_output: PathBuf,
+    },
     MapMcp {
         /// Built conformance binary path.
         #[arg(long)]
@@ -456,6 +464,9 @@ use stream::*;
 #[path = "scenarios/sumo.rs"]
 mod case_14;
 use case_14::*;
+#[path = "scenarios/timeseries.rs"]
+mod timeseries;
+use timeseries::timeseries_installed;
 #[path = "scenarios/view.rs"]
 mod case_15;
 use case_15::*;
@@ -605,6 +616,16 @@ async fn execute() -> Result<()> {
             evidence_output,
         } => {
             frames_installed(
+                &support::InstalledTarget::load(&installation)?,
+                &evidence_output,
+            )
+            .await
+        }
+        Cmd::TimeseriesInstalled {
+            installation,
+            evidence_output,
+        } => {
+            timeseries_installed(
                 &support::InstalledTarget::load(&installation)?,
                 &evidence_output,
             )
@@ -1186,6 +1207,50 @@ mod frames_cli_tests {
         };
         assert_eq!(installation, PathBuf::from("target.json"));
         assert_eq!(evidence_output, PathBuf::from("receipt.json"));
+        for incomplete in [
+            vec!["installation-smoke", "timeseries-installed"],
+            vec![
+                "installation-smoke",
+                "timeseries-installed",
+                "--installation",
+                "target.json",
+            ],
+            vec![
+                "installation-smoke",
+                "timeseries-installed",
+                "--evidence-output",
+                "receipt.json",
+            ],
+            vec![
+                "installation-smoke",
+                "timeseries-installed",
+                "--installation",
+                "target.json",
+                "--evidence-output",
+                "receipt.json",
+                "--timeseries-bin",
+                "local-server",
+            ],
+        ] {
+            assert!(Args::try_parse_from(incomplete).is_err());
+        }
+        let installed = Args::try_parse_from([
+            "installation-smoke",
+            "timeseries-installed",
+            "--installation",
+            "target.json",
+            "--evidence-output",
+            "receipt.json",
+        ])?;
+        let Cmd::TimeseriesInstalled {
+            installation,
+            evidence_output,
+        } = installed.cmd
+        else {
+            bail!("wrong installed Timeseries command");
+        };
+        assert_eq!(installation, PathBuf::from("target.json"));
+        assert_eq!(evidence_output, PathBuf::from("receipt.json"));
         let local = Args::try_parse_from([
             "installation-smoke",
             "frames-mcp",
@@ -1216,34 +1281,54 @@ mod frames_cli_tests {
         };
         let descriptor: ScenarioDescriptor =
             serde_json::from_str(include_str!("../../smoke/scenarios.json"))?;
-        let installed = descriptor
-            .scenarios
-            .iter()
-            .find(|scenario| scenario.id.as_str() == "frames-installed")
-            .context("installed Frames scenario is absent")?;
-        assert_eq!(installed.arguments, ["frames-installed"]);
-        let [Preparation::CargoBinary { selection }] = installed.prerequisites.as_slice() else {
-            bail!("installed Frames requires exactly its OAuth utility");
-        };
-        assert_eq!(
-            selection.owner,
-            PathBuf::from("platform/gateway/composition")
-        );
-        assert_eq!(
-            selection.package,
-            PackageName::parse("veoveo-gateway-composition")?
-        );
-        assert_eq!(selection.target, "gateway-smoke-support");
-        assert_eq!(selection.features, ["smoke".to_string()].into());
-        assert!(!selection.default_features);
-        assert_eq!(selection.profile, BuildProfile::Dev);
-        assert!(installed.requirements.network && installed.requirements.credentials);
-        assert!(
-            !installed.requirements.nvidia
-                && !installed.requirements.headed_graphics
-                && !installed.requirements.cluster_mutation
-                && !installed.requirements.billed_effects
-        );
+        for id in ["frames-installed", "timeseries-installed"] {
+            let installed = descriptor
+                .scenarios
+                .iter()
+                .find(|scenario| scenario.id.as_str() == id)
+                .context("installed domain scenario is absent")?;
+            assert_eq!(installed.arguments, [id]);
+            let veoveo_testing_support::descriptor::HarnessTarget::CargoBinary {
+                selection: harness,
+            } = &installed.target
+            else {
+                bail!("installed domain scenario requires its existing assertion executable");
+            };
+            assert_eq!(harness.owner, PathBuf::from("examples/bioma/acceptance"));
+            assert_eq!(
+                harness.package,
+                PackageName::parse("veoveo-bioma-acceptance")?
+            );
+            assert_eq!(harness.target, "installation-smoke");
+            assert_eq!(harness.features, ["smoke".to_string()].into());
+            assert!(!harness.default_features);
+            assert_eq!(harness.profile, BuildProfile::Dev);
+            assert_eq!(installed.deadline_seconds, 3600);
+            assert_eq!(installed.cleanup_seconds, 180);
+            let [Preparation::CargoBinary { selection }] = installed.prerequisites.as_slice()
+            else {
+                bail!("installed domain scenario requires exactly its OAuth utility");
+            };
+            assert_eq!(
+                selection.owner,
+                PathBuf::from("platform/gateway/composition")
+            );
+            assert_eq!(
+                selection.package,
+                PackageName::parse("veoveo-gateway-composition")?
+            );
+            assert_eq!(selection.target, "gateway-smoke-support");
+            assert_eq!(selection.features, ["smoke".to_string()].into());
+            assert!(!selection.default_features);
+            assert_eq!(selection.profile, BuildProfile::Dev);
+            assert!(installed.requirements.network && installed.requirements.credentials);
+            assert!(
+                !installed.requirements.nvidia
+                    && !installed.requirements.headed_graphics
+                    && !installed.requirements.cluster_mutation
+                    && !installed.requirements.billed_effects
+            );
+        }
         let local = descriptor
             .scenarios
             .iter()

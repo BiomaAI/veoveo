@@ -827,6 +827,52 @@
       "cleanupSeconds": 180
     },
     {
+      "id": "timeseries-installed",
+      "description": "Qualify one installed inline-CSV NaiveTrend forecast Task, delivered completion, RRD Artifact, provenance and caller-scoped usage through normal OAuth.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "examples/bioma/acceptance",
+          "package": "veoveo-bioma-acceptance",
+          "target": "installation-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "timeseries-installed"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Required --installation and --evidence-output inputs select normal gateway OAuth with distinct operator and administrator profiles. The case writes and retains one forecast Task, one RRD Artifact and its usage, verifies foreign reads, and closes its subscriptions and clients. clusterMutation describes Kubernetes mutations; the case performs domain writes but no Kubernetes mutation, provider activation, billed model execution or GPU work."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
       "id": "frames-recovery",
       "description": "Qualify settled Frames world/revision/Task persistence across one externally authorized same-Pod process crash.",
       "target": {

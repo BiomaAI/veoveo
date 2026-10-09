@@ -16347,6 +16347,7 @@ dependencies = [
  "uuid",
  "veoveo-agent-runtime",
  "veoveo-artifact-contract",
+ "veoveo-artifact-mcp",
  "veoveo-browser-smoke",
  "veoveo-deploy-contract",
  "veoveo-duckdb-mcp",
