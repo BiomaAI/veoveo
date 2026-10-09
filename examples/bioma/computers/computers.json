@@ -50,8 +50,8 @@
     "templates": [
       {
         "id": "development",
-        "fingerprint": "5b21c478958fd36a2846df01569e8dac62981f62fd02b906425a470cd092a84e",
-        "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:77eca42bc69fac651d7cee8bfaec0a9640d9818c1d3a0125784ea4acd2b8a93f",
+        "fingerprint": "24a748a8ae8282c97121dd86cd929b250d15dfca49351422e5c2e1ec04129843",
+        "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:7d6803eedd006cb63c61ceaad281ad371b2fb2b005a68d4b8d3590a1a776b9fa",
         "cpus": 2,
         "memoryMib": 2048,
         "homeCapacityMib": 8192,
@@ -94,7 +94,7 @@
         }
       }
     ],
-    "defaultTemplate": "5b21c478958fd36a2846df01569e8dac62981f62fd02b906425a470cd092a84e",
+    "defaultTemplate": "24a748a8ae8282c97121dd86cd929b250d15dfca49351422e5c2e1ec04129843",
     "execution": {
       "policy": {
         "maxGrants": 8,
@@ -111,10 +111,10 @@
         }
       ],
       "templateFingerprints": [
-        "5b21c478958fd36a2846df01569e8dac62981f62fd02b906425a470cd092a84e"
+        "24a748a8ae8282c97121dd86cd929b250d15dfca49351422e5c2e1ec04129843"
       ],
       "fileTemplateFingerprints": [
-        "5b21c478958fd36a2846df01569e8dac62981f62fd02b906425a470cd092a84e"
+        "24a748a8ae8282c97121dd86cd929b250d15dfca49351422e5c2e1ec04129843"
       ]
     },
     "maintenanceTransitions": []

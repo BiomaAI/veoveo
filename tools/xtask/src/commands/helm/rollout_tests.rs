@@ -125,6 +125,8 @@ fn computers_configuration_and_artifact_dependency_match_the_service_profile() {
             "computers.existingConfigMap=",
             "computers.existingTrustSecret=",
             "computers.configurationRevision=",
+            "computers.existingOAuthSecret=",
+            "computers.oauthCredentialRevision=",
             "computers.host.existingConfigMap=",
             "computers.host.existingTrustSecret=",
             "computers.host.configurationRevision=",

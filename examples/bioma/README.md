@@ -221,9 +221,12 @@ derives its stock audience from the same resource and declares the official
 supervisor image. Optional admitted issuer CA inputs configure HTTPS trust with
 verification enabled.
 
-Computers workers need issuer discovery and token HTTPS access through
-`networkPolicy.externalEgressCidrs`; the Host needs issuer/JWKS access through
-`computers.host.issuerEgress`. Supply actual installation CIDRs. Upgrade the matched
+The current reference keeps `networkPolicy.enabled=false`; issuer TLS verification,
+JWT audience and role checks stay mandatory. Enabling Host NetworkPolicy requires
+actual issuer/JWKS HTTPS destinations in `computers.host.issuerEgress`. Worker
+`networkPolicy.externalEgressCidrs` creates an egress policy for broader workload
+selectors even with the global flag disabled; qualify all their allowed paths before
+adding it. Upgrade the matched
 worker, Host, public registration and chart through a coordinated drain that preserves
 unresolved operations and retained writer fences. Selected native stopped-maintenance,
 terminal renewal and Host same-image restart cases pass under the stock profile. The
