@@ -9,7 +9,7 @@ use rmcp::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
 };
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -22,6 +22,19 @@ use veoveo_knowledge_mcp::contract::*;
 use veoveo_mcp_contract::{GatewayControlPlane, GatewayProfileId};
 use veoveo_mcp_knowledge_extension::{CollectionId, client, docs};
 use veoveo_types::{ResourceAddress, ResourceUri, ServerSlug};
+
+#[path = "installed/cleanup.rs"]
+mod cleanup;
+#[cfg(test)]
+#[path = "../../../../testing/fixtures/knowledge_control.rs"]
+mod control_fixture;
+#[cfg(test)]
+#[path = "installed/controls.rs"]
+mod controls;
+#[path = "installed/policy.rs"]
+mod policy;
+#[path = "installed/receipt.rs"]
+mod receipt;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,77 +67,116 @@ fn env_path(name: &str) -> Result<PathBuf> {
     })
 }
 
+fn load_control(path: &Path) -> Result<GatewayControlPlane> {
+    ensure!(
+        fs::metadata(path)?.len() <= 2 * 1024 * 1024,
+        "Knowledge control file exceeds2MiB"
+    );
+    let bytes = fs::read(path)?;
+    ensure!(
+        bytes.len() <= 2 * 1024 * 1024,
+        "Knowledge control file exceeds2MiB"
+    );
+    let control: GatewayControlPlane = serde_json::from_slice(&bytes)
+        .map_err(|_| anyhow::anyhow!("invalid Knowledge control plane"))?;
+    control
+        .validate(&veoveo_gateway_catalog::registry()?)
+        .map_err(|_| anyhow::anyhow!("invalid Knowledge control plane"))?;
+    Ok(control)
+}
+fn endpoint(
+    control: &GatewayControlPlane,
+    profile: &GatewayProfileId,
+) -> Result<veoveo_types::HttpsUrl> {
+    let selected = control
+        .profiles
+        .iter()
+        .find(|p| &p.id == profile)
+        .context("Knowledge selected profile absent")?;
+    Ok(veoveo_types::HttpsUrl::parse(
+        selected.protected_resource.as_str(),
+    )?)
+}
+async fn connect(
+    endpoint: &veoveo_types::HttpsUrl,
+    token: &Path,
+) -> Result<rmcp::service::RunningService<RoleClient, ClientConfig>> {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        veoveo_testing_support::installed::knowledge::bearer_header(token)?,
+    );
+    let transport = StreamableHttpClientTransport::with_client(
+        reqwest::Client::builder()
+            .default_headers(headers)
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(65))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?,
+        StreamableHttpClientTransportConfig::with_uri(endpoint.as_str()),
+    );
+    let mut capabilities = ClientCapabilities::default();
+    client::declare(&mut capabilities);
+    ClientConfig::new(
+        capabilities,
+        Implementation::new("knowledge-installed-acceptance", "1"),
+    )
+    .serve_with_lifecycle(
+        transport,
+        rmcp::ClientLifecycleMode::Discover {
+            preferred_versions: vec![ProtocolVersion::V_2026_07_28],
+        },
+    )
+    .await
+    .map_err(|_| anyhow::anyhow!("Knowledge connection failed"))
+}
 #[tokio::test]
 #[ignore = "requires deployed Knowledge, approved sources, hardware embeddings and a caller token"]
 async fn catalog_search_and_source_revisions_agree_through_the_installed_gateway() -> Result<()> {
-    let _ = rustls::crypto::ring::default_provider().install_default();
-    tokio::time::timeout(Duration::from_secs(300), async {
-        let control: GatewayControlPlane = serde_json::from_slice(&fs::read(env_path(
-            "VEOVEO_KNOWLEDGE_ACCEPTANCE_CONTROL_PLANE",
-        )?)?)?;
-        control.validate(&veoveo_gateway_catalog::registry().unwrap())?;
-        let profile: GatewayProfileId =
-            std::env::var("VEOVEO_KNOWLEDGE_ACCEPTANCE_PROFILE")?.parse()?;
-        let selected = control
-            .profiles
-            .iter()
-            .find(|p| p.id == profile)
-            .context("acceptance profile is absent from the control plane")?;
-        let endpoint = url::Url::parse(selected.protected_resource.as_str())?;
-        ensure!(
-            endpoint.scheme() == "https",
-            "installed acceptance requires HTTPS"
-        );
-        let output = env_path("VEOVEO_KNOWLEDGE_ACCEPTANCE_OUTPUT")?;
-        ensure!(!output.exists(), "acceptance output already exists");
-        let token = fs::read_to_string(env_path("VEOVEO_KNOWLEDGE_ACCEPTANCE_TOKEN_FILE")?)?;
-        ensure!(!token.trim().is_empty(), "caller token file is empty");
-        let transport = StreamableHttpClientTransport::with_client(
-            reqwest::Client::builder()
-                .connect_timeout(Duration::from_secs(10))
-                .timeout(Duration::from_secs(65))
-                .redirect(reqwest::redirect::Policy::none())
-                .build()?,
-            StreamableHttpClientTransportConfig::with_uri(endpoint.as_str())
-                .auth_header(token.trim().to_owned()),
-        );
-        let mut capabilities = ClientCapabilities::default();
-        client::declare(&mut capabilities);
-        let mut connection = ClientConfig::new(
-            capabilities,
-            Implementation::new("knowledge-installed-acceptance", "1"),
-        )
-        .serve_with_lifecycle(
-            transport,
-            rmcp::ClientLifecycleMode::Discover {
-                preferred_versions: vec![ProtocolVersion::V_2026_07_28],
-            },
-        )
-        .await?;
-        let result = verify(connection.peer(), &control, profile).await;
-        let closed = connection.close().await;
-        let report = result?;
-        closed?;
-        let mut options = fs::OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let mut file = options.open(output)?;
-        serde_json::to_writer_pretty(&mut file, &report)?;
-        file.write_all(b"\n")?;
-        Ok(())
+    let control = load_control(&env_path("VEOVEO_KNOWLEDGE_ACCEPTANCE_CONTROL_PLANE")?)?;
+    let profile: GatewayProfileId =
+        std::env::var("VEOVEO_KNOWLEDGE_ACCEPTANCE_PROFILE")?.parse()?;
+    let endpoint = endpoint(&control, &profile)?;
+    let token = env_path("VEOVEO_KNOWLEDGE_ACCEPTANCE_TOKEN_FILE")?;
+    let journal = receipt::Journal::open(
+        &env_path("VEOVEO_KNOWLEDGE_ACCEPTANCE_OUTPUT")?,
+        profile.clone(),
+    )?;
+    let result = veoveo_testing_support::lifecycle::owner::run(async {
+        let owned = cleanup::register(&journal)?;
+        let result = tokio::time::timeout(Duration::from_secs(300), async {
+            let mut handles = owned.lock().await;
+            journal
+                .acquire(&mut handles.caller, connect(&endpoint, &token))
+                .await?;
+            handles.opened_caller(&journal)?;
+            let peer = handles.caller.as_ref().unwrap().peer().clone();
+            verify(&peer, &control, profile, &mut handles, &journal).await
+        })
+        .await
+        .context("Knowledge baseline300second deadline")
+        .and_then(|value| value);
+        journal.operation(&result)?;
+        result
     })
-    .await
-    .context("installed Knowledge acceptance exceeded 300 seconds")?
+    .await;
+    match result {
+        Ok(report) => journal.finish(true, Some(report)),
+        Err(error) => {
+            journal.failure(&error)?;
+            journal.finish(false, None)?;
+            anyhow::bail!("Knowledge baseline failed; inspect private outcome")
+        }
+    }
 }
 
 async fn verify(
     peer: &Peer<RoleClient>,
     control: &GatewayControlPlane,
     profile: GatewayProfileId,
+    handles: &mut cleanup::Handles,
+    journal: &receipt::Journal,
 ) -> Result<InstalledReport> {
     let indexers = control
         .oauth_clients
@@ -147,6 +199,7 @@ async fn verify(
     for page_number in 0..100 {
         let page: SourceCatalogPage = read_json(
             peer,
+            journal,
             &KnowledgeResource::Sources {
                 after: after.clone(),
             }
@@ -195,7 +248,7 @@ async fn verify(
     let mut statistics = BTreeMap::new();
     for collection in &collections {
         let uri = KnowledgeResource::Collection(collection.clone()).to_uri()?;
-        let entry: CollectionCatalogEntry = read_json(peer, &uri).await?;
+        let entry: CollectionCatalogEntry = read_json(peer, journal, &uri).await?;
         ensure!(
             entry.entity == CatalogEntity::Dataset
                 && entry.uri == uri
@@ -221,11 +274,18 @@ async fn verify(
         }
     }
     let generation = generation.context("installation has no indexed collections")?;
-    let completed_sources = peer
-        .complete(CompleteRequestParams::new(
-            Reference::for_resource("knowledge://source/{server}"),
-            ArgumentInfo::new("server", ""),
-        ))
+    let completed_sources = journal
+        .request(
+            receipt::Request::Completion {
+                template: veoveo_types::ResourceTemplateUri::new("knowledge://source/{server}")?,
+                argument: "server".into(),
+                value: String::new(),
+            },
+            peer.complete(CompleteRequestParams::new(
+                Reference::for_resource("knowledge://source/{server}"),
+                ArgumentInfo::new("server", ""),
+            )),
+        )
         .await?
         .completion
         .values
@@ -238,11 +298,20 @@ async fn verify(
     );
     let mut completed_collections = BTreeSet::new();
     for source in &sources {
-        let result = peer
-            .complete(CompleteRequestParams::new(
-                Reference::for_resource("knowledge://collection/{collection}"),
-                ArgumentInfo::new("collection", format!("{source}.")),
-            ))
+        let result = journal
+            .request(
+                receipt::Request::Completion {
+                    template: veoveo_types::ResourceTemplateUri::new(
+                        "knowledge://collection/{collection}",
+                    )?,
+                    argument: "collection".into(),
+                    value: format!("{source}."),
+                },
+                peer.complete(CompleteRequestParams::new(
+                    Reference::for_resource("knowledge://collection/{collection}"),
+                    ArgumentInfo::new("collection", format!("{source}.")),
+                )),
+            )
             .await?;
         ensure!(
             result.completion.has_more != Some(true),
@@ -256,7 +325,7 @@ async fn verify(
         completed_collections == collections,
         "collection completion differs from visible catalog"
     );
-    let observed_catalog = observe_catalog(peer, &collections).await?;
+    let observed_catalog = observe_catalog(peer, &collections, handles, journal).await?;
     let mut verified_links = BTreeSet::new();
     for source in &control.servers {
         let docs = docs::collection(&source.slug, &source.uri_scheme);
@@ -269,7 +338,7 @@ async fn verify(
             continue;
         }
         let page: docs::DocumentPage =
-            read_json(peer, &docs::index_uri(&source.uri_scheme)).await?;
+            read_json(peer, journal, &docs::index_uri(&source.uri_scheme)).await?;
         let document = page
             .items
             .first()
@@ -280,7 +349,7 @@ async fn verify(
             BTreeSet::new(),
             5,
         )?;
-        let response = call(peer, "knowledge__search", &request).await?;
+        let response = call(peer, journal, "knowledge__search", &request).await?;
         let search: SearchResponse = decode_tool(&response)?;
         ensure!(
             search.generation == Some(generation)
@@ -325,10 +394,18 @@ async fn verify(
                 None,
                 PeerRequestOptions::default(),
             );
-            let response = peer
-                .send_request_with_option(request, options)
-                .await?
-                .await_response()
+            let response = journal
+                .request(
+                    receipt::Request::Read {
+                        uri: result.uri.clone(),
+                    },
+                    async {
+                        peer.send_request_with_option(request, options)
+                            .await?
+                            .await_response()
+                            .await
+                    },
+                )
                 .await?;
             let ServerResult::ReadResourceResult(read) = response else {
                 anyhow::bail!("source did not return a terminal resource response");
@@ -350,6 +427,7 @@ async fn verify(
     let embed: EmbedResponse = decode_tool(
         &call(
             peer,
+            journal,
             "knowledge__embed",
             &EmbedRequest::Document {
                 texts: EmbeddingBatch::new(vec![EmbeddingText::new(
@@ -381,6 +459,8 @@ async fn verify(
 async fn observe_catalog(
     peer: &Peer<RoleClient>,
     collections: &BTreeSet<CollectionId>,
+    handles: &mut cleanup::Handles,
+    journal: &receipt::Journal,
 ) -> Result<BTreeSet<ResourceUri>> {
     let addresses = collections
         .iter()
@@ -394,13 +474,22 @@ async fn observe_catalog(
     for address in &addresses {
         filter = filter.resource_subscription(address.as_str());
     }
-    let mut subscription = peer.listen(filter.build()).await?;
+    let filter = filter.build();
+    journal
+        .listen(&mut handles.listener, peer, filter.clone())
+        .await?;
+    handles.opened_listener(journal)?;
+    let subscription = handles.listener.as_mut().unwrap();
+    ensure!(
+        subscription.acknowledged() == &filter,
+        "Knowledge catalog filter changed"
+    );
     let observed = tokio::time::timeout(Duration::from_secs(30), async {
         let mut observed = BTreeSet::new();
         let mut inventory = false;
         while observed != addresses || !inventory {
-            match subscription
-                .next()
+            match journal
+                .request(receipt::Request::Notification, subscription.next())
                 .await?
                 .context("catalog stream ended before initial observations")?
             {
@@ -420,15 +509,19 @@ async fn observe_catalog(
     })
     .await
     .context("catalog initial observations exceeded thirty seconds");
-    let closed = subscription.cancel().await;
-    let observed = observed??;
-    closed?;
-    Ok(observed)
+    observed?
 }
 
-async fn read_json<T: DeserializeOwned>(peer: &Peer<RoleClient>, uri: &ResourceUri) -> Result<T> {
-    let result = peer
-        .read_resource(ReadResourceRequestParams::new(uri.as_str()))
+async fn read_json<T: DeserializeOwned>(
+    peer: &Peer<RoleClient>,
+    journal: &receipt::Journal,
+    uri: &ResourceUri,
+) -> Result<T> {
+    let result = journal
+        .request(
+            receipt::Request::Read { uri: uri.clone() },
+            peer.read_resource(ReadResourceRequestParams::new(uri.as_str())),
+        )
         .await?;
     let [
         ResourceContents::TextResourceContents {
@@ -444,11 +537,17 @@ async fn read_json<T: DeserializeOwned>(peer: &Peer<RoleClient>, uri: &ResourceU
         returned == uri.as_str(),
         "resource response has the wrong URI"
     );
-    serde_json::from_str(text).context("resource does not match its owner contract")
+    ensure!(
+        text.len() <= 2 * 1024 * 1024,
+        "Knowledge resource exceeds2MiB"
+    );
+    serde_json::from_str(text)
+        .map_err(|_| anyhow::anyhow!("resource does not match owner contract"))
 }
 
 async fn call(
     peer: &Peer<RoleClient>,
+    journal: &receipt::Journal,
     name: &'static str,
     input: &impl Serialize,
 ) -> Result<CallToolResult> {
@@ -456,8 +555,13 @@ async fn call(
         .as_object()
         .cloned()
         .context("tool input object")?;
-    let response = peer
-        .call_tool(CallToolRequestParams::new(name).with_arguments(arguments))
+    let response = journal
+        .request(
+            receipt::Request::Tool {
+                name: name.parse()?,
+            },
+            peer.call_tool(CallToolRequestParams::new(name).with_arguments(arguments)),
+        )
         .await?;
     ensure!(
         response.is_error != Some(true),
@@ -473,5 +577,5 @@ fn decode_tool<T: DeserializeOwned>(response: &CallToolResult) -> Result<T> {
             .clone()
             .context("tool omitted structured output")?,
     )
-    .context("tool output does not match its owner contract")
+    .map_err(|_| anyhow::anyhow!("tool output does not match owner contract"))
 }

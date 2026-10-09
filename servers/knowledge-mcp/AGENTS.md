@@ -50,6 +50,17 @@ the installation's ordinary caller token and public control plane as described i
 the [reference runbook](../../examples/bioma/README.md#acceptance). It requires a
 running hardware embedding runtime and leaves source records unchanged.
 
+The separate ignored policy case is
+`installed::policy::restricted_caller_lists_catalog_and_document_denials_agree_through_installed_gateway`
+in the existing `http` target. Supply a closed JSON fixture through
+`VEOVEO_KNOWLEDGE_POLICY_INPUT` as described in [DESIGN.md](DESIGN.md).
+It uses an existing restricted caller and never publishes policy or widens access.
+Run `cargo test -p veoveo-knowledge-mcp --test http installed::` without
+`--ignored` for the fixture admission, protocol-denial and actual registered SDK
+cleanup controls. Both installed cases create private outcome files before network
+access and retain original close futures through owner cancellation. These native
+controls do not qualify unattended installed startup or hardware embedding.
+
 `tests/evaluation.rs` qualifies corpus completeness, source revision checks, recall
 scoring and generation-linked report persistence with synthetic vectors. The ignored
 `tests/gpu_retrieval.rs` measures actual-model retrieval and rebuild throughput under

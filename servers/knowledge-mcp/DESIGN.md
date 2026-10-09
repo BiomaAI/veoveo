@@ -17,6 +17,7 @@ collection approvals and signing credentials.
 | W3C DCAT 3 | Required JSON catalog shape; no RDF serialization or full DCAT conformance claim |
 | SurrealDB 3.3.0 | BM25, filtered HNSW cosine search and native `search::rrf` with k=60 |
 | JSON Schema 2020-12 | Schemars-generated contract models and checked request deserialization |
+| `veoveo.ai/knowledge-installed-outcome/v1` | Private installed consumer outcome with request intents, protocol codes, selected discovery identities and SDK cleanup states; contains the unchanged successful baseline report |
 | `veoveo.ai/knowledge-retrieval-evaluation/v1` | Private JSON benchmark reports with generation identity, judgments, ranks, recall and throughput; outside the public MCP surface |
 | OAuth 2.0 / RFC 6749, RFC 7523, RFC 8707 | Client credentials with a signed JWT assertion, explicit resource and Veoveo Work Context; HTTPS endpoints, with loopback HTTP for native fixtures |
 | [Embedding runtime](../../platform/runtimes/embedding/DESIGN.md) | Internal HTTP API through the shared client; query priority is interactive and indexing priority is bulk |
@@ -523,12 +524,35 @@ with those approvals, checks that indexed collections share an active generation
 and searches each approved documentation collection by a source document's title.
 Every returned link is read through the source server and checked against its content
 digest and indexed revision. The test also exercises the public embedding tool.
-It allows five minutes, performs no source mutations, closes its MCP connection, and
-writes a private, create-only JSON report without tokens or document text.
+It allows five minutes and performs no source mutations. Before network access, it
+creates a mode-0600 outcome file with schema
+`veoveo.ai/knowledge-installed-outcome/v1`. The successful baseline keeps its
+`veoveo.ai/knowledge-installed-acceptance/v2` report inside that outcome. Typed
+request intents, completion or MCP codes, failure digests and SDK close states
+record partial failures without response bodies or credentials. An owner cleanup
+action retains the actual client and catalog listener outside cancellable work,
+then awaits their original consuming close futures within one cleanup deadline.
 Relative input and report paths resolve from the repository root. A running
 hardware embedding workload is a prerequisite; the shared runtime's GPU acceptance
 establishes hardware execution. These retrieval checks do not measure recall on the
 domain evaluation set.
+
+The separate ignored `http::installed::policy` case admits a closed fixture from
+`VEOVEO_KNOWLEDGE_POLICY_INPUT`: public control-plane path, selected profile,
+private token-file path, new absolute output path, independently expected
+Knowledge collections, gateway tool names, concrete resources and templates, plus
+one to eight denied document IDs. Endpoint selection comes from the supplied
+profile. Visible collections must be a proper subset of the indexing client's
+approved selection; legitimately empty visible sets are accepted. Declaration and
+profile exposure checks reject ineligible expectations before network access.
+Mixed profiles contribute only typed Knowledge-owned discovery members to these
+assertions. Catalog and completion must agree with the expected collection set;
+selected existing documents must return MCP policy denial `-32600`. Discovery
+allows at most 32 pages per surface, source catalogs 100 pages and the journal
+512 requests. This read-only policy case uses the same private journal and owned
+SDK cleanup. Native input, matching and cancellation controls qualify harness
+behavior; cold startup, installed recovery and GPU execution require their own
+installed qualification.
 
 Installed acceptance also requires the following cases:
 
