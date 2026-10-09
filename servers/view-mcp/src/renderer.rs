@@ -37,6 +37,10 @@ mod gpu_jpeg;
     non_upper_case_globals,
     dead_code
 )]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Generated nvJPEG wrappers preserve the upstream C ABI"
+)]
 mod nvjpeg_bindings;
 mod vulkan_cuda;
 

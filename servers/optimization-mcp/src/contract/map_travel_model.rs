@@ -21,7 +21,7 @@ pub fn decode_map_travel_model(
             .model
             .location_ids
             .into_iter()
-            .map(|id| LocationId::parse(id.to_string()))
+            .map(|id| LocationId::parse(&id))
             .collect::<Result<_, _>>()?,
         cost_matrices: artifact
             .model
@@ -79,7 +79,7 @@ pub fn decode_map_travel_model(
 
 fn matrix(value: TravelModelMatrix) -> Result<DenseTravelMatrix, OptimizationContractError> {
     Ok(DenseTravelMatrix {
-        vehicle_type_id: VehicleTypeId::parse(value.vehicle_type_id.to_string())?,
+        vehicle_type_id: VehicleTypeId::parse(&value.vehicle_type_id)?,
         dimension: value.dimension,
         values: value.values,
         unavailable_cells: value.unavailable_cells,

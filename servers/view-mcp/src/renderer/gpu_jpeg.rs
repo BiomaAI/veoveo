@@ -254,7 +254,7 @@ impl GpuJpeg {
     ) -> Result<Vec<u8>, GpuJpegError> {
         self.interop.context.bind_to_thread()?;
         let layout = RgbLayout::new(texture.width(), texture.height())?;
-        if layout.storage_bytes > u64::from(self.device.limits().max_storage_buffer_binding_size) {
+        if layout.storage_bytes > self.device.limits().max_storage_buffer_binding_size {
             return Err(GpuJpegError::Layout);
         }
         let rgb = self.interop.buffer(layout, deadline)?;
