@@ -7,6 +7,7 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
 };
+use veoveo_deploy_contract::InstallationTarget;
 use veoveo_mcp_contract::UsageReport;
 use veoveo_optimization_mcp::contract::*;
 use veoveo_testing_support::installed::knowledge as installed;
@@ -19,6 +20,64 @@ pub struct Input {
     pub corpus_file: PathBuf,
     pub alternate_token_file: PathBuf,
     pub alternate_context: WorkContextId,
+    pub coordinated_replacement: Option<RecoveryInput>,
+}
+/// Private selection; container spellings are closed and roles cannot be exchanged.
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RecoveryInput {
+    pub pod: String,
+    pub profiles: [RecoveryMember; 2],
+}
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RecoveryMember {
+    pub container: RecoveryContainer,
+    pub deadline_seconds: u16,
+}
+#[derive(Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
+pub enum RecoveryContainer {
+    #[vocabulary(rename = "optimization-mcp")]
+    Control,
+    #[vocabulary(rename = "cuopt-executor")]
+    Executor,
+}
+pub struct AdmittedRecovery {
+    pub(super) pod: String,
+    pub(super) profiles: Vec<veoveo_testing_support::installed::restart::DrainProfile>,
+}
+impl RecoveryInput {
+    /// Pure local admission: does not connect, invoke kubectl, or mutate the installation.
+    pub fn admit(&self) -> Result<AdmittedRecovery> {
+        ensure!(
+            !self.pod.is_empty()
+                && self.pod.len() <= 253
+                && self.pod.bytes().all(|c| c.is_ascii_lowercase()
+                    || c.is_ascii_digit()
+                    || matches!(c, b'-' | b'.'))
+                && self.pod.starts_with(|c: char| c.is_ascii_alphanumeric())
+                && self.pod.ends_with(|c: char| c.is_ascii_alphanumeric()),
+            "declare the selected Optimization Pod name"
+        );
+        ensure!(
+            self.profiles[0].container != self.profiles[1].container,
+            "coordinated replacement requires the control and executor exactly once"
+        );
+        use veoveo_testing_support::installed::restart::DrainProfile;
+        let profiles = self.profiles.iter().map(|member| {
+            ensure!((1..=300).contains(&member.deadline_seconds),
+                "each coordinated drain deadline must be one to 300 seconds and fit the Pod grace");
+            let deadline = std::time::Duration::from_secs(member.deadline_seconds.into());
+            match member.container {
+                RecoveryContainer::Control => DrainProfile::server("optimization-mcp", deadline),
+                RecoveryContainer::Executor => DrainProfile::nvidia("cuopt-executor", deadline),
+            }
+        }).collect::<Result<Vec<_>>>()?;
+        Ok(AdmittedRecovery {
+            pod: self.pod.clone(),
+            profiles,
+        })
+    }
 }
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -79,7 +138,7 @@ impl Input {
             .ok_or_else(|| anyhow::anyhow!("set VEOVEO_OPTIMIZATION_CONSUMERS_INPUT"))?;
         private_json(Path::new(&path), 64 * 1024)
     }
-    pub fn admit(&mut self) -> Result<Corpus> {
+    pub fn admit(&mut self) -> Result<(Corpus, InstallationTarget)> {
         let target = self.installation.validate()?;
         ensure!(
             self.installation.deployment == "optimization-mcp"
@@ -133,7 +192,7 @@ impl Input {
                 && self.alternate_context != context,
             "alternate caller context must match the distinct installed comparisonContext"
         );
-        Ok(corpus)
+        Ok((corpus, target))
     }
 }
 impl Solve {

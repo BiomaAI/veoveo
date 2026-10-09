@@ -17570,6 +17570,7 @@ dependencies = [
  "uuid",
  "veoveo-artifact-client",
  "veoveo-artifact-contract",
+ "veoveo-deploy-contract",
  "veoveo-map-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",

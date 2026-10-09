@@ -366,3 +366,148 @@ fn installed_private_fixture_and_journal_refuse_public_or_reused_paths() -> Resu
     ensure!(value["passed"] == false && value["failure"] == "deadline");
     Ok(())
 }
+
+#[test]
+fn installed_coordinated_input_admits_only_control_and_nvidia_executor_without_effects()
+-> Result<()> {
+    use fixture::RecoveryInput;
+    let valid = serde_json::json!({"pod":"optimization-mcp-old-123", "profiles":[
+        {"container":"optimization-mcp", "deadlineSeconds":20},
+        {"container":"cuopt-executor", "deadlineSeconds":25}
+    ]});
+    let input: RecoveryInput = serde_json::from_value(valid.clone())?;
+    let admitted = input.admit()?;
+    ensure!(admitted.pod == "optimization-mcp-old-123" && admitted.profiles.len() == 2);
+    // Admission is synchronous and receives only private values; no installation,
+    // client, command runner or mutation capability is acquired to validate them.
+    let mut swapped = valid.clone();
+    swapped["profiles"].as_array_mut().unwrap().swap(0, 1);
+    serde_json::from_value::<RecoveryInput>(swapped)?.admit()?;
+    for name in ["other-control", "server", "executor", ""] {
+        let mut wrong = valid.clone();
+        wrong["profiles"][0]["container"] = serde_json::json!(name);
+        ensure!(serde_json::from_value::<RecoveryInput>(wrong).is_err());
+    }
+    for deadline in [0, 301] {
+        let mut wrong = valid.clone();
+        wrong["profiles"][1]["deadlineSeconds"] = serde_json::json!(deadline);
+        ensure!(
+            serde_json::from_value::<RecoveryInput>(wrong)?
+                .admit()
+                .is_err()
+        );
+    }
+    let mut duplicate = valid.clone();
+    duplicate["profiles"][1]["container"] = serde_json::json!("optimization-mcp");
+    ensure!(
+        serde_json::from_value::<RecoveryInput>(duplicate)?
+            .admit()
+            .is_err()
+    );
+    for pod in [
+        "",
+        "../other",
+        "-bad",
+        "bad-",
+        "other namespace",
+        "$(touch marker)",
+    ] {
+        let mut wrong = valid.clone();
+        wrong["pod"] = serde_json::json!(pod);
+        ensure!(
+            serde_json::from_value::<RecoveryInput>(wrong)?
+                .admit()
+                .is_err()
+        );
+    }
+    let mut wrong = valid.clone();
+    wrong["pod"] = serde_json::json!("a".repeat(254));
+    ensure!(
+        serde_json::from_value::<RecoveryInput>(wrong)?
+            .admit()
+            .is_err()
+    );
+    for field in [
+        "deployment",
+        "namespace",
+        "endpoint",
+        "allowCpu",
+        "restartCount",
+    ] {
+        let mut wrong = valid.clone();
+        wrong[field] = serde_json::json!("not-admitted");
+        ensure!(serde_json::from_value::<RecoveryInput>(wrong).is_err());
+    }
+    let mut wrong = valid.clone();
+    wrong["profiles"][1]["resource"] = serde_json::json!("ordinary-server");
+    ensure!(serde_json::from_value::<RecoveryInput>(wrong).is_err());
+    let mut wrong = valid;
+    wrong["profiles"].as_array_mut().unwrap().pop();
+    ensure!(serde_json::from_value::<RecoveryInput>(wrong).is_err());
+    Ok(())
+}
+
+#[test]
+fn installed_coordinated_admission_keeps_target_identity_after_file_replacement() -> Result<()> {
+    use std::io::Write;
+    let root = tempfile::tempdir()?;
+    let target_file = root.path().join("target.json");
+    let original = serde_json::json!({
+        "schema":"veoveo.ai/installation-target/v1",
+        "kubernetes":{"context":"native-original", "namespace":"native-original"},
+        "localBaseUrl":"http://127.0.0.1:18781", "publicBaseUrl":"https://native.example.test",
+        "controlPlane":"gateway.json", "expectedDeployments":["optimization-mcp"], "minimumGpuShares":1,
+        "operator":{"clientId":"native-client", "profile":"native", "workContext":"native-fixture",
+            "comparisonContext":"native-other", "scopes":["native:use"]}
+    });
+    std::fs::write(&target_file, serde_json::to_vec(&original)?)?;
+    let corpus = fixture::Corpus {
+        schema: "veoveo.ai/optimization-consumer-fixture/v1".into(),
+        visible: (1..=101)
+            .map(|n| native_solve(n * 2))
+            .collect::<Result<Vec<_>>>()?,
+        denied: vec![native_solve(3)?],
+    };
+    // NamedTempFile creates owner-private files; these are synthetic local
+    // admission fixtures, not installed tokens or GPU qualification products.
+    let mut corpus_file = tempfile::NamedTempFile::new_in(root.path())?;
+    corpus_file.write_all(&serde_json::to_vec(&corpus)?)?;
+    let mut primary = tempfile::NamedTempFile::new_in(root.path())?;
+    primary.write_all(b"native-primary-placeholder")?;
+    let mut alternate = tempfile::NamedTempFile::new_in(root.path())?;
+    alternate.write_all(b"native-alternate-placeholder")?;
+    let mut input: fixture::Input = serde_json::from_value(serde_json::json!({
+        "installation":{"installationTarget":target_file, "endpoint":"https://native.example.test/mcp/native",
+            "callerTokenFile":primary.path(), "deployment":"optimization-mcp", "output":root.path().join("report.jsonl")},
+        "corpusFile":corpus_file.path(), "alternateTokenFile":alternate.path(), "alternateContext":"native-other",
+        "coordinatedReplacement":{"pod":"optimization-mcp-old", "profiles":[
+            {"container":"optimization-mcp", "deadlineSeconds":20}, {"container":"cuopt-executor", "deadlineSeconds":20}
+        ]}
+    }))?;
+    input.coordinated_replacement.as_ref().unwrap().admit()?;
+    let (_, admitted_target) = input.admit()?;
+    let mut redirected = original;
+    redirected["kubernetes"]["context"] = serde_json::json!("native-redirected");
+    redirected["kubernetes"]["namespace"] = serde_json::json!("native-redirected");
+    let replacement = root.path().join("replacement.json");
+    std::fs::write(&replacement, serde_json::to_vec(&redirected)?)?;
+    std::fs::rename(&replacement, &target_file)?;
+    // The counterfactual reload accepts this replacement despite the unchanged
+    // public origin. Production passes admitted_target directly to the driver.
+    let reloaded = input.installation.validate()?;
+    ensure!(
+        reloaded.kubernetes.context == "native-redirected"
+            && reloaded.kubernetes.namespace == "native-redirected"
+            && reloaded.public_base_url == admitted_target.public_base_url
+    );
+    admitted_target.validate()?;
+    ensure!(
+        admitted_target.kubernetes.context == "native-original"
+            && admitted_target.kubernetes.namespace == "native-original"
+    );
+    ensure!(
+        !root.path().join("report.jsonl").exists(),
+        "local admission performed effect preparation"
+    );
+    Ok(())
+}

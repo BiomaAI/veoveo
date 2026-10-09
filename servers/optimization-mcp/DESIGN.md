@@ -44,7 +44,8 @@ Map owns the v2 travel-model artifact wire type. Optimization decodes that owner
 | GNU OpenMP runtime | Ubuntu Jammy `libgomp1` `12.3.0-1ubuntu1~22.04.3` satisfies the cuDSS `libcudss_mtlayer_gomp.so.0` runtime dependency omitted by the cuOpt 26.08 image. The executor image build verifies that the threading layer has no unresolved shared libraries. |
 | `veoveo.ai/optimization/v2` | Repository-owned Optimization resource and result profile. |
 | `veoveo.ai/optimization-consumer-fixture/v1` | Closed private profile for independently supplied completed-solve expectations used by installed read acceptance; outside the public MCP API. |
-| `veoveo.ai/optimization-installed-consumers/v1` | Private JSONL qualification outcome profile for installed read intentions, checks, failures and caller cleanup; outside the public MCP API. |
+| `veoveo.ai/optimization-installed-consumers/v1` | Private JSONL qualification outcome profile for installed read and coordinated replacement intentions, typed observations, failures and caller cleanup; outside the public MCP API. |
+| Kubernetes core/apps v1 and RFC 6902 JSON Patch | Private installed qualification uses the shared selected-Pod two-container watch and fenced Deployment restart profile; not a public Optimization operation. |
 | `veoveo.ai/routing-problem/v2` | Repository-owned routing problem profile for service or pickup-delivery orders. |
 | `veoveo.ai/convex-problem/v2` | Repository-owned continuous LP, QP, QCQP, and quadratic SOCP representation. |
 | `veoveo.ai/milp-problem/v2` | Repository-owned linear MILP profile with continuous, integer, and semi-continuous variables. |
@@ -745,7 +746,8 @@ readiness. The installation must remain prepared and healthy throughout the case
 
 `VEOVEO_OPTIMIZATION_CONSUMERS_INPUT` selects an absolute private JSON file of at
 most 64 KiB. Its closed fields are `installation` (the maintained installed-source
-input), `corpusFile`, `alternateTokenFile` and typed `alternateContext`. The endpoint must equal the route
+input), `corpusFile`, `alternateTokenFile`, typed `alternateContext` and optional
+`coordinatedReplacement`. The read-only case does not use that selection. The endpoint must equal the route
 built from the target's public origin and operator profile. The target declares
 `optimization-mcp` and positive GPU capacity. Caller token files remain private;
 the test does not acquire or expand their authority.
@@ -807,9 +809,82 @@ Run only with explicitly supplied installed credentials and completed GPU fixtur
 VEOVEO_OPTIMIZATION_CONSUMERS_INPUT=/absolute/private/input.json cargo test -p veoveo-optimization-mcp --test reads installed_optimization_read_consumers -- --ignored --nocapture
 ```
 
-Coordinated control/executor replacement, unfinished Task claim recovery,
-cross-replica claim and subscription delivery, mid-run label revocation, fresh GPU
-readiness, and Task creation/cancellation remain separate qualification gates.
+### Coordinated Retained-Consumer Replacement
+
+The separately ignored `installed_optimization_coordinated_replacement_consumers`
+case uses the same private input, independent completed GPU corpus and admitted
+primary/alternate callers. It performs the full allowed and denied read assertions
+before and after one coordinated replacement. The existing read-only case performs
+no replacement.
+
+This case requires `coordinatedReplacement` with a selected `pod` and exactly two
+`profiles`. Each profile contains a closed `container` and `deadlineSeconds`:
+
+```json
+{
+  "pod": "optimization-mcp-selected-pod",
+  "profiles": [
+    {"container": "optimization-mcp", "deadlineSeconds": 20},
+    {"container": "cuopt-executor", "deadlineSeconds": 25}
+  ]
+}
+```
+
+Both container names must occur once; order is immaterial. The control uses ordinary
+server admission, and the executor must request and limit NVIDIA GPUs. The caller
+cannot exchange those resource roles. Each deadline is 1–300 seconds and must fit
+the live Pod termination grace. Namespace, Kubernetes context, declared Deployment
+and the public Gateway origin come from the one InstallationTarget returned by
+corpus admission. The case carries that admitted value into the restart driver;
+it does not reload the target file before Kubernetes work. The case
+admits `optimization-mcp` as both Deployment and component. It rejects caller-defined
+namespace, endpoint, Deployment, resource roles and additional restart attempts.
+
+The operator must separately admit Kubernetes read/watch authority for the selected
+namespace, Deployment, ReplicaSet and Pod, and patch authority on that Deployment.
+The target must have one prepared ready replica containing both selected regular
+containers. No concurrent rollout, image change, workload replacement, corpus or
+policy mutation is permitted. The case uses an ordinary same-image restart, so each
+replacement retains its admitted imageID while its Pod and containerIDs change.
+Pre-existing engine metadata does not qualify new GPU execution.
+
+The mode-0600 journal is created and fsynced before connections. After successful
+pre-reads, the shared driver admits all live identities and resource profiles through
+read-only queries. The case then fsyncs `restart_intent` with those identities and
+`maximumAttempts: 1` before calling the coordinated driver once. One prearmed native
+Pod watch observes each old instance's successful exit; one UID/resourceVersion-fenced
+patch dispatches the rollout. An ambiguous response or failed drain stops the case
+without another patch. Complete successful receipts include both exits, replacement
+Pod/ReplicaSet identities and resource versions, process/image digests and generation.
+Partial successful exits remain in the retained progress when another member fails.
+
+Post-replacement reads use the same independent fixture and both original callers.
+After all read assertions, the shared read-only replacement fence checks the current
+public route, selected Pod/ReplicaSet UIDs, container/image identities, restart counts,
+readiness, resource profiles and unchanged replacement Deployment generation.
+Resource versions may advance without implying a different process. The case rejects
+an intervening rollout or process restart.
+
+The operation has a 660-second local cap within the original shared owner's deadline.
+Each read pass has its existing 240-second cap and each connection its 30-second cap.
+Selected drains use their individual deadlines; shared rollout and verification
+commands retain their own request limits. All phases consume the same owner budget.
+The case registers the existing SDK close slots and a retained partial-progress
+journal before connections. Shared watch cleanup runs before the final progress flush
+on outer cancellation. Original consuming close futures share the owner's cleanup
+deadline, and neither timeout nor an interrupted close grants more grace. The report
+marks incomplete operations and failed cleanup without exposing tokens or raw errors.
+
+```sh
+VEOVEO_OPTIMIZATION_CONSUMERS_INPUT=/absolute/private/input.json cargo test -p veoveo-optimization-mcp --test reads installed_optimization_coordinated_replacement_consumers -- --ignored --nocapture
+```
+
+Native controls admit and refuse private selections without acquiring a client,
+command runner or mutation capability. Shared support controls qualify typed drain
+observation and actual watch-process cleanup. Installed execution of this case is a
+separate gate. This fixture does not create Tasks or qualify interrupted-work recovery,
+current claim identity, cross-replica claims/subscriptions, mid-run label revocation,
+fresh GPU execution or Task creation/cancellation delivery.
 
 ## Contract Compliance
 

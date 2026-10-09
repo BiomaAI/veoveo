@@ -89,7 +89,7 @@ Earlier installed checkpoints keep their recorded scope below.
 | Timeseries | Four-row forecast, RRD Artifact and usage; optional typed cancellation and connection replacement with original Task/result agreement | Unfinished server restart, selected cross-replica routing and final images |
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
 | Knowledge | Full-catalog baseline and separate restricted-caller discovery, collection/completion visibility and document denials, with retained SDK cleanup | Installed caller-policy checks, unattended cold startup, current-generation recovery and final images |
-| Optimization | Multi-page existing solve corpus, exact products, usage, public Task results and canonical Artifact bytes under allowed and denied caller contexts | Installed GPU-produced corpus, mid-run policy changes, coordinated control/executor replacement and unfinished/cross-replica recovery |
+| Optimization | Multi-page existing solve corpus, exact products, usage, public Task results and canonical Artifact bytes under allowed and denied caller contexts; separately selected coordinated control/executor replacement repeats the retained consumers | Installed GPU-produced corpus, mid-run policy changes, coordinated control/executor replacement and unfinished/cross-replica recovery |
 
 Optimization's Artifact GET adapter maps typed policy denials to its existing
 missing-resource response. Native HTTP controls distinguish those denials from
@@ -97,9 +97,11 @@ authentication, transport, malformed-response and backend failures. The shared
 restart driver prepares a coordinated container-group drain with one Pod watch
 and one fenced mutation. Native controls require every selected container's
 successful exit, preserve partial facts on failure, and check the replacement's
-process identities and current readiness. Optimization still needs to wire this
-profile into its installed consumer and execute the control/executor replacement;
-unfinished and cross-replica recovery stay separate.
+process identities and current readiness. Optimization's existing reads harness
+now wires this profile to its retained consumers. One admitted installation target
+supplies the restart identity even if its configuration file changes after admission.
+Native input and target-replacement controls pass. Installed control/executor
+replacement, unfinished work and cross-replica recovery remain open.
 
 Installed node activation and the stock rollout are halted after Secret values
 accidentally appeared in a tool transcript. Both tracked Veoveo and UAV HelmReleases

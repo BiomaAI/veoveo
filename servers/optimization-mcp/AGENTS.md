@@ -84,10 +84,22 @@ The existing `reads` target also contains the opt-in installed read consumer:
 - `VEOVEO_OPTIMIZATION_CONSUMERS_INPUT=/absolute/private/input.json cargo test -p veoveo-optimization-mcp --test reads installed_optimization_read_consumers -- --ignored --nocapture`
 - `cargo test -p veoveo-optimization-mcp --test reads installed_consumers -- --nocapture`
 
-The installed case requires the private input and independently retained completed
+The installed read case requires the private input and independently retained completed
 real-GPU corpus described in [Installed Read Consumers](DESIGN.md#installed-read-consumers).
 It performs reads only. Native controls do not open installed connections and do
 not qualify GPU execution, rollout, cross-replica recovery or policy revocation.
+
+The separately selected coordinated replacement case uses the same retained GPU
+corpus and caller expectations plus the closed selected-Pod profile documented in
+[Coordinated Retained-Consumer Replacement](DESIGN.md#coordinated-retained-consumer-replacement):
+
+- `VEOVEO_OPTIMIZATION_CONSUMERS_INPUT=/absolute/private/input.json cargo test -p veoveo-optimization-mcp --test reads installed_optimization_coordinated_replacement_consumers -- --ignored --nocapture`
+
+It requires explicit Kubernetes read/watch/Deployment patch authority and performs
+one coordinated control/executor replacement. Keep the existing read case read-only.
+Native controls establish local admission and cleanup mechanics; installed recovery,
+current claims, cross-replica consistency and fresh GPU execution require their own
+qualification.
 
 The `cuopt_gpu` test requires a real NVIDIA GPU and the pinned cuOpt executor image.
 It must exercise health, routing, convex LP, and MILP through the Rust client.

@@ -1,10 +1,11 @@
-//! Opt-in read-only installed acceptance in the maintained reads target.
+//! Opt-in installed retained-product acceptance in the maintained reads target.
 //! Completed products must already have been produced on real NVIDIA hardware.
 mod artifact_refusal;
 mod cleanup;
 mod controls;
 mod fixture;
 mod reads;
+mod recovery;
 
 use anyhow::{Result, ensure};
 use cleanup::{Cleanup, Journal};
@@ -45,7 +46,7 @@ enum Record {
 async fn installed_optimization_read_consumers() -> Result<()> {
     owner::run(async {
         let mut input = Input::load().map_err(|_| anyhow::anyhow!("Optimization private input admission failed"))?;
-        let corpus = input.admit().map_err(|_| anyhow::anyhow!("Optimization installed corpus admission failed"))?;
+        let (corpus, _target) = input.admit().map_err(|_| anyhow::anyhow!("Optimization installed corpus admission failed"))?;
         let journal = Journal::create(&input.installation.output).map_err(|_| anyhow::anyhow!("Optimization private report admission failed"))?;
         use sha2::{Digest, Sha256};
         journal.append(&Record::Intent {schema:"veoveo.ai/optimization-installed-consumers/v1",
