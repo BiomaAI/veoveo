@@ -3,13 +3,11 @@ use crate::{
     ServiceError,
     source::{ApprovedCollection, DiscoveryScope},
 };
-use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use veoveo_gateway_contract::ProtectedResourceId;
-use veoveo_mcp_contract::{GatewayControlPlane, OAuthEndpointUrl};
+use veoveo_mcp_contract::OAuthEndpointUrl;
 use veoveo_platform_store::PlatformStore;
-use veoveo_policy::PolicyCatalog;
-use veoveo_types::{ScopeName, Sha256Digest, WorkContextId};
+use veoveo_types::{ScopeName, WorkContextId};
 
 pub(super) struct Selection {
     pub discovery: DiscoveryScope,
@@ -28,20 +26,12 @@ pub(super) async fn select(
         .active_gateway_control_revision()
         .await?
         .ok_or(ServiceError::MachineConfiguration)?;
-    let plane: GatewayControlPlane = serde_json::from_value(
-        serde_json::to_value(revision.control_plane)
-            .map_err(|_| ServiceError::MachineConfiguration)?,
+    let (catalog, digest) = crate::authority::admit_control_catalog(
+        &revision.control_plane,
+        &revision.sha256,
+        registry,
     )
     .map_err(|_| ServiceError::MachineConfiguration)?;
-    let digest = Sha256Digest::from_bytes(
-        Sha256::digest(serde_json::to_vec(&plane).map_err(|_| ServiceError::MachineConfiguration)?)
-            .into(),
-    );
-    if digest.hex() != revision.sha256 {
-        return Err(ServiceError::MachineConfiguration);
-    }
-    let catalog = PolicyCatalog::new(plane, registry.clone())
-        .map_err(|_| ServiceError::MachineConfiguration)?;
     let plane = catalog.control_plane();
     // One tenant has one active index generation and one approved source set.
     let clients = plane

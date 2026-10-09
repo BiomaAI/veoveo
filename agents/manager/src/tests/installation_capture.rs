@@ -182,3 +182,64 @@ fn rendered_manager_inputs_bind_complete_owner_revisions() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn startup_loader_admits_optional_worker_catalog_and_rejects_unregistered_sections() -> Result<()> {
+    let scratch = Scratch(
+        std::env::temp_dir().join(format!("veoveo-manager-catalog-{}", uuid::Uuid::now_v7())),
+    );
+    std::fs::create_dir(&scratch.0)?;
+    let captured: Value =
+        serde_json::from_str(include_str!("../../testdata/rendered-installation.json"))?;
+    let manager: ConfigMap = serde_json::from_value(json!({
+        "metadata": {}, "data": captured["managerData"], "immutable": true
+    }))?;
+    let manager_path = scratch.0.join("manager.json");
+    std::fs::write(&manager_path, &manager.data["manager.json"])?;
+    let control_path = scratch.0.join("gateway.json");
+    let mut control: veoveo_mcp_contract::GatewayControlPlane =
+        serde_json::from_str(include_str!("../../../../examples/bioma/gateway.json"))?;
+    let section = "ai.veoveo/computer-worker-authorization";
+    let worker = control
+        .extensions
+        .remove(section)
+        .context("registered worker section")?;
+    std::fs::write(&control_path, serde_json::to_vec(&control)?)?;
+    ensure!(
+        Config::load(&manager_path, &control_path).is_err(),
+        "worker client admitted without its resource-owning section"
+    );
+    // The old admission profile has neither the new section nor its resource consumer.
+    let worker_client = control.oauth_clients.remove(
+        control
+            .oauth_clients
+            .iter()
+            .position(|client| client.id.as_str() == "bioma-computers-worker")
+            .context("worker client")?,
+    );
+    let policies = serde_json::to_vec(&control.policies)?;
+    std::fs::write(&control_path, serde_json::to_vec(&control)?)?;
+    let old = Config::load(&manager_path, &control_path)?;
+    control.extensions.insert(section.into(), worker.clone());
+    control.oauth_clients.push(worker_client);
+    std::fs::write(&control_path, serde_json::to_vec(&control)?)?;
+    let new = Config::load(&manager_path, &control_path)?;
+    ensure!(
+        serde_json::to_vec(&control.policies)? == policies,
+        "catalog policies changed"
+    );
+    ensure!(
+        serde_json::to_vec(&old.templates)? == serde_json::to_vec(&new.templates)?
+            && serde_json::to_vec(&old.models)? == serde_json::to_vec(&new.models)?,
+        "optional worker section changed Manager authority"
+    );
+    control
+        .extensions
+        .insert("ai.veoveo/unregistered-manager-fixture".into(), worker);
+    std::fs::write(&control_path, serde_json::to_vec(&control)?)?;
+    ensure!(
+        Config::load(&manager_path, &control_path).is_err(),
+        "unregistered section admitted at startup"
+    );
+    Ok(())
+}

@@ -226,9 +226,21 @@ JWT audience and role checks stay mandatory. Enabling Host NetworkPolicy require
 actual issuer/JWKS HTTPS destinations in `computers.host.issuerEgress`. Worker
 `networkPolicy.externalEgressCidrs` creates an egress policy for broader workload
 selectors even with the global flag disabled; qualify all their allowed paths before
-adding it. Upgrade the matched
-worker, Host, public registration and chart through a coordinated drain that preserves
-unresolved operations and retained writer fences. Selected native stopped-maintenance,
+adding it. The stock rollout must cover seven images: Computer Host, Computer
+template, Computers MCP, Gateway, Console BFF, Agent Manager and Knowledge. Gateway,
+Computers MCP, Manager and Knowledge decode the full catalog. Before publishing the
+matching worker authorization section and client, qualify source-bound Manager and
+Knowledge images against the actual live catalog, policy and module generation,
+replace their old readers, and prove Manager Ready.
+The current registry accepts the old catalog without both the worker section and
+its client. A reader that does not register the new section rejects it; retained image
+admission is unproven. Preserve Knowledge desired replicas at one through its Recreate
+transition, then restore Ready and functional indexing and search before publication.
+Keep Embedding and Speech Ready. Ordinary chart reconciliation starts Deployments
+and publication Jobs concurrently and cannot enforce that order. After compatible-reader admission
+and drain are proved, publish the matching section and client atomically in one full
+catalog and activate the matched worker, Host and chart through the coordinated drain, preserving unresolved
+operations and retained writer fences. Selected native stopped-maintenance,
 terminal renewal and Host same-image restart cases pass under the stock profile. The
 [active plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md) records their current scope and
 the remaining native, distinct-image upgrade and installed qualification gates. The

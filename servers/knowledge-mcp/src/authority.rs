@@ -31,6 +31,28 @@ pub struct RequestAuthority {
     pub(crate) caller: SearchCaller,
 }
 
+/// Both request authority and indexing admit the complete stored snapshot before
+/// selecting Knowledge facts. Unknown sections and mismatched typed hashes fail closed.
+pub(crate) fn admit_control_catalog(
+    document: &veoveo_platform_store::OpenObject,
+    expected_sha256: &str,
+    registry: &veoveo_gateway_contract::CatalogRegistry,
+) -> Result<(PolicyCatalog, veoveo_types::Sha256Digest), ServiceError> {
+    let plane: GatewayControlPlane = serde_json::from_value(
+        serde_json::to_value(document).map_err(|_| ServiceError::AccessChanged)?,
+    )
+    .map_err(|_| ServiceError::AccessChanged)?;
+    let digest = veoveo_types::Sha256Digest::from_bytes(
+        Sha256::digest(serde_json::to_vec(&plane).map_err(|_| ServiceError::AccessChanged)?).into(),
+    );
+    if digest.hex() != expected_sha256 {
+        return Err(ServiceError::AccessChanged);
+    }
+    let catalog =
+        PolicyCatalog::new(plane, registry.clone()).map_err(|_| ServiceError::AccessChanged)?;
+    Ok((catalog, digest))
+}
+
 pub async fn authorize(
     store: &PlatformStore,
     registry: &veoveo_gateway_contract::CatalogRegistry,
@@ -161,20 +183,8 @@ async fn resolve(
         .active_gateway_control_revision()
         .await?
         .ok_or(ServiceError::AccessChanged)?;
-    let plane: GatewayControlPlane = serde_json::from_value(
-        serde_json::to_value(revision.control_plane).map_err(|_| ServiceError::AccessChanged)?,
-    )
-    .map_err(|_| ServiceError::AccessChanged)?;
-    let digest = veoveo_types::Sha256Digest::from_bytes(
-        Sha256::digest(serde_json::to_vec(&plane).map_err(|_| ServiceError::AccessChanged)?).into(),
-    )
-    .hex()
-    .to_owned();
-    if digest != revision.sha256 {
-        return Err(ServiceError::AccessChanged);
-    }
-    let catalog =
-        PolicyCatalog::new(plane, registry.clone()).map_err(|_| ServiceError::AccessChanged)?;
+    let (catalog, digest) =
+        admit_control_catalog(&revision.control_plane, &revision.sha256, registry)?;
     let profile = catalog
         .profile(&identity.profile)
         .ok_or(ServiceError::AccessChanged)?;
@@ -286,7 +296,7 @@ async fn resolve(
     Ok(RequestAuthority {
         catalog,
         allowed_tools,
-        control_digest: digest,
+        control_digest: digest.hex().to_owned(),
         collections,
         approvals,
         caller,
@@ -306,4 +316,142 @@ fn check_lifetime(identity: &GatewayInternalIdentity) -> Result<(), ServiceError
         return Err(ServiceError::AccessChanged);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod catalog_admission_tests {
+    use super::*;
+    use veoveo_mcp_contract::{Exposure, Principal, PrincipalKind};
+    use veoveo_types::ResourceUri;
+
+    const WORKER_SECTION: &str = "ai.veoveo/computer-worker-authorization";
+
+    fn reference() -> GatewayControlPlane {
+        serde_json::from_str(include_str!("../../../examples/bioma/gateway.json")).unwrap()
+    }
+
+    fn admit(plane: &GatewayControlPlane) -> Result<PolicyCatalog, ServiceError> {
+        let document = serde_json::from_value(serde_json::to_value(plane).unwrap()).unwrap();
+        let hash = veoveo_types::Sha256Digest::from_bytes(
+            Sha256::digest(serde_json::to_vec(plane).unwrap()).into(),
+        );
+        admit_control_catalog(
+            &document,
+            &hash.hex(),
+            &veoveo_gateway_catalog::registry().unwrap(),
+        )
+        .map(|(catalog, _)| catalog)
+    }
+
+    fn reader() -> Principal {
+        Principal {
+            id: "catalog-reader".parse().unwrap(),
+            kind: PrincipalKind::User,
+            issuer: "https://idp.example.com".parse().unwrap(),
+            subject: "reader".parse().unwrap(),
+            tenant: Some("bioma".parse().unwrap()),
+            groups: Default::default(),
+            group_roles: Default::default(),
+            roles: ["operator".parse().unwrap()].into(),
+            scopes: reference()
+                .profiles
+                .iter()
+                .find(|p| p.id.as_str() == "operator-initial")
+                .unwrap()
+                .required_scopes
+                .iter()
+                .cloned()
+                .collect(),
+            data_labels: Default::default(),
+            assurances: Default::default(),
+            authenticated_at: None,
+        }
+    }
+
+    #[test]
+    fn old_and_registered_catalogs_preserve_source_selection() {
+        let new = reference();
+        assert!(new.extensions.contains_key(WORKER_SECTION));
+        let mut old = new.clone();
+        old.extensions.remove(WORKER_SECTION);
+        old.oauth_clients
+            .retain(|client| client.id.as_str() != "bioma-computers-worker");
+        for context in &mut old.work_contexts {
+            context.memberships.retain(|rule| {
+                !rule
+                    .oauth_clients
+                    .iter()
+                    .any(|id| id.as_str() == "bioma-computers-worker")
+            });
+        }
+        let old_catalog = admit(&old).unwrap();
+        let new_catalog = admit(&new).unwrap();
+        let profile = "operator-initial".parse().unwrap();
+        let server = "media".parse().unwrap();
+        let old_selection =
+            veoveo_policy::admit_resource_reads(&old_catalog, &reader(), &profile, &server)
+                .unwrap();
+        let new_selection =
+            veoveo_policy::admit_resource_reads(&new_catalog, &reader(), &profile, &server)
+                .unwrap();
+        assert_eq!(old_selection, new_selection);
+        assert!(new_selection.matches_uri(&ResourceUri::new("media://models").unwrap()));
+        assert!(!new_selection.matches_uri(&ResourceUri::new("artifact://docs").unwrap()));
+        let mut hidden = new;
+        hidden
+            .profiles
+            .iter_mut()
+            .find(|p| p.id == profile)
+            .unwrap()
+            .servers
+            .iter_mut()
+            .find(|s| s.server == server)
+            .unwrap()
+            .resources = Exposure::None;
+        assert!(
+            veoveo_policy::admit_resource_reads(
+                &admit(&hidden).unwrap(),
+                &reader(),
+                &profile,
+                &server
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn unknown_section_is_rejected_even_with_matching_typed_hash() {
+        let mut plane = reference();
+        let section = plane.extensions.remove(WORKER_SECTION).unwrap();
+        assert!(
+            matches!(admit(&plane), Err(ServiceError::AccessChanged)),
+            "a resource-consuming worker client without its section is partial publication"
+        );
+        plane
+            .extensions
+            .insert(WORKER_SECTION.into(), section.clone());
+        assert!(
+            admit(&plane).is_ok(),
+            "registered baseline must admit before adding an unknown section"
+        );
+        plane.extensions.insert(
+            "ai.veoveo/unregistered-worker-authorization".into(),
+            section,
+        );
+        assert!(matches!(admit(&plane), Err(ServiceError::AccessChanged)));
+    }
+
+    #[test]
+    fn registered_catalog_with_wrong_typed_hash_is_rejected() {
+        let plane = reference();
+        let document = serde_json::from_value(serde_json::to_value(plane).unwrap()).unwrap();
+        assert!(matches!(
+            admit_control_catalog(
+                &document,
+                &"0".repeat(64),
+                &veoveo_gateway_catalog::registry().unwrap()
+            ),
+            Err(ServiceError::AccessChanged)
+        ));
+    }
 }
