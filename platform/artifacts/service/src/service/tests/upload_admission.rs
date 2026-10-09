@@ -23,23 +23,32 @@ pub(super) async fn install_profile_policy(
         tenant: None,
         control_plane: platform::OpenObject::default(),
     };
-    let mut document = std::collections::BTreeMap::from([
-        ("id".into(), serde_json::json!("fixture")),
-        ("policy_version".into(), serde_json::json!("r1")),
-    ]);
-    if let Some(policy) = upload {
-        document.insert(
-            "artifact_upload".into(),
-            serde_json::to_value(policy).unwrap(),
-        );
-    }
+    let published_profile = veoveo_mcp_contract::gateway::GatewayProfile {
+        id: "fixture".parse().unwrap(),
+        identity_provider: "fixture".parse().unwrap(),
+        authorization_server: "fixture".parse().unwrap(),
+        protected_resource: "https://veoveo.example/mcp/fixture".parse().unwrap(),
+        policy_version: "r1".parse().unwrap(),
+        artifact_upload: upload,
+        auth_modes: std::collections::BTreeSet::from([
+            veoveo_mcp_contract::gateway::AuthMode::OAuthClientCredentials,
+        ]),
+        discovery_failure_mode: Default::default(),
+        required_scopes: Vec::new(),
+        servers: Vec::new(),
+        metadata: serde_json::Value::Null,
+    };
+    let serde_json::Value::Object(document) = serde_json::to_value(published_profile).unwrap()
+    else {
+        panic!("Gateway profile must serialize as an object");
+    };
     let profile = platform::GatewayControlObjectContent {
         revision: revision.clone(),
         tenant: None,
         object_kind: "profile".into(),
         profile_policy_version: Some(veoveo_types::PolicyVersion::parse("r1").unwrap()),
         object_id: "fixture".into(),
-        document: platform::OpenObject::new(document),
+        document: platform::OpenObject::new(document.into_iter().collect()),
     };
     let policy = platform::GatewayControlObjectContent {
         revision: revision.clone(),

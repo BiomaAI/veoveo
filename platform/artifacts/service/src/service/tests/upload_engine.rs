@@ -14,14 +14,23 @@ async fn fixture(
     actor: &PlaneCaller,
 ) -> contract::VerifiedArtifactUploadIdentity {
     context(store, actor).await;
-    let policy = serde_json::json!({
-        "max_object_bytes": 107374182400_u64, "tenant_quota_bytes": 214748364800_u64,
-        "max_active_uploads_per_tenant": 8, "part_bytes": 16777216, "max_part_bytes": 67108864,
-        "max_parts": 10000, "parallel_parts": 4, "max_inflight_bytes": 134217728,
-        "inactivity_seconds": 86400, "lifetime_seconds": 604800, "part_timeout_seconds": 120,
-        "allowed_mime_types": ["application/octet-stream"]
-    });
-    install_profile_policy(store, Some(serde_json::from_value(policy).unwrap())).await;
+    let policy = veoveo_artifact_contract::ArtifactUploadPolicy {
+        max_object_bytes: std::num::NonZeroU64::new(107374182400).unwrap(),
+        tenant_quota_bytes: std::num::NonZeroU64::new(214748364800).unwrap(),
+        max_active_uploads_per_tenant: NonZeroU32::new(8).unwrap(),
+        part_bytes: std::num::NonZeroU64::new(16777216).unwrap(),
+        max_part_bytes: std::num::NonZeroU64::new(67108864).unwrap(),
+        max_parts: NonZeroU32::new(10000).unwrap(),
+        parallel_parts: NonZeroU32::new(4).unwrap(),
+        max_inflight_bytes: std::num::NonZeroU64::new(134217728).unwrap(),
+        inactivity_seconds: std::num::NonZeroU64::new(86400).unwrap(),
+        lifetime_seconds: std::num::NonZeroU64::new(604800).unwrap(),
+        part_timeout_seconds: std::num::NonZeroU64::new(120).unwrap(),
+        allowed_mime_types: std::collections::BTreeSet::from([
+            "application/octet-stream".to_owned()
+        ]),
+    };
+    install_profile_policy(store, Some(policy)).await;
     let version = store
         .artifact_upload_authority_version(
             "acme",
@@ -239,7 +248,11 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
             .status(),
         404
     );
-    let manifest = serde_json::json!({"byte_len":data.len(), "part_count":1, "sha256":sha});
+    let manifest = veoveo_artifact_contract::CompleteArtifactUpload {
+        byte_len: data.len() as u64,
+        part_count: NonZeroU32::new(1).unwrap(),
+        sha256: Some(veoveo_artifact_contract::UploadSha256::parse(&sha).unwrap()),
+    };
     let completion_url = format!("{session_url}/complete");
     let completion = client
         .post(&completion_url)

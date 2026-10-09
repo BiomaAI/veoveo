@@ -13,6 +13,7 @@ pub(super) struct Authority {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ProfileUploadPolicy {
     policy_version: veoveo_types::PolicyVersion,
     artifact_upload: Option<veoveo_artifact_contract::ArtifactUploadPolicy>,
