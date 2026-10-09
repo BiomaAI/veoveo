@@ -258,7 +258,7 @@ r#"{"prompt":"cancel but reconcile billing","_fake_provider_cancellation":"not_d
     contains(&complete_output, "fake/image")?;
 
     let run_result = run_raw(
-        conformance,
+        &veoveo_testing_support::artifacts::executable("veoveo-media-mcp", "media-smoke")?,
         [
             "--url".into(),
             mcp_url.clone().into(),
