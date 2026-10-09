@@ -457,8 +457,9 @@ impl Fixture {
             command.arg("--label").arg(format!("{key}={value}"));
         }
         command.args([
-            &self.daemon.as_ref().unwrap().image_id,
+            "--entrypoint",
             "/bin/sleep",
+            &self.daemon.as_ref().unwrap().image_id,
             "infinity",
         ]);
         checked(&mut command).await;
