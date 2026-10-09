@@ -2,8 +2,9 @@
 
 Status: The published 34-image closure and charts for `6431c30c6621` retain their
 recorded qualification. GitOps is suspended during source work. Knowledge and its
-required NVIDIA Embedding runtime are restored and Ready; Reason and the other
-GPU workloads stay at zero replicas. The unmodified OpenShell 0.1.2 source
+required NVIDIA Embedding runtime are restored and Ready. Speech has one Ready
+replica for installed acceptance; Reason and the other GPU workloads stay at zero
+replicas. The unmodified OpenShell 0.1.2 source
 package passes its focused artifact, Host and packaging checks. The owner approved
 stock OIDC; package image `ea4ffc9f7` is assembled and staged with all four official
 executable hashes and versions verified. Three CA roles, projected credentials,
@@ -599,7 +600,14 @@ dependency layers. That image passes offline CUDA worker startup as UID 10001
 with networking disabled and a read-only root filesystem; readiness identifies
 the pinned checkpoint and RTX 4090. Owned-container cleanup completes with Docker's
 forced-stop fallback. This direct-worker check does not qualify production host
-shutdown. Installed consumers and production shutdown remain open.
+shutdown. Installed Speech is Ready on the corrected image and its mounted
+`healthz` and `readyz` return 200. The strict single-Deployment rollout gate fails:
+Helm restored Gateway's checksum annotation from its saved manifest and restarted
+that Pod. Gateway recovered Ready with the same admitted active policy revision
+and digest; Knowledge and Embedding are Ready. The parent Kustomization and platform
+HelmRelease are suspended again.
+The authenticated Workspace upload-policy read returns 503 before Artifact is
+reached, so headed consumers remain unqualified. Production shutdown remains open.
 
 The [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) preserves checkpoint details and
 historical failures. Reuse accepted checks while their source, dependencies and
