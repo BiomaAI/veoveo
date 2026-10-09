@@ -226,6 +226,85 @@ impl Evidence {
         );
         Ok(())
     }
+    pub(super) async fn http_unauthenticated(
+        &mut self,
+        client: &reqwest::Client,
+        request: reqwest::Request,
+        method: Method,
+    ) -> Result<()> {
+        ensure!(
+            request.method() == reqwest::Method::POST
+                && !request
+                    .headers()
+                    .contains_key(reqwest::header::AUTHORIZATION)
+                && !request
+                    .headers()
+                    .contains_key(reqwest::header::PROXY_AUTHORIZATION)
+                && !request.headers().contains_key(reqwest::header::COOKIE),
+            "anonymous discovery request contains unsupported credentials or method"
+        );
+        let index = self.begin_http(Phase::Discovery, method, request.url().clone(), 401)?;
+        self.observe_unauthenticated(index, async {
+            client.execute(request).await.map_err(anyhow::Error::from)
+        })
+        .await
+    }
+    async fn observe_unauthenticated(
+        &mut self,
+        index: usize,
+        response: impl Future<Output = Result<reqwest::Response>>,
+    ) -> Result<()> {
+        use futures::StreamExt;
+        use sha2::{Digest, Sha256};
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        let response = match tokio::time::timeout_at(deadline, response).await {
+            Ok(Ok(response)) => response,
+            Ok(Err(_)) => {
+                self.transport_failed(index, false)?;
+                anyhow::bail!("anonymous catalog transport failed; see redacted receipt");
+            }
+            Err(_) => {
+                self.transport_failed(index, true)?;
+                anyhow::bail!("anonymous catalog deadline; see redacted receipt");
+            }
+        };
+        let status = response.status().as_u16();
+        self.http_status(index, status)?;
+        let read_body = async {
+            let mut stream = response.bytes_stream();
+            let mut body = Vec::new();
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk?;
+                ensure!(
+                    body.len().saturating_add(chunk.len()) <= 65536,
+                    "anonymous response exceeds 64KiB"
+                );
+                body.extend_from_slice(&chunk);
+            }
+            Ok::<_, anyhow::Error>(body)
+        };
+        let body = match tokio::time::timeout_at(deadline, read_body).await {
+            Ok(Ok(body)) => body,
+            Ok(Err(_)) => {
+                self.transport_failed(index, false)?;
+                anyhow::bail!("anonymous catalog response failed; see redacted receipt");
+            }
+            Err(_) => {
+                self.transport_failed(index, true)?;
+                anyhow::bail!("anonymous catalog body deadline; see redacted receipt");
+            }
+        };
+        self.http_observed(
+            index,
+            status,
+            Sha256Digest::from_bytes(Sha256::digest(&body).into()),
+        )?;
+        ensure!(
+            status == 401,
+            "anonymous catalog request was not rejected with HTTP401; see redacted receipt"
+        );
+        Ok(())
+    }
     pub(super) async fn http_get(
         &mut self,
         client: &reqwest::Client,
@@ -390,6 +469,81 @@ impl Evidence {
 #[cfg(test)]
 mod protocol_evidence_tests {
     use super::*;
+    #[tokio::test]
+    async fn anonymous_status_and_digest_are_persisted_before_denial_decision() -> Result<()> {
+        for status in [401, 200, 500] {
+            let directory = tempfile::tempdir()?;
+            let path = directory.path().join("receipt.json");
+            let mut evidence = Evidence::create(&path)?;
+            let index = evidence.begin_http(
+                Phase::Discovery,
+                Method::ToolsList,
+                url::Url::parse("https://example.test/mcp/operator")?,
+                401,
+            )?;
+            let response = reqwest::Response::from(
+                ::http::Response::builder()
+                    .status(status)
+                    .body("private-response-sentinel")?,
+            );
+            let result = evidence
+                .observe_unauthenticated(index, async { Ok(response) })
+                .await;
+            assert_eq!(result.is_ok(), status == 401);
+            let report: serde_json::Value = serde_json::from_slice(&fs::read(&path)?)?;
+            assert_eq!(report["entries"][0]["observed"]["kind"], "http");
+            assert_eq!(report["entries"][0]["observed"]["status"], status);
+            assert!(report["entries"][0]["observed"]["message_digest"].is_string());
+            assert!(!fs::read_to_string(&path)?.contains("private-response-sentinel"));
+        }
+        Ok(())
+    }
+    #[tokio::test]
+    async fn anonymous_transport_and_receipt_failure_cannot_become_denial() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("receipt.json");
+        let mut evidence = Evidence::create(&path)?;
+        let index = evidence.begin_http(
+            Phase::Discovery,
+            Method::ToolsList,
+            url::Url::parse("https://example.test/mcp/operator")?,
+            401,
+        )?;
+        assert!(
+            evidence
+                .observe_unauthenticated(index, async {
+                    Err(anyhow!("private transport sentinel"))
+                })
+                .await
+                .is_err()
+        );
+        assert!(matches!(
+            evidence.receipt.entries[index].observed,
+            Observation::Transport
+        ));
+        // An opened read-only receipt causes the first persistence write to fail.
+        // The already received status survives in caller-owned state without being recast as transport.
+        evidence.file = File::open(&path)?;
+        let response =
+            reqwest::Response::from(::http::Response::builder().status(401).body("denied")?);
+        assert!(
+            evidence
+                .observe_unauthenticated(index, async { Ok(response) })
+                .await
+                .is_err()
+        );
+        assert_eq!(evidence.receipt.entries[index].response_status, Some(401));
+        assert!(
+            evidence
+                .http_observed(index, 401, Sha256Digest::from_bytes([1; 32]))
+                .is_err()
+        );
+        assert!(matches!(
+            evidence.receipt.entries[index].observed,
+            Observation::Http { status: 401, .. }
+        ));
+        Ok(())
+    }
     #[tokio::test]
     async fn direct_mcp_denial_is_persisted_but_nested_transport_is_refused() -> Result<()> {
         let directory = tempfile::tempdir()?;

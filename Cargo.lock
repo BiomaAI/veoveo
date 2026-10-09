@@ -16321,6 +16321,7 @@ dependencies = [
  "futures",
  "glam 0.33.5",
  "hex",
+ "http",
  "image",
  "jsonschema",
  "jsonwebtoken 11.0.0",

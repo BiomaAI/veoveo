@@ -260,9 +260,15 @@ selects only the assertion executable and `gateway-smoke-support`. Ops supplies 
 existing loopback port-forwards; the case creates no domain fixtures and changes no
 cluster configuration. The supplied installation still undergoes its full target and
 control-plane admission. Results cover the four selected CPU servers rather than every
-server registered in that installation. Anonymous MCP discovery, Recording gRPC and
-Media generation/completion are separate qualification cases; this case does not
-claim them.
+server registered in that installation. Recording gRPC and Media generation/completion
+are separate qualification cases; this case does not claim them.
+
+Before authenticated discovery, an isolated HTTP client sends the four SDK-encoded
+list requests without bearer, cookie or session headers to the checked public MCP
+endpoint. Every request must return 401. The client disables proxies and redirects,
+uses a three-second connection budget and a fifteen-second request budget, and bounds
+each response to 64 KiB. The receipt records the response status and body digest
+before the assertion; a transport or receipt-write failure cannot establish denial.
 
 The private fixture names each owner, server slug, resource scheme, mount, loopback
 origin, allowed Host authority and Deployment/Pod/image identities. It binds the gateway

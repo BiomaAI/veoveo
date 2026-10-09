@@ -1828,6 +1828,7 @@ dispatch preflights and budgeted execution.
 | `examples/bioma/acceptance/src/smoke/scenarios/` | Rust process/deployment scenarios |
 | `examples/bioma/acceptance/src/smoke/scenarios/installation/protocol.rs` and `protocol/evidence.rs` | installed selected CPU fixture/profile admission, normal OAuth orchestration, request observations and caller-owned cleanup |
 | `examples/bioma/acceptance/src/smoke/scenarios/installation/protocol/transport.rs` | maintained curl HTTP/1.1 Host, mounted health/readiness and unsigned Media callback probes through admitted loopback origins |
+| `examples/bioma/acceptance/src/smoke/scenarios/installation/protocol/authentication.rs` | isolated anonymous SDK list requests and exact HTTP401 admission through the installed public MCP endpoint |
 | `examples/bioma/acceptance/src/smoke/scenarios/installation/protocol/discovery.rs` | complete selected owner discovery, typed docs/contracts/completions, current invalid-resource refusal and administrator prompt isolation |
 | `examples/bioma/acceptance/src/smoke/scenarios/installation/protocol/admin.rs` | normal administrator health inventory, matching-profile operator refusal and bounded public Audit export correlation |
 | `examples/bioma/acceptance/src/smoke/scenarios/installation/shared_host.rs` and `shared_host/drain.rs` | installed CPU query Task completion and retained payload through normal operator OAuth, with one admitted DuckDB process drain in the existing installation harness |

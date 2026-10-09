@@ -5,6 +5,8 @@ use veoveo_gateway_contract::GatewayToolName;
 use veoveo_types::{PromptName, ResourceScheme, ResourceUri, ServerSlug, Sha256Digest};
 #[path = "protocol/admin.rs"]
 mod admin;
+#[path = "protocol/authentication.rs"]
+mod authentication;
 #[path = "protocol/discovery.rs"]
 mod discovery;
 #[path = "protocol/evidence.rs"]
@@ -248,6 +250,11 @@ pub(crate) async fn run(installation_path: &Path, input_path: &Path, output: &Pa
             .map_err(|_| anyhow!("administrator MCP deadline"))?
             .map_err(|_| anyhow!("administrator MCP connection failed"))?,
         );
+        authentication::run(
+            &url::Url::parse(installation.operator.resource.as_str())?,
+            &mut evidence,
+        )
+        .await?;
         curl.run(&fixture.servers, &mut evidence).await?;
         discovery::run(
             operator_client.as_ref().expect("owned operator"),
