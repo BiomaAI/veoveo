@@ -94,8 +94,12 @@ Earlier installed checkpoints keep their recorded scope below.
 Optimization's Artifact GET adapter maps typed policy denials to its existing
 missing-resource response. Native HTTP controls distinguish those denials from
 authentication, transport, malformed-response and backend failures. The shared
-restart driver currently proves one selected container's exit; Optimization's
-two-container replacement still needs an owning coordinated drain check.
+restart driver prepares a coordinated container-group drain with one Pod watch
+and one fenced mutation. Native controls require every selected container's
+successful exit, preserve partial facts on failure, and check the replacement's
+process identities and current readiness. Optimization still needs to wire this
+profile into its installed consumer and execute the control/executor replacement;
+unfinished and cross-replica recovery stay separate.
 
 Installed node activation and the stock rollout are halted after Secret values
 accidentally appeared in a tool transcript. Both tracked Veoveo and UAV HelmReleases
@@ -107,9 +111,21 @@ qualified, including the implemented aggregate Host profile of 1 CPU, 6 GiB and 
 The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated. A private
 credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
 WaveSpeed and Google Maps replacement still requires account-management authority
-or private references to fresh credentials. Recording key retirement and audit
-signing-key verification continuity require their owning qualification. Existing
-authorization applies to the rollout. The matching
+or private references to fresh credentials. Existing authorization applies to the
+rollout.
+
+Recording playback-key replacement passes its native grant, chunk and transport
+checks. The supported procedure drains every old serving instance before starting
+the new-key endpoint; an overlapping old server still accepts its old tokens.
+Installed key retirement, actual playback and hardware qualification remain open.
+Audit signing-key handoff passes its native persisted-state
+case: the old writer and sealer drain, retained blocks stay unchanged, and the new
+key continues the chain. Replacement-only verification uses a protected cutover
+checkpoint and rejects an old-key-signed suffix. Installed retirement must remove
+every process holding the old seed, including standby sealers, and protect the
+cutover and tail checkpoints independently.
+
+The matching
 worker catalog section and client must stay unpublished until every
 deployed catalog reader admits the full catalog. Credential replacement must preserve the actual live catalog,
 policy and enabled module composition. The strict full-catalog readers are Gateway,
