@@ -28,24 +28,24 @@ produces the full default specification. Its [CRI resource adapter](https://gith
 applies CPU and memory fields without replacing the base PID limit. Actual
 container cgroup inspection must still qualify that result after node activation.
 
-The complete OCI base specification comes from the installed stock generator,
-not a reduced JSON document. During separately authorized node maintenance, run
+The complete OCI base specification comes from the installed `/usr/bin/ctr` stock
+generator, not a reduced JSON document. During separately authorized node maintenance, run
 these preparation commands **on each eligible node**, using an isolated staging
 directory. They generate configuration without installing it or restarting K3s:
 
 ```sh
 mkdir -m 700 computer-host-runtime-staging
 cd computer-host-runtime-staging
-k3s ctr version
-k3s ctr oci spec --platform linux/amd64 > stock-oci.json
+/usr/bin/ctr version
+/usr/bin/ctr oci spec --platform linux/amd64 > stock-oci.json
 jq '.linux.resources.pids.limit = 4096' stock-oci.json > computer-host-oci.json
 jq -e '.process != null and .root != null and (.mounts | length > 0) and (.linux.namespaces | length > 0) and .linux.resources.pids.limit == 4096' computer-host-oci.json
 jq -e --slurpfile stock stock-oci.json '. == ($stock[0] | .linux.resources.pids.limit = 4096)' computer-host-oci.json
 sha256sum stock-oci.json computer-host-oci.json
 ```
 
-Require the recorded containerd version to match the supported input. Keep the
-full generated process, root, namespaces, mounts and security defaults. The
+Require the recorded containerd client and server versions to match the supported
+input. Keep the full generated process, root, namespaces, mounts and security defaults. The
 comparison proves that the PID value is the sole transformation. No credentials
 belong in these files.
 
