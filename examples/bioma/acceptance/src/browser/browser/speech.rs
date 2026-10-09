@@ -31,8 +31,12 @@ pub async fn verify(base: &str, endpoint: &str, output: &Path, fixture: &Path) -
 }
 
 async fn hardware(cdp: &mut Cdp, session: &str) -> Result<HardwareIdentity> {
+    assert_page_visible(cdp, session).await?;
+    cdp.assert_no_software_renderer_events()?;
     let identity: HardwareIdentity = cdp.evaluate(session, HARDWARE_PREFLIGHT, true).await?;
     identity.validate()?;
+    assert_page_visible(cdp, session).await?;
+    cdp.assert_no_software_renderer_events()?;
     Ok(identity)
 }
 
@@ -40,7 +44,9 @@ async fn wait(cdp: &mut Cdp, session: &str, expression: &str) -> Result<()> {
     let deadline = Instant::now() + Duration::from_secs(40);
     loop {
         hardware(cdp, session).await?;
-        if cdp.evaluate::<bool>(session, expression, true).await? {
+        let ready = cdp.evaluate::<bool>(session, expression, true).await?;
+        hardware(cdp, session).await?;
+        if ready {
             return Ok(());
         }
         if Instant::now() >= deadline {
@@ -171,7 +177,9 @@ async fn run(
         "dictation replaced typed edits"
     );
     ensure!(cdp.evaluate::<bool>(session, "window.speechAcceptance.delayed && window.speechAcceptance.streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')) && !window.speechAcceptance.requests.some(r=>r.method==='POST' && ['messages','runs','operations'].some(p=>r.path.endsWith('/'+p)))", false).await?, "dictation sent a message, invoked an agent, or kept capture alive");
+    hardware(cdp, session).await?;
     let draft_shot = capture_screenshot(cdp, session, &output.join("review.png")).await?;
+    hardware(cdp, session).await?;
     click(cdp, session, "Dictate").await?;
     wait(
         cdp,
@@ -290,8 +298,9 @@ async fn run(
     .await?;
     let result: Value = cdp.evaluate(session, &format!("(()=>{{const s={card}.querySelector('.speech-result');return {{text:s.querySelector('.speech-segments').textContent,downloads:[...s.querySelectorAll('a')].map(a=>a.href),duration:s.querySelector('audio').duration}}}})()"), false).await?;
     ensure!(cdp.evaluate::<bool>(session, &format!("(async()=>{{const links=[...{card}.querySelectorAll('.speech-result>a')];if(links.length!==2)return false;const [json,vtt]=await Promise.all(links.map(a=>fetch(a.href)));if(!json.ok||!vtt.ok)return false;const doc=await json.json();return doc.schema==='veoveo.ai/speech-transcript/v2' && doc.sourceArtifactUri==={} && (await vtt.text()).startsWith('WEBVTT')}})()", serde_json::to_string(&source_uri)?), true).await?, "transcript/caption downloads did not match the new recording");
-    let final_hardware = hardware(cdp, session).await?;
+    hardware(cdp, session).await?;
     let transcript_shot = capture_screenshot(cdp, session, &output.join("transcript.png")).await?;
+    let final_hardware = hardware(cdp, session).await?;
     let evidence = serde_json::json!({"schema":"veoveo.ai/speech-browser-acceptance/v1","createdAt":chrono::Utc::now(),"chatUrl":chat_url,"microphone":"synthetic fixture MediaStream through real AudioWorklet and CUDA; hardware microphone not qualified","initialHardware":initial_hardware,"finalHardware":final_hardware,"reviewedDraft":reviewed,"cancelPreservedDraft":true,"explicitSend":true,"taskObservedAfterReload":true,"sourceArtifactUri":source_uri,"recordingElapsedMillis":recording_elapsed,"downloadsVerified":true,"injectedChunkDelayMillis":2500,"result":result,"screenshots":{"review":draft_shot,"transcript":transcript_shot}});
     fs::write(
         output.join("evidence.json"),
