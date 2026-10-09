@@ -40,9 +40,9 @@ docker run --rm --network none --read-only \
 The generated plan binds all 19 owner lanes to the locked gateway composition. The
 k3d values keep the full image and capacity configuration, and the HelmRelease keeps
 every locked Deployment in its rendered contract. Its post-renderer sets the replicas
-to zero for Computer, Optimization, Reason, Recording, Rerun, Speech, Stream and View
-until those workloads reach their own acceptance batches. The first staged target runs
-the shared CPU sources, Datasheet's Artifact consumer, Knowledge and Embedding. Map,
+to zero for Computer, Optimization, Reason, Recording, Rerun, Stream and View
+until those workloads reach their own acceptance batches. The current staged target runs
+the shared CPU sources, Datasheet's Artifact consumer, Knowledge, Embedding and Speech. Map,
 Artifact, Time, Chart, DuckDB, Timeseries, Frames and Media remain available as
 Knowledge sources and shared runtime services. The UAV HelmRelease is suspended until
 its GPU acceptance batch. Use `installation-target-initial.json` for this staged gate.

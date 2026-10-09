@@ -6,7 +6,7 @@ global:
     veoveo/computer-template: sha256:7d6803eedd006cb63c61ceaad281ad371b2fb2b005a68d4b8d3590a1a776b9fa
     veoveo/computers-mcp: sha256:06aac474d4cdb2882e09b07c75958216a06d37a39dad2f66d618928a2f43f146
     veoveo/artifact-mcp: sha256:2ee112e2aa3fb17e5f58f69748e84a5d152f4a333cedcbe3ad0d1aace255a57a
-    veoveo/artifact-service: sha256:fedc3e2397524ea07d3ada370898fd0637e72f734918a89f34115b7b169046df
+    veoveo/artifact-service: sha256:e26082a194371d8e6374e8b06be0d29677e869486af32332381f47c6bb791c2b
     veoveo/chart-mcp: sha256:f180326d2c208d41d3cf8ce862ca1d68b6f986b268cae16f652868717d964850
     veoveo/console-bff: sha256:fdf02965fdd4ceb939b9d4769e3ef274294b0a19a1036d8c148c3f692fe748af
     veoveo/cuopt-executor: sha256:37a6d3e70f477f5d996f551dc7a2cf066df9b43a279072b0467390d132753dcc
@@ -27,5 +27,5 @@ global:
     veoveo/view-mcp: sha256:4184d9ca78dfffb634bbf001545f8652b1033152684219c41ba92ad3532b810b
     veoveo/agent-kernel: sha256:b3aff146d3ca6b065077081667b9e4e45f784b5bf4cd9f6a59729e3ab6e9ad85
     veoveo/agent-manager: sha256:affcaf1485545e3729360b6e86aa7c34622f1888a248d62a9cb2974a8f992058
-    veoveo/speech-mcp: sha256:8ea2e3427f4d426b7294e373f82ba12aae7f8084794c7f741f2037be66ff0fa4
+    veoveo/speech-mcp: sha256:7f7e27c242bd63a4aa91c52e59ab05fa2edd2af90ed63c30360b4c70b0ba4e94
     veoveo/knowledge-mcp: sha256:7f2bd6b0847666dfa8f10d41ab4d392d54105b4bbe6fc697412efbfed037de18

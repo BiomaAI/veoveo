@@ -39,7 +39,7 @@ spec:
     mode: enabled
   # Keep every locked image and its Deployment in the rendered contract. The first
   # staged gate runs the shared CPU sources, Datasheet Artifact consumer, Knowledge
-  # and Embedding. Other GPU and Computer workloads keep their required resources but
+  # Embedding and Speech. Other GPU and Computer workloads keep their required resources but
   # wait at zero replicas for their own acceptance batches. Omit only their deferred
   # PVC declarations until activation; protect active model and Map data during remediation.
   postRenderers:
@@ -218,15 +218,6 @@ spec:
               version: v1
               kind: Deployment
               name: rerun-bridge
-            patch: |-
-              - op: replace
-                path: /spec/replicas
-                value: 0
-          - target:
-              group: apps
-              version: v1
-              kind: Deployment
-              name: speech-mcp
             patch: |-
               - op: replace
                 path: /spec/replicas
