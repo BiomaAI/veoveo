@@ -445,6 +445,140 @@ mod tests {
     use veoveo_types::{DataLabelId, ResourceScheme, ResourceUri, ScopeName};
 
     #[test]
+    fn bioma_initial_artifact_reads_use_actual_classification_and_policy() {
+        use crate::PolicyRequest;
+        use veoveo_mcp_contract::{
+            GatewayProfileId, PolicyEffect, Principal, PrincipalKind, TokenIssuer, TokenSubject,
+            TraceId,
+        };
+        use veoveo_types::{PrincipalId, RoleId, TenantId};
+        let catalog = GatewayCatalog::load_json(
+            std::path::Path::new("../../examples/bioma/gateway.json"),
+            crate::catalog_fixture::binding(),
+        )
+        .unwrap();
+        let profile = GatewayProfileId::parse("operator-initial").unwrap();
+        let server = ServerSlug::parse("artifact").unwrap();
+        let trace = TraceId::parse("actual-artifact-read-policy").unwrap();
+        for (id, kind, roles) in [
+            (
+                "https://veoveo.bioma.ai/oauth#operator-service",
+                PrincipalKind::Service,
+                BTreeSet::new(),
+            ),
+            (
+                "initial-operator@example.com",
+                PrincipalKind::User,
+                BTreeSet::from([RoleId::parse("operator").unwrap()]),
+            ),
+        ] {
+            let mut principal = Principal {
+                id: PrincipalId::parse(id).unwrap(),
+                kind,
+                issuer: TokenIssuer::parse("https://veoveo.bioma.ai/oauth").unwrap(),
+                subject: TokenSubject::parse("actual-artifact-reader").unwrap(),
+                tenant: Some(TenantId::parse("bioma").unwrap()),
+                groups: BTreeSet::new(),
+                group_roles: BTreeSet::new(),
+                roles,
+                scopes: catalog
+                    .profile(&profile)
+                    .unwrap()
+                    .required_scopes
+                    .iter()
+                    .cloned()
+                    .collect(),
+                data_labels: BTreeSet::new(),
+                assurances: BTreeSet::new(),
+                authenticated_at: None,
+            };
+            let decide = |principal: &Principal, action: GatewayAction, target: &PolicyTarget| {
+                catalog
+                    .decide(PolicyRequest {
+                        principal,
+                        profile: &profile,
+                        action: action.into(),
+                        target,
+                        trace_id: &trace,
+                    })
+                    .effect
+            };
+            for uri in [
+                "artifact://01960000-0000-7000-8000-000000000001",
+                "artifact://metadata/01960000-0000-7000-8000-000000000001",
+            ] {
+                assert_eq!(
+                    catalog
+                        .server_for_resource_uri(&profile, uri)
+                        .unwrap()
+                        .1
+                        .slug,
+                    server
+                );
+                let action = resource_read_action(uri);
+                let target = resource_policy_target(server.clone(), uri).unwrap();
+                assert_eq!(action, GatewayAction::ResourcesRead);
+                assert!(matches!(&target, PolicyTarget::Resource { .. }));
+                assert_eq!(decide(&principal, action, &target), PolicyEffect::Allow);
+                let mut missing_scope = principal.clone();
+                missing_scope.scopes.clear();
+                assert_eq!(decide(&missing_scope, action, &target), PolicyEffect::Deny);
+            }
+            for uri in [
+                "artifact://{artifact_id}",
+                "artifact://metadata/{artifact_id}",
+            ] {
+                let template = resource_template_policy_target(server.clone(), uri).unwrap();
+                assert!(matches!(&template, PolicyTarget::ResourceTemplate { .. }));
+                assert_eq!(
+                    decide(&principal, GatewayAction::ResourcesTemplatesList, &template),
+                    PolicyEffect::Allow
+                );
+                let mut missing_scope = principal.clone();
+                missing_scope.scopes.clear();
+                assert_eq!(
+                    decide(
+                        &missing_scope,
+                        GatewayAction::ResourcesTemplatesList,
+                        &template
+                    ),
+                    PolicyEffect::Deny
+                );
+            }
+            let template = resource_template_policy_target(
+                server.clone(),
+                "artifact://metadata/{artifact_id}",
+            )
+            .unwrap();
+            let ui = resource_policy_target(server.clone(), "ui://artifact/library.html").unwrap();
+            assert_eq!(
+                decide(
+                    &principal,
+                    resource_read_action("ui://artifact/library.html"),
+                    &ui
+                ),
+                PolicyEffect::Deny
+            );
+            principal.id =
+                PrincipalId::parse("https://veoveo.bioma.ai/oauth#foreign-service").unwrap();
+            principal.roles.clear();
+            assert_eq!(
+                decide(&principal, GatewayAction::ResourcesTemplatesList, &template),
+                PolicyEffect::Deny
+            );
+            let metadata = resource_policy_target(
+                server.clone(),
+                "artifact://metadata/01960000-0000-7000-8000-000000000001",
+            )
+            .unwrap();
+            assert_eq!(
+                decide(&principal, GatewayAction::ResourcesRead, &metadata),
+                PolicyEffect::Deny
+            );
+        }
+    }
+
+    #[test]
     fn upstream_protocol_errors_preserve_code_message_and_domain_data() {
         for error in [
             McpError::invalid_request("access unavailable", None),

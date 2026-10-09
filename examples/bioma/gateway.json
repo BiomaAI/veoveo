@@ -3701,7 +3701,9 @@
           "id": "allow_operator_initial_artifact_read",
           "effect": "allow",
           "actions": [
-            "artifact_read"
+            "artifact_read",
+            "resources_templates_list",
+            "resources_read"
           ],
           "profiles": [
             "operator-initial"
@@ -3772,7 +3774,9 @@
           "id": "allow_operator_initial_service_artifact_read",
           "effect": "allow",
           "actions": [
-            "artifact_read"
+            "artifact_read",
+            "resources_templates_list",
+            "resources_read"
           ],
           "profiles": [
             "operator-initial"

@@ -222,7 +222,7 @@ fn assert_recording_permissions(
     };
     let prompt = PolicyTarget::Prompt {
         server,
-        prompt: PromptName::parse("recording-seal").unwrap(),
+        prompt: PromptName::parse("recording_seal").unwrap(),
     };
     for (action, target, expected) in [
         (GatewayAction::ResourcesList, &app, ordinary),
@@ -390,8 +390,53 @@ fn bioma_initial_profile_allows_only_read_only_artifact_delivery() {
             decide(&principal, GatewayAction::ArtifactRead, &target),
             PolicyEffect::Allow
         );
+        let metadata = PolicyTarget::Resource {
+            server: artifact_server.clone(),
+            uri: ResourceUri::new("artifact://metadata/01960000-0000-7000-8000-000000000001")
+                .unwrap(),
+        };
+        let occurrence = PolicyTarget::Resource {
+            server: artifact_server.clone(),
+            uri: ResourceUri::new("artifact://01960000-0000-7000-8000-000000000001").unwrap(),
+        };
+        let template = PolicyTarget::ResourceTemplate {
+            server: artifact_server.clone(),
+            uri: veoveo_types::ResourceTemplateUri::new("artifact://metadata/{artifact_id}")
+                .unwrap(),
+        };
+        let occurrence_template = PolicyTarget::ResourceTemplate {
+            server: artifact_server.clone(),
+            uri: veoveo_types::ResourceTemplateUri::new("artifact://{artifact_id}").unwrap(),
+        };
+        for (action, selected) in [
+            (GatewayAction::ResourcesRead, &metadata),
+            (GatewayAction::ResourcesRead, &occurrence),
+            (GatewayAction::ResourcesTemplatesList, &template),
+            (GatewayAction::ResourcesTemplatesList, &occurrence_template),
+        ] {
+            assert_eq!(decide(&principal, action, selected), PolicyEffect::Allow);
+        }
+        for action in [
+            GatewayAction::ArtifactUpload,
+            GatewayAction::ToolsList,
+            GatewayAction::ToolsCall,
+            GatewayAction::TasksGet,
+            GatewayAction::TasksUpdate,
+            GatewayAction::TasksCancel,
+            GatewayAction::PromptsList,
+            GatewayAction::PromptsGet,
+            GatewayAction::CompletionComplete,
+            GatewayAction::SubscriptionsListen,
+        ] {
+            assert_eq!(decide(&principal, action, &target), PolicyEffect::Deny);
+        }
+        let other_server = PolicyTarget::Resource {
+            server: ServerSlug::parse("frames").unwrap(),
+            uri: ResourceUri::new("artifact://metadata/01960000-0000-7000-8000-000000000001")
+                .unwrap(),
+        };
         assert_eq!(
-            decide(&principal, GatewayAction::ArtifactUpload, &target),
+            decide(&principal, GatewayAction::ResourcesRead, &other_server),
             PolicyEffect::Deny
         );
         let ui = PolicyTarget::Resource {
@@ -411,16 +456,24 @@ fn bioma_initial_profile_allows_only_read_only_artifact_delivery() {
             PolicyEffect::Deny
         );
         principal.scopes.clear();
-        assert_eq!(
-            decide(&principal, GatewayAction::ArtifactRead, &target),
-            PolicyEffect::Deny
-        );
+        for (action, selected) in [
+            (GatewayAction::ArtifactRead, &target),
+            (GatewayAction::ResourcesRead, &metadata),
+            (GatewayAction::ResourcesTemplatesList, &template),
+            (GatewayAction::ResourcesTemplatesList, &occurrence_template),
+        ] {
+            assert_eq!(decide(&principal, action, selected), PolicyEffect::Deny);
+        }
         principal.scopes = profile.required_scopes.iter().cloned().collect();
         principal.id = PrincipalId::parse("https://veoveo.bioma.ai/oauth#foreign-service").unwrap();
         principal.roles.clear();
-        assert_eq!(
-            decide(&principal, GatewayAction::ArtifactRead, &target),
-            PolicyEffect::Deny
-        );
+        for (action, selected) in [
+            (GatewayAction::ArtifactRead, &target),
+            (GatewayAction::ResourcesRead, &metadata),
+            (GatewayAction::ResourcesTemplatesList, &template),
+            (GatewayAction::ResourcesTemplatesList, &occurrence_template),
+        ] {
+            assert_eq!(decide(&principal, action, selected), PolicyEffect::Deny);
+        }
     }
 }
