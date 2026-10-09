@@ -1142,8 +1142,9 @@ stock provider's JWKS cache/stale-key window; revocation is not immediate.
 
 Upgrade the worker, Host configuration, public registration and matching chart
 through a coordinated drain. Preserve unresolved Computer operations and retained
-writer fences. Source admission does not authorize provider activation or settle the
-separate stock supervisor resource-budget decision.
+writer fences. Source admission does not authorize provider activation. The selected
+[Host resource profile](host/DESIGN.md#ownership-and-topology) bounds aggregate CPU,
+memory and PIDs for all descendants, including stock supervisors.
 
 ## Qualification Limits
 
