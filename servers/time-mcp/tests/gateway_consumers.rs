@@ -1,4 +1,4 @@
-//! Installed read-only Time consumers. No activation, Task recovery or delivery claims.
+//! Installed Time consumers. The read-only profile and explicit schedule Task profile are separate.
 //! Input: VEOVEO_TIME_CONSUMERS_INPUT, a closed JSON fixture containing installation,
 //! authority, calendar, epoch, resolutions, zoneIds, scales, source and administrator.
 //! Calendar and epoch fixtures must already exist. The selected authority must
@@ -13,6 +13,8 @@ use std::{
     time::Duration,
 };
 use veoveo_testing_support::installed::knowledge as installed;
+#[path = "gateway_consumers/schedule.rs"]
+mod schedule;
 #[path = "gateway_consumers/trace.rs"]
 mod trace;
 use veoveo_time_mcp::{

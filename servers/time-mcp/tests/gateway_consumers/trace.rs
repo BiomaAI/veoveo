@@ -5,10 +5,10 @@ use serde::{Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
 use veoveo_testing_support::installed::{knowledge as installed, tools};
 use veoveo_time_mcp::{
-    AssessClockRequest, ConvertTimeRequest, EvaluateWindowsRequest, ResolveTimeRequest,
-    TimeResource, TimeSourceId,
+    AssessClockRequest, ConvertTimeRequest, EvaluateWindowsRequest, ExpandScheduleRequest,
+    ResolveTimeRequest, TimeResource, TimeSourceId,
 };
-use veoveo_types::{ResourceAddress, Sha256Digest};
+use veoveo_types::{CanonicalTaskId, ResourceAddress, Sha256Digest};
 
 #[derive(Serialize)]
 #[serde(tag = "operation", content = "request", rename_all = "snake_case")]
@@ -19,6 +19,14 @@ pub enum Request {
     AssessClock(AssessClockRequest),
     EvaluateWindows(EvaluateWindowsRequest),
     SourceRead(TimeSourceId),
+    ScheduleCreate(ExpandScheduleRequest),
+    TaskListen(CanonicalTaskId),
+    TaskDelivery(CanonicalTaskId),
+    TaskGet(CanonicalTaskId),
+    TaskResult(CanonicalTaskId),
+    TaskConnection,
+    TaskConnectionClose,
+    TaskSubscriptionClose(CanonicalTaskId),
 }
 impl From<ResolveTimeRequest> for Request {
     fn from(value: ResolveTimeRequest) -> Self {
@@ -97,30 +105,37 @@ impl Trace {
             last.response_complete = true;
         }
     }
-    pub fn finish<T: Serialize>(&mut self, result: &Result<T>) {
+    pub fn failure(&mut self, error: &anyhow::Error) {
         if let Some(last) = self.observations.last_mut() {
             last.completed = true;
-            match result {
-                Ok(value) => {
+            last.failure_sha256 = Some(hash(format!("{error:#}").as_bytes()));
+            for cause in error.chain() {
+                if let Some(ServiceError::McpError(data)) = cause.downcast_ref::<ServiceError>() {
+                    last.mcp_code = Some(data.code.0);
+                }
+                if let Some(error) = cause.downcast_ref::<reqwest::Error>() {
+                    last.http_status = error
+                        .status()
+                        .map(|status| status.as_u16())
+                        .or(last.http_status);
+                }
+            }
+        }
+    }
+    pub fn interrupt(&mut self, error: &anyhow::Error) {
+        if self.observations.last().is_some_and(|last| !last.completed) {
+            self.failure(error);
+        }
+    }
+    pub fn finish<T: Serialize>(&mut self, result: &Result<T>) {
+        match result {
+            Err(error) => self.failure(error),
+            Ok(value) => {
+                if let Some(last) = self.observations.last_mut() {
+                    last.completed = true;
                     if let Ok(bytes) = serde_json::to_vec(value) {
                         last.response_sha256.get_or_insert_with(|| hash(&bytes));
                         last.response_complete = true;
-                    }
-                }
-                Err(error) => {
-                    last.failure_sha256 = Some(hash(format!("{error:#}").as_bytes()));
-                    for cause in error.chain() {
-                        if let Some(ServiceError::McpError(data)) =
-                            cause.downcast_ref::<ServiceError>()
-                        {
-                            last.mcp_code = Some(data.code.0);
-                        }
-                        if let Some(error) = cause.downcast_ref::<reqwest::Error>() {
-                            last.http_status = error
-                                .status()
-                                .map(|status| status.as_u16())
-                                .or(last.http_status);
-                        }
                     }
                 }
             }

@@ -53,6 +53,13 @@ leap second assumptions.
   receipt controls. Its ignored public-gateway case uses explicit read-only fixtures;
   `cargo xtask smoke time-installed-consumers --help` lists prerequisites. Follow
   [the installed input contract](../../testing/installed/DESIGN.md#time-consumers).
+  The same harness owns `time-installed-schedule-task`, a separate ignored profile
+  with a typed selected schedule request and independent expected output. It creates
+  one Task, verifies exact-ID Completed delivery and current official result agreement,
+  and uses maintained owner lifecycle cleanup. Its private append-only JSONL receipt
+  retains dispatch intent and the opaque Gateway Task ID. Cancellation and unfinished
+  restart recovery require separate observable qualification; a completed Task cannot
+  qualify either gate.
 - `cargo test -p veoveo-time-mcp`
 - `tests/gateway_source_conformance.rs` supplies two disposable scheduled events to
   the shared source checker. It cancels one before a Time Deployment restart and one

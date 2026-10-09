@@ -78,9 +78,10 @@ stays available. Shared native recovery controls pass; owner shutdown controls p
 one HTTP drain deadline and the observer's separate five-second drain. Installed
 Task lifecycle, restart and final-image qualification remain open.
 
-The read-only Time owner fixture prepares public-gateway authority, clock,
-resolution/conversion, calendar/epoch, window and HTTPS-source consumers. Its native
-fixture and receipt controls pass; installed execution remains held. Task recovery,
+Time's owner harness prepares public-gateway read consumers and a separate schedule
+Task case with independent expected occurrences, exact-ID delivered completion and
+current result agreement. Its native fixture, receipt and identity controls pass.
+Installed execution remains held. Cancellation, unfinished Task restart recovery,
 Time activation and final-image acceptance require their owning qualification.
 
 Artifact's existing consumer prepares delegated SDK metadata, resolution and pagination;
@@ -3658,14 +3659,15 @@ View's F65/A12 restart implementation now uses shared
 The finite startup set wakes on native Task changes or its earliest lease deadline;
 SQL selects current server, nonterminal status and expired leases before decoding.
 Both recovery APIs preserve the existing class, contribution and claim guards.
-[`View's observer`](../servers/view-mcp/src/server/recovery.rs) owns cancellation and
-drain separately from retained Task handles. Real-Store controls prove replacement
+The shared [`Task recovery observer`](../platform/task-runtime/src/recovery/observer.rs)
+owns cancellation and drain separately from retained Task handles. Real-Store controls prove replacement
 before expiry, one winning claim afterward, renewal, current cancellation,
 provider observation and excluded malformed payloads. They preserve the lease fence
-and require no second restart. Native View controls cover observer lifetime and
-snapshot admission. View now checks current durable state before dismissing a claim
-conflict: missing or terminal Tasks settle the handoff, and another worker must hold
-a live lease over the admitted server, operation, recovery profile, owner and input.
+and require no second restart. Shared controls cover observer lifetime, while
+native View controls cover snapshot admission. The shared claim-handoff check reads
+current durable state before dismissing a conflict. A missing Task settles the handoff.
+Present Tasks must match the admitted server, operation, recovery profile, owner and
+input before terminal settlement or another worker's live lease can settle it.
 Unresolved unowned work ends serving. Owning controls inject claim conflicts over
 real Store state; that injection does not establish a naturally occurring transaction
 race. The maintained async process owner enforces command termination and one-second
