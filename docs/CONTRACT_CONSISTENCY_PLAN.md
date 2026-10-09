@@ -178,8 +178,8 @@ owners. Stock-compatible discovery exposes the JWT access-token verification
 fields without claiming unsupported OpenID login or ID-token flows. The source batch
 and reference guide pass independent review. Full stock-provider native and installed
 qualification remain open. OpenShell stays unmodified. Owner authorization permits
-native qualification with the owning test-only issuer; stock activation also requires
-the pending resource-guarantee decision below. Stock driver config now emits only supported mount fields. The owned
+native qualification with the owning test-only issuer; stock activation requires
+qualification of the accepted aggregate resource profile below. Stock driver config now emits only supported mount fields. The owned
 image leaves `/sandbox/persistent` absent to skip Docker copy initialization before
 registration; the allocator initializes its home outside the provider and writer
 fences stay enforced. Compilation and 17 focused mount/lifecycle diagnostic controls
@@ -187,15 +187,18 @@ pass; real plugin-mounted owned-image qualification remains open. The changed
 retained-template fingerprint requires catalog materialization and a coordinated
 drain.
 
-The native stock run observed authentication before and after Host recovery, Start
-and retained-file bytes, then stopped when the resource helper rejected null at an
-unidentified field. Stock OpenShell configures no separate supervisor CPU, memory
-or PID maxima, although the deleted private patch, current tests and Host design
-promise them. The owner decision between aggregate Host budgets and the stronger
-supervisor guarantee is pending, and qualification is stopped with contracts and
-assertions unchanged. The fixture has one CPU, 6 GiB and 1024 PIDs, while the
-installed chart sets eight CPUs and 12 GiB without an explicit per-Host PID limit.
-These partial observations do not establish complete native or installed acceptance.
+The owner accepts stock OpenShell resource behavior. The outer Host must bound
+aggregate CPU, memory and PIDs for all descendants, including supervisors; supported
+workload settings retain their upstream semantics. Separate supervisor CPU, memory
+and PID maxima depended on deleted private patches and are not part of this profile.
+The earlier native run observed authentication across Host recovery, Start and
+retained bytes, then stopped at an obsolete resource-inspection assertion. Those
+partial observations do not qualify aggregate containment or complete native and
+installed acceptance. The Host fixture uses one CPU, 6 GiB and 1024 PIDs; the runtime
+DinD fixture uses two CPUs, 1 GiB and 512 PIDs. The installed chart declares eight
+CPUs and 12 GiB; the selected node runtime will supply an aggregate 4096-PID ceiling.
+Node handler installation and new-Pod verification must be
+qualified before activation.
 Fresh volume allocation admits Engine
 absence before publishing the filesystem as Ready and consumes one typed proof for
 labeled creation. Existing allocations only inspect approval; missing or unapproved
@@ -640,8 +643,11 @@ The ordinary human Workspace upload-policy read now returns 200 with
 Gateway's camelCase profile wire shape; the serializer regression and typed upload
 fixtures pass four existing native controls, compiler checks, strict lint and review.
 This installed upload and Speech browser pass does not qualify raw subscription
-updates, cancel-recovery, all F62 consumers, production SIGTERM or coordinated
-replacement.
+updates, cancel-recovery, all F62 consumers, coordinated replacement or separate owner-required in-flight recovery. The selected
+production Rust host now passes idle SIGTERM: its old container exits successfully
+before deletion and inside the 90-second grace period, and its replacement is Ready
+on the same image. The postcheck confirms core workloads and controllers were
+preserved.
 
 The [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) preserves checkpoint details and
 historical failures. Reuse accepted checks while their source, dependencies and
@@ -3259,9 +3265,8 @@ are implemented with `private_key_jwt`. Installation must provision the worker-o
 projected private-key Secret and activate the matching admitted images and
 configuration through the coordinated drain. Complete native security, the actual
 plugin-mounted owned image and stock retained lifecycle remain prerequisites for
-activation and installed acceptance. The full stock supervisor resource-guarantee
-decision, actual provider/containerd pulls and full stock runtime qualification
-remain open.
+activation and installed acceptance. Qualification of the accepted stock aggregate resource profile, actual
+provider/containerd pulls and full stock runtime qualification remain open.
 
 Earlier patched-provider containment, companion adoption and terminal replay results
 apply to the pre-stock profile. Each current attachment opens a fresh SSH shell with
@@ -3415,7 +3420,7 @@ reason rather than growing an unbounded generic typing task.
 | F21 | Time activation preflight | Qualify installed activation and concurrent conflict rollback |
 | F22 | Digest wire profiles | Preserve each owner's admitted bare-hex spelling and hash preimage through typed Speech, UAV, Optimization and Recording/publication APIs; qualify installed Time and changed consumers |
 | F23 | Computers | Qualify final image pins and installed pairing, grant/Execute-limit and collection consumers; preserve the qualified matched provider image, retained maintenance/recovery native matrix, shared admission and live permission checks |
-| F24 | Speech | Owning CUDA/dictation/recovery/cancellation controls, offline image assembly and no-network worker packaging pass; image `7f7e27c242bd` is Ready with health/readiness 200. Installed Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture AudioWorklet input and headed RTX 4090 WebGL. Physical microphone, raw subscription/cancel-recovery, production SIGTERM and coordinated replacement remain open; the strict Speech-only rollout gate failed on Gateway checksum drift. |
+| F24 | Speech | Owning CUDA/dictation/recovery/cancellation controls, offline image assembly and no-network worker packaging pass; image `7f7e27c242bd` is Ready with health/readiness 200. Installed Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture AudioWorklet input and headed RTX 4090 WebGL. Selected production Rust host idle SIGTERM passes with successful old-container exit inside grace and a same-image Ready replacement. Physical microphone, raw subscription/cancel-recovery and coordinated replacement remain open; the strict Speech-only rollout gate failed on Gateway checksum drift. |
 | F25 | Artifact plane model | Qualify installed access/service consumers and external byte stores with the source-qualified lightweight Artifact contract; keep verified caller, policy and transport in their adapters and reuse unaffected byte-plane/SQL controls |
 | F26 | Artifact identity and URI admission | Qualify installed consumption of the current identity and URI contract |
 | F27 | Remaining Artifact references | Qualify installed issuance/redemption, current-format capability recovery and multi-page SDK consumers with the source-qualified Task/digest, access-decision and metadata/address admission; preserve external transfer locations and the declared coordinated profile cut |

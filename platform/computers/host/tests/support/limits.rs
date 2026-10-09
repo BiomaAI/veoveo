@@ -55,7 +55,7 @@ struct HostConfig {
     cpu_shares: i64,
     cpuset_cpus: String,
     cpuset_mems: String,
-    pids_limit: i64,
+    pids_limit: Option<i64>,
     network_mode: String,
     pid_mode: String,
     ipc_mode: String,
@@ -90,10 +90,18 @@ fn admit_child(value: &Inspection, role: Role) -> Result<()> {
         "container belongs to another namespace or role"
     );
     let host = &value.host_config;
-    ensure!(
-        host.nano_cpus == 2_000_000_000 && host.memory == 2_147_483_648 && host.pids_limit == 256,
-        "child CPU/memory/PID ceiling differs from the admitted template"
-    );
+    match role {
+        Role::Sandbox => ensure!(
+            host.nano_cpus == 2_000_000_000
+                && host.memory == 2_147_483_648
+                && host.pids_limit == Some(256),
+            "workload CPU/memory/PID ceiling differs from the admitted template"
+        ),
+        Role::Supervisor => ensure!(
+            host.nano_cpus == 0 && host.memory == 0 && host.pids_limit.is_none(),
+            "stock supervisor unexpectedly declares separate CPU/memory/PID limits"
+        ),
+    }
     ensure!(
         host.memory_reservation == 0
             && host.cpu_shares == 0
@@ -163,10 +171,14 @@ fn child_cgroup(value: &Inspection) -> Result<()> {
             == format!("0::{relative}"),
         "child escaped the compute host's cgroup root"
     );
+    let (cpu, memory, pids) = match value.config.labels.role {
+        Role::Sandbox => ("200000 100000", "2147483648", "256"),
+        Role::Supervisor => ("max 100000", "max", "max"),
+    };
     for (name, expected) in [
-        ("cpu.max", "200000 100000"),
-        ("memory.max", "2147483648"),
-        ("pids.max", "256"),
+        ("cpu.max", cpu),
+        ("memory.max", memory),
+        ("pids.max", pids),
         ("memory.min", "0"),
         ("memory.low", "0"),
     ] {
@@ -203,6 +215,41 @@ pub fn check(directory: &Path, after: bool) -> Result<()> {
             "aggregate host cgroup {name} changed"
         );
     }
+    // Retain the inherited aggregate proof before parsing any stock Docker fields.
+    #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Aggregate {
+        cpu_max: String,
+        memory_max: u64,
+        pids_max: u64,
+        pids_current: u64,
+    }
+    let aggregate = Aggregate {
+        cpu_max: fs::read_to_string(format!("{ROOT}/cpu.max"))?
+            .trim()
+            .to_owned(),
+        memory_max: fs::read_to_string(format!("{ROOT}/memory.max"))?
+            .trim()
+            .parse()?,
+        pids_max: fs::read_to_string(format!("{ROOT}/pids.max"))?
+            .trim()
+            .parse()?,
+        pids_current: fs::read_to_string(format!("{ROOT}/pids.current"))?
+            .trim()
+            .parse()?,
+    };
+    ensure!(
+        aggregate.pids_current > 0 && aggregate.pids_current <= aggregate.pids_max,
+        "Host process population exceeds its inherited aggregate PID ceiling"
+    );
+    fs::write(
+        directory.join(if after {
+            "limits-aggregate-after.json"
+        } else {
+            "limits-aggregate-before.json"
+        }),
+        serde_json::to_vec_pretty(&aggregate)?,
+    )?;
     let record: serde_json::Value =
         serde_json::from_slice(&fs::read(directory.join("record.json"))?)?;
     let id = record["writer"]["writer"]["containerId"]
@@ -265,6 +312,14 @@ pub fn check(directory: &Path, after: bool) -> Result<()> {
     )?;
     child_cgroup(&workload)?;
     child_cgroup(&supervisor)?;
+    let running = docker(&["ps", "--no-trunc", "--format", "{{.ID}}"])?;
+    let running: Vec<_> = running.lines().collect();
+    ensure!(
+        running.len() == 2
+            && running.contains(&workload.id.as_str())
+            && running.contains(&supervisor.id.as_str()),
+        "owned Host has unexpected nested containers outside the admitted pair"
+    );
     for namespace in ["mnt", "pid", "ipc", "cgroup"] {
         ensure!(
             fs::read_link(format!("/proc/{}/ns/{namespace}", workload.state.pid))?
@@ -343,13 +398,25 @@ mod tests {
                 user: "65534:65534".into(),
             },
             host_config: HostConfig {
-                nano_cpus: 2_000_000_000,
-                memory: 2_147_483_648,
+                nano_cpus: if role == Role::Sandbox {
+                    2_000_000_000
+                } else {
+                    0
+                },
+                memory: if role == Role::Sandbox {
+                    2_147_483_648
+                } else {
+                    0
+                },
                 memory_reservation: 0,
                 cpu_shares: 0,
                 cpuset_cpus: String::new(),
                 cpuset_mems: String::new(),
-                pids_limit: 256,
+                pids_limit: if role == Role::Sandbox {
+                    Some(256)
+                } else {
+                    None
+                },
                 network_mode: match role {
                     Role::Sandbox => "none",
                     Role::Supervisor => "host",
@@ -401,16 +468,25 @@ mod tests {
         assert!(admit_pair(&workload, &supervisor).is_err());
     }
     #[test]
-    fn companion_resource_admission_rejects_unbounded_reserved_or_privileged_children() {
+    fn stock_resources_preserve_workload_ceilings_and_supervisor_privilege_admission() {
         for role in [Role::Sandbox, Role::Supervisor] {
+            admit_child(&child(role), role).unwrap();
             let mut value = child(role);
-            value.host_config.memory = 0;
+            value.host_config.memory = if role == Role::Sandbox {
+                0
+            } else {
+                2_147_483_648
+            };
             assert!(admit_child(&value, role).is_err());
             value = child(role);
-            value.host_config.nano_cpus = 0;
+            value.host_config.nano_cpus = if role == Role::Sandbox {
+                0
+            } else {
+                2_000_000_000
+            };
             assert!(admit_child(&value, role).is_err());
             value = child(role);
-            value.host_config.pids_limit = -1;
+            value.host_config.pids_limit = Some(-1);
             assert!(admit_child(&value, role).is_err());
             value = child(role);
             value.host_config.memory_reservation = 1;

@@ -113,14 +113,18 @@ Installed companion gRPC uses loopback with an admitted IP SAN. Native fixtures 
 an observed private bridge gateway IP and ephemeral port with that exact IP SAN; they
 do not qualify the installed host's namespace or mount topology.
 
-Both containers receive the template CPU/memory maxima and configured PIDs maximum
-separately. They have zero reservations and no pinned CPUs. The companion therefore
-adds a second container ceiling, read-only staging volume and bounded log storage;
-the two maxima do not imply one shared template-memory allowance. The compute host's
-finite aggregate ceiling supplies pressure containment. Retained-Computer quotas
-count allocations and do not promise memory reservations. Stop/retirement and cleanup
-must settle all supervised resources while the storage allocator independently
-establishes physical writer exclusion.
+The unmodified stock driver does not set separate CPU, memory or PID limits on the
+companion supervisor. Missing, null or zero Docker resource fields therefore do not
+establish a companion limit or fail stock resource admission. The adapter keeps the
+workload's template CPU/memory declarations and supported `sandbox_pids_limit`
+configuration. The stock driver applies those settings to the workload container;
+qualification checks the effective values independently of the declared request.
+The Computer Host's aggregate CPU, memory and PID containment covers the provider,
+supervisors and workloads together. Retained-Computer quotas count allocations and
+do not promise memory reservations. Stop/retirement and cleanup must settle all
+supervised resources while the storage allocator independently establishes physical
+writer exclusion. Native qualification must record effective resource settings and
+the Host's enclosing limits without inferring a separate supervisor ceiling.
 
 The package verifies official archive and executable hashes and consumes the pinned
 upstream gateway image. It compiles no provider source or solver. The official GNU

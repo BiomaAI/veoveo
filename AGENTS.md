@@ -97,7 +97,10 @@ Third-party runtimes use unmodified upstream releases: preserve their source,
 protocols, build behavior and runtime behavior. Adapt at the Veoveo edge or through
 supported configuration, or contribute a required change upstream. Recovery rules
 authorize changes only to Veoveo-owned adapters and state; they do not authorize
-provider patches.
+provider patches. The selected unmodified provider behavior supersedes guarantees
+that depended on deleted private patches. Record the supported behavior and adapt
+Veoveo-owned configuration and qualification controls without requesting another
+decision to restore those obsolete guarantees.
 
 ## GPU Execution Is Mandatory
 

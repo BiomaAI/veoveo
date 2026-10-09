@@ -68,6 +68,12 @@ pub fn verify_runtime() -> Result<()> {
 fn verify_limits() -> Result<()> {
     let cpu = fs::read_to_string(format!("{ROOT}/cpu.max"))?;
     let memory = fs::read_to_string(format!("{ROOT}/memory.max"))?;
+    let pids = fs::read_to_string(format!("{ROOT}/pids.max"))
+        .context("read aggregate Host pids.max; configure a finite container/runtime PID limit")?;
+    admit_limits(&cpu, &memory, &pids)
+}
+
+fn admit_limits(cpu: &str, memory: &str, pids: &str) -> Result<()> {
     let cpu: Vec<_> = cpu.split_whitespace().collect();
     ensure!(
         cpu.len() == 2 && cpu.iter().all(|v| v.parse::<u64>().is_ok_and(|n| n > 0)),
@@ -77,5 +83,26 @@ fn verify_limits() -> Result<()> {
         memory.trim().parse::<u64>().is_ok_and(|n| n > 0),
         "set a finite memory limit on the compute host container"
     );
+    ensure!(
+        pids.trim().parse::<u64>().is_ok_and(|n| n > 0),
+        "set a finite positive aggregate PID limit on the compute Host through its container runtime; private-root pids.max must not be max or zero"
+    );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn aggregate_admission_requires_finite_positive_cpu_memory_and_pids() {
+        admit_limits("100000 100000\n", "6442450944\n", "1024\n").unwrap();
+        for value in ["max", "0", "-1", "", "1024 extra", "18446744073709551616"] {
+            assert!(admit_limits("100000 100000", "6442450944", value).is_err());
+        }
+        assert!(admit_limits("max 100000", "6442450944", "1024").is_err());
+        assert!(admit_limits("100000 0", "6442450944", "1024").is_err());
+        assert!(admit_limits("100000 100000", "max", "1024").is_err());
+        assert!(admit_limits("100000 100000", "0", "1024").is_err());
+    }
 }

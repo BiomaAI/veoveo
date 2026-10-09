@@ -47,7 +47,7 @@ replacement. `/run/veoveo-computers` is disposable private runtime state.
 The image starts `veoveo-computer-host init` as PID 1. Before creating runtime
 threads, Rust creates private mount and cgroup namespaces rooted at the current
 container cgroup. It makes mounts private, mounts cgroup v2 in that namespace and
-requires finite CPU and memory maximums. Upstream DinD then moves the launcher into
+requires finite positive CPU, memory and PID maximums at that root. Upstream DinD then moves the launcher into
 `/init` and enables nested controllers. Docker's `/docker` children therefore count
 toward the host ceiling, including containers retained across host replacement.
 Direct `run` without this bootstrap fails. The launcher never configures the node's
@@ -59,6 +59,12 @@ their maximums. Guest templates set maximums without memory reservations or pinn
 CPUs. Idle guests consume their actual working set; resource availability is not
 guaranteed in advance. Installation operators own the aggregate ceiling and pressure
 policy. A lower limit does not rewrite per-Computer template limits.
+The container runtime must supply the aggregate `pids.max` before Host init; Docker's
+`--pids-limit` provides this in native qualification. Host init and direct runtime
+admission reject `max`, zero, malformed or unavailable PID limits before starting
+DinD or its services. Host does not write cgroup limits. A Kubernetes Pod ancestor
+limit alone does not establish a finite limit at the private container namespace
+root; installations must qualify their supported container-runtime configuration.
 
 Storage discovers loop devices added after container creation and creates only their
 verified block nodes inside this private `/dev`. Native qualification removes those
@@ -244,8 +250,13 @@ use the registry's inspected address and port on that bridge.
 The replacement fixture selects the workload from its retained writer CID and
 requires exactly one supervisor with the same provider namespace, resource ID
 and name. It verifies the supervisor's configured preload image. Both child
-cgroups must descend from the Host root with a two-CPU, 2 GiB and 256-PID maximum
-each. The aggregate Host has a one-CPU, 6 GiB and 1024-PID maximum. Memory
+cgroups must descend from the Host root. The workload has a two-CPU, 2 GiB and
+256-PID maximum. Stock OpenShell sets no separate supervisor CPU, memory or PID
+ceiling; Docker inspection admits its null PID limit and the kernel child maxima
+are unlimited. The aggregate Host has a one-CPU, 6 GiB and 1024-PID maximum that
+includes both children and their descendants. The fixture records that inherited
+budget before parsing child inspection, checks the current process population,
+and requires the admitted pair to account for every running nested container. Memory
 protection, CPU shares and pinned CPU sets provide no reservations. The two
 containers have separate mount, PID, IPC and cgroup namespaces. The workload has
 no network attachment; the supervisor shares only the private compute Host's
@@ -261,14 +272,14 @@ first Create/Start and Host replacement. Restart and image upgrade establish the
 selected forward replacement case; rollback to older readers after new storage
 journal operations have been admitted requires separate qualification.
 
-Each active Computer adds one supervisor container with its own CPU, memory, PID
-and log/tmpfs costs. Its limits are separate from the workload limits, while both
-count toward the aggregate Host ceiling. Template admission does not reserve
-capacity for either child. Operators must budget their combined working sets.
+Each active Computer adds one stock supervisor container with CPU, memory, PID
+and log/tmpfs costs. Workload template ceilings do not constrain that supervisor
+independently. The Host aggregate ceiling covers all nested processes; template
+admission does not reserve capacity. Operators must budget their combined working sets.
 
 Source checks qualify configuration and fixture refusal rules. Official
-artifact/ELF closure, companion resource enforcement and retained composite Host
-replacement require the exact candidate images and ordinary owned native fixture.
+artifact/ELF closure, workload ceilings, aggregate resource enforcement and retained
+composite Host replacement require the exact candidate images and ordinary owned native fixture.
 Installed trust, rollout and host-loss recovery require their installation checks.
 A source or compiler pass establishes none of those runtime outcomes.
 

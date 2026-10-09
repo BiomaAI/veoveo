@@ -232,7 +232,11 @@ and explicit upstream roles.
 Provider configuration disables certificate-to-user promotion and anonymous user
 access while preserving complete supervisor TLS and mandatory Sandbox JWT. Stock
 gateway restart replaces the supervisor and revives the guest; terminal sessions
-reset while retained-volume files persist. Native security and retained lifecycle
+reset while retained-volume files persist. The accepted resource profile bounds
+all descendants through the outer Host's CPU, memory and PID cgroup limits. Stock
+supervisors have no separate CPU, memory or PID maxima; Veoveo does not restore
+those private-patch guarantees. Supported workload settings keep their upstream
+semantics. Native aggregate containment, security and retained lifecycle
 qualification precede activation. The private maintenance checkpoint version 2
 requires a coordinated drain: settle pending operations with the qualified previous workers before replacing
 provider artifacts and readers. Unresolved outcomes keep their resource fences and
