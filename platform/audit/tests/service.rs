@@ -1,6 +1,8 @@
 //! Isolated replicas qualify lease contention, writer drain and sealer takeover.
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
+#[path = "service/key_transition.rs"]
+mod key_transition;
 mod support;
 use std::{num::NonZeroU32, sync::Arc, time::Duration};
 use veoveo_audit::{integrity::AuditSigningKey, *};
