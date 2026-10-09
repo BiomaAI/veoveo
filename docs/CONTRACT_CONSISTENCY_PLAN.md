@@ -116,7 +116,11 @@ sixteen Secret objects: thirteen application Secrets and three Helm Secrets. All
 eight baseline services are Ready; the node is unchanged and uncordoned, and no
 installed credentials have changed. The eighteen selected stock native cases stay
 qualified, including the implemented aggregate Host profile of 1 CPU, 6 GiB and 1,024 PIDs.
-The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated. A private
+The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated. Gateway and
+Computers images are refreshed from `a9236ba6f` for the current TaskRuntime code;
+node-network manifest and config readback pass. The other five stock-provider image
+pins are preserved. Staging does not activate the installation or establish release
+eligibility. A private
 credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
 WaveSpeed and Google Maps replacement still requires account-management authority
 or private references to fresh credentials. Existing authorization applies to the
