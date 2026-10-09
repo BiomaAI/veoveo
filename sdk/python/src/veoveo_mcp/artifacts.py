@@ -25,6 +25,8 @@ from .contract.artifacts import (
     ArtifactUri,
     ArtifactId,
     ArtifactMetadata,
+    ArtifactPage,
+    ListArtifactsRequest,
     ArtifactObject,
     IssueArtifactWriteCapabilityRequest,
     IssuedArtifactWriteCapability,
@@ -158,6 +160,18 @@ class HttpArtifactPlane:
         if metadata.artifact_id != artifact_id:
             raise ArtifactTransport("metadata identifies another Artifact")
         return metadata
+
+    async def list(
+        self, caller: PlaneCaller, request: ListArtifactsRequest
+    ) -> ArtifactPage:
+        response = await self._http.get(
+            f"{self.base_url}/artifacts",
+            headers={"authorization": f"Bearer {caller.bearer_token}"},
+            params=request.model_dump(mode="json", exclude_none=True),
+            follow_redirects=False,
+        )
+        _raise_for_status(response)
+        return ArtifactPage.model_validate(response.json())
 
     async def resolve(
         self, caller: PlaneCaller, uri: str, *, max_bytes: int = DEFAULT_OBJECT_READ_BYTES,

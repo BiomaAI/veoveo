@@ -44,6 +44,15 @@ The builder rejects duplicate query names before expansion can collapse them.
 Pydantic integration. `contract.artifacts.ArtifactId` uses it for canonical UUIDv7
 spelling. Wider identity models and runtime contracts keep their owning modules.
 
+## Artifact Listing
+
+`HttpArtifactPlane.list` uses the Artifact service's closed `ListArtifactsRequest`
+and `ArtifactPage` models. The caller supplies the page limit and opaque cursor;
+the SDK preserves the service continuation and metadata admission. Listing uses
+the same delegated bearer and selected Work Context as member reads. Native mock
+transport controls qualify request/response handling; installed multi-page access
+requires the owning consumer case.
+
 ## Artifact Timestamp Values
 
 `timestamp.ChronoTimestamp`, exported by `veoveo_mcp.types`, stores an immutable checked wire string. Its admission uses the standard library's proleptic Gregorian calendar, checks local calendar components and the UTC Chrono range, and keeps the leap second as a preceding whole second with nanoseconds at or above one billion. The qualified profile permits at most nine fractional digits, padded components, `T` and `Z` or a standard numeric offset. Broader relaxed Rust parsing is outside this SDK profile until producer/receiver qualification establishes it. Explicit `same_instant` comparison uses full nanosecond precision. Values have no lexical ordering.

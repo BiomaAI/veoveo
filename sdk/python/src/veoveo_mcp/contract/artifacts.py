@@ -218,6 +218,18 @@ class ArtifactUploadReceipt(CurrentWireModel):
         return type(self).model_validate({**self.model_dump(), **{to_camel(key): value for key, value in (update or {}).items()}})
 
 
+class ListArtifactsRequest(CurrentWireModel):
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=False, serialize_by_alias=True, extra="forbid")
+    cursor: ArtifactId | None = Field(default=None, exclude_if=lambda value: value is None)
+    limit: int | None = Field(default=None, strict=True, ge=0, le=2**16 - 1, exclude_if=lambda value: value is None)
+
+
+class ArtifactPage(CurrentWireModel):
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=False, serialize_by_alias=True, extra="forbid")
+    artifacts: list[ArtifactMetadata]
+    next_cursor: ArtifactId | None = Field(default=None, exclude_if=lambda value: value is None)
+
+
 class ArtifactObject(BaseModel):
     metadata: ArtifactMetadata
     bytes_: bytes = Field(alias="bytes")

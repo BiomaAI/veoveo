@@ -16,6 +16,67 @@ from veoveo_mcp.contract.identity import (
     PlaneCaller, Principal, PrincipalAccessSubject, PrincipalKind,
     WorkContextMembershipLevel, WorkContextOutputPolicy,
 )
+from veoveo_mcp.contract.artifacts import ArtifactId, ArtifactPage, ListArtifactsRequest
+from pydantic import ValidationError
+
+
+async def test_list_uses_typed_continuation_and_metadata_across_pages():
+    first, second = sorted([str(uuid7()), str(uuid7())], reverse=True)
+    now = datetime.now(timezone.utc).isoformat()
+    observations = []
+
+    def respond(request):
+        assert request.headers["authorization"] == "Bearer fixture-forwarded-identity"
+        assert request.url.path == "/artifacts"
+        observations.append(dict(request.url.params))
+        selected = first if request.url.params.get("cursor") is None else second
+        body = {"artifacts": [{"artifactId": selected, "artifactUri": f"artifact://{selected}",
+                               "byteLen": 1, "createdAt": now}]}
+        if selected == first:
+            body["nextCursor"] = first
+        return httpx.Response(200, json=body)
+
+    plane = HttpArtifactPlane("https://plane.example", httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+    try:
+        page = await plane.list(caller(), ListArtifactsRequest(limit=1))
+        assert isinstance(page, ArtifactPage)
+        assert page.next_cursor == ArtifactId(first)
+        final = await plane.list(caller(), ListArtifactsRequest(cursor=page.next_cursor, limit=1))
+        assert final.next_cursor is None
+        assert [page.artifacts[0].artifact_id, final.artifacts[0].artifact_id] == [first, second]
+        assert observations == [{"limit": "1"}, {"cursor": first, "limit": "1"}]
+    finally:
+        await plane.close()
+
+
+@pytest.mark.parametrize("body", [
+    {"artifacts": [], "next_cursor": str(uuid7())},
+    {"artifacts": [], "nextCursor": "not-an-artifact"},
+    {"artifacts": [], "unexpected": True},
+    {"artifacts": [{"artifactId": str(uuid7()), "artifactUri": f"artifact://{uuid7()}",
+                     "byteLen": 1, "createdAt": "2026-10-09T00:00:00Z"}]},
+])
+async def test_list_refuses_invalid_owner_page_wire(body):
+    plane = HttpArtifactPlane("https://plane.example", httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))))
+    try:
+        with pytest.raises(ValidationError):
+            await plane.list(caller(), ListArtifactsRequest(limit=1))
+    finally:
+        await plane.close()
+
+
+@pytest.mark.parametrize("limit", [True, -1, 65536, 1.5])
+def test_list_request_preserves_rust_unsigned_limit_admission(limit):
+    with pytest.raises(ValidationError):
+        ListArtifactsRequest(limit=limit)
+
+
+def test_list_wire_omits_absent_fields_and_leaves_service_limit_policy_to_service():
+    assert ListArtifactsRequest().model_dump(mode="json") == {}
+    assert ListArtifactsRequest(limit=0).model_dump(mode="json") == {"limit": 0}
+    assert ListArtifactsRequest(limit=65535).model_dump(mode="json") == {"limit": 65535}
+    assert ArtifactPage(artifacts=[]).model_dump(mode="json") == {"artifacts": []}
 
 
 def caller() -> PlaneCaller:

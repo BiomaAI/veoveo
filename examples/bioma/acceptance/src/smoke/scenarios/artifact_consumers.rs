@@ -5,6 +5,7 @@ use anyhow::ensure;
 use base64::engine::general_purpose::STANDARD;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+use std::os::unix::fs::OpenOptionsExt;
 use std::{collections::BTreeSet, num::NonZeroU32};
 use tokio::io::AsyncWriteExt;
 use veoveo_artifact_contract::ArtifactUploadReceipt as BrowserReceipt;
@@ -184,6 +185,73 @@ pub(crate) async fn artifact_upload_consumers(
 
     let python = python::consume(installation, &large_receipt, &csv_receipt).await?;
     ensure!(
+        python.pages.len() >= 2 && python.pages.len() <= 256,
+        "Python SDK did not traverse multiple Artifact pages within the fixture bound"
+    );
+    let mut seen = BTreeSet::new();
+    let mut previous = None;
+    for (index, page) in python.pages.iter().enumerate() {
+        ensure!(
+            page.artifacts.len() <= 1,
+            "Artifact page exceeded requested limit"
+        );
+        for metadata in &page.artifacts {
+            let id = metadata.artifact_id();
+            ensure!(seen.insert(id), "Artifact paging repeated an occurrence");
+            ensure!(
+                previous.is_none_or(|prior| id < prior),
+                "Artifact paging did not advance its keyset"
+            );
+            previous = Some(id);
+        }
+        if index + 1 == python.pages.len() {
+            ensure!(
+                page.next_cursor.is_none(),
+                "Artifact traversal did not reach its final page"
+            );
+        } else {
+            ensure!(
+                page.artifacts.len() == 1 && page.next_cursor == previous,
+                "Artifact continuation does not identify the last returned occurrence"
+            );
+        }
+    }
+    for receipt in [&large_receipt, &csv_receipt] {
+        let metadata = python
+            .pages
+            .iter()
+            .flat_map(|page| &page.artifacts)
+            .find(|metadata| metadata.artifact_id() == receipt.artifact_id)
+            .context("Artifact pages omitted a selected upload occurrence")?;
+        ensure!(
+            metadata.artifact_uri == receipt.artifact_uri
+                && metadata.byte_len == receipt.byte_len
+                && metadata.compliance.work_context.as_ref()
+                    == Some(&installation.operator.work_context.id),
+            "Artifact pages changed a selected occurrence or Work Context"
+        );
+    }
+    ensure!(
+        python.foreign_page.artifacts.is_empty() && python.foreign_page.next_cursor.is_none(),
+        "Artifact paging exposed members to the isolated synthetic tenant"
+    );
+    for metadata in [&python.metadata, &python.resolved_metadata] {
+        ensure!(
+            metadata.artifact_id() == csv_receipt.artifact_id
+                && metadata.artifact_uri == csv_receipt.artifact_uri
+                && metadata.byte_len == csv_receipt.byte_len
+                && metadata.mime_type.as_deref() == Some(csv_receipt.mime_type.as_str())
+                && metadata.filename.as_deref() == Some(csv_receipt.filename.as_str())
+                && metadata.compliance.work_context.as_ref()
+                    == Some(&installation.operator.work_context.id),
+            "Python metadata/address consumer changed the selected CSV occurrence"
+        );
+    }
+    ensure!(
+        python.resolved_sha256 == csv_receipt.sha256.as_str(),
+        "Python URI resolution changed the selected CSV bytes"
+    );
+    ensure!(
         python.bytes == large_receipt.byte_len && python.sha256 == large_receipt.sha256.as_str(),
         "Python large-file byte or hash mismatch"
     );
@@ -214,7 +282,7 @@ pub(crate) async fn artifact_upload_consumers(
         .trim()
         .to_owned();
     let evidence = Evidence {
-        schema: "veoveo.ai/artifact-upload-consumer-acceptance/v2",
+        schema: "veoveo.ai/artifact-upload-consumer-acceptance/v3",
         source_revision: revision,
         public_base_url: base.into(),
         large_receipt,
@@ -226,6 +294,8 @@ pub(crate) async fn artifact_upload_consumers(
             "Known and unknown length uploads with immutable retry and completion replay",
             "Real CSV and Parquet consumed through public Datasheet MCP",
             "Installed Python SDK streamed the entire large object with exact SHA-256",
+            "Direct-plane Python SDK metadata and URI resolution preserve the selected CSV occurrence",
+            "Direct-plane Python SDK limit-one catalog traversal preserves both selected occurrences and tenant isolation",
             "Bounded Python memory, early exit, byte ceiling, temporary-file cleanup, and tenant denial",
         ],
     };
@@ -236,8 +306,10 @@ pub(crate) async fn artifact_upload_consumers(
     let mut output = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
+        .mode(0o600)
         .open(evidence_output)?;
     output.write_all(&serde_json::to_vec_pretty(&evidence)?)?;
+    output.sync_all()?;
     println!(
         "Installed Artifact consumers passed. Evidence: {}",
         evidence_output.display()

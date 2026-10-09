@@ -81,6 +81,16 @@ these checks.
 
 ## Installation Assertion Delivery
 
+The `artifact-upload-consumers` case checks public OAuth upload/MCP interoperability
+and separately runs the Python SDK inside the selected installation Pod with a
+delegated signed identity. The latter verifies typed metadata, resolution, one-member
+catalog pages within 60 seconds and 256 pages, isolated-tenant refusal and selected
+bytes. Its request context must pass Artifact service
+audit admission. The private `veoveo.ai/artifact-upload-consumer-acceptance/v3`
+receipt preserves both consumer profiles; earlier receipt versions lack these
+observations. Installed execution and write-capability recovery require their
+own qualification.
+
 The nondefault `smoke` feature supplies `installation-smoke` and `installation-browser-smoke`. Their single assertion sources own the multi-domain Store, Artifact, Gateway and installation relationships they exercise. The default `native` feature selects the composition and Store dependencies used by the existing native controls. `smoke` includes that profile. The separate `reports` feature exports the same upload report declarations through only Artifact contracts, shared types and browser hardware contracts; it excludes composition, Store, Tasks, service implementations and CDP execution. Production domain packages do not depend on this composition.
 
 Tracked `smoke/scenarios.json` entries name actual Cargo targets and preparations. Dispatch preserves native command arguments, hardware/service prerequisites and owner cleanup. Browser assertions use the shared headed CDP and hardware admission mechanics; pure browser sampler controls establish behavioral coverage only. Interrupted remote operations keep the owning reconciliation requirement.

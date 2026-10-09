@@ -1,11 +1,17 @@
 //! Run the installed Python SDK as a real consumer; Rust owns all acceptance assertions.
 use super::*;
+use veoveo_gateway_contract::ProtectedResourceId;
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel};
 use veoveo_types::{InvocationProvenance, PrincipalId, TenantId};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct Observation {
+    pub pages: Vec<veoveo_artifact_contract::ArtifactPage>,
+    pub foreign_page: veoveo_artifact_contract::ArtifactPage,
+    pub metadata: veoveo_artifact_contract::ArtifactMetadata,
+    pub resolved_metadata: veoveo_artifact_contract::ArtifactMetadata,
+    pub resolved_sha256: String,
     pub bytes: u64,
     pub sha256: String,
     pub max_chunk_bytes: usize,
@@ -169,13 +175,53 @@ fn fixture_caller(
         output_policy: installation.operator.work_context.output_policy.clone(),
         provenance: InvocationProvenance::Automated,
     };
-    let token = issuer.issue(
+    issue_fixture_caller(
+        issuer,
         GatewayProfileId::parse(installation.profile())?,
+        installation.operator.resource.clone(),
+        actor,
+        authority,
+    )
+}
+
+fn issue_fixture_caller(
+    issuer: &GatewayInternalTokenIssuer,
+    profile: GatewayProfileId,
+    audience: ProtectedResourceId,
+    actor: Principal,
+    authority: InvocationAuthority,
+) -> Result<CallerInput> {
+    let now = chrono::Utc::now();
+    let expires_at = now + chrono::TimeDelta::minutes(20);
+    let request_context = GatewayRequestContext {
+        format: GatewayRequestContextFormat::V2,
+        audit: veoveo_mcp_contract::audit::AuditRequest::background(),
+        principal: actor.clone(),
+        access_token: AccessTokenSubject {
+            managed_execution: None,
+            issuer: actor.issuer.clone(),
+            subject: actor.subject.clone(),
+            oauth_client_id: OAuthClientId::parse(actor.subject.as_str())?,
+            session_family: None,
+            audience,
+            work_context: authority.work_context.clone(),
+            invocation_mode: authority.provenance.mode(),
+            initiator: None,
+            delegation_id: None,
+            scopes: actor.scopes.clone(),
+            jwt_id: None,
+            issued_at: now,
+            not_before: Some(now),
+            expires_at,
+        },
+    };
+    let token = issuer.issue(
+        profile,
         ServerSlug::parse("datasheet")?,
         actor,
         authority,
-        None,
-        chrono::Utc::now() + chrono::TimeDelta::minutes(20),
+        Some(request_context),
+        expires_at,
     )?;
     Ok(CallerInput {
         bearer_token: token.bearer_token,
@@ -191,7 +237,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, model_validator
 from veoveo_mcp.artifacts import HttpArtifactPlane
 from veoveo_mcp.contract.identity import PlaneCaller, GatewayInternalIdentity
-from veoveo_mcp.contract.artifacts import ArtifactUploadReceipt
+from veoveo_mcp.contract.artifacts import ArtifactUploadReceipt, ListArtifactsRequest
 
 class CallerInput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -220,6 +266,23 @@ async def main():
     large, csv = data.large, data.csv
     observation = {}
     try:
+        pages, cursor = [], None
+        async with asyncio.timeout(60):
+            for _ in range(256):
+                page = await plane.list(caller, ListArtifactsRequest(cursor=cursor, limit=1))
+                pages.append(page.model_dump(mode='json'))
+                if page.next_cursor is None:
+                    break
+                cursor = page.next_cursor
+            else:
+                raise RuntimeError('Artifact consumer catalog exceeds 256-page fixture bound')
+            foreign_page = await plane.list(foreign, ListArtifactsRequest(limit=1))
+        observation.update(pages=pages, foreignPage=foreign_page.model_dump(mode='json'))
+        metadata = await plane.head(caller, csv.artifact_id)
+        resolved = await plane.resolve(caller, csv.artifact_uri, max_bytes=1024)
+        observation.update(metadata=metadata.model_dump(mode='json'),
+                           resolvedMetadata=resolved.metadata.model_dump(mode='json'),
+                           resolvedSha256=hashlib.sha256(resolved.bytes_).hexdigest())
         started = time.monotonic()
         count, maximum, digest = 0, 0, hashlib.sha256()
         async with plane.stream(caller, large.artifact_uri, max_bytes=large.byte_len, expected_sha256=large.sha256) as stream:
@@ -263,6 +326,85 @@ if __name__ == "__main__":
 mod tests {
     use super::*;
     use veoveo_artifact_contract::{ArtifactId, ArtifactUploadId};
+
+    #[test]
+    fn direct_consumer_identity_reaches_artifact_audit_admission() -> Result<()> {
+        let issuer = GatewayInternalTokenIssuer::new(
+            TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+            GatewayInternalSigningKey::new(
+                "artifact-consumer-native",
+                STANDARD.decode(INTERNAL_SIGNING_KEY_DER_B64)?,
+            )?,
+        );
+        let actor = Principal {
+            id: PrincipalId::parse("https://conformance.veoveo.local#artifact-consumer")?,
+            kind: PrincipalKind::Service,
+            issuer: TokenIssuer::parse("https://conformance.veoveo.local")?,
+            subject: TokenSubject::parse("artifact-consumer")?,
+            tenant: Some(TenantId::parse("consumer-native")?),
+            groups: BTreeSet::new(),
+            group_roles: BTreeSet::new(),
+            roles: BTreeSet::new(),
+            scopes: BTreeSet::new(),
+            data_labels: BTreeSet::new(),
+            assurances: BTreeSet::new(),
+            authenticated_at: Some(chrono::Utc::now()),
+        };
+        let authority = InvocationAuthority {
+            work_context: veoveo_types::WorkContextId::parse("consumer-native")?,
+            tenant: actor.tenant.clone().unwrap(),
+            membership: WorkContextMembershipLevel::Viewer,
+            policy_revision: veoveo_types::PolicyVersion::parse("consumer-native")?,
+            output_policy: veoveo_types::WorkContextOutputPolicy {
+                owner: veoveo_types::AccessSubject::Principal(actor.id.clone()),
+                initial_grants: Vec::new(),
+                classification: None,
+                data_labels: BTreeSet::new(),
+            },
+            provenance: InvocationProvenance::Automated,
+        };
+        let audience = ProtectedResourceId::parse("https://conformance.veoveo.local/mcp")?;
+        let caller = issue_fixture_caller(
+            &issuer,
+            GatewayProfileId::parse("consumer-native")?,
+            audience.clone(),
+            actor.clone(),
+            authority,
+        )?;
+        let identity = caller.identity;
+        let admitted = identity.audit_context()?;
+        assert_eq!(admitted.actor.principal, actor.id);
+        let context = identity.request_context.as_ref().unwrap();
+        assert_eq!(context.access_token.audience, audience);
+        assert_eq!(context.access_token.scopes, actor.scopes);
+        assert_eq!(
+            context.access_token.oauth_client_id.as_str(),
+            actor.subject.as_str()
+        );
+        assert!(context.access_token.expires_at > chrono::Utc::now());
+        assert!(identity.expires_at <= context.access_token.expires_at);
+        let mut missing = identity.clone();
+        missing.request_context = None;
+        assert!(missing.audit_context().is_err());
+        let mut foreign = identity.clone();
+        foreign
+            .request_context
+            .as_mut()
+            .unwrap()
+            .access_token
+            .oauth_client_id = OAuthClientId::parse("foreign-consumer")?;
+        assert!(foreign.audit_context().is_err());
+        let mut scopes = identity;
+        scopes
+            .request_context
+            .as_mut()
+            .unwrap()
+            .access_token
+            .scopes
+            .insert(veoveo_types::ScopeName::parse("artifact:read")?);
+        assert!(scopes.audit_context().is_err());
+        Ok(())
+    }
 
     #[tokio::test]
     async fn actual_upload_receipt_python_peer_refuses_retired_mixed_and_foreign_fields() {
