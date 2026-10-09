@@ -132,6 +132,8 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     terminal.write(b"export VEOVEO_NATIVE_RETAINED=pre-restart; printf '%s' 'controller-retained-bytes-v1' > \"$HOME/controller-native-marker\" && sync \"$HOME/controller-native-marker\" && printf '\\npre-restart-marker=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\"\r").await.unwrap();
     marker_output(
         &mut terminal,
+        &provider.dir,
+        MarkerStage::BeforeControllerRestart,
         "pre-restart-marker=controller-retained-bytes-v1",
     )
     .await;
@@ -202,6 +204,8 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     terminal.write(b"printf '\\npost-controller-marker=%s shell-state=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\" \"${VEOVEO_NATIVE_RETAINED-unset}\"\r").await.unwrap();
     marker_output(
         &mut terminal,
+        &provider.dir,
+        MarkerStage::AfterControllerRestart,
         "post-controller-marker=controller-retained-bytes-v1 shell-state=unset",
     )
     .await;
@@ -263,6 +267,8 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     terminal.write(b"printf '\\npost-start-marker=%s uid=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\" \"$(id -u)\"\r").await.unwrap();
     marker_output(
         &mut terminal,
+        &provider.dir,
+        MarkerStage::AfterStart,
         "post-start-marker=controller-retained-bytes-v1 uid=10001",
     )
     .await;
@@ -374,31 +380,149 @@ async fn native_terminal_renews_without_reconnecting_and_revokes_access() {
     provider.assert_running();
 }
 
-async fn marker_output(terminal: &mut Terminal, expected: &str) {
-    tokio::time::timeout(Duration::from_secs(15), async {
-        let mut output = Vec::new();
+const MARKER_OUTPUT_LIMIT: usize = 64 * 1024;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
+enum MarkerStage {
+    #[vocabulary(rename = "before_controller_restart")]
+    BeforeControllerRestart,
+    #[vocabulary(rename = "after_controller_restart")]
+    AfterControllerRestart,
+    #[vocabulary(rename = "after_start")]
+    AfterStart,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
+enum MarkerOutcome {
+    #[vocabulary(rename = "matched")]
+    Matched,
+    #[vocabulary(rename = "timeout")]
+    Timeout,
+    #[vocabulary(rename = "read_failed")]
+    ReadFailed,
+    #[vocabulary(rename = "eof")]
+    Eof,
+    #[vocabulary(rename = "bounds_exceeded")]
+    BoundsExceeded,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MarkerReceipt {
+    schema: &'static str,
+    stage: MarkerStage,
+    outcome: MarkerOutcome,
+    captured_bytes: usize,
+    sha256: String,
+}
+
+// The caller owns the capture, so cancelling the read future cannot discard bytes
+// already delivered by the terminal. Retain only the first 64 KiB on overflow.
+fn observe_marker(
+    output: &mut Vec<u8>,
+    observation: Result<Option<TerminalOutput>>,
+    expected: &str,
+) -> Option<MarkerOutcome> {
+    match observation {
+        Err(_) => Some(MarkerOutcome::ReadFailed),
+        Ok(None) => Some(MarkerOutcome::Eof),
+        Ok(Some(TerminalOutput::Data(bytes))) => {
+            let remaining = MARKER_OUTPUT_LIMIT - output.len();
+            output.extend_from_slice(&bytes[..bytes.len().min(remaining)]);
+            if bytes.len() > remaining {
+                Some(MarkerOutcome::BoundsExceeded)
+            } else if String::from_utf8_lossy(output).contains(expected) {
+                Some(MarkerOutcome::Matched)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn persist_marker(
+    directory: &std::path::Path,
+    stage: MarkerStage,
+    outcome: MarkerOutcome,
+    output: &[u8],
+) -> std::io::Result<MarkerReceipt> {
+    use sha2::{Digest, Sha256};
+    use std::io::Write;
+    use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+    use veoveo_types::Vocabulary as _;
+    if output.len() > MARKER_OUTPUT_LIMIT {
+        return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+    }
+    let receipt = MarkerReceipt {
+        schema: "veoveo.ai/native-terminal-marker/v1",
+        stage,
+        outcome,
+        captured_bytes: output.len(),
+        sha256: hex::encode(Sha256::digest(output)),
+    };
+    // A unique private directory and exclusive files prevent replacement of an
+    // earlier observation, including when the same stage is diagnosed twice.
+    let destination = directory.join(format!(
+        "terminal-marker-{}-{}",
+        stage.as_str(),
+        Uuid::new_v4()
+    ));
+    std::fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&destination)?;
+    let mut raw = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(destination.join("output.bin"))?;
+    raw.write_all(output)?;
+    raw.sync_all()?;
+    let encoded = serde_json::to_vec(&receipt)?;
+    let mut metadata = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(destination.join("receipt.json"))?;
+    metadata.write_all(&encoded)?;
+    metadata.sync_all()?;
+    Ok(receipt)
+}
+
+async fn marker_output(
+    terminal: &mut Terminal,
+    directory: &std::path::Path,
+    stage: MarkerStage,
+    expected: &str,
+) {
+    let mut output = Vec::new();
+    let outcome = tokio::time::timeout(Duration::from_secs(15), async {
         loop {
-            match terminal
-                .read()
-                .await
-                .unwrap()
-                .expect("canonical process remains open")
-            {
-                TerminalOutput::Data(bytes) => {
-                    output.extend(bytes);
-                    assert!(
-                        output.len() <= 65536,
-                        "terminal marker output exceeded 64 KiB"
-                    );
-                    if String::from_utf8_lossy(&output).contains(expected) {
-                        return;
-                    }
-                }
+            if let Some(outcome) = observe_marker(&mut output, terminal.read().await, expected) {
+                return outcome;
             }
         }
     })
     .await
-    .expect("settled retained marker command");
+    .unwrap_or(MarkerOutcome::Timeout);
+    let receipt = persist_marker(directory, stage, outcome, &output);
+    match receipt {
+        Ok(receipt) => assert_eq!(
+            outcome,
+            MarkerOutcome::Matched,
+            "terminal marker stage={stage:?} outcome={outcome:?} capturedBytes={} sha256={}",
+            receipt.captured_bytes,
+            receipt.sha256,
+        ),
+        Err(error) => {
+            use sha2::{Digest, Sha256};
+            panic!(
+                "terminal marker stage={stage:?} outcome={outcome:?} capturedBytes={} sha256={} privateCaptureWrite={:?}",
+                output.len(),
+                hex::encode(Sha256::digest(&output)),
+                error.kind()
+            );
+        }
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -953,6 +1077,177 @@ async fn capture_recovery_attachment(
         }
     }
 }
+#[cfg(test)]
+mod marker_diagnostic_tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    struct PrivateDirectory(std::path::PathBuf);
+    impl PrivateDirectory {
+        fn new() -> Self {
+            use std::os::unix::fs::DirBuilderExt;
+            let path =
+                std::env::temp_dir().join(format!("veoveo-marker-control-{}", Uuid::new_v4()));
+            std::fs::DirBuilder::new()
+                .mode(0o700)
+                .create(&path)
+                .unwrap();
+            Self(path)
+        }
+    }
+    impl Drop for PrivateDirectory {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[tokio::test]
+    async fn cancelled_marker_wait_retains_received_bytes_and_private_receipt() {
+        let directory = PrivateDirectory::new();
+        let mut output = Vec::new();
+        let timed = tokio::time::timeout(Duration::from_millis(10), async {
+            assert_eq!(
+                observe_marker(
+                    &mut output,
+                    Ok(Some(TerminalOutput::Data(
+                        b"private partial output".to_vec()
+                    ))),
+                    "missing marker"
+                ),
+                None
+            );
+            std::future::pending::<()>().await;
+        })
+        .await;
+        assert!(timed.is_err());
+        let receipt = persist_marker(
+            &directory.0,
+            MarkerStage::BeforeControllerRestart,
+            MarkerOutcome::Timeout,
+            &output,
+        )
+        .unwrap();
+        assert_eq!(output, b"private partial output");
+        assert_eq!(receipt.outcome, MarkerOutcome::Timeout);
+        let path = std::fs::read_dir(&directory.0)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        assert_eq!(std::fs::read(path.join("output.bin")).unwrap(), output);
+        for name in ["output.bin", "receipt.json"] {
+            assert_eq!(
+                std::fs::metadata(path.join(name))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+        let encoded = std::fs::read_to_string(path.join("receipt.json")).unwrap();
+        assert!(!encoded.contains("private partial output"));
+        let decoded: serde_json::Value = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(decoded["outcome"], "timeout");
+        assert_eq!(decoded["capturedBytes"], output.len());
+        assert_eq!(decoded["sha256"], receipt.sha256);
+    }
+
+    #[test]
+    fn marker_read_failure_eof_and_overflow_preserve_capture_without_false_match() {
+        let mut output = b"retained prefix".to_vec();
+        assert_eq!(
+            observe_marker(&mut output, Err(RuntimeFailure::TerminalFailed), "marker"),
+            Some(MarkerOutcome::ReadFailed)
+        );
+        assert_eq!(
+            observe_marker(&mut output, Ok(None), "marker"),
+            Some(MarkerOutcome::Eof)
+        );
+        assert_eq!(output, b"retained prefix");
+        assert_eq!(
+            observe_marker(
+                &mut output,
+                Ok(Some(TerminalOutput::Data(b" mar".to_vec()))),
+                "marker"
+            ),
+            None
+        );
+        assert_eq!(
+            observe_marker(
+                &mut output,
+                Ok(Some(TerminalOutput::Data(b"ker".to_vec()))),
+                "marker"
+            ),
+            Some(MarkerOutcome::Matched)
+        );
+        let mut excessive = vec![b'x'; MARKER_OUTPUT_LIMIT + 1];
+        excessive[..6].copy_from_slice(b"marker");
+        output.clear();
+        assert_eq!(
+            observe_marker(
+                &mut output,
+                Ok(Some(TerminalOutput::Data(excessive))),
+                "marker"
+            ),
+            Some(MarkerOutcome::BoundsExceeded)
+        );
+        assert_eq!(output.len(), MARKER_OUTPUT_LIMIT);
+        assert!(output.starts_with(b"marker"));
+    }
+
+    #[test]
+    fn marker_private_writes_are_unique_bounded_and_fail_without_destroying_capture() {
+        let directory = PrivateDirectory::new();
+        let output = b"first retained bytes".to_vec();
+        for _ in 0..2 {
+            persist_marker(
+                &directory.0,
+                MarkerStage::AfterStart,
+                MarkerOutcome::Eof,
+                &output,
+            )
+            .unwrap();
+        }
+        assert_eq!(std::fs::read_dir(&directory.0).unwrap().count(), 2);
+        for entry in std::fs::read_dir(&directory.0).unwrap() {
+            assert_eq!(
+                std::fs::read(entry.unwrap().path().join("output.bin")).unwrap(),
+                output
+            );
+        }
+        assert_eq!(
+            persist_marker(
+                &directory.0,
+                MarkerStage::AfterStart,
+                MarkerOutcome::Eof,
+                &vec![0; MARKER_OUTPUT_LIMIT + 1]
+            )
+            .err()
+            .unwrap()
+            .kind(),
+            std::io::ErrorKind::InvalidInput
+        );
+        assert_eq!(std::fs::read_dir(&directory.0).unwrap().count(), 2);
+        assert!(
+            persist_marker(
+                &directory.0.join("missing"),
+                MarkerStage::AfterStart,
+                MarkerOutcome::ReadFailed,
+                &output
+            )
+            .is_err()
+        );
+        assert_eq!(output, b"first retained bytes");
+        assert_eq!(std::fs::read_dir(&directory.0).unwrap().count(), 2);
+    }
+}
+
 #[cfg(test)]
 mod recovery_diagnostic_tests {
     use super::*;
