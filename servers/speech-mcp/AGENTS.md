@@ -45,6 +45,17 @@ GPU smoke and lifecycle assertions belong in the native Rust harness. Downloaded
 fixtures require fixed hashes and recorded provenance. Runtime evidence must include
 the actual GPU, model revision and package pins.
 
+The existing `native_tasks` target also owns the ignored installed raw Task cases
+`installed::raw_transcription_completion_through_public_gateway` and
+`installed::raw_transcription_cancellation_through_public_gateway`.
+Their `VEOVEO_SPEECH_TASK_INPUT` fixture selects normal private OAuth token-file
+credentials, a governed recording and independent expectations. Dispatch creates
+one real CUDA transcription Task. Cancellation requires a current unfinished Task;
+early completion fails that profile without replay. Use the maintained owner wrapper
+and retain actual SDK handles plus original close futures through registered cleanup.
+These cases do not qualify process restart recovery. The owner
+[scenario declarations](smoke/scenarios.json) dispatch the same target.
+
 ## Contract Compliance
 
 <!-- veoveo:contract-compliance:start -->

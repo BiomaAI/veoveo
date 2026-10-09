@@ -13,6 +13,7 @@ the native CUDA, recovery, hosted MCP and installed browser checks described und
 | `veoveo.ai/speech-worker/v2` | Private Unix socket protocol: one bounded JSON request followed by length-prefixed little-endian float32 mono PCM for live input; NDJSON transcript snapshots in response |
 | Photon | Moondream `2.6.1`, Kestrel `0.9.1`, Torch `2.14.1`, NVIDIA CUDA only; Parakeet Ultra weights SHA-256 `c9608f36d0ab956c14bfcc525479b0746b3b42a56f6949ec85c14eb7466717dc` |
 | `veoveo.ai/speech-gpu-acceptance/v2` | Native hardware-run operator report with current owned JSON keys; no downstream machine reader is declared |
+| `veoveo.ai/speech-installed-task/v1` | Private append-only JSONL intent, domain observations and cleanup outcomes for the two raw installed Task profiles |
 | `veoveo.ai/speech-transcript/v2` / WebVTT | CamelCase JSON transcript documents with word/segment times in seconds; captions use the WebVTT text profile |
 
 The transcript document schema declares its exact current format literal with the
@@ -250,6 +251,55 @@ are runtime assets, outside the Rust compiler source context. Worker startup cre
 private writable PyTorch and Triton cache directories on the temporary volume.
 
 ## Qualification Limits
+
+### Installed Raw Task Profiles
+
+The existing `tests/native_tasks.rs` target owns opt-in completion and cancellation
+cases through `tests/support/installed.rs`. Both connect to the installation's public
+Gateway using `InstalledSource::task_caller` and a normal private OAuth token file.
+They create one `speech__transcribe` Task from an existing neutral Artifact URI.
+The input file named by `VEOVEO_SPEECH_TASK_INPUT` is a closed object:
+
+| Field | Selection |
+| --- | --- |
+| `mode` | `complete` or `cancel`, matching the selected case |
+| `installation` | Shared installed-source configuration: installation target path, public Gateway profile MCP endpoint, caller token-file path, deployment declared by that installation and new receipt path |
+| `request` | Public `TranscribeRequest` with the selected governed source Artifact URI |
+| `expected` | Source SHA-256, complete expected transcript text, model and revision, minimum/maximum duration seconds and full output compliance metadata |
+
+Fixtures are limited to64KiB, expected text to16KiB, and each returned text resource
+to512KiB. Completion compares an acknowledged exact-ID subscription's delivered
+Completed payload with the current official Task payload. Public Task identities use
+`CanonicalTaskId`; domain resource identities come from the admitted output URI.
+Current owner resource output, transcript source/hash/model/text, Artifact ownership
+and invocation provenance, duration and generated WEBVTT must agree. A first terminal
+notification qualifies terminal delivery; only an observed Working notification
+establishes that the listener also saw unfinished work.
+
+Cancellation reads the current Task and requires Working or InputRequired before
+persisting cancellation intent and making its explicit cancel call. Delivered and
+current state must both be Cancelled without a completed payload. Early completion
+fails the unfinished precondition and never dispatches a replacement recording.
+The shared Task helper reconciles remote ownership during cleanup after failed work.
+
+An append-only0600 journal in an owner-private directory records intent before
+dispatch, acknowledged identity before later requests, observations and final cleanup
+facts. It contains selected domain fixtures and typed error codes/statuses, without
+credentials or raw SDK/provider errors. Connection admission has60seconds and the
+Task operation has180seconds; the scenario allows300seconds with one30second shared
+cleanup grace. Actual caller/listener slots are registered before connection and
+Task effects. Cleanup retains consuming close futures with their original deadlines,
+allows at most10seconds per close within the shared grace, and records sticky failure.
+Timeout or signal drops work before registered cleanup runs. Final receipt writing
+occurs after cleanup outside the operation timeout. Failed or interrupted remote
+settlement keeps the shared ownership lease; failed local closes cannot pass.
+
+These source-contained cases prepare installed qualification; native assertion and
+cleanup controls do not execute installed inference. Actual CUDA readiness, a normal
+authorized caller and an existing governed source recording are prerequisites.
+The cancellation fixture must be real work that stays unfinished through its read
+fence. Recording duration alone does not guarantee that window. Process interruption,
+unfinished recovery, and performance/capacity qualification require separate cases.
 
 The Rust worker protocol and Python models share
 [schema compatibility checks](../../testing/python/DESIGN.md) through

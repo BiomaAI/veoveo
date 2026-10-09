@@ -1,0 +1,66 @@
+{
+  "format": "veoveo.ai/smoke-scenarios/v1",
+  "owner": "servers/speech-mcp",
+  "scenarios": [
+    {
+      "id": "speech-installed-task-completion",
+      "description": "Qualify raw Speech Task terminal delivery and independently selected transcription output through the public Gateway.",
+      "target": {
+        "kind": "cargo_test",
+        "selection": {
+          "owner": "servers/speech-mcp",
+          "package": "veoveo-speech-mcp",
+          "target": "native_tasks",
+          "features": ["mcp"],
+          "defaultFeatures": false,
+          "profile": "dev"
+        },
+        "case": "installed::raw_transcription_completion_through_public_gateway",
+        "ignored": true
+      },
+      "arguments": [],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": true,
+        "headedGraphics": false,
+        "explanation": "Requires VEOVEO_SPEECH_TASK_INPUT mode complete, an installation target and public Gateway profile, private normal OAuth token file, an existing authorized recording, independent source/text/model/policy expectations and a new private JSONL receipt. Creates one real CUDA transcription Task and reads its outputs. Requires installed NVIDIA CUDA readiness. Uses shared remote Task and actual-handle cleanup; no process restart or installed recovery qualification."
+      },
+      "deadlineSeconds": 300,
+      "cleanupSeconds": 30
+    },
+    {
+      "id": "speech-installed-task-cancellation",
+      "description": "Qualify raw Speech Task cancellation delivery after an observed unfinished real recording.",
+      "target": {
+        "kind": "cargo_test",
+        "selection": {
+          "owner": "servers/speech-mcp",
+          "package": "veoveo-speech-mcp",
+          "target": "native_tasks",
+          "features": ["mcp"],
+          "defaultFeatures": false,
+          "profile": "dev"
+        },
+        "case": "installed::raw_transcription_cancellation_through_public_gateway",
+        "ignored": true
+      },
+      "arguments": [],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": true,
+        "headedGraphics": false,
+        "explanation": "Requires VEOVEO_SPEECH_TASK_INPUT mode cancel, normal private OAuth token-file inputs and a selected genuine governed recording that remains unfinished at its current Task read. Persists cancellation intent, invokes official cancellation and requires exact-ID delivered/current Cancelled without successful output. Early completion fails qualification without replay. Creates real CUDA work; uses shared Task/SDK cleanup and does not restart processes or qualify recovery."
+      },
+      "deadlineSeconds": 300,
+      "cleanupSeconds": 30
+    }
+  ]
+}

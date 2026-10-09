@@ -1,4 +1,6 @@
 //! Actual CUDA, disposable database and governed Artifact HTTP service.
+#[path = "support/installed.rs"]
+mod installed;
 #[path = "support/context.rs"]
 mod context;
 use veoveo_artifact_contract::PutArtifactRequest;
