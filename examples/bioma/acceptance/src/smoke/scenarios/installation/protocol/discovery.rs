@@ -143,6 +143,54 @@ fn admit_document_page(
     Ok(page.next_cursor)
 }
 
+#[derive(Clone, serde::Serialize)]
+#[cfg_attr(test, derive(serde::Deserialize))]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ToolCatalogObservation {
+    owner: SelectedOwner,
+    server: ServerSlug,
+    expected: BTreeSet<veoveo_gateway_contract::GatewayToolName>,
+    actual: Vec<veoveo_gateway_contract::GatewayToolName>,
+    missing: BTreeSet<veoveo_gateway_contract::GatewayToolName>,
+    unexpected: BTreeSet<veoveo_gateway_contract::GatewayToolName>,
+    matched: bool,
+}
+
+fn tool_catalog_observations(
+    selected: &[SelectedServer],
+    tools: &[Tool],
+) -> Result<Vec<ToolCatalogObservation>> {
+    let mut admitted = tools
+        .iter()
+        .map(|tool| {
+            let name = veoveo_gateway_contract::GatewayToolName::parse(tool.name.as_ref())?;
+            let (owner, _) = name.parts()?;
+            Ok((owner, name))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    admitted.sort();
+    Ok(selected
+        .iter()
+        .map(|server| {
+            let actual = admitted
+                .iter()
+                .filter(|(owner, _)| owner == &server.slug)
+                .map(|(_, name)| name.clone())
+                .collect::<Vec<_>>();
+            let names = actual.iter().cloned().collect::<BTreeSet<_>>();
+            ToolCatalogObservation {
+                owner: server.owner,
+                server: server.slug.clone(),
+                expected: server.expected_tools.clone(),
+                matched: names == server.expected_tools && actual.len() == names.len(),
+                missing: server.expected_tools.difference(&names).cloned().collect(),
+                unexpected: names.difference(&server.expected_tools).cloned().collect(),
+                actual,
+            }
+        })
+        .collect())
+}
+
 pub(super) async fn run(
     client: &SmokeMcpClient,
     selected: &[SelectedServer],
@@ -157,6 +205,9 @@ pub(super) async fn run(
             catalog::tools(client.peer()),
         )
         .await?;
+    // Retain every owner's result before any catalog assertion can stop the case.
+    // The complete name vector preserves duplicates as well as missing/extra names.
+    evidence.catalog_observations(&tool_catalog_observations(selected, &tools)?)?;
     let resources = evidence
         .success(
             Phase::Discovery,
@@ -642,6 +693,65 @@ mod discovery_tests {
         let mut duplicate = tools.clone();
         duplicate.push(tools[0].clone());
         assert!(require_catalogs(&selected, &duplicate, &resources, &templates, &[]).is_err());
+        Ok(())
+    }
+    #[test]
+    fn tool_observations_keep_all_owners_missing_extra_and_duplicate_names() -> Result<()> {
+        let selected = selected()?;
+        let (mut tools, resources, templates) = catalogs(&selected);
+        tools.pop(); // The last selected owner is Media.
+        tools.push(Tool::new(
+            "duckdb__unexpected",
+            "Fixture",
+            JsonObject::new(),
+        ));
+        let observations = tool_catalog_observations(&selected, &tools)?;
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("catalog-receipt.json");
+        let mut evidence = Evidence::create(&path)?;
+        evidence.catalog_observations(&observations)?;
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct PersistedCatalogs {
+            schema: String,
+            tool_catalog_observations: Vec<ToolCatalogObservation>,
+        }
+        let persisted: PersistedCatalogs = serde_json::from_slice(&std::fs::read(&path)?)?;
+        assert_eq!(persisted.schema, "veoveo.ai/installed-protocol/v2");
+        assert_eq!(persisted.tool_catalog_observations.len(), 4);
+        for observation in &persisted.tool_catalog_observations {
+            match observation.owner {
+                SelectedOwner::DuckDb => {
+                    assert!(!observation.matched);
+                    assert!(observation.missing.is_empty());
+                    assert_eq!(
+                        observation.unexpected,
+                        BTreeSet::from([veoveo_gateway_contract::GatewayToolName::parse(
+                            "duckdb__unexpected"
+                        )?,])
+                    );
+                }
+                SelectedOwner::Media => {
+                    assert!(!observation.matched);
+                    assert_eq!(observation.missing, observation.expected);
+                    assert!(observation.actual.is_empty());
+                }
+                SelectedOwner::Timeseries | SelectedOwner::Frames => {
+                    assert!(observation.matched);
+                }
+            }
+        }
+        assert!(require_catalogs(&selected, &tools, &resources, &templates, &[]).is_err());
+        let (mut tools, _, _) = catalogs(&selected);
+        tools.push(tools[0].clone());
+        let observations = tool_catalog_observations(&selected, &tools)?;
+        let duplicate = observations
+            .iter()
+            .find(|item| item.owner == SelectedOwner::DuckDb)
+            .expect("every selected owner is observed");
+        assert!(!duplicate.matched);
+        assert_eq!(duplicate.actual.len(), 2);
+        assert!(duplicate.missing.is_empty() && duplicate.unexpected.is_empty());
         Ok(())
     }
     fn document(

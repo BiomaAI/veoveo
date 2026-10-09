@@ -59,6 +59,27 @@ fn exposed<T: PartialEq>(exposure: &veoveo_mcp_contract::Exposure<T>, value: &T)
         veoveo_mcp_contract::Exposure::None => false,
     }
 }
+fn admit_operator_surface(
+    catalog: &veoveo_mcp_gateway::GatewayCatalog,
+    installation: &InstalledTarget,
+) -> Result<()> {
+    let profile = catalog
+        .profile(&installation.operator.profile)
+        .context("operator profile is not registered")?;
+    let client = catalog
+        .profile_oauth_clients(profile)
+        .into_iter()
+        .find(|client| client.id == installation.operator.client_id)
+        .context("operator client is not registered for the selected profile")?;
+    admit_full_mcp_client(client)
+}
+fn admit_full_mcp_client(client: &veoveo_mcp_contract::OAuthClientRegistration) -> Result<()> {
+    ensure!(
+        client.client_surface == veoveo_mcp_contract::OAuthClientSurface::FullMcp,
+        "installed protocol requires a FullMcp operator client"
+    );
+    Ok(())
+}
 fn admit_origin(origin: &url::Url) -> Result<()> {
     ensure!(
         origin.scheme() == "http"
@@ -113,6 +134,7 @@ fn fixture(
     let admission = veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
         .bind(veoveo_gateway_catalog::registry()?)?;
     let catalog = veoveo_mcp_gateway::GatewayCatalog::load_json(control_path, admission)?;
+    admit_operator_surface(&catalog, installation)?;
     let mut seen = BTreeSet::new();
     let mut origins = BTreeSet::new();
     for server in &mut fixture.servers {
@@ -146,7 +168,9 @@ fn fixture(
         server.expected_tools = manifest
             .tools
             .iter()
-            .filter(|tool| exposed(&exposure.tools, tool))
+            .filter(|tool| {
+                exposed(&exposure.tools, tool) && !manifest.compatibility_helpers.contains(tool)
+            })
             .map(|tool| GatewayToolName::from_parts(&server.slug, tool))
             .collect::<std::result::Result<_, _>>()?;
         ensure!(
@@ -455,6 +479,39 @@ mod protocol_fixture_tests {
                 .iter()
                 .all(|server| !server.expected_tools.is_empty())
         );
+        let media = admitted
+            .servers
+            .iter()
+            .find(|server| server.owner == SelectedOwner::Media)
+            .expect("required Media owner");
+        assert_eq!(
+            media.expected_tools,
+            BTreeSet::from([GatewayToolName::parse("media__run")?])
+        );
+        let manifest = catalog.server(&media.slug).expect("checked Media manifest");
+        assert_eq!(manifest.compatibility_helpers.len(), 3);
+        for helper in &manifest.compatibility_helpers {
+            assert!(
+                !media
+                    .expected_tools
+                    .contains(&GatewayToolName::from_parts(&media.slug, helper)?)
+            );
+        }
+        let profile = catalog
+            .profile(&installation.operator.profile)
+            .expect("checked profile");
+        let mut client = catalog
+            .profile_oauth_clients(profile)
+            .into_iter()
+            .find(|client| client.id == installation.operator.client_id)
+            .expect("checked client")
+            .clone();
+        admit_full_mcp_client(&client)?;
+        client.client_surface = veoveo_mcp_contract::OAuthClientSurface::ToolsCompat;
+        assert!(admit_full_mcp_client(&client).is_err());
+        let mut wrong_identity = InstalledTarget::load(&target)?;
+        wrong_identity.operator.client_id = wrong_identity.administrator()?.client_id.clone();
+        assert!(admit_operator_surface(&catalog, &wrong_identity).is_err());
         let original = input.servers[0].allowed_host.clone();
         input.servers[0].allowed_host = "outside.invalid".into();
         save(&input)?;

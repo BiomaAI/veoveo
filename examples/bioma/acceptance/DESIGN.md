@@ -25,7 +25,7 @@
 | View fixture preparation | `veoveo.ai/view-fixture-preparation/v1` JSON utility receipt; preparation produces no smoke acceptance outcome |
 | Installed Frames evidence | `veoveo.ai/frames-installed-evidence/v3` camelCase JSON with typed dispatch intents and observations, owner world/revision/native usage identities, gateway Task routes and separate cleanup outcomes |
 | Installed CPU protocol fixture | `veoveo.ai/installed-protocol-fixture/v1` closed JSON binds exactly DuckDB, Timeseries, Frames and Media loopback origins, upstream Host authorities, workload UIDs/images and the selected control-plane SHA-256 |
-| Installed CPU protocol receipt | `veoveo.ai/installed-protocol/v1` private JSON records requests, HTTP status/body digest, MCP code/message digest, administrator health/audit correlation and separate operation, cleanup and qualification results |
+| Installed CPU protocol receipt | `veoveo.ai/installed-protocol/v2` private JSON records all four owners’ expected/observed tool identities before validation, requests, HTTP status/body digest, MCP code/message digest, administrator health/audit correlation and separate operation, cleanup and qualification results |
 | Installed transport | Maintained curl HTTP/1.1 with explicit empty Host, no redirects or proxy, 15-second requests and 64 KiB responses; RFC 9112 missing-Host 400 and installation Host admission 421 |
 | Installed CPU Host fixture | Closed owner JSON with `deployment`, `pod` and `container`; private absolute regular-file input capped at 64 KiB; database identity enters through the DuckDB owner type |
 | Installed CPU Host evidence | `veoveo.ai/installed-cpu-host/v1` JSON with gateway Task identity, admitted process/drain identities and separate completion, retained-payload and connection-cleanup results |
@@ -269,6 +269,8 @@ origin, allowed Host authority and Deployment/Pod/image identities. It binds the
 workload and raw control-plane SHA-256. Admission requires exactly DuckDB, Timeseries,
 Frames and Media with distinct origins and nonzero UIDs. Checked catalog manifests and
 profile exposure supply tool and prompt expectations; fixture input cannot choose them.
+The operator registration must use FullMcp. Tool expectations exclude only the manifest’s
+declared compatibility helpers, which that client surface does not expose.
 The fixture is a regular file at most 64 KiB with no group or world permissions.
 Ops verifies the live workload UIDs, images and port-forwards before dispatch; decoding
 these declarations performs no Kubernetes lookup. The control-plane digest identifies the

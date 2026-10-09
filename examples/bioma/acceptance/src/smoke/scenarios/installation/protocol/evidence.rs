@@ -83,6 +83,7 @@ struct ProtocolReceipt {
     schema: &'static str,
     fixture: Option<ProtocolFixture>,
     entries: Vec<Entry>,
+    tool_catalog_observations: Vec<discovery::ToolCatalogObservation>,
     administrator: Option<admin::AdminReceipt>,
     prompt_isolation: Option<discovery::PromptIsolationObservation>,
     prompt_degradations: Vec<veoveo_gateway_contract::GatewayDiscoveryDegradation>,
@@ -104,9 +105,10 @@ impl Evidence {
         let mut value = Self {
             file,
             receipt: ProtocolReceipt {
-                schema: "veoveo.ai/installed-protocol/v1",
+                schema: "veoveo.ai/installed-protocol/v2",
                 fixture: None,
                 entries: Vec::new(),
+                tool_catalog_observations: Vec::new(),
                 administrator: None,
                 prompt_isolation: None,
                 prompt_degradations: Vec::new(),
@@ -117,6 +119,13 @@ impl Evidence {
         };
         value.persist()?;
         Ok(value)
+    }
+    pub(super) fn catalog_observations(
+        &mut self,
+        observations: &[discovery::ToolCatalogObservation],
+    ) -> Result<()> {
+        self.receipt.tool_catalog_observations = observations.to_vec();
+        self.persist()
     }
     fn persist(&mut self) -> Result<()> {
         self.file.seek(SeekFrom::Start(0))?;
