@@ -5,6 +5,13 @@
 {{- if $configured -}}
 {{- $configName = required "configured Computers requires computers.existingConfigMap" .Values.computers.existingConfigMap -}}
 {{- $_ := required "configured Computers requires computers.existingTrustSecret" .Values.computers.existingTrustSecret -}}
+{{- $_ := required "configured Computers requires computers.existingOAuthSecret" .Values.computers.existingOAuthSecret -}}
+{{- if or (eq .Values.computers.existingOAuthSecret .Values.computers.existingTrustSecret) (eq .Values.computers.existingOAuthSecret .Values.computers.host.existingTrustSecret) -}}
+{{- fail "Computers OAuth credentials require a separate worker-only Secret" -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-f0-9]{64}$" .Values.computers.oauthCredentialRevision) -}}
+{{- fail "configured Computers requires computers.oauthCredentialRevision (SHA-256 of public worker JWKS)" -}}
+{{- end -}}
 {{- if not (regexMatch "^[a-f0-9]{64}$" .Values.computers.configurationRevision) -}}
 {{- fail "configured Computers requires computers.configurationRevision (SHA-256 of computers.json)" -}}
 {{- end -}}
@@ -12,7 +19,7 @@
 {{- if gt (int .Values.computers.access.idleSeconds) (int .Values.computers.access.absoluteSeconds) -}}
 {{- fail "Computers access.idleSeconds must not exceed access.absoluteSeconds" -}}
 {{- end -}}
-{{- if or .Values.computers.existingConfigMap .Values.computers.existingTrustSecret .Values.computers.configurationRevision -}}
+{{- if or .Values.computers.existingConfigMap .Values.computers.existingTrustSecret .Values.computers.configurationRevision .Values.computers.existingOAuthSecret .Values.computers.oauthCredentialRevision -}}
 {{- fail "Computers configuration and trust require computerCapacity=openshell-docker" -}}
 {{- end -}}
 {{- /* An RFC 9562 UUIDv8 identifies only this unconfigured control surface.
@@ -68,6 +75,9 @@ spec:
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
         {{- include "veoveo.databasePodAnnotations" . | nindent 8 }}
+        {{- if $configured }}
+        checksum/computers-oauth-public-key: {{ .Values.computers.oauthCredentialRevision | quote }}
+        {{- end }}
         checksum/computers-configuration: {{ ternary .Values.computers.configurationRevision ($configuration | sha256sum) $configured | quote }}
     spec:
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
@@ -107,6 +117,9 @@ spec:
             - name: trust
               mountPath: /etc/veoveo/computers/trust
               readOnly: true
+            - name: worker-oauth
+              mountPath: /etc/veoveo/computers/oauth
+              readOnly: true
             {{- end }}
             - name: tmp
               mountPath: /tmp
@@ -122,6 +135,13 @@ spec:
           secret:
             secretName: {{ .Values.computers.existingTrustSecret }}
             defaultMode: 0440
+        - name: worker-oauth
+          secret:
+            secretName: {{ .Values.computers.existingOAuthSecret }}
+            defaultMode: 288
+            items:
+              - key: private-key.pem
+                path: private-key.pem
         {{- end }}
         - name: tmp
           emptyDir:

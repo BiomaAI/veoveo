@@ -22,7 +22,19 @@
         "certificateFile": "/etc/veoveo/computers/trust/provider-worker.pem",
         "keyFile": "/etc/veoveo/computers/trust/provider-worker-key.pem"
       },
-      "workspace": "default"
+      "workspace": "default",
+      "authentication": {
+        "issuer": "https://veoveo.bioma.ai/oauth",
+        "resource": "https://veoveo.bioma.ai/computers/provider",
+        "clientId": "bioma-computers-worker",
+        "privateKeyFile": "/etc/veoveo/computers/oauth/private-key.pem",
+        "keyId": "bioma-computers-worker-20261009",
+        "tokenEndpointAuthMethod": "private_key_jwt",
+        "scopes": [
+          "computers:provider:authenticate"
+        ],
+        "caFile": null
+      }
     },
     "allocator": {
       "endpoint": "computer-host.veoveo.svc.cluster.local:8806",

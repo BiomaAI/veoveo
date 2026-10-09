@@ -27,6 +27,9 @@ pub use pairing::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+mod worker_authorization;
+pub use worker_authorization::*;
+
 mod actions;
 pub use actions::{ComputerAction, register_catalog};
 

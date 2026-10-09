@@ -36,6 +36,9 @@ pub fn register_catalog(
             }),
         },
     )])?;
+    builder.register_section::<crate::ComputerWorkerAuthorizationSection>(ExtensionName::parse(
+        crate::COMPUTER_WORKER_AUTHORIZATION_SECTION,
+    )?)?;
     Ok(())
 }
 

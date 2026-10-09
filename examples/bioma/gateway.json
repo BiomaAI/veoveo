@@ -7201,6 +7201,12 @@
           "oauthClients": [
             "knowledge-indexer"
           ]
+        },
+        {
+          "level": "contributor",
+          "oauthClients": [
+            "bioma-computers-worker"
+          ]
         }
       ]
     },
@@ -7719,6 +7725,29 @@
           "time.events"
         ]
       }
+    },
+    {
+      "id": "bioma-computers-worker",
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "automated",
+      "allowedResources": [
+        "https://veoveo.bioma.ai/computers/provider"
+      ],
+      "grantTypes": [
+        "client_credentials"
+      ],
+      "authMethods": [
+        "private_key_jwt"
+      ],
+      "allowedScopes": [
+        "computers:provider:authenticate"
+      ],
+      "tenant": "bioma",
+      "jwks": {
+        "source": "file",
+        "path": "/etc/veoveo/gateway/computers-worker-jwks.json"
+      }
     }
   ],
   "oidcClients": [
@@ -7814,5 +7843,21 @@
   "metadata": {
     "deployment": "bioma",
     "environment": "live_demo"
+  },
+  "ai.veoveo/computer-worker-authorization": {
+    "resourceName": "computer-provider",
+    "resource": "https://veoveo.bioma.ai/computers/provider",
+    "authorizationServer": "veoveo",
+    "policyVersion": "2026-10-02-knowledge-docs",
+    "clientId": "bioma-computers-worker",
+    "tenant": "bioma",
+    "workContext": "operations",
+    "enabled": true,
+    "adminRole": "computer-worker-admin",
+    "userRole": "computer-worker-user",
+    "grantedRoles": [
+      "user",
+      "admin"
+    ]
   }
 }

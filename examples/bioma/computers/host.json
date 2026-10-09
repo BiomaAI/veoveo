@@ -4,7 +4,8 @@
   "namespace": "bioma-computers",
   "defaultImage": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:43d91b61d1943d0582a3c37a188096fbe875d7eb10eb7df6d1fe6497db73ae32",
   "images": [
-    "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:43d91b61d1943d0582a3c37a188096fbe875d7eb10eb7df6d1fe6497db73ae32"
+    "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:43d91b61d1943d0582a3c37a188096fbe875d7eb10eb7df6d1fe6497db73ae32",
+    "k3d-veoveo-registry.localhost:5000/veoveo/openshell-supervisor@sha256:90a6f1a7257a8d3c76f89cc7cc1a1050567cf065a59ce76888f23dfd4f4c757d"
   ],
   "templates": [
     {
@@ -18,5 +19,14 @@
     "transport": "development_http"
   },
   "bridgeAddress": "172.30.0.1",
-  "networkPool": "172.31.0.0"
+  "networkPool": "172.31.0.0",
+  "providerAuthentication": {
+    "issuer": "https://veoveo.bioma.ai/oauth",
+    "resource": "https://veoveo.bioma.ai/computers/provider",
+    "rolesClaim": "roles",
+    "adminRole": "computer-worker-admin",
+    "userRole": "computer-worker-user",
+    "jwksTtlSecs": 300
+  },
+  "supervisorImage": "k3d-veoveo-registry.localhost:5000/veoveo/openshell-supervisor@sha256:90a6f1a7257a8d3c76f89cc7cc1a1050567cf065a59ce76888f23dfd4f4c757d"
 }

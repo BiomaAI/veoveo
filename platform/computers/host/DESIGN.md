@@ -126,10 +126,11 @@ links must resolve inside their mounted root. Private keys exclude group/world
 access. Internal state and locks reject final symlinks. Copies under the private
 runtime directory have mode 0600.
 
-Configuration requires `providerAuthentication`: HTTPS `issuer`, exact `audience`,
+Configuration requires `providerAuthentication`: HTTPS `issuer`, typed canonical HTTPS `resource`,
 `rolesClaim`, nonempty `adminRole` and `userRole`, and `jwksTtlSecs` in 1..3600.
-The installation provides a dedicated private worker OAuth registration with the
-selected roles and short-lived credentials. The provider uses its system trust store
+The Host derives upstream OIDC `audience` from that resource. The installation
+provides a restricted private-key worker registration with the selected roles and
+short-lived access tokens. The Host never mounts the worker signing key. The provider uses its system trust store
 when `issuer-ca.pem` is absent from the mounted Host trust directory. An operator may
 supply that fixed file as one complete, valid self-signed public CA certificate.
 The launcher admits it through the same confined projection and file checks, copies

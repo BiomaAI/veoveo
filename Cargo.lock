@@ -16428,6 +16428,7 @@ dependencies = [
  "nix",
  "rcgen",
  "reqwest 0.13.5",
+ "rsa",
  "rustls",
  "schemars 1.2.2",
  "serde",
@@ -16440,6 +16441,8 @@ dependencies = [
  "veoveo-computer-storage",
  "veoveo-computers-contract",
  "veoveo-computers-runtime",
+ "veoveo-gateway-contract",
+ "veoveo-oauth-client",
  "veoveo-types",
  "x509-parser",
 ]
@@ -16544,6 +16547,7 @@ dependencies = [
  "rcgen",
  "reqwest 0.13.5",
  "rmcp",
+ "rsa",
  "rustls",
  "schemars 1.2.2",
  "serde",
@@ -16573,6 +16577,7 @@ dependencies = [
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-modules",
+ "veoveo-oauth-client",
  "veoveo-platform-store",
  "veoveo-task-runtime",
  "veoveo-types",
@@ -16600,6 +16605,7 @@ dependencies = [
  "rcgen",
  "regress",
  "reqwest 0.13.5",
+ "rsa",
  "russh",
  "rustls",
  "schemars 1.2.2",
@@ -16618,6 +16624,8 @@ dependencies = [
  "uuid",
  "veoveo-computer-execution",
  "veoveo-computers-contract",
+ "veoveo-gateway-contract",
+ "veoveo-oauth-client",
  "veoveo-types",
  "zeroize",
 ]
@@ -17001,6 +17009,7 @@ dependencies = [
  "rcgen",
  "reqwest 0.13.5",
  "rmcp",
+ "rsa",
  "rustls",
  "schemars 1.2.2",
  "scraper",
@@ -17043,6 +17052,7 @@ dependencies = [
  "veoveo-mcp-knowledge-extension",
  "veoveo-media-mcp",
  "veoveo-modules",
+ "veoveo-oauth-client",
  "veoveo-optimization-mcp",
  "veoveo-platform-store",
  "veoveo-policy",
@@ -17508,6 +17518,22 @@ dependencies = [
  "surrealdb-syn",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "veoveo-oauth-client"
+version = "0.1.0"
+dependencies = [
+ "jsonwebtoken 11.0.0",
+ "rsa",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "url",
+ "uuid",
+ "veoveo-types",
+ "zeroize",
 ]
 
 [[package]]

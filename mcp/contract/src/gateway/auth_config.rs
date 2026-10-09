@@ -193,35 +193,4 @@ pub enum OidcClientAuthMethod {
     ClientSecretPost,
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum OAuthGrantType {
-    AuthorizationCodePkce,
-    RefreshToken,
-    ClientCredentials,
-    EnterpriseManagedAuthorization,
-}
-
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum OAuthClientAuthMethod {
-    None,
-    PrivateKeyJwt,
-    ClientSecretBasic,
-    ClientSecretPost,
-    TlsClientAuth,
-}
-
-impl OAuthClientAuthMethod {
-    pub(crate) fn requires_secret(&self) -> bool {
-        matches!(self, Self::ClientSecretBasic | Self::ClientSecretPost)
-    }
-
-    pub(crate) fn requires_jwks(&self) -> bool {
-        matches!(self, Self::PrivateKeyJwt)
-    }
-}
+pub use veoveo_gateway_contract::{OAuthClientAuthMethod, OAuthGrantType};

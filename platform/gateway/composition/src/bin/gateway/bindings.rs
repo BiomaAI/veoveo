@@ -1,6 +1,7 @@
 //! Concrete owner adapters selected by the gateway composition.
 use std::sync::Arc;
 use veoveo_agent_runtime::gateway::{ManagedOAuthClientResolver, ManagedTemplateCatalog};
+use veoveo_mcp_gateway::oauth_clients::OwnedOAuthClientResolver;
 use veoveo_mcp_gateway::{GatewayCatalogAdmission, GatewayState};
 use veoveo_platform_store::PlatformStore;
 
@@ -23,7 +24,12 @@ pub(super) fn gateway_state(
     let registry = builder.build();
     GatewayState::new(platform.clone())
         .bind_token_extensions(registry.clone())?
-        .bind_oauth_client_resolver(Arc::new(ManagedOAuthClientResolver::new(
-            platform, templates, registry, key,
+        .bind_oauth_client_resolver(Arc::new(OwnedOAuthClientResolver::new(
+            Arc::new(ManagedOAuthClientResolver::new(
+                platform, templates, registry, key,
+            )),
+            vec![Arc::new(
+                veoveo_computers::gateway::ComputerWorkerOAuthOwner::new(),
+            )],
         )))
 }

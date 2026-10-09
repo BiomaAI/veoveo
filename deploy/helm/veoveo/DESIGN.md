@@ -253,12 +253,19 @@ this unconfigured control installation. Repeated renders preserve the exact
 configuration and Pod template. Configured capacity supplies its own stable identity.
 
 `computerCapacity: openshell-docker` requires `computers.existingConfigMap`,
-`computers.configurationRevision` and `computers.existingTrustSecret`. The ConfigMap contains the closed
+`computers.configurationRevision`, `computers.existingTrustSecret`,
+`computers.existingOAuthSecret` and `computers.oauthCredentialRevision`. The ConfigMap contains the closed
 `computers.json` service document. Its SHA-256 is the configuration revision that
 enters the Pod template. The installation owner verifies those bytes and publishes
 the public ConfigMap through its own reconciliation path. Dedicated worker
 certificates and keys live in the existing Secret, mounted read-only under
-`/etc/veoveo/computers/trust`. Configured JSON is authoritative for the access policy;
+`/etc/veoveo/computers/trust`. The separate OAuth Secret projects only `private-key.pem` at
+`/etc/veoveo/computers/oauth/private-key.pem`, read-only with mode 0440 for worker
+fsGroup readers. Rendering refuses a Secret shared with worker trust or Host trust,
+and the Host receives no signing-key mount. `oauthCredentialRevision` is the public
+worker JWKS SHA-256 and enters the Pod template; it contains no private-key digest.
+Missing or incomplete configured credential inputs refuse rendering.
+Configured JSON is authoritative for the access policy;
 `computers.access` only supplies the generated unconfigured document. The worker Secret also contains
 the command encryption keys referenced by `execution.keys`; its mode 0440 permits
 worker fsGroup reads. Configured capacity requires the Artifact service and its

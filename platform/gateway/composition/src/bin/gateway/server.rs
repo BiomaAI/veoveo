@@ -131,6 +131,10 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             "/.well-known/oauth-authorization-server/oauth",
             get(authorization_server_metadata),
         )
+        .route(
+            "/oauth/.well-known/openid-configuration",
+            get(crate::auth::access_token_verifier_metadata),
+        )
         .route("/oauth/jwks.json", get(authorization_server_jwks))
         .with_state(state);
 

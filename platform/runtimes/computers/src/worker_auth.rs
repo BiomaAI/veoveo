@@ -4,7 +4,7 @@ use crate::{
     client::{read_file, validate_path},
 };
 use oauth2::{
-    AuthType, ClientId, ClientSecret, EndpointNotSet, EndpointSet, Scope, TokenResponse, TokenUrl,
+    AuthType, ClientId, EndpointNotSet, EndpointSet, Scope, TokenResponse, TokenUrl,
     basic::{BasicClient, BasicTokenType},
 };
 use serde::Deserialize;
@@ -20,6 +20,8 @@ use std::{
 use tokio::{sync::Mutex, time::Instant};
 use tonic::{body::Body, codegen::http, transport::Channel};
 use tower::{Service, ServiceExt};
+use veoveo_gateway_contract::{OAuthClientAuthMethod, ProtectedResourceId};
+use veoveo_oauth_client::{CLIENT_ASSERTION_TYPE, ClientAssertionKeyId, ClientAssertionSigner};
 use veoveo_types::{Check, Checked, HttpsUrl, OAuthClientId, ScopeName};
 use zeroize::Zeroizing;
 
@@ -35,20 +37,15 @@ fn worker_http_builder() -> reqwest::ClientBuilder {
         .timeout(AUTH_BUDGET)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
-pub enum WorkerTokenAuthentication {
-    #[vocabulary(rename = "client_secret_post")]
-    ClientSecretPost,
-}
-
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorkerOAuthFields {
     pub issuer: HttpsUrl,
-    pub audience: String,
+    pub resource: ProtectedResourceId,
     pub client_id: OAuthClientId,
-    pub client_secret_file: PathBuf,
-    pub token_endpoint_auth_method: WorkerTokenAuthentication,
+    pub private_key_file: PathBuf,
+    pub key_id: ClientAssertionKeyId,
+    pub token_endpoint_auth_method: OAuthClientAuthMethod,
     pub scopes: BTreeSet<ScopeName>,
     pub ca_file: Option<PathBuf>,
 }
@@ -56,10 +53,11 @@ impl Check for WorkerOAuthFields {
     type Error = RuntimeFailure;
     fn check(&self) -> Result<()> {
         if self.issuer.as_url().query().is_some()
-            || self.audience.is_empty()
-            || self.audience.len() > 256
+            || self.resource.as_str().is_empty()
+            || self.resource.as_str().len() > 256
             || self
-                .audience
+                .resource
+                .as_str()
                 .bytes()
                 .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
             || self.client_id.as_str().len() > 256
@@ -68,7 +66,14 @@ impl Check for WorkerOAuthFields {
         {
             return Err(RuntimeFailure::InvalidWorkerAuthentication);
         }
-        validate_path(&self.client_secret_file)?;
+        if self.token_endpoint_auth_method != OAuthClientAuthMethod::PrivateKeyJwt
+            || HttpsUrl::parse(self.resource.as_str())
+                .map(|url| url.as_str() != self.resource.as_str())
+                .unwrap_or(true)
+        {
+            return Err(RuntimeFailure::InvalidWorkerAuthentication);
+        }
+        validate_path(&self.private_key_file)?;
         if let Some(path) = &self.ca_file {
             validate_path(path)?;
         }
@@ -86,11 +91,13 @@ impl WorkerOAuthConfig {
     pub fn issuer(&self) -> &HttpsUrl {
         &self.0.issuer
     }
-    pub fn audience(&self) -> &str {
-        &self.0.audience
+    pub fn resource(&self) -> &ProtectedResourceId {
+        &self.0.resource
     }
     pub(crate) async fn validate_files(&self) -> Result<()> {
-        read_secret(&self.0.client_secret_file).await?;
+        let bytes = read_private_key(&self.0.private_key_file).await?;
+        ClientAssertionSigner::from_rsa_pem(self.0.key_id.clone(), &bytes)
+            .map_err(|_| RuntimeFailure::InvalidWorkerAuthentication)?;
         if let Some(path) = &self.0.ca_file {
             let pem = read_file(path).await?;
             if reqwest::Certificate::from_pem_bundle(&pem)
@@ -123,7 +130,10 @@ pub(crate) struct WorkerTokens {
     scopes: BTreeSet<ScopeName>,
     cache: Arc<Mutex<Option<CachedToken>>>,
     issuer: HttpsUrl,
-    audience: String,
+    resource: ProtectedResourceId,
+    client_id: OAuthClientId,
+    signer: Arc<ClientAssertionSigner>,
+    token_endpoint: HttpsUrl,
 }
 impl WorkerTokens {
     pub(crate) async fn connect(config: WorkerOAuthConfig) -> Result<Self> {
@@ -170,20 +180,22 @@ impl WorkerTokens {
             || !discovery
                 .token_endpoint_auth_methods_supported
                 .iter()
-                .any(|method| method == "client_secret_post")
+                .any(|method| {
+                    OAuthClientAuthMethod::deserialize(serde::de::value::StrDeserializer::<
+                        serde::de::value::Error,
+                    >::new(method))
+                    .is_ok_and(|method| method == OAuthClientAuthMethod::PrivateKeyJwt)
+                })
         {
             return Err(RuntimeFailure::InvalidWorkerAuthentication);
         }
-        let secret = read_secret(&config.0.client_secret_file).await?;
-        // Secret files contain a single UTF-8 credential, without newline trimming.
-        if secret.bytes().any(|byte| byte.is_ascii_control()) {
-            return Err(RuntimeFailure::InvalidWorkerAuthentication);
-        }
+        let pem = read_private_key(&config.0.private_key_file).await?;
+        let signer = Arc::new(
+            ClientAssertionSigner::from_rsa_pem(config.0.key_id.clone(), &pem)
+                .map_err(|_| RuntimeFailure::InvalidWorkerAuthentication)?,
+        );
         let client = BasicClient::new(ClientId::new(config.0.client_id.to_string()))
-            .set_client_secret(ClientSecret::new(secret.to_string()))
-            .set_auth_type(match config.0.token_endpoint_auth_method {
-                WorkerTokenAuthentication::ClientSecretPost => AuthType::RequestBody,
-            })
+            .set_auth_type(AuthType::RequestBody)
             .set_token_uri(
                 TokenUrl::new(discovery.token_endpoint.to_string())
                     .map_err(|_| RuntimeFailure::InvalidWorkerAuthentication)?,
@@ -194,7 +206,10 @@ impl WorkerTokens {
             scopes: config.0.scopes.clone(),
             cache: Arc::new(Mutex::new(None)),
             issuer: config.0.issuer.clone(),
-            audience: config.0.audience.clone(),
+            resource: config.0.resource.clone(),
+            client_id: config.0.client_id.clone(),
+            signer,
+            token_endpoint: discovery.token_endpoint,
         })
     }
     pub(crate) async fn token(&self) -> Result<Zeroizing<String>> {
@@ -206,16 +221,26 @@ impl WorkerTokens {
         let mut cache = self.cache.lock().await;
         if let Some(token) = &*cache
             && token.refresh_at > Instant::now()
-            && issued_lifetime(&token.value, &self.issuer, &self.audience).is_ok()
+            && issued_lifetime(&token.value, &self.issuer, self.resource.as_str()).is_ok()
         {
             return Ok(token.value.clone());
         }
         let issued = Instant::now();
-        let request = self.client.exchange_client_credentials().add_scopes(
-            self.scopes
-                .iter()
-                .map(|scope| Scope::new(scope.to_string())),
-        );
+        let assertion = self
+            .signer
+            .assertion(&self.client_id, self.token_endpoint.as_url())
+            .map_err(|_| RuntimeFailure::InvalidWorkerAuthentication)?;
+        let request = self
+            .client
+            .exchange_client_credentials()
+            .add_extra_param("resource", self.resource.to_string())
+            .add_extra_param("client_assertion_type", CLIENT_ASSERTION_TYPE)
+            .add_extra_param("client_assertion", assertion.expose_secret())
+            .add_scopes(
+                self.scopes
+                    .iter()
+                    .map(|scope| Scope::new(scope.to_string())),
+            );
         let adapter = OAuthHttp(self.http.clone());
         let response = request
             .request_async(&adapter)
@@ -232,7 +257,7 @@ impl WorkerTokens {
         if !crate::remote_access::valid_token(&value) {
             return Err(RuntimeFailure::InvalidWorkerAuthentication);
         }
-        let jwt_lifetime = issued_lifetime(&value, &self.issuer, &self.audience)?;
+        let jwt_lifetime = issued_lifetime(&value, &self.issuer, self.resource.as_str())?;
         let refresh_at = issued
             .checked_add(lifetime)
             .zip(Instant::now().checked_add(jwt_lifetime))
@@ -285,7 +310,7 @@ fn issued_lifetime(token: &str, issuer: &HttpsUrl, audience: &str) -> Result<Dur
     Ok(Duration::from_secs(lifetime))
 }
 
-async fn read_secret(path: &std::path::Path) -> Result<Zeroizing<String>> {
+async fn read_private_key(path: &std::path::Path) -> Result<Zeroizing<Vec<u8>>> {
     use tokio::io::AsyncReadExt;
     let mut options = tokio::fs::OpenOptions::new();
     options.read(true);
@@ -307,26 +332,18 @@ async fn read_secret(path: &std::path::Path) -> Result<Zeroizing<String>> {
             return Err(RuntimeFailure::InvalidWorkerAuthentication);
         }
     }
-    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > 4096 {
+    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > 16 * 1024 {
         return Err(RuntimeFailure::InvalidWorkerAuthentication);
     }
     let mut bytes = Zeroizing::new(Vec::new());
-    file.take(4097)
+    file.take(16 * 1024 + 1)
         .read_to_end(&mut bytes)
         .await
         .map_err(|_| RuntimeFailure::InvalidWorkerAuthentication)?;
-    if bytes.is_empty() || bytes.len() > 4096 {
+    if bytes.is_empty() || bytes.len() > 16 * 1024 {
         return Err(RuntimeFailure::InvalidWorkerAuthentication);
     }
-    let secret = Zeroizing::new(
-        std::str::from_utf8(&bytes)
-            .map_err(|_| RuntimeFailure::InvalidWorkerAuthentication)?
-            .to_owned(),
-    );
-    if secret.bytes().any(|byte| byte.is_ascii_control()) {
-        return Err(RuntimeFailure::InvalidWorkerAuthentication);
-    }
-    Ok(secret)
+    Ok(bytes)
 }
 struct OAuthHttp(reqwest::Client);
 impl<'c> oauth2::AsyncHttpClient<'c> for OAuthHttp {
@@ -490,13 +507,16 @@ mod admission_tests {
         symlink("..generation", directory.join("..data")).unwrap();
         symlink("..data/secret", directory.join("secret")).unwrap();
         let projected = directory.join("secret");
-        assert_eq!(&*read_secret(&projected).await.unwrap(), "fixture-secret");
+        assert_eq!(
+            &*read_private_key(&projected).await.unwrap(),
+            b"fixture-secret"
+        );
         for mode in [0o444, 0o460] {
             std::fs::set_permissions(&secret, std::fs::Permissions::from_mode(mode)).unwrap();
-            assert!(read_secret(&projected).await.is_err());
+            assert!(read_private_key(&projected).await.is_err());
         }
         std::fs::set_permissions(&secret, std::fs::Permissions::from_mode(0o600)).unwrap();
-        std::fs::write(&secret, vec![b'x'; 4097]).unwrap();
-        assert!(read_secret(&projected).await.is_err());
+        std::fs::write(&secret, vec![b'x'; 16385]).unwrap();
+        assert!(read_private_key(&projected).await.is_err());
     }
 }

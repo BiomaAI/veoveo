@@ -293,7 +293,7 @@ mod tests {
                 .bind(veoveo_gateway_catalog::registry().unwrap())
                 .unwrap();
             let catalog = veoveo_mcp_gateway::GatewayCatalog::load_json(
-                &loaded.target.control_plane_path(&path),
+                loaded.target.control_plane_path(&path),
                 admission,
             )
             .unwrap();

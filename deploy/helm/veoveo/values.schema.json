@@ -1897,7 +1897,9 @@
         "existingTrustSecret",
         "access",
         "resources",
-        "host"
+        "host",
+        "existingOAuthSecret",
+        "oauthCredentialRevision"
       ],
       "properties": {
         "image": {
@@ -2044,6 +2046,13 @@
               }
             }
           }
+        },
+        "existingOAuthSecret": {
+          "type": "string"
+        },
+        "oauthCredentialRevision": {
+          "type": "string",
+          "pattern": "^$|^[a-f0-9]{64}$"
         }
       }
     },

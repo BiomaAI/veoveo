@@ -77,6 +77,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | Computers domain: lifecycle, access checks, named grants, files and maintenance |
 | [`platform/gateway/DESIGN.md`](../platform/gateway/DESIGN.md) | MCP forwarding, protocol resource projection, App links and preservation of server-owned payloads and extension metadata |
 | [`platform/gateway/contract/DESIGN.md`](../platform/gateway/contract/DESIGN.md) | transport-independent gateway declarations, kernel actions, catalog registration, shared HTTP/TLS configuration and authorization-resource identities |
+| [`platform/oauth/DESIGN.md`](../platform/oauth/DESIGN.md) | shared RS256 client-assertion signing, typed key selection and redacted assertion values; owners supply credential admission and OAuth transport |
 | [`platform/gateway/catalog/DESIGN.md`](../platform/gateway/catalog/DESIGN.md) | shared installation registration of kernel and owner catalog contracts for gateway composition, standalone readers and schema producers |
 | [`platform/gateway/composition/DESIGN.md`](../platform/gateway/composition/DESIGN.md) | gateway executable, module bindings, installation commands, image assembly and process qualification |
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
@@ -220,7 +221,7 @@ designs above.
 | `platform/runtimes/computers/tests/native_support/profile.rs` | pre-effect admission of exact provider executables, source manifest and companion image for the existing private-DinD native fixtures |
 | `platform/runtimes/computers/tests/native_support/controller.rs` | native fixture controller process-group ownership, bounded restart and reuse of admitted launch inputs, trust, database and private daemon |
 | `platform/runtimes/computers/tests/native_support/guest_authority.rs` | native TLS-positive, user-authority-negative check for the guest supervisor certificate |
-| `platform/runtimes/computers/src/worker_auth.rs` | required external worker OAuth profile, projected secret admission, HTTPS discovery and token cache, centralized RPC bearer injection; upstream owns signature verification and RBAC |
+| `platform/runtimes/computers/src/worker_auth.rs` | restricted worker OAuth profile, projected private-key admission, HTTPS discovery, private-key client authentication, token cache and centralized RPC bearer injection; upstream owns signature verification and RBAC |
 | `platform/runtimes/computers/tests/support/worker_issuer.rs` | shared test-only HTTPS discovery, signing and JWKS issuer for owning worker-auth and native fixtures; installation registration is separate |
 | `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
 | `platform/store/src/audit/` | partition-selected audit reads, typed append and indexing records, checked profile/target/detail lookups, nominal native sealing bindings in `blocks.rs`, frozen export documents, export receipts and whole-block retention |
@@ -268,7 +269,8 @@ designs above.
 | [`platform/task-runtime/contract/DESIGN.md`](../platform/task-runtime/contract/DESIGN.md) | Task lifecycle declaration order, wire/native profiles and dependency-light consumer contract |
 | `apps/console/bff/src/contract/installation.rs` and `events.rs` | nineteen installation snapshot records, checked browser byte length, typed grant subjects and entity-specific SSE/reset/access-request profiles |
 | `platform/gateway/contract/src/console.rs` and `presentation.rs` | authenticated Console bootstrap, installation/session identity and Gateway health/transport/HTTP purpose vocabularies |
-| `platform/gateway/contract/src/oauth.rs` | admitted OAuth request/code identities, PKCE values and client display names shared by Gateway, MCP adapters and native Store records |
+| `platform/gateway/contract/src/oauth.rs` | admitted OAuth request/code identities, PKCE values, grant/authentication vocabularies and client display names shared by Gateway, MCP adapters and native Store records |
+| `platform/oauth/` | pure typed RS256 client-assertion signing shared by worker authentication and the owning OAuth utility; no HTTP, Store or domain authorization |
 | `platform/gateway/contract/src/discovery.rs` and `mcp/contract/src/catalog.rs` | Gateway owns transport-independent catalog failure/degradation values; MCP owns their metadata conversion trait |
 | `platform/gateway/catalog/` | installation catalog registration recipe using owner contract features; runtime libraries receive the resulting registry explicitly |
 | [`tools/xtask/src/commands/client_types/`](../tools/xtask/src/commands/client_types/DESIGN.md) | owner-schema export and pinned TypeScript conversion, including agent control, Artifact transfer, Recording playback, App catalog and cluster inventory; `release client-types --check` detects generated-model drift |
@@ -289,6 +291,8 @@ designs above.
 | `apps/console/bff/src/computers/` | Computer HTTP/WebSocket routes, Console cookie/CSRF and Origin checks, ticket endpoint and shared relay; installed evidence is recorded in the Computers plan |
 | `apps/console/bff/src/mcp_client/resources.rs` | shared App/native resource subscriptions, acknowledgment, capacity limits, cancellation cleanup and source-loss retirement |
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection and access inventory/revocation schemas, and terminal controls shared by the Console and MCP surfaces |
+| `platform/computers/contract/src/worker_authorization.rs` | checked worker catalog section, provider audience, authentication scope and closed role declarations; exact client grant/authentication sets and context facts establish registration isolation |
+| `platform/computers/src/gateway/worker_authorization.rs` | exclusive worker client claim, current membership and Computers-owned provider role issuance through the reusable Gateway resolver |
 | `platform/computers/contract/src/value_admission.rs` | portable grant-name and permission checks shared by public contract decoding, native hydration and service admission |
 | `platform/computers/contract/src/terminal_version.rs` | admitted numeric terminal profile shared by typed controls, their decoders and generated schema |
 | `platform/computers/src/task_references.rs` and `platform/computers/queries/` | closed domain Task payloads shared by admission and workers; SQL admission for private journal, retry-receipt and Task-link recovery reads |
@@ -790,7 +794,7 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 |---|---|
 | `catalog.rs` | validated active catalog and profile/server lookup |
 | `catalog_admission.rs` | required registry admission before catalog construction, publication and stored revision decoding; reload preserves the bound registry |
-| `oauth_clients.rs` | contributed OAuth registration and current-authority policy; owner resolvers supply registration, issuance and request/action admission |
+| `oauth_clients.rs` | contributed OAuth registration and current-authority policy; exclusive owner decoration preserves installed/managed collision checks and disabled-client denial; owners supply issuance and request/action admission |
 | `http/context.rs`, `authentication.rs`, `auth_support.rs` | typed shared HTTP context, route-owned profile selection, token admission and authentication audit |
 | `http/registration.rs`, `lifecycle.rs` | module route factories, required bindings, request and worker admission, cancellation and drain ownership |
 | `http/native_mcp/` | authenticated native transport and notification-driven capability discovery shared by Agents and Workspace; callers supply client capabilities and progress observers |
@@ -845,6 +849,7 @@ build and runtime assembly. Command and route modules live in `src/bin/gateway`.
 | `server.rs` | router assembly only |
 | `runtime.rs` | shared application state and HTTP clients |
 | `oauth/`, `oauth_grants/` | authorize/callback/token and grant handlers |
+| `auth.rs` | authorization-server metadata, public signing JWKS and the access-token verifier discovery subset consumed by stock provider clients |
 | `admin/control_plane.rs` | control revision read/update |
 | `admin/tasks.rs` | policy-checked cancellation through the owning server's official Tasks endpoint |
 | `admin/artifacts.rs` | release/grant/link mutations through artifact service |

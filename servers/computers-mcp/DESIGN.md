@@ -4,10 +4,11 @@
 
 | Boundary | Supported profile |
 |---|---|
+| OAuth 2.0 RFC 6749, JWT RFC 7519 and client assertions RFC 7523 | Worker-only RS256 private_key_jwt and explicit resource form; stock provider validates access-token signature and roles |
 | Shared Tasks | Qualified `provider_wait` observation leases, domain-first settlement, retained Task projection |
 | Veoveo Computers | Provider-independent operation, Computer, owner and Work Context records in `platform/computers` |
 | `veoveo.ai/computer-files/v1` | Private framed metadata and bounded binary regular-file transport through the qualified guest launcher; distinct from public Artifact/MCP resources |
-| Native OpenShell | Private mTLS/protobuf adapter in `platform/runtimes/computers`; its exact provider patch graph governs the selected Docker profile |
+| Native OpenShell | Unmodified OpenShell 0.1.2 mTLS/protobuf adapter in `platform/runtimes/computers`; official release profile admits the selected Docker artifacts |
 | MCP 2026-07-28, repository contract revision 4 | Stateless authenticated lifecycle tools, resources, Tasks and request-scoped subscriptions |
 | WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, fresh stock SSH shell, bounded binary terminal, resize and sequenced renewal deadlines; the gateway authenticates the upgrade |
 | Stock OpenShell CLI `0.1.2`, gRPC over HTTP/2 over WebSocket | Restricted internal adapter for five selected SSH methods; private Ready/Lease controls are removed by the public edge before reaching the stock client |
@@ -350,8 +351,18 @@ core collection available with Setup Required. It creates no capacity policy.
 
 The qualified local variant uses `kind: "openshell_docker"`. Its fields are `gateway`,
 `allocator`, `limits`, `templates`, `defaultTemplate`, `execution` and
-`maintenanceTransitions`. Gateway contains `workspace`
-and `transport`; the packaged retained Host backend admits only workspace `default`
+`maintenanceTransitions`. Gateway contains `workspace`, `transport` and required `authentication`.
+Authentication declares HTTPS `issuer`, typed HTTPS `resource`, `clientId`,
+`privateKeyFile`, `keyId`, `tokenEndpointAuthMethod: "private_key_jwt"`, the explicit
+provider-authentication scope set and optional additive `caFile`. The projected RSA
+key remains worker-only; configuration contains its path and public key identity.
+The loader reads one opened regular PEM file of at most 16 KiB with mode 0400,
+0600 or 0440. Assertions use RS256, a fresh UUID `jti`, a 60-second lifetime and
+the discovered token endpoint as audience. The token request declares the resource.
+The runtime signs short-lived client assertions and obtains resource-isolated access
+tokens through the installation's existing authorization server. Client-secret
+profiles are refused. The provider's signature and role checks authorize its RPCs.
+For `workspace`, the packaged retained Host backend admits only workspace `default`
 and rejects another selection before opening trust material or creating capacity.
 The Host namespace is a separate instance identity. Allocator is itself a transport.
 Each transport provides `endpoint`

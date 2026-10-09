@@ -191,6 +191,9 @@ computers:
   existingConfigMap: ""
   configurationRevision: ""
   existingTrustSecret: ""
+  existingOAuthSecret: ""
+  # SHA-256 of the public worker JWKS; never a credential digest.
+  oauthCredentialRevision: ""
   host:
     image:
       repository: veoveo/computer-host

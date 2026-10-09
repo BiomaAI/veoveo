@@ -2,16 +2,15 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
-use jsonwebtoken::EncodingKey;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use url::Host;
 use url::Url;
+use veoveo_oauth_client::{ClientAssertionKeyId, ClientAssertionSigner};
 
 pub(super) struct ClientSigningKey {
-    pub id: String,
-    pub key: EncodingKey,
+    pub signer: ClientAssertionSigner,
 }
 
 pub(super) fn resolve(
@@ -37,8 +36,10 @@ pub(super) fn resolve(
     }
     match (path, id) {
         (None, None) if loopback => Ok(ClientSigningKey {
-            id: super::tokens::CONFORMANCE_KEY_ID.into(),
-            key: super::tokens::conformance_encoding_key()?,
+            signer: ClientAssertionSigner::from_rsa_key(
+                ClientAssertionKeyId::parse(super::tokens::CONFORMANCE_KEY_ID)?,
+                super::tokens::conformance_encoding_key()?,
+            ),
         }),
         (Some(path), Some(id))
             if !id.is_empty()
@@ -65,11 +66,10 @@ pub(super) fn resolve(
             if bytes.len() > 16 * 1024 {
                 bail!("service client private key exceeds 16 KiB");
             }
-            let key = EncodingKey::from_rsa_pem(&bytes);
+            let key = ClientAssertionSigner::from_rsa_pem(ClientAssertionKeyId::parse(id)?, &bytes);
             bytes.fill(0);
             Ok(ClientSigningKey {
-                id: id.into(),
-                key: key.context("invalid RSA service client private key")?,
+                signer: key.context("invalid RSA service client private key")?,
             })
         }
         _ => bail!(
@@ -85,7 +85,6 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn installed_key_loading_checks_private_file_and_signs_with_selected_identity() {
-        use jsonwebtoken::{Algorithm, Header, jwk::Jwk};
         use std::{fs, io::Write, os::unix::fs::OpenOptionsExt};
         let path = std::env::temp_dir().join(format!("veoveo-client-key-{}", uuid::Uuid::new_v4()));
         struct Cleanup(std::path::PathBuf);
@@ -106,19 +105,19 @@ mod tests {
         file.write_all(super::super::tokens::conformance_private_key_pem().as_bytes())
             .unwrap();
         let signing = resolve(endpoint, Some(&path), Some("client-key")).unwrap();
-        let mut header = Header::new(Algorithm::RS256);
-        header.kid = Some(signing.id);
-        let token =
-            jsonwebtoken::encode(&header, &serde_json::json!({"sub":"client"}), &signing.key)
-                .unwrap();
+        let token = signing
+            .signer
+            .diagnostic_assertion(&"client".parse().unwrap(), endpoint, 1, 2, "diagnostic")
+            .unwrap();
         assert_eq!(
-            jsonwebtoken::decode_header(&token).unwrap().kid.as_deref(),
+            jsonwebtoken::decode_header(token.expose_secret())
+                .unwrap()
+                .kid
+                .as_deref(),
             Some("client-key")
         );
         assert_eq!(
-            Jwk::from_encoding_key(&signing.key, Algorithm::RS256)
-                .unwrap()
-                .algorithm,
+            signing.signer.public_jwk().unwrap().algorithm,
             super::super::tokens::conformance_jwks().unwrap().keys[0].algorithm
         );
         use std::os::unix::fs::PermissionsExt;

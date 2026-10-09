@@ -5,6 +5,7 @@
 | Boundary | Supported profile |
 |---|---|
 | Executable | Existing `gateway` CLI and `/usr/local/bin/gateway` image entrypoint; one process |
+| JWT access-token verifier discovery | `/oauth/.well-known/openid-configuration` exposes the existing issuer, public signing JWKS URI, token endpoint and supported token authentication methods. This consumption subset supports access-token verification; it does not advertise OpenID authentication or ID-token issuance. |
 | MCP and HTTP | The [gateway library](../DESIGN.md) owns forwarding and authentication contracts; composition binds hosted routes and owner adapters |
 | Installation plan | `veoveo.ai/module-selection/v1` and `veoveo.ai/module-plan/v1`, with camelCase JSON fields and digest-bound composition identity |
 | Database | SurrealDB SDK and native isolated fixtures pinned to 3.3.0; owner lane admission through [module runner](../../modules/DESIGN.md) |
@@ -38,6 +39,25 @@ owner lane after its prerequisites; `module-status` checks their current proof.
 Connection startup applies no schema and refuses either mixed-catalog marker with
 an actionable fresh-installation error. Optional owner schema comes from each owner's
 declaration rather than a shared bootstrap catalog.
+
+## OAuth Owner Composition
+
+Composition wraps the managed OAuth resolver with exclusive owner claims. The base
+resolver checks installed and managed registration collisions and current managed
+identity before owner authority can attach to an installed registration. Every owner
+is inspected; duplicate claims and owner errors reject resolution. A disabled claim
+makes that client unavailable without restoring its installed authority. Unclaimed
+clients keep their base authority, including managed membership, execution attribution
+and action admission. Computers supplies its worker resource and role policy through
+its owning adapter; the shared resolver carries no domain vocabulary.
+
+The access-token verifier discovery route selects the same public authorization
+server as RFC 8414 metadata and `/oauth/jwks.json`. The response contains only
+`issuer`, `jwks_uri`, `token_endpoint` and `token_endpoint_auth_methods_supported`.
+The authentication methods come from the same catalog metadata as RFC 8414 discovery.
+JWKS comes from the existing signing-key public export. An unconfigured public issuer returns HTTP 404. Token acquisition
+still uses the registered OAuth grant and client authentication method; this route
+does not introduce an authentication flow or a second issuer.
 
 ## Query Files
 

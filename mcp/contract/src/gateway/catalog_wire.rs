@@ -71,6 +71,14 @@ impl GatewayControlPlane {
             policies: self.policies.iter().map(|x| x.version.clone()).collect(),
             tenants: self.tenants.iter().map(|x| x.id.clone()).collect(),
             data_labels: self.data_labels.iter().map(|x| x.id.clone()).collect(),
+            work_contexts: self
+                .work_contexts
+                .iter()
+                .map(|context| veoveo_gateway_contract::WorkContextFacts {
+                    id: context.id.clone(),
+                    tenant: context.tenant.clone(),
+                })
+                .collect(),
             oauth_clients: self
                 .oauth_clients
                 .iter()
@@ -80,10 +88,16 @@ impl GatewayControlPlane {
                     tenant: x.tenant.clone(),
                     allowed_resources: x.allowed_resources.clone(),
                     allowed_scopes: x.allowed_scopes.clone(),
-                    client_credentials: x.grant_types.contains(&OAuthGrantType::ClientCredentials),
-                    private_key_jwt: x
-                        .auth_methods
-                        .contains(&OAuthClientAuthMethod::PrivateKeyJwt),
+                    grant_types: x.grant_types.clone(),
+                    auth_methods: x.auth_methods.clone(),
+                    default_work_context: x.default_work_context.clone(),
+                    invocation_mode: x.invocation_mode,
+                    has_jwks: x.jwks.is_some(),
+                    has_credential_secret: x.credential_secret.is_some(),
+                    has_redirect_uris: !x.redirect_uris.is_empty(),
+                    has_compatibility_helpers: !x.allowed_compatibility_helpers.is_empty(),
+                    direct_task_call_adapter: x.direct_task_call_adapter,
+                    has_knowledge_indexing: x.knowledge_indexing.is_some(),
                 })
                 .collect(),
         }

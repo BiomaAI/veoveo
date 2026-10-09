@@ -137,7 +137,7 @@ gateway:
         - reference: agent_model_api_key
           secret: veoveo-workspace-models
           key: api-key
-  controlPlaneRevision: 3a99a96eb93c15e9eb4290dfbb67534c3324ff722c7456db216a506d50bd4f19
+  controlPlaneRevision: 6909c5168557022cd9103575235c8383e7b8ba712bf19a923be96e1d7371a716
 consoleBff:
   workspace:
     oauthScopes:
@@ -204,13 +204,15 @@ computers:
   resources:
     requests: {cpu: "0", memory: "0"}
   existingConfigMap: bioma-computers-configuration
-  configurationRevision: 6e9751d3d2d4b96135c06af19151397a5b0eeba23e490c507031fdb3e00ac535
+  configurationRevision: 7dba5d03133e3a4eba1b58016e1a44f57d54f1c8259271a5e9d2119fb9dec8eb
   existingTrustSecret: bioma-computers-worker-trust
+  existingOAuthSecret: veoveo-computers-worker-oauth
+  oauthCredentialRevision: 1ed8ff9127d82b5eff6704ba50e4f5d165bf3c30e6911bb94925c50612898b29
   host:
     existingConfigMap: bioma-computer-host-configuration
     resources:
       requests: {cpu: "0", memory: "0"}
-    configurationRevision: 5b0d5dd80cd1370be7691d05f766dfd1001f36fb1725867dd6611c495640129a
+    configurationRevision: c4a060cc1c303368f5ca053adccf713c15793f6c4f8b703c409108218178072d
     existingTrustSecret: bioma-computer-host-trust
     persistence:
       size: 100Gi

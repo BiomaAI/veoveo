@@ -118,90 +118,128 @@ async fn managed_token_http_route_resolves_durable_clients_before_resource_routi
         .unwrap(),
     ])
     .await;
-    work_context_authority::setup(&db.a).await;
     let state = managed_state(&db.a);
     let _stop = state.stop.clone().drop_guard();
-    let human = fixture_subject("Alice");
-    let alice = app(&state, human.clone());
-    let definition = published(&alice).await;
-    let (status, _) = request(&alice, "POST", "agent-instances", json!({"requestId":uuid::Uuid::now_v7(),"id":"worker-one","name":"Worker","definition":"worker","revision":definition["publishedDigest"]})).await;
-    assert_eq!(status, StatusCode::ACCEPTED);
-    let actor = state
-        .execution_authority(&"operator".parse().unwrap(), &human)
-        .await
-        .unwrap();
-    let instance = AgentRepository::new(db.a.clone())
-        .managed_agent(&actor, "worker-one")
-        .await
-        .unwrap();
-    let owner = uuid::Uuid::now_v7();
-    let claim = AgentRepository::new(db.a.clone())
-        .claim_managed_agent_operation(instance.operation, owner)
-        .await
-        .unwrap()
-        .unwrap()
-        .claim(owner)
-        .unwrap();
-    AgentRepository::new(db.a.clone())
-        .observe_managed_agent(&claim, ManagedAgentPhase::Credentials, None)
-        .await
-        .unwrap();
-    AgentRepository::new(db.a.clone())
-        .register_managed_agent_key(
-            &claim,
-            ManagedAgentPublicKey {
-                kid: "test".into(),
-                n: "public-modulus".into(),
-                e: "AQAB".into(),
-            },
-        )
-        .await
-        .unwrap();
-    for phase in [
-        ManagedAgentPhase::Storage,
-        ManagedAgentPhase::Draining,
-        ManagedAgentPhase::Workload,
-    ] {
-        AgentRepository::new(db.a.clone())
-            .observe_managed_agent(&claim, phase, None)
+    tokio::time::timeout(std::time::Duration::from_secs(180), async {
+        work_context_authority::setup(&db.a).await;
+        let human = fixture_subject("Alice");
+        let alice = app(&state, human.clone());
+        let definition = published(&alice).await;
+        let (status, _) = request(&alice, "POST", "agent-instances", json!({"requestId":uuid::Uuid::now_v7(),"id":"worker-one","name":"Worker","definition":"worker","revision":definition["publishedDigest"]})).await;
+        assert_eq!(status, StatusCode::ACCEPTED);
+        let actor = state
+            .execution_authority(&"operator".parse().unwrap(), &human)
             .await
             .unwrap();
-    }
-    let catalog = state.catalog.current();
-    assert!(
-        catalog
-            .oauth_client(&instance.identity.client_id.parse().unwrap())
-            .is_none()
-    );
-    let app_state = crate::runtime::AppState {
-        catalog: state.catalog.clone(),
-        gateway_state: state.gateway.clone(),
-        http: Arc::new(RwLock::new(reqwest::Client::new())),
-        public_base_url: "https://veoveo.example".into(),
-        refresh_delivery_cipher: RefreshTokenDeliveryCipher::new(&[42; 32]).unwrap(),
-        refresh_delivery_window: GatewayRefreshDeliveryWindow::from_seconds(
-            NonZeroU32::new(10).unwrap(),
+        let instance = AgentRepository::new(db.a.clone())
+            .managed_agent(&actor, "worker-one")
+            .await
+            .unwrap();
+        let owner = uuid::Uuid::now_v7();
+        let claim = AgentRepository::new(db.a.clone())
+            .claim_managed_agent_operation(instance.operation, owner)
+            .await
+            .unwrap()
+            .unwrap()
+            .claim(owner)
+            .unwrap();
+        AgentRepository::new(db.a.clone())
+            .observe_managed_agent(&claim, ManagedAgentPhase::Credentials, None)
+            .await
+            .unwrap();
+        AgentRepository::new(db.a.clone())
+            .register_managed_agent_key(
+                &claim,
+                ManagedAgentPublicKey {
+                    kid: "test".into(),
+                    n: "public-modulus".into(),
+                    e: "AQAB".into(),
+                },
+            )
+            .await
+            .unwrap();
+        for phase in [
+            ManagedAgentPhase::Storage,
+            ManagedAgentPhase::Draining,
+            ManagedAgentPhase::Workload,
+        ] {
+            AgentRepository::new(db.a.clone())
+                .observe_managed_agent(&claim, phase, None)
+                .await
+                .unwrap();
+        }
+        let catalog = state.catalog.current();
+        assert!(
+            catalog
+                .oauth_client(&instance.identity.client_id.parse().unwrap())
+                .is_none()
+        );
+        let app_state = crate::runtime::AppState {
+            catalog: state.catalog.clone(),
+            gateway_state: state.gateway.clone(),
+            http: Arc::new(RwLock::new(reqwest::Client::new())),
+            public_base_url: "https://veoveo.example".into(),
+            refresh_delivery_cipher: RefreshTokenDeliveryCipher::new(&[42; 32]).unwrap(),
+            refresh_delivery_window: GatewayRefreshDeliveryWindow::from_seconds(
+                NonZeroU32::new(10).unwrap(),
+            )
+            .unwrap(),
+        };
+        let tokens = Router::new()
+            .route("/oauth/token", post(crate::oauth::token_endpoint))
+            .with_state(app_state);
+        // Both explicit and implicit resource routing must reach assertion validation.
+        // The fixture deliberately has no private key: issuance is installed acceptance.
+        for (case, resource) in [
+            ("explicit_worker", Some(instance.identity.resource.as_str())),
+            ("implicit_worker", None),
+            ("other_resource", Some("https://veoveo.example/mcp/admin")),
+        ] {
+            let mut form = url::form_urlencoded::Serializer::new(String::new());
+            form.append_pair("grant_type", "client_credentials")
+                .append_pair("client_id", &instance.identity.client_id);
+            if let Some(resource) = resource {
+                form.append_pair("resource", resource);
+            }
+            let response = tokens
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/oauth/token")
+                        .header("content-type", "application/x-www-form-urlencoded")
+                        .body(Body::from(form.finish()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            eprintln!("managed OAuth probe case={case} method=POST route=/oauth/token grant_type=client_credentials client_id=fixture status={}", response.status().as_u16());
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "managed OAuth probe case={case}");
+            let body: Value =
+                serde_json::from_slice(&to_bytes(response.into_body(), 65536).await.unwrap()).unwrap();
+            assert_eq!(body["error"], "invalid_client");
+            assert_eq!(
+                body["error_description"],
+                if resource.is_some_and(|r| r.ends_with("/admin")) {
+                    "client is not registered for this protected resource"
+                } else {
+                    "client authentication failed"
+                }
+            );
+        }
+        let (status, _) = request(
+            &alice,
+            "POST",
+            "agent-definitions/worker/disable",
+            json!({"requestId":uuid::Uuid::now_v7(),"expectedRevision":definition["revision"]}),
         )
-        .unwrap(),
-    };
-    let tokens = Router::new()
-        .route("/oauth/token", post(crate::oauth::token_endpoint))
-        .with_state(app_state);
-    // Both explicit and implicit resource routing must reach assertion validation.
-    // The fixture deliberately has no private key: issuance is installed acceptance.
-    for resource in [
-        Some(instance.identity.resource.as_str()),
-        None,
-        Some("https://veoveo.example/mcp/admin"),
-    ] {
+        .await;
+        assert_eq!(status, StatusCode::OK);
         let mut form = url::form_urlencoded::Serializer::new(String::new());
         form.append_pair("grant_type", "client_credentials")
-            .append_pair("clientId", &instance.identity.client_id);
-        if let Some(resource) = resource {
-            form.append_pair("resource", resource);
-        }
+            .append_pair("client_id", &instance.identity.client_id)
+            .append_pair("resource", &instance.identity.resource);
         let response = tokens
-            .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
@@ -212,47 +250,13 @@ async fn managed_token_http_route_resolves_durable_clients_before_resource_routi
             )
             .await
             .unwrap();
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        eprintln!("managed OAuth probe case=disabled_worker method=POST route=/oauth/token grant_type=client_credentials client_id=fixture status={}", response.status().as_u16());
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "managed OAuth probe case=disabled_worker");
         let body: Value =
             serde_json::from_slice(&to_bytes(response.into_body(), 65536).await.unwrap()).unwrap();
-        assert_eq!(body["error"], "invalid_client");
         assert_eq!(
             body["error_description"],
-            if resource.is_some_and(|r| r.ends_with("/admin")) {
-                "client is not registered for this protected resource"
-            } else {
-                "client authentication failed"
-            }
+            "client is not registered for this protected resource"
         );
-    }
-    let (status, _) = request(
-        &alice,
-        "POST",
-        "agent-definitions/worker/disable",
-        json!({"requestId":uuid::Uuid::now_v7(),"expectedRevision":definition["revision"]}),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-    let mut form = url::form_urlencoded::Serializer::new(String::new());
-    form.append_pair("grant_type", "client_credentials")
-        .append_pair("clientId", &instance.identity.client_id)
-        .append_pair("resource", &instance.identity.resource);
-    let response = tokens
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/oauth/token")
-                .header("content-type", "application/x-www-form-urlencoded")
-                .body(Body::from(form.finish()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    let body: Value =
-        serde_json::from_slice(&to_bytes(response.into_body(), 65536).await.unwrap()).unwrap();
-    assert_eq!(
-        body["error_description"],
-        "client is not registered for this protected resource"
-    );
+    }).await.expect("managed OAuth route operation exceeded 180 seconds");
 }

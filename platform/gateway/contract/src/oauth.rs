@@ -260,3 +260,36 @@ pub enum PkceCodeChallengeMethod {
     #[vocabulary(rename = "S256")]
     S256,
 }
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum OAuthGrantType {
+    AuthorizationCodePkce,
+    RefreshToken,
+    ClientCredentials,
+    EnterpriseManagedAuthorization,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum OAuthClientAuthMethod {
+    None,
+    PrivateKeyJwt,
+    ClientSecretBasic,
+    ClientSecretPost,
+    TlsClientAuth,
+}
+
+impl OAuthClientAuthMethod {
+    pub fn requires_secret(&self) -> bool {
+        matches!(self, Self::ClientSecretBasic | Self::ClientSecretPost)
+    }
+
+    pub fn requires_jwks(&self) -> bool {
+        matches!(self, Self::PrivateKeyJwt)
+    }
+}

@@ -15,14 +15,15 @@ async fn provider_rpcs_require_bearer_and_share_predispatch_credentials() {
 
 #[test]
 fn worker_config_requires_external_identity_and_explicit_credential_method() {
-    let input = serde_json::json!({"issuer":"https://issuer.fixture/", "audience":"resource", "clientId":"worker",
-        "clientSecretFile":"/private/worker-secret", "tokenEndpointAuthMethod":"client_secret_post", "scopes":["https://resource.fixture/.default"], "caFile":null});
+    let input = serde_json::json!({"issuer":"https://issuer.fixture/", "resource":"https://resource.fixture/", "clientId":"worker",
+        "privateKeyFile":"/private/worker.pem", "keyId":"worker-key", "tokenEndpointAuthMethod":"private_key_jwt", "scopes":["https://resource.fixture/.default"], "caFile":null});
     assert!(serde_json::from_value::<WorkerOAuthConfig>(input.clone()).is_ok());
     for field in [
         "issuer",
-        "audience",
+        "resource",
         "clientId",
-        "clientSecretFile",
+        "privateKeyFile",
+        "keyId",
         "tokenEndpointAuthMethod",
         "scopes",
     ] {
@@ -35,12 +36,13 @@ fn worker_config_requires_external_identity_and_explicit_credential_method() {
     }
     for (field, value) in [
         ("scopes", serde_json::json!([])),
-        ("audience", serde_json::json!("")),
+        ("resource", serde_json::json!("")),
         (
             "tokenEndpointAuthMethod",
             serde_json::json!("client_secret_basic"),
         ),
-        ("clientSecretFile", serde_json::json!("relative")),
+        ("privateKeyFile", serde_json::json!("relative")),
+        ("keyId", serde_json::json!("bad key")),
     ] {
         let mut invalid = input.clone();
         invalid[field] = value;
@@ -142,7 +144,7 @@ async fn issuer_probes_preserve_known_key_and_selected_defects_then_shutdown() {
             !matches!(probe, WorkerTokenProbe::WrongIssuer)
         );
         assert_eq!(
-            claims["aud"].as_str() == Some(issuer.config.audience()),
+            claims["aud"].as_str() == Some(issuer.config.resource().as_str()),
             !matches!(probe, WorkerTokenProbe::WrongAudience)
         );
         let now = SystemTime::now()

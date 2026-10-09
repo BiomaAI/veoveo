@@ -9,7 +9,6 @@ use std::{
 use uuid::Uuid;
 use veoveo_computers_runtime::{
     GatewayConfig, OpenShellRuntime, WorkerOAuthConfig, WorkerOAuthFields,
-    WorkerTokenAuthentication,
 };
 mod controller;
 pub mod docker_daemon;
@@ -86,7 +85,7 @@ sandbox_pids_limit = 256
 enable_bind_mounts = false
 "#,
         issuer = serde_json::to_string(authentication.issuer().as_str()).unwrap(),
-        audience = serde_json::to_string(authentication.audience()).unwrap(),
+        audience = serde_json::to_string(authentication.resource().as_str()).unwrap(),
         image = serde_json::to_string(&image).unwrap(),
         socket = quoted(socket),
         sandbox = quoted(sandbox),

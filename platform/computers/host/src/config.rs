@@ -29,7 +29,7 @@ mod tests {
             "templates": [{"fingerprint": "b".repeat(64), "capacityBytes": 536870912}],
             "reserveBytes": 536870912, "registry": {"authority": "registry.internal:5000", "transport": "development_http"},
             "bridgeAddress": "172.30.0.1", "networkPool": "172.31.0.0",
-            "providerAuthentication": {"issuer":"https://issuer.internal/openshell", "audience":"openshell-worker",
+            "providerAuthentication": {"issuer":"https://issuer.internal/openshell", "resource":"https://issuer.internal/computers/provider",
                 "rolesClaim":"roles", "adminRole":"openshell-admin", "userRole":"openshell-user", "jwksTtlSecs":300}
         })).unwrap()
     }
@@ -54,6 +54,7 @@ mod tests {
         let generated = valid().provider_config().unwrap();
         assert!(generated.contains("[openshell.gateway.oidc]"));
         assert!(generated.contains("issuer = \"https://issuer.internal/openshell\""));
+        assert!(generated.contains("audience = \"https://issuer.internal/computers/provider\""));
         assert!(generated.contains("admin_role = \"openshell-admin\""));
         assert!(generated.contains("user_role = \"openshell-user\""));
         assert!(generated.contains("enabled = false"));
@@ -61,6 +62,13 @@ mod tests {
         assert!(!generated.contains("user_common_names"));
         let mut config = valid();
         config.provider_authentication.admin_role.clear();
+        assert!(config.provider_config().is_err());
+        let mut config = valid();
+        config.provider_authentication.resource =
+            veoveo_gateway_contract::ProtectedResourceId::parse(
+                "http://issuer.internal/computers/provider",
+            )
+            .unwrap();
         assert!(config.provider_config().is_err());
         let mut config = valid();
         config.provider_authentication.jwks_ttl_secs = 0;
@@ -81,6 +89,80 @@ mod tests {
         config = valid();
         config.supervisor_image.clear();
         assert!(config.provider_config().is_err());
+    }
+    #[test]
+    fn reference_worker_registration_host_audience_and_key_projection_agree() {
+        use veoveo_computers_contract::{
+            COMPUTER_WORKER_AUTHORIZATION_SECTION, ComputerWorkerAuthorizationSection,
+        };
+        let host: Config = serde_json::from_str(include_str!(
+            "../../../../examples/bioma/computers/host.json"
+        ))
+        .unwrap();
+        host.validate().unwrap();
+        let gateway: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../examples/bioma/gateway.json")).unwrap();
+        let section: ComputerWorkerAuthorizationSection =
+            serde_json::from_value(gateway[COMPUTER_WORKER_AUTHORIZATION_SECTION].clone()).unwrap();
+        let service: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../examples/bioma/computers/computers.json"
+        ))
+        .unwrap();
+        let worker: veoveo_computers_runtime::WorkerOAuthFields =
+            serde_json::from_value(service["capacity"]["gateway"]["authentication"].clone())
+                .unwrap();
+        veoveo_computers_runtime::WorkerOAuthConfig::new(worker.clone()).unwrap();
+        assert_eq!(
+            host.provider_authentication.resource,
+            section.fields().resource
+        );
+        assert_eq!(worker.resource, section.fields().resource);
+        assert_eq!(worker.client_id, section.fields().client_id);
+        assert_eq!(worker.issuer, host.provider_authentication.issuer);
+        assert_eq!(worker.scopes, section.scopes());
+        assert_eq!(
+            host.provider_authentication.admin_role,
+            section.fields().admin_role.as_str()
+        );
+        assert_eq!(
+            host.provider_authentication.user_role,
+            section.fields().user_role.as_str()
+        );
+        assert_eq!(
+            worker.private_key_file,
+            std::path::Path::new("/etc/veoveo/computers/oauth/private-key.pem")
+        );
+        let registration = gateway["oauthClients"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|client| client["id"].as_str() == Some(worker.client_id.as_str()))
+            .unwrap();
+        assert_eq!(
+            registration["allowedResources"],
+            serde_json::json!([worker.resource])
+        );
+        assert_eq!(
+            registration["allowedScopes"],
+            serde_json::to_value(&worker.scopes).unwrap()
+        );
+        assert_eq!(
+            registration["jwks"]["path"],
+            "/etc/veoveo/gateway/computers-worker-jwks.json"
+        );
+        let jwks: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../examples/bioma/computers/worker-jwks.json"
+        ))
+        .unwrap();
+        assert_eq!(
+            jwks["keys"][0]["kid"].as_str(),
+            Some(worker.key_id.as_str())
+        );
+        assert!(
+            host.provider_config()
+                .unwrap()
+                .contains(&format!("audience = {:?}", worker.resource.as_str()))
+        );
     }
     #[test]
     fn private_networks_and_generated_storage_configuration_keep_one_identity() {
@@ -118,7 +200,7 @@ pub struct Config {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProviderAuthentication {
     pub issuer: veoveo_types::HttpsUrl,
-    pub audience: String,
+    pub resource: veoveo_gateway_contract::ProtectedResourceId,
     pub roles_claim: String,
     pub admin_role: String,
     pub user_role: String,
@@ -130,14 +212,21 @@ impl ProviderAuthentication {
             self.issuer.as_url().query().is_none(),
             "provider OIDC issuer cannot contain a query"
         );
-        for value in [&self.audience, &self.admin_role, &self.user_role] {
+        let resource = self.resource.as_str().parse::<veoveo_types::HttpsUrl>()?;
+        ensure!(
+            resource.as_str() == self.resource.as_str()
+                && resource.as_url().query().is_none()
+                && resource.as_url().fragment().is_none(),
+            "provider resource requires a canonical HTTPS audience"
+        );
+        for value in [&self.admin_role, &self.user_role] {
             ensure!(
                 !value.is_empty()
                     && value.len() <= 256
                     && !value
                         .bytes()
                         .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace()),
-                "provider OIDC requires an audience and explicit nonempty worker roles"
+                "provider OIDC requires explicit nonempty worker roles"
             );
         }
         ensure!(
@@ -307,7 +396,7 @@ enable_bind_mounts = false
 "#,
             namespace = self.namespace,
             issuer = serde_json::to_string(&self.provider_authentication.issuer)?,
-            audience = serde_json::to_string(&self.provider_authentication.audience)?,
+            audience = serde_json::to_string(self.provider_authentication.resource.as_str())?,
             roles_claim = serde_json::to_string(&self.provider_authentication.roles_claim)?,
             admin_role = serde_json::to_string(&self.provider_authentication.admin_role)?,
             user_role = serde_json::to_string(&self.provider_authentication.user_role)?,

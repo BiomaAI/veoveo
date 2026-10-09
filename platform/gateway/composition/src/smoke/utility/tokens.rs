@@ -29,17 +29,6 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
 "#;
 
 #[derive(Debug, Serialize)]
-struct ClientAssertionClaims {
-    iss: String,
-    sub: String,
-    aud: String,
-    exp: u64,
-    nbf: u64,
-    iat: u64,
-    jti: String,
-}
-
-#[derive(Debug, Serialize)]
 struct IdJagClaims {
     iss: String,
     sub: String,
@@ -106,8 +95,7 @@ pub(super) struct IdJagTokenExchangeInput {
 
 fn build_client_assertion(
     input: &ClientAssertionInput,
-    key: &EncodingKey,
-    key_id: &str,
+    signer: &veoveo_oauth_client::ClientAssertionSigner,
 ) -> Result<String> {
     if input.ttl_minutes <= 0 {
         return Err(anyhow!("ttl_minutes must be greater than zero"));
@@ -120,18 +108,14 @@ fn build_client_assertion(
         .jwt_id
         .clone()
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    let claims = ClientAssertionClaims {
-        iss: input.client_id.clone(),
-        sub: input.client_id.clone(),
-        aud: input.audience.clone(),
-        exp: unix_seconds(expires_at.timestamp())?,
-        nbf: unix_seconds(now.timestamp())?,
-        iat: unix_seconds(now.timestamp())?,
-        jti: jwt_id,
-    };
-    let mut header = Header::new(Algorithm::RS256);
-    header.kid = Some(key_id.to_string());
-    Ok(encode(&header, &claims, key)?)
+    let assertion = signer.diagnostic_assertion(
+        &veoveo_types::OAuthClientId::parse(&input.client_id)?,
+        &input.audience,
+        unix_seconds(now.timestamp())?,
+        unix_seconds(expires_at.timestamp())?,
+        &jwt_id,
+    )?;
+    Ok(assertion.expose_secret().to_owned())
 }
 
 pub(super) fn cmd_gateway_jwks() -> Result<()> {
@@ -151,7 +135,13 @@ pub(super) fn cmd_gateway_private_key_der_b64() {
 pub(super) fn cmd_gateway_client_assertion(input: ClientAssertionInput) -> Result<()> {
     println!(
         "{}",
-        build_client_assertion(&input, &conformance_encoding_key()?, CONFORMANCE_KEY_ID)?
+        build_client_assertion(
+            &input,
+            &veoveo_oauth_client::ClientAssertionSigner::from_rsa_key(
+                veoveo_oauth_client::ClientAssertionKeyId::parse(CONFORMANCE_KEY_ID)?,
+                conformance_encoding_key()?
+            )
+        )?
     );
     Ok(())
 }
@@ -160,11 +150,7 @@ pub(super) async fn cmd_gateway_token_exchange(input: TokenExchangeInput) -> Res
     if input.scopes.is_empty() {
         return Err(anyhow!("at least one --scope is required"));
     }
-    let assertion = build_client_assertion(
-        &input.client_assertion,
-        &input.signing.key,
-        &input.signing.id,
-    )?;
+    let assertion = build_client_assertion(&input.client_assertion, &input.signing.signer)?;
     let scope = input.scopes.join(" ");
     let client_id = input.client_assertion.client_id.clone();
     let mut serializer = url::form_urlencoded::Serializer::new(String::new());

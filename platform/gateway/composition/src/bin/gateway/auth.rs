@@ -11,7 +11,7 @@ use axum::{
     },
     response::IntoResponse,
 };
-use veoveo_mcp_contract::GatewayProfileId;
+use veoveo_mcp_contract::{GatewayProfileId, OAuthEndpointUrl, TokenIssuer};
 pub(super) async fn protected_resource_metadata(
     State(state): State<AppState>,
     AxumPath(profile): AxumPath<String>,
@@ -50,6 +50,40 @@ pub(super) async fn authorization_server_metadata(
         }
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+/// Access-token verifier discovery subset, not an OpenID authentication provider.
+#[derive(serde::Serialize)]
+struct AccessTokenVerifierMetadata {
+    issuer: TokenIssuer,
+    jwks_uri: OAuthEndpointUrl,
+    token_endpoint: OAuthEndpointUrl,
+    token_endpoint_auth_methods_supported: Vec<String>,
+}
+
+pub(super) async fn access_token_verifier_metadata(
+    State(state): State<AppState>,
+) -> axum::response::Response {
+    let catalog = current_catalog(&state.catalog);
+    let Some(server) = public_authorization_server(&catalog, &state.public_base_url) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Ok(jwks_uri) = OAuthEndpointUrl::new(format!(
+        "{}/oauth/jwks.json",
+        state.public_base_url.trim_end_matches('/')
+    )) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let Ok(metadata) = catalog.authorization_server_metadata_for_server(&server.id) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    Json(AccessTokenVerifierMetadata {
+        issuer: server.issuer.clone(),
+        jwks_uri,
+        token_endpoint: server.token_endpoint.clone(),
+        token_endpoint_auth_methods_supported: metadata.token_endpoint_auth_methods_supported,
+    })
+    .into_response()
 }
 
 pub(super) async fn authorization_server_jwks(
@@ -184,6 +218,114 @@ pub(crate) mod tests {
             auth_http: Arc::new(RwLock::new(reqwest::Client::new())),
         };
         (db, state, key_file, key)
+    }
+
+    #[tokio::test]
+    async fn verifier_discovery_uses_public_issuer_and_exact_access_token_subset() {
+        use axum::{body::to_bytes, routing::get};
+        use std::num::NonZeroU32;
+        use veoveo_mcp_gateway::{GatewayRefreshDeliveryWindow, RefreshTokenDeliveryCipher};
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let (_db, fixture, _key_file, _key) = profile_fixture(None).await;
+            let mut control = fixture.catalog.current().control_plane().clone();
+            control.authorization_servers[0].issuer =
+                veoveo_mcp_contract::TokenIssuer::parse("https://computers.test/oauth").unwrap();
+            fixture
+                .catalog
+                .replace(Arc::new(
+                    GatewayCatalog::from_control_plane(
+                        control,
+                        fixture.catalog.current().admission(),
+                    )
+                    .unwrap(),
+                ))
+                .unwrap();
+            let mut state = AppState {
+                catalog: fixture.catalog.clone(),
+                gateway_state: fixture.gateway_state.clone(),
+                http: fixture.auth_http.clone(),
+                public_base_url: fixture.deployment.base_url().to_string(),
+                refresh_delivery_cipher: RefreshTokenDeliveryCipher::new(&[42; 32]).unwrap(),
+                refresh_delivery_window: GatewayRefreshDeliveryWindow::from_seconds(
+                    NonZeroU32::new(10).unwrap(),
+                )
+                .unwrap(),
+            };
+            let expected =
+                public_authorization_server(&state.catalog.current(), &state.public_base_url)
+                    .map(|server| (server.issuer.to_string(), server.token_endpoint.to_string()))
+                    .unwrap();
+            let expected_auth_methods = fixture.catalog.current()
+                .authorization_server_metadata_for_server(&fixture.catalog.current().control_plane().authorization_servers[0].id)
+                .unwrap().token_endpoint_auth_methods_supported;
+            assert!(expected_auth_methods.iter().any(|method| method == "private_key_jwt"));
+            for available in [true, false] {
+                if !available {
+                    state.public_base_url = "https://unconfigured.test".into();
+                }
+                let router = Router::new()
+                    .route(
+                        "/oauth/.well-known/openid-configuration",
+                        get(access_token_verifier_metadata),
+                    )
+                    .with_state(state.clone());
+                let response = router
+                    .oneshot(
+                        Request::builder()
+                            .uri("/oauth/.well-known/openid-configuration")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                if !available {
+                    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+                    continue;
+                }
+                assert_eq!(response.status(), StatusCode::OK);
+                assert_eq!(
+                    response.headers().get(CONTENT_TYPE).unwrap(),
+                    "application/json"
+                );
+                let metadata: serde_json::Value =
+                    serde_json::from_slice(&to_bytes(response.into_body(), 4096).await.unwrap())
+                        .unwrap();
+                assert_eq!(
+                    metadata,
+                    serde_json::json!({
+                        "issuer": expected.0,
+                        "jwks_uri": format!("{}/oauth/jwks.json", fixture.deployment.base_url().trim_end_matches('/')),
+                        "token_endpoint": expected.1,
+                        "token_endpoint_auth_methods_supported": expected_auth_methods,
+                    })
+                );
+            }
+        })
+        .await
+        .expect("verifier discovery qualification exceeded 30 seconds");
+    }
+
+    #[test]
+    fn access_token_signing_jwks_export_contains_only_public_rsa_material() {
+        use jsonwebtoken::jwk::Jwk;
+        use rsa::{RsaPrivateKey, pkcs1::EncodeRsaPrivateKey};
+        let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
+        let private = RsaPrivateKey::new(&mut rsa::rand_core::OsRng, 2048).unwrap();
+        let der = private.to_pkcs1_der().unwrap();
+        let encoding = EncodingKey::from_rsa_der(der.as_bytes());
+        // The production JWKS helper uses this maintained key export API and
+        // assigns the catalog's signing kid. No private-key serialization escapes.
+        let mut jwk = Jwk::from_encoding_key(&encoding, Algorithm::RS256).unwrap();
+        jwk.common.key_id = Some("discovery-test".into());
+        let public = serde_json::to_value(jwk).unwrap();
+        assert_eq!(public["kid"], "discovery-test");
+        assert_eq!(public["kty"], "RSA");
+        assert_eq!(public["alg"], "RS256");
+        assert!(public["n"].as_str().is_some_and(|value| !value.is_empty()));
+        assert!(public["e"].as_str().is_some_and(|value| !value.is_empty()));
+        for private_field in ["d", "p", "q", "dp", "dq", "qi", "oth"] {
+            assert!(public.get(private_field).is_none());
+        }
     }
 
     pub(crate) fn fixture_bearer(key: &rcgen::KeyPair, offset: i64) -> secrecy::SecretString {

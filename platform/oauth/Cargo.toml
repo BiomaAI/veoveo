@@ -1,0 +1,19 @@
+[package]
+name = "veoveo-oauth-client"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+jsonwebtoken.workspace = true
+schemars.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+url.workspace = true
+uuid.workspace = true
+veoveo-types.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+rsa.workspace = true
+serde_json.workspace = true

@@ -33,12 +33,22 @@ impl Files {
         .unwrap();
         std::fs::write(dir.join("key.pem"), key.serialize_pem()).unwrap();
         std::fs::write(dir.join("command.key"), [23; 32]).unwrap();
-        std::fs::write(dir.join("worker-secret"), "fixture-worker-secret").unwrap();
+        use rsa::pkcs8::EncodePrivateKey;
+        let worker_key = rsa::RsaPrivateKey::new(&mut rsa::rand_core::OsRng, 2048).unwrap();
+        let worker_pem = worker_key.to_pkcs8_pem(rsa::pkcs8::LineEnding::LF).unwrap();
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut worker_file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(dir.join("worker-private-key.pem"))
+            .unwrap();
+        std::io::Write::write_all(&mut worker_file, worker_pem.as_bytes()).unwrap();
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(
-                dir.join("worker-secret"),
+                dir.join("worker-private-key.pem"),
                 std::fs::Permissions::from_mode(0o600),
             )
             .unwrap();
@@ -68,8 +78,8 @@ impl Files {
         let mut config = unconfigured(address);
         config["capacity"] = json!({"kind":"openshell_docker","gateway":{"transport":self.tls(),"workspace":"default"},"allocator":self.tls(),"limits":{"perOwner":1,"perTenant":4,"provider":4},"defaultTemplate":template.fingerprint(),"templates":[{"id":"development","fingerprint":template.fingerprint(),"image":image,"cpus":2,"memoryMib":2048,"homeCapacityMib":512,"temporaryMib":32,"policy":policy}]});
         config["capacity"]["gateway"]["authentication"] = json!({
-            "issuer":"https://issuer.fixture.invalid/", "audience":"fixture-resource", "clientId":"fixture-worker",
-            "clientSecretFile":self.0.join("worker-secret"), "tokenEndpointAuthMethod":"client_secret_post",
+            "issuer":"https://issuer.fixture.invalid/", "resource":"https://resource.fixture/", "clientId":"fixture-worker",
+            "privateKeyFile":self.0.join("worker-private-key.pem"), "keyId":"fixture-client", "tokenEndpointAuthMethod":"private_key_jwt",
             "scopes":["https://resource.fixture/.default"], "caFile":self.0.join("ca.pem")
         });
         config["capacity"]["execution"] = json!({

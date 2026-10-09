@@ -72,8 +72,12 @@ impl CatalogSection for RecordingCatalogSection {
                         .allowed_resources
                         .contains(&resource.protected_resource)
                     || client.tenant.as_ref() != Some(&producer.tenant)
-                    || !client.client_credentials
-                    || !client.private_key_jwt
+                    || !client
+                        .grant_types
+                        .contains(&veoveo_gateway_contract::OAuthGrantType::ClientCredentials)
+                    || !client
+                        .auth_methods
+                        .contains(&veoveo_gateway_contract::OAuthClientAuthMethod::PrivateKeyJwt)
                 {
                     return Err(fail(format!(
                         "producer `{}` OAuth client is not bound to the resource, tenant, and private_key_jwt client-credentials grant",

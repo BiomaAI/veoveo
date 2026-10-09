@@ -45,6 +45,7 @@ configMapGenerator:
       - operator-client-jwks.json
       - admin-client-jwks.json
       - knowledge-indexer-jwks.json
+      - computers-worker-jwks.json=computers/worker-jwks.json
   - name: bioma-gateway-control-plane
     namespace: veoveo-agents
     options:

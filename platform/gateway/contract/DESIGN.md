@@ -36,6 +36,13 @@ value and compute its checked server/resource audit address before the core uses
 The installation recipe composes these declarations through owner contract features.
 Neither declarations nor the recipe import MCP, a database driver or async runtime.
 
+`OAuthGrantType` and `OAuthClientAuthMethod` supply the shared grant and client
+authentication vocabularies. MCP configuration re-exports these definitions. Owner
+admission receives each client's complete grant and authentication sets, typed
+default Work Context and invocation mode, credential configuration flags and
+compatibility settings. Work Context facts identify its tenant. These facts describe
+the current revision; the OAuth runtime still checks current membership and policy.
+
 Contributed objects cannot use core catalog object kinds. Their `(kind, id)` pair
 must be unique within a revision, matching the database's publication key; tenant
 metadata does not create another identity namespace. Admission rejects these

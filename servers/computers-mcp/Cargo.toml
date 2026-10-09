@@ -87,6 +87,8 @@ veoveo-types = { workspace = true, optional = true }
 veoveo-computers-contract = { path = "../../platform/computers/contract", optional = true }
 
 [dev-dependencies]
+rsa.workspace = true
+veoveo-oauth-client.workspace = true
 axum-server.workspace = true
 jsonwebtoken.workspace = true
 veoveo-computer-storage = { path = "../../platform/computers/storage" }

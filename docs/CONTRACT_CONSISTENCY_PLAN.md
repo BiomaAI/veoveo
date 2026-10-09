@@ -9,11 +9,13 @@ package passes its focused artifact, Host and packaging checks. The owner approv
 stock OIDC; package image `ea4ffc9f7` is assembled and staged with all four official
 executable hashes and versions verified. Three CA roles, projected credentials,
 stock mount fields and the owned image's absent retained-home target pass source
-controls, including thirteen Host and eight OAuth/issuer cases. Optional admitted
+controls. The restricted Veoveo worker OAuth source passes private-key exchange,
+refresh, owner authority and focused Gateway native controls; independent review
+approves its contracts and Secret wiring. Optional admitted
 issuer CA inputs configure issuer HTTPS trust with verification enabled. The focused
 installed DuckDB Task, completion subscription and graceful-restart check passes
-through normal Gateway OAuth. Installation worker OAuth profile inputs, native security
-and retained lifecycle, and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
+through normal Gateway OAuth. The installed worker Secret, full native security and
+retained lifecycle, and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
 and owning controls. Task/subscription fixtures and complete installed A/F/H
 qualification remain open. See [Current Status](#current-status).
 
@@ -67,7 +69,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging, thirteen Host, eight OAuth/issuer and six xtask packaging controls pass. External OIDC worker authentication is selected with certificate-to-user promotion disabled. Worker OAuth profile/configuration, native security and lifecycle qualification remain open; stock activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
+| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. Full stock-provider native security, lifecycle and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. Initial tool-server and nine-scope checks pass their recorded qualification. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`. GitOps is suspended and GPU services, including Embedding, are scaled off during source work; complete installed fixtures remain open | Qualify the corrected Frames immutable-subscription probe, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
 
@@ -132,17 +134,27 @@ promotion and anonymous user access. Complete supervisor TLS and mandatory Sandb
 JWT stay required. Separate provider-server, worker-user and sandbox-client CA roles
 and projected credentials pass owning source controls; issuer roles and JWT checks
 establish authorization. Optional admitted issuer CA inputs configure HTTPS trust while
-certificate verification stays enabled. Runtime bearer acquisition, centralized
-injection and refresh compile and pass eight OAuth/issuer controls. Native positive/negative security
-qualification remains open. Host `providerAuthentication` is required; the native
+certificate verification stays enabled. Runtime private-key bearer acquisition,
+centralized injection and refresh pass nine OAuth/issuer controls. The signer,
+checked worker registration, current role authority and exclusive Gateway owner
+controls pass. Focused Gateway native discovery, managed identity and token
+authentication controls pass with isolated fixture cleanup. These checks qualify
+the Veoveo edge; complete stock-provider security and lifecycle qualification remains
+open. Host `providerAuthentication` is required; the native
 Host fixture supplies the profile and passes source checks. The reference
-`examples/bioma/computers/host.json` must supply the installation OAuth profile/configuration
-with the admitted official supervisor image. The chart mounts that
+`examples/bioma/computers/host.json` supplies the matching installation resource and
+roles with the admitted official supervisor image. The worker registration and
+public JWKS are checked in; its private key stays outside Git. The chart mounts that
 file and requires its new configuration digest. Configured Host NetworkPolicy requires
 explicit `computers.host.issuerEgress` IPv4 CIDRs for HTTPS discovery/JWKS; missing
 destinations refuse rendering. Worker discovery/token HTTPS requires the separate
 `networkPolicy.externalEgressCidrs` installation declaration and qualification.
 The chart supplies no issuer credentials.
+The worker private-key Secret is referenced only by its Deployment and uses numeric
+mode 288 (`0440`). The checked public bundle includes its JWKS. Ops verified the
+official supervisor's manifest and config in the reference registry; the node-facing
+registry connection currently refuses requests and still requires installed repair
+and qualification before activation.
 The accepted installation profile reuses Veoveo's authorization server, signing
 keys, JWKS and `private_key_jwt` client authentication. Computers owns the checked
 `ai.veoveo/computer-worker-authorization` catalog section, non-MCP resource audience
@@ -154,8 +166,8 @@ an exclusive owner claim, checks current membership and rejects owner collisions
 and disabled-client fallback. Shared assertion signing belongs in `platform/oauth`;
 credential-file admission, token caching and provider role decisions stay with their
 owners. Stock-compatible discovery exposes the JWT access-token verification
-fields without claiming unsupported OpenID login or ID-token flows. Three workers
-are implementing this source batch with one Cargo owner. Native and installed
+fields without claiming unsupported OpenID login or ID-token flows. The source batch
+and reference guide pass independent review. Full stock-provider native and installed
 qualification remain open. OpenShell stays unmodified. Owner authorization permits
 native qualification with the owning test-only issuer; stock activation also requires
 the pending resource-guarantee decision below. Stock driver config now emits only supported mount fields. The owned

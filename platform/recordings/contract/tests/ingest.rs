@@ -39,6 +39,7 @@ fn facts(resources: &[RecordingIngestResource]) -> CatalogFacts {
                     .flat_map(|producer| producer.labels.iter().cloned())
             })
             .collect(),
+        work_contexts: Vec::new(),
         oauth_clients: resources
             .iter()
             .flat_map(|resource| {
@@ -48,8 +49,18 @@ fn facts(resources: &[RecordingIngestResource]) -> CatalogFacts {
                     tenant: Some(producer.tenant.clone()),
                     allowed_resources: [resource.protected_resource.clone()].into(),
                     allowed_scopes: resource.required_scopes.clone(),
-                    client_credentials: true,
-                    private_key_jwt: true,
+                    grant_types: [veoveo_gateway_contract::OAuthGrantType::ClientCredentials]
+                        .into(),
+                    auth_methods: [veoveo_gateway_contract::OAuthClientAuthMethod::PrivateKeyJwt]
+                        .into(),
+                    default_work_context: "recording-test".parse().unwrap(),
+                    invocation_mode: veoveo_types::InvocationMode::Automated,
+                    has_jwks: true,
+                    has_credential_secret: false,
+                    has_redirect_uris: false,
+                    has_compatibility_helpers: false,
+                    direct_task_call_adapter: false,
+                    has_knowledge_indexing: false,
                 })
             })
             .collect(),

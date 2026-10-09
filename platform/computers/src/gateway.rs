@@ -47,3 +47,5 @@ impl ComputersGatewayClientPool {
 mod tests;
 
 pub mod routes;
+mod worker_authorization;
+pub use worker_authorization::ComputerWorkerOAuthOwner;

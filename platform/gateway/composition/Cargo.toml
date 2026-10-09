@@ -8,6 +8,7 @@ name = "gateway"
 path = "src/bin/gateway.rs"
 
 [dependencies]
+veoveo-oauth-client.workspace = true
 scraper = { workspace = true, optional = true }
 rcgen = { workspace = true, optional = true }
 veoveo-deploy-contract = {workspace = true, optional = true}
@@ -92,6 +93,7 @@ veoveo-media-mcp = { path = "../../../servers/media-mcp", default-features = fal
 veoveo-optimization-mcp = { path = "../../../servers/optimization-mcp", default-features = false, features = ["schema"] }
 
 [dev-dependencies]
+rsa.workspace = true
 veoveo-modules = { workspace = true, features = ["runner"] }
 base64.workspace = true
 rcgen.workspace = true

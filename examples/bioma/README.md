@@ -201,21 +201,34 @@ client roots. The Host builds its client-root bundle from these two inputs.
 belongs to the supervisor client CA. Storage keeps its own root and worker identity.
 CA private keys stay in `operator/` outside Kubernetes.
 
-The selected design uses a dedicated worker OAuth credential profile with the
-installation's HTTPS issuer, audience, role claims and scopes. Reuse of the existing
-installation OAuth application is under investigation; a new application registration
-is not an upstream requirement. Complete
-`host.json` with `providerAuthentication` and the admitted official `supervisorImage`.
-Complete `computers.json` with `capacity.gateway.authentication`, explicit
-`client_secret_post` and the absolute projected client-secret path. Optional admitted
-issuer CA inputs configure issuer HTTPS trust with verification enabled. The
-checked-in reference files still need these inputs before stock deployment.
+The reference reuses Veoveo's issuer `https://veoveo.bioma.ai/oauth` with the
+restricted `bioma-computers-worker` registration in [gateway.json](gateway.json).
+Its sole resource is `https://veoveo.bioma.ai/computers/provider`, its scope is
+`computers:provider:authenticate`, and it uses `client_credentials` with
+`private_key_jwt`. The public [worker JWKS](computers/worker-jwks.json) identifies
+`bioma-computers-worker-20261009`; the registration grants only its explicit
+`computer-worker-user` and `computer-worker-admin` roles. No additional identity-provider
+application is required.
+
+[computers.json](computers/computers.json) selects the worker-only projected key at
+`/etc/veoveo/computers/oauth/private-key.pem`. The chart references
+`computers.existingOAuthSecret: veoveo-computers-worker-oauth` and projects only
+`private-key.pem`; the Host receives no worker signing key. Private material stays
+outside this public bundle. `computers.oauthCredentialRevision` hashes the public
+worker JWKS. The gateway bundle revision includes that JWKS, and the separate
+Computers and Host revisions cover their configuration bytes. [host.json](computers/host.json)
+derives its stock audience from the same resource and declares the official
+supervisor image. Optional admitted issuer CA inputs configure HTTPS trust with
+verification enabled.
+
 Computers workers need issuer discovery and token HTTPS access through
-`networkPolicy.externalEgressCidrs`. The private Host needs issuer/JWKS HTTPS access
-through `computers.host.issuerEgress`. Both declarations require actual installation
-CIDRs. Recompute both configuration revisions after selecting the complete files.
-These enrollment commands create TLS and signing material; they do not register the
-OAuth application or activate the provider configuration.
+`networkPolicy.externalEgressCidrs`; the Host needs issuer/JWKS access through
+`computers.host.issuerEgress`. Supply actual installation CIDRs. Upgrade the matched
+worker, Host, public registration and chart through a coordinated drain that preserves
+unresolved operations and retained writer fences. Stock native and installed
+qualification remain open, including the supervisor resource-budget decision and
+node-facing registry access. Source configuration and trust enrollment do not
+activate this profile.
 
 Set `execution.activeKeyId` and the matching key entry in `computers.json` to the
 public identifier in `worker/command-key-id`, then recompute the configuration revision.

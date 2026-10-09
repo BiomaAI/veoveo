@@ -54,6 +54,7 @@ members = [
     "platform/task-runtime",
     "platform/task-runtime/contract",
     "platform/types",
+    "platform/oauth",
     "servers/knowledge-mcp",
     "servers/artifact-mcp",
     "servers/computers-mcp",
@@ -133,6 +134,7 @@ hifitime = { version = "4.3.1", default-features = false, features = ["std"] }
 h264-reader = "=0.8.0"
 jsonschema = "=0.51.0"
 jiff = { version = "0.2.35", features = ["tz-system"] }
+rsa = "=0.9.10"
 jsonwebtoken = { version = "=11.0.0", default-features = false, features = ["rust_crypto", "use_pem"] }
 memmap2 = "=0.9.11"
 object_store = { version = "=0.14.1", default-features = false, features = ["aws"] }
@@ -225,6 +227,7 @@ vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
 veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
 veoveo-mcp-apps-extension = { path = "mcp/apps-extension" }
 veoveo-types = { path = "platform/types" }
+veoveo-oauth-client = { path = "platform/oauth" }
 veoveo-modules = { path = "platform/modules", default-features = false }
 veoveo-gateway-contract = { path = "platform/gateway/contract" }
 veoveo-computers-contract = { path = "platform/computers/contract" }

@@ -245,13 +245,19 @@ fn bioma_control_plane_revision_binds_complete_public_bundle() {
         "operator-client-jwks.json",
         "admin-client-jwks.json",
         "knowledge-indexer-jwks.json",
+        "computers-worker-jwks.json",
     ];
     let bundle = files
         .into_iter()
         .map(|name| {
+            let source = if name == "computers-worker-jwks.json" {
+                "computers/worker-jwks.json"
+            } else {
+                name
+            };
             (
                 name.to_owned(),
-                fs::read_to_string(format!("../../examples/bioma/{name}")).unwrap(),
+                fs::read_to_string(format!("../../examples/bioma/{source}")).unwrap(),
             )
         })
         .collect();

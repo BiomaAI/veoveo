@@ -4,6 +4,7 @@
 
 | Boundary | Supported profile |
 |---|---|
+| OAuth 2.0 RFC 6749 and JWT client assertions RFC 7523 | Computers-owned service authority for one non-MCP provider resource; explicit client roles and current Work Context membership |
 | Veoveo identity and Work Context | Canonical TaskOwner authority, named user/service principals, tenant and context isolation; current implementation admits private ownership |
 | SurrealDB / SurrealQL 3.3.0 | Existing qualified platform client/server pin; schema-full records, read-only envelopes, reference cascades, atomic multi-record admission and audit append, native table changefeeds, conflict-only bounded transaction retry |
 | HTTP/1.1 / WebSocket RFC 6455 | Gateway adapter reuses installation TLS policy; the transport library owns authenticated upgrade framing, disabled redirects and HTTP/1.1 selection |
@@ -1121,11 +1122,33 @@ The metadata projection checks each slot's Computer and target record identity. 
 loads neither sealed intent nor capability secrets. Public action flags use this view;
 transactional admission still arbitrates concurrent commands and file transfers.
 
+## Provider Worker OAuth Authority
+
+`gateway/worker_authorization.rs` claims the configured worker client through the
+generic OAuth owner interface. Disabled clients remain claimed and cannot fall
+through to ordinary installed-client authority. The active authority checks the
+current client, resource, service principal, tenant and Work Context. Token issuance
+requires current catalog membership and replaces service roles with only the
+section's explicit user/admin roles. Tokens carry no owner extensions or managed
+execution attribution; this authority admits no Gateway action.
+
+The reference installation reuses Veoveo's authorization server and public JWKS with
+an isolated private-key worker client. The access token targets only the declared
+provider resource. Stock OpenShell validates its signature, issuer, audience, expiry
+and explicit roles. Its supported discovery subset does not establish ID-token or
+complete OpenID Connect provider support. Removing catalog membership prevents new
+issuance. Already issued tokens and cached signing keys follow token expiry and the
+stock provider's JWKS cache/stale-key window; revocation is not immediate.
+
+Upgrade the worker, Host configuration, public registration and matching chart
+through a coordinated drain. Preserve unresolved Computer operations and retained
+writer fences. Source admission does not authorize provider activation or settle the
+separate stock supervisor resource-budget decision.
+
 ## Qualification Limits
 
 The selected unmodified OpenShell 0.1.2 profile requires official artifact admission
-and its own native acceptance. Dedicated installation OIDC worker registration is
-a prerequisite. Provider configuration disables certificate-to-user promotion and
+and its own native acceptance. The installation supplies the restricted Computers worker OAuth registration. Provider configuration disables certificate-to-user promotion and
 keeps upstream user/admin role checks and mandatory Sandbox JWT. Consumer controls establish private selector,
 serialization and grant fencing behavior. They do not qualify provider binaries or
 installed journeys. The runtime's [installation and persistence rules](../runtimes/computers/DESIGN.md#installation-and-persistence-compatibility)

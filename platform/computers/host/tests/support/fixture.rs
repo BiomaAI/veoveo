@@ -10,7 +10,7 @@ use tokio::process::Command;
 use uuid::Uuid;
 use veoveo_computers_runtime::{
     AllocationConfig, DevelopmentTemplate, GatewayConfig, HomeAllocator, OpenShellRuntime,
-    WorkerOAuthConfig, WorkerOAuthFields, WorkerTokenAuthentication,
+    WorkerOAuthConfig, WorkerOAuthFields,
 };
 #[path = "../../../../runtimes/computers/tests/support/worker_issuer.rs"]
 mod worker_issuer;
@@ -471,7 +471,7 @@ impl Fixture {
             "schema": "veoveo.ai/computer-host/v1", "providerId": provider,
             "namespace": "host-qualification", "defaultImage": computer_image,
             "supervisorImage": supervisor_image, "images": [computer_image, supervisor_image],
-            "providerAuthentication": {"issuer": authentication.issuer(), "audience": authentication.audience(),
+            "providerAuthentication": {"issuer": authentication.issuer(), "resource": authentication.resource().as_str(),
                 "rolesClaim": "roles", "adminRole": "openshell-admin", "userRole": "openshell-user", "jwksTtlSecs": 300},
             "templates": [{"fingerprint": template.fingerprint(), "capacityBytes": 536870912}],
             "reserveBytes": 536870912,

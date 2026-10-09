@@ -121,6 +121,7 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
     ensure!(String::from_utf8_lossy(&missing.stderr).contains("computers.existingConfigMap"));
     let revision = format!("computers.configurationRevision={}", "a".repeat(64));
     let host_revision = format!("computers.host.configurationRevision={}", "b".repeat(64));
+    let credential_revision = format!("computers.oauthCredentialRevision={}", "c".repeat(64));
     let configured_arguments = [
         "--set",
         "computerCapacity=openshell-docker",
@@ -128,6 +129,10 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
         "computers.existingConfigMap=admitted-computers",
         "--set",
         "computers.existingTrustSecret=computers-worker-trust",
+        "--set",
+        "computers.existingOAuthSecret=worker-oauth",
+        "--set",
+        &credential_revision,
         "--set",
         &revision,
         "--set",
@@ -180,7 +185,51 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
             .iter()
             .any(|v| v["secret"]["secretName"] == "computers-worker-trust")
     );
+    let oauth = volumes
+        .iter()
+        .find(|v| v["name"] == "worker-oauth")
+        .context("worker OAuth volume")?;
+    ensure!(oauth["secret"]["secretName"] == "worker-oauth");
+    ensure!(oauth["secret"]["defaultMode"] == 0o440);
+    ensure!(
+        oauth["secret"]["items"]
+            == serde_json::json!([{"key":"private-key.pem","path":"private-key.pem"}])
+    );
+    ensure!(
+        deployment["spec"]["template"]["metadata"]["annotations"]["checksum/computers-oauth-public-key"]
+            == "c".repeat(64)
+    );
+    let worker_mounts = deployment["spec"]["template"]["spec"]["containers"][0]["volumeMounts"]
+        .as_array()
+        .context("worker mounts")?;
+    ensure!(
+        worker_mounts
+            .iter()
+            .any(|mount| mount["name"] == "worker-oauth"
+                && mount["readOnly"] == true
+                && mount["mountPath"] == "/etc/veoveo/computers/oauth")
+    );
+    for setting in [
+        "computers.existingOAuthSecret=",
+        "computers.oauthCredentialRevision=",
+        "computers.existingOAuthSecret=computers-host-trust",
+        "computers.existingOAuthSecret=computers-worker-trust",
+    ] {
+        let mut denied = arguments.clone();
+        denied.extend(["--set", setting]);
+        ensure!(
+            !render(&denied).status.success(),
+            "unsafe worker OAuth input rendered: {setting}"
+        );
+    }
     let host = object(&configured, "Deployment", "computer-host")?;
+    ensure!(
+        host["spec"]["template"]["spec"]["volumes"]
+            .as_array()
+            .context("Host volumes")?
+            .iter()
+            .all(|v| v["secret"]["secretName"] != "worker-oauth")
+    );
     ensure!(host["spec"]["replicas"] == 1 && host["spec"]["strategy"]["type"] == "Recreate");
     let pod = &host["spec"]["template"]["spec"];
     ensure!(

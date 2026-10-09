@@ -4,6 +4,7 @@
 
 | Boundary | Profile |
 |---|---|
+| RFC 6749 and RFC 7523 | Computers worker declaration selects only client_credentials/private_key_jwt and one private provider resource |
 | JSON and JSON Schema 2020-12 | camelCase object keys, including `resultUri`, and snake_case controlled values. Public Computer lifecycle, access, grants, execution, files and maintenance; generated Console and Workspace declarations use this owner schema |
 | RFC 9562 | Distinct Computer, Task, grant, pairing, operation and provider identities with their declared UUID profiles |
 | RFC 3339 | Grant, operation and maintenance timestamps; portable admission checks stated time relationships |
@@ -67,3 +68,15 @@ frames keep their declared spellings. Public naming does not authorize rewriting
 retained homes, journals or encrypted pending operations. Host version 1, storage
 version 1 and service version 3 keep their existing controlled bytes; OpenShell,
 Docker and generated protobuf policy fields retain their upstream profiles.
+
+## Provider Worker Authorization
+
+`ai.veoveo/computer-worker-authorization` declares one Computers-owned protected
+resource and binds one installed OAuth client to its authorization server, policy,
+tenant and Work Context. Its checked builder and decoder admit a canonical HTTPS
+resource, distinct typed user/admin role names and a nonempty closed role selection.
+Catalog admission requires one `client_credentials` grant, `private_key_jwt` authentication,
+registered public JWKS, automated invocation and the single scope
+`computers:provider:authenticate`. Redirects, client secrets, compatibility helpers,
+Task adapters and indexing authority are refused. This scope belongs to the private
+provider authentication resource; it grants no public Computer or MCP operation.

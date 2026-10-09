@@ -68,22 +68,25 @@ its own declared retained-maintenance transition.
 
 ## Worker Authentication
 
-`src/worker_auth.rs` owns required, checked `WorkerOAuthConfig`: an HTTPS issuer,
-exact audience, client ID, absolute projected secret path, explicit
-`client_secret_post`, nonempty typed installation scopes and optional additive CA
-trust. The installation registers a dedicated private worker client with its
-external issuer and supplies the upstream user/admin role mapping. Host disables
-certificate-to-user promotion and anonymous users while preserving complete
-supervisor TLS and mandatory Sandbox JWT. The worker client does not use BFF
-credentials or provide an issuer service.
+`src/worker_auth.rs` owns required, checked `WorkerOAuthConfig`: HTTPS `issuer`,
+a canonical HTTPS `resource`, `clientId`, absolute `privateKeyFile`, `keyId`, explicit
+`private_key_jwt`, nonempty typed installation scopes and optional additive `caFile`.
+The resource supplies the sole access-token audience. Discovery verifies the issuer,
+same-origin HTTPS token endpoint and advertised private-key authentication. The
+installation supplies an isolated worker registration and explicit upstream
+user/admin roles. Host disables certificate-to-user promotion and anonymous users
+while preserving complete supervisor TLS and mandatory Sandbox JWT. The Host
+receives no worker signing key.
 
-The reader opens a managed secret symlink once and checks that opened file's
-regular-file type and mode 0400, 0600 or 0440. Root-owned projected inputs may use
-the installation's admitted filesystem group. Secrets and JWTs are at
-most 4096 bytes. Discovery and token acquisition each have a ten-second budget,
-including the cache lock; connection setup has a three-second limit. HTTPS
-redirects are refused and responses are limited to 64 KiB. Cached tokens require
-30 seconds of remaining validity before dispatch; admitted lifetimes are
+The reader opens a managed projected key symlink once and checks the opened regular
+file and mode 0400, 0600 or 0440. Root-owned inputs may use the admitted filesystem
+group. RSA PEM input is limited to 16 KiB. The shared client-assertion signer emits
+RS256 with the configured key ID, a fresh UUID `jti`, a 60-second lifetime and the
+token endpoint as audience. Each client-credentials request declares the resource.
+Discovery and token acquisition each have a ten-second budget, including the cache
+lock; connection setup has a three-second limit. HTTPS redirects are refused and
+responses are limited to 64 KiB. Access tokens are at most 4096 bytes. Cached tokens
+require 30 seconds of remaining validity before dispatch; admitted lifetimes are
 31–86400 seconds and also respect JWT expiry. The shared transport injects the
 bearer into every provider RPC and refreshes before dispatch. Authentication does
 not replay a provider mutation.
