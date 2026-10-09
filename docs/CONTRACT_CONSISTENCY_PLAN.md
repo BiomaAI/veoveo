@@ -142,7 +142,7 @@ destinations refuse rendering. Worker discovery/token HTTPS requires the separat
 The chart supplies no issuer credentials.
 The selected design assigns a dedicated worker credential profile. Actual issuer,
 audience, roles and service credentials are installation prerequisites. Reuse of an
-existing installation OAuth application is under investigation; the provider does
+existing installation OAuth application is being qualified; the provider does
 not itself require a newly registered application. Owner authorization permits
 native qualification with the owning test-only issuer. Installed activation requires
 the admitted external inputs. Stock driver config now emits only supported mount fields. The owned
@@ -151,9 +151,17 @@ registration; the allocator initializes its home outside the provider and writer
 fences stay enforced. Compilation and 17 focused mount/lifecycle diagnostic controls
 pass; real plugin-mounted owned-image qualification remains open. The changed
 retained-template fingerprint requires catalog materialization and a coordinated
-drain. Stock restart must prove replacement supervisor, current run
-identity, retained workload/image/home, actual retained-file reads and fresh empty-shell
-reconnection. No provider activation or installed acceptance is claimed.
+drain.
+
+The native stock run observed authentication before and after Host recovery, Start
+and retained-file bytes, then stopped when the resource helper rejected null at an
+unidentified field. Stock OpenShell configures no separate supervisor CPU, memory
+or PID maxima, although the deleted private patch, current tests and Host design
+promise them. The owner decision between aggregate Host budgets and the stronger
+supervisor guarantee is pending, and qualification is stopped with contracts and
+assertions unchanged. The fixture has one CPU, 6 GiB and 1024 PIDs, while the
+installed chart sets eight CPUs and 12 GiB without an explicit per-Host PID limit.
+These partial observations do not establish complete native or installed acceptance.
 Fresh volume allocation admits Engine
 absence before publishing the filesystem as Ready and consumes one typed proof for
 labeled creation. Existing allocations only inspect approval; missing or unapproved
