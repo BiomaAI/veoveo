@@ -23,7 +23,7 @@
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
 | Installed View fixture | `veoveo.ai/view-installed-fixture/v1` closed JSON; nonzero Kubernetes UIDs, opaque resourceVersions, immutable ConfigMap bytes and qualified image release; relative release paths resolve beside the declaration |
 | View fixture preparation | `veoveo.ai/view-fixture-preparation/v1` JSON utility receipt; preparation produces no smoke acceptance outcome |
-| Installed Timeseries evidence | `veoveo.ai/installed-timeseries/v1` private JSON with one forecast dispatch intent, gateway/native Task and Artifact identities, delivered completion, RRD/provenance/usage observations and separate cleanup results |
+| Installed Timeseries evidence | `veoveo.ai/installed-timeseries/v2` private JSON with typed catalog intents and expected/actual members, response digests or redacted SDK failures, one forecast dispatch intent, gateway/native Task and Artifact identities, delivered completion, RRD/provenance/usage observations and separate cleanup results |
 | Installed Frames evidence | `veoveo.ai/frames-installed-evidence/v3` camelCase JSON with typed dispatch intents and observations, owner world/revision/native usage identities, gateway Task routes and separate cleanup outcomes |
 | Frames crash fixture | `veoveo.ai/frames-crash-fixture/v1` closed private JSON binds the installation/control-plane digest and selected Deployment/ReplicaSet/Pod/container runtime identities |
 | Frames crash marker and receipt | `veoveo.ai/frames-ready-for-crash/v1` and `veoveo.ai/frames-recovery-evidence/v1`; private settled typed snapshots, caller-owned watch progress, operation outcome and awaited cleanup |
@@ -326,6 +326,18 @@ Gateway OAuth. Preparation selects `installation-smoke` and its sole prerequisit
 `gateway-smoke-support`; installed Timeseries and Artifact services supply the domain
 processes. This entrypoint launches no local server or provider.
 
+Before dispatch, the case requires official Task support, `timeseries__forecast`,
+and both Artifact occurrence and metadata templates. The installation must permit
+Artifact template discovery and the corresponding resource reads; selecting the
+Artifact scheme in a profile does not supply those policy permissions. The receipt
+records each catalog request before awaiting its complete collector. It persists
+the returned tool names or template URIs and the declared required members before
+asserting coverage. Missing-member diagnostics name the required members. SDK MCP
+errors record code and message digest; available HTTP failures record status.
+Transport errors, catalog-validation failures and actual deadlines stay distinct.
+An interrupted request has no invented response status. These observations contain
+no bearer, headers or response bodies.
+
 The case dispatches one inline-CSV forecast using the owner’s NaiveTrend model. It
 requires delivered Task completion, then admits the forecast output and RRD Artifact
 through their owner contracts. It reads both the Timeseries-presented RRD and neutral
@@ -336,7 +348,9 @@ These are data checks and establish no playback or rendering qualification. Prov
 with that same forecast. The native Task ID comes from the produced metadata and
 provenance, independently of the opaque Gateway Task route. Exactly one usage record
 must name that native Task, model `timeseries/naive-trend` and quantity 4 in
-`source_row` units. A distinct administrator
+`source_row` units, with no charge, currency or provider identifiers. Owner-admitted
+usage metadata must describe one series, horizon 2 and `rerun_rrd` format. Its
+recording timestamp is observed rather than fixed by the fixture. A distinct administrator
 uses ordinary OAuth to verify the native Task-usage read refusal. Artifact metadata
 is read through the Artifact MCP contract-only library’s `metadata_uri` builder and
 admitted as the owner’s bare metadata resource response. This contract edge adds no

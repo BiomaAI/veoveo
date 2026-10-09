@@ -1,6 +1,6 @@
 //! Caller-owned journal outlives operation cancellation and SDK cleanup.
 use super::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::io::{Seek, SeekFrom, Write};
 use veoveo_mcp_conformance::client::failure::ObservedFailure;
 use veoveo_timeseries_mcp::contract::TimeseriesForecastOutput;
@@ -19,7 +19,7 @@ pub(super) enum Outcome {
     #[vocabulary(rename = "passed")]
     Passed,
 }
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(super) enum ReadOutcome {
     Pending,
@@ -29,16 +29,58 @@ pub(super) enum ReadOutcome {
     Timeout,
     Interrupted,
 }
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct ReadObservation {
     pub target: ResourceUri,
     pub outcome: ReadOutcome,
 }
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
+#[serde(
+    tag = "method",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+pub(super) enum CatalogMembers {
+    #[serde(rename = "tools/list")]
+    ToolsList {
+        expected: Vec<veoveo_gateway_contract::GatewayToolName>,
+        actual: Option<Vec<veoveo_gateway_contract::GatewayToolName>>,
+    },
+    #[serde(rename = "resources/templates/list")]
+    ResourceTemplatesList {
+        expected: Vec<veoveo_types::ResourceTemplateUri>,
+        actual: Option<Vec<veoveo_types::ResourceTemplateUri>>,
+    },
+}
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub(super) enum CatalogOutcome {
+    Pending,
+    Received,
+    Failure { observed: ObservedFailure },
+    Transport,
+    RequestFailed,
+    Timeout,
+    Interrupted,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct CatalogObservation {
+    pub endpoint: veoveo_gateway_contract::ProtectedResourceId,
+    pub members: CatalogMembers,
+    pub outcome: CatalogOutcome,
+    pub response_digest: Option<Sha256Digest>,
+}
+#[derive(Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
+pub(super) enum ReceiptSchema {
+    #[vocabulary(rename = "veoveo.ai/installed-timeseries/v2")]
+    V2,
+}
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct Receipt {
-    schema: &'static str,
+    schema: ReceiptSchema,
     pub request: TimeseriesForecastRequest,
     pub outcome: Outcome,
     pub task_id: Option<CanonicalTaskId>,
@@ -47,6 +89,7 @@ pub(super) struct Receipt {
     pub output: Option<TimeseriesForecastOutput>,
     pub artifact_digest: Option<Sha256Digest>,
     pub reads: Vec<ReadObservation>,
+    pub catalogs: Vec<CatalogObservation>,
     pub usage_member: bool,
     pub foreign_usage_denied: bool,
     pub subscription_closed: bool,
@@ -56,7 +99,7 @@ pub(super) struct Receipt {
 impl Receipt {
     pub fn new(request: TimeseriesForecastRequest) -> Self {
         Self {
-            schema: "veoveo.ai/installed-timeseries/v1",
+            schema: ReceiptSchema::V2,
             request,
             outcome: Outcome::NotDispatched,
             task_id: None,
@@ -65,6 +108,7 @@ impl Receipt {
             output: None,
             artifact_digest: None,
             reads: Vec::new(),
+            catalogs: Vec::new(),
             usage_member: false,
             foreign_usage_denied: false,
             subscription_closed: false,
@@ -86,6 +130,11 @@ impl Receipt {
         }
     }
     pub fn settle(&mut self, operation_ok: bool) {
+        for catalog in &mut self.catalogs {
+            if matches!(catalog.outcome, CatalogOutcome::Pending) {
+                catalog.outcome = CatalogOutcome::Interrupted;
+            }
+        }
         for read in &mut self.reads {
             if matches!(read.outcome, ReadOutcome::Pending) {
                 read.outcome = ReadOutcome::Interrupted;
@@ -118,9 +167,141 @@ pub(super) fn persist(file: &mut std::fs::File, receipt: &Receipt) -> Result<()>
     Ok(())
 }
 
+/// Intent is persisted before polling the SDK collector; observations precede assertions.
+pub(super) async fn catalog<T: Serialize>(
+    file: &mut std::fs::File,
+    receipt: &mut Receipt,
+    endpoint: &veoveo_gateway_contract::ProtectedResourceId,
+    members: CatalogMembers,
+    request: impl std::future::Future<Output = Result<T>>,
+) -> Result<(usize, T)> {
+    ensure!(
+        receipt.catalogs.len() < 2,
+        "Timeseries catalog request budget exhausted"
+    );
+    let index = receipt.catalogs.len();
+    receipt.catalogs.push(CatalogObservation {
+        endpoint: endpoint.clone(),
+        members,
+        outcome: CatalogOutcome::Pending,
+        response_digest: None,
+    });
+    persist(file, receipt)?;
+    match tokio::time::timeout(Duration::from_secs(30), request).await {
+        Ok(Ok(value)) => {
+            let bytes = serde_json::to_vec(&value)?;
+            receipt.catalogs[index].response_digest = Some(Sha256Digest::from_bytes(
+                <sha2::Sha256 as sha2::Digest>::digest(bytes).into(),
+            ));
+            receipt.catalogs[index].outcome = CatalogOutcome::Received;
+            persist(file, receipt)?;
+            Ok((index, value))
+        }
+        Ok(Err(error)) => {
+            receipt.catalogs[index].outcome = catalog_failure(&error);
+            persist(file, receipt)?;
+            bail!("Timeseries catalog request failed; see private receipt")
+        }
+        Err(_) => {
+            receipt.catalogs[index].outcome = CatalogOutcome::Timeout;
+            persist(file, receipt)?;
+            bail!("Timeseries catalog request exceeded 30 seconds; see private receipt")
+        }
+    }
+}
+fn catalog_failure(error: &anyhow::Error) -> CatalogOutcome {
+    if let Some(service_error) = error.downcast_ref::<rmcp::ServiceError>() {
+        return match service_error {
+            rmcp::ServiceError::McpError(error) => CatalogOutcome::Failure {
+                observed: ObservedFailure::mcp(i64::from(error.code.0), error.message.as_ref()),
+            },
+            rmcp::ServiceError::Timeout { .. } => CatalogOutcome::Timeout,
+            rmcp::ServiceError::Cancelled { .. } => CatalogOutcome::Interrupted,
+            rmcp::ServiceError::TransportSend(_) | rmcp::ServiceError::TransportClosed => {
+                match veoveo_mcp_conformance::client::failure::observe(error) {
+                    Some(observed @ ObservedFailure::Http { .. }) => {
+                        CatalogOutcome::Failure { observed }
+                    }
+                    _ => CatalogOutcome::Transport,
+                }
+            }
+            _ => CatalogOutcome::RequestFailed,
+        };
+    }
+    if error
+        .downcast_ref::<tokio::time::error::Elapsed>()
+        .is_some()
+    {
+        return CatalogOutcome::Timeout;
+    }
+    match veoveo_mcp_conformance::client::failure::observe(error) {
+        Some(observed @ ObservedFailure::Http { .. }) => CatalogOutcome::Failure { observed },
+        _ => CatalogOutcome::RequestFailed,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn catalog_errors_persist_only_observed_codes_and_transport_classes() -> Result<()> {
+        let message = "isolated-private-sentinel";
+        let mcp = rmcp::ErrorData::invalid_params(message, None);
+        let nested =
+            rmcp::ServiceError::TransportSend(rmcp::transport::DynamicTransportError::from_parts(
+                "isolated-test-transport",
+                std::any::TypeId::of::<()>(),
+                Box::new(mcp.clone()),
+            ));
+        let elapsed = tokio::time::timeout(Duration::ZERO, std::future::pending::<()>())
+            .await
+            .unwrap_err();
+        let cases = [
+            (
+                anyhow::Error::new(rmcp::ServiceError::McpError(mcp)),
+                CatalogOutcome::Failure {
+                    observed: ObservedFailure::mcp(-32602, message),
+                },
+            ),
+            (anyhow::Error::new(nested), CatalogOutcome::Transport),
+            (anyhow!(message), CatalogOutcome::RequestFailed),
+            (anyhow::Error::new(elapsed), CatalogOutcome::Timeout),
+        ];
+        for (error, expected) in cases {
+            let directory = tempfile::tempdir()?;
+            let path = directory.path().join("receipt.json");
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(&path)?;
+            let mut receipt = Receipt::new(forecast_request()?);
+            let endpoint = veoveo_gateway_contract::ProtectedResourceId::parse(
+                "https://fixture.example/mcp/initial",
+            )?;
+            let result = catalog(
+                &mut file,
+                &mut receipt,
+                &endpoint,
+                CatalogMembers::ToolsList {
+                    expected: vec![veoveo_gateway_contract::GatewayToolName::parse(
+                        "timeseries__forecast",
+                    )?],
+                    actual: None,
+                },
+                std::future::ready(Err::<Vec<rmcp::model::Tool>, _>(error)),
+            )
+            .await;
+            assert!(result.is_err());
+            let bytes = std::fs::read(path)?;
+            assert!(!std::str::from_utf8(&bytes)?.contains(message));
+            let saved: Receipt = serde_json::from_slice(&bytes)?;
+            assert!(saved.catalogs[0].outcome == expected);
+            assert!(saved.catalogs[0].response_digest.is_none());
+            assert!(saved.outcome == Outcome::NotDispatched && saved.task_id.is_none());
+        }
+        Ok(())
+    }
     #[test]
     fn settlement_preserves_uncertain_task_and_refuses_cleanup_success_claim() -> Result<()> {
         let mut receipt = Receipt::new(forecast_request()?);

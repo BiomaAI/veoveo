@@ -367,6 +367,18 @@ producer or timestamped conversion. Qualify each actual producer's route, parent
 and timestamp semantics before advertising it; this requirement does not mandate a
 new producer implementation.
 
+Timeseries forecast provenance, Artifact metadata and usage metadata now share
+checked owner contracts with the installed consumer. Source qualification and
+independent review pass. The first `timeseries-installed` run at `9bcb23c28`
+stopped before dispatch because Artifact templates were absent. A separate normal
+OAuth catalog read confirms both required templates are missing from the 29 returned
+declarations. The initial operator's Artifact rules omit template discovery and the
+action used for neutral Artifact reads. Repair those read-only permissions and retain
+catalog observations before preflight assertions, then qualify the installed forecast,
+RRD handoff and caller-scoped usage. The failed run created no Task or Artifact;
+client cleanup and the unchanged-cluster postcheck pass. Cancellation, replica
+replacement and final image agreement stay open.
+
 The focused Knowledge A08 case at source `07742e1623` passes once in 10.29 seconds
 through normal Gateway OAuth on retained generation
 `01a11c6f-7316-7d01-8485-291e027ea5f8`. It verifies 16 collections, four sources

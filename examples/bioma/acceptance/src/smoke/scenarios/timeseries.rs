@@ -86,7 +86,13 @@ pub(crate) async fn timeseries_installed(
             .map_err(|_| anyhow!("Timeseries administrator connection failed"))?,
         );
         let client = operator.as_ref().expect("operator connection admitted");
-        admit(client).await?;
+        admit(
+            client,
+            &installation.operator.resource,
+            &mut file,
+            &mut receipt,
+        )
+        .await?;
         let existing = reads::usage_ids(client, &mut file, &mut receipt).await?;
         ensure!(
             existing.len() <= 3000,
@@ -214,46 +220,119 @@ async fn close(client: Option<SmokeMcpClient>) -> bool {
         None => true,
     }
 }
-async fn admit(client: &SmokeMcpClient) -> Result<()> {
+async fn admit(
+    client: &SmokeMcpClient,
+    endpoint: &veoveo_gateway_contract::ProtectedResourceId,
+    file: &mut std::fs::File,
+    receipt: &mut Receipt,
+) -> Result<()> {
     ensure!(
         client
             .peer_info()
             .is_some_and(|info| info.capabilities.supports_tasks()),
         "Timeseries gateway does not advertise official Tasks"
     );
-    let tools = tokio::time::timeout(
-        Duration::from_secs(30),
+    let tools = evidence::CatalogMembers::ToolsList {
+        expected: vec![veoveo_gateway_contract::GatewayToolName::parse(
+            "timeseries__forecast",
+        )?],
+        actual: None,
+    };
+    let (index, tools) = evidence::catalog(
+        file,
+        receipt,
+        endpoint,
+        tools,
         veoveo_mcp_conformance::catalog::tools(client.peer()),
     )
-    .await
-    .map_err(|_| anyhow!("Timeseries tool catalog deadline"))??;
-    ensure!(
-        tools
-            .iter()
-            .filter(|tool| tool.name == "timeseries__forecast")
-            .count()
-            == 1,
-        "Timeseries forecast tool is absent or duplicated"
-    );
-    let templates = tokio::time::timeout(
-        Duration::from_secs(30),
+    .await?;
+    let actual = tools
+        .iter()
+        .map(|tool| veoveo_gateway_contract::GatewayToolName::parse(tool.name.as_ref()))
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|_| {
+            anyhow!("Timeseries catalog contains invalid tool identities; see private receipt")
+        })?;
+    observe_catalog(file, receipt, index, |members| match members {
+        evidence::CatalogMembers::ToolsList { actual: stored, .. } => *stored = Some(actual),
+        _ => unreachable!("owning tools request"),
+    })?;
+    let templates = evidence::CatalogMembers::ResourceTemplatesList {
+        expected: [
+            veoveo_artifact_mcp::contract::METADATA_TEMPLATE,
+            veoveo_artifact_mcp::contract::ARTIFACT_TEMPLATE,
+        ]
+        .into_iter()
+        .map(veoveo_types::ResourceTemplateUri::new)
+        .collect::<std::result::Result<Vec<_>, _>>()?,
+        actual: None,
+    };
+    let (index, templates) = evidence::catalog(
+        file,
+        receipt,
+        endpoint,
+        templates,
         veoveo_mcp_conformance::catalog::templates(client.peer()),
     )
-    .await
-    .map_err(|_| anyhow!("Timeseries template catalog deadline"))??;
-    for required in [
-        veoveo_artifact_mcp::contract::METADATA_TEMPLATE,
-        veoveo_artifact_mcp::contract::ARTIFACT_TEMPLATE,
-    ] {
-        ensure!(
-            templates
-                .iter()
-                .any(|template| template.uri_template.as_str() == required),
-            "Timeseries requires public Artifact metadata and occurrence resource exposure"
-        );
-    }
-    Ok(())
+    .await?;
+    let actual = templates
+        .iter()
+        .map(|template| veoveo_types::ResourceTemplateUri::new(template.uri_template.clone()))
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|_| {
+            anyhow!("Timeseries catalog contains invalid template addresses; see private receipt")
+        })?;
+    observe_catalog(file, receipt, index, |members| match members {
+        evidence::CatalogMembers::ResourceTemplatesList { actual: stored, .. } => {
+            *stored = Some(actual)
+        }
+        _ => unreachable!("owning templates request"),
+    })
 }
+fn observe_catalog(
+    file: &mut std::fs::File,
+    receipt: &mut Receipt,
+    index: usize,
+    observe: impl FnOnce(&mut evidence::CatalogMembers),
+) -> Result<()> {
+    observe(&mut receipt.catalogs[index].members);
+    persist(file, receipt)?;
+    require_catalog_members(&receipt.catalogs[index].members)
+}
+fn require_catalog_members(members: &evidence::CatalogMembers) -> Result<()> {
+    fn require<T: PartialEq + std::fmt::Display>(
+        expected: &[T],
+        actual: Option<&Vec<T>>,
+    ) -> Result<()> {
+        let actual = actual.context("Timeseries catalog has no admitted member observation")?;
+        let missing: Vec<_> = expected
+            .iter()
+            .filter(|required| !actual.contains(required))
+            .map(ToString::to_string)
+            .collect();
+        let repeated: Vec<_> = expected
+            .iter()
+            .filter(|required| actual.iter().filter(|value| *value == *required).count() > 1)
+            .map(ToString::to_string)
+            .collect();
+        ensure!(
+            missing.is_empty() && repeated.is_empty(),
+            "Timeseries catalog missing required members [{}]; duplicated required members [{}]; see private receipt",
+            missing.join(", "),
+            repeated.join(", ")
+        );
+        Ok(())
+    }
+    match members {
+        evidence::CatalogMembers::ToolsList { expected, actual } => {
+            require(expected, actual.as_ref())
+        }
+        evidence::CatalogMembers::ResourceTemplatesList { expected, actual } => {
+            require(expected, actual.as_ref())
+        }
+    }
+}
+
 fn require_usage(
     usage: &veoveo_mcp_contract::UsageReport,
     id: veoveo_types::TaskId,
@@ -355,6 +434,121 @@ mod usage_tests {
         ] {
             assert!(require_usage(&report(different), id, &uri).is_err());
         }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod catalog_tests {
+    use super::*;
+    use evidence::{CatalogMembers, CatalogOutcome};
+
+    #[tokio::test]
+    async fn missing_templates_are_named_after_actual_catalog_is_persisted() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("receipt.json");
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&path)?;
+        let mut receipt = Receipt::new(forecast_request()?);
+        let endpoint = veoveo_gateway_contract::ProtectedResourceId::parse(
+            "https://fixture.example/mcp/initial",
+        )?;
+        let required = [
+            veoveo_artifact_mcp::contract::METADATA_TEMPLATE,
+            veoveo_artifact_mcp::contract::ARTIFACT_TEMPLATE,
+        ];
+        let members = CatalogMembers::ResourceTemplatesList {
+            expected: required
+                .into_iter()
+                .map(veoveo_types::ResourceTemplateUri::new)
+                .collect::<std::result::Result<Vec<_>, _>>()?,
+            actual: None,
+        };
+        let response = vec![rmcp::model::ResourceTemplate::new(
+            "timeseries://docs/{doc_id}",
+            "timeseries-doc",
+        )];
+        let (index, response) = evidence::catalog(
+            &mut file,
+            &mut receipt,
+            &endpoint,
+            members,
+            std::future::ready(Ok(response)),
+        )
+        .await?;
+        let actual = response
+            .into_iter()
+            .map(|template| veoveo_types::ResourceTemplateUri::new(template.uri_template))
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let error = observe_catalog(&mut file, &mut receipt, index, |members| {
+            let CatalogMembers::ResourceTemplatesList { actual: stored, .. } = members else {
+                unreachable!()
+            };
+            *stored = Some(actual);
+        })
+        .unwrap_err();
+        for expected in required {
+            assert!(error.to_string().contains(expected));
+        }
+        let saved: Receipt = serde_json::from_slice(&std::fs::read(path)?)?;
+        assert!(saved.outcome == Outcome::NotDispatched && saved.task_id.is_none());
+        assert!(matches!(
+            saved.catalogs[0].outcome,
+            CatalogOutcome::Received
+        ));
+        assert!(saved.catalogs[0].response_digest.is_some());
+        let CatalogMembers::ResourceTemplatesList {
+            expected,
+            actual: Some(actual),
+        } = &saved.catalogs[0].members
+        else {
+            bail!("missing persisted catalog")
+        };
+        assert_eq!(expected.len(), 2);
+        assert_eq!(
+            actual,
+            &[veoveo_types::ResourceTemplateUri::new(
+                "timeseries://docs/{doc_id}"
+            )?]
+        );
+        Ok(())
+    }
+    #[tokio::test]
+    async fn failed_catalog_intent_journal_never_polls_request_or_dispatches_forecast() -> Result<()>
+    {
+        let mut file = std::fs::OpenOptions::new().write(true).open("/dev/full")?;
+        let mut receipt = Receipt::new(forecast_request()?);
+        let endpoint = veoveo_gateway_contract::ProtectedResourceId::parse(
+            "https://fixture.example/mcp/initial",
+        )?;
+        let polled = std::cell::Cell::new(false);
+        let request = async {
+            polled.set(true);
+            Ok(Vec::<rmcp::model::Tool>::new())
+        };
+        let result = evidence::catalog(
+            &mut file,
+            &mut receipt,
+            &endpoint,
+            CatalogMembers::ToolsList {
+                expected: vec![veoveo_gateway_contract::GatewayToolName::parse(
+                    "timeseries__forecast",
+                )?],
+                actual: None,
+            },
+            request,
+        )
+        .await;
+        assert!(result.is_err() && !polled.get());
+        receipt.settle(false);
+        assert!(receipt.outcome == Outcome::NotDispatched && receipt.task_id.is_none());
+        assert!(matches!(
+            receipt.catalogs[0].outcome,
+            CatalogOutcome::Interrupted
+        ));
         Ok(())
     }
 }
