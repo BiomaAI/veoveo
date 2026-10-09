@@ -21,6 +21,13 @@ and receiver drain described in DESIGN.md. Task names and external simulator
 formats keep their declared wire profiles. Installed naming, simulation and GPU
 acceptance run separately with their explicit prerequisites.
 
+`cargo test -p veoveo-sumo-mcp --lib sumo_worker_admission_and_mutation_settlement_use_current_task_fences`
+uses the maintained disposable Store fixture and Docker cleanup. Its 90-second
+control checks Task admission and delivery with inert next-work futures. It does
+not execute SUMO, offline commands, Recording, Artifact writes or GPU work.
+Preserve RunBatch's InterruptedIndeterminate class and refusal to resume; canceled
+delivery never authorizes replay or undoes already stepped state.
+
 ## Contract Compliance
 
 <!-- veoveo:contract-compliance:start -->

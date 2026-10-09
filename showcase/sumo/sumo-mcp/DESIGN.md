@@ -30,6 +30,35 @@ cut does not rewrite durable histories.
 
 The server holds one simulation driver and publishes its recording through the configured recording proxy. Live controls share that driver. Durable offline operations use the shared Task runtime and Artifact plane, with recorded operation identity and recovery. The server keeps gateway authentication on both MCP and administrative routes. The simulation driver and GPU/provider acceptance keep their existing prerequisites.
 
+## Task Settlement
+
+GenerateNetwork, ComputeRoutes and OptimizeSignals use Resume recovery and shared
+TaskRuntime settlement with PreserveFailure. Workers enter operations only after a
+Running checkpoint confirms their live executing lease. A durable cancellation that
+wins success publication settles Cancelled; genuine failures preserve their cause.
+Final success dispatch carries the local worker token. A local stop without durable
+cancellation leaves the unfinished Task for recovery.
+
+RunBatch uses InterruptedIndeterminate and is never resumed or replayed. Its owner
+settlement checks the immutable request, identity and current executing lease,
+preserves the first terminal outcome, and reconciles one cancellation CAS conflict.
+A genuine failure may settle Failed after cancellation. Cancelled changes result
+delivery and does not undo earlier simulation steps or recording publication.
+Offline Artifact products likewise survive canceled Task delivery. Settlement does
+not rerun a simulator step, external command or Artifact write.
+
+The shared TaskRecoveryObserver applies the initial recovery report before HTTP
+serving and observes retained startup Tasks as live leases settle or expire. SUMO
+uses its owner resume callback and keeps RunBatch non-replay. Only a failed claim
+enters shared handoff reconciliation: current SQL must prove physical absence, a
+matching terminal Task, or another worker's matching live lease. Request decoding
+and worker registration failures propagate directly; public errors stringify only
+after internal typed handling. Observer and HTTP
+exit cancel and await the simulation loop, then flush Recording and close the driver;
+recovery admission errors also close the world. Actual unfinished restart and HTTP
+shutdown acceptance require the declared simulator and hardware prerequisites.
+Service shutdown is not connected to individual worker tokens.
+
 ## Documents And Compliance
 
 The owner authors one complete contract-compliance.json for catalog revision 2 and hosted contract revision 4. Generated marked sections in AGENTS.md project that checked profile. The binary embeds the exact manual/design bytes and verifies profile identity and projection before serving them. A declaration is an owner statement; runtime conformance results remain separate.
@@ -52,3 +81,9 @@ and Task products pass the maintained C33 inspector through their production
 serialization helpers. The Bioma receiver admits those owner DTOs and constructs
 current control requests. These are source and local behavioral checks; installed
 naming, simulation and hardware qualification remain pending.
+
+Native Task controls reuse the isolated Store fixture to qualify pre-dispatch admission,
+late cancellation, immutable/lease fences, first terminal and failure policy with inert
+next-work futures. They start no simulator, offline command, provider or GPU workload;
+already-stepped simulation and installed cancellation require their declared runtime
+qualification.

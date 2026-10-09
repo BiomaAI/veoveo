@@ -383,6 +383,8 @@ designs above.
 | `deploy/offline/admission.jq` | shared lock and bundle revision-2 decoding, closed nested image declarations and complete selected image-reference agreement before runtime import or destination writes |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
 | `showcase/sumo/sumo-mcp/src/server/docs.rs`, `AGENTS.md`, `DESIGN.md`, `contract-compliance.json` | embedded owner profile and documentation, authenticated MCP well-known reads and administrative projections using the existing SUMO identity middleware |
+| `showcase/sumo/sumo-mcp/src/server/task_worker.rs`, `task_worker/settlement.rs` | typed operation admission, leased execution gates, shared Resume settlement and RunBatch settlement without replay; native Store controls own cancellation and recovery-claim cases |
+| `showcase/sumo/sumo-mcp/src/server/service.rs` | SUMO HTTP wiring, finite startup Task recovery observation, simulation lifecycle and Recording/driver cleanup |
 | `showcase/uav-sim/` | Google 3D Tiles UAV simulation showcase over Isaac, Cesium, Newton, Warp, and PX4 |
 | `examples/bioma/` | executable enterprise GitOps reference with Bioma-owned desired state |
 | `examples/bioma/platform/flux/` | pinned Flux controller fixture for the local Bioma cluster; it is installed before the installation's desired state, and Veoveo's runtime does not own it |

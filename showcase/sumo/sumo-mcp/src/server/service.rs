@@ -26,7 +26,7 @@ use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, public_allowed_hosts,
 };
-use veoveo_task_runtime::{TaskRetentionPin, TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{TaskRecoveryObserver, TaskRetentionPin, TaskRuntime, TaskRuntimeConfig};
 
 use crate::contract::{
     Acknowledgement, CongestionState, DurableOperation, LaneRequest, OfflineOperationRequest,
@@ -558,7 +558,7 @@ async fn serve_admitted() -> anyhow::Result<()> {
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     std::fs::create_dir_all(&args.work_dir)?;
 
-    let driver: Box<dyn SimDriver> = match args.driver {
+    let mut driver: Box<dyn SimDriver> = match args.driver {
         DriverKind::Traci => {
             let host = args.sumo_host.clone();
             let scenario = args.scenario.clone();
@@ -578,32 +578,40 @@ async fn serve_admitted() -> anyhow::Result<()> {
             (40, 60),
         )),
     };
-    let publisher = RecordingPublisher::connect(&args.recording_proxy, &args.recording)?;
+    let publisher = finish_admission(
+        RecordingPublisher::connect(&args.recording_proxy, &args.recording),
+        || driver.close(),
+    )?;
     let mut world = World {
         driver,
         publisher,
         congested: false,
     };
-    let geometry = world.driver.network_geometry()?;
-    world.publisher.publish_network(&geometry)?;
-    let initial = world.driver.state()?;
-    world.congested = congestion(&initial).congested;
-    world.publisher.publish(&initial)?;
+    let startup = async {
+        let geometry = world.driver.network_geometry()?;
+        world.publisher.publish_network(&geometry)?;
+        let initial = world.driver.state()?;
+        world.congested = congestion(&initial).congested;
+        world.publisher.publish(&initial)?;
 
-    let tasks = TaskRuntime::connect(
-        TaskRuntimeConfig::new(
-            args.surreal_endpoint.clone(),
-            args.surreal_namespace.clone(),
-            args.surreal_database.clone(),
-            args.surreal_auth_level,
-            args.surreal_username.clone(),
-            args.surreal_password.clone(),
-        ),
-        SERVER_SLUG,
-        format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
-    )
-    .await?;
-    let recovery = tasks.recover().await?;
+        let tasks = TaskRuntime::connect(
+            TaskRuntimeConfig::new(
+                args.surreal_endpoint.clone(),
+                args.surreal_namespace.clone(),
+                args.surreal_database.clone(),
+                args.surreal_auth_level,
+                args.surreal_username.clone(),
+                args.surreal_password.clone(),
+            ),
+            SERVER_SLUG,
+            format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
+        )
+        .await?;
+        let recovery = tasks.observe_startup_recovery().await?;
+        anyhow::Ok((tasks, recovery))
+    }
+    .await;
+    let (tasks, recovery) = finish_admission(startup, || close_retained_world(&mut world))?;
     let state = Arc::new(AppState {
         world: Arc::new(Mutex::new(world)),
         tasks,
@@ -619,23 +627,56 @@ async fn serve_admitted() -> anyhow::Result<()> {
         ),
         max_artifact_bytes: args.max_artifact_bytes,
     });
-    for snapshot in recovery.resumable {
-        resume_operation(state.clone(), snapshot)
-            .await
-            .map_err(anyhow::Error::msg)?;
+    // Admit fallible serving inputs before the observer or simulation owns live work.
+    let serving_inputs = async {
+        let step_interval = args.step_interval()?;
+        let verifier = GatewayInternalTokenVerifier::new(
+            TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+            veoveo_mcp_contract::ServerSlug::parse(SERVER_SLUG)?,
+            GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
+        );
+        let address = SocketAddr::from(([0, 0, 0, 0], args.port));
+        let listener = tokio::net::TcpListener::bind(address).await?;
+        anyhow::Ok((step_interval, verifier, address, listener))
     }
+    .await;
+    let (step_interval, verifier, address, listener) = match serving_inputs {
+        Ok(inputs) => inputs,
+        Err(error) => {
+            if let Err(cleanup) = close_world(&state).await {
+                tracing::warn!(%cleanup, "SUMO world cleanup failed after serving admission error");
+            }
+            return Err(error);
+        }
+    };
+    let recovery_state = state.clone();
+    let recovery_observer = match TaskRecoveryObserver::start(recovery, move |report| {
+        let state = recovery_state.clone();
+        async move {
+            for snapshot in report.resumable {
+                resume_operation(state.clone(), snapshot).await?;
+            }
+            Ok(())
+        }
+    })
+    .await
+    {
+        Ok(observer) => observer,
+        Err(error) => {
+            let cleanup = close_world(&state).await;
+            if let Err(cleanup) = cleanup {
+                tracing::warn!(%cleanup, "SUMO world cleanup failed after recovery admission error");
+            }
+            return Err(error);
+        }
+    };
 
     let shutdown = CancellationToken::new();
     let simulation = tokio::spawn(simulation_loop(
         state.clone(),
-        args.step_interval()?,
+        step_interval,
         shutdown.child_token(),
     ));
-    let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        veoveo_mcp_contract::ServerSlug::parse(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
     allowed_hosts.extend(args.allowed_hosts.iter().cloned());
     let allowed_hosts = Arc::new(allowed_hosts);
@@ -675,24 +716,54 @@ async fn serve_admitted() -> anyhow::Result<()> {
                 .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
         );
 
-    let address = SocketAddr::from(([0, 0, 0, 0], args.port));
     tracing::info!(%address, public_url = public_endpoint.public_url(), "SUMO MCP listening");
-    let listener = tokio::net::TcpListener::bind(address).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown({
-            let shutdown = shutdown.clone();
-            async move {
-                let _ = tokio::signal::ctrl_c().await;
-                shutdown.cancel();
-            }
+    let serving = recovery_observer
+        .serve(async {
+            axum::serve(listener, router)
+                .with_graceful_shutdown({
+                    let shutdown = shutdown.clone();
+                    async move {
+                        let _ = tokio::signal::ctrl_c().await;
+                        shutdown.cancel();
+                    }
+                })
+                .await?;
+            Ok(())
         })
-        .await?;
+        .await;
     shutdown.cancel();
-    simulation.await??;
+    let simulation = simulation.await;
+    let cleanup = close_world(&state).await;
+    serving?;
+    simulation??;
+    cleanup
+}
+
+async fn close_world(state: &AppState) -> anyhow::Result<()> {
     let mut world = state.world.lock().await;
-    world.publisher.flush()?;
-    world.driver.close()?;
-    Ok(())
+    close_retained_world(&mut world)
+}
+
+fn close_retained_world(world: &mut World) -> anyhow::Result<()> {
+    let flush = world.publisher.flush();
+    let close = world.driver.close();
+    flush.and(close)
+}
+
+/// Keep the admission failure even if cleanup of the already-acquired owner fails.
+fn finish_admission<T>(
+    admission: anyhow::Result<T>,
+    cleanup: impl FnOnce() -> anyhow::Result<()>,
+) -> anyhow::Result<T> {
+    match admission {
+        Ok(admitted) => Ok(admitted),
+        Err(error) => {
+            if let Err(cleanup) = cleanup() {
+                tracing::warn!(%cleanup, "SUMO acquired owner cleanup failed during admission");
+            }
+            Err(error)
+        }
+    }
 }
 
 async fn simulation_loop(
@@ -852,6 +923,35 @@ mod tests {
             .is_err(),
             "actual catalog retired field must refuse C33"
         );
+    }
+
+    #[test]
+    fn failed_startup_admission_closes_acquired_owner_and_preserves_cause() {
+        use std::cell::Cell;
+        let closed = Cell::new(0);
+        for failure in [
+            "publisher connect",
+            "initial recording",
+            "task connect",
+            "recovery watch",
+        ] {
+            let result: anyhow::Result<()> =
+                finish_admission(Err(anyhow::anyhow!(failure)), || {
+                    closed.set(closed.get() + 1);
+                    anyhow::bail!("cleanup also failed")
+                });
+            assert_eq!(result.unwrap_err().to_string(), failure);
+        }
+        assert_eq!(closed.get(), 4);
+        assert_eq!(
+            finish_admission(Ok(7), || {
+                closed.set(closed.get() + 1);
+                Ok(())
+            })
+            .unwrap(),
+            7
+        );
+        assert_eq!(closed.get(), 4);
     }
 
     #[test]

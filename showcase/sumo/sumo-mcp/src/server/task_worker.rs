@@ -1,3 +1,6 @@
+#[path = "task_worker/settlement.rs"]
+mod settlement;
+
 use crate::contract::SumoTaskKind;
 use std::collections::BTreeSet;
 use std::num::{NonZeroU32, NonZeroU64};
@@ -99,34 +102,65 @@ pub(super) async fn start_operation(
         })
         .await
         .map_err(|error| error.to_string())?;
-    schedule_operation(state, created.snapshot, request).await
+    schedule_operation(state, created.snapshot, request)
+        .await
+        .map_err(|error| error.to_string())
 }
 
-pub(super) async fn resume_operation(
-    state: Arc<AppState>,
-    snapshot: TaskSnapshot,
-) -> Result<(), String> {
-    let request: DurableTaskRequest =
-        serde_json::from_value(snapshot.request.clone()).map_err(|error| error.to_string())?;
-    if matches!(&request.operation, DurableOperation::RunBatch(_)) {
-        return Err("mutating SUMO batches are never resumed".to_owned());
+pub(super) async fn resume_operation(state: Arc<AppState>, snapshot: TaskSnapshot) -> Result<()> {
+    let request = admit_resume(&snapshot)?;
+    let Some(claimed) = claim_recovered(&state.tasks, &snapshot).await? else {
+        return Ok(());
+    };
+    schedule_claimed_operation(state, claimed, request).await?;
+    Ok(())
+}
+
+fn admit_resume(snapshot: &TaskSnapshot) -> Result<DurableTaskRequest> {
+    let request: DurableTaskRequest = serde_json::from_value(snapshot.request.clone())?;
+    ensure!(
+        snapshot.recovery_class == RecoveryClass::Resume
+            && operation_name(&request.operation) == snapshot.task_type
+            && !matches!(&request.operation, DurableOperation::RunBatch(_)),
+        "SUMO recovery requires a matching resumable operation and Task type"
+    );
+    Ok(request)
+}
+
+/// Only claim errors enter the shared handoff proof. Decode and registration errors propagate.
+async fn claim_recovered(
+    runtime: &veoveo_task_runtime::TaskRuntime,
+    snapshot: &TaskSnapshot,
+) -> Result<Option<veoveo_task_runtime::ClaimedTask>> {
+    match runtime.claim(snapshot.task_id, TASK_LEASE_DURATION).await {
+        Ok(claimed) => Ok(Some(claimed)),
+        Err(error) => {
+            runtime
+                .reconcile_recovery_claim(snapshot, error.into())
+                .await?;
+            Ok(None)
+        }
     }
-    schedule_operation(state, snapshot, request)
-        .await
-        .map(|_| ())
 }
 
 async fn schedule_operation(
     state: Arc<AppState>,
     snapshot: TaskSnapshot,
     request: DurableTaskRequest,
-) -> Result<TaskSnapshot, String> {
-    let task_id = snapshot.task_id;
+) -> Result<TaskSnapshot, veoveo_task_runtime::TaskError> {
     let claimed = state
         .tasks
-        .claim(task_id, TASK_LEASE_DURATION)
-        .await
-        .map_err(|error| error.to_string())?;
+        .claim(snapshot.task_id, TASK_LEASE_DURATION)
+        .await?;
+    schedule_claimed_operation(state, claimed, request).await
+}
+
+async fn schedule_claimed_operation(
+    state: Arc<AppState>,
+    claimed: veoveo_task_runtime::ClaimedTask,
+    request: DurableTaskRequest,
+) -> Result<TaskSnapshot, veoveo_task_runtime::TaskError> {
+    let task_id = claimed.snapshot.task_id;
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_task(
         state.clone(),
@@ -137,8 +171,7 @@ async fn schedule_operation(
     state
         .tasks
         .register_worker(task_id, cancellation, join)
-        .await
-        .map_err(|error| error.to_string())?;
+        .await?;
     Ok(claimed.snapshot)
 }
 
@@ -173,6 +206,18 @@ async fn execute_operation(
     request: DurableTaskRequest,
     cancellation: CancellationToken,
 ) {
+    if !transition(
+        &state,
+        task_id,
+        TaskTransition::Running {
+            message: "running SUMO operation".into(),
+            progress: 0.1,
+        },
+    )
+    .await
+    {
+        return;
+    }
     let DurableTaskRequest {
         operation,
         artifact_write_capability,
@@ -240,14 +285,14 @@ async fn execute_operation(
         }
     };
 
-    if cancellation.is_cancelled() {
-        transition(&state, task_id, TaskTransition::Cancelled).await;
-        return;
-    }
     match result {
         Ok(result) => match veoveo_task_runtime::mcp_task_completion("completed", result) {
             Ok(completion) => {
-                transition(&state, task_id, completion).await;
+                if let Err(error) =
+                    settlement::update(&state.tasks, task_id, completion, Some(&cancellation)).await
+                {
+                    tracing::warn!(%task_id, %error, "SUMO final Task publication failed");
+                }
             }
             Err(error) => {
                 transition(
@@ -510,9 +555,13 @@ fn operation_name(operation: &DurableOperation) -> veoveo_types::TaskTypeName {
     }
 }
 
-async fn transition(state: &AppState, task_id: TaskId, next: TaskTransition) {
-    if let Err(error) = state.tasks.transition(task_id, next).await {
-        tracing::warn!(%task_id, %error, "SUMO task transition failed");
+async fn transition(state: &AppState, task_id: TaskId, next: TaskTransition) -> bool {
+    match settlement::update(&state.tasks, task_id, next, None).await {
+        Ok(snapshot) => snapshot.status == veoveo_task_runtime::TaskStatus::Running,
+        Err(error) => {
+            tracing::warn!(%task_id, %error, "SUMO task transition failed");
+            false
+        }
     }
 }
 

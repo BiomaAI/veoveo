@@ -18113,6 +18113,8 @@ dependencies = [
  "veoveo-gateway-catalog",
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
+ "veoveo-modules",
+ "veoveo-platform-store",
  "veoveo-task-runtime",
  "veoveo-types",
 ]
