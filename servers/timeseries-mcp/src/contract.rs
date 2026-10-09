@@ -13,6 +13,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use veoveo_artifact_contract::ArtifactMetadata;
+mod provenance;
+pub use provenance::*;
 mod request;
 pub use request::*;
 

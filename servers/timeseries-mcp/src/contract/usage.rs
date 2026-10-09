@@ -7,6 +7,103 @@ use veoveo_types::{ResourceFieldCodec, ResourceUri, TaskId};
 
 pub const TIMESERIES_USAGE_PAGE_SIZE: usize = 100;
 
+/// Forecast-specific metadata carried by the generic usage ledger.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[schemars(rename = "TimeseriesForecastUsageMetadata")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TimeseriesForecastUsageMetadataBuilder {
+    pub series_count: usize,
+    pub horizon: super::TimeseriesForecastHorizon,
+    pub artifact_format: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct TimeseriesForecastUsageMetadata(
+    veoveo_types::Checked<TimeseriesForecastUsageMetadataBuilder>,
+);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("forecast usage metadata requires a nonzero series count and rerun_rrd format")]
+pub struct TimeseriesForecastUsageMetadataError;
+
+impl TimeseriesForecastUsageMetadata {
+    pub fn new(
+        series_count: usize,
+        horizon: super::TimeseriesForecastHorizon,
+    ) -> Result<Self, TimeseriesForecastUsageMetadataError> {
+        TimeseriesForecastUsageMetadataBuilder {
+            series_count,
+            horizon,
+            artifact_format: "rerun_rrd".into(),
+        }
+        .build()
+    }
+}
+impl TimeseriesForecastUsageMetadataBuilder {
+    pub fn build(
+        self,
+    ) -> Result<TimeseriesForecastUsageMetadata, TimeseriesForecastUsageMetadataError> {
+        veoveo_types::Checked::new(self).map(TimeseriesForecastUsageMetadata)
+    }
+}
+impl veoveo_types::Check for TimeseriesForecastUsageMetadataBuilder {
+    type Error = TimeseriesForecastUsageMetadataError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.series_count == 0 || self.artifact_format != "rerun_rrd" {
+            return Err(TimeseriesForecastUsageMetadataError);
+        }
+        Ok(())
+    }
+}
+impl std::ops::Deref for TimeseriesForecastUsageMetadata {
+    type Target = TimeseriesForecastUsageMetadataBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl JsonSchema for TimeseriesForecastUsageMetadata {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        TimeseriesForecastUsageMetadataBuilder::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        TimeseriesForecastUsageMetadataBuilder::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        TimeseriesForecastUsageMetadataBuilder::json_schema(generator)
+    }
+}
+
+#[cfg(test)]
+mod forecast_metadata_tests {
+    use super::*;
+
+    #[test]
+    fn forecast_usage_metadata_preserves_wire_and_checks_decoding() {
+        let wire = serde_json::json!({"seriesCount":1,"horizon":2,"artifactFormat":"rerun_rrd"});
+        let metadata = TimeseriesForecastUsageMetadata::new(
+            1,
+            super::super::TimeseriesForecastHorizon::new(2).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(serde_json::to_value(&metadata).unwrap(), wire);
+        assert_eq!(
+            serde_json::from_value::<TimeseriesForecastUsageMetadata>(wire.clone()).unwrap(),
+            metadata
+        );
+        for (field, invalid) in [
+            ("seriesCount", serde_json::json!(0)),
+            ("horizon", serde_json::json!(0)),
+            ("artifactFormat", serde_json::json!("other")),
+            ("unknown", serde_json::json!(true)),
+        ] {
+            let mut malformed = wire.clone();
+            malformed[field] = invalid;
+            assert!(serde_json::from_value::<TimeseriesForecastUsageMetadata>(malformed).is_err());
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("expected a valid Timeseries usage page, cursor, or canonical Task UUIDv7 address")]
 pub struct TimeseriesUsageError;

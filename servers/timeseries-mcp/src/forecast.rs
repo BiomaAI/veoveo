@@ -3,9 +3,10 @@ use veoveo_types::TaskId;
 
 use crate::contract::{
     TimeseriesFilterCombination, TimeseriesFilterPredicate, TimeseriesFilterValue,
-    TimeseriesForecastHorizon, TimeseriesForecastMethod, TimeseriesForecastRequest,
+    TimeseriesForecastHorizon, TimeseriesForecastMetadata, TimeseriesForecastRequest,
     TimeseriesForecastSummary, TimeseriesPreviewForecastPoint, TimeseriesPreviewObservation,
-    TimeseriesRowFilter, TimeseriesSeriesPreview, TimeseriesSeriesSummary, TimeseriesTableMapping,
+    TimeseriesRecordingTask, TimeseriesRowFilter, TimeseriesRrdProvenance, TimeseriesSeriesPreview,
+    TimeseriesSeriesSummary, TimeseriesSourceProvenance,
 };
 use anyhow::{Context, Result, bail};
 use duckdb::Connection;
@@ -17,12 +18,10 @@ use re_sdk::{
 };
 use re_sdk_types::archetypes::{Scalars, TextDocument};
 use serde::Serialize;
-use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use veoveo_duckdb_mcp::contract::{
-    DuckDbFormat, DuckDbReadOptions, DuckDbSourceUris, DuckDbTabularSource,
-    duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
-    duckdb_read_options_sql,
+    DuckDbFormat, DuckDbTabularSource, duckdb_quote_identifier, duckdb_quote_literal,
+    duckdb_read_function_sql, duckdb_read_options_sql,
 };
 use veoveo_duckdb_runtime::{
     EngineSettings, FileAccess, HttpsSourcePolicy, RequestWorkspace, open_in_memory,
@@ -37,7 +36,7 @@ pub struct ForecastArtifact {
     pub summary: TimeseriesForecastSummary,
     pub preview: Vec<TimeseriesSeriesPreview>,
     pub rrd_bytes: Vec<u8>,
-    pub metadata: Value,
+    pub metadata: TimeseriesForecastMetadata,
 }
 
 /// Bound on preview points per series so structured output stays small; the
@@ -104,43 +103,6 @@ struct SeriesForecastDocument {
     forecast: Vec<ForecastPoint>,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-#[serde(deny_unknown_fields)]
-struct RrdProvenance<'a> {
-    task_id: TaskId,
-    source_digest: String,
-    source: SourceProvenance,
-    mapping: &'a TimeseriesTableMapping,
-    training_filter: Option<&'a TimeseriesRowFilter>,
-    method: &'a TimeseriesForecastMethod,
-    horizon: TimeseriesForecastHorizon,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(
-    tag = "kind",
-    rename_all = "snake_case",
-    rename_all_fields = "camelCase"
-)]
-enum SourceProvenance {
-    InlineCsv {
-        filename: Option<String>,
-        byte_len: usize,
-        options: DuckDbReadOptions,
-    },
-    Uri {
-        uri: veoveo_types::HttpsUrl,
-        format: DuckDbFormat,
-        options: DuckDbReadOptions,
-    },
-    Uris {
-        uris: DuckDbSourceUris,
-        format: DuckDbFormat,
-        options: DuckDbReadOptions,
-    },
-}
-
 pub fn run_forecast(
     task_id: TaskId,
     request: &TimeseriesForecastRequest,
@@ -197,23 +159,17 @@ pub fn run_forecast(
     }
     crate::contract::validate_forecast_preview(&summary, &preview)?;
     let source_digest = source_digest(&request.source)?;
-    let provenance = RrdProvenance {
+    let provenance = TimeseriesRrdProvenance {
         task_id,
-        source_digest,
+        source_digest: veoveo_artifact_contract::UploadSha256::parse(source_digest)?,
         source: source_provenance(&request.source),
-        mapping: &request.mapping,
-        training_filter: request.training_filter.as_ref(),
-        method: &request.method,
+        mapping: request.mapping.clone(),
+        training_filter: request.training_filter.clone(),
+        method: request.method,
         horizon: request.horizon,
     };
     let rrd_bytes = write_rrd(task_id, request, &provenance, &series_docs)?;
-    let metadata = json!({
-        "taskId": task_id,
-        "artifactFormat": "rerun_rrd",
-        "rrdApplicationId": "veoveo_timeseries_forecast",
-        "summary": summary,
-        "provenance": provenance,
-    });
+    let metadata = TimeseriesForecastMetadata::new(task_id, summary.clone(), provenance)?;
     Ok(ForecastArtifact {
         summary,
         preview,
@@ -471,7 +427,7 @@ fn residual_spread(rows: &[Observation]) -> f64 {
 fn write_rrd(
     task_id: TaskId,
     request: &TimeseriesForecastRequest,
-    provenance: &RrdProvenance<'_>,
+    provenance: &TimeseriesRrdProvenance,
     series_docs: &[SeriesForecastDocument],
 ) -> Result<Vec<u8>> {
     let mut writer = DeterministicRrdWriter::new(task_id)?;
@@ -488,11 +444,11 @@ fn write_rrd(
         .log(
             "/timeseries/task".to_owned(),
             TimePoint::STATIC,
-            &TextDocument::new(serde_json::to_string_pretty(&json!({
-                "taskId": task_id,
-                "horizon": request.horizon,
-                "method": request.method,
-            }))?)
+            &TextDocument::new(serde_json::to_string_pretty(&TimeseriesRecordingTask {
+                horizon: request.horizon,
+                method: request.method,
+                task_id,
+            })?)
             .with_media_type("application/json"),
         )
         .context("logging RRD task metadata")?;
@@ -651,13 +607,13 @@ fn source_digest(source: &DuckDbTabularSource) -> Result<String> {
     Ok(hex::encode(Sha256::digest(json)))
 }
 
-fn source_provenance(source: &DuckDbTabularSource) -> SourceProvenance {
+fn source_provenance(source: &DuckDbTabularSource) -> TimeseriesSourceProvenance {
     match source {
         DuckDbTabularSource::InlineCsv {
             csv,
             filename,
             options,
-        } => SourceProvenance::InlineCsv {
+        } => TimeseriesSourceProvenance::InlineCsv {
             filename: filename.clone(),
             byte_len: csv.len(),
             options: options.clone(),
@@ -666,7 +622,7 @@ fn source_provenance(source: &DuckDbTabularSource) -> SourceProvenance {
             uri,
             format,
             options,
-        } => SourceProvenance::Uri {
+        } => TimeseriesSourceProvenance::Uri {
             uri: uri.clone(),
             format: format.clone(),
             options: options.clone(),
@@ -675,7 +631,7 @@ fn source_provenance(source: &DuckDbTabularSource) -> SourceProvenance {
             uris,
             format,
             options,
-        } => SourceProvenance::Uris {
+        } => TimeseriesSourceProvenance::Uris {
             uris: uris.clone(),
             format: format.clone(),
             options: options.clone(),
@@ -703,7 +659,8 @@ mod tests {
         TimeseriesTableMapping,
     };
     use serde::Deserialize;
-    use veoveo_duckdb_mcp::contract::{DuckDbFormat, DuckDbTabularSource};
+    use serde_json::Value;
+    use veoveo_duckdb_mcp::contract::{DuckDbFormat, DuckDbReadOptions, DuckDbTabularSource};
 
     use super::*;
 
@@ -799,7 +756,7 @@ mod tests {
                     for text in batch.as_slice() {
                         documents.insert(
                             chunk.entity_path().to_string(),
-                            serde_json::from_str::<Value>(&text.0.to_string()).unwrap(),
+                            serde_json::from_str::<Value>(&text.0).unwrap(),
                         );
                     }
                 }
@@ -821,7 +778,10 @@ mod tests {
             .unwrap();
         assert_eq!(series["observedRows"], 2);
         assert!(series.get("series_id").is_none());
-        assert_eq!(artifact.metadata["provenance"], *provenance);
+        assert_eq!(
+            serde_json::to_value(&artifact.metadata.provenance).unwrap(),
+            *provenance
+        );
         let mut obsolete = serde_json::to_value(&request.source).unwrap();
         let value = obsolete["options"]
             .as_object_mut()

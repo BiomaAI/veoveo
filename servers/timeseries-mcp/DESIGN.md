@@ -10,7 +10,7 @@ structured output.
 | Standard or protocol | Implemented profile |
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | Protocol version `2026-07-28`; JSON-RPC 2.0 over stateless Streamable HTTP with Discover, one task-capable tool, resources and templates, structured content, and usage resources. |
-| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Forecast source, mapping, horizon, output, and app-call argument contracts. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Forecast source, mapping, horizon, output, provenance/Artifact metadata, and app-call argument contracts. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; forecasting executes through durable create, status, cancellation, terminal `tasks/get` payloads, and `subscriptions/listen`. |
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; the self-contained `ui://timeseries/forecast.html` view uses the sandboxed host bridge. |
 | CSV, JSON/NDJSON, and Apache Parquet | Inline CSV and HTTPS sources are materialized through the shared DuckDB runtime; forecast does not materialize Artifact inputs. |
@@ -52,6 +52,22 @@ The library's `contract` feature exposes forecast DTOs, the complete `Timeseries
 vocabulary, typed Artifact and usage addresses, cursor positions, and pages. Consumers disable default features. Its dependencies
 contain serialization, schema and foundational values plus DuckDB's contract feature;
 they exclude the MCP runtime, database engines, network clients and Rerun runtime.
+The same feature exposes `TimeseriesRrdProvenance`, `TimeseriesSourceProvenance`,
+`TimeseriesRecordingTask` and checked `TimeseriesForecastMetadata`. RRD JSON documents
+and Artifact metadata serialize these owner models. `sourceDigest` preserves the
+ordinary 64-character lowercase hexadecimal SHA-256 profile supplied by the existing
+Artifact `UploadSha256` type. Source URLs, nonempty URL lists, reader options, mapped
+columns and horizons keep their existing checked contracts. Metadata admission checks
+that the top-level native Task ID matches provenance and that the summary and
+provenance agree on method and horizon. It admits the fixed `rerun_rrd` format and
+`veoveo_timeseries_forecast` application identity. CamelCase member names, snake_case
+source tags and explicit null fields match the recording and public Artifact profile.
+`ForecastArtifact` holds this typed metadata until the Artifact driver's generic JSON
+serialization boundary; contract consumers require no Rerun or service runtime.
+`TimeseriesForecastUsageMetadata` owns the ledger's `seriesCount`, checked `horizon`
+and fixed `rerun_rrd` artifact format. Its builder and decoding reject zero series
+and unknown fields; the hosted producer serializes it at the generic usage boundary.
+
 `runtime` adds forecasting, Artifact access, owner models and the usage reader.
 `mcp` adds the hosted binary and is enabled by default.
 

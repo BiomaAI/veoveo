@@ -1,12 +1,10 @@
-use std::collections::BTreeMap;
-
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use veoveo_artifact_contract::{ArtifactPut, ComplianceMetadata};
 use veoveo_artifact_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability};
 use veoveo_mcp_contract::{UsageKind, UsageRecord, now_utc};
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, DomainUsageRecord, OpenObject};
 use veoveo_timeseries_mcp::{
-    contract::{TimeseriesArtifactUri, TimeseriesForecastSummary},
+    contract::{TimeseriesArtifactUri, TimeseriesForecastSummary, TimeseriesForecastUsageMetadata},
     forecast::{ForecastArtifact, RRD_FILENAME, RRD_MIME_TYPE},
     state::TaskOwner,
 };
@@ -34,7 +32,7 @@ pub(super) async fn forecast_result(
         data_labels: owner.data_labels.clone(),
         ..Default::default()
     };
-    put.metadata = artifact.metadata;
+    put.metadata = serde_json::to_value(artifact.metadata)?;
     let metadata = state
         .artifacts
         .put_with_capability(
@@ -92,14 +90,9 @@ async fn record_usage(
             amount: None,
             currency: None,
             recorded_at: now_utc(),
-            metadata: OpenObject::new(BTreeMap::from([
-                (
-                    "seriesCount".into(),
-                    serde_json::json!(summary.series.len()),
-                ),
-                ("horizon".into(), serde_json::json!(summary.horizon)),
-                ("artifactFormat".into(), serde_json::json!("rerun_rrd")),
-            ])),
+            metadata: serde_json::from_value::<OpenObject>(serde_json::to_value(
+                TimeseriesForecastUsageMetadata::new(summary.series.len(), summary.horizon)?,
+            )?)?,
         })
         .await?;
     Ok(())
