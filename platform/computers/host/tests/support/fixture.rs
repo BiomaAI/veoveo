@@ -540,8 +540,6 @@ impl Fixture {
             "127.0.0.1::8805",
             "--publish",
             "127.0.0.1::8806",
-            "--env",
-            "SSL_CERT_FILE=/etc/veoveo/computers/host-trust/issuer-ca.pem",
         ]);
         for (name, path, options) in [
             ("data", "/var/lib/veoveo-computers", ""),

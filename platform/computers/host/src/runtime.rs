@@ -64,7 +64,7 @@ pub async fn run(config: Config) -> Result<()> {
     )?;
     let retained = journal.is_some();
     drop(journal);
-    files::trust()?;
+    let issuer_ca = files::trust()?;
     config
         .storage_config()
         .tls
@@ -87,7 +87,7 @@ pub async fn run(config: Config) -> Result<()> {
     )?;
     let mut children = Children::default();
     let outcome = tokio::select! {
-        result = serve(&config, retained, &mut children) => result,
+        result = serve(&config, retained, issuer_ca.as_ref(), &mut children) => result,
         _ = terminate.recv() => Ok(()),
         _ = interrupt.recv() => Ok(()),
     };
@@ -132,7 +132,12 @@ async fn wait_api(children: &mut Children) -> Result<()> {
         sleep(Duration::from_millis(100)).await;
     }
 }
-async fn serve(config: &Config, retained: bool, children: &mut Children) -> Result<()> {
+async fn serve(
+    config: &Config,
+    retained: bool,
+    issuer_ca: Option<&files::IssuerCa>,
+    children: &mut Children,
+) -> Result<()> {
     if retained {
         register_plugin()?;
     }
@@ -224,27 +229,7 @@ async fn serve(config: &Config, retained: bool, children: &mut Children) -> Resu
     )
     .await?;
     children.check()?;
-    let mut provider = process::command("/usr/local/bin/openshell-gateway");
-    provider
-        .env("XDG_STATE_HOME", format!("{STATE}/provider/state"))
-        .env("XDG_DATA_HOME", format!("{STATE}/provider/data"))
-        .env("XDG_CONFIG_HOME", format!("{STATE}/provider/config"))
-        .args([
-            "--config",
-            &format!("{RUN}/provider.toml"),
-            "--db-url",
-            &format!("sqlite://{STATE}/provider/gateway.sqlite?mode=rwc"),
-            "--tls-cert",
-            &format!("{RUN}/trust/provider-server.pem"),
-            "--tls-key",
-            &format!("{RUN}/trust/provider-server-key.pem"),
-            "--tls-client-ca",
-            &format!("{RUN}/trust/provider-client-ca.pem"),
-            "--enable-mtls-auth",
-            "false",
-            "--enable-loopback-service-http",
-            "false",
-        ]);
+    let mut provider = provider_command(issuer_ca);
     children.provider = Some(Process::spawn("provider", &mut provider)?);
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
@@ -271,6 +256,40 @@ async fn serve(config: &Config, retained: bool, children: &mut Children) -> Resu
         sleep(Duration::from_millis(250)).await;
     }
 }
+fn provider_command(issuer_ca: Option<&files::IssuerCa>) -> tokio::process::Command {
+    let mut provider = provider_environment("/usr/local/bin/openshell-gateway", issuer_ca);
+    provider
+        .env("XDG_STATE_HOME", format!("{STATE}/provider/state"))
+        .env("XDG_DATA_HOME", format!("{STATE}/provider/data"))
+        .env("XDG_CONFIG_HOME", format!("{STATE}/provider/config"))
+        .args([
+            "--config",
+            &format!("{RUN}/provider.toml"),
+            "--db-url",
+            &format!("sqlite://{STATE}/provider/gateway.sqlite?mode=rwc"),
+            "--tls-cert",
+            &format!("{RUN}/trust/provider-server.pem"),
+            "--tls-key",
+            &format!("{RUN}/trust/provider-server-key.pem"),
+            "--tls-client-ca",
+            &format!("{RUN}/trust/provider-client-ca.pem"),
+            "--enable-mtls-auth",
+            "false",
+            "--enable-loopback-service-http",
+            "false",
+        ]);
+    provider
+}
+fn provider_environment(
+    binary: &str,
+    issuer_ca: Option<&files::IssuerCa>,
+) -> tokio::process::Command {
+    let mut command = process::command(binary);
+    if let Some(issuer_ca) = issuer_ca {
+        command.env("SSL_CERT_FILE", issuer_ca.path());
+    }
+    command
+}
 pub async fn health() -> Result<()> {
     ensure!(
         Path::new(&format!("{RUN}/ready")).is_file(),
@@ -284,4 +303,65 @@ pub async fn health() -> Result<()> {
     })
     .await
     .context("compute host health deadline")?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn provider_environment_uses_only_current_admitted_issuer_ca() {
+        let source = tempfile::tempdir().unwrap();
+        let target = tempfile::tempdir().unwrap();
+        let mut params = rcgen::CertificateParams::new(vec![]).unwrap();
+        params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        params.key_usages = vec![rcgen::KeyUsagePurpose::KeyCertSign];
+        let key = rcgen::KeyPair::generate().unwrap();
+        let pem = params.self_signed(&key).unwrap().pem();
+        files::write(&source.path().join("issuer-ca.pem"), pem.as_bytes()).unwrap();
+        let admitted = files::issuer_ca(source.path(), target.path())
+            .unwrap()
+            .unwrap();
+        let command = provider_command(Some(&admitted));
+        let env = command
+            .as_std()
+            .get_envs()
+            .collect::<std::collections::BTreeMap<_, _>>();
+        assert_eq!(
+            env.get(std::ffi::OsStr::new("SSL_CERT_FILE")),
+            Some(&Some(admitted.path().as_os_str()))
+        );
+        assert!(!env.contains_key(std::ffi::OsStr::new("SSL_CERT_DIR")));
+        assert!(!env.contains_key(std::ffi::OsStr::new("HTTPS_PROXY")));
+        fs::remove_file(source.path().join("issuer-ca.pem")).unwrap();
+        let current = files::issuer_ca(source.path(), target.path()).unwrap();
+        assert!(current.is_none());
+        let command = provider_command(current.as_ref());
+        assert!(
+            !command
+                .as_std()
+                .get_envs()
+                .any(|(name, _)| name == "SSL_CERT_FILE")
+        );
+        let output = provider_environment("/usr/bin/env", current.as_ref())
+            .into_std()
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let environment = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(environment.lines().count(), 2);
+        assert!(environment.lines().any(|line| line == "container=docker"));
+        assert!(environment.lines().any(|line| line.starts_with("PATH=")));
+        let output = provider_environment("/usr/bin/env", Some(&admitted))
+            .into_std()
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let environment = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(environment.lines().count(), 3);
+        assert!(
+            environment
+                .lines()
+                .any(|line| line == format!("SSL_CERT_FILE={}", admitted.path().display()))
+        );
+    }
 }

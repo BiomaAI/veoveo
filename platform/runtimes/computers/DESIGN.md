@@ -94,7 +94,9 @@ cryptography and applies upstream RBAC. The test-only issuer in
 `tests/support/worker_issuer.rs` supplies HTTPS discovery, signing and JWKS to the
 existing owning controls; it cannot satisfy installation registration. Native
 gateway children trust its CA through the stock `rustls-native-certs` 0.8.3
-`SSL_CERT_FILE` input; certificate verification stays enabled. Native
+`SSL_CERT_FILE` input. The composite Host admits the mounted `issuer-ca.pem`,
+copies it into private runtime trust and sets this input only on its provider
+child. Certificate verification stays enabled. Native
 positive/negative security qualification and installed credentials remain gates.
 
 ## Provider Process And Build Profile

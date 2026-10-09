@@ -129,8 +129,14 @@ runtime directory have mode 0600.
 Configuration requires `providerAuthentication`: HTTPS `issuer`, exact `audience`,
 `rolesClaim`, nonempty `adminRole` and `userRole`, and `jwksTtlSecs` in 1..3600.
 The installation provides a dedicated private worker OAuth registration with the
-selected roles and short-lived credentials. The issuer's certificate must validate
-against the provider process's system trust store. With chart NetworkPolicy enabled,
+selected roles and short-lived credentials. The provider uses its system trust store
+when `issuer-ca.pem` is absent from the mounted Host trust directory. An operator may
+supply that fixed file as one complete, valid self-signed public CA certificate.
+The launcher admits it through the same confined projection and file checks, copies
+it into private runtime trust and sets only the provider child's `SSL_CERT_FILE` to
+that copy. A present invalid or inaccessible file refuses startup. Each startup uses
+the current mounted input; removing it restores system trust even when an older copy
+exists. Other child environment variables stay cleared. With chart NetworkPolicy enabled,
 `computers.host.issuerEgress` declares explicit IPv4 CIDRs with prefixes 1..32
 for issuer/JWKS HTTPS on TCP 443. Missing destinations refuse configured rendering;
 the chart infers no issuer IP or reference-installation network. Computers MCP worker

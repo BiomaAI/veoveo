@@ -4,7 +4,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 /// Internal files never follow a final symlink.
@@ -209,7 +209,41 @@ fn signed_certificate(bytes: &[u8], root: &[u8], role: LeafRole) -> Result<()> {
     Ok(())
 }
 
-pub fn trust() -> Result<()> {
+pub struct IssuerCa(PathBuf);
+impl IssuerCa {
+    pub fn path(&self) -> &Path {
+        &self.0
+    }
+}
+pub(super) fn issuer_ca(source: &Path, target: &Path) -> Result<Option<IssuerCa>> {
+    let source = fs::canonicalize(source).context("resolve host trust root")?;
+    match fs::symlink_metadata(source.join("issuer-ca.pem")) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error).context("inspect issuer-ca.pem"),
+    }
+    let bytes = projected_trust(&source, "issuer-ca.pem")?;
+    ensure!(
+        bytes
+            .trim_ascii_start()
+            .starts_with(b"-----BEGIN CERTIFICATE-----"),
+        "issuer-ca.pem requires one complete CA certificate"
+    );
+    let der = certificate(&bytes).context("validate issuer-ca.pem")?;
+    let (_, cert) = x509_parser::parse_x509_certificate(&der)
+        .map_err(|_| anyhow::anyhow!("invalid issuer CA certificate"))?;
+    ensure!(
+        cert.is_ca() && cert.subject() == cert.issuer() && cert.validity().is_valid(),
+        "issuer-ca.pem must be a valid self-signed CA"
+    );
+    cert.verify_signature(None)
+        .map_err(|_| anyhow::anyhow!("invalid issuer CA signature"))?;
+    let path = target.join("issuer-ca.pem");
+    write(&path, &bytes)?;
+    Ok(Some(IssuerCa(path)))
+}
+
+pub fn trust() -> Result<Option<IssuerCa>> {
     let target = Path::new(super::config::RUN).join("trust");
     directory(&target)?;
     for name in [
@@ -248,7 +282,7 @@ pub fn trust() -> Result<()> {
     )
     .context("validate guest.pem")?;
     write(&target.join("provider-client-ca.pem"), &bundle)?;
-    Ok(())
+    issuer_ca(Path::new(super::config::TRUST), &target)
 }
 
 #[cfg(test)]
@@ -293,6 +327,72 @@ mod tests {
             .signed_by(&rcgen::KeyPair::generate().unwrap(), issuer)
             .unwrap()
             .pem()
+    }
+    #[test]
+    fn optional_issuer_ca_captures_projection_and_ignores_stale_copy_after_removal() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("source");
+        let target = temp.path().join("target");
+        fs::create_dir(&source).unwrap();
+        fs::create_dir(&target).unwrap();
+        assert!(issuer_ca(&source, &target).unwrap().is_none());
+        let (old, _) = root("old issuer");
+        let (new, _) = root("new issuer");
+        for (revision, pem) in [("old", &old), ("new", &new)] {
+            fs::create_dir(source.join(revision)).unwrap();
+            fs::write(source.join(revision).join("issuer-ca.pem"), pem).unwrap();
+            fs::set_permissions(
+                source.join(revision).join("issuer-ca.pem"),
+                fs::Permissions::from_mode(0o644),
+            )
+            .unwrap();
+        }
+        symlink("old", source.join("..data")).unwrap();
+        symlink("..data/issuer-ca.pem", source.join("issuer-ca.pem")).unwrap();
+        let admitted = issuer_ca(&source, &target).unwrap().unwrap();
+        symlink("new", source.join("..next")).unwrap();
+        fs::rename(source.join("..next"), source.join("..data")).unwrap();
+        assert_eq!(read(admitted.path()).unwrap(), old.as_bytes());
+        let current = issuer_ca(&source, &target).unwrap().unwrap();
+        assert_eq!(read(current.path()).unwrap(), new.as_bytes());
+        fs::remove_file(source.join("issuer-ca.pem")).unwrap();
+        assert!(issuer_ca(&source, &target).unwrap().is_none());
+        assert!(current.path().exists());
+    }
+    #[test]
+    fn optional_issuer_ca_rejects_invalid_present_entries() {
+        let source = tempfile::tempdir().unwrap();
+        let target = tempfile::tempdir().unwrap();
+        let (ca, issuer) = root("issuer");
+        let leaf = leaf(&issuer, rcgen::ExtendedKeyUsagePurpose::ServerAuth);
+        let key = rcgen::KeyPair::generate().unwrap().serialize_pem();
+        for bytes in [
+            Vec::new(),
+            b"garbage".to_vec(),
+            key.into_bytes(),
+            leaf.into_bytes(),
+            format!("{ca}garbage").into_bytes(),
+            format!("garbage\n{ca}").into_bytes(),
+            format!("{ca}{ca}").into_bytes(),
+            vec![0; 65537],
+        ] {
+            let path = source.path().join("issuer-ca.pem");
+            fs::write(&path, bytes).unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+            assert!(issuer_ca(source.path(), target.path()).is_err());
+        }
+        let path = source.path().join("issuer-ca.pem");
+        fs::write(&path, &ca).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o666)).unwrap();
+        assert!(issuer_ca(source.path(), target.path()).is_err());
+        fs::remove_file(&path).unwrap();
+        symlink("absent", &path).unwrap();
+        assert!(issuer_ca(source.path(), target.path()).is_err());
+        fs::remove_file(&path).unwrap();
+        let outside = target.path().join("outside.pem");
+        fs::write(&outside, ca).unwrap();
+        symlink(&outside, &path).unwrap();
+        assert!(issuer_ca(source.path(), target.path()).is_err());
     }
     #[test]
     fn provider_listener_admits_only_independent_client_roots_and_correct_leaf_roles() {
