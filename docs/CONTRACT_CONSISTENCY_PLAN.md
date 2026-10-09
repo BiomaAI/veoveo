@@ -70,7 +70,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 
 ## Current Status
 
-Twelve hosted Rust owners use TaskRuntime's finite startup recovery observer.
+Thirteen Rust Task owners, including SUMO, use TaskRuntime's finite startup recovery observer.
 Retained Tasks with live leases are revisited after expiry, and failed claims require
 current settlement or a matching live replacement worker before recovery skips them.
 Speech schedules its retained backlog behind the existing 64-slot queue while HTTP
@@ -78,11 +78,30 @@ stays available. Shared native recovery controls pass; owner shutdown controls p
 one HTTP drain deadline and the observer's separate five-second drain. Installed
 Task lifecycle, restart and final-image qualification remain open.
 
-Native two-runtime controls qualify Time and Timeseries cancellation at final
-settlement, preserving the first terminal outcome and the executing worker's live
-lease checks. Time also retains local stopping through its snapshot-read and
-publication checkpoints; a shared transition already dispatched may still settle.
-Installed cancellation, unfinished work and replica qualification remain open.
+Ten hosted owners use shared Resume settlement: DuckDB, Frames, Map, Optimization,
+Time, Timeseries, Speech, Stream, Reason and View. The helper checks the executing
+worker's live lease, preserves the first terminal outcome and reconciles one
+cancellation conflict. Each owner selects whether a genuine failure takes priority
+over cancellation. Initial and progress gates stop subsequent effects when the
+returned Task is terminal. Native Store controls pass; Time's local-stop checks
+also cover snapshot reads and publication. A transition already dispatched may
+still settle. Installed cancellation, unfinished restart and replica qualification
+remain open.
+
+DuckDB keeps mutations outside the Resume helper. Its native engine control proves
+that cancellation before dispatch prevents an insert, while a committed insert
+survives cancellation exactly once. Map admits current parent policy before
+replaying a committed feature-change receipt against an advanced layer revision.
+Media settles pre-dispatch cancellation only when durable dispatch evidence is
+absent. UAV preserves failure details, physical outcomes and authority pins when
+cancellation changes the Task revision. These owner controls pass locally; they
+do not establish provider, simulator or installed recovery.
+
+SUMO uses shared Resume settlement for offline operations and keeps RunBatch
+outside replay. Recovery checks operation-to-Task-type agreement before claiming
+work, and setup errors close acquired driver and Recording resources. Its native
+Store and cleanup controls pass. Actual unfinished restart, HTTP shutdown and
+stepped simulator qualification remain open.
 
 The existing owner harnesses prepare the following checks. Their native controls
 pass; the new installed cases remain unexecuted during the installation hold.
@@ -117,8 +136,9 @@ eight baseline services are Ready; the node is unchanged and uncordoned, and no
 installed credentials have changed. The eighteen selected stock native cases stay
 qualified, including the implemented aggregate Host profile of 1 CPU, 6 GiB and 1,024 PIDs.
 The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated. Gateway and
-Computers images are refreshed from `a9236ba6f` for the current TaskRuntime code;
-node-network manifest and config readback pass. The other five stock-provider image
+Computers images are staged from `a9236ba6f`; final images must include the later
+TaskRuntime and owner settlement changes. Node-network manifest and config readback
+pass. The other five stock-provider image
 pins are preserved. Staging does not activate the installation or establish release
 eligibility. A private
 credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
