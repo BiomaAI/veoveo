@@ -827,6 +827,52 @@
       "cleanupSeconds": 180
     },
     {
+      "id": "frames-recovery",
+      "description": "Qualify settled Frames world/revision/Task persistence across one externally authorized same-Pod process crash.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "examples/bioma/acceptance",
+          "package": "veoveo-bioma-acceptance",
+          "target": "installation-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "frames-recovery"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Requires installation, crash-fixture, marker-output and evidence-output. Owns one append-only Frames world/revision and completed artifact=false batch Task before the readiness marker. Ops alone signals the admitted container; native Kubernetes watch and fresh normal OAuth reads verify settled state. No provider, paid, artifact production or GPU effects."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
+    },
+    {
       "id": "map-mcp",
       "description": "Smoke-test the all-in-one Map image, governed acquisition, activation, and MCP data surface.",
       "target": {

@@ -1,6 +1,8 @@
 use super::*;
 #[path = "coverage.rs"]
 mod coverage;
+#[path = "recovery.rs"]
+pub(crate) mod recovery;
 
 /// Installed qualification uses the same owner scenario and never replays a mutation.
 pub(crate) async fn frames_installed(

@@ -201,7 +201,7 @@ pub(super) async fn completion(
     );
     Ok(())
 }
-pub(super) async fn provenance(
+pub(in super::super) async fn provenance(
     client: &SmokeMcpClient,
     output: &ConvertFrameOutput,
     revision: &FrameWorldRevision,
@@ -216,7 +216,7 @@ pub(super) async fn provenance(
     );
     Ok(())
 }
-fn require_conversion(
+pub(in super::super) fn require_conversion(
     output: &ConvertFrameOutput,
     revision: &FrameWorldRevision,
     request: &ConvertFrameRequest,
@@ -314,20 +314,20 @@ pub(super) async fn await_tasks(
     rename_all = "snake_case",
     rename_all_fields = "camelCase"
 )]
-pub(super) enum ForeignTarget {
+pub(in super::super) enum ForeignTarget {
     Operation { uri: FrameOperationUri },
     TaskUsage { uri: FrameTaskUsageUri },
 }
 #[derive(Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
-pub(super) enum ForeignMethod {
+pub(in super::super) enum ForeignMethod {
     ResourceRead,
     ListenAdmission,
     ListenTerminal,
 }
 #[derive(serde::Serialize)]
 #[serde(rename_all = "snake_case")]
-enum TransportClass {
+pub(in super::super) enum TransportClass {
     Send,
     Closed,
     UnexpectedResponse,
@@ -343,7 +343,7 @@ enum TransportClass {
     rename_all = "snake_case",
     rename_all_fields = "camelCase"
 )]
-enum ForeignObservation {
+pub(in super::super) enum ForeignObservation {
     AwaitingResponse,
     PeerFailure {
         observed: veoveo_mcp_conformance::client::failure::ObservedFailure,
@@ -361,12 +361,12 @@ enum ForeignObservation {
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(in super::super) struct ForeignProbe {
-    method: ForeignMethod,
-    target: ForeignTarget,
-    expected: veoveo_mcp_conformance::client::failure::ObservedFailure,
-    observed: ForeignObservation,
+    pub(in super::super) method: ForeignMethod,
+    pub(in super::super) target: ForeignTarget,
+    pub(in super::super) expected: veoveo_mcp_conformance::client::failure::ObservedFailure,
+    pub(in super::super) observed: ForeignObservation,
 }
-fn expected_denial(
+pub(in super::super) fn expected_denial(
     target: &ForeignTarget,
     method: ForeignMethod,
 ) -> veoveo_mcp_conformance::client::failure::ObservedFailure {
@@ -382,7 +382,7 @@ fn expected_denial(
         message,
     )
 }
-fn observe_peer_failure(error: ServiceError) -> ForeignObservation {
+pub(in super::super) fn observe_peer_failure(error: ServiceError) -> ForeignObservation {
     if let ServiceError::McpError(error) = error {
         return ForeignObservation::PeerFailure {
             observed: veoveo_mcp_conformance::client::failure::ObservedFailure::mcp(

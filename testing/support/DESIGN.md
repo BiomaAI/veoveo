@@ -108,3 +108,37 @@ opaque resource versions fail; the observer never orders resource versions.
 Deletion or Ready alone cannot qualify exit. Watch errors, gaps, premature closure and missing terminal state fail.
 Owned process groups are cancelled on every exit path. Replacement readiness and
 public routing are checked independently after drain.
+
+
+## Installed Process Crash Observation
+
+The read-only crash profile reuses selected-container admission and the native Pod
+watch. Its owner supplies a declared Deployment, namespace/ReplicaSet/Pod UIDs,
+container name, current containerID, imageID and restartCount. Live namespace and
+Deployment readiness, the controlling ReplicaSet relationship and a Ready running
+container must agree in the read-only admission before domain effects. Watch arming
+repeats that admission after the owner settles its mutations. The initial watch object
+then checks the same identities before the observer arms. The caller
+stores the watch before waiting for that object. A cancelled admission therefore
+keeps a pending handle for awaited cleanup outside the owner's operation timer.
+
+The observer issues no signal, patch or restart. An operations owner separately
+admits and signals the selected container after the domain owner has persisted its
+settled-state snapshot and readiness marker. Recovery requires the same Pod UID,
+ReplicaSet and image, one restart-count increment, a different containerID and Ready.
+The old instance must report exit 137 with its correlated termination timestamp.
+A reported positive signal must be 9. Missing or zero signal is recorded as unavailable;
+it does not establish a signal observation. Explicit OOMKilled or another reported
+termination reason fails the crash profile. The operations dispatch receipt is required
+alongside these observations to qualify a deliberate kill.
+
+Watch errors, closure, deletion, repeated resource versions and identity/count/image
+drift fail qualification. The observer preserves partial termination facts in its
+caller-owned state. It rechecks the unchanged Deployment generation and namespace UID
+after readiness, then reuses the existing ten-second public contract-read admission
+before returning. After retained-state reads, a final live admission requires that
+same observed replacement container, restart count and template generation and records
+its completion timestamp. Every watch has a deadline of at most 300 seconds; closing its owned
+native process group is awaited for up to five seconds outside the operation timer.
+This profile qualifies persistence of previously settled operations. It does not
+establish recovery of a mutation interrupted in flight or cross-replica consistency.

@@ -36,6 +36,10 @@ const CONCURRENCY: usize = 4;
 #[path = "assertions.rs"]
 mod assertions;
 use assertions::*;
+pub(super) use assertions::{
+    ForeignMethod, ForeignObservation, ForeignTarget, TransportClass, expected_denial,
+    observe_peer_failure, provenance, require_conversion,
+};
 pub(super) use assertions::{ForeignProbe, probe_timed_out};
 
 #[derive(serde::Serialize)]
@@ -222,7 +226,10 @@ pub(super) async fn create(
     require_created(&request, &output)?;
     Ok(output)
 }
-fn require_created(request: &CreateWorldRequest, output: &CreateWorldOutput) -> Result<()> {
+pub(super) fn require_created(
+    request: &CreateWorldRequest,
+    output: &CreateWorldOutput,
+) -> Result<()> {
     ensure!(
         output.world.world_id() == request.world_id
             && output.world.display_name == request.display_name
@@ -790,7 +797,7 @@ async fn competing_publications(
     );
     Ok(winner)
 }
-fn require_publication(
+pub(super) fn require_publication(
     request: &PublishWorldRequest,
     original: &FrameWorldSummary,
     output: &PublishWorldOutput,

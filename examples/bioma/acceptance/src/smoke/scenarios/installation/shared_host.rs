@@ -85,6 +85,7 @@ pub(crate) async fn run(
     };
     persist(&mut evidence, &receipt)?;
     let mut connection = None;
+    let mut notification = TaskNotificationState::default();
     let result = async {
         let (selected, arguments) = tokio::time::timeout_at(deadline, async {
             let token = tokio::time::timeout(Duration::from_secs(15), installation.token())
@@ -121,22 +122,31 @@ pub(crate) async fn run(
         let client = connection.as_ref().expect("connected client");
         receipt.stage = Stage::DispatchUnresolved;
         persist(&mut evidence, &receipt)?;
-        let mut listener_closed = false;
         let completed = complete_tool_with_notification(
             client,
             "duckdb__query",
             arguments,
             deadline.min(tokio::time::Instant::now() + Duration::from_secs(30)),
             Duration::from_secs(30),
-            |task_id| {
-                receipt.task_id = Some(task_id.clone());
-                receipt.stage = Stage::TaskObserved;
-                persist(&mut evidence, &receipt)
+            |observation| {
+                if let TaskNotificationObservation::Admitted(task_id) = observation {
+                    receipt.task_id = Some(task_id.clone());
+                    receipt.stage = Stage::TaskObserved;
+                    persist(&mut evidence, &receipt)?;
+                } else if let TaskNotificationObservation::Completed { task_id, payload } =
+                    observation
+                {
+                    ensure!(
+                        receipt.task_id.as_ref() == Some(task_id) && payload.is_error != Some(true),
+                        "completed Task observation changed identity or failed"
+                    );
+                }
+                Ok(())
             },
-            &mut listener_closed,
+            &mut notification,
         )
         .await;
-        receipt.subscription_cleanup = Some(listener_closed);
+        receipt.subscription_cleanup = Some(notification.listener_closed);
         let (task_id, payload) = completed?;
         let original = require_query_payload(payload)?;
         tokio::time::timeout_at(deadline, async {
@@ -168,6 +178,8 @@ pub(crate) async fn run(
         .context("installed CPU Host restart/read exceeded 180 seconds")?
     }
     .await;
+    let subscription_cleanup = notification.close().await;
+    receipt.subscription_cleanup = Some(notification.listener_closed);
     if let Some(client) = connection {
         receipt.connections = Connections::Unresolved;
         if matches!(
@@ -177,9 +189,12 @@ pub(crate) async fn run(
             receipt.connections = Connections::Closed;
         }
     }
-    receipt.failed = result.is_err() || !matches!(receipt.connections, Connections::Closed);
+    receipt.failed = result.is_err()
+        || subscription_cleanup.is_err()
+        || !matches!(receipt.connections, Connections::Closed);
     let written = persist(&mut evidence, &receipt);
     result?;
+    subscription_cleanup?;
     written?;
     ensure!(
         matches!(receipt.connections, Connections::Closed),

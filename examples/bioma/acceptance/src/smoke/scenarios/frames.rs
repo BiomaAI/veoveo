@@ -473,3 +473,5 @@ fn installed_frames_tree() -> Result<veoveo_frames_mcp::contract::FrameWorldTree
 #[path = "frames/installed.rs"]
 mod installed;
 pub(crate) use installed::frames_installed;
+
+pub(crate) use installed::recovery::run as frames_recovery;

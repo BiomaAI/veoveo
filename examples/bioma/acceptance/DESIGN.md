@@ -24,6 +24,8 @@
 | Installed View fixture | `veoveo.ai/view-installed-fixture/v1` closed JSON; nonzero Kubernetes UIDs, opaque resourceVersions, immutable ConfigMap bytes and qualified image release; relative release paths resolve beside the declaration |
 | View fixture preparation | `veoveo.ai/view-fixture-preparation/v1` JSON utility receipt; preparation produces no smoke acceptance outcome |
 | Installed Frames evidence | `veoveo.ai/frames-installed-evidence/v3` camelCase JSON with typed dispatch intents and observations, owner world/revision/native usage identities, gateway Task routes and separate cleanup outcomes |
+| Frames crash fixture | `veoveo.ai/frames-crash-fixture/v1` closed private JSON binds the installation/control-plane digest and selected Deployment/ReplicaSet/Pod/container runtime identities |
+| Frames crash marker and receipt | `veoveo.ai/frames-ready-for-crash/v1` and `veoveo.ai/frames-recovery-evidence/v1`; private settled typed snapshots, caller-owned watch progress, operation outcome and awaited cleanup |
 | Installed CPU protocol fixture | `veoveo.ai/installed-protocol-fixture/v1` closed JSON binds exactly DuckDB, Timeseries, Frames and Media loopback origins, upstream Host authorities, workload UIDs/images and the selected control-plane SHA-256 |
 | Installed CPU protocol receipt | `veoveo.ai/installed-protocol/v2` private JSON records all four owners’ expected/observed tool identities before validation, requests, HTTP status/body digest, MCP code/message digest, administrator health/audit correlation and separate operation, cleanup and qualification results |
 | Installed transport | Maintained curl HTTP/1.1 with explicit empty Host, no redirects or proxy, 15-second requests and 64 KiB responses; RFC 9112 missing-Host 400 and installation Host admission 421 |
@@ -420,3 +422,45 @@ against the selected gateway and credentials.
 This CPU case publishes static transforms. It does not qualify an external stream
 producer's routes or timestamped transform delivery. Current-format operation
 readback does not establish crash or restart recovery.
+
+
+## Installed Frames Settled-State Crash Recovery
+
+`frames-recovery` uses the existing installation-smoke binary and only its normal
+`gateway-smoke-support` prerequisite. It requires `--installation`, `--crash-fixture`,
+`--marker-output` and `--evidence-output`. The checked installation must provide
+operator and administrator identities with distinct principals. The private fixture
+selects the declared Frames Deployment and regular container; Ops verifies its live
+UIDs, image and runtime process identity before execution. Fixture decoding also
+checks those declarations and the local control-plane digest before OAuth or mutation.
+A read-only live namespace, workload, Pod, container and image admission must succeed
+before the first domain mutation.
+
+One fresh append-only world, one immutable revision, one direct conversion and one
+completed artifact-false batch Task establish the retained fixture. Typed reads bind
+the world, revision, both operation records, completed Task and payload before the
+crash. Task identity and completion payload are persisted before listener cleanup.
+The caller owns that listener outside the 300-second aggregate operation timer and
+awaits cancellation for up to five seconds on every outcome.
+
+The exact-container native Kubernetes watch must arm after those mutations settle.
+Only a complete parsed `ready_for_crash` marker with matching fixture identity and
+current receipt digest permits Ops to perform its separately authorized process kill.
+An empty reserved marker file is not readiness. The shared observer checks same-Pod,
+same-image recovery, the old instance's exit 137, one restart increment and Ready;
+positive reported signals must be 9, and unavailable signal information is explicit.
+The Ops dispatch receipt supplies the actual kill correlation. OOM or rollout
+replacement cannot qualify this case. The observer admits the public contract route
+after Kubernetes readiness, within the operation deadline.
+
+A fresh normal OAuth client then rereads the retained typed world/revision, direct
+and Task operation provenance, completed Task and exact payload. Another admitted
+principal must receive the owner denial for both operation records. SDK TTL and poll
+hints may change; stored completion identity, status and payload must agree. After
+these reads, a final live fence must confirm the same replacement container, image,
+Pod and single restart increment before the receipt can pass.
+Watch and all client cleanup execute outside the operation timer, with five-second
+bounds. Failures preserve known mutations and partial watch progress in the private
+receipt and never authorize another dispatch or kill. The fixture stays append-only.
+This case qualifies completed-state crash persistence and owner isolation on selected
+installed images; in-flight mutation recovery and other owners require their own cases.

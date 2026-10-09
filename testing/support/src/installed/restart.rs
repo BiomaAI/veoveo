@@ -14,9 +14,12 @@ use tokio::process::Command;
 use veoveo_deploy_contract::InstallationTarget;
 use veoveo_types::ResourceUri;
 
+mod crash;
 mod drain;
+pub use crash::{CrashIdentity, CrashReceipt, CrashTarget, CrashWatch};
 pub use drain::{DrainProfile, DrainReceipt, SelectedDrainIdentity, SelectedDrainTarget};
 
+#[derive(Clone)]
 pub struct DeploymentRestart {
     context: String,
     namespace: String,
@@ -70,6 +73,16 @@ impl DeploymentRestart {
         pod_name: &str,
         profile: DrainProfile,
     ) -> Result<SelectedDrainTarget> {
+        self.select_drain_snapshot(pod_name, profile)
+            .await
+            .map(|(selected, _)| selected)
+    }
+
+    async fn select_drain_snapshot(
+        &self,
+        pod_name: &str,
+        profile: DrainProfile,
+    ) -> Result<(SelectedDrainTarget, drain::Pod)> {
         drain::name(pod_name)?;
         let before = self.deployment().await?;
         before.require_ready()?;
@@ -141,22 +154,23 @@ impl DeploymentRestart {
                         && owner.name == self.deployment),
             "selected Pod is not owned by the admitted Deployment"
         );
-        Ok(SelectedDrainTarget {
+        let selected = SelectedDrainTarget {
             namespace: self.namespace.clone(),
             namespace_uid: namespace.metadata.uid,
             deployment: self.deployment.clone(),
             deployment_uid,
             deployment_version: before.metadata.resource_version,
             generation: before.metadata.generation,
-            pod: pod.metadata.name,
+            pod: pod.metadata.name.clone(),
             pod_uid: pod.metadata.uid,
-            pod_version: pod.metadata.resource_version,
+            pod_version: pod.metadata.resource_version.clone(),
             container_id,
             restart_count,
             profile,
             grace,
             annotations: before.spec.template.metadata.annotations,
-        })
+        };
+        Ok((selected, pod))
     }
 
     /// One UID/resourceVersion-fenced mutation. Actual container exit is required.

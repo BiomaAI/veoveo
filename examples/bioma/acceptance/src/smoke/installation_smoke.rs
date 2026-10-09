@@ -114,6 +114,16 @@ enum Cmd {
         #[arg(long)]
         artifact_service_bin: Option<PathBuf>,
     },
+    FramesRecovery {
+        #[arg(long)]
+        installation: PathBuf,
+        #[arg(long)]
+        crash_fixture: PathBuf,
+        #[arg(long)]
+        marker_output: PathBuf,
+        #[arg(long)]
+        evidence_output: PathBuf,
+    },
     FramesInstalled {
         /// Installation-owned normal OAuth target and public control plane.
         #[arg(long)]
@@ -575,6 +585,20 @@ async fn execute() -> Result<()> {
                 "artifact-service",
             )?;
             media_task_run(&conformance_bin, &media_bin, &artifact_service_bin).await
+        }
+        Cmd::FramesRecovery {
+            installation,
+            crash_fixture,
+            marker_output,
+            evidence_output,
+        } => {
+            frames_recovery(
+                &installation,
+                &crash_fixture,
+                &marker_output,
+                &evidence_output,
+            )
+            .await
         }
         Cmd::FramesInstalled {
             installation,
@@ -1390,5 +1414,87 @@ mod installed_protocol_cli_tests {
         assert!(!selected.requirements.cluster_mutation);
         assert!(!selected.requirements.nvidia);
         assert!(!selected.requirements.billed_effects);
+    }
+}
+
+#[cfg(test)]
+mod frames_recovery_cli_tests {
+    use super::*;
+    #[test]
+    fn recovery_requires_all_four_explicit_inputs_and_refuses_legacy_aliases() {
+        let flags = [
+            "--installation",
+            "--crash-fixture",
+            "--marker-output",
+            "--evidence-output",
+        ];
+        for omitted in 0..flags.len() {
+            let mut args = vec!["installation-smoke", "frames-recovery"];
+            for (index, flag) in flags.iter().enumerate() {
+                if index != omitted {
+                    args.extend([*flag, "fixture-path"]);
+                }
+            }
+            assert!(Args::try_parse_from(args).is_err());
+        }
+        let parsed = Args::try_parse_from([
+            "installation-smoke",
+            "frames-recovery",
+            "--installation",
+            "target.json",
+            "--crash-fixture",
+            "crash.json",
+            "--marker-output",
+            "ready.json",
+            "--evidence-output",
+            "result.json",
+        ])
+        .unwrap();
+        assert!(matches!(parsed.cmd, Cmd::FramesRecovery { .. }));
+        assert!(
+            Args::try_parse_from([
+                "installation-smoke",
+                "frames-recovery",
+                "--installation",
+                "target.json",
+                "--fixture",
+                "crash.json",
+                "--marker-output",
+                "ready.json",
+                "--evidence-output",
+                "result.json"
+            ])
+            .is_err()
+        );
+    }
+    #[test]
+    fn recovery_descriptor_selects_only_existing_assertion_and_oauth_helper() {
+        use veoveo_testing_support::descriptor::{HarnessTarget, Preparation, ScenarioDescriptor};
+        let descriptors: ScenarioDescriptor =
+            serde_json::from_str(include_str!("../../smoke/scenarios.json")).unwrap();
+        let selected = descriptors
+            .scenarios
+            .iter()
+            .find(|scenario| scenario.id.as_str() == "frames-recovery")
+            .unwrap();
+        let HarnessTarget::CargoBinary { selection } = &selected.target else {
+            panic!("expected maintained assertion binary");
+        };
+        assert_eq!(selection.package.as_str(), "veoveo-bioma-acceptance");
+        assert_eq!(selection.target, "installation-smoke");
+        assert!(!selection.default_features);
+        assert_eq!(selected.prerequisites.len(), 1);
+        let Preparation::CargoBinary { selection } = &selected.prerequisites[0] else {
+            panic!("expected OAuth helper");
+        };
+        assert_eq!(selection.package.as_str(), "veoveo-gateway-composition");
+        assert_eq!(selection.target, "gateway-smoke-support");
+        assert!(!selection.default_features);
+        assert!(selected.requirements.cluster_mutation);
+        assert!(
+            !selected.requirements.nvidia
+                && !selected.requirements.billed_effects
+                && !selected.requirements.headed_graphics
+        );
     }
 }

@@ -230,12 +230,17 @@ pub(super) struct Condition {
 pub(super) struct ContainerStatus {
     pub name: String,
     #[serde(rename = "containerID")]
+    #[serde(default)]
     pub container_id: String,
+    #[serde(default, rename = "imageID")]
+    pub image_id: String,
+    #[serde(default)]
+    pub last_state: ContainerState,
     pub restart_count: u32,
     pub state: ContainerState,
     pub ready: bool,
 }
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 pub(super) struct ContainerState {
     pub terminated: Option<Terminated>,
     pub running: Option<Running>,
@@ -250,6 +255,10 @@ pub(super) struct Running {
 #[serde(rename_all = "camelCase")]
 pub(super) struct Terminated {
     pub exit_code: i32,
+    #[serde(default)]
+    pub reason: Option<String>,
+    #[serde(default)]
+    pub signal: Option<i32>,
     pub finished_at: DateTime<Utc>,
     #[serde(rename = "containerID")]
     pub container_id: Option<String>,
@@ -526,7 +535,7 @@ impl PodWatch {
             .kill_on_drop(true);
         Self::from_child(crate::spawn_async(command)?)
     }
-    fn from_child(mut child: crate::AsyncChild) -> Result<Self> {
+    pub(super) fn from_child(mut child: crate::AsyncChild) -> Result<Self> {
         let stdout = child
             .stdout
             .take()
@@ -537,6 +546,13 @@ impl PodWatch {
             pending: Vec::new(),
             bytes: 0,
         })
+    }
+    pub(super) async fn close(mut self) -> bool {
+        let _ = self._child.start_kill();
+        matches!(
+            tokio::time::timeout(Duration::from_secs(5), self._child.wait()).await,
+            Ok(Ok(_))
+        )
     }
     pub(super) async fn next(&mut self) -> Result<WatchEvent> {
         use tokio::io::AsyncReadExt;

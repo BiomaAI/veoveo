@@ -261,7 +261,7 @@ async fn export_with_task_notification(
     .await
     .context("DuckDB SDK connection exceeded its admission deadline")?
     .map_err(|_| anyhow!("DuckDB SDK connection failed"))?;
-    let mut listener_closed = false;
+    let mut notification = TaskNotificationState::default();
     let outcome = complete_tool_with_notification(
         &client,
         "duckdb__export",
@@ -269,7 +269,7 @@ async fn export_with_task_notification(
         overall,
         Duration::from_secs(180),
         |_| Ok(()),
-        &mut listener_closed,
+        &mut notification,
     )
     .await;
     let close = tokio::time::timeout(Duration::from_secs(10), client.cancel())
@@ -283,99 +283,118 @@ async fn export_with_task_notification(
         .context("DuckDB export Task omitted structured content")
 }
 
+#[derive(Default)]
+pub(super) struct TaskNotificationState {
+    pub(super) subscription: Option<rmcp::service::Subscription>,
+    pub(super) listener_closed: bool,
+}
+pub(super) enum TaskNotificationObservation<'a> {
+    Admitted(&'a veoveo_types::CanonicalTaskId),
+    Completed {
+        task_id: &'a veoveo_types::CanonicalTaskId,
+        payload: &'a rmcp::model::CallToolResult,
+    },
+}
+impl TaskNotificationState {
+    pub(super) async fn close(&mut self) -> Result<()> {
+        let cleanup = async {
+            if let Some(stream) = self.subscription.as_mut() {
+                stream
+                    .cancel()
+                    .await
+                    .map_err(|_| anyhow!("Task subscription cleanup failed"))?;
+            }
+            self.subscription.take();
+            Ok(())
+        };
+        finish_task_cleanup(Ok(()), cleanup, &mut self.listener_closed).await
+    }
+}
+
 pub(super) async fn complete_tool_with_notification(
     client: &SmokeMcpClient,
     tool: &str,
     arguments: Value,
     deadline: tokio::time::Instant,
     delivery_budget: Duration,
-    mut observed: impl FnMut(&veoveo_types::CanonicalTaskId) -> Result<()>,
-    listener_closed: &mut bool,
+    mut observed: impl FnMut(TaskNotificationObservation<'_>) -> Result<()>,
+    state: &mut TaskNotificationState,
 ) -> Result<(veoveo_types::CanonicalTaskId, rmcp::model::CallToolResult)> {
-    let mut subscription = None;
-    *listener_closed = false;
+    state.listener_closed = false;
     let outcome = tokio::time::timeout_at(deadline, async {
         let task = call_tool_as_task(client, tool, arguments)
             .await
-            .map_err(|_| {
-                anyhow!("DuckDB Task dispatch failed; original outcome remains unresolved")
-            })?;
+            .map_err(|_| anyhow!("Task dispatch failed; original outcome remains unresolved"))?;
         let task_id = veoveo_types::CanonicalTaskId::parse(&task.task_id)
-            .map_err(|_| anyhow!("DuckDB Task response has an invalid identity"))?;
-        observed(&task_id)?;
+            .map_err(|_| anyhow!("Task response has an invalid identity"))?;
+        observed(TaskNotificationObservation::Admitted(&task_id))?;
         let delivery_deadline =
             task_delivery_deadline(deadline, tokio::time::Instant::now(), delivery_budget);
         tokio::time::timeout_at(delivery_deadline, async {
             let filter = SubscriptionFilter::builder()
                 .task_ids([task_id.to_string()])
                 .build();
-            subscription = Some(
+            state.subscription = Some(
                 client
                     .listen(filter.clone())
                     .await
-                    .map_err(|_| anyhow!("DuckDB exact Task listener failed"))?,
+                    .map_err(|_| anyhow!("exact Task listener failed"))?,
             );
-            let stream = subscription.as_mut().expect("listener established");
+            let stream = state.subscription.as_mut().expect("listener established");
             ensure!(
                 stream.acknowledged() == &filter,
-                "DuckDB Task listener changed its acknowledged exact filter"
+                "Task listener changed its acknowledged exact filter"
             );
             loop {
                 match stream
                     .next()
                     .await
-                    .map_err(|_| anyhow!("DuckDB Task notification read failed"))?
-                    .context("DuckDB Task listener ended before completion")?
+                    .map_err(|_| anyhow!("Task notification read failed"))?
+                    .context("Task listener ended before completion")?
                 {
                     ServerNotification::TaskStatusNotification(update) => {
                         ensure!(
                             update.params.task.task.task_id == task_id.as_str(),
-                            "DuckDB Task notification identity mismatch"
+                            "Task notification identity mismatch"
                         );
                         match update.params.task.status() {
                             TaskStatus::Completed => break,
                             TaskStatus::Working | TaskStatus::InputRequired => {}
-                            _ => bail!("DuckDB Task did not complete successfully"),
+                            _ => bail!("Task did not complete successfully"),
                         }
                     }
-                    _ => bail!("DuckDB exact Task listener delivered an unexpected notification"),
+                    _ => bail!("exact Task listener delivered an unexpected notification"),
                 }
             }
             let current = client
                 .get_task(GetTaskParams::new(task_id.to_string()))
                 .await
-                .map_err(|_| anyhow!("DuckDB current Task read failed"))?;
+                .map_err(|_| anyhow!("current Task read failed"))?;
             ensure!(
                 current.task.task.task_id == task_id.as_str()
                     && current.task.status() == TaskStatus::Completed,
-                "DuckDB completed notification disagrees with current Task identity/status"
+                "completed notification disagrees with current Task identity/status"
             );
             let payload = task_payload(client, task_id.as_str())
                 .await
-                .map_err(|_| anyhow!("DuckDB completed Task payload read failed"))?;
-            ensure!(
-                payload.is_error != Some(true),
-                "DuckDB Task returned a tool error"
-            );
+                .map_err(|_| anyhow!("completed Task payload read failed"))?;
+            ensure!(payload.is_error != Some(true), "Task returned a tool error");
+            observed(TaskNotificationObservation::Completed {
+                task_id: &task_id,
+                payload: &payload,
+            })?;
             Ok((task_id, payload))
         })
         .await
-        .context("DuckDB Task delivery exceeded its post-admission deadline")?
+        .context("Task delivery exceeded its post-admission deadline")?
     })
     .await
-    .context("DuckDB Task notification exceeded its deadline")
+    .context("Task notification exceeded its deadline")
     .and_then(|result| result);
-    let cleanup = async {
-        if let Some(mut stream) = subscription {
-            stream
-                .cancel()
-                .await
-                .map_err(|_| anyhow!("DuckDB Task subscription cleanup failed"))
-        } else {
-            Ok(())
-        }
-    };
-    finish_task_cleanup(outcome, cleanup, listener_closed).await
+    let cleanup = state.close().await;
+    let value = outcome?;
+    cleanup?;
+    Ok(value)
 }
 
 async fn finish_task_cleanup<T>(
@@ -385,7 +404,7 @@ async fn finish_task_cleanup<T>(
 ) -> Result<T> {
     let unsubscribe = tokio::time::timeout(Duration::from_secs(5), cleanup)
         .await
-        .context("DuckDB Task subscription cleanup exceeded five seconds")
+        .context("Task subscription cleanup exceeded five seconds")
         .and_then(|result| result);
     *listener_closed = unsubscribe.is_ok();
     let value = outcome?;
@@ -730,6 +749,90 @@ mod tests {
         );
     }
     use super::*;
+
+    #[tokio::test]
+    async fn caller_owned_task_listener_survives_operation_cancellation_and_is_awaited()
+    -> Result<()> {
+        use rmcp::{ClientServiceExt, ServerHandler, ServiceExt};
+        use std::sync::Arc;
+        use tokio::sync::Notify;
+        #[derive(Clone)]
+        struct PendingSource {
+            entered: Arc<Notify>,
+            cancelled: Arc<Notify>,
+        }
+        impl ServerHandler for PendingSource {
+            fn get_info(&self) -> rmcp::model::ServerConfig {
+                rmcp::model::ServerConfig::new(
+                    rmcp::model::ServerCapabilities::builder()
+                        .enable_tasks()
+                        .build(),
+                )
+            }
+            fn accepted_subscription_filter(
+                &self,
+                filter: &SubscriptionFilter,
+            ) -> Option<SubscriptionFilter> {
+                Some(filter.clone())
+            }
+            async fn listen(
+                &self,
+                context: rmcp::service::SubscriptionContext,
+            ) -> std::result::Result<(), rmcp::ErrorData> {
+                self.entered.notify_one();
+                context.cancelled().await;
+                self.cancelled.notify_one();
+                Ok(())
+            }
+        }
+        let source = PendingSource {
+            entered: Arc::new(Notify::new()),
+            cancelled: Arc::new(Notify::new()),
+        };
+        let handler = source.clone();
+        let (server_io, client_io) = tokio::io::duplex(8192);
+        let server = tokio::spawn(async move { handler.serve(server_io).await });
+        let client = veoveo_testing_support::SmokeMcpHandler
+            .serve_with_lifecycle(
+                client_io,
+                rmcp::ClientLifecycleMode::Discover {
+                    preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
+                },
+            )
+            .await?;
+        let server = server.await??;
+        let filter = SubscriptionFilter::builder()
+            .task_ids(["frames__fixture-task"])
+            .build();
+        let mut state = TaskNotificationState::default();
+        let operation = tokio::time::timeout(Duration::from_millis(50), async {
+            state.subscription = Some(client.peer().listen(filter.clone()).await?);
+            source.entered.notified().await;
+            state
+                .subscription
+                .as_mut()
+                .expect("caller owns listener")
+                .next()
+                .await?;
+            Ok::<_, anyhow::Error>(())
+        })
+        .await;
+        assert!(operation.is_err());
+        assert_eq!(
+            state
+                .subscription
+                .as_ref()
+                .expect("retained beyond timeout")
+                .acknowledged(),
+            &filter
+        );
+        state.close().await?;
+        assert!(state.listener_closed && state.subscription.is_none());
+        tokio::time::timeout(Duration::from_secs(2), source.cancelled.notified()).await?;
+        tokio::time::timeout(Duration::from_secs(2), client.cancel()).await??;
+        tokio::time::timeout(Duration::from_secs(2), server.cancel()).await??;
+        Ok(())
+    }
 
     #[tokio::test]
     async fn operation_deadline_still_awaits_owned_cleanup_and_preserves_failure() {
