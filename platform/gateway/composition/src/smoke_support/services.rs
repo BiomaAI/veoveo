@@ -2,6 +2,8 @@
 mod module_lanes;
 use super::*;
 
+pub use module_lanes::execution as smoke_module_execution;
+
 pub fn spawn_fake_hosted_mcp(
     port: u16,
     server: &str,
@@ -423,7 +425,10 @@ async fn spawn_surreal_platform() -> Result<PlatformStoreSmoke> {
     })
 }
 
-async fn initialize_surreal_platform(platform: &PlatformStoreSmoke) -> Result<()> {
+async fn initialize_surreal_platform(
+    platform: &PlatformStoreSmoke,
+    modules: Vec<veoveo_modules::ModuleSetup>,
+) -> Result<()> {
     use veoveo_modules::*;
     use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 
@@ -435,9 +440,10 @@ async fn initialize_surreal_platform(platform: &PlatformStoreSmoke) -> Result<()
     )
     .build()?;
     let store = PlatformStore::connect(config).await?;
-    let registry = module_lanes::registry(Vec::new())?;
+    let selected = modules.iter().map(|module| module.name().clone()).collect();
+    let registry = module_lanes::registry(modules)?;
     let selection = ModuleSelectionDocument::new(
-        Vec::new(),
+        selected,
         InstallationGeneration::new(1)?,
         CredentialRevision::new("smoke-runtime-v1")?,
     )?;
@@ -451,7 +457,7 @@ async fn initialize_surreal_platform(platform: &PlatformStoreSmoke) -> Result<()
         platform.module_directory.path().join("plan.json"),
         serde_json::to_vec(&plan)?,
     )?;
-    let prepared = veoveo_modules::runner::prepare(registry.select(Vec::new())?)?;
+    let prepared = veoveo_modules::runner::prepare(registry.select(selection.enabled().to_vec())?)?;
     let key = preparation_key(&plan, SURREAL_RUNTIME_USER)?;
     prepared.claim_preparation(store.client(), &key).await?;
     prepared
@@ -469,8 +475,14 @@ async fn initialize_surreal_platform(platform: &PlatformStoreSmoke) -> Result<()
 }
 
 pub async fn spawn_platform_store_smoke() -> Result<PlatformStoreSmoke> {
+    spawn_platform_store_smoke_with_modules(Vec::new()).await
+}
+
+pub async fn spawn_platform_store_smoke_with_modules(
+    modules: Vec<veoveo_modules::ModuleSetup>,
+) -> Result<PlatformStoreSmoke> {
     let platform = spawn_surreal_platform().await?;
-    initialize_surreal_platform(&platform).await?;
+    initialize_surreal_platform(&platform, modules).await?;
     Ok(platform)
 }
 
@@ -608,7 +620,15 @@ pub async fn spawn_artifact_service_smoke(
     artifact_service: &Path,
     log: &Path,
 ) -> Result<ArtifactServiceSmoke> {
-    let platform = spawn_platform_store_smoke().await?;
+    spawn_artifact_service_smoke_with_modules(artifact_service, log, Vec::new()).await
+}
+
+pub async fn spawn_artifact_service_smoke_with_modules(
+    artifact_service: &Path,
+    log: &Path,
+    modules: Vec<veoveo_modules::ModuleSetup>,
+) -> Result<ArtifactServiceSmoke> {
+    let platform = spawn_platform_store_smoke_with_modules(modules).await?;
     let bind_port = reserve_local_port()?;
     let url = format!("http://127.0.0.1:{bind_port}");
     let mut service_env = platform.runtime_env();

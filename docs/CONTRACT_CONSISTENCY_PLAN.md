@@ -359,7 +359,8 @@ another signal or retry. F35 installed reference admission/current consumers and
 agreement stay open. Separate owner-required in-flight and cross-replica cases
 remain unqualified.
 
-F35 keeps installed stream-reference admission and current consumers open. Frames
+F35 source controls and independent review pass at `c680ed2e3`; installed
+stream-reference admission and current consumers are still unqualified. Frames
 preserves its typed producer seam and advertises no implemented dynamic producer;
 conversion and the UAV world-binding consumer refuse dynamic ancestry. An installed
 reference fixture can qualify admission and refusal, but cannot establish a live
@@ -372,12 +373,20 @@ checked owner contracts with the installed consumer. Source qualification and
 independent review pass. The first `timeseries-installed` run at `9bcb23c28`
 stopped before dispatch because Artifact templates were absent. A separate normal
 OAuth catalog read confirms both required templates are missing from the 29 returned
-declarations. The initial operator's Artifact rules omit template discovery and the
-action used for neutral Artifact reads. Repair those read-only permissions and retain
-catalog observations before preflight assertions, then qualify the installed forecast,
-RRD handoff and caller-scoped usage. The failed run created no Task or Artifact;
+declarations. The deployed initial operator's Artifact rules omit template discovery and the
+action used for neutral Artifact reads. Reviewed source now repairs those read-only
+permissions and retains catalog observations before preflight assertions. The attempted
+policy rollout was restored to the prior live configuration before publication;
+successful rollout and installed forecast qualification remain open. Qualify the
+forecast, RRD handoff and caller-scoped usage. The failed
+run created no Task or Artifact;
 client cleanup and the unchanged-cluster postcheck pass. Cancellation, replica
 replacement and final image agreement stay open.
+
+The native `media-task-run` case at `c680ed2e3` stopped during local server startup:
+the fixture database lacked `media_task_context`. No domain request or Task was
+dispatched. Ops verified fixture cleanup. Repair the explicit Media module selection
+before qualifying the fake-provider lifecycle; the failed run is retained without retry.
 
 The focused Knowledge A08 case at source `07742e1623` passes once in 10.29 seconds
 through normal Gateway OAuth on retained generation
