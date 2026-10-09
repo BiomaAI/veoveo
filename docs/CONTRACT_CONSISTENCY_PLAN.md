@@ -71,7 +71,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. Full stock-provider native security, lifecycle and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. Initial tool-server and nine-scope checks pass their recorded qualification. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`. GitOps is suspended and GPU services, including Embedding, are scaled off during source work; complete installed fixtures remain open | Qualify the corrected Frames immutable-subscription probe, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. Initial tool-server and nine-scope checks pass their recorded qualification. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`. GitOps is suspended and GPU services, including Embedding, are scaled off during source work; complete installed fixtures remain open | Complete Frames F31–F37, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -322,17 +322,16 @@ Unknown unlinked partial effects remain untouched. The later focused installed-h
 case qualifies one DuckDB query Task and its completion listener. Other owner Task
 and subscription fixtures remain open.
 Artifact preparation now hashes each shared file once per fresh admission and
-selects the OAuth executable and runtime together. The installed Frames case
-passes normal OAuth, the worlds listener's authored invalidation, publication and
-typed revision readback. Its immutable-subscription probe then mistakes the
-protocol acknowledgement for domain admission and cancels before observing the
-terminal response. Frames' admission rejects immutable revisions, and the Gateway
-preserves the terminal error. The corrected probe requires terminal -32602 and
-retains listener ownership outside the operation deadline. Compiler checks, eight
-focused controls and independent review pass; the old decision fails the regression
-and the corrected decision passes. Installed immutable-subscription acceptance
-remains unqualified because the earlier run did not observe its final response.
-The authored World and revision are retained without redispatch.
+selects the OAuth executable and runtime together.
+
+The corrected Frames A06 consumer at source `b6e7e0e00` passes normal OAuth,
+the worlds listener's authored invalidation, deterministic three-frame publication,
+typed revision readback and terminal -32602 for an immutable revision subscription.
+The run used unchanged deployed Frames image `032ce55005cb` and gateway image
+`ab2d13f78a72`. Connections closed, and the append-only World/revision fixture was
+retained without retry. Ops verified unchanged deployment/configuration and Ready
+state. F31–F37 and the current source/image closure remain open.
+
 The CPU `installed-host` selector reuses the installation
 harness for one bounded query Task, delivered completion, an admitted DuckDB process
 drain and completed-result retention. Compiler checks, focused behavioral
@@ -3130,11 +3129,15 @@ CA roles, projected worker inputs and optional admitted issuer CA pass owning so
 controls. Driver config
 uses stock mount fields; the owned image leaves the retained-home target absent to
 preserve registered-writer fencing. Its changed retained-template fingerprint
-requires a materialized catalog and coordinated drain. Actual installation issuer,
-worker OAuth profile and complete Host/worker/chart inputs remain
-installation prerequisites. Native positive/negative security, actual plugin-mounted
-owned image and stock retained lifecycle must pass before activation and installed
-acceptance.
+requires a materialized catalog and coordinated drain. The existing Veoveo issuer,
+restricted worker registration, public JWKS and reference Host/worker/chart inputs
+are implemented with `private_key_jwt`. Installation must provision the worker-only
+projected private-key Secret and activate the matching admitted images and
+configuration through the coordinated drain. Complete native security, the actual
+plugin-mounted owned image and stock retained lifecycle remain prerequisites for
+activation and installed acceptance. The full stock supervisor resource-guarantee
+decision and node-facing registry qualification remain open.
+
 Earlier patched-provider containment, companion adoption and terminal replay results
 apply to the pre-stock profile. Each current attachment opens a fresh SSH shell with
 acceptance Ready and renewable lease controls. Qualify this profile before closing
@@ -3146,7 +3149,7 @@ clients. Provider and storage images are Host build inputs. Preserve the officia
 supervisor mirror's manifest and config digests. Publish the matching Veoveo chart
 and select it with the five image locks and installation values in one Git revision.
 Update Host and worker configuration digests with their actual OIDC profiles,
-three-role trust inputs, projected client secret and optional admitted issuer CA.
+three-role trust inputs, projected private key and optional admitted issuer CA.
 Declare Host issuer/JWKS and worker discovery/token HTTPS CIDRs explicitly.
 
 Materialize the admitted template catalog and new fingerprints in Host, worker,
