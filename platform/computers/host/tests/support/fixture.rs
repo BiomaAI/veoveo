@@ -258,6 +258,13 @@ impl MappedImage {
     }
 }
 
+fn manifest_client() -> Result<reqwest::Client> {
+    worker_issuer::initialize_tls();
+    Ok(reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .no_proxy()
+        .build()?)
+}
 /// Admitted local images and their private-Host pull references. Construction
 /// completes all reads before any fixture directory or container is created.
 pub struct FixtureImages {
@@ -272,6 +279,7 @@ impl FixtureImages {
         &self.template.pull
     }
     pub async fn admit() -> Result<Self> {
+        let client = manifest_client()?;
         let registry = PullRegistry::parse(
             &std::env::var("VEOVEO_COMPUTERS_HOST_PULL_REGISTRY")
                 .context("explicit bridge-reachable Host pull registry required")?,
@@ -322,10 +330,6 @@ impl FixtureImages {
         .await?;
         let admitted = images::decode(inspected.as_bytes())?;
         let supervisor_id = admitted.admit(&supervisor.local, &supervisor.local_authority)?;
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .no_proxy()
-            .build()?;
         template.admit_remote(&client, &local.id).await?;
         supervisor.admit_remote(&client, &supervisor_id).await?;
         Ok(Self {
@@ -898,6 +902,10 @@ impl Drop for Fixture {
 mod registry_admission_tests {
     use super::*;
     use sha2::{Digest, Sha256};
+    #[test]
+    fn native_manifest_client_initializes_tls_before_network_or_fixture_effects() {
+        manifest_client().expect("native manifest client constructs in a fresh process");
+    }
     fn selected(media: &str) -> (MappedImage, Vec<u8>, veoveo_types::Sha256Digest) {
         let id = veoveo_types::Sha256Digest::from_hex("b".repeat(64)).unwrap();
         let bytes = serde_json::to_vec(&serde_json::json!({

@@ -16428,6 +16428,7 @@ dependencies = [
  "nix",
  "rcgen",
  "reqwest 0.13.5",
+ "rustls",
  "schemars 1.2.2",
  "serde",
  "serde_json",

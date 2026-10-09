@@ -12,6 +12,11 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+/// Select the workspace's pinned TLS implementation before native HTTP or HTTPS.
+pub fn initialize_tls() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 #[derive(Clone, Copy)]
 pub enum WorkerTokenProbe {
     Authorized,
@@ -98,6 +103,7 @@ impl TestIssuer {
         server_key: &str,
         localhost_name: bool,
     ) -> Self {
+        initialize_tls();
         use std::os::unix::fs::PermissionsExt;
         let secret = dir.join("worker-secret");
         let credential = format!("fixture-+&%=worker-{}", uuid::Uuid::now_v7());

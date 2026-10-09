@@ -27,6 +27,14 @@ const AUTH_BUDGET: Duration = Duration::from_secs(10);
 const MAX_RESPONSE: usize = 64 * 1024;
 const REFRESH_MARGIN: Duration = Duration::from_secs(30);
 
+fn worker_http_builder() -> reqwest::ClientBuilder {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(3))
+        .timeout(AUTH_BUDGET)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum WorkerTokenAuthentication {
     #[vocabulary(rename = "client_secret_post")]
@@ -125,10 +133,7 @@ impl WorkerTokens {
     }
     async fn initialize(config: WorkerOAuthConfig) -> Result<Self> {
         config.0.check()?;
-        let mut builder = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .connect_timeout(Duration::from_secs(3))
-            .timeout(AUTH_BUDGET);
+        let mut builder = worker_http_builder();
         if let Some(path) = &config.0.ca_file {
             let pem = read_file(path).await?;
             let certificates = reqwest::Certificate::from_pem_bundle(&pem)
@@ -412,6 +417,12 @@ impl Service<http::Request<Body>> for WorkerChannel {
 #[cfg(test)]
 mod admission_tests {
     use super::*;
+    #[test]
+    fn worker_http_client_initializes_tls_without_ambient_service_startup() {
+        worker_http_builder()
+            .build()
+            .expect("worker HTTP client constructs in a fresh process");
+    }
     fn token(issuer: &str, audience: serde_json::Value, expiry: u64) -> String {
         let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
         jsonwebtoken::encode(

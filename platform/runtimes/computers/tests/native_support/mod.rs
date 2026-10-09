@@ -209,6 +209,7 @@ impl Provider {
         Self::start_isolated(3600, "info", test_name).await.0
     }
     async fn start_isolated(ttl: u64, log_level: &str, test_name: &'static str) -> (Self, String) {
+        worker_issuer::initialize_tls();
         let gateway_ip = preflight().await;
         let output = required_path("VEOVEO_COMPUTERS_NATIVE_OUTPUT");
         let diagnostics = output.join(format!("private-daemon-{}", Uuid::now_v7().simple()));
@@ -252,6 +253,7 @@ impl Provider {
         host: Option<ComputeHost>,
         log_level: &str,
     ) -> (Self, String) {
+        worker_issuer::initialize_tls();
         let admitted_gateway_ip = preflight().await;
         let host = host.expect("OpenShell 0.1.2 native provider requires an isolated ComputeHost; outer-host sidecar networking is unsupported");
         assert!(
