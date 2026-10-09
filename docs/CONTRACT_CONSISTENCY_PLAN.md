@@ -70,6 +70,18 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 
 ## Current Status
 
+Installed node activation and the stock rollout are halted after Secret values
+accidentally appeared in a tool transcript. The namespace inventory contains
+sixteen Secret objects: thirteen application Secrets and three Helm Secrets. All
+eight baseline services are Ready; the node is unchanged and uncordoned, and no
+credentials have changed. The eighteen selected stock native cases stay qualified,
+including the implemented aggregate Host profile of 1 CPU, 6 GiB and 1,024 PIDs.
+The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated. Owners are
+preparing a private credential replacement plan; external account rotations
+require their account owners. The new worker catalog section must stay unpublished until every deployed catalog
+reader admits it. Credential replacement must preserve the current installed
+catalog and policy.
+
 | Phase | Current state | Remaining gate |
 |---|---|---|
 | 0 — Shared declarations | Source qualification passes; owner admission, wire forms and schema metadata are preserved | Qualify affected installed consumers with the final cut |
