@@ -1020,6 +1020,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp/app/contracts.js`, `artifact.js` | browser forecast relationship checks, exact row-count admission and owner-specific Artifact address parsing before chart state changes |
 | `servers/timeseries-mcp/src/contract/resources.rs`, `artifact_uri.rs`, `src/bin/server/setup.rs`, `resources.rs` | typed Artifact and hosted routes, checked startup/discovery and exhaustive authorized resource dispatch |
 | `servers/timeseries-mcp/src/usage.rs` | Timeseries usage pages and exact reads through TaskRuntime's SQL owner policy before grouping and limits |
+| `servers/timeseries-mcp/src/bin/server/app_state/settlement.rs`, `tests.rs` | finite forecast outcome reconciliation after remote cancellation, with executing-lease guards and native two-runtime controls |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
 | `servers/view-mcp/src/server/mod.rs` and `server/tasks.rs` | shared hosted recovery observer composition and capture-owned snapshot admission, claim handoff and scheduling |

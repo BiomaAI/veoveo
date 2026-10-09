@@ -78,6 +78,10 @@ stays available. Shared native recovery controls pass; owner shutdown controls p
 one HTTP drain deadline and the observer's separate five-second drain. Installed
 Task lifecycle, restart and final-image qualification remain open.
 
+Native two-runtime controls qualify Timeseries cancellation at final settlement,
+preserving the first terminal outcome and the executing worker's live lease checks.
+Installed cancellation, unfinished work and replica qualification remain open.
+
 The existing owner harnesses prepare the following checks. Their native controls
 pass; the new installed cases remain unexecuted during the installation hold.
 Earlier installed checkpoints keep their recorded scope below.

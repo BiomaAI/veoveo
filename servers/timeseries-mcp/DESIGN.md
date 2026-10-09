@@ -179,6 +179,14 @@ decoding; cancellation checks the same selection in its transaction. Forecast wo
 keep foundational Task IDs through native runtime calls and serialize them for external
 Artifact capabilities and RRD store names.
 
+Final settlement gives a committed cancellation priority over success or failure.
+If the selected outcome loses its CAS to cancellation, the executing worker reads
+current state once and settles Cancelled under its own live lease. It checks the
+original owner, request and creation identity before accepting that state. A
+completion that committed first keeps its result. Unrelated progress conflicts,
+foreign leases and Store errors are reported rather than retried. Native two-runtime
+Store controls qualify these races without executing a forecast or an installed restart.
+
 ## MCP App (ext-apps "2026-01-26")
 
 The server declares `io.modelcontextprotocol/ui` in its capabilities

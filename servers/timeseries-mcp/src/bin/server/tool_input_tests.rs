@@ -9,7 +9,7 @@ use veoveo_mcp_contract::hosting::{
     testing::{self, TestGateway},
 };
 #[path = "../../../../../testing/fixtures/store.rs"]
-mod fixture;
+pub(super) mod fixture;
 
 #[tokio::test]
 async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
