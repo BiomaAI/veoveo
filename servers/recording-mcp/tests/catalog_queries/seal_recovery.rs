@@ -1,5 +1,7 @@
 //! Public current-format recovery over real RRD files and an isolated HTTP publisher.
 use super::*;
+#[path = "playback/drain.rs"]
+pub(super) mod drain;
 #[path = "seal_recovery/intent.rs"]
 mod intent;
 #[path = "seal_recovery/race.rs"]
@@ -30,6 +32,9 @@ use veoveo_recording_reader::cache::LayerCacheLimits;
 use veoveo_recording_store::{RecordingLayerId, RecordingLayerState, RecordingState};
 use veoveo_types::{ScopeDefinition, Sha256Digest};
 
+type ArtifactObjects = BTreeMap<String, (ArtifactMetadata, Vec<u8>)>;
+type ManifestAttempts = Vec<(StreamArtifactRequest, Vec<u8>)>;
+
 #[derive(Clone)]
 struct PublisherState {
     store: PlatformStore,
@@ -38,15 +43,15 @@ struct PublisherState {
     caller_authority: veoveo_types::InvocationAuthority,
     refuse: Arc<AtomicBool>,
     requests: Arc<Mutex<Vec<StreamArtifactRequest>>>,
-    objects: Arc<Mutex<BTreeMap<String, (ArtifactMetadata, Vec<u8>)>>>,
+    objects: Arc<Mutex<ArtifactObjects>>,
     revoke_read: Arc<AtomicBool>,
     refuse_manifest: Arc<AtomicBool>,
     lose_manifest_reply: Arc<AtomicBool>,
     corrupt_manifest_reply: Arc<AtomicBool>,
-    manifest_attempts: Arc<Mutex<Vec<(StreamArtifactRequest, Vec<u8>)>>>,
+    manifest_attempts: Arc<Mutex<ManifestAttempts>>,
 }
 struct HttpFixture {
-    task: tokio::task::JoinHandle<()>,
+    serving: drain::ServingTask,
     origin: url::Url,
     key: PathBuf,
 }
@@ -60,6 +65,9 @@ pub(super) struct PlaybackFixture {
 
 #[cfg(feature = "redap")]
 impl PlaybackFixture {
+    pub(super) async fn close(&mut self) -> anyhow::Result<()> {
+        self.http.close().await
+    }
     pub(super) async fn new(
         db: &fixture::TestDb,
         caller: &GatewayInternalIdentity,
@@ -173,13 +181,10 @@ impl PlaybackFixture {
         (id, messages)
     }
 }
-impl Drop for HttpFixture {
-    fn drop(&mut self) {
-        self.task.abort();
-    }
-}
 impl HttpFixture {
     async fn new(root: &Path, state: PublisherState) -> Self {
+        let key = root.join("fixture-key.pem");
+        std::fs::write(&key, "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB\n-----END PRIVATE KEY-----\n").unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let origin =
             url::Url::parse(&format!("http://{}/", listener.local_addr().unwrap())).unwrap();
@@ -187,12 +192,23 @@ impl HttpFixture {
             .route("/recordings/recovery/layers", post(publish))
             .route("/artifacts/{id}/meta", get(read_metadata))
             .route("/artifacts/{id}/download", get(read_body)).with_state(state.clone());
+        let (shutdown, stopped) = tokio::sync::oneshot::channel();
         let task = tokio::spawn(async move {
-            axum::serve(listener, app).await.unwrap();
+            axum::serve(listener, app)
+                .with_graceful_shutdown(async {
+                    let _ = stopped.await;
+                })
+                .await
+                .map_err(|_| anyhow::anyhow!("Artifact fixture serving failed"))
         });
-        let key = root.join("fixture-key.pem");
-        std::fs::write(&key, "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB\n-----END PRIVATE KEY-----\n").unwrap();
-        Self { task, origin, key }
+        Self {
+            serving: drain::ServingTask::new(task, shutdown),
+            origin,
+            key,
+        }
+    }
+    async fn close(&mut self) -> anyhow::Result<()> {
+        self.serving.close().await
     }
     fn service(&self, store: PlatformStore, spool: &Path, cache: &Path) -> RecordingService {
         RecordingService::new(
@@ -572,7 +588,7 @@ async fn qualify_staged_properties_recovery(
 ) -> (RecordingId, RecordingService) {
     let principal = &state.identity;
     let repo = RecordingRepository::new(db.a.clone());
-    let first = recording(&state, &caller, dataset_id, spool, "staged-recovery").await;
+    let first = recording(state, caller, dataset_id, spool, "staged-recovery").await;
     let service = http.service(db.b.clone(), spool, cache);
     let source = repo
         .recording_layers(principal.tenant_id, first, 8)
@@ -601,7 +617,7 @@ async fn qualify_staged_properties_recovery(
             .unwrap();
         assert!(
             service
-                .seal(&caller, &artifact_reader(&caller), first)
+                .seal(caller, &artifact_reader(caller), first)
                 .await
                 .is_err()
         );
@@ -631,7 +647,7 @@ async fn qualify_staged_properties_recovery(
         .check()
         .unwrap();
     let error = service
-        .seal(&caller, &artifact_reader(&caller), first)
+        .seal(caller, &artifact_reader(caller), first)
         .await
         .unwrap_err();
     assert!(
@@ -690,7 +706,7 @@ async fn qualify_staged_properties_recovery(
         .unwrap();
     let error = http
         .service(db.b.clone(), spool, cache)
-        .seal(&caller, &artifact_reader(&caller), first)
+        .seal(caller, &artifact_reader(caller), first)
         .await
         .unwrap_err();
     assert!(
@@ -756,7 +772,7 @@ async fn qualify_staged_properties_recovery(
             .unwrap();
         assert!(
             restarted
-                .seal(&caller, &artifact_reader(&caller), first)
+                .seal(caller, &artifact_reader(caller), first)
                 .await
                 .is_err()
         );
@@ -842,7 +858,7 @@ async fn qualify_staged_properties_recovery(
             .unwrap();
         assert!(
             restarted
-                .seal(&caller, &artifact_reader(&caller), first)
+                .seal(caller, &artifact_reader(caller), first)
                 .await
                 .is_err()
         );
@@ -885,7 +901,7 @@ async fn qualify_staged_properties_recovery(
     // refusal keeps the same stage and reserved occurrence for the next retry.
     assert!(
         restarted
-            .seal(&caller, &artifact_reader(&caller), first)
+            .seal(caller, &artifact_reader(caller), first)
             .await
             .is_err()
     );
@@ -941,7 +957,7 @@ async fn qualify_staged_properties_recovery(
             .unwrap();
         assert!(
             restarted
-                .seal(&caller, &artifact_reader(&caller), first)
+                .seal(caller, &artifact_reader(caller), first)
                 .await
                 .is_err()
         );
@@ -987,7 +1003,7 @@ async fn qualify_staged_properties_recovery(
     assert_eq!(state.requests.lock().unwrap().len(), 2);
     state.refuse.store(false, Ordering::SeqCst);
     restarted
-        .seal(&caller, &artifact_reader(&caller), first)
+        .seal(caller, &artifact_reader(caller), first)
         .await
         .unwrap();
     {
@@ -1010,6 +1026,10 @@ async fn qualify_staged_properties_recovery(
     (first, restarted)
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The writing-layer recovery case shares authenticated Store, publisher and source paths and carries the preceding recovered recording/service into its assertions."
+)]
 async fn qualify_writing_properties_recovery(
     db: &fixture::TestDb,
     state: &PublisherState,
@@ -1025,7 +1045,7 @@ async fn qualify_writing_properties_recovery(
     let repo = RecordingRepository::new(db.a.clone());
     // A fixture-owned transactional fault interrupts the actual public producer
     // after writing the file but before staging. No manual row manufacture.
-    let writing = recording(&state, &caller, dataset_id, spool, "writing-recovery").await;
+    let writing = recording(state, caller, dataset_id, spool, "writing-recovery").await;
     db.a.client()
         .query(include_str!(
             "../queries/catalog_queries/seal_recovery/refuse_stage.surql"
@@ -1036,7 +1056,7 @@ async fn qualify_writing_properties_recovery(
         .unwrap();
     assert!(
         restarted
-            .seal(&caller, &artifact_reader(&caller), writing)
+            .seal(caller, &artifact_reader(caller), writing)
             .await
             .is_err()
     );
@@ -1079,7 +1099,7 @@ async fn qualify_writing_properties_recovery(
     let resumed = http.service(db.b.clone(), spool, cache);
     assert!(
         resumed
-            .seal(&caller, &artifact_reader(&caller), writing)
+            .seal(caller, &artifact_reader(caller), writing)
             .await
             .is_err()
     );
@@ -1101,7 +1121,7 @@ async fn qualify_writing_properties_recovery(
     assert_eq!(state.requests.lock().unwrap().len(), count);
     std::fs::write(&path, &original).unwrap();
     resumed
-        .seal(&caller, &artifact_reader(&caller), writing)
+        .seal(caller, &artifact_reader(caller), writing)
         .await
         .unwrap();
     {
@@ -1138,14 +1158,14 @@ async fn qualify_writing_properties_recovery(
     std::fs::create_dir_all(context.parent().unwrap()).unwrap();
     std::fs::write(&context, b"owned cleanup sentinel").unwrap();
     resumed
-        .seal(&caller, &artifact_reader(&caller), writing)
+        .seal(caller, &artifact_reader(caller), writing)
         .await
         .unwrap();
     assert!(!context.exists());
     std::fs::write(&context, b"owned cleanup sentinel").unwrap();
     state.revoke_read.store(true, Ordering::SeqCst);
     let denied = resumed
-        .seal(&caller, &artifact_reader(&caller), writing)
+        .seal(caller, &artifact_reader(caller), writing)
         .await
         .unwrap_err();
     assert!(context.exists());
@@ -1203,7 +1223,7 @@ async fn qualify_writing_properties_recovery(
             .unwrap()
             .insert(manifest_id.clone(), (changed, original_manifest.1.clone()));
         let error = resumed
-            .seal(&caller, &artifact_reader(&caller), writing)
+            .seal(caller, &artifact_reader(caller), writing)
             .await
             .unwrap_err();
         assert!(
@@ -1247,7 +1267,7 @@ async fn qualify_writing_properties_recovery(
             .unwrap()
             .1 = serde_json::to_vec_pretty(&value).unwrap();
         let error = resumed
-            .seal(&caller, &artifact_reader(&caller), writing)
+            .seal(caller, &artifact_reader(caller), writing)
             .await
             .unwrap_err();
         assert!(
@@ -1311,7 +1331,7 @@ async fn qualify_writing_properties_recovery(
             .unwrap()
             .insert(manifest_id.clone(), (metadata, body));
         let error = resumed
-            .seal(&caller, &artifact_reader(&caller), writing)
+            .seal(caller, &artifact_reader(caller), writing)
             .await
             .unwrap_err();
         assert!(error.to_string().contains(diagnostic), "{mode}: {error}");
@@ -1353,7 +1373,7 @@ async fn qualify_writing_properties_recovery(
         .unwrap()
         .insert(manifest_id, original_manifest);
     resumed
-        .seal(&caller, &artifact_reader(&caller), writing)
+        .seal(caller, &artifact_reader(caller), writing)
         .await
         .unwrap();
     assert_eq!(

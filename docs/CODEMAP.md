@@ -1009,6 +1009,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/reason-mcp/src/bin/server/index.rs` | Store-backed analysis pages, versioned cursors and bounded identity completions |
 | `servers/reason-mcp/src/schema.rs` and `src/schema/migrations/` | Reason-owned lookup schema and append-only history; nested checked documents follow the public JSON profile while physical owner columns keep their database names |
 | `servers/recording-mcp` | recording catalog, queries, subscriptions, and sealing |
+| `servers/recording-mcp/tests/catalog_queries/playback/signing_key.rs`, `drain.rs` | native playback signing-key retirement, retained grant and chunk checks, and fixture server shutdown with retained task ownership |
 | `servers/recording-mcp/src/service/views.rs` | fallible Store-to-domain catalog, layer and seal metadata admission using Artifact owner types |
 | `servers/recording-mcp/src/service/index.rs`, `servers/recording-mcp/src/index.rs` | authorized catalog pages and completion, with versioned cursors and SQL layer counts |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifact output |

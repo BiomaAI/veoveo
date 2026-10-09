@@ -35,6 +35,10 @@ pub(super) async fn qualify(
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Each case shares Store, authenticated publisher, caller authority and source paths while separately selecting publication and reply faults."
+)]
 async fn qualify_publication_case(
     db: &fixture::TestDb,
     state: &PublisherState,

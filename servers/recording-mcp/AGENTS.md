@@ -97,6 +97,15 @@ Sealing requires the current call's `x-veoveo-artifact-read-authorization` heade
 Component tests need no GPU. Playback acceptance is different: it requires the typed Rust
 browser smoke, a headed browser, and a hardware-backed WebGPU or WebGL context.
 
+The existing `catalog_queries` target owns signing-key retirement:
+`cargo test -p veoveo-recording-mcp --test catalog_queries --features redap playback::signing_key::signing_key_retirement_requires_drained_old_transport`.
+Use the immutable `PlaybackManager` key and drain/await every old serving instance
+before supported replacement. Its native overlap diagnostic demonstrates that another
+instance's key change cannot revoke an old server's tokens. Retain Store grant scope
+and source bytes, require cryptographic rejection with the new catalog prepared, and
+close actual Redap and Artifact transports outside operation timeout on every outcome.
+This test supplies component gRPC qualification without installed or headed playback.
+
 ## Contract Compliance
 
 <!-- veoveo:contract-compliance:start -->

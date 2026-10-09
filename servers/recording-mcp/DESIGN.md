@@ -303,6 +303,23 @@ because this read-only endpoint cannot register `file://` sources. Selected
 chunk completeness, and missing recording segments. Veoveo tests own grant isolation,
 scope, expiry, and direct-fetch authorization.
 
+### Playback Signing-Key Replacement
+
+`PlaybackManager` holds one immutable Redap signing key. Operators replace that key
+by draining every old-key serving instance and its transports, awaiting shutdown,
+then starting the replacement against the retained Store and Artifact sources.
+An overlapping old-key instance still authenticates its unexpired tokens; changing
+another instance's key cannot revoke them globally. Mixed-key rolling overlap is
+outside this replacement profile.
+
+After the drain, callers obtain a fresh manifest under current authority. SQL may
+reuse the same unexpired durable grant when its actor, Work Context, policy revision,
+dataset and recording selection still agree. The replacement prepares that grant's
+virtual catalog and signs a fresh read-only token. Its verifier rejects the retired
+signature before catalog lookup. Grants and immutable source bytes survive key
+replacement; in-flight streams and client sessions have no continuity guarantee.
+Installed rollout must separately establish that every old serving instance drained.
+
 ## Projection
 
 The Recording domain's builders admit projection bounds, unique selectors, ordered
@@ -458,6 +475,22 @@ An actively refusing Artifact endpoint confirms that SQL excludes an invisible c
 before materialization. These controls qualify local archive/catalog transport and
 grant isolation. Live playback uses the framed RRD controls above; installed ingest,
 grant delivery, GPU decode and headed viewer acceptance require their own checks.
+
+`playback::signing_key::signing_key_retirement_requires_drained_old_transport`
+qualifies the native replacement procedure with the same disposable Store and
+Artifact fixture. Real gRPC query/fetch preserves admitted chunks, and a deliberately
+overlapping old-key server demonstrates the revocation limit. Both diagnostic servers
+join before replacement binds the original endpoint. A retained old transport cannot
+serve another authenticated call. The new manager prepares the same durable grant,
+rejects the old signature, admits fresh-token reads and keeps writes denied. The case
+has90seconds for work, five seconds per RPC/stream and five seconds per graceful
+transport drain, with a one-second abort/join fallback that fails qualification.
+Serving-task slots keep the actual JoinHandle and original deadlines through dropped
+close futures; failure stays recorded across subsequent cleanup. A native interrupted
+close control exercises that retained ownership and its sticky timeout outcome.
+Cleanup of every retained Redap and Artifact serving task occurs after operation
+timeout or assertion failure. This component check requires no renderer or GPU and
+does not qualify installed playback.
 
 Focused component evidence includes deterministic RRD normalization and Arrow bytes,
 cache corruption and eviction behavior, scratch cleanup, playback manifest v11 rejection of other

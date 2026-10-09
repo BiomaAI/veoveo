@@ -1,4 +1,6 @@
 //! Store-authorized playback bytes and capture-layer publication; no renderer.
+#[path = "playback/signing_key.rs"]
+mod signing_key;
 use super::*;
 use base64::Engine as _;
 use futures::StreamExt as _;
@@ -28,51 +30,60 @@ fn redap_request<T>(body: T, token: &str) -> tonic::Request<T> {
 }
 
 struct RedapWire {
-    _server: RedapServerTask,
+    server: super::seal_recovery::drain::ServingTask,
+    address: std::net::SocketAddr,
     client: re_protos::cloud::v1alpha1::rerun_cloud_service_client::RerunCloudServiceClient<
         tonic::transport::Channel,
     >,
 }
 
-struct RedapServerTask(tokio::task::JoinHandle<()>);
-
-impl Drop for RedapServerTask {
-    fn drop(&mut self) {
-        self.0.abort();
-    }
-}
-
 impl RedapWire {
     async fn new(manager: &PlaybackManager) -> Self {
+        Self::at(manager, "127.0.0.1:0".parse().unwrap()).await
+    }
+
+    async fn at(manager: &PlaybackManager, bind: std::net::SocketAddr) -> Self {
+        let listener = tokio::net::TcpListener::bind(bind).await.unwrap();
+        Self::from_listener(manager, listener)
+    }
+
+    fn from_listener(manager: &PlaybackManager, listener: tokio::net::TcpListener) -> Self {
         use re_protos::cloud::v1alpha1::{
             rerun_cloud_service_client::RerunCloudServiceClient,
             rerun_cloud_service_server::RerunCloudServiceServer,
         };
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let incoming = async_stream::stream! {
             loop { yield listener.accept().await.map(|(stream, _)| stream); }
         };
         let service = manager.scoped_redap_service();
-        let server = RedapServerTask(tokio::spawn(async move {
-            tonic::transport::Server::builder()
-                .add_service(RerunCloudServiceServer::new(service))
-                .serve_with_incoming(incoming)
-                .await
-                .unwrap();
-        }));
         let channel = tonic::transport::Endpoint::from_shared(format!("http://{address}"))
             .unwrap()
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(5))
-            .connect()
-            .await
-            .unwrap();
+            .connect_lazy();
         let client = RerunCloudServiceClient::new(channel);
+        let (shutdown, stopped) = tokio::sync::oneshot::channel();
+        let task = tokio::spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(RerunCloudServiceServer::new(service))
+                .serve_with_incoming_shutdown(incoming, async {
+                    let _ = stopped.await;
+                })
+                .await
+                .map_err(|_| anyhow::anyhow!("Redap fixture serving failed"))
+        });
+        let server = super::seal_recovery::drain::ServingTask::new(task, shutdown);
         Self {
-            _server: server,
+            server,
+            address,
             client,
         }
+    }
+
+    async fn close(&mut self) -> anyhow::Result<std::net::SocketAddr> {
+        self.server.close().await?;
+        Ok(self.address)
     }
 
     async fn query(
@@ -81,6 +92,15 @@ impl RedapWire {
         dataset: RecordingDatasetId,
         recording: Option<RecordingId>,
     ) -> Vec<re_protos::common::v1alpha1::DataframePart> {
+        self.try_query(token, dataset, recording).await.unwrap()
+    }
+
+    async fn try_query(
+        &mut self,
+        token: &str,
+        dataset: RecordingDatasetId,
+        recording: Option<RecordingId>,
+    ) -> Result<Vec<re_protos::common::v1alpha1::DataframePart>, tonic::Status> {
         use re_protos::{
             cloud::v1alpha1::{FetchChunksRequest, ext::QueryDatasetRequest},
             common::v1alpha1::ext::ScanParameters,
@@ -97,21 +117,29 @@ impl RedapWire {
             }),
             ..Default::default()
         };
-        let mut stream = self
-            .client
-            .query_dataset(redap_request(body.into(), token).with_entry_id(
-                re_log_types::EntryId::from(re_tuid::Tuid::from_bytes(
-                    *dataset.as_uuid().as_bytes(),
-                )),
-            ))
-            .await
-            .unwrap()
-            .into_inner();
-        let mut parts = Vec::new();
-        while let Some(response) = stream.message().await.unwrap() {
-            parts.extend(response.data);
-        }
-        parts
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mut stream = self
+                .client
+                .query_dataset(redap_request(body.into(), token).with_entry_id(
+                    re_log_types::EntryId::from(re_tuid::Tuid::from_bytes(
+                        *dataset.as_uuid().as_bytes(),
+                    )),
+                ))
+                .await?
+                .into_inner();
+            let mut parts = Vec::new();
+            while let Some(response) = stream.message().await? {
+                parts.extend(response.data);
+                if parts.len() > 512 {
+                    return Err(tonic::Status::resource_exhausted(
+                        "fixture query exceeded512parts",
+                    ));
+                }
+            }
+            Ok(parts)
+        })
+        .await
+        .map_err(|_| tonic::Status::deadline_exceeded("fixture query exceeded five seconds"))?
     }
 
     async fn fetch(
@@ -120,21 +148,31 @@ impl RedapWire {
         parts: Vec<re_protos::common::v1alpha1::DataframePart>,
     ) -> Result<Vec<Chunk>, tonic::Status> {
         use re_log_encoding::ToApplication as _;
-        let mut stream = self
-            .client
-            .fetch_chunks(redap_request(
-                re_protos::cloud::v1alpha1::FetchChunksRequest { chunk_infos: parts },
-                token,
-            ))
-            .await?
-            .into_inner();
-        let mut chunks = Vec::new();
-        while let Some(response) = stream.message().await? {
-            for message in response.chunks {
-                chunks.push(Chunk::from_arrow_msg(&message.to_application(()).unwrap()).unwrap());
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mut stream = self
+                .client
+                .fetch_chunks(redap_request(
+                    re_protos::cloud::v1alpha1::FetchChunksRequest { chunk_infos: parts },
+                    token,
+                ))
+                .await?
+                .into_inner();
+            let mut chunks = Vec::new();
+            while let Some(response) = stream.message().await? {
+                for message in response.chunks {
+                    chunks
+                        .push(Chunk::from_arrow_msg(&message.to_application(()).unwrap()).unwrap());
+                    if chunks.len() > 512 {
+                        return Err(tonic::Status::resource_exhausted(
+                            "fixture fetch exceeded512chunks",
+                        ));
+                    }
+                }
             }
-        }
-        Ok(chunks)
+            Ok(chunks)
+        })
+        .await
+        .map_err(|_| tonic::Status::deadline_exceeded("fixture fetch exceeded five seconds"))?
     }
 }
 
