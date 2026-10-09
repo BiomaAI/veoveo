@@ -94,9 +94,12 @@ Gateway preparation advances generation and credential revision with the same
 composition, owner selection and active catalog revision/hash. A stale preparation
 cannot restore the old password, and replaying a completed identity cannot rotate
 it again. These controls do not qualify installed rotation, bootstrap ROOT
-replacement or global session revocation. RustFS qualification is pending its
-corrected isolated fixture sequence; installed changes and external account
-rotations stay held.
+replacement or global session revocation. The isolated RustFS root-credential
+replacement also passes with the same image and retained volume: the new pair
+reads the multipart object of 18 MiB plus 137 bytes with matching full/range bytes
+and SHA-256, and signed HEAD with the old pair returns HTTP 401 or 403. The owned
+object and fixture resources are removed. This does not qualify IAM, STS or
+installed replacement; installed changes and external account rotations stay held.
 
 | Phase | Current state | Remaining gate |
 |---|---|---|
