@@ -223,6 +223,16 @@ the persisted digest authenticates correlation after the private context expires
 An identical dispatch receipt authorizes reconciliation, never another submission.
 Uncertain HTTP outcomes keep the Task waiting and preserve its provider retention pin.
 
+Before dispatch, the worker checks its retained Task identity and current live
+execution lease. Model lookup and validation checkpoints settle durable cancellation
+as Cancelled only after owner receipt and provider association reads both prove
+absence. A cancellation that wins the selected progress or failure CAS receives one
+reread and cancellation settlement attempt. Unexpected Store errors stay unresolved.
+The prepare transaction changes the Task version and releases its execution lease;
+a committed receipt therefore prevents this path from synthesizing cancellation.
+The real-Store native control compares a stale raw CAS with this path and verifies
+that receipt-present cancellation continues to require webhook reconciliation.
+
 The first authenticated terminal receipt fixes the provider outcome, event pointer and
 whole provider payload in one transaction. Later conflicting receipts are acknowledged
 without replacing that winner. Task settlement writes the owner contribution, retained

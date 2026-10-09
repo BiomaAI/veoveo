@@ -44,6 +44,8 @@ state, task usage records, and generated artifacts under the `media://` scheme.
   same catalog types and URIs the resources expose. Keep them additive; the
   resources stay canonical.
 
+- Pre-dispatch cancellation requires matching Task identity, this worker's live lease, and proven absence of both dispatch receipt and provider association. Preserve WebhookWait on receipt or Store uncertainty; no resend.
+
 ## Build And Test
 
 - `cargo check -p veoveo-media-mcp`

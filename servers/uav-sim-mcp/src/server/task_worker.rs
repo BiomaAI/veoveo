@@ -432,25 +432,74 @@ fn recovery_class(_operation: &DurableOperation) -> RecoveryClass {
 }
 
 async fn transition(state: &AppState, task_id: TaskId, next: TaskTransition) {
-    let completed = matches!(next, TaskTransition::Succeeded { .. });
-    if let Err(error) = state.tasks.transition(task_id, next).await {
-        // Cancellation may commit between observing completion and publishing its Task result.
-        // The physical receipt has already settled the mission; preserve that distinction.
-        if completed
-            && let Ok(Some(snapshot)) = state.tasks.get(task_id).await
-            && snapshot.status == veoveo_platform_store::TaskStatus::CancelRequested
-        {
-            let next = TaskTransition::Failed(TaskFailure::new(
-                "completed_after_cancellation",
-                "simulator completion was confirmed after cancellation of the Task wait; inspect the mission plan",
-            ));
-            if let Err(error) = state.tasks.transition(task_id, next).await {
-                tracing::warn!(%task_id, %error, "UAV completed Task cancellation settlement failed");
-            }
-            return;
-        }
-        tracing::warn!(%task_id, %error, "UAV simulation task transition failed");
+    let result = async {
+        let selected = state
+            .tasks
+            .get(task_id)
+            .await?
+            .ok_or_else(|| veoveo_task_runtime::TaskError::NotFound(task_id.to_string()))?;
+        settle_terminal(&state.tasks, &selected, next).await
     }
+    .await;
+    if let Err(error) = result {
+        tracing::warn!(%task_id, %error, "UAV simulation task transition remains unresolved");
+    }
+}
+
+/// Reconcile only cancellation winning the selected terminal CAS; physical outcomes stay intact.
+async fn settle_terminal(
+    tasks: &veoveo_task_runtime::TaskRuntime,
+    selected: &TaskSnapshot,
+    next: TaskTransition,
+) -> Result<TaskSnapshot, veoveo_task_runtime::TaskError> {
+    use veoveo_task_runtime::TaskError;
+    let completed = matches!(next, TaskTransition::Succeeded { .. });
+    let retry = match &next {
+        TaskTransition::Failed(_) => Some(next.clone()),
+        TaskTransition::Succeeded { .. } => Some(TaskTransition::Failed(TaskFailure::new(
+            "completed_after_cancellation",
+            "simulator completion was confirmed after cancellation of the Task wait; inspect the mission plan",
+        ))),
+        _ => None,
+    };
+    let first =
+        if completed && selected.status == veoveo_platform_store::TaskStatus::CancelRequested {
+            retry.as_ref().unwrap().clone()
+        } else {
+            next
+        };
+    let error = match tasks.transition_if_current(selected, first).await {
+        Ok(snapshot) => return Ok(snapshot),
+        Err(error) => error,
+    };
+    if retry.is_none()
+        || !matches!(
+            error,
+            TaskError::Conflict(_) | TaskError::InvalidTransition { .. }
+        )
+    {
+        return Err(error);
+    }
+    let Some(current) = tasks.get(selected.task_id).await? else {
+        return Err(error);
+    };
+    if current.task_id != selected.task_id
+        || current.owner != selected.owner
+        || current.server != selected.server
+        || current.task_type != selected.task_type
+        || current.request != selected.request
+        || current.created_at != selected.created_at
+        || current.recovery_class != selected.recovery_class
+        || current.recovery_class != RecoveryClass::InterruptedIndeterminate
+        || current.status != veoveo_platform_store::TaskStatus::CancelRequested
+        || current.lease_owner.as_deref() != Some(tasks.worker_id())
+        || current
+            .lease_expires_at
+            .is_none_or(|expiry| expiry <= chrono::Utc::now())
+    {
+        return Err(error);
+    }
+    tasks.transition_if_current(&current, retry.unwrap()).await
 }
 
 async fn release_settled_pin(state: &AppState, task_id: TaskId) {

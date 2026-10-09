@@ -2,7 +2,9 @@ use std::sync::Arc;
 use veoveo_types::TaskId;
 
 use serde_json::Value;
-use veoveo_task_runtime::{TaskFailure, TaskTransition};
+use veoveo_task_runtime::{
+    RecoveryClass, TaskError, TaskFailure, TaskRuntime, TaskSnapshot, TaskStatus, TaskTransition,
+};
 
 use super::{AppState, usage::record_usage_estimate};
 
@@ -12,12 +14,19 @@ use veoveo_media_mcp::contract::RunArgs;
 /// the durable provider binding enters `waiting`; only a signed webhook can
 /// drive the terminal transition.
 pub(super) async fn submit_task(state: Arc<AppState>, task_id: TaskId, args: RunArgs) {
+    let admitted = match state.tasks.get(task_id).await {
+        Ok(Some(snapshot)) => snapshot,
+        _ => {
+            tracing::warn!(%task_id, "media dispatch has no admitted current Task");
+            return;
+        }
+    };
     let entry = match state.find_model(&args.model).await {
         Ok(Some(entry)) => entry,
         Ok(None) => {
             fail(
                 &state,
-                task_id,
+                &admitted,
                 "unknown_model",
                 format!("unknown model '{}'; browse media://models", args.model),
             )
@@ -25,7 +34,7 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: TaskId, args: Run
             return;
         }
         Err(error) => {
-            fail(&state, task_id, "model_registry_failed", error).await;
+            fail(&state, &admitted, "model_registry_failed", error).await;
             return;
         }
     };
@@ -40,7 +49,7 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: TaskId, args: Run
         if !errors.is_empty() {
             fail(
                 &state,
-                task_id,
+                &admitted,
                 "invalid_model_input",
                 format!(
                     "input failed schema validation for {}: {}; see {}",
@@ -53,22 +62,22 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: TaskId, args: Run
             return;
         }
     }
-    if let Err(error) = state
-        .tasks
-        .transition(
-            task_id,
-            TaskTransition::Running {
-                message: "input validated; submitting provider job".into(),
-                progress: 0.1,
-            },
-        )
-        .await
+    match settle_before_dispatch(
+        &state.tasks,
+        &admitted,
+        TaskTransition::Running {
+            message: "input validated; submitting provider job".into(),
+            progress: 0.1,
+        },
+    )
+    .await
     {
-        tracing::warn!(
-            %task_id,
-            "failed to publish media validation progress: {error}"
-        );
-        return;
+        Ok(current) if current.status == TaskStatus::Running => (),
+        Ok(_) => return,
+        Err(error) => {
+            tracing::warn!(%task_id, %error, "media validation checkpoint remains unresolved");
+            return;
+        }
     }
 
     let preparation = async {
@@ -110,6 +119,13 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: TaskId, args: Run
         Ok(Some(url)) => url,
         Ok(None) => return,
         Err(error) => {
+            // Only current cancellation with proven absence of receipt/association can settle.
+            // An uncertain prepare transaction may have committed; never authorize another send.
+            if let Err(settlement) =
+                settle_before_dispatch(&state.tasks, &admitted, TaskTransition::Cancelled).await
+            {
+                tracing::warn!(%task_id, %settlement, "media pre-dispatch cancellation remains unresolved");
+            }
             tracing::warn!(%task_id, "media dispatch preparation failed: {error}");
             return;
         }
@@ -157,16 +173,114 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: TaskId, args: Run
     }
 }
 
-async fn fail(state: &AppState, task_id: TaskId, code: &str, message: String) {
+async fn fail(state: &AppState, admitted: &TaskSnapshot, code: &str, message: String) {
+    let task_id = admitted.task_id;
     tracing::warn!(%task_id, "media submission failed: {message}");
-    if let Err(error) = state
-        .tasks
-        .transition(
-            task_id,
-            TaskTransition::Failed(TaskFailure::new(code, message)),
-        )
-        .await
+    if let Err(error) = settle_before_dispatch(
+        &state.tasks,
+        admitted,
+        TaskTransition::Failed(TaskFailure::new(code, message)),
+    )
+    .await
     {
-        tracing::warn!(%task_id, "failed to persist media task failure: {error}");
+        tracing::warn!(%task_id, %error, "media pre-dispatch failure remains unresolved");
     }
+}
+
+/// This path ends before provider dispatch. Receipt or read uncertainty forbids settlement.
+pub(super) async fn settle_before_dispatch(
+    tasks: &TaskRuntime,
+    admitted: &TaskSnapshot,
+    next: TaskTransition,
+) -> Result<TaskSnapshot, TaskError> {
+    let current = tasks
+        .get(admitted.task_id)
+        .await?
+        .ok_or_else(|| TaskError::NotFound(admitted.task_id.to_string()))?;
+    settle_before_dispatch_if_current(tasks, admitted, &current, next).await
+}
+
+pub(super) async fn settle_before_dispatch_if_current(
+    tasks: &TaskRuntime,
+    admitted: &TaskSnapshot,
+    selected: &TaskSnapshot,
+    next: TaskTransition,
+) -> Result<TaskSnapshot, TaskError> {
+    let error = match settle_selected(tasks, admitted, selected, next.clone()).await {
+        Ok(snapshot) => return Ok(snapshot),
+        Err(error) => error,
+    };
+    if !matches!(
+        error,
+        TaskError::Conflict(_) | TaskError::InvalidTransition { .. }
+    ) {
+        return Err(error);
+    }
+    let Some(current) = tasks.get(admitted.task_id).await? else {
+        return Err(error);
+    };
+    if current.status != TaskStatus::CancelRequested {
+        return Err(error);
+    }
+    settle_selected(tasks, admitted, &current, next).await
+}
+
+async fn settle_selected(
+    tasks: &TaskRuntime,
+    admitted: &TaskSnapshot,
+    current: &TaskSnapshot,
+    next: TaskTransition,
+) -> Result<TaskSnapshot, TaskError> {
+    if current.task_id != admitted.task_id
+        || current.owner != admitted.owner
+        || current.server != admitted.server
+        || current.task_type != admitted.task_type
+        || current.request != admitted.request
+        || current.created_at != admitted.created_at
+        || current.recovery_class != admitted.recovery_class
+        || current.recovery_class != RecoveryClass::WebhookWait
+        || current.server != tasks.server()
+    {
+        return Err(TaskError::InvalidRecord(
+            "Media pre-dispatch Task identity changed".into(),
+        ));
+    }
+    if current.is_terminal() {
+        return Ok(current.clone());
+    }
+    if current.lease_owner.as_deref() != Some(tasks.worker_id())
+        || current
+            .lease_expires_at
+            .is_none_or(|expiry| expiry <= chrono::Utc::now())
+    {
+        return Err(TaskError::LeaseHeld(current.task_id.to_string()));
+    }
+    let provider = veoveo_types::ExtensionName::parse("media")
+        .map_err(|error| TaskError::InvalidRecord(error.to_string()))?;
+    if veoveo_media_mcp::task_lookup::callback_digest(tasks, current.task_id)
+        .await?
+        .is_some()
+        || tasks
+            .webhooks(provider)
+            .job_for_task(current.task_id)
+            .await?
+            .is_some()
+    {
+        return Err(TaskError::InvalidRecord(
+            "Media dispatch receipt requires webhook reconciliation".into(),
+        ));
+    }
+    let next = if current.status == TaskStatus::CancelRequested {
+        TaskTransition::Cancelled
+    } else if matches!(next, TaskTransition::Cancelled) {
+        return Err(TaskError::InvalidTransition {
+            from: current.status,
+            to: TaskStatus::Cancelled,
+        });
+    } else {
+        next
+    };
+    // New dispatch cannot commit from CancelRequested. A competing prepare updates
+    // the Task version and clears its lease, so this selected CAS fails closed.
+    tasks.transition_if_current(current, next).await
 }

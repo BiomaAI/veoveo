@@ -543,6 +543,16 @@ completed. Cancellation concurrent with confirmed completion produces
 `completed_after_cancellation` when the Task cancellation transition has already won.
 Neither Task delivery failure changes the settled physical outcome.
 
+Terminal Task publication makes one cancellation reconciliation attempt when its
+selected CAS loses to CancelRequested. It verifies unchanged Task identity and the
+same worker's live execution lease before retrying. A known Failed outcome keeps
+its original code and details, including indeterminate execution and unavailable
+recording products. A confirmed successful physical outcome uses the
+`completed_after_cancellation` failure above. Other conflicts and Store errors stay
+unresolved. This path does not synthesize Cancelled or replay simulator commands.
+The native selected-snapshot control uses two runtimes on one Store and preserves
+the original failure, request, owner and mission retention pin.
+
 The `uav-sim:mission-execution` retention pin protects the Task through an unresolved
 mission, including after its interruption failure and ordinary result TTL. A terminal
 Task can release this pin when its plan is settled or when the plan is still prepared

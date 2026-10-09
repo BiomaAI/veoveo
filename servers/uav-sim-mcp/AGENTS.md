@@ -100,6 +100,8 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
   simulation, operator rendering, or live-stream delivery. Native Recording Hub
   ports stay private.
 
+- Reconcile a terminal CAS losing to CancelRequested once under matching identity and the current live worker lease. Preserve original Failed details and physical receipts; never synthesize Cancelled or replay a simulator mutation.
+
 ## Build And Test
 
 - `cargo check -p veoveo-uav-sim-mcp`

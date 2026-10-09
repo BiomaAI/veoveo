@@ -882,3 +882,77 @@ async fn native_recovery_skips_another_replicas_live_claim_without_dispatch() {
     .await
     .expect("replica recovery qualification exceeded 65 seconds");
 }
+
+#[tokio::test]
+async fn native_failed_settlement_reconciles_cancellation_without_changing_physical_outcome() {
+    tokio::time::timeout(Duration::from_secs(65), async {
+        let db = test_support::database(test_support::fixture::StoreBackend::Memory).await;
+        let writer = crate::server::task_catalog::UavTaskContributions::bind(TaskRuntime::new(
+            db.a.clone(),
+            "uav-sim",
+            "settlement-writer",
+        ))
+        .unwrap();
+        let canceller = crate::server::task_catalog::UavTaskContributions::bind(TaskRuntime::new(
+            db.b.clone(),
+            "uav-sim",
+            "settlement-canceller",
+        ))
+        .unwrap();
+        let owner = runtime_owner(&test_support::identity(
+            "settlement",
+            "operations",
+            "pilot",
+            &[],
+        ));
+        for code in [
+            "interrupted_indeterminate",
+            "completed_after_cancellation",
+            "uav_sim_result_unavailable",
+        ] {
+            let id = TaskId::new();
+            let before = writer
+                .create(CreateTask {
+                    task_id: id,
+                    owner: owner.clone(),
+                    server: "uav-sim".into(),
+                    task_type: crate::contract::UavTaskKind::ExecuteMission.name(),
+                    request: serde_json::to_value(ExecuteVehicleMissionPlanRequest {
+                        plan_id: crate::contract::MissionPlanId::parse("selected-settlement-plan")
+                            .unwrap(),
+                        expected_revision: 0,
+                    })
+                    .unwrap(),
+                    recovery_class: RecoveryClass::InterruptedIndeterminate,
+                    idempotency_key: None,
+                    ttl_ms: None,
+                    poll_interval_ms: None,
+                    retention_pins: BTreeSet::from([task_link::retention_pin()]),
+                })
+                .await
+                .unwrap()
+                .snapshot;
+            let selected = writer
+                .claim(id, TASK_LEASE_DURATION)
+                .await
+                .unwrap()
+                .snapshot;
+            canceller.cancel(id).await.unwrap();
+            let failure = TaskFailure::new(code, "original physical outcome details");
+            let next = TaskTransition::Failed(failure.clone());
+            assert!(matches!(
+                writer.transition_if_current(&selected, next.clone()).await,
+                Err(veoveo_task_runtime::TaskError::Conflict(_))
+            ));
+            let after = settle_terminal(&writer, &selected, next).await.unwrap();
+            assert_eq!(after.status, TaskStatus::Failed);
+            assert_eq!(after.error, Some(failure));
+            assert_eq!(after.owner, before.owner);
+            assert_eq!(after.request, before.request);
+            assert_eq!(after.retention_pins, before.retention_pins);
+            assert!(after.result.is_none() && after.result_uri.is_none());
+        }
+    })
+    .await
+    .expect("selected UAV cancellation settlement exceeded 65 seconds");
+}

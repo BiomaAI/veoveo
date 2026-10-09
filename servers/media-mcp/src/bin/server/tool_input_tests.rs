@@ -666,3 +666,150 @@ async fn find_model_refresh_uses_the_captured_admitted_snapshot() {
     .await
     .expect("Media snapshot refresh control exceeded 120 seconds");
 }
+
+#[tokio::test]
+async fn pre_dispatch_cancellation_settles_only_without_dispatch_receipt() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let db = fixture::TestDb::with_modules(vec![
+            veoveo_media_mcp::schema::module_setup(
+                fixture::module_lanes::execution("media").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
+        let writer = veoveo_media_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "media",
+            "dispatch-writer",
+        ))
+        .unwrap();
+        let canceller = veoveo_media_mcp::task_lookup::bind(TaskRuntime::new(
+            db.b.clone(),
+            "media",
+            "dispatch-canceller",
+        ))
+        .unwrap();
+        let principal = testing::principal();
+        let owner = veoveo_task_runtime::TaskOwner {
+            principal_key: principal.id.to_string(),
+            principal_kind: veoveo_task_runtime::PrincipalKind::User,
+            issuer: principal.issuer.to_string(),
+            subject: principal.subject.to_string(),
+            profile: "operations".into(),
+            tenant_key: Some("tenant-a".into()),
+            data_labels: Default::default(),
+            authority: testing::authority(),
+        };
+        let provider = veoveo_types::ExtensionName::parse("media").unwrap();
+        for (receipt, failure) in [(false, false), (false, true), (true, false)] {
+            let id = TaskId::new();
+            let admitted = writer
+                .create(DurableCreateTask {
+                    task_id: id,
+                    owner: owner.clone(),
+                    server: "media".into(),
+                    task_type: const { veoveo_types::TaskTypeName::from_static("run") },
+                    request: json!({"model":"fixture/image","input":{}}),
+                    recovery_class: RecoveryClass::WebhookWait,
+                    idempotency_key: None,
+                    ttl_ms: None,
+                    poll_interval_ms: None,
+                    retention_pins: Default::default(),
+                })
+                .await
+                .unwrap()
+                .snapshot;
+            let selected = writer
+                .claim(id, Duration::from_secs(60))
+                .await
+                .unwrap()
+                .snapshot;
+            let next = if failure {
+                TaskTransition::Failed(veoveo_task_runtime::TaskFailure::new(
+                    "unknown_model",
+                    "known pre-dispatch error",
+                ))
+            } else {
+                TaskTransition::Running {
+                    message: "before dispatch".into(),
+                    progress: 0.1,
+                }
+            };
+            if receipt {
+                let digest = veoveo_types::Sha256Digest::from_bytes([7; 32]);
+                writer
+                    .webhooks(provider.clone())
+                    .prepare_dispatch(
+                        id,
+                        veoveo_media_mcp::task_lookup::dispatch(&selected, digest).unwrap(),
+                    )
+                    .await
+                    .unwrap();
+            }
+            if receipt {
+                // Isolate durable control intent: public cancel may auto-settle an
+                // unleased WebhookWait Task, independently of this owner helper.
+                canceller
+                    .transition(id, TaskTransition::CancelRequested)
+                    .await
+                    .unwrap();
+            } else {
+                canceller.cancel(id).await.unwrap();
+            }
+            assert!(matches!(
+                writer.transition_if_current(&selected, next.clone()).await,
+                Err(veoveo_task_runtime::TaskError::Conflict(_))
+            ));
+            let settled = generation_task::settle_before_dispatch_if_current(
+                &writer, &admitted, &selected, next,
+            )
+            .await;
+            let current = writer.get(id).await.unwrap().unwrap();
+            assert_eq!(current.owner, admitted.owner);
+            assert_eq!(current.request, admitted.request);
+            assert!(
+                writer
+                    .webhooks(provider.clone())
+                    .job_for_task(id)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(current.result.is_none() && current.result_uri.is_none());
+            if receipt {
+                assert!(settled.is_err());
+                assert_eq!(
+                    current.status,
+                    veoveo_task_runtime::TaskStatus::CancelRequested
+                );
+                assert!(
+                    current.retention_pins.contains(
+                        &veoveo_task_runtime::TaskRetentionPin::new(
+                            "provider:media:webhook".to_owned()
+                        )
+                        .unwrap()
+                    )
+                );
+                assert!(
+                    veoveo_media_mcp::task_lookup::callback_digest(&writer, id)
+                        .await
+                        .unwrap()
+                        .is_some()
+                );
+            } else {
+                assert_eq!(
+                    settled.unwrap().status,
+                    veoveo_task_runtime::TaskStatus::Cancelled
+                );
+                assert!(
+                    veoveo_media_mcp::task_lookup::callback_digest(&writer, id)
+                        .await
+                        .unwrap()
+                        .is_none()
+                );
+            }
+        }
+    })
+    .await
+    .expect("Media pre-dispatch settlement control exceeded 120 seconds");
+}
