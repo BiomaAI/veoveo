@@ -52,8 +52,12 @@ its execution limits are admitted together; current authority stays with the ser
 
 TerminalVersion admits only integer 2 during Rust construction and decoding.
 Terminal version 2 uses the same camelCase control bodies, snake_case type values
-and bounded replay/lease sequence profile. Changing a vocabulary declaration does
-not change terminal bytes or introduce another accepted version. The Computer
+and strictly increasing lease sequences. Ready reports authenticated acceptance of a
+fresh SSH shell request and enables input. Attachments restore no previous shell or
+output. Version 2 accepts only Ready and Lease server controls; producers and
+consumers require a coordinated cut with existing attachments drained. Changing a
+vocabulary declaration does not change terminal bytes or introduce another accepted
+version. The Computer
 collection continuation is a typed UUID position, with no serialized envelope or
 new cursor version.
 

@@ -190,26 +190,22 @@ fn attach(ticket: &TerminalTicket) -> Message {
         .into(),
     )
 }
-async fn replay(socket: &mut Socket) {
+async fn ready(socket: &mut Socket) {
     tokio::time::timeout(Duration::from_secs(15), async {
-        let mut ready = false;
+        let ready = false;
         let mut bytes = 0;
         loop {
             match socket
                 .next()
                 .await
-                .expect("terminal ended before replay")
-                .expect("terminal replay transport failed")
+                .expect("terminal ended before ready")
+                .expect("terminal ready transport failed")
             {
                 Message::Text(text) => {
                     match serde_json::from_str::<TerminalServerControl>(&text).unwrap() {
                         TerminalServerControl::Ready(value) => {
                             assert_eq!(value.version, TERMINAL_VERSION);
                             assert!(!ready);
-                            ready = true;
-                        }
-                        TerminalServerControl::ReplayComplete(_) => {
-                            assert!(ready);
                             return;
                         }
                         TerminalServerControl::Lease(value) => {
@@ -222,12 +218,12 @@ async fn replay(socket: &mut Socket) {
                     bytes += data.len();
                     assert!(bytes <= 256 * 1024);
                 }
-                _ => panic!("unexpected replay frame"),
+                _ => panic!("unexpected pre-ready frame"),
             }
         }
     })
     .await
-    .expect("native replay deadline");
+    .expect("native ready deadline");
 }
 async fn command(socket: &mut Socket, suffix: &str) {
     // The complete expected output is absent from the input, so terminal echo cannot pass this check.
@@ -357,7 +353,7 @@ pub async fn qualify(
     let ticket = a.ticket(computer, &auth).await;
     let mut socket = b.socket(computer, &auth).await;
     socket.send(attach(&ticket)).await.unwrap();
-    replay(&mut socket).await;
+    ready(&mut socket).await;
     command(&mut socket, "first").await;
     let mut replayed = a.socket(computer, &auth).await;
     replayed.send(attach(&ticket)).await.unwrap();
@@ -375,6 +371,15 @@ pub async fn qualify(
         .await
         .unwrap();
     command(&mut socket, "after-resize").await;
+    // Official-provider milestone: normal browser close must complete within the
+    // transport deadline, then a fresh grant opens another shell in this Computer.
+    socket.close(None).await.unwrap();
+    closed(&mut socket).await;
+    let next_ticket = a.ticket(computer, &auth).await;
+    socket = b.socket(computer, &auth).await;
+    socket.send(attach(&next_ticket)).await.unwrap();
+    ready(&mut socket).await;
+    command(&mut socket, "after-normal-close").await;
     let mut denied = control.clone();
     denied.policies[0].rules.last_mut().unwrap().actions.remove(
         &veoveo_types::ActionName::parse(
@@ -406,7 +411,7 @@ pub async fn qualify(
     let ticket = b.ticket(computer, &auth).await;
     let mut socket = a.socket(computer, &auth).await;
     socket.send(attach(&ticket)).await.unwrap();
-    replay(&mut socket).await;
+    ready(&mut socket).await;
     // Cross source-token expiry and the original service lease through both
     // relay hops without reconnecting the native shell.
     tokio::time::sleep(Duration::from_secs(31)).await;

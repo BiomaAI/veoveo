@@ -62,7 +62,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
-| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. Computer lifecycle identity and locking pass review and the provider controls. Native gateway-loss recovery, settled Stop→Start, file retention and full MCP Files, Commands, Maintenance, Worker and Host cases pass with typed binding version 2 and file helper version 2. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
+| 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut is under checks. Owner Rule 5 stops stock provider activation on the verified mTLS privilege issue; the existing provider remains current. Stock security-profile, packaging and native qualification are open. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
 | 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The four initial tool servers are Ready and pass normal OAuth read-only MCP checks. Embedding and Knowledge are Ready after warmup retries; the nine-scope initial target passes owning qualification; complete installed fixtures remain open | Qualify corrected initial-target Task and subscription fixtures, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
 
@@ -106,40 +106,32 @@ and fresh state before rollout.
 The user-approved host-tracing correction records method, path and HTTP version
 without query parameters. The existing TestGateway leak regression and all 14
 hosting controls pass. Real Media provider generation is unqualified.
-Computers selects OpenShell 0.1.2 with matched provider artifacts, typed selectors
-and a drained private checkpoint cut. Its GCC 16.2 build passes C++20 format and
-static C++ probes against glibc 2.36; gateway and driver require at most GLIBC 2.34.
-Native and Host generators pass byte comparison and effective TLS-loader admission.
-The recovery candidate passes 44 driver, nine gateway and two mTLS controls,
-packaged-source admission and release binary/ELF checks. Source review accepts
-same-supervisor authentication, uncertain Docker wait containment, fresh Start
-admission and preservation of ambiguous volume mounts. Typed cleanup ownership
-and settlement preserve private state and journals after applied-but-lost Docker
-replies.
-
-Lifecycle calls resolve the sandbox ID before selecting its journal and lock,
-recheck admission under that lock and hold it through effects. Public name-only
-and deterministic Start/Stop/Delete race controls pass. The obsolete Stop flag
-and its destructive Create branch are removed. The failure → Stop → corrected Create
-control proves that a safe local refusal cannot poison the later operation.
-
-The complete native lifecycle case passes. Abrupt gateway loss preserves the
-physical supervisor, main-process epoch, guest and retained-storage identity.
-Fresh authenticated terminal reattachment, replay and retained-byte readback pass.
-Stop settles and reconciles; the subsequent Start establishes a new process epoch
-and preserves committed bytes. Private version-2 companion bindings use typed
-generation and verified credential epoch, preserve no-clobber admission and validate
-both values during decoding. Gateway-loss recovery keeps both values unchanged;
-settled Stop→Start preserves generation and advances credential epoch. The source
-passes review, 24 affected runtime controls, 60 provider controls and artifact
-checks. Eight selected native runtime and storage cases pass with the matched
-provider and template profiles. They cover lifecycle recovery, file transfer,
-terminal renewal, execution, retention, writer exclusion, filesystem identity and
-the allocator's shared mounts and restart. Fresh volume allocation admits Engine
+The owner decision selects unmodified upstream OpenShell 0.1.2 for the next provider
+profile; existing artifact pins still select the patched provider. The upstream-integrity
+rules are committed at `5dd760f5f`; Veoveo adapts only its own edges and state.
+This decision supersedes `0.1.2-veoveo.1`, private companion adoption and replay-fence
+qualification. Those earlier native passes do not qualify the stock profile.
+The terminal cut uses a fresh stock SSH shell and PTY per attachment, with Ready
+reporting authenticated request acceptance. It restores no prior shell or output,
+keeps normal xterm query responses and removes ReplayComplete. The adapter and
+Console/BFF changes are under compiler and owning-control checks, not deployed.
+Owner Rule 5 stops the stock provider cut on verified TLS authorization behavior.
+At upstream commit `6648bd0c290efbc41ba131ee9831ee45cd431f94`,
+`crates/openshell-server/src/multiplex.rs:1012–1032` promotes any verified peer
+certificate to User when JWT authentication returns no principal and mTLS user
+authentication is enabled. `tls.rs:401–417` pools configured client CAs without
+mapping them to roles, so a supervisor certificate can omit its JWT and become a
+User. Separate CAs alone do not prevent this. Stock OIDC user authentication with
+mTLS user promotion disabled is a candidate Veoveo-edge profile requiring its own
+security and runtime qualification. It is not implemented or approved for activation.
+The existing provider remains current. No stock package, image, native recovery or
+installed acceptance is claimed.
+Fresh volume allocation admits Engine
 absence before publishing the filesystem as Ready and consumes one typed proof for
 labeled creation. Existing allocations only inspect approval; missing or unapproved
 metadata cannot authorize another Create. The repair passes independent review and
-its complete Storage library and diagnostic controls. Heap-pinned setup and assertion
+its complete Storage library and diagnostic controls. Earlier patched-profile native
+fixture results are historical. Heap-pinned setup and assertion
 phases reduce the four MCP fixtures' large async poll frames. Worker and Commands
 advance beyond the original overflow. Worker exposes two fixture defects: an unsupported
 stock-CLI exit deadline after revocation, then a tunnel URL that drops the server mount.
@@ -266,7 +258,9 @@ extra scopes with HTTP 400. A normal operator-service exchange requesting its ni
 required scopes succeeds, and all four Ready tool servers pass read-only MCP
 discovery, docs, contracts, `doc_id=de` completion to `design` and nonexistent-document
 rejection with -32602. The initial target selects those nine scopes and passes owning committed-target
-qualification. Task and subscription fixtures remain unrun.
+qualification. The DuckDB fixture dispatched export but rejected the returned Task
+identity before starting its listener. Its export outcome is unresolved; no retry
+was made. Subscription fixtures and unresolved fixture cleanup remain open.
 Earlier Frames and installation verification delivery failures occurred before
 service or MCP mutation, with no World created. Corrected executable/library
 admission passes with manifest
@@ -3039,20 +3033,16 @@ TaskRuntime and deployment-smoke with Helm and GNU timeout. GPU suites use hardw
 passes in the full current TaskRuntime suite. Report a future parallel failure and
 any justified diagnostic replay separately.
 
-Computers' source selects the stable
-[`OpenShell 0.1.2`](https://github.com/NVIDIA/OpenShell/releases/tag/v0.1.2) protocol
-and matched `0.1.2-veoveo.1` provider candidate. The deployer must build and qualify
-the gateway, driver, supervisor, static sandbox, stock CLI and affected template/host
-images with Rust 1.99.0 and the selected static Z3 5.1.0 source. Existing native
-fixtures admit the matched executable/image receipt before effects and use their
-private DinD daemon. The Host admits the companion's registry digest and source
-profile before provider startup. The provider build must run its actual loader on
-both Rust-generated configuration inputs and execute the selected privileged
-identity and terminal controls. Preserve containment, replay, retained writers and recovery
-through the coordinated checkpoint-version drain in the
-[runtime design](../platform/runtimes/computers/DESIGN.md#installation-and-persistence-compatibility).
-Qualify the upgraded profile before closing F23 or A09; older profile evidence does
-not establish the new profile.
+Computers selects unmodified
+[`OpenShell 0.1.2`](https://github.com/NVIDIA/OpenShell/releases/tag/v0.1.2).
+Owner Rule 5 stops packaging and activation until the verified mTLS privilege issue
+has a supported, qualified edge configuration. The existing provider remains current.
+Official artifact identity and the proposed OIDC user-authentication profile require
+review before packaging. A matched stock provider, Host and template closure then
+needs its owning native and installed qualification. Earlier patched-profile containment, companion adoption
+and replay results do not satisfy these gates. The terminal edge opens a fresh SSH
+shell per attachment, with no historical replay or retained-shell guarantee.
+Qualify this profile before closing F23 or A09.
 
 Publish the complete affected image closure for the final wire/storage cut: servers,
 gateway, Console/Workspace, agents, SDK servers, runners, simulation/UAV consumers and

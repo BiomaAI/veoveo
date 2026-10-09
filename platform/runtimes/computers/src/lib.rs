@@ -18,11 +18,6 @@ pub mod protocol {
     pub mod v1 {
         tonic::include_proto!("openshell.v1");
     }
-    pub mod terminal {
-        pub mod v1 {
-            tonic::include_proto!("openshell.terminal.v1");
-        }
-    }
 }
 // Sensitive installation checkpoint types remain private to this adapter.
 mod maintenance_protocol {

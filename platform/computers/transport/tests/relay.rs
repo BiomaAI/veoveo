@@ -173,13 +173,6 @@ impl Fixture {
         }))
         .await;
         self.control().await;
-        self.send(TerminalServerControl::ReplayComplete(
-            TerminalReplayComplete {
-                kind: TerminalReplayCompleteKind::ReplayComplete,
-            },
-        ))
-        .await;
-        self.control().await;
     }
     async fn control(&mut self) -> TerminalServerControl {
         let message =
@@ -299,7 +292,7 @@ async fn expired_authority_closes_independently_of_both_backpressured_directions
     .expect("bounded relay scenario");
 }
 #[tokio::test]
-async fn input_before_replay_and_forged_client_lease_controls_fail_closed() {
+async fn input_before_ready_and_forged_client_lease_controls_fail_closed() {
     tokio::time::timeout(Duration::from_secs(10), async {
         for binary in [true, false] {
             let mut fixture = Fixture::new().await;

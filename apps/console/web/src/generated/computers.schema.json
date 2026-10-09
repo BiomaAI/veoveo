@@ -2113,25 +2113,6 @@
       ],
       "type": "string"
     },
-    "TerminalReplayComplete": {
-      "additionalProperties": false,
-      "description": "This fence is not permission to send input until historical rendering drains.",
-      "properties": {
-        "type": {
-          "$ref": "#/$defs/TerminalReplayCompleteKind"
-        }
-      },
-      "required": [
-        "type"
-      ],
-      "type": "object"
-    },
-    "TerminalReplayCompleteKind": {
-      "enum": [
-        "replay_complete"
-      ],
-      "type": "string"
-    },
     "TerminalResize": {
       "additionalProperties": false,
       "properties": {
@@ -2168,9 +2149,6 @@
       "anyOf": [
         {
           "$ref": "#/$defs/TerminalReady"
-        },
-        {
-          "$ref": "#/$defs/TerminalReplayComplete"
         },
         {
           "$ref": "#/$defs/TerminalLease"

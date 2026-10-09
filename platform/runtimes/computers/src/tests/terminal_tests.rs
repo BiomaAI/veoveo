@@ -1,6 +1,5 @@
 use super::*;
-use crate::{TerminalOutput, protocol::terminal::v1 as terminal_api};
-use prost::Message;
+use crate::TerminalOutput;
 use russh::{Channel, ChannelId, Pty, server};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[path = "renewal_tests.rs"]
@@ -26,16 +25,14 @@ impl Gate {
 #[derive(Default)]
 pub(super) struct SshState {
     pub size: (u32, u32),
-    pub subsystems: Vec<String>,
+    pub shells: usize,
     pub bytes: Vec<u8>,
     pub eofs: usize,
+    pub closes: usize,
     pub pty_gate: Option<Gate>,
     pub initial_output: Option<Vec<Vec<u8>>>,
     pub initial_output_eof: bool,
-    pub events_requested: bool,
-    pub omit_replay: bool,
-    pub replay_metadata: Option<Vec<u8>>,
-    pub duplicate_replay: bool,
+    pub initial_exit_status: u32,
     pub live_output: Vec<Vec<u8>>,
     pub data_gate: Option<Gate>,
 }
@@ -83,15 +80,12 @@ impl server::Handler for Ssh {
         session.channel_success(channel)?;
         Ok(())
     }
-    async fn subsystem_request(
+    async fn shell_request(
         &mut self,
         channel: ChannelId,
-        name: &str,
         session: &mut server::Session,
     ) -> std::result::Result<(), Self::Error> {
-        assert_eq!(name, "openshell-main");
-        assert!(self.0.0.lock().unwrap().ssh.events_requested);
-        self.0.0.lock().unwrap().ssh.subsystems.push(name.into());
+        self.0.0.lock().unwrap().ssh.shells += 1;
         session.channel_success(channel)?;
         let output = self
             .0
@@ -107,47 +101,16 @@ impl server::Handler for Ssh {
         }
         {
             let state = self.0.0.lock().unwrap();
-            if !state.ssh.omit_replay {
-                let metadata = state.ssh.replay_metadata.clone().unwrap_or_else(|| {
-                    terminal_api::MainProcessEvent {
-                        event: Some(terminal_api::main_process_event::Event::ReplayComplete(
-                            terminal_api::MainProcessReplayComplete { next_sequence: 42 },
-                        )),
-                    }
-                    .encode_to_vec()
-                });
-                session.extended_data(
-                    channel,
-                    crate::terminal_output::MAIN_EVENT_EXTENDED_DATA,
-                    metadata.clone(),
-                )?;
-                if state.ssh.duplicate_replay {
-                    session.extended_data(
-                        channel,
-                        crate::terminal_output::MAIN_EVENT_EXTENDED_DATA,
-                        metadata,
-                    )?;
-                }
-            }
             for frame in &state.ssh.live_output {
                 session.data(channel, frame.clone())?;
             }
         }
         if self.0.0.lock().unwrap().ssh.initial_output_eof {
             session.eof(channel)?;
+            session
+                .exit_status_request(channel, self.0.0.lock().unwrap().ssh.initial_exit_status)?;
+            session.close(channel)?;
         }
-        Ok(())
-    }
-    async fn env_request(
-        &mut self,
-        channel: ChannelId,
-        name: &str,
-        value: &str,
-        session: &mut server::Session,
-    ) -> std::result::Result<(), Self::Error> {
-        assert_eq!((name, value), ("OPENSHELL_MAIN_EVENTS", "1"));
-        self.0.0.lock().unwrap().ssh.events_requested = true;
-        session.channel_success(channel)?;
         Ok(())
     }
     async fn window_change_request(
@@ -174,6 +137,14 @@ impl server::Handler for Ssh {
         }
         self.0.0.lock().unwrap().ssh.bytes.extend(data);
         session.data(channel, data.to_vec())?;
+        Ok(())
+    }
+    async fn channel_close(
+        &mut self,
+        _: ChannelId,
+        _: &mut server::Session,
+    ) -> std::result::Result<(), Self::Error> {
+        self.0.0.lock().unwrap().ssh.closes += 1;
         Ok(())
     }
     async fn channel_eof(
@@ -256,7 +227,7 @@ pub(super) async fn forward(
     ))))
 }
 #[tokio::test]
-async fn generated_grpc_tunnel_uses_retained_ssh_bytes_resize_and_revoke() {
+async fn generated_grpc_tunnel_uses_fresh_shell_bytes_resize_close_and_revoke() {
     let running = Running::start().await;
     running.fake.0.lock().unwrap().sandbox = Some(sandbox(Phase::Ready));
     let mut terminal = running
@@ -271,7 +242,6 @@ async fn generated_grpc_tunnel_uses_retained_ssh_bytes_resize_and_revoke() {
     assert_eq!(terminal.main_process_instance_id(), "main-1");
     assert_eq!(terminal.sandbox_id(), "sandbox-1");
     assert!(terminal.read().await.unwrap().unwrap() == TerminalOutput::Data(vec![0, 255, 13, 10]));
-    assert!(terminal.read().await.unwrap().unwrap() == TerminalOutput::ReplayComplete);
     terminal
         .resize(TerminalSize::new(80, 24).unwrap())
         .await
@@ -281,7 +251,8 @@ async fn generated_grpc_tunnel_uses_retained_ssh_bytes_resize_and_revoke() {
     terminal.detach().await.unwrap();
     let state = running.fake.0.lock().unwrap();
     assert_eq!(state.ssh.size, (80, 24));
-    assert_eq!(state.ssh.subsystems, ["openshell-main"]);
+    assert_eq!(state.ssh.shells, 1);
+    assert_eq!(state.ssh.closes, 1);
     assert_eq!(state.ssh.eofs, 0);
     assert_eq!(state.revokes, 1);
     assert_eq!(state.stops, 0);
@@ -424,7 +395,7 @@ async fn cancelled_attach_drains_and_revokes_late_mint_response() {
     assert_eq!(running.fake.0.lock().unwrap().revokes, 0);
     gate.release.notify_one();
     wait_for_revoke(&running.fake).await;
-    assert!(running.fake.0.lock().unwrap().ssh.subsystems.is_empty());
+    assert!(running.fake.0.lock().unwrap().ssh.shells == 0);
 }
 
 #[tokio::test]
@@ -448,7 +419,7 @@ async fn cancelled_attach_after_token_receipt_revokes_during_pty_setup() {
     assert!(matches!(task.await, Err(error) if error.is_cancelled()));
     wait_for_revoke(&running.fake).await;
     gate.release.notify_one();
-    assert!(running.fake.0.lock().unwrap().ssh.subsystems.is_empty());
+    assert!(running.fake.0.lock().unwrap().ssh.shells == 0);
 }
 
 #[tokio::test]
@@ -494,7 +465,7 @@ fn banner_fixture(running: &Running, frames: u8) -> Vec<Vec<u8>> {
 }
 
 #[tokio::test]
-async fn retained_replay_batches_small_frames_without_changing_any_bytes() {
+async fn fresh_shell_batches_small_frames_without_changing_any_bytes() {
     let running = Running::start().await;
     let frames: Vec<Vec<u8>> = (0_u32..16_384)
         .map(|index| {
@@ -523,9 +494,7 @@ async fn retained_replay_batches_small_frames_without_changing_any_bytes() {
         let mut actual = Vec::new();
         let mut chunks = 0;
         while actual.len() < expected.len() {
-            let TerminalOutput::Data(bytes) = terminal.read().await.unwrap().unwrap() else {
-                panic!("early replay boundary")
-            };
+            let TerminalOutput::Data(bytes) = terminal.read().await.unwrap().unwrap();
             assert!(!bytes.is_empty() && bytes.len() <= MAX_CHUNK_BYTES);
             actual.extend_from_slice(&bytes);
             chunks += 1;
@@ -536,7 +505,7 @@ async fn retained_replay_batches_small_frames_without_changing_any_bytes() {
     .unwrap();
     assert_eq!(actual, expected);
     eprintln!(
-        "retained replay fixture: {} bytes, {chunks} output chunks, {:?}",
+        "fresh shell fixture: {} bytes, {chunks} output chunks, {:?}",
         actual.len(),
         started.elapsed()
     );
@@ -547,7 +516,8 @@ async fn retained_replay_batches_small_frames_without_changing_any_bytes() {
         "small historical frames were not batched: {chunks}"
     );
     let state = running.fake.0.lock().unwrap();
-    assert_eq!(state.ssh.subsystems, ["openshell-main"]);
+    assert_eq!(state.ssh.shells, 1);
+    assert_eq!(state.ssh.closes, 1);
     assert_eq!(state.ssh.eofs, 0);
 }
 
@@ -573,9 +543,8 @@ async fn final_partial_output_batch_precedes_eof_and_revocation() {
     let actual = tokio::time::timeout(Duration::from_secs(3), async {
         let mut actual = Vec::new();
         while let Some(bytes) = terminal.read().await.unwrap() {
-            if let TerminalOutput::Data(bytes) = bytes {
-                actual.extend(bytes);
-            }
+            let TerminalOutput::Data(bytes) = bytes;
+            actual.extend(bytes);
         }
         actual
     })
@@ -637,9 +606,7 @@ async fn queued_banner_does_not_block_write_or_resize_before_reads() {
     let actual = tokio::time::timeout(Duration::from_secs(3), async {
         let mut actual = Vec::new();
         while actual.len() < expected.len() {
-            let TerminalOutput::Data(bytes) = terminal.read().await.unwrap().unwrap() else {
-                continue;
-            };
+            let TerminalOutput::Data(bytes) = terminal.read().await.unwrap().unwrap();
             assert!(!bytes.is_empty() && bytes.len() <= MAX_CHUNK_BYTES);
             actual.extend(bytes);
         }
@@ -650,10 +617,7 @@ async fn queued_banner_does_not_block_write_or_resize_before_reads() {
     assert_eq!(actual, expected);
     terminal.detach().await.unwrap();
     wait_for_revoke(&running.fake).await;
-    assert_eq!(
-        running.fake.0.lock().unwrap().ssh.subsystems,
-        ["openshell-main"]
-    );
+    assert_eq!(running.fake.0.lock().unwrap().ssh.shells, 1);
 }
 
 #[tokio::test]

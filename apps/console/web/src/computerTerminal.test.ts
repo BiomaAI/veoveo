@@ -80,7 +80,6 @@ function fixture() {
         expiresAt: new Date(time.wall() + 30_000).toISOString(),
       }),
     );
-  const replay = () => session.receive('{"type":"replay_complete"}');
   const lease = (sequence: number) =>
     session.receive(
       JSON.stringify({
@@ -104,35 +103,36 @@ function fixture() {
     writes,
     statuses,
     ready,
-    replay,
     lease,
     advance,
     input: () => input,
     closed: () => closed,
   };
 }
-test("terminal input and answerbacks wait for historical callback drain; live output does not starve readiness", () => {
+test("accepted fresh shell enables user input and live answerbacks while output drains", () => {
   const f = fixture();
   f.session.input("ignored");
-  f.ready();
-  f.session.receive(new TextEncoder().encode("history").buffer);
-  f.replay();
-  f.session.input("historical answerback");
-  f.session.receive(new TextEncoder().encode("live").buffer);
-  assert.equal(f.input(), false);
   assert.equal(f.sent.length, 0);
-  f.writes[0].done();
+  f.ready();
   assert.equal(f.input(), true);
-  assert.equal(f.writes.length, 2);
+  f.session.receive(new TextEncoder().encode("current shell output").buffer);
+  f.session.input("\x1b[0n");
   f.session.input("current input");
-  assert.equal(new TextDecoder().decode(f.sent[0] as Uint8Array), "current input");
+  f.session.input("\xff", true);
+  assert.equal(new TextDecoder().decode(f.sent[0] as Uint8Array), "\x1b[0n");
+  assert.equal(new TextDecoder().decode(f.sent[1] as Uint8Array), "current input");
+  assert.deepEqual(f.sent[2], new Uint8Array([255]));
+  f.session.receive(new TextEncoder().encode("more live output").buffer);
+  assert.equal(f.writes.length, 1);
+  f.writes[0].done();
+  assert.equal(f.writes.length, 2);
+  assert.equal(f.input(), true);
   f.session.close();
 });
 test("terminal deadline closes blocked rendering and late callbacks cannot restore input", () => {
   const f = fixture();
   f.ready();
   f.session.receive(new ArrayBuffer(10));
-  f.replay();
   f.advance(29_000);
   assert.equal(f.closed(), 1);
   assert.equal(f.input(), false);
@@ -146,7 +146,6 @@ test("terminal deadline closes blocked rendering and late callbacks cannot resto
 test("terminal renewable lease advances only through strictly increasing safe sequences", () => {
   const f = fixture();
   f.ready();
-  f.replay();
   f.advance(20_000);
   f.lease(1);
   f.advance(10_000);
@@ -169,6 +168,10 @@ test("terminal rejects invalid ordering, versions and oversized frames", () => {
     f.session.receive(data);
     assert.equal(f.closed(), 1);
   }
+  const retired = fixture();
+  retired.ready();
+  retired.session.receive('{"type":"replay_complete"}');
+  assert.equal(retired.closed(), 1);
   const f = fixture();
   f.ready();
   f.session.receive(new ArrayBuffer(65_537));
@@ -182,27 +185,24 @@ test("terminal bounds output backlog and never queues unsent input across conges
   assert.equal(output.writes.length, 1);
   const input = fixture();
   input.ready();
-  input.replay();
   input.wire.bufferedAmount = 131_072;
   input.session.input("x");
   assert.equal(input.closed(), 1);
   assert.equal(input.sent.length, 0);
   const paste = fixture();
   paste.ready();
-  paste.replay();
   paste.session.input("é".repeat(40_000));
   assert.equal(paste.closed(), 1);
   assert.equal(paste.sent.length, 0);
 });
-test("terminal attachment establishment has a fixed timeout and resize cannot bypass replay", () => {
+test("terminal attachment establishment has a fixed timeout and resize requires Ready", () => {
   const pending = fixture();
   pending.advance(10_000);
   assert.equal(pending.closed(), 1);
   const f = fixture();
-  f.ready();
   f.session.resize(80, 24);
   assert.equal(f.sent.length, 0);
-  f.replay();
+  f.ready();
   f.session.resize(100, 30);
   assert.deepEqual(JSON.parse(f.sent[0] as string), { type: "resize", cols: 100, rows: 30 });
   f.session.close();

@@ -11,7 +11,7 @@ and installed acceptance belong to [Computers](../../computers/DESIGN.md#qualifi
 |---|---|
 | OpenShell `0.1.2` protobuf/gRPC | Vendored protocol verified by `protocol/SHA256SUMS`; internal generated client/server types over mTLS |
 | OpenShell retained Docker provider | Candidate gateway/driver/supervisor/sandbox `0.1.2-veoveo.1`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
-| SSH and terminal metadata | Byte-preserving canonical-main attachment with private `openshell.terminal.v1` ReplayComplete metadata; explicit history fence |
+| SSH terminal | Stock authenticated `shell_request` with a fresh PTY and shell per attachment; byte-preserving stdout/stderr and terminal resize |
 | `veoveo.ai/computer-storage/v1` | Bounded mTLS prepare/restore/handoff/abandon adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
@@ -114,7 +114,7 @@ can validate its referenced TLS material without connecting; only the existing p
 handshake constructs an admitted runtime. This separates invalid installation inputs
 from temporary provider unavailability. `models`, `binding`,
 `canonical` and `policy_json` validate the admitted template and exact identity.
-`terminal` and `terminal_output` own the byte stream and replay boundary. `execution`
+`terminal` and `terminal_output` own fresh-shell admission and the byte stream. `execution`
 owns bounded command streams. `allocation` and `storage` bind retained volumes;
 `policy_continuity` checks effective policy continuity after an authenticated retained
 handoff. It compares the complete instance-bound template, including guest labels.
@@ -475,6 +475,13 @@ and installation clock allowances. A missed update expires locally; loss of the
 authority task closes its leases immediately. Delayed checks cannot overwrite a newer
 check or revive revoked or expired access. Wall-clock time is a display projection.
 
+Each terminal attachment requests a fresh PTY and ordinary SSH shell. Ready reports
+authenticated acceptance of that request; a later native exec failure closes the
+attachment with an error. Reconnection starts a new shell and restores no previous
+terminal output. Files on retained volumes follow the storage contract. Keyboard,
+paste, IME, mouse reporting and normal terminal query responses use the same byte
+stream. No provider metadata or historical-output fence delays input.
+
 `Terminal` exposes its checked resource and process identities for the owning service
 to compare against the durable grant before forwarding bytes. Its narrow `TerminalInput`
 handle lets that service drive input separately from output; dropping the terminal
@@ -501,10 +508,11 @@ current policy/family renewal belong to `platform/computers`; `servers/computers
 composes their authority with this runtime and shared revocation wakes. Public Console
 and CLI ingress qualification remain delivery work.
 
-The native renewal fixture exchanges terminal data after repeated two-second leases
+The native renewal fixture requires terminal data after repeated two-second leases
 and the provider's three-second admission credential have expired. The same shell
-remains attached. Explicit revocation denies further input/output, and fresh authority
-reattaches to the same native process. Local real-mTLS fixtures cover bidirectional
+stays attached. Explicit revocation must deny further input/output, and fresh
+authority must open a new shell in the admitted Computer process. Stock-provider
+qualification of this case is pending. Local real-mTLS fixtures cover bidirectional
 backpressure, buffered output denial, late mint cleanup and non-revivable deadlines.
 
 ## Execution Argument Boundary
@@ -595,8 +603,8 @@ This evidence establishes the declared lifecycle state, not the result of an arb
 command. Domain integration and native fault qualification remain delivery gaps.
 
 The focused crate fixtures cover real local mTLS, generated provider RPCs, policy
-validation, binding mismatches, bounded command/terminal streams, and replay. A fixture
-provider is not native OpenShell execution evidence. Production admission additionally
+validation, binding mismatches, bounded command/terminal streams, and fresh-shell
+admission. A fixture provider is not native OpenShell execution evidence. Production admission additionally
 requires retained storage, physical writer fencing, provider restart, command outcome
 correlation, revocation under backpressure, and the supported browser/stock CLI journey.
 
@@ -651,7 +659,7 @@ paths and `VEOVEO_COMPUTERS_NATIVE_IMAGE` set to an available image digest. The 
 is `cargo test --locked --offline -p veoveo-computers-runtime --test native_lifecycle
 -- --ignored --nocapture`. Record it through the repository evidence recorder.
 
-The lifecycle case requires native creation, terminal replay, numeric UID 10001,
+The lifecycle case requires native creation, fresh terminal attachment, numeric UID 10001,
 and settled observations before abrupt loss of its admitted gateway process group.
 The fault sends SIGKILL once and reaps the owned group within three seconds. The
 qualified gateway hosts its Docker driver in-process; the fixture does not require
@@ -666,7 +674,7 @@ reattachment through current authority.
 The case compares the daemon, guest container, selected image, external home and private
 restart-state digest, reads retained file bytes through current authenticated access,
 and requires the same physical supervisor container, StartedAt and PID. Fresh authenticated
-terminal replay and retained-file reads traverse the replacement gateway after its
+terminal attachment and retained-file reads traverse the replacement gateway after its
 predecessor has been reaped. Stop/Start must then change the main process
 identity while preserving those resource identities and bytes. Process-group admission
 and separate abrupt-loss and graceful TERM/KILL/reap controls run locally without a provider fixture.

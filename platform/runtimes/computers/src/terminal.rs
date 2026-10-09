@@ -35,8 +35,7 @@ pub(crate) enum TerminalStage {
     SshAuthenticate,
     SshChannel,
     Pty,
-    Environment,
-    Subsystem,
+    Shell,
     Continuity,
 }
 #[derive(Clone, Copy, Debug)]
@@ -460,15 +459,10 @@ async fn setup(
             .map_err(|error| ssh_failure(TerminalStage::Pty, error))?;
         channel_success(&mut channel, TerminalStage::Pty).await?;
         channel
-            .set_env(true, "OPENSHELL_MAIN_EVENTS", "1")
+            .request_shell(true)
             .await
-            .map_err(|error| ssh_failure(TerminalStage::Environment, error))?;
-        channel_success(&mut channel, TerminalStage::Environment).await?;
-        channel
-            .request_subsystem(true, "openshell-main")
-            .await
-            .map_err(|error| ssh_failure(TerminalStage::Subsystem, error))?;
-        channel_success(&mut channel, TerminalStage::Subsystem).await?;
+            .map_err(|error| ssh_failure(TerminalStage::Shell, error))?;
+        channel_success(&mut channel, TerminalStage::Shell).await?;
         if !current.same_process(
             &runtime
                 .get(binding)
@@ -515,19 +509,19 @@ async fn terminal_worker(
             Err(error)
         }
         Ok(attached) => {
-            let (reader, writer) = attached.channel.split();
-            if ready.send(Ok(attached.current)).is_err() {
+            let (mut reader, writer) = attached.channel.split();
+            let result = if ready.send(Ok(attached.current)).is_err() {
                 Ok(())
             } else {
                 // Each direction owns its pending I/O. In particular, a full
                 // bounded output queue must not park the write/resize loop.
-                // Neither pump is spawned: cancellation drops both channel halves
-                // before disconnect and the independently bounded token cleanup.
+                // Neither pump is spawned; cancellation ends pending I/O before
+                // the owned channel close and independently bounded token cleanup.
                 let work = async {
                     tokio::select! {
                         _=bridges.join_next()=>Err(RuntimeFailure::TerminalFailed),
-                        result=pump_input(writer, &mut commands)=>result,
-                        result=pump_output(reader, &output)=>result,
+                        result=pump_input(&writer, &mut commands)=>result,
+                        result=pump_output(&mut reader, &output)=>result,
                     }
                 };
                 let result = tokio::select! {
@@ -536,19 +530,43 @@ async fn terminal_worker(
                     _=lease.closed()=>Err(RuntimeFailure::LeaseExpired),
                     result=work=>result,
                 };
-                // End the transport before potentially slow SSH/token cleanup.
-                bridges.abort_all();
-                // SSH disconnect releases the input lease. Do not send channel
-                // stdin EOF, a signal, kill, exec, or a fresh shell request.
-                let _ = tokio::time::timeout(
-                    Duration::from_secs(2),
-                    attached
-                        .client
-                        .disconnect(russh::Disconnect::ByApplication, "", "en"),
-                )
-                .await;
                 result
-            }
+            };
+            // Closing this stock SSH channel ends its fresh shell, not the Computer.
+            // Keep the authenticated bridge alive until the close is delivered.
+            let mut ssh = attached.client;
+            let closed = if lease.check().is_err() {
+                // The forwarding lease has already closed its transport. Do not
+                // retain expired authority while waiting for remote teardown.
+                Err(RuntimeFailure::LeaseExpired)
+            } else {
+                tokio::time::timeout(Duration::from_secs(2), async {
+                    writer.close().await?;
+                    ssh.disconnect(russh::Disconnect::ByApplication, "", "en")
+                        .await?;
+                    let mut receiving = true;
+                    loop {
+                        tokio::select! {
+                            result = &mut ssh => return match result {
+                                Ok(()) | Err(russh::Error::Disconnect) => Ok(()),
+                                Err(error) => Err(error),
+                            },
+                            message = reader.wait(), if receiving => {
+                                // Drain bounded channel messages so queued output
+                                // cannot park the SSH task's teardown. Store none.
+                                if message.is_none() { receiving = false; }
+                            }
+                        }
+                    }
+                })
+                .await
+                .map_err(|_| RuntimeFailure::TerminalFailed)
+                .and_then(|result| result.map_err(|_| RuntimeFailure::TerminalFailed))
+            };
+            // Waiting for the owned SSH task flushes queued close/disconnect bytes.
+            // It does not establish remote process exit; failure stays unresolved.
+            bridges.abort_all();
+            result.and(closed)
         }
     };
     bridges.abort_all();
@@ -562,7 +580,7 @@ async fn terminal_worker(
 }
 
 async fn pump_input(
-    writer: russh::ChannelWriteHalf<client::Msg>,
+    writer: &russh::ChannelWriteHalf<client::Msg>,
     commands: &mut mpsc::Receiver<Command>,
 ) -> Result<()> {
     while let Some(command) = commands.recv().await {

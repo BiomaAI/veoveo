@@ -293,7 +293,6 @@ async fn cli_rejects_forged_client_authority_and_invalid_upstream_ordering() {
         for case in [
             "client_lease",
             "output_before_ready",
-            "replay",
             "duplicate_ready",
             "stale_sequence",
         ] {
@@ -318,9 +317,6 @@ async fn cli_rejects_forged_client_authority_and_invalid_upstream_ordering() {
                 _ => {
                     fixture.ready().await;
                     let control = match case {
-                        "replay" => TerminalServerControl::ReplayComplete(TerminalReplayComplete {
-                            kind: TerminalReplayCompleteKind::ReplayComplete,
-                        }),
                         "duplicate_ready" => TerminalServerControl::Ready(TerminalReady {
                             version: TERMINAL_VERSION,
                             kind: TerminalReadyKind::Ready,

@@ -7,7 +7,7 @@
 | HTTP, RFC 9110 | Same-origin Computer control routes and bounded JSON forwarding |
 | Existing browser session | Application-specific encrypted cookie, OAuth renewal and constant-time CSRF check for mutations |
 | WebSocket, RFC 6455 | HTTP/1.1 upgrade, exact public Origin and cookie authentication |
-| Veoveo terminal v2 | One-use first frame, binary terminal, bounded resize, replay fence and upstream authority deadline |
+| Veoveo terminal v2 | One-use first frame, fresh-shell Ready, binary terminal, bounded resize and upstream authority deadline |
 | OpenShell CLI `0.0.116` and gRPC over WebSocket | Custom SSO pairing and binary SSH adapter; private lease controls never reach the stock consumer |
 | MCP `2026-07-28` and server-sent events | Auth-scoped collection subscription projected as typed invalidations over a CSRF-protected HTTP POST |
 
@@ -58,8 +58,10 @@ The shared transport client receives the Console's existing installation TLS tru
 then selects HTTP/1.1 and disables redirects. Each replica admits at most 128 local
 terminal relays. Service-issued deadlines enforce authority through the bounded shared
 relay. SIGTERM or Ctrl-C cancels terminal relays before graceful HTTP shutdown.
-Disconnecting a relay does not call Stop. Retained Computer execution belongs to the
-service and provider.
+Disconnecting a relay does not call Stop. Each admitted attachment uses a fresh
+stock SSH shell with a PTY. Ready reports authenticated shell-request acceptance,
+and early execution failure or EOF remains observable. Closing the relay closes its
+channel; an uncertain disconnect does not prove provider process cleanup.
 
 Behavior tests cover cookie/CSRF admission, fixed profile and headers, origin/query
 rejection, body limits, cookie rotation on failure, redirects, WebSocket first-frame

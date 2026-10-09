@@ -73,13 +73,11 @@ export function TerminalPanel({
         reason ??
           (next === "ready"
             ? "Connected. Input is ready."
-            : next === "replaying"
-              ? "Restoring recent terminal output…"
-              : "Connecting…"),
+            : "Connecting…"),
       );
     };
     disconnect.current = (
-      reason = "Disconnected. The Computer and its processes keep running.",
+      reason = "Disconnected. This terminal attachment ended; inspect the Computer before repeating a command.",
     ) => {
       notify("disconnected", reason);
       abort.abort();
@@ -256,8 +254,8 @@ export function TerminalPanel({
       </div>
       <div className="computer-terminal-screen" ref={host} />
       <p className="computer-terminal-note">
-        History is limited to the retained replay window. Disconnect keeps the Computer running.
-        Unsent input is discarded on interruption.
+        Each connection opens a fresh shell without earlier output. Disconnect closes this attachment.
+        Unsent input is discarded; inspect the Computer before repeating a command.
       </p>
     </section>
   );

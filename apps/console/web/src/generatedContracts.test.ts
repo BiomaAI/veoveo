@@ -138,11 +138,8 @@ test("canonical terminal controls enforce closed versions, dimensions, dates and
   ]) {
     assert.throws(() => parseComputer("terminal_attach", altered));
   }
-  assert.equal(
-    parseComputer("terminal_server_control", { type: "replay_complete" }).type,
-    "replay_complete",
-  );
   for (const value of [
+    { type: "replay_complete" },
     { type: "lease", sequence: 0, expiresAt: "2026-09-10T11:00:00Z" },
     { type: "lease", sequence: 1.5, expiresAt: "2026-09-10T11:00:00Z" },
     { type: "ready", version: 2, expiresAt: "bad" },

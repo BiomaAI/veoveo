@@ -5,7 +5,7 @@
 | Boundary | Qualified profile |
 |---|---|
 | WebSocket RFC 6455 | HTTP/1.1 upgrade with the owning application's TLS trust; no generic tunnel or negotiated extensions |
-| Veoveo terminal v2 | Closed first-frame attach, resize, Ready, replay fence and sequenced lease controls; separate binary terminal bytes |
+| Veoveo terminal v2 | Closed first-frame attach, resize, Ready and sequenced lease controls; separate binary terminal bytes |
 | Veoveo private CLI relay v1 | The terminal-v2 Ready/Lease envelope only, plus binary stream bytes; trusted internal hops preserve controls and the public edge removes them |
 | OpenShell `0.1.2` edge tunnel | Stock client binary gRPC transport; no Veoveo controls reach that client, which also interprets received text frames as stream bytes |
 | RFC 3339 | Absolute service-issued authority deadlines, converted to local monotonic enforcement |
@@ -36,9 +36,9 @@ Input and output use independent pumps. Each direction has two queued messages, 
 at 64 KiB each; the wire write buffer is capped at 128 KiB. A slow consumer applies
 backpressure to its own direction. The deadline guard continues running during all
 reads, sends and queued delivery. It drops both streams at expiry. Buffered data does
-not override an expired lease. A replay fence enables input only after downstream
-delivery; the Console additionally drains historical rendering before keyboard input
-or terminal responses. Output, pings, resizes and relay timers never authorize renewal.
+not override an expired lease. Ready enables input after the authenticated SSH shell
+request is accepted. Each attachment starts a fresh shell. Output, pings, resizes and
+relay timers never authorize renewal.
 
 Verification remains local until the gateway/BFF chain and installed headed journey
 are qualified. The native provider is outside this library's tests.
@@ -55,7 +55,7 @@ authority out of that admission. This library cannot grant access or choose a ta
 implement a public arbitrary TCP proxy. CLI input may arrive immediately after upgrade;
 the relay buffers it within its two-message queue until an upstream Ready establishes
 authority. Service output before Ready fails. The internal profile accepts only Ready
-and strictly sequenced Lease controls. Replay fences and client text frames are invalid.
+and strictly sequenced Lease controls. Client text frames are invalid.
 
 An internal hop forwards original control bytes without extending their deadlines.
 The public-client hop consumes those controls and delivers only binary stream bytes
@@ -67,7 +67,7 @@ controls introduce no new browser-terminal version or client requirement.
 The owning worker must maintain grant/policy renewal and the matching provider lease.
 The gateway and BFF must select their respective relay mode explicitly. Roll out all
 three before exposing the CLI routes; an older endpoint cannot interpret this private
-profile. Existing browser relays retain their terminal-v2 replay and input rules.
+profile. Browser relays use the terminal-v2 Ready and lease rules.
 
 Local tests exercise two real WebSocket relay hops, early HTTP/2 input, byte preservation
 across renewal, control stripping, forged input, invalid service order and expiry with

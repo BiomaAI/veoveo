@@ -14,7 +14,7 @@ use veoveo_computers_contract::{
 
 struct Delivery {
     message: Message,
-    replay_fence: bool,
+    ready_accepted: bool,
 }
 
 /// Call only after current route authorization and an authenticated upstream
@@ -58,12 +58,12 @@ pub async fn relay(
     let (mut up_sink, mut up_stream) = upstream.0.split();
     let (to_upstream, mut input) = mpsc::channel(2);
     let (to_downstream, mut output) = mpsc::channel::<Delivery>(2);
-    let replayed = AtomicBool::new(false);
+    let ready_delivered = AtomicBool::new(false);
     let receive_input = async {
         while let Some(message) = down_stream.next().await {
             let message = match message.map_err(|_| TransportError::Interrupted)? {
                 Message::Binary(bytes) => {
-                    if !replayed.load(Ordering::Acquire)
+                    if !ready_delivered.load(Ordering::Acquire)
                         || bytes.is_empty()
                         || bytes.len() > MAX_MESSAGE_BYTES
                     {
@@ -106,30 +106,31 @@ pub async fn relay(
     };
     let receive_output = async {
         while let Some(message) = up_stream.next().await {
-            let (message, replay_fence) = match message.map_err(|_| TransportError::Interrupted)? {
-                UpstreamMessage::Text(text) => {
-                    if text.len() > MAX_CONTROL_BYTES {
-                        return Err(TransportError::Protocol);
+            let (message, ready_accepted) =
+                match message.map_err(|_| TransportError::Interrupted)? {
+                    UpstreamMessage::Text(text) => {
+                        if text.len() > MAX_CONTROL_BYTES {
+                            return Err(TransportError::Protocol);
+                        }
+                        let control: TerminalServerControl =
+                            serde_json::from_str(&text).map_err(|_| TransportError::Protocol)?;
+                        guard.control(&control)?;
+                        let accepted = matches!(control, TerminalServerControl::Ready(_));
+                        (Message::Text(text.into()), accepted)
                     }
-                    let control: TerminalServerControl =
-                        serde_json::from_str(&text).map_err(|_| TransportError::Protocol)?;
-                    guard.control(&control)?;
-                    let fence = matches!(control, TerminalServerControl::ReplayComplete(_));
-                    (Message::Text(text.into()), fence)
-                }
-                UpstreamMessage::Binary(bytes) => {
-                    if !guard.ready || bytes.len() > MAX_MESSAGE_BYTES {
-                        return Err(TransportError::Protocol);
+                    UpstreamMessage::Binary(bytes) => {
+                        if !guard.ready || bytes.len() > MAX_MESSAGE_BYTES {
+                            return Err(TransportError::Protocol);
+                        }
+                        (Message::Binary(bytes), false)
                     }
-                    (Message::Binary(bytes), false)
-                }
-                UpstreamMessage::Ping(_) | UpstreamMessage::Pong(_) => continue,
-                UpstreamMessage::Close { .. } => return Ok(()),
-            };
+                    UpstreamMessage::Ping(_) | UpstreamMessage::Pong(_) => continue,
+                    UpstreamMessage::Close { .. } => return Ok(()),
+                };
             to_downstream
                 .send(Delivery {
                     message,
-                    replay_fence,
+                    ready_accepted,
                 })
                 .await
                 .map_err(|_| TransportError::Interrupted)?;
@@ -145,8 +146,8 @@ pub async fn relay(
                 .send(delivery.message)
                 .await
                 .map_err(|_| TransportError::Interrupted)?;
-            if delivery.replay_fence {
-                replayed.store(true, Ordering::Release);
+            if delivery.ready_accepted {
+                ready_delivered.store(true, Ordering::Release);
             }
         }
         Ok(())

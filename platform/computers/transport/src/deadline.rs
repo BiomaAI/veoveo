@@ -7,7 +7,6 @@ use veoveo_computers_contract::{TERMINAL_VERSION, TerminalServerControl};
 pub(crate) struct Deadline {
     state: watch::Sender<Instant>,
     pub ready: bool,
-    replayed: bool,
     sequence: u64,
 }
 impl Deadline {
@@ -17,7 +16,6 @@ impl Deadline {
             Self {
                 state,
                 ready: false,
-                replayed: false,
                 sequence: 0,
             },
             receiver,
@@ -37,10 +35,6 @@ impl Deadline {
             TerminalServerControl::Lease(value) if self.ready && value.sequence > self.sequence => {
                 self.sequence = value.sequence;
                 Some(value.expires_at)
-            }
-            TerminalServerControl::ReplayComplete(_) if self.ready && !self.replayed => {
-                self.replayed = true;
-                None
             }
             _ => return Err(TransportError::Protocol),
         };

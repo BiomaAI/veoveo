@@ -1,13 +1,12 @@
 use super::authority::Activity;
 use axum::extract::ws::{Message, WebSocket};
 use futures::{SinkExt, StreamExt};
-use std::sync::atomic::{AtomicBool, Ordering};
 use veoveo_computers::api::*;
 use veoveo_computers_runtime::{Terminal, TerminalOutput, TerminalSize};
 
 pub(super) async fn run(
     mut socket: WebSocket,
-    mut terminal: Terminal,
+    terminal: &mut Terminal,
     activity: &Activity,
     mut updates: tokio::sync::watch::Receiver<Option<TerminalLease>>,
 ) -> Result<(), ()> {
@@ -24,7 +23,6 @@ pub(super) async fn run(
         .map_err(|_| ())?;
     let (mut sink, mut source) = socket.split();
     let input = terminal.input();
-    let replayed = AtomicBool::new(false);
     let output = async {
         loop {
             let output = tokio::select! {
@@ -40,37 +38,16 @@ pub(super) async fn run(
             let Some(output) = output else {
                 return Ok::<_, ()>(());
             };
-            let fence = matches!(output, TerminalOutput::ReplayComplete);
-            let message = match output {
-                TerminalOutput::Data(bytes) => Message::Binary(bytes.into()),
-                TerminalOutput::ReplayComplete => {
-                    if replayed.load(Ordering::Acquire) {
-                        return Err(());
-                    }
-                    Message::Text(
-                        serde_json::to_string(&TerminalServerControl::ReplayComplete(
-                            TerminalReplayComplete {
-                                kind: TerminalReplayCompleteKind::ReplayComplete,
-                            },
-                        ))
-                        .map_err(|_| ())?
-                        .into(),
-                    )
-                }
-            };
-            sink.send(message).await.map_err(|_| ())?;
-            if fence {
-                replayed.store(true, Ordering::Release);
-            }
+            let TerminalOutput::Data(bytes) = output;
+            sink.send(Message::Binary(bytes.into()))
+                .await
+                .map_err(|_| ())?;
         }
     };
     let receive = async {
         while let Some(message) = source.next().await {
             match message.map_err(|_| ())? {
                 Message::Binary(bytes) => {
-                    if !replayed.load(Ordering::Acquire) {
-                        return Err(());
-                    }
                     input.write(&bytes).await.map_err(|_| ())?;
                     activity.record();
                 }

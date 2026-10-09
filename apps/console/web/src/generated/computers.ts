@@ -262,12 +262,7 @@ export type TerminalResizeKind = "resize";
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "TerminalServerControl".
  */
-export type TerminalServerControl = TerminalReady | TerminalReplayComplete | TerminalLease;
-/**
- * This interface was referenced by `ComputersApi`'s JSON-Schema
- * via the `definition` "TerminalReplayCompleteKind".
- */
-export type TerminalReplayCompleteKind = "replay_complete";
+export type TerminalServerControl = TerminalReady | TerminalLease;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "TerminalLeaseKind".
@@ -933,15 +928,6 @@ export interface TerminalResize {
   cols: number;
   rows: number;
   type: TerminalResizeKind;
-}
-/**
- * This fence is not permission to send input until historical rendering drains.
- *
- * This interface was referenced by `ComputersApi`'s JSON-Schema
- * via the `definition` "TerminalReplayComplete".
- */
-export interface TerminalReplayComplete {
-  type: TerminalReplayCompleteKind;
 }
 /**
  * A current service-issued deadline. Relays preserve it and cannot extend it.

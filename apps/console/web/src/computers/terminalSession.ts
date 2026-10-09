@@ -1,6 +1,6 @@
 import { parseComputer } from "../generatedContracts.ts";
 
-export type TerminalStatus = "connecting" | "replaying" | "ready" | "disconnected";
+export type TerminalStatus = "connecting" | "ready" | "disconnected";
 export interface TerminalOutput {
   write: (bytes: Uint8Array, done: () => void) => void;
   input: (enabled: boolean) => void;
@@ -33,14 +33,12 @@ export class TerminalSession {
   private clock: TerminalClock;
   private state: TerminalStatus = "connecting";
   private stopped = false;
-  private replay = false;
   private readyReceived = false;
   private sequence = 0;
   private deadline = 0;
   private timer?: ReturnType<typeof setTimeout>;
-  private queue: Array<{ bytes: Uint8Array; historical: boolean }> = [];
+  private queue: Uint8Array[] = [];
   private queuedBytes = 0;
-  private historicalBytes = 0;
   private writing = false;
   constructor(
     wire: TerminalWire,
@@ -88,7 +86,8 @@ export class TerminalSession {
           if (this.readyReceived) throw new Error("Repeated ready");
           this.lease(control.expiresAt);
           this.readyReceived = true;
-          this.state = "replaying";
+          this.state = "ready";
+          this.output.input(true);
           this.notify(this.state);
         } else if (control.type === "lease") {
           if (
@@ -99,10 +98,6 @@ export class TerminalSession {
             throw new Error("Invalid lease sequence");
           this.lease(control.expiresAt);
           this.sequence = control.sequence;
-        } else {
-          if (!this.readyReceived || this.replay) throw new Error("Invalid replay boundary");
-          this.replay = true;
-          this.enableInput();
         }
       } else {
         if (
@@ -114,9 +109,8 @@ export class TerminalSession {
           throw new Error("Output limit");
         if (data.byteLength === 0) return;
         const bytes = new Uint8Array(data);
-        this.queue.push({ bytes, historical: !this.replay });
+        this.queue.push(bytes);
         this.queuedBytes += bytes.length;
-        if (!this.replay) this.historicalBytes += bytes.length;
         this.drain();
       }
     } catch {
@@ -128,29 +122,17 @@ export class TerminalSession {
   private drain() {
     if (this.writing || !this.valid()) return;
     const next = this.queue.shift();
-    if (!next) {
-      this.enableInput();
-      return;
-    }
+    if (!next) return;
     this.writing = true;
     try {
-      this.output.write(next.bytes, () => {
+      this.output.write(next, () => {
         if (this.stopped) return;
-        this.queuedBytes -= next.bytes.length;
+        this.queuedBytes -= next.length;
         this.writing = false;
-        if (next.historical) this.historicalBytes -= next.bytes.length;
-        this.enableInput();
         this.drain();
       });
     } catch {
       this.close("Terminal rendering failed. Reopen the attachment after restoring the renderer.");
-    }
-  }
-  private enableInput() {
-    if (this.valid() && this.replay && this.historicalBytes === 0 && this.state !== "ready") {
-      this.state = "ready";
-      this.output.input(true);
-      this.notify("ready");
     }
   }
   input(text: string, binary = false) {
@@ -190,7 +172,7 @@ export class TerminalSession {
       this.close("The terminal resize could not be sent.");
     }
   }
-  close(message = "Disconnected. The Computer and its processes keep running.") {
+  close(message = "Disconnected. This terminal attachment ended; inspect the Computer before repeating a command.") {
     if (this.stopped) return;
     this.stopped = true;
     this.state = "disconnected";

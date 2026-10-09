@@ -56,24 +56,6 @@ fn template(image: String) -> DevelopmentTemplate {
     .unwrap()
 }
 
-async fn replay(terminal: &mut Terminal) {
-    tokio::time::timeout(Duration::from_secs(25), async {
-        loop {
-            match terminal
-                .read()
-                .await
-                .unwrap()
-                .expect("terminal remains open")
-            {
-                TerminalOutput::ReplayComplete => return,
-                TerminalOutput::Data(_) => {}
-            }
-        }
-    })
-    .await
-    .expect("native replay boundary");
-}
-
 #[tokio::test]
 #[ignore = "requires exact provider binaries and a digest-pinned Computer image; starts an isolated Docker provider"]
 async fn native_lifecycle_terminal_and_epoch_recovery() {
@@ -107,12 +89,11 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     assert!(!ready.main_process_instance_id.is_empty());
     let (_authority, lease) =
         LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(30)).unwrap();
-    let mut terminal = runtime
+    let terminal = runtime
         .attach(&binding, TerminalSize::new(100, 30).unwrap(), lease.clone())
         .await
         .unwrap();
-    replay(&mut terminal).await;
-    // A shell-local variable proves that reattachment retains the same process.
+    // Every fresh shell uses the same guest identity but starts without prior shell state.
     terminal
         .write(b"export VEOVEO_NATIVE_RETAINED=kept\r")
         .await
@@ -127,7 +108,6 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         ready.main_process_instance_id
     );
     assert_eq!(terminal.sandbox_id(), ready.sandbox_id);
-    replay(&mut terminal).await;
     terminal
         .write(b"printf '\\nretained=%s uid=%s\\n' \"$VEOVEO_NATIVE_RETAINED\" \"$(id -u)\"\r")
         .await
@@ -138,7 +118,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
             if let Some(TerminalOutput::Data(bytes)) = terminal.read().await.unwrap() {
                 output.extend(bytes);
                 assert!(output.len() <= 65536);
-                if String::from_utf8_lossy(&output).contains("retained=kept uid=10001") {
+                if String::from_utf8_lossy(&output).contains("retained= uid=10001") {
                     return output;
                 }
             } else {
@@ -209,7 +189,6 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
             panic!("replacement-gateway terminal attachment failed: {error:?}");
         }
     };
-    replay(&mut terminal).await;
     terminal.write(b"printf '\\npost-controller-marker=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\"\r").await.unwrap();
     marker_output(
         &mut terminal,
@@ -272,7 +251,6 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         .attach(&binding, TerminalSize::new(100, 30).unwrap(), final_lease)
         .await
         .unwrap();
-    replay(&mut terminal).await;
     terminal.write(b"printf '\\npost-start-marker=%s uid=%s\\n' \"$(cat \"$HOME/controller-native-marker\")\" \"$(id -u)\"\r").await.unwrap();
     marker_output(
         &mut terminal,
@@ -321,7 +299,6 @@ async fn native_terminal_renews_without_reconnecting_and_revokes_access() {
         .attach(&binding, TerminalSize::new(100, 30).unwrap(), lease)
         .await
         .unwrap();
-    replay(&mut terminal).await;
     terminal
         .write(b"export VEOVEO_RENEWED=kept\r")
         .await
@@ -375,11 +352,10 @@ async fn native_terminal_renews_without_reconnecting_and_revokes_access() {
     // Access loss preserves the original process. Fresh authority reattaches to it.
     let (_authority, lease) =
         LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(30)).unwrap();
-    let mut terminal = runtime
+    let terminal = runtime
         .attach(&binding, TerminalSize::new(100, 30).unwrap(), lease)
         .await
         .unwrap();
-    replay(&mut terminal).await;
     assert_eq!(
         terminal.main_process_instance_id(),
         ready.main_process_instance_id
@@ -409,7 +385,6 @@ async fn marker_output(terminal: &mut Terminal, expected: &str) {
                         return;
                     }
                 }
-                TerminalOutput::ReplayComplete => {}
             }
         }
     })

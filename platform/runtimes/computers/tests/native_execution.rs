@@ -71,17 +71,6 @@ async fn initial_shell_uses_retained_home(runtime: &OpenShellRuntime, binding: &
         .await
         .unwrap();
     tokio::time::timeout(Duration::from_secs(10), async {
-        loop {
-            match terminal
-                .read()
-                .await
-                .unwrap()
-                .expect("initial shell stays open")
-            {
-                TerminalOutput::ReplayComplete => break,
-                TerminalOutput::Data(_) => (),
-            }
-        }
         terminal
             .write(b"printf '\\ninitial-home=%s\\n' \"$PWD\"\r")
             .await

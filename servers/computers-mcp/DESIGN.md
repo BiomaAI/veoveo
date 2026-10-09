@@ -9,7 +9,7 @@
 | `veoveo.ai/computer-files/v1` | Private framed metadata and bounded binary regular-file transport through the qualified guest launcher; distinct from public Artifact/MCP resources |
 | Native OpenShell | Private mTLS/protobuf adapter in `platform/runtimes/computers`; its exact provider patch graph governs the selected Docker profile |
 | MCP 2026-07-28, repository contract revision 4 | Stateless authenticated lifecycle tools, resources, Tasks and request-scoped subscriptions |
-| WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, bounded binary terminal, resize, replay fence and sequenced renewal deadlines; the gateway authenticates the upgrade |
+| WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, fresh stock SSH shell, bounded binary terminal, resize and sequenced renewal deadlines; the gateway authenticates the upgrade |
 | Stock OpenShell CLI `0.1.2`, gRPC over HTTP/2 over WebSocket | Restricted internal adapter for five selected SSH methods; private Ready/Lease controls are removed by the public edge before reaching the stock client |
 | JSON Schema 2020-12 | Shared public DTOs in `platform/computers/contract`; raw provider messages are never public request inputs |
 | `veoveo.ai/computers-service/v3` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
@@ -580,11 +580,15 @@ its separate lifecycle policy.
 
 Binary messages preserve terminal bytes and are capped at 64 KiB. The WebSocket write
 buffer is bounded at 128 KiB; provider queues retain their existing bounds. Independent
-input and output futures share the same lease. The server sends Ready followed by
-bounded history and ReplayComplete. Input is rejected until that fence has been sent.
-The Console must additionally drain historical rendering before enabling keyboard
-input or terminal responses. Ready's expiry is the initial short authority projection;
-the service continues enforcing subsequent renewals. Successful renewal emits a Lease control with a strictly increasing connection-local
+input and output futures share the same lease. Each attachment requests a fresh
+stock SSH shell with a PTY, without subscribing to retained main-session history.
+Ready means the authenticated shell request was accepted; a later execution failure
+or EOF is observable. Ready admits keyboard, paste, binary mouse input, resize and
+normal terminal query responses without a replay fence or output-drain gate.
+Reconnect opens another shell and does not restore an earlier shell or output.
+Disconnect closes the owned channel; uncertain transport loss does not prove that
+the provider cleaned up its process. Ready's expiry is the initial short authority
+projection; the service continues enforcing subsequent renewals. Successful renewal emits a Lease control with a strictly increasing connection-local
 sequence and the current expiry. The public relays preserve these controls and enforce
 the deadline with their declared clock allowance. The client must not treat an
 attachment deadline as the Computer's lifetime.

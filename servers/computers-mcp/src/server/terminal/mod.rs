@@ -212,7 +212,7 @@ async fn attached(
         if runtime.provider_instance_id() != baseline.computer().provider_instance_id {
             return Err(());
         }
-        let terminal = runtime
+        let mut terminal = runtime
             .attach(&binding, size, lease.clone())
             .await
             .map_err(|error| {
@@ -225,7 +225,16 @@ async fn attached(
             tracing::warn!(computer_id = %id, "Computer process changed during terminal attachment; reconnect to refresh the run");
             return Err(());
         }
-        pump::run(socket, terminal, &activity, updates).await
+        let result = pump::run(socket, &mut terminal, &activity, updates).await;
+        // Complete the owned channel close while current authority still permits
+        // its authenticated transport. External authority loss cancels this work.
+        finish_attachment(
+            result,
+            async { terminal.detach().await.map_err(|_| ()) },
+            &authority,
+            &lease,
+        )
+        .await
     };
     tokio::select! {
         biased;
@@ -235,4 +244,79 @@ async fn attached(
     }
     authority.revoke();
     Ok(())
+}
+
+// Normal completion closes owned transport before revocation. Existing authority
+// loss cancels pending cleanup immediately rather than extending a grant.
+async fn finish_attachment(
+    result: Result<(), ()>,
+    detach: impl std::future::Future<Output = Result<(), ()>>,
+    authority: &LeaseAuthority,
+    lease: &veoveo_computers_runtime::AttachmentLease,
+) -> Result<(), ()> {
+    let detached = tokio::select! {
+        biased;
+        _ = lease.closed() => Err(()),
+        detached = detach => detached,
+    };
+    authority.revoke();
+    result.and(detached)
+}
+
+#[cfg(test)]
+mod completion_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn normal_completion_closes_before_revocation_and_preserves_errors() {
+        for (result, detached) in [(Ok(()), Ok(())), (Err(()), Ok(())), (Ok(()), Err(()))] {
+            let (authority, lease) =
+                LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(10))
+                    .unwrap();
+            let (release, gate) = tokio::sync::oneshot::channel();
+            let close = async {
+                gate.await.unwrap();
+                assert!(
+                    lease.expires_at().is_ok(),
+                    "owned close requires current authority"
+                );
+                detached
+            };
+            let completing = finish_attachment(result, close, &authority, &lease);
+            tokio::pin!(completing);
+            assert!(
+                tokio::time::timeout(Duration::from_millis(20), &mut completing)
+                    .await
+                    .is_err()
+            );
+            assert!(
+                lease.expires_at().is_ok(),
+                "cleanup must precede revocation"
+            );
+            release.send(()).unwrap();
+            assert_eq!(completing.await, result.and(detached));
+            assert!(lease.expires_at().is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn external_authority_loss_cancels_pending_owned_cleanup() {
+        let (authority, lease) =
+            LeaseAuthority::issue(tokio::time::Instant::now(), Duration::from_secs(10)).unwrap();
+        let close = std::future::pending::<Result<(), ()>>();
+        let completing = finish_attachment(Ok(()), close, &authority, &lease);
+        tokio::pin!(completing);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), &mut completing)
+                .await
+                .is_err()
+        );
+        authority.revoke();
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), completing)
+                .await
+                .unwrap(),
+            Err(())
+        );
+    }
 }

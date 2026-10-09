@@ -39,10 +39,6 @@ pub(super) fn upstream(capture: Arc<Mutex<Vec<Observed>>>) -> Router {
                             .send(Message::Text(serde_json::to_string(&ready).unwrap().into()))
                             .await
                             .unwrap();
-                        socket
-                            .send(Message::Text("{\"type\":\"replay_complete\"}".into()))
-                            .await
-                            .unwrap();
                         while let Some(Ok(message)) = socket.recv().await {
                             if let Message::Binary(bytes) = message
                                 && socket.send(Message::Binary(bytes)).await.is_err()
@@ -108,8 +104,6 @@ async fn cookie_authenticated_upgrade_returns_refresh_cookie_and_relays_terminal
                 .unwrap(),
             api_contract::TerminalServerControl::Ready(_)
         ));
-        let replay = socket.next().await.unwrap().unwrap();
-        assert_eq!(replay.to_text().unwrap(), "{\"type\":\"replay_complete\"}");
         socket
             .send(ClientMessage::Binary(b"bounded input".to_vec().into()))
             .await

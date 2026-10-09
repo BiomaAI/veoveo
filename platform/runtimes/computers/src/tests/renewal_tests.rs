@@ -19,10 +19,7 @@ async fn renewing_blocked_output_keeps_one_attachment_and_revoke_closes_it() {
     }
     // Output remains full while renewal and input continue beyond the first lease.
     terminal.write(b"still-attached").await.unwrap();
-    assert_eq!(
-        running.fake.0.lock().unwrap().ssh.subsystems,
-        ["openshell-main"]
-    );
+    assert_eq!(running.fake.0.lock().unwrap().ssh.shells, 1);
     let started = Instant::now();
     authority.revoke();
     wait_for_revoke(&running.fake).await;

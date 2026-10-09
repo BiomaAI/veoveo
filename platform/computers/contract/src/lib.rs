@@ -414,24 +414,10 @@ pub enum TerminalReadyKind {
     Ready,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
-pub enum TerminalReplayCompleteKind {
-    ReplayComplete,
-}
-
-/// This fence is not permission to send input until historical rendering drains.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct TerminalReplayComplete {
-    #[serde(rename = "type")]
-    pub kind: TerminalReplayCompleteKind,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum TerminalServerControl {
     Ready(TerminalReady),
-    ReplayComplete(TerminalReplayComplete),
     Lease(TerminalLease),
 }
 
@@ -659,23 +645,12 @@ impl veoveo_types::Check for ComputerSnapshotValue {
 mod tests {
     use super::*;
     #[test]
-    fn terminal_controls_have_one_closed_generated_replay_shape() {
-        let control = TerminalServerControl::ReplayComplete(TerminalReplayComplete {
-            kind: TerminalReplayCompleteKind::ReplayComplete,
-        });
-        assert_eq!(
-            serde_json::to_value(&control).unwrap(),
-            serde_json::json!({"type":"replay_complete"})
-        );
-        assert_eq!(
-            serde_json::from_str::<TerminalServerControl>("{\"type\":\"replay_complete\"}")
-                .unwrap(),
-            control
-        );
+    fn terminal_controls_refuse_retired_replay_and_unknown_fields() {
         for text in [
             "{}",
             "null",
             "[]",
+            "{\"type\":\"replay_complete\"}",
             "{\"type\":\"replay_complete\",\"sequence\":1}",
             "{\"type\":\"unknown\"}",
             "{\"type\":\"replay_complete\",\"type\":\"replay_complete\"}",

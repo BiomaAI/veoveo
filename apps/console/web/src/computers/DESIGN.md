@@ -10,7 +10,7 @@
 | WebSocket, RFC 6455 | Same-origin terminal, one-use first-frame ticket, no URL credentials |
 | OpenShell CLI `0.0.116` pairing adapter | Explicit code comparison and bounded CORS JSON delivery to the validated IPv4 loopback port; custom profile |
 | Browser local-network access permission | Loopback callback may require user consent; the site requests access only to the exact admitted local CLI port |
-| Veoveo terminal v2 | Ready, binary output/input, bounded resize, ReplayComplete and increasing service lease sequence |
+| Veoveo terminal v2 | Authenticated SSH acceptance Ready, binary output/input, bounded resize and increasing service lease sequence; fresh shell per attachment |
 | xterm.js | `@xterm/xterm` 6.0.0, fit 0.11.0, WebGL 0.19.0; versions verified at the authoritative npm registry on 2026-09-10 |
 | WebGL 2 | Required hardware-backed xterm renderer; software adapters and lost graphics contexts fail closed |
 
@@ -69,7 +69,10 @@ The UI explains the local-device request before the action. Chrome's boundary is
 documented in its [local network access guidance](https://developer.chrome.com/blog/local-network-access).
 
 The terminal module is a separate lazy production chunk. Explicit Connect requests a
-fresh one-use ticket and sends it in the first WebSocket frame. Navigation unmounts
+fresh one-use ticket and sends it in the first WebSocket frame. Each attachment
+opens a fresh stock SSH shell with a PTY and receives only that shell's output.
+Reconnect starts another shell; it does not restore a previous shell or output.
+Navigation unmounts
 the attachment and never calls Stop. Disconnect stays disconnected until another
 explicit Connect. An interrupted attachment reports that its Computer may still run;
 the client never replays input. Automatic recovery using an existing grant requires
@@ -77,9 +80,11 @@ separate qualification because minting grants on every unknown close would reset
 idle and absolute boundaries.
 
 `terminalSession.ts` owns protocol order independently of React and xterm. Output is
-capped at 64 KiB per frame, 256 KiB queued and 32 queued chunks. ReplayComplete enables
-input only after callbacks drain all historical writes; later live output cannot
-starve that boundary. Answerbacks use the same input gate. Pasted UTF-8 and binary
+capped at 64 KiB per frame, 256 KiB queued and 32 queued chunks. Ready means the
+authenticated SSH shell request was accepted; an execution failure or EOF may
+follow. Ready enables input and resize without waiting for output callbacks.
+Keyboard, paste, IME, binary mouse input and xterm query responses use the normal
+input path. Pasted UTF-8 and binary
 input fit one 64 KiB frame, and pending socket writes stay below 128 KiB. Congestion
 closes the attachment and discards unsent input. Resize is bounded to 2–500 columns
 and 1–200 rows. Attachment establishment has a ten-second deadline.
@@ -92,10 +97,11 @@ enforce their authoritative deadlines; browser enforcement grants no authority.
 
 Terminal output cannot write the clipboard or create OSC hyperlinks. Copy is an
 explicit user action. The renderer must expose a recognized hardware WebGL adapter;
-graphics loss closes attachment and rendering. History is bounded, with the replay
-window limitation visible. Exact server truncation metadata remains a release item.
+graphics loss closes attachment and rendering. Scrollback contains only output
+received by the current attachment. Disconnect closes its owned channel; an
+uncertain transport loss does not establish provider process cleanup.
 
-Node behavior tests qualify protocol ordering, callback drain, bounded buffers,
+Node behavior tests qualify Ready admission, live input during output drain, bounded buffers,
 lease loss, lifecycle recovery and stale epochs. They do not establish interactive
 browser behavior, headed GPU presentation, actual SSO or public deployment. Those
 remain acceptance gates in `platform/computers/DESIGN.md`.
