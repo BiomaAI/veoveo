@@ -3,8 +3,8 @@
 Status: The published 34-image closure and charts for `6431c30c6621` retain their
 recorded qualification. GitOps is suspended during source work. Knowledge and its
 required NVIDIA Embedding runtime are restored and Ready. Speech has one Ready
-replica for installed acceptance; Reason and the other GPU workloads stay at zero
-replicas. The unmodified OpenShell 0.1.2 source
+replica and its selected headed Workspace consumer passes with fixture audio;
+Reason and the other GPU workloads stay at zero replicas. The unmodified OpenShell 0.1.2 source
 package passes its focused artifact, Host and packaging checks. The owner approved
 stock OIDC; package image `ea4ffc9f7` is assembled and staged with all four official
 executable hashes and versions verified. Three CA roles, projected credentials,
@@ -78,7 +78,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the actual Computer Host workload boundary, final installed profile/current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. Full stock-provider native security, lifecycle and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The selected four-server CPU protocol case at `1393fdc36` passes authenticated discovery, all four anonymous discovery refusals, documents, transport, Gateway health/audit and prompt isolation. Frames completed-state retention passes across one same-Pod process crash. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`; catalog/source paging, CSV/schema, Artifact publication and usage consumers pass at `374e25f345`. GitOps is suspended; Knowledge and Embedding are restored and Ready, while Reason and other GPU workloads stay off. Focused Frames and Knowledge installed cases also pass on admitted deployed images | Complete remaining owner fixtures, remaining owner-required recovery cases, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The selected four-server CPU protocol case at `1393fdc36` passes authenticated discovery, all four anonymous discovery refusals, documents, transport, Gateway health/audit and prompt isolation. Frames completed-state retention passes across one same-Pod process crash. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`; catalog/source paging, CSV/schema, Artifact publication and usage consumers pass at `374e25f345`. GitOps is suspended; Knowledge and Embedding are restored and Ready, while Reason and other GPU workloads stay off. Focused Frames and Knowledge installed cases also pass on admitted deployed images. Speech Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture audio on headed RTX 4090 WebGL | Complete remaining owner fixtures, remaining owner-required recovery cases, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -596,7 +596,8 @@ Stream and Reason. Its owning control passes actual listener delivery,
 current-policy refusal and subscription-context cancellation through the notification
 sink, and affected source consumers pass. Other owners also observe domain mutations,
 grants, usage or live runtime state; those sources keep their current delivery semantics.
-F62's installed consumers and coordinated replacement remain open.
+F62's raw installed subscription updates, cancel-recovery and coordinated replacement
+remain open; the Workspace case below qualifies its named consumer actions.
 
 At source `f4bff966e`, Speech's maintained native GPU report-v2 and hosted-contract-v4
 controls each pass once on the RTX 4090 with checkpoint
@@ -610,8 +611,18 @@ free. Ops confirms both native fixtures and the monitor cleaned up,
 with core Ready at the postcheck. These selected cases do not close the full
 simultaneous peak-load budget.
 The browser's visibility, software-renderer warning and hardware-loss guards pass
-compiler, strict lint, three pure hardware controls and independent review; actual
-headed and installed browser acceptance remain open. The committed Speech overlay
+compiler, strict lint, three pure hardware controls and independent review.
+The maintained `speech-workspace-verify` passes once at source `8184ec52d6`, covering
+cancel-preserved draft, explicit send, Task observation after reload and verified
+downloads. Initial and final headed graphics probes identify RTX 4090 WebGL;
+software WebGPU is excluded. Audio comes from the fixture MediaStream through the
+real AudioWorklet and CUDA, which does not qualify a physical microphone. The
+owner closes its target, and Ops confirms process cleanup, Ready workloads and
+suspended controllers. The private browser receipt SHA-256 is
+`81c786061eefc8e7d2e5ca4b5fb4ca9df339f08ec59521ee3f163b9b66a25217`;
+the separate Ops postcheck is
+`d2413f48fc77070ba966b4e98bb171660fecb490eb097fc508b41182e18ef9b1`.
+The committed Speech overlay
 at `e38c1b114` stages in 7.07 seconds with the correct Veoveo source/revision labels.
 All eleven filesystem layers match the `d85a05cf5` image, including its eight
 dependency layers. That image passes offline CUDA worker startup as UID 10001
@@ -624,16 +635,13 @@ Helm restored Gateway's checksum annotation from its saved manifest and restarte
 that Pod. Gateway recovered Ready with the same admitted active policy revision
 and digest; Knowledge and Embedding are Ready. The parent Kustomization and platform
 HelmRelease are suspended again.
-The authenticated Workspace upload-policy read returns Artifact's unavailable 503
-with `Retry-After: 2`. An internal administrator read returns 200 and its recomputed
-catalog digest matches active revision digest `bb14ab16b6a7dc2c662b7c275392b010a9c3b6fd2e62e4fd98b356cd5fe6fa45`.
-The naming cut serialized `GatewayProfile` with camelCase while Artifact's upload
-policy decoder expected snake_case. The existing native test reproduces unavailable
-using the actual Gateway serializer. The corrected decoder and typed upload-policy
-and completion fixtures pass four existing native controls, library/binary compiler
-checks and strict lint; independent review approves the source fix. The corrected
-installed Artifact image, browser upload/notification consumers and coordinated
-replacement remain open. Production shutdown remains open.
+The ordinary human Workspace upload-policy read now returns 200 with
+`allowed=true` after Artifact service image `e26082a19437`. Its decoder accepts the
+Gateway's camelCase profile wire shape; the serializer regression and typed upload
+fixtures pass four existing native controls, compiler checks, strict lint and review.
+This installed upload and Speech browser pass does not qualify raw subscription
+updates, cancel-recovery, all F62 consumers, production SIGTERM or coordinated
+replacement.
 
 The [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) preserves checkpoint details and
 historical failures. Reuse accepted checks while their source, dependencies and
@@ -3407,7 +3415,7 @@ reason rather than growing an unbounded generic typing task.
 | F21 | Time activation preflight | Qualify installed activation and concurrent conflict rollback |
 | F22 | Digest wire profiles | Preserve each owner's admitted bare-hex spelling and hash preimage through typed Speech, UAV, Optimization and Recording/publication APIs; qualify installed Time and changed consumers |
 | F23 | Computers | Qualify final image pins and installed pairing, grant/Execute-limit and collection consumers; preserve the qualified matched provider image, retained maintenance/recovery native matrix, shared admission and live permission checks |
-| F24 | Speech | Transcript/source/Task/Artifact admission, CUDA transcription, dictation, recovery, cancellation and GPU-host conformance pass owning controls. Offline image assembly and no-network CUDA worker packaging pass; selected image `7f7e27c242bd` is Ready with health/readiness 200. Installed browser/notification consumers and coordinated replacement remain open; the strict Speech-only rollout gate failed on Gateway checksum drift. |
+| F24 | Speech | Owning CUDA/dictation/recovery/cancellation controls, offline image assembly and no-network worker packaging pass; image `7f7e27c242bd` is Ready with health/readiness 200. Installed Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture AudioWorklet input and headed RTX 4090 WebGL. Physical microphone, raw subscription/cancel-recovery, production SIGTERM and coordinated replacement remain open; the strict Speech-only rollout gate failed on Gateway checksum drift. |
 | F25 | Artifact plane model | Qualify installed access/service consumers and external byte stores with the source-qualified lightweight Artifact contract; keep verified caller, policy and transport in their adapters and reuse unaffected byte-plane/SQL controls |
 | F26 | Artifact identity and URI admission | Qualify installed consumption of the current identity and URI contract |
 | F27 | Remaining Artifact references | Qualify installed issuance/redemption, current-format capability recovery and multi-page SDK consumers with the source-qualified Task/digest, access-decision and metadata/address admission; preserve external transfer locations and the declared coordinated profile cut |
@@ -3445,7 +3453,7 @@ reason rather than growing an unbounded generic typing task.
 | F59 | UAV contract | Qualify installed GPU consumers and recovery with the source-qualified adapter reply parents and accepted/rejected semantics, shared world digest/frame and Rust/Python portable state/child admission |
 | F60 | UAV scopes | Qualify current scope enforcement on every installed UAV replica |
 | F61 | Reason | Qualify installed delivery, restart recovery and GPU behavior with source-qualified full results, visible summary/provenance relationships and owner-derived summaries |
-| F62 | Task-backed resource notifications | Speech now uses the Stream/Reason shared Task watch; owning delivery, current-policy refusal, context cancellation and affected source consumers pass. Retain independent domain-change sources and qualify installed consumers and coordinated replacement. |
+| F62 | Task-backed resource notifications | Speech uses the Stream/Reason shared Task watch; owning delivery, current-policy refusal, context cancellation and affected source consumers pass. Its installed Workspace Task-after-reload consumer passes. Raw installed subscription updates, cancel-recovery, other required consumers and coordinated replacement remain open; preserve independent domain-change sources. |
 | F63 | Stream | Qualify installed replay/live results and browser consumers; preserve source-qualified replay/detection, visible terminal provenance and browser admission before state effects |
 | F64 | Shared recorded video | Qualify installed snapshot digests and Stream/Reason consumers; preserve signed timeline indices and source-qualified shared construction/decoder admission |
 | F65 | View | Local NVIDIA captures, retained-lease restart and recovery, cancellation and process drain pass. Qualify installed consumers, cross-context Task delivery and pod termination-grace acceptance with the selected Vulkan/CUDA profile. See Current Status. |
