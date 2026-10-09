@@ -80,11 +80,13 @@ idempotency for the same identity within its retention window, or definitive pro
 that dispatch had no effect. An operator recovery action uses the same rules and
 cannot clear a lock by merely labeling the Task failed.
 
-The supplied OpenShell protocol marks event/log tails best effort and exposes lag
-warnings. First qualify its watch with exact retained-instance/run correlation and
-authoritative recovery reads. If those cannot resolve uncertainty, add the smallest
-provider change that supplies the missing identity or evidence. A webhook bridge
-does not repair a source that can already lose the necessary facts.
+The stock OpenShell protocol marks event/log tails best effort and exposes lag
+warnings. Qualify its watch with retained-instance/run correlation and authoritative
+recovery reads. Veoveo keeps outcomes unresolved and preserves resource fences when
+stock observations cannot settle them. Missing guarantees require supported
+configuration, adaptation at the Veoveo edge or an upstream contribution. The selected
+provider release stays unmodified. Native and installed stock recovery qualification
+is pending.
 
 Kubernetes explicitly requires clients to handle expired watch history. This is a
 useful precedent for declaring gap recovery, not proof that OpenShell supplies the
