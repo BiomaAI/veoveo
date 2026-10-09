@@ -1,10 +1,9 @@
 # Platform Foundations And Contract Consistency Plan
 
 Status: The published 34-image closure and charts for `6431c30c6621` retain their
-recorded qualification. GitOps is suspended during source work, and GPU services,
-including Embedding, remain scaled off. Knowledge is paused with its required
-Embedding dependency. Earlier Ready and warmup observations do
-not describe the current running state. The unmodified OpenShell 0.1.2 source
+recorded qualification. GitOps is suspended during source work. Knowledge and its
+required NVIDIA Embedding runtime are restored and Ready; Reason and the other
+GPU workloads stay at zero replicas. The unmodified OpenShell 0.1.2 source
 package passes its focused artifact, Host and packaging checks. The owner approved
 stock OIDC; package image `ea4ffc9f7` is assembled and staged with all four official
 executable hashes and versions verified. Three CA roles, projected credentials,
@@ -71,7 +70,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the installed profile, namespace and key isolation, current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. Full stock-provider native security, lifecycle and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. Initial tool-server and nine-scope checks pass their recorded qualification. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`. GitOps is suspended and GPU services, including Embedding, are scaled off during source work; complete installed fixtures remain open | Complete Frames F31–F37, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. Initial tool-server and nine-scope checks pass their recorded qualification. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`. GitOps is suspended; Knowledge and Embedding are restored and Ready, while Reason and other GPU workloads stay off. Focused installed cases pass; complete installed fixtures remain open | Complete Frames F31–F37, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -301,9 +300,9 @@ recovery at `e4138f61f` omits those fresh unbound/no-data declarations and marks
 Embedding/Map claims for Helm keep. Bound or data-bearing deferred claims require
 an owner recovery plan. Ops has resumed the corrected release and verified kept
 claim UID/PV continuity and all ten pinned checkpoint file checksums after uninstall.
-Embedding and Knowledge reached Ready during earlier qualification; Knowledge
-required warmup retries. GitOps is now suspended and GPU services including Embedding
-are scaled off during source work. Unattended cold-start qualification stays open. The old shared 197.9 GB
+Knowledge and Embedding are now restored at one Ready replica each with the retained
+model PVC identity unchanged. GitOps is suspended; Reason and other GPU workloads
+stay at zero replicas. Unattended cold-start qualification stays open. The old shared 197.9 GB
 checkpoint/model volume is preserved because fourteen retained containers mount it.
 No complete installed shared-host gate has passed against this fresh release.
 Normal frozen conformance and installation executables are ready at
@@ -336,6 +335,16 @@ state. The explicit `frames-installed` entrypoint now separates installed
 preparation from local service prerequisites and reuses those assertions without
 another installed run. F31–F37 and the current source/image closure remain open.
 
+The focused Knowledge A08 case at source `07742e1623` passes once in 10.29 seconds
+through normal Gateway OAuth on retained generation
+`01a11c6f-7316-7d01-8485-291e027ea5f8`. It verifies 16 collections, four sources
+(Artifact, Charts, Map and Time), 11 source-document links, catalog observations and
+completions, then awaits subscription cancellation and client closure. Ops confirms
+Knowledge image `7f2bd6b08476`, Embedding image `c1c9f6fd5c10`, the four source
+services and Gateway are Ready, with retained model identity preserved. This case
+does not establish pre-indexing 503 behavior, first-generation cold startup,
+namespace/key isolation or final source/image agreement; those A08 gates stay open.
+
 The CPU `installed-host` selector reuses the installation
 harness for one bounded query Task, delivered completion, an admitted DuckDB process
 drain and completed-result retention. Compiler checks, focused behavioral
@@ -351,8 +360,7 @@ without proving all-server acceptance or final source/image agreement.
 The database runtime credential is rotated. Replacement authentication, the existing
 EDITOR role, both namespaced Secrets and the local runtime input agree. Eleven CPU
 services are restored and Ready, and normal nine-scope OAuth and the owned DuckDB
-schema read pass through `/mcp/operator-initial`. Knowledge is paused because its
-startup requires the paused Embedding runtime; no CPU replacement is selected.
+schema read pass through `/mcp/operator-initial`.
 The old-password rejection check was missed and remains unverified. This maintenance
 does not qualify the installed Task, drain or recovery gates.
 The direct unsigned Media webhook returned 401 with an invalid-signature rejection.
