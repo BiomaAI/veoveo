@@ -16374,6 +16374,7 @@ dependencies = [
  "veoveo-stream-mcp",
  "veoveo-sumo-mcp",
  "veoveo-testing-support",
+ "veoveo-timeseries-mcp",
  "veoveo-types",
  "veoveo-uav-sim-mcp",
  "veoveo-view-mcp",
@@ -17082,6 +17083,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "url",
+ "veoveo-modules",
  "veoveo-types",
 ]
 

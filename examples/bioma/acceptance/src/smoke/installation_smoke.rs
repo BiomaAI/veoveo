@@ -49,6 +49,14 @@ enum Cmd {
         #[arg(long)]
         installation: PathBuf,
     },
+    InstalledProtocol {
+        #[arg(long)]
+        installation: PathBuf,
+        #[arg(long)]
+        installed_fixture: PathBuf,
+        #[arg(long)]
+        evidence_output: PathBuf,
+    },
     InstalledHost {
         /// Installation-owned public OAuth target and control plane.
         #[arg(long)]
@@ -484,6 +492,11 @@ async fn execute() -> Result<()> {
             let target = support::InstalledTarget::load(&installation)?;
             installation_verify(&conformance_bin, &target).await
         }
+        Cmd::InstalledProtocol {
+            installation,
+            installed_fixture,
+            evidence_output,
+        } => case_5::protocol::run(&installation, &installed_fixture, &evidence_output).await,
         Cmd::InstalledHost {
             installation,
             database,
@@ -1303,5 +1316,79 @@ mod installed_host_cli_tests {
                 && !scenario.requirements.billed_effects
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod installed_protocol_cli_tests {
+    use super::*;
+    #[test]
+    fn protocol_requires_all_three_explicit_inputs_and_refuses_aliases() {
+        for arguments in [
+            vec!["installation-smoke", "installed-protocol"],
+            vec![
+                "installation-smoke",
+                "installed-protocol",
+                "--installation",
+                "target.json",
+            ],
+            vec![
+                "installation-smoke",
+                "installed-protocol",
+                "--installation",
+                "target.json",
+                "--installed-fixture",
+                "fixture.json",
+            ],
+            vec![
+                "installation-smoke",
+                "installed-protocol",
+                "--installation",
+                "target.json",
+                "--evidence-output",
+                "receipt.json",
+            ],
+        ] {
+            assert!(Args::try_parse_from(arguments).is_err());
+        }
+        let parsed = Args::try_parse_from([
+            "installation-smoke",
+            "installed-protocol",
+            "--installation",
+            "target.json",
+            "--installed-fixture",
+            "fixture.json",
+            "--evidence-output",
+            "receipt.json",
+        ])
+        .unwrap();
+        assert!(matches!(parsed.cmd, Cmd::InstalledProtocol { .. }));
+        assert!(
+            Args::try_parse_from([
+                "installation-smoke",
+                "installed-protocol",
+                "--installation",
+                "target.json",
+                "--fixture",
+                "fixture.json",
+                "--evidence-output",
+                "receipt.json"
+            ])
+            .is_err()
+        );
+    }
+    #[test]
+    fn protocol_descriptor_selects_only_owner_and_oauth_helper() {
+        let descriptors: veoveo_testing_support::descriptor::ScenarioDescriptor =
+            serde_json::from_str(include_str!("../../smoke/scenarios.json")).unwrap();
+        let selected = descriptors
+            .scenarios
+            .iter()
+            .find(|scenario| scenario.id.as_str() == "installed-protocol")
+            .unwrap();
+        assert_eq!(selected.prerequisites.len(), 1);
+        assert!(!selected.requirements.cluster_mutation);
+        assert!(!selected.requirements.nvidia);
+        assert!(!selected.requirements.billed_effects);
     }
 }

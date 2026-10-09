@@ -11,6 +11,9 @@ use veoveo_duckdb_mcp::{
 #[path = "installation/shared_host.rs"]
 pub(crate) mod shared_host;
 
+#[path = "installation/protocol.rs"]
+pub(crate) mod protocol;
+
 const LARGE_ARTIFACT_ROWS: u64 = 200_000;
 
 const LARGE_ARTIFACT_MINIMUM_BYTES: usize = 8 * 1024 * 1024;

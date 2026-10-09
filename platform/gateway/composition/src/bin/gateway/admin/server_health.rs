@@ -3,7 +3,7 @@
 //! The gateway's background prober checks each registered server's internal
 //! health URL. This endpoint returns its latest result to an authorized
 //! administrator, the same cache the Console snapshot reads.
-use veoveo_gateway_contract::GatewayAction;
+use veoveo_gateway_contract::{GatewayAction, ServerHealthEntry, ServerHealthReport};
 
 use std::time::Instant;
 
@@ -13,31 +13,12 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use chrono::{DateTime, Utc};
-use serde::Serialize;
-use veoveo_mcp_contract::{ServerSlug, audit::AdministrativeOperation};
-use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth, GatewayServerHealthState};
+use veoveo_mcp_contract::audit::AdministrativeOperation;
+use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth};
+use veoveo_types::ServerSlug;
 
 use super::admin_profile_id;
 use crate::{audit::authorize_admin_request, runtime::AdminState};
-
-/// Health of every registered server.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct ServerHealthReport {
-    servers: Vec<ServerHealthEntry>,
-    module_bindings: Vec<veoveo_mcp_gateway::http::ModuleBindingSnapshot>,
-}
-
-/// One server's latest probe. Both fields are null until the first probe after
-/// the gateway starts.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct ServerHealthEntry {
-    server: ServerSlug,
-    state: Option<GatewayServerHealthState>,
-    checked_at: Option<DateTime<Utc>>,
-}
 
 pub(crate) async fn read_server_health(
     State(state): State<AdminState>,
@@ -95,7 +76,9 @@ fn report<'a>(
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
     use std::collections::BTreeMap;
+    use veoveo_gateway_contract::GatewayServerHealthState;
 
     use super::*;
 
@@ -124,7 +107,7 @@ mod tests {
     }
     #[test]
     fn module_binding_snapshot_does_not_invent_backend_probe_health() {
-        use veoveo_mcp_gateway::http::{ModuleBindingSnapshot, ModuleBindingState};
+        use veoveo_gateway_contract::{ModuleBindingSnapshot, ModuleBindingState};
         let mut report = report(std::iter::empty(), |_| None);
         report.module_bindings = vec![ModuleBindingSnapshot {
             module: veoveo_modules::ModuleName::new("extension").unwrap(),

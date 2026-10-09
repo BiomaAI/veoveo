@@ -10,26 +10,13 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use futures::{FutureExt, future::BoxFuture};
-use serde::Serialize;
 use std::collections::BTreeMap;
 use std::{
     pin::Pin,
     task::{Context, Poll},
 };
+use veoveo_gateway_contract::{ModuleBindingSnapshot, ModuleBindingState};
 use veoveo_modules::ModuleName;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ModuleBindingState {
-    Bound,
-    Unbound,
-}
-#[derive(Debug, Clone, Serialize)]
-pub struct ModuleBindingSnapshot {
-    pub module: ModuleName,
-    pub state: ModuleBindingState,
-    pub required: bool,
-}
 
 pub struct GatewayModuleRoutes {
     pub profile_authenticated: Router,

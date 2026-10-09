@@ -4480,6 +4480,52 @@
         "owner": "examples/bioma/flight",
         "reason": "Composition selects the existing client-only flight harness; effect authorization is supplied independently."
       }
+    },
+    {
+      "id": "installed-protocol",
+      "description": "Qualify selected installed CPU discovery, HTTP transport and administrator audit through normal OAuth.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "examples/bioma/acceptance",
+          "package": "veoveo-bioma-acceptance",
+          "target": "installation-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "installed-protocol"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Required installation, installed-fixture and evidence-output inputs bind DuckDB, Timeseries, Frames and Media direct loopback routes and normal operator/admin profiles. Requires maintained curl HTTP/1.1 and existing operator/admin credentials. Reads catalogs, owner docs and one bounded public Audit export, tests unsigned callback refusal, and awaits process/client cleanup. Creates no Tasks or domain fixtures; does not mutate the cluster."
+      },
+      "deadlineSeconds": 3600,
+      "cleanupSeconds": 180
     }
   ]
 }

@@ -24,6 +24,9 @@
 | Installed View fixture | `veoveo.ai/view-installed-fixture/v1` closed JSON; nonzero Kubernetes UIDs, opaque resourceVersions, immutable ConfigMap bytes and qualified image release; relative release paths resolve beside the declaration |
 | View fixture preparation | `veoveo.ai/view-fixture-preparation/v1` JSON utility receipt; preparation produces no smoke acceptance outcome |
 | Installed Frames evidence | `veoveo.ai/frames-installed-evidence/v3` camelCase JSON with typed dispatch intents and observations, owner world/revision/native usage identities, gateway Task routes and separate cleanup outcomes |
+| Installed CPU protocol fixture | `veoveo.ai/installed-protocol-fixture/v1` closed JSON binds exactly DuckDB, Timeseries, Frames and Media loopback origins, upstream Host authorities, workload UIDs/images and the selected control-plane SHA-256 |
+| Installed CPU protocol receipt | `veoveo.ai/installed-protocol/v1` private JSON records requests, HTTP status/body digest, MCP code/message digest, administrator health/audit correlation and separate operation, cleanup and qualification results |
+| Installed transport | Maintained curl HTTP/1.1 with explicit empty Host, no redirects or proxy, 15-second requests and 64 KiB responses; RFC 9112 missing-Host 400 and installation Host admission 421 |
 | Installed CPU Host fixture | Closed owner JSON with `deployment`, `pod` and `container`; private absolute regular-file input capped at 64 KiB; database identity enters through the DuckDB owner type |
 | Installed CPU Host evidence | `veoveo.ai/installed-cpu-host/v1` JSON with gateway Task identity, admitted process/drain identities and separate completion, retained-payload and connection-cleanup results |
 | Installed View evidence | `veoveo.ai/view-installed-evidence/v1` private JSON; official OAuth/MCP Tasks and the shared selected-container Kubernetes drain profile |
@@ -248,6 +251,60 @@ Whole-installation deployment and GPU checks belong to `installation-verify`;
 domain cancellation, concurrency and additional lifecycle cases keep their owning
 acceptance gates. Task delivery here establishes completed state without requiring
 an observable Working transition.
+
+## Installed CPU Protocol
+
+`installed-protocol` invokes the existing `installation-smoke` harness with required
+`--installation`, `--installed-fixture` and `--evidence-output` inputs. Preparation
+selects only the assertion executable and `gateway-smoke-support`. Ops supplies four
+existing loopback port-forwards; the case creates no domain fixtures and changes no
+cluster configuration. The supplied installation still undergoes its full target and
+control-plane admission. Results cover the four selected CPU servers rather than every
+server registered in that installation. Anonymous MCP discovery, Recording gRPC and
+Media generation/completion are separate qualification cases; this case does not
+claim them.
+
+The private fixture names each owner, server slug, resource scheme, mount, loopback
+origin, allowed Host authority and Deployment/Pod/image identities. It binds the gateway
+workload and raw control-plane SHA-256. Admission requires exactly DuckDB, Timeseries,
+Frames and Media with distinct origins and nonzero UIDs. Checked catalog manifests and
+profile exposure supply tool and prompt expectations; fixture input cannot choose them.
+The fixture is a regular file at most 64 KiB with no group or world permissions.
+Ops verifies the live workload UIDs, images and port-forwards before dispatch; decoding
+these declarations performs no Kubernetes lookup. The control-plane digest identifies the
+local checked input; Ops separately admits the live selected profiles and four-server
+projection. This case does not prove byte equality with the full live ConfigMap or final
+source/image/configuration closure. Both distinct operator and administrator
+identities must be admitted before either OAuth token exchange.
+
+Maintained curl sends HTTP/1.1 directly to each mounted health route with an explicitly
+empty Host, a wrong Host and the admitted service Host. Missing Host must return 400,
+wrong Host 421, and mounted health/readiness 200. One unsigned Media callback carries a
+fresh syntactically valid Task identity and must return 401 with `invalid signature`.
+The request cannot create a Task because the owner authenticates signatures first.
+Curl clears inherited environment credentials and proxy settings, disables redirects,
+and permits only HTTP loopback URLs admitted before launch.
+
+Normal operator OAuth reads all four complete discovery catalogs and selected owner
+documents, contracts and completions. A direct invalid-resource request must return the
+owner's current -32602 and message digest. Normal administrator OAuth reads selected
+server docs and the complete health inventory. The same health route under the operator's
+own profile must deny it with 403. One bounded public Audit export proves the actual
+administrator actor, client, profile, Work Context, target and Allowed health admission
+inside the run interval. Its healthy sealer and complete export framing are required.
+The administrator prompt catalog qualifies Isolate only when an actually attempted
+unavailable upstream appears in typed degradation metadata and healthy prompts survive.
+Absent such a failure, the receipt explicitly marks that required observation unqualified.
+
+The aggregate operation receives 600 seconds. Catalog traversal has 30 seconds; OAuth,
+connections and individual requests have 15 seconds. Request identity is persisted before
+waiting, and observed status or protocol failure before assertion. Transport failures
+cannot satisfy denial checks. HTTP bodies and MCP messages enter the receipt only as
+SHA-256 digests. The exclusive output file has mode 0600. SDK clients and any pending curl
+process stay owned outside the aggregate timer and receive five seconds each for awaited
+cleanup. Operation success, cleanup and overall qualification are distinct receipt fields.
+The descriptor's 3600-second preparation-inclusive and 180-second cleanup ceilings preserve
+room for compiler prerequisites; they do not extend the owner operation deadline.
 
 ## Installed Frames
 

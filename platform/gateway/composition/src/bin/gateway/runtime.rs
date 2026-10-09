@@ -42,7 +42,7 @@ pub(super) struct AdminState {
     pub(super) artifact_server: ServerSlug,
     pub(super) artifact_service_url: String,
     pub(super) offline_mode: bool,
-    pub(super) module_bindings: Arc<Vec<veoveo_mcp_gateway::http::ModuleBindingSnapshot>>,
+    pub(super) module_bindings: Arc<Vec<veoveo_gateway_contract::ModuleBindingSnapshot>>,
     pub(super) server_health: crate::admin::ServerHealthMonitor,
     pub(super) console_stream: crate::admin::ConsoleStreamRuntime,
 }

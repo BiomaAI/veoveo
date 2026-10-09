@@ -13,6 +13,7 @@ use std::{
     time::Duration,
 };
 use tower::ServiceExt;
+use veoveo_gateway_contract::ModuleBindingState;
 
 #[tokio::test]
 async fn close_fences_concurrent_reservations_and_owns_delayed_upgrades() {

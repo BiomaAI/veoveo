@@ -20,7 +20,7 @@ trait; consumers import the value from this transport-independent owner.
 
 A separate crate prevents a dependency cycle: MCP contract already feeds gateway
 runtime, while browser schema generation must not enable MCP transports. This library
-depends only on foundational types, Serde, JSON Schema support, typed error derivation, UTC timestamp support and the qualified URL library. The extraction preserves the
+depends only on foundational types, Serde, JSON Schema support, typed error derivation, UTC timestamp support, the qualified URL library and the module declaration library's serialization feature. Module schema runners and database dependencies stay disabled. The extraction preserves the
 published spellings and schema names. Derived schema collision IDs follow the current
 owning Rust module; they do not change serialized JSON or schema definition names.
 
@@ -75,3 +75,12 @@ and health vocabularies supply the wire values used by Console producers and
 clients. The JSON profile preserves camelCase fields, declared omissions and
 RFC 3339 UTC timestamps. Installation inventory and event rows belong to the
 Console BFF contract because they compose optional domain contracts.
+
+
+`ServerHealthReport` supplies the administrator health snapshot to installed clients.
+Each registered server has its foundational `ServerSlug`, optional probe state and
+optional UTC `checkedAt`; both probe fields are null before the first observation.
+`moduleBindings` reports typed module names, required status and bound/unbound route
+registration separately from server health. Closed decoding rejects unknown fields
+and state values. The runtime and composition route use these same transport-free
+models, preserving their camelCase report fields and existing module wire values.
