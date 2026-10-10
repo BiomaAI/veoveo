@@ -107,6 +107,7 @@ only its maintained chart template with the installation values:
 helm template uav-sim showcase/uav-sim/deploy/helm \
   --namespace veoveo \
   --values examples/bioma/uav-sim-values.yaml \
+  --values examples/bioma/images/uav-sim.lock.yaml \
   --show-only templates/agent-template.yaml > "$AGENT_TEMPLATE_RENDER"
 ~~~
 
