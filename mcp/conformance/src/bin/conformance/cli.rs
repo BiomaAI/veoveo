@@ -18,6 +18,7 @@ pub(super) struct Args {
 #[derive(Subcommand)]
 pub(super) enum Cmd {
     /// Obtain an ordinary public-client OAuth token through browser PKCE.
+    #[command(name = "oauth-login")]
     OAuthLogin(super::oauth_login::LoginArgs),
     KnowledgeSource(super::source_checks::SourceChecks),
     Certify {
@@ -112,4 +113,35 @@ pub(super) enum Cmd {
         #[arg(long)]
         output_dir: PathBuf,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn documented_oauth_login_name_is_admitted_without_an_implicit_alias() {
+        let mut arguments = [
+            "conformance",
+            "oauth-login",
+            "--issuer",
+            "https://example.invalid/oauth",
+            "--client-id",
+            "public-test",
+            "--resource",
+            "https://example.invalid/mcp/profile",
+            "--redirect-uri",
+            "http://127.0.0.1:8789/oauth/callback",
+            "--scope",
+            "knowledge:read",
+            "--authorization-url-file",
+            "/private/authorization-url",
+            "--token-file",
+            "/private/access-token",
+        ];
+        let parsed = Args::try_parse_from(arguments).expect("documented command must parse");
+        assert!(matches!(parsed.cmd, Cmd::OAuthLogin(_)));
+        arguments[1] = "o-auth-login";
+        assert!(Args::try_parse_from(arguments).is_err());
+    }
 }
