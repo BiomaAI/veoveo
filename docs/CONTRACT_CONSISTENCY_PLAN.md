@@ -2787,7 +2787,9 @@ exact timestamp replay, nanosecond stale-snapshot rejection and cross-writer key
 pagination. The affected Rust policy and result consumers pass 28 focused checks;
 the current 18-package compile/lint graph and isolated Store runtime build pass.
 Real installation commands, independent schema consumption and generated clients
-also pass. The other Phase 4 field families and installed acceptance remain open.
+also pass. The enumerated Phase 4 field and adapter families have qualified
+source/native checkpoints. Final installed qualification of the affected owners
+and consumers remains open.
 
 ### Opaque Payloads And Declared Lookups
 
