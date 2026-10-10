@@ -7,9 +7,7 @@ StatefulSets recovered by 02:42 UTC on October 10. Compiler checks and all twent
 focused native recovery/consumer controls pass. All seven stock-rollout images at
 `c5a2c6c3e` pass staging, attested qualification and node-side registry readback;
 deployed pins and reconciliation holds stay unchanged. Further image batches require
-separate disk-space admission. Authorization
-signing-key rotation passes installed verification: the Gateway serves only the fresh
-key, accepts fresh OAuth and rejects the retired key. Speech's previously
+separate disk-space admission. Speech's previously
 selected headed Workspace consumer passes with fixture audio;
 Reason and the other GPU workloads stay at zero replicas. The unmodified OpenShell 0.1.2 source
 package passes its focused artifact, Host and packaging checks. The owner approved
@@ -116,7 +114,7 @@ Store and cleanup controls pass. Actual unfinished restart, HTTP shutdown and
 stepped simulator qualification remain open.
 
 The existing owner harnesses prepare the following checks. Previously qualified
-native controls pass; the new installed cases are unexecuted during the installation hold.
+native controls pass; the new installed cases have not yet executed.
 Earlier installed checkpoints keep their recorded scope below.
 
 | Owner | Prepared installed checks | Remaining qualification |
@@ -167,17 +165,11 @@ supplies the restart identity even if its configuration file changes after admis
 Native input and target-replacement controls pass. Installed control/executor
 replacement, unfinished work and cross-replica recovery remain open.
 
-Installed node activation and the stock rollout are halted after Secret values
-accidentally appeared in a tool transcript. Both tracked Veoveo and UAV HelmReleases
-explicitly suspend application reconciliation to preserve this installation hold. The incident inventory comprised
-sixteen Secret objects: thirteen application Secrets and three Helm Secrets. Node
-configuration is unchanged. The authorization signing key has been replaced and
-qualified as recorded below; the other installed credential replacements remain open.
-The image-staging disk incident
-below interrupted baseline availability independently of this credential hold.
-The eighteen selected stock native cases stay
-qualified, including the implemented aggregate Host profile of 1 CPU, 6 GiB and 1,024 PIDs.
-The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated.
+GitOps is suspended for the coordinated stock rollout. Both tracked Veoveo and UAV
+HelmReleases suspend application reconciliation; node configuration is unchanged.
+The eighteen selected stock native cases are qualified, including the aggregate Host
+profile of 1 CPU, 6 GiB and 1,024 PIDs. The installed 8 CPU, 12 GiB and 4,096-PID
+profile has not been activated.
 
 Development staging has published twenty-five of the thirty affected Rust image
 targets from `b46430e17`, including the TaskRuntime and owner settlement changes.
@@ -252,76 +244,13 @@ cleanup recovers 28.58 GB by filesystem measurement and exceeds the assigned 24 
 combined cap; the deletion manifest records that deviation. Deployed image pins
 stay unchanged. The final affected closure and installed qualification remain open.
 
-A private credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
-WaveSpeed and Google Maps replacement still requires account-management authority
-or private references to fresh credentials. Existing authorization applies to the
-rollout.
-
-The authorization signing-key rotation completed on October 10. The previous key
-matched the public disposable development fixture. The live Secret and private
-provisioning input now contain the same fresh RSA key in the Gateway's required
-PKCS#1 DER encoding. Both live catalog copies and the committed reference configuration
-use key ID `veoveo-bioma-2026-10-10-8b1a48bef0ea`; the catalog change preserves the
-existing server, policy and module composition. The maintained control-plane publication
-Job succeeded. The Gateway is Ready, its direct `readyz` and JWKS return 200, and JWKS
-contains only the fresh public key with matching cryptographic identity. A fresh normal
-OAuth token successfully reads `frames://contract`. The pre-cut token had expired by
-verification time, but the request-correlated Gateway log explicitly rejects its
-retired key ID before expiry validation, establishing key retirement independently
-of that expiry. The owned Job and port-forward have been removed.
-
-The first restart failed because the runbook omitted control-plane publication;
-the Gateway correctly refused the unpublished catalog revision. The supported
-publication command resolved that refusal. The provisioning guide now states the
-required key encoding and private-input synchronization. Ten other selected installation
-credential fields and the agents namespace's runtime-password copy differ from the
-development fixture; this does not clear their earlier transcript exposure or qualify
-their installed replacement. The earlier public JWKS route returned HTTP 403;
-the successful direct Gateway check does not establish that route's availability.
-One audit command re-emitted the same public fixture key into a tool transcript;
-no new signing key was printed. Private receipts contain metadata and verification
-results, and the replacement material stays outside Git.
-
-Recording playback-key replacement passes its native grant, chunk and transport
-checks. The supported procedure drains every old serving instance before starting
-the new-key endpoint; an overlapping old server still accepts its old tokens.
-Installed key retirement, actual playback and hardware qualification remain open.
-Audit signing-key handoff passes its native persisted-state
-case: the old writer and sealer drain, retained blocks stay unchanged, and the new
-key continues the chain. Replacement-only verification uses a protected cutover
-checkpoint and rejects an old-key-signed suffix. Installed retirement must remove
-every process holding the old seed, including standby sealers, and protect the
-cutover and tail checkpoints independently.
-
 The matching
 worker catalog section and client must stay unpublished until every
-deployed catalog reader admits the full catalog. Credential replacement must preserve the actual live catalog,
+deployed catalog reader admits the full catalog. Rollout must preserve the actual live catalog,
 policy and enabled module composition. The strict full-catalog readers are Gateway,
 Computers MCP, Agent Manager and Knowledge. Retained Manager `affcaf` and Knowledge `7f2bd`
 images have no source provenance admitting the worker section introduced at
 `b6e7e0e00`; their replacement and old-reader drain must precede publication.
-
-Isolated SurrealDB 3.3.0 credential controls pass for an owned ROOT account in a
-memory fixture and the actual Gateway preparation commands in a RocksDB fixture.
-Both reject fresh logins with the old password and accept the replacement, while
-established authenticated WebSockets retain access. ROOT `ALTER USER` also leaves
-old JWTs usable; `DEFINE USER OVERWRITE` rejects their reuse in the owned fixture.
-The actual startup-created ROOT account also passes overwrite and same-container
-RocksDB restart: replacement and alternate ROOT authority and the protected marker
-survive, unchanged startup environment does not restore the old password, and old
-JWT fresh authentication denies before and after restart. Alternate ROOT restores
-the original password, authority and data. Gateway preparation advances generation
-and credential revision with the same composition, owner selection and active catalog
-revision/hash; it rejects fresh old-password and old DATABASE JWT authentication.
-A stale preparation cannot restore the old password, and replaying a completed
-identity cannot rotate it again. Existing authenticated WebSockets retain access.
-Owning fixture controls and cleanup pass. Installed rotation, container replacement
-and global remote-session revocation remain unqualified. The isolated RustFS root-credential
-replacement also passes with the same image and retained volume: the new pair
-reads the multipart object of 18 MiB plus 137 bytes with matching full/range bytes
-and SHA-256, and signed HEAD with the old pair returns HTTP 401 or 403. The owned
-object and fixture resources are removed. This does not qualify IAM, STS or
-installed replacement; installed changes and external account rotations stay held.
 
 | Phase | Current state | Remaining gate |
 |---|---|---|
@@ -750,12 +679,6 @@ images remain open. The private scenario receipt SHA-256 is
 `5ca9d5ca9094caf7e41937907f26802833ed09e66dbf29eb18ad9c400d5f021f`;
 the separate Ops postcheck is
 `3a4fa2f0abae7fb2a0b8bae300551232b453d6c32215cc5867b13aaee2a1d953`.
-The database runtime credential is rotated. Replacement authentication, the existing
-EDITOR role, both namespaced Secrets and the local runtime input agree. Eleven CPU
-services are restored and Ready, and normal nine-scope OAuth and the owned DuckDB
-schema read pass through `/mcp/operator-initial`.
-The old-password rejection check was missed and remains unverified. This maintenance
-does not qualify the installed Task, drain or recovery gates.
 The direct unsigned Media webhook returned 401 with an invalid-signature rejection.
 Installed A/F/H, unattended Knowledge startup, installed consumers and hardware
 gates remain open.

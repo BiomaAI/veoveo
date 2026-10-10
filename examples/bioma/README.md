@@ -238,12 +238,14 @@ admission is unproven. Preserve Knowledge desired replicas at one through its Re
 transition, then restore Ready and functional indexing and search before publication.
 Keep Embedding and Speech Ready. Ordinary chart reconciliation starts Deployments
 and publication Jobs concurrently and cannot enforce that order. The tracked Veoveo
-and UAV HelmReleases explicitly suspend application reconciliation during this
-installation hold; source refresh must not publish the candidate catalog or resume UAV
-work. A later reviewed rollout must explicitly release each hold. After compatible-reader admission
-and drain are proved, publish the matching section and client atomically in one full
-catalog and activate the matched worker, Host and chart through the coordinated drain, preserving unresolved
-operations and retained writer fences. Selected native stopped-maintenance,
+and UAV HelmReleases suspend application reconciliation for the coordinated stock
+rollout. Keep reconciliation suspended while replacing and draining catalog readers.
+Source refresh must not publish the candidate catalog or resume UAV work. After
+compatible-reader admission and drain are proved, publish the matching section and
+client atomically in one full catalog and activate the matched worker, Host and chart
+through the coordinated drain, preserving unresolved operations and retained writer
+fences. Release each reconciliation suspension only
+after its coordinated rollout checks pass. Selected native stopped-maintenance,
 terminal renewal and Host same-image restart cases pass under the stock profile. The
 [active plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md) records their current scope and
 the remaining native, distinct-image upgrade and installed qualification gates. The
