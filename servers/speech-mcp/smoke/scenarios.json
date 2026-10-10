@@ -11,7 +11,9 @@
           "owner": "servers/speech-mcp",
           "package": "veoveo-speech-mcp",
           "target": "native_tasks",
-          "features": ["mcp"],
+          "features": [
+            "mcp"
+          ],
           "defaultFeatures": false,
           "profile": "dev"
         },
@@ -41,7 +43,9 @@
           "owner": "servers/speech-mcp",
           "package": "veoveo-speech-mcp",
           "target": "native_tasks",
-          "features": ["mcp"],
+          "features": [
+            "mcp"
+          ],
           "defaultFeatures": false,
           "profile": "dev"
         },
@@ -60,6 +64,38 @@
         "explanation": "Requires VEOVEO_SPEECH_TASK_INPUT mode cancel, normal private OAuth token-file inputs and a selected genuine governed recording that remains unfinished at its current Task read. Persists cancellation intent, invokes official cancellation and requires exact-ID delivered/current Cancelled without successful output. Early completion fails qualification without replay. Creates real CUDA work; uses shared Task/SDK cleanup and does not restart processes or qualify recovery."
       },
       "deadlineSeconds": 300,
+      "cleanupSeconds": 30
+    },
+    {
+      "id": "speech-installed-task-recovery",
+      "description": "Qualify one genuinely Working Speech Task across an observed selected server-container crash and replacement.",
+      "target": {
+        "kind": "cargo_test",
+        "selection": {
+          "owner": "servers/speech-mcp",
+          "package": "veoveo-speech-mcp",
+          "target": "native_tasks",
+          "features": [
+            "mcp"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        },
+        "case": "installed::raw_transcription_recovery_through_public_gateway",
+        "ignored": true
+      },
+      "arguments": [],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": true,
+        "headedGraphics": false,
+        "explanation": "Requires VEOVEO_SPEECH_TASK_INPUT mode recover, an explicit recovery object containing a CrashTarget and replacementTimeoutSeconds1..300, normal private OAuth inputs, retained authorized source/output authority, installed CUDA, and a genuine recording that stays Working before and after process replacement. The target must select the maintained Helm speech-mcp Rust server container/process and component role (custom container-role renaming is unsupported), with single-replica ownership and unchanged same-Pod Deployment/ReplicaSet/image identity. An authorized external operator signals that selected process only after the private journal records recovery.armed=true. The harness observes the crash and never sends a signal or repeats Task creation. Early completion fails qualification. Requires delivered/current same-ID completion, transcription/provenance and current-resource snapshot agreement; owns original SDK/watch cleanup. No inference continuity or post-mutation resource-delivery claim."
+      },
+      "deadlineSeconds": 1500,
       "cleanupSeconds": 30
     }
   ]

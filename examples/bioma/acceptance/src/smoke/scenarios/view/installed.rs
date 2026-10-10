@@ -1,7 +1,8 @@
 //! Owning installed View qualification over the public Gateway and official MCP Tasks.
 use super::*;
 use rmcp::model::{
-    CancelTaskParams, GetTaskParams, ServerNotification, SubscriptionFilter, TaskStatus,
+    CancelTaskParams, DetailedTask, GetTaskParams, ServerNotification, SubscriptionFilter, Task,
+    TaskStatus,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::collections::BTreeMap;
@@ -12,6 +13,11 @@ use veoveo_testing_support::installed::restart::{
 use veoveo_types::ResourceAddress;
 use veoveo_types::{CanonicalTaskId, LocalToolName};
 use veoveo_view_mcp::contract::{CloseViewRequest, CloseViewResult, Sha256Digest};
+
+#[path = "installed_delivery.rs"]
+mod delivery;
+
+const VIEW_CONTAINER_ROLE: &str = "view-mcp";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -162,6 +168,10 @@ impl FixtureInput {
                 "installed View fixture names must be lowercase Kubernetes DNS labels"
             );
         }
+        ensure!(
+            self.container == VIEW_CONTAINER_ROLE,
+            "installed View requires the chart's view-mcp Rust service container"
+        );
         ensure!(
             [
                 self.namespace_uid,
@@ -518,7 +528,12 @@ async fn tool<T: DeserializeOwned>(
     )
     .map_err(|_| anyhow!("View response failed owner admission"))
 }
-async fn baseline(client: &SmokeMcpClient, task: &CanonicalTaskId) -> Result<()> {
+async fn baseline(
+    client: &SmokeMcpClient,
+    task: &CanonicalTaskId,
+    created: &Task,
+    expected: &DetailedTask,
+) -> Result<rmcp::model::CallToolResult> {
     let filter = SubscriptionFilter::builder()
         .task_ids([task.to_string()])
         .build();
@@ -528,18 +543,19 @@ async fn baseline(client: &SmokeMcpClient, task: &CanonicalTaskId) -> Result<()>
         "View Task subscription changed its filter"
     );
     tokio::time::timeout(Duration::from_secs(15), async {
+        // SDK Subscription::next validates the exact subscription ID and
+        // acknowledged filter before returning either Task or resource updates.
         match stream
             .next()
             .await?
             .context("View Task baseline stream ended")?
         {
             ServerNotification::TaskStatusNotification(update) => {
-                ensure!(
-                    update.params.task.task.task_id == task.as_str()
-                        && update.params.task.status() == TaskStatus::Completed,
-                    "independent context received a different Task baseline"
-                );
-                Ok::<_, anyhow::Error>(())
+                delivery::completed(created, expected, &update.params.task, task)?;
+                let current = client
+                    .get_task(GetTaskParams::new(task.to_string()))
+                    .await?;
+                delivery::completed(created, &update.params.task, &current.task, task)
             }
             _ => bail!("View Task baseline contained an unexpected notification"),
         }
@@ -569,7 +585,9 @@ async fn denied(client: &SmokeMcpClient, task: &CanonicalTaskId) -> Result<()> {
         stream.acknowledged() == &filter,
         "foreign View Task listener changed its acknowledged filter"
     );
-    // A permitted Views collection baseline anchors actual processing on this same stream.
+    // SDK routing rejects missing/foreign subscription IDs and updates outside
+    // the acknowledged filter. The permitted Views baseline anchors processing.
+
     tokio::time::timeout(Duration::from_secs(15), async {
         match stream
             .next()
@@ -661,7 +679,7 @@ pub(super) async fn run(installation: &Path, fixture: &Path, evidence: &Path) ->
     let mut create_dispatched = None;
     let mut replacement_completed = false;
     let outcome = tokio::time::timeout(Duration::from_secs(240),async {
-        let restart = DeploymentRestart::new(&target.target,&input.deployment,"view",observer.peer().clone(),veoveo_view_mcp::contract::ViewResource::Contract.to_uri()?)?;
+        let restart = DeploymentRestart::new(&target.target,&input.deployment,VIEW_CONTAINER_ROLE,observer.peer().clone(),veoveo_view_mcp::contract::ViewResource::Contract.to_uri()?)?;
         let selected = restart.select_drain_target(&input.pod,DrainProfile::nvidia(&input.container,Duration::from_secs(30))?).await?;
         require_identity(&input,&selected)?;
         selected_identity = Some(selected.identity());
@@ -684,10 +702,11 @@ pub(super) async fn run(installation: &Path, fixture: &Path, evidence: &Path) ->
         let task = CanonicalTaskId::parse(&created.task_id)?;
         let terminal = await_task_terminal_with_timeout(&writer,task.as_str(),Duration::from_secs(30)).await?;
         ensure!(terminal.status() == TaskStatus::Completed, "installed capture did not complete");
-        baseline(&observer,&task).await?;
+        let delivered_payload = baseline(&observer,&task,&created,&terminal).await?;
         denied(&different_context,&task).await?;
         denied(&different_principal,&task).await?;
         let payload = task_payload(&observer,task.as_str()).await?;
+        delivery::payload_agreement(&delivered_payload,&payload)?;
         let frame = payload.structured_content.as_ref().context("capture has no frame metadata")?;
         let bytes = image_bytes(&payload,"image/jpeg")?;
         assert_local_frame(frame,&bytes,"image/jpeg")?;
@@ -701,8 +720,9 @@ pub(super) async fn run(installation: &Path, fixture: &Path, evidence: &Path) ->
         // A fresh official client must recover the completed owner Task after Pod replacement.
         let recovered = connect_mcp_client(owner_url.as_str(),&observer_token).await?;
         let recovery = async {
-            baseline(&recovered,&task).await?;
+            let recovered_delivery = baseline(&recovered,&task,&created,&terminal).await?;
             let recovered_payload = task_payload(&recovered,task.as_str()).await?;
+            delivery::payload_agreement(&recovered_delivery,&recovered_payload)?;
             let recovered_bytes = image_bytes(&recovered_payload,"image/jpeg")?;
             ensure!(recovered_bytes == bytes,"completed View capture changed across Pod replacement");
             admit_captured_frame(recovered_payload.structured_content.as_ref().context("recovered capture metadata absent")?,&recovered_bytes,"image/jpeg")?;
@@ -914,7 +934,35 @@ mod tests {
         Ok(())
     }
     fn declaration() -> Value {
-        json!({"schemaVersion":"veoveo.ai/view-installed-fixture/v1","deployment":"view-mcp","pod":"view-mcp-current","container":"server","namespaceUid":uuid::Uuid::new_v4(),"deploymentUid":uuid::Uuid::new_v4(),"deploymentResourceVersion":"opaque-deployment","podUid":uuid::Uuid::new_v4(),"podResourceVersion":"opaque-pod","catalogConfigMap":"view-fixture","catalogConfigMapUid":uuid::Uuid::new_v4(),"imageRelease":"release.json"})
+        json!({"schemaVersion":"veoveo.ai/view-installed-fixture/v1","deployment":"view-mcp","pod":"view-mcp-current","container":"view-mcp","namespaceUid":uuid::Uuid::new_v4(),"deploymentUid":uuid::Uuid::new_v4(),"deploymentResourceVersion":"opaque-deployment","podUid":uuid::Uuid::new_v4(),"podResourceVersion":"opaque-pod","catalogConfigMap":"view-fixture","catalogConfigMapUid":uuid::Uuid::new_v4(),"imageRelease":"release.json"})
+    }
+    #[test]
+    fn view_fixture_container_role_matches_chart_and_refuses_sidecars() -> Result<()> {
+        let definitions = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../deploy/helm/veoveo/definitions/domain-services.yaml"
+        ));
+        let template = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../deploy/helm/veoveo/templates/domain-services.yaml"
+        ));
+        ensure!(definitions.contains(&format!("- name: {VIEW_CONTAINER_ROLE}\n")));
+        ensure!(template.contains("app.kubernetes.io/component: {{ $service.name }}"));
+        ensure!(template.contains("- name: {{ $service.name }}"));
+        let mut declared = declaration();
+        // Deployment identity is installation-supplied; the process role is fixed.
+        declared["deployment"] = json!("selected-view-deployment");
+        let input: FixtureInput = serde_json::from_value(declared.clone())?;
+        input.validate()?;
+        for role in ["view", "server", "view-worker", "cuopt-executor"] {
+            declared["container"] = json!(role);
+            let input: FixtureInput = serde_json::from_value(declared.clone())?;
+            ensure!(
+                input.validate().is_err(),
+                "View fixture admitted another process role"
+            );
+        }
+        Ok(())
     }
     #[test]
     fn fixture_declaration_admits_current_identity_and_refuses_unsafe_inputs() -> Result<()> {

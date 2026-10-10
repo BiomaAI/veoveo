@@ -3,6 +3,8 @@
 mod assertions;
 #[path = "installed_cleanup.rs"]
 mod cleanup;
+#[path = "installed_recovery.rs"]
+mod recovery;
 use anyhow::{Context, Result, ensure};
 use cleanup::Handles;
 use rmcp::model::{
@@ -23,6 +25,7 @@ use veoveo_types::{CanonicalTaskId, ResourceUri};
 enum Mode {
     Complete,
     Cancel,
+    Recover,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
 enum Phase {
@@ -40,6 +43,12 @@ enum Phase {
     ResourceIntent,
     ResourceListening,
     ResourceDelivery,
+    RecoveryAdmission,
+    RecoveryWorking,
+    RecoveryArmed,
+    RecoveryReplacement,
+    RecoveryListening,
+    RecoveryFence,
     Passed,
     Failed,
 }
@@ -50,6 +59,8 @@ struct Input {
     installation: knowledge::InstalledSource,
     request: TranscribeRequest,
     expected: assertions::Expected,
+    #[serde(default)]
+    recovery: Option<recovery::Fixture>,
 }
 impl Input {
     fn admit(&self, mode: Mode) -> Result<()> {
@@ -60,6 +71,11 @@ impl Input {
             "Speech fixture requires a neutral governed source Artifact"
         );
         self.expected.admit()?;
+        recovery::admit_pairing(
+            self.mode,
+            &self.installation.deployment,
+            self.recovery.as_ref(),
+        )?;
         let endpoint = reqwest::Url::parse(self.installation.endpoint.as_str())?;
         ensure!(
             endpoint
@@ -129,7 +145,8 @@ struct Journal<'a> {
     mcp_error_code: Option<i32>,
     http_status: Option<u16>,
     active_resource: Option<ResourceUri>,
-    remaining_gates: [&'static str; 3],
+    recovery: recovery::Evidence,
+    remaining_gates: Vec<&'static str>,
 }
 impl<'a> Journal<'a> {
     fn new(input: &'a Input) -> Self {
@@ -167,7 +184,8 @@ impl<'a> Journal<'a> {
             mcp_error_code: None,
             http_status: None,
             active_resource: None,
-            remaining_gates: [
+            recovery: recovery::Evidence::default(),
+            remaining_gates: vec![
                 "unfinished_process_restart_recovery",
                 "guaranteed_working_to_completed_delivery",
                 "performance_and_concurrent_capacity",
@@ -241,6 +259,12 @@ async fn raw_transcription_cancellation_through_public_gateway() -> Result<()> {
     run(Mode::Cancel).await
 }
 
+#[tokio::test]
+#[ignore = "requires installed Speech CUDA, OAuth, exact crash target and an externally signalled process replacement while this Task stays Working"]
+async fn raw_transcription_recovery_through_public_gateway() -> Result<()> {
+    run(Mode::Recover).await
+}
+
 async fn run(mode: Mode) -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let input: Input = knowledge::input_from("VEOVEO_SPEECH_TASK_INPUT")
@@ -286,7 +310,7 @@ async fn run(mode: Mode) -> Result<()> {
                 .context("Speech connection deadline")??;
         retained.caller.retain(caller);
         tokio::time::timeout(
-            Duration::from_secs(180),
+            Duration::from_secs(if mode == Mode::Recover { 1350 } else { 180 }),
             exercise(&input, &mut retained, &mut journal, &mut file),
         )
         .await
@@ -298,6 +322,11 @@ async fn run(mode: Mode) -> Result<()> {
     }
     // Owner actions finish after work is dropped, inside the same captured grace.
     let retained = handles.lock().await;
+    journal.recovery.watch = retained.crash_receipt.clone();
+    journal.recovery.watch_closed = retained.crash_watch.closed;
+    journal.recovery.watch_close_failed = retained.crash_watch.failed;
+    journal.recovery.listener_closed = retained.recovery_listener.closed;
+    journal.recovery.listener_close_failed = retained.recovery_listener.failed;
     journal.caller_closed = retained.caller.closed;
     journal.listener_closed = retained.listener.closed;
     journal.resource_listener_closed = retained.resource_listener.closed;
@@ -305,6 +334,10 @@ async fn run(mode: Mode) -> Result<()> {
     journal.caller_close_failed = retained.caller.failed;
     journal.listener_close_failed = retained.listener.failed;
     journal.failure |= result.is_err()
+        || !journal.recovery.watch_closed
+        || journal.recovery.watch_close_failed
+        || !journal.recovery.listener_closed
+        || journal.recovery.listener_close_failed
         || !journal.caller_closed
         || !journal.resource_listener_closed
         || journal.resource_listener_close_failed
@@ -313,13 +346,19 @@ async fn run(mode: Mode) -> Result<()> {
         || journal.listener_close_failed;
     journal.failure |= !journal.terminal_settled
         || match input.mode {
-            Mode::Complete => {
+            Mode::Complete | Mode::Recover => {
                 !journal.output_checked
                     || !journal.resource_snapshot_delivered
                     || !journal.resource_current_checked
+                    || (input.mode == Mode::Recover && !journal.recovery.final_target_checked)
             }
             Mode::Cancel => !journal.cancel_intent || !journal.cancel_acknowledged,
         };
+    if !journal.failure && input.mode == Mode::Recover {
+        journal
+            .remaining_gates
+            .retain(|gate| *gate != "unfinished_process_restart_recovery");
+    }
     journal.phase = if journal.failure {
         Phase::Failed
     } else {
@@ -352,6 +391,7 @@ async fn exercise(
             .is_some_and(|info| info.capabilities.supports_tasks()),
         "Speech Gateway does not advertise Tasks"
     );
+    let driver = recovery::admit(input, caller, journal, file).await?;
     journal.phase = Phase::DispatchIntent;
     journal.dispatch_intent = true;
     journal.persist(file)?;
@@ -373,9 +413,8 @@ async fn exercise(
     handles
         .listener
         .retain(caller.listen(filter.clone()).await?);
-    let listener = handles.listener.handle.as_mut().unwrap();
     ensure!(
-        listener.acknowledged() == &filter,
+        handles.listener.handle.as_ref().unwrap().acknowledged() == &filter,
         "Speech exact Task subscription differs"
     );
     journal.phase = Phase::Listening;
@@ -399,36 +438,56 @@ async fn exercise(
         journal.phase = Phase::CancelAcknowledged;
         journal.persist(file)?;
     }
+    if let Some(driver) = &driver {
+        recovery::observe(input, driver, &created, handles, journal, file).await?;
+    }
+    let caller = handles
+        .caller
+        .handle
+        .as_ref()
+        .context("Speech caller missing")?;
+    let listener = if input.mode == Mode::Recover {
+        handles.recovery_listener.handle.as_mut().unwrap()
+    } else {
+        handles.listener.handle.as_mut().unwrap()
+    };
     journal.phase = Phase::Delivery;
     journal.persist(file)?;
-    let delivered = tokio::time::timeout(Duration::from_secs(120), async {
-        for _ in 0..128 {
-            let notification = listener
-                .next()
-                .await?
-                .context("Speech Task subscription ended")?;
-            ensure!(
-                notification.get_meta().subscription_id() == Some(listener.id().clone()),
-                "Speech delivery subscription identity differs"
-            );
-            let ServerNotification::TaskStatusNotification(update) = notification else {
-                anyhow::bail!("Speech exact Task filter delivered a different notification");
-            };
-            let task = update.params.task;
-            assertions::same(&id, &created, &task)?;
-            journal.first_delivered_status.get_or_insert(task.status());
-            journal.working_delivered |= task.status() == TaskStatus::Working;
-            journal.delivered.push(Observation::admit(&task.task)?);
-            journal.persist(file)?;
-            if !matches!(
-                task.status(),
-                TaskStatus::Working | TaskStatus::InputRequired
-            ) {
-                return Ok(task);
+    let delivered = tokio::time::timeout(
+        Duration::from_secs(if input.mode == Mode::Recover {
+            900
+        } else {
+            120
+        }),
+        async {
+            for _ in 0..128 {
+                let notification = listener
+                    .next()
+                    .await?
+                    .context("Speech Task subscription ended")?;
+                ensure!(
+                    notification.get_meta().subscription_id() == Some(listener.id().clone()),
+                    "Speech delivery subscription identity differs"
+                );
+                let ServerNotification::TaskStatusNotification(update) = notification else {
+                    anyhow::bail!("Speech exact Task filter delivered a different notification");
+                };
+                let task = update.params.task;
+                assertions::same(&id, &created, &task)?;
+                journal.first_delivered_status.get_or_insert(task.status());
+                journal.working_delivered |= task.status() == TaskStatus::Working;
+                journal.delivered.push(Observation::admit(&task.task)?);
+                journal.persist(file)?;
+                if !matches!(
+                    task.status(),
+                    TaskStatus::Working | TaskStatus::InputRequired
+                ) {
+                    return Ok(task);
+                }
             }
-        }
-        anyhow::bail!("Speech Task delivery exceeded 128 observations")
-    })
+            anyhow::bail!("Speech Task delivery exceeded 128 observations")
+        },
+    )
     .await
     .context("Speech terminal delivery deadline")??;
     journal.phase = Phase::Current;
@@ -439,7 +498,7 @@ async fn exercise(
     journal.current = Some(Observation::admit(&current.task)?);
     journal.persist(file)?;
     assertions::terminal(input.mode, &id, &created, &delivered, &current)?;
-    if input.mode == Mode::Complete {
+    if matches!(input.mode, Mode::Complete | Mode::Recover) {
         journal.phase = Phase::Output;
         journal.persist(file)?;
         let output = assertions::output(&current)?;
@@ -479,6 +538,22 @@ async fn exercise(
         assertions::check_output(caller, input, &output, journal, file).await?;
         journal.resource_current_checked = true;
         journal.output_checked = true;
+        journal.persist(file)?;
+    }
+    if input.mode == Mode::Recover {
+        journal.phase = Phase::RecoveryFence;
+        journal.persist(file)?;
+        let watch = handles
+            .crash_watch
+            .handle
+            .as_mut()
+            .context("Speech crash watch missing")?;
+        let checked = watch.admit_recovered_target().await;
+        journal.recovery.watch = watch.snapshot();
+        handles.crash_receipt = journal.recovery.watch.clone();
+        journal.persist(file)?;
+        checked?;
+        journal.recovery.final_target_checked = true;
         journal.persist(file)?;
     }
     Ok(())

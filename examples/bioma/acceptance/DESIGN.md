@@ -35,6 +35,7 @@
 | Installed transport | Maintained curl HTTP/1.1 with explicit empty Host, no redirects or proxy, 15-second requests and 64 KiB responses; RFC 9112 missing-Host 400 and installation Host admission 421 |
 | Installed CPU Host fixture | Closed owner JSON with `deployment`, `pod` and `container`; private absolute regular-file input capped at 64 KiB; database identity enters through the DuckDB owner type |
 | Installed CPU Host evidence | `veoveo.ai/installed-cpu-host/v1` JSON with gateway Task identity, admitted process/drain identities and separate completion, retained-payload and connection-cleanup results |
+| Installed Speech recovery | Existing private Speech Task input with explicit `recover` mode and a selected `CrashTarget`; normal OAuth/MCP observations and the shared same-Pod crash watch, with no harness-issued crash signal |
 | Installed View evidence | `veoveo.ai/view-installed-evidence/v1` private JSON; official OAuth/MCP Tasks and the shared selected-container Kubernetes drain profile |
 | View process interruption | Docker Engine HTTP API 1.44 subset over the fixture's active local Unix socket; version and owned-container inspection precede one STOP signal, followed by durable claim admission and the existing restart checks |
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v2` JSON receipt with the output file SHA-256 |
@@ -219,6 +220,39 @@ does not establish Task cancellation. Initial resource delivery does not establi
 post-mutation invalidation, unfinished process recovery or cross-replica delivery;
 those checks use their separate owner profiles.
 
+## Installed Speech Recovery
+
+`cargo xtask smoke speech-installed-task-recovery` selects the existing Speech Task
+harness. Its private `VEOVEO_SPEECH_TASK_INPUT` fixture uses `mode: recover` and
+adds `recovery.target` plus `recovery.replacementTimeoutSeconds` in the range
+1–300. The target identifies the Speech Rust server container, its Pod and owner
+UIDs, image and container IDs and restart count. This profile binds both the
+component selector and Rust server container to the maintained chart's
+`speech-mcp` role. Deployment identity comes from the installation; sidecars and
+custom container-role names fail admission. The live target is checked before
+creating the transcription Task.
+
+The fixture supplies a governed recording and independently expected transcript.
+Installed CUDA and authority over the source and outputs are required. The harness
+requires delivered and current Working observations, retains the original opaque
+Task ID, then arms the maintained crash watch. An authorized operator may signal
+only the selected process after the private journal records `recovery.armed=true`.
+The harness sends no signal and never repeats Task creation.
+
+After observing the old container's exit and a Ready replacement, the harness
+requires the original Task to remain Working. A Task that completed before this
+witness fails qualification. A separately owned replacement listener must deliver
+the original Task's completion, which must agree with the current payload. The
+ordinary transcript, source, model, Artifact provenance and resource snapshot
+assertions still apply. A final target check fences the same replacement identity.
+
+The scenario has a 1,500-second execution limit and a shared 30-second cleanup
+interval. Its retained watch and SDK close futures preserve partial observations
+and unresolved outcomes on interruption. No recording guarantees the required
+unfinished window; early completion cannot establish recovery. The profile checks
+Task recovery and retained output agreement, without claiming continuous
+inference across process death.
+
 ## Composed Flight Acceptance
 
 The focused [Flight client](../flight/DESIGN.md) owns the installed UAV flight, live Stream, Recording replay and hardware browser acceptance obligations. It compiles the single shared browser assertion source in this component, while its package graph excludes service implementations.
@@ -386,6 +420,30 @@ Whole-installation deployment and GPU checks belong to `installation-verify`;
 domain cancellation, concurrency and additional lifecycle cases keep their owning
 acceptance gates. Task delivery here establishes completed state without requiring
 an observable Working transition.
+
+The optional `workingQueryRecovery` fixture selects unfinished read-only query
+recovery instead. It supplies an owner-typed inline query, independently expected
+columns and rows, a 180–600-second operation deadline and a reserved Work Context
+matching the operator. The selected database admits no attachments, and the query
+has an explicit SQL timeout of at most 120 seconds. DuckDB owns statement admission
+and read-only execution. Fixture admission does not classify SQL through keywords.
+
+This profile requires delivered and current Working state before draining the
+selected process. After one replacement, the original Task ID and creation time
+must still identify a Working Task. Early completion fails qualification. Delivered
+completion must then agree with the current terminal payload and the independently
+expected semantic output. The query must provide that unfinished window while
+respecting the server's ordinary 30-second drain; the harness neither inserts
+delays nor changes stored Task state.
+
+The inline result exposes no native Task identity. Before-and-after usage reads
+therefore require exactly one new native query usage entry in the fixture's
+reserved Work Context and compare its operation details with the result. This
+isolated-ledger check does not decode the opaque Gateway Task ID or establish a
+public binding between the two identities. A private append-only journal syncs
+dispatch and restart intent. Retained restart and SDK cleanup futures preserve
+uncertain outcomes under the shared 30-second cleanup deadline. This profile
+does not replay mutations or retry an uncertain restart.
 
 ## Installed CPU Protocol
 

@@ -79,10 +79,33 @@ pub(super) struct Handles {
     pub caller: Slot<SmokeMcpClient>,
     pub listener: Slot<Subscription>,
     pub resource_listener: Slot<Subscription>,
+    pub recovery_listener: Slot<Subscription>,
+    pub crash_watch: Slot<veoveo_testing_support::installed::restart::CrashWatch>,
+    pub crash_receipt: Option<veoveo_testing_support::installed::restart::CrashReceipt>,
 }
 impl Handles {
     pub async fn close(&mut self) -> Result<()> {
         let deadline = owner::cleanup_deadline()?;
+        if let Some(watch) = &self.crash_watch.handle {
+            self.crash_receipt = watch.snapshot();
+        }
+        let watch = self
+            .crash_watch
+            .close(
+                |watch| async move {
+                    ensure!(watch.close().await, "Speech crash watch close failed");
+                    Ok(())
+                },
+                deadline,
+            )
+            .await;
+        let recovery = self
+            .recovery_listener
+            .close(
+                |mut listener| async move { listener.cancel().await.map_err(anyhow::Error::from) },
+                deadline,
+            )
+            .await;
         let resource = self
             .resource_listener
             .close(
@@ -99,7 +122,7 @@ impl Handles {
             .await;
         // Preserve the caller's opportunity inside the same grace on listener failure.
         let caller = self.caller.close(|caller| caller.cancel(), deadline).await;
-        resource.and(listener).and(caller)
+        watch.and(recovery).and(resource).and(listener).and(caller)
     }
 }
 

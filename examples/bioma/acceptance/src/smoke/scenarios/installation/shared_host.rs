@@ -13,8 +13,12 @@ use veoveo_duckdb_mcp::{
 use veoveo_testing_support::installed::restart::{DrainReceipt, SelectedDrainIdentity};
 use veoveo_types::CanonicalTaskId;
 
+#[path = "shared_host/cleanup.rs"]
+mod cleanup;
 #[path = "shared_host/drain.rs"]
 mod drain;
+#[path = "shared_host/recovery.rs"]
+mod recovery;
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -60,6 +64,10 @@ pub(crate) async fn run(
 ) -> Result<()> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
     let input: drain::DrainInput = private_input(input_path)?;
+    if let Some(profile) = &input.working_query_recovery {
+        profile.admit(database)?;
+        return recovery::run(installation, database, &input, profile, output).await;
+    }
     ensure!(
         output.is_absolute(),
         "installed Host receipt requires an absolute path"

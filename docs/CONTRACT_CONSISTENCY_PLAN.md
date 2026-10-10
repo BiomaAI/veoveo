@@ -1,9 +1,12 @@
 # Platform Foundations And Contract Consistency Plan
 
 Status: The published 34-image closure and charts for `6431c30c6621` retain their
-recorded qualification. GitOps is suspended during source work. Knowledge and its
-required NVIDIA Embedding runtime are restored and Ready. Speech has one Ready
-replica and its selected headed Workspace consumer passes with fixture audio;
+recorded qualification. GitOps is suspended during source work. Development image
+extraction triggered node disk pressure; all seventeen desired Deployments and both
+StatefulSets recovered by 02:42 UTC on October 10. Metadata-only compiler checks
+have resumed and pass; image staging and expensive builds remain held. The approved
+authorization signing-key rotation is in preparation. Speech's previously
+selected headed Workspace consumer passes with fixture audio;
 Reason and the other GPU workloads stay at zero replicas. The unmodified OpenShell 0.1.2 source
 package passes its focused artifact, Host and packaging checks. The owner approved
 stock OIDC; package image `ea4ffc9f7` is assembled and staged with all four official
@@ -116,8 +119,8 @@ Earlier installed checkpoints keep their recorded scope below.
 |---|---|---|
 | Time | Read consumers and schedule Tasks with independent expected occurrences, exact-ID delivered completion and current result agreement | Cancellation, unfinished restart recovery, authority activation and final images |
 | Artifact | Delegated SDK reads and retained Task-bound write capability across one selected service replacement, followed by redemption and idempotent replay | Public OAuth issuance, actual service replacement, interrupted-write recovery and final images |
-| Timeseries | Four-row forecast, RRD Artifact and usage; optional typed cancellation and connection replacement with original Task/result agreement | Unfinished server restart, selected cross-replica routing and final images |
-| Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
+| Timeseries | Four-row forecast, RRD Artifact and usage; optional typed cancellation and connection replacement with original Task/result agreement; new terminal comparison permits mutable polling/TTL hints | Native controls, unfinished server restart, selected cross-replica routing and final images |
+| Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture prepared | Native controls, installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
 | Stream | Existing GPU replay with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed result checks and an initial current resource snapshot | Installed public delivery, post-mutation updates, unfinished recovery and final images |
 | Reason | Existing GPU analysis with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed analysis checks and an initial current resource snapshot | Installed public delivery, unfinished recovery and final images |
 | Knowledge | Full-catalog baseline and separate restricted-caller discovery, collection/completion visibility and document denials, with retained SDK cleanup | Installed caller-policy checks, unattended cold startup, current-generation recovery and final images |
@@ -134,6 +137,16 @@ cancellation. These additions do not qualify unfinished process recovery.
 The [acceptance design](../examples/bioma/acceptance/DESIGN.md#public-stream-and-reason-consumers)
 defines their private inputs and observation scope.
 
+The next source batch prepares unfinished DuckDB query recovery and Speech process
+recovery in their existing harnesses. Both require the original Task to remain
+Working after the selected replacement before accepting delivered completion.
+Timeseries and View compare stable Task identity and terminal payload while allowing
+mutable transport hints. Speech and View bind replacement to their maintained Rust
+server roles. Both final strict compiler checks pass, including the corrected Speech
+role admission. Independent review approves the source batch. Native and installed
+execution have not qualified it. View's existing local listener and recovered-client
+cleanup are unchanged and are not qualified by its terminal-comparison update.
+
 Optimization's Artifact GET adapter maps typed policy denials to its existing
 missing-resource response. Native HTTP controls distinguish those denials from
 authentication, transport, malformed-response and backend failures. The shared
@@ -149,21 +162,43 @@ replacement, unfinished work and cross-replica recovery remain open.
 Installed node activation and the stock rollout are halted after Secret values
 accidentally appeared in a tool transcript. Both tracked Veoveo and UAV HelmReleases
 explicitly suspend application reconciliation to preserve this installation hold. The incident inventory comprised
-sixteen Secret objects: thirteen application Secrets and three Helm Secrets. All
-eight baseline services are Ready; the node is unchanged and uncordoned, and no
-installed credentials have changed. The eighteen selected stock native cases stay
+sixteen Secret objects: thirteen application Secrets and three Helm Secrets. Node
+configuration and installed credentials are unchanged. The image-staging disk incident
+below interrupted baseline availability independently of this credential hold.
+The eighteen selected stock native cases stay
 qualified, including the implemented aggregate Host profile of 1 CPU, 6 GiB and 1,024 PIDs.
 The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated.
 
 Development staging has published twenty-five of the thirty affected Rust image
 targets from `b46430e17`, including the TaskRuntime and owner settlement changes.
 All twenty-five pass node-network manifest and config readback with matching hashes.
-Reason, Speech and Stream share the current stage; Speech has pushed, while retained
-BuildKit events identify Reason and Stream base-image downloads as the active work.
-Console BFF and SUMO remain afterward. Shared Rust compilation in the current stage
+The Reason, Speech and Stream stage was canceled after rapid base-image extraction
+crossed kubelet's disk-pressure threshold. Speech pushed, but the cohort has no
+successful terminal receipt and is outside the twenty-five verified targets.
+Console BFF and SUMO have not started. Shared Rust compilation in that stage
 finished in about 65 seconds; its elapsed time is not a compiler measurement.
-Compatible targets build together under the measured 96-GiB admission and 84-GiB
-cancellation guard. No manual cache cleanup or cluster mutation accompanied staging.
+The former 96-GiB admission and 84-GiB cancellation guard failed to protect the
+cluster and must be replaced before more staging.
+
+At 02:01 UTC on October 10, disk pressure began on the shared node/image filesystem.
+Kubelet first evicted Embedding and Speech; continuing pressure subsequently left
+all seventeen desired Deployments and both StatefulSets without Ready replicas.
+Their replacements could not schedule under the pressure taint. Stopping the build recovered approximately
+145 GiB free. The installed kubelet has a 5% eviction threshold and 10% additional
+minimum reclaim on a 1,967,317,549,056-byte filesystem. Its retained reclaim threshold
+required approximately 295 GB available before the five-minute pressure transition
+could clear. The operations owner removed 133 unused test executables and 2,055
+selected old incremental directories, recovering approximately 154 GiB and reaching
+320,883,544,064 available bytes. This intentionally sacrifices selected incremental
+cache entries; dependency libraries, build-script outputs, Docker/BuildKit/OCI
+storage, worktrees and cluster volumes are preserved. Kubelet cleared disk pressure
+at 02:25 UTC without manual taint removal. By 02:42 UTC all seventeen desired
+Deployments and both StatefulSets were Ready; the other eight Deployments matched
+their desired zero replicas. Available space was 267,337,420,800 bytes. Both resumed
+strict metadata checks pass. Image publication and expensive builds remain held
+until staging has an admitted peak-space budget. Recovery did not change image pins
+or resume application reconciliation. Knowledge needed several natural restarts;
+its unattended cold-start qualification remains open.
 Staging keeps `releaseEligible=false`; installed image pins and the application holds
 stay unchanged. No authentic publisher-generated DeploymentLock was found in the
 trusted retained outputs checked. Final lock composition requires that lock or genuine
@@ -175,6 +210,21 @@ A private credential inventory and replacement plan are prepared. Cloudflare, Ce
 WaveSpeed and Google Maps replacement still requires account-management authority
 or private references to fresh credentials. Existing authorization applies to the
 rollout.
+
+The installed authorization-server private key exactly matches the public disposable
+development fixture, including its cryptographic public-key identity. The Ready
+Gateway references that Secret field. Rotation must generate a fresh signing key
+and key ID, retire the compromised verification key and qualify rejection of old
+tokens alongside successful normal OAuth with the replacement. Ten other selected
+installation credential fields and the agents namespace's runtime-password copy
+differ from the fixture; this does not clear the earlier transcript exposure.
+The public JWKS check returned HTTP 403. A direct Gateway service check returned 200
+and confirmed that the served RSA public key matches the installed fixture key.
+The owner approved rotation; a fresh key is prepared privately and its new public
+key ID is committed in the reference configuration. Installed key replacement and
+old-token rejection are still pending. One audit command mistakenly re-emitted the
+same public fixture key into a tool transcript; it adds no new key to this rotation
+scope. The private comparison receipt contains only names, metadata and booleans.
 
 Recording playback-key replacement passes its native grant, chunk and transport
 checks. The supported procedure drains every old serving instance before starting

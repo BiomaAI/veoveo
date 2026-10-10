@@ -79,7 +79,7 @@ pub(super) fn terminal(
     same(id, created, delivered)?;
     same(id, created, current)?;
     match mode {
-        Mode::Complete => ensure!(
+        Mode::Complete | Mode::Recover => ensure!(
             delivered.status() == TaskStatus::Completed
                 && current.status() == TaskStatus::Completed
                 && same_output(&output(delivered)?, &output(current)?),

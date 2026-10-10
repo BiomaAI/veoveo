@@ -5,6 +5,25 @@ use re_sdk::{external::re_log_types::LogMsg, log::Chunk};
 use re_sdk_types::archetypes::TextDocument;
 use sha2::{Digest, Sha256};
 use veoveo_timeseries_mcp::contract::{TimeseriesRecordingTask, TimeseriesRrdProvenance};
+/// Delivery hints and update times may change between notification and readback.
+pub(super) fn terminal_agreement(
+    delivered: &DetailedTask,
+    current: &DetailedTask,
+    id: &CanonicalTaskId,
+    created: &str,
+) -> Result<()> {
+    same_task(delivered, id, created)?;
+    same_task(current, id, created)?;
+    ensure!(
+        matches!(
+            delivered.status(),
+            TaskStatus::Completed | TaskStatus::Cancelled
+        ) && delivered.payload == current.payload,
+        "Timeseries lifecycle delivered/current terminal payloads differ"
+    );
+    Ok(())
+}
+
 pub(super) async fn verify_output(
     client: &SmokeMcpClient,
     request: &TimeseriesForecastRequest,
@@ -165,4 +184,50 @@ fn recording(
         "Timeseries lifecycle RRD request/Task differs"
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod delivery_tests {
+    use super::*;
+    #[test]
+    fn timeseries_terminal_agreement_checks_stable_identity_payload_and_allows_hints() -> Result<()>
+    {
+        let id = CanonicalTaskId::parse("gateway-forecast-delivery")?;
+        let created = "2026-10-09T00:00:00Z";
+        let task = rmcp::model::Task::new(id.as_str(), TaskStatus::Completed, created, created);
+        let delivered = DetailedTask::new(
+            task,
+            rmcp::model::TaskPayload::Completed {
+                result: serde_json::json!({"structuredContent":{"forecast":7}})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            },
+        );
+        let mut current = delivered.clone();
+        current.task.ttl_ms = Some(1000);
+        current.task.poll_interval_ms = Some(50);
+        current.task.last_updated_at = "2026-10-09T00:00:01Z".into();
+        terminal_agreement(&delivered, &current, &id, created)?;
+        current.task.task_id = "gateway-another-task".into();
+        assert!(terminal_agreement(&delivered, &current, &id, created).is_err());
+        current = delivered.clone();
+        current.task.created_at = "2026-10-09T00:00:02Z".into();
+        assert!(terminal_agreement(&delivered, &current, &id, created).is_err());
+        current = delivered.clone();
+        let rmcp::model::TaskPayload::Completed { result } = &mut current.payload else {
+            unreachable!()
+        };
+        result.insert(
+            "structuredContent".into(),
+            serde_json::json!({"forecast":8}),
+        );
+        assert!(terminal_agreement(&delivered, &current, &id, created).is_err());
+        current = DetailedTask::new(delivered.task.clone(), rmcp::model::TaskPayload::Cancelled);
+        assert!(terminal_agreement(&delivered, &current, &id, created).is_err());
+        terminal_agreement(&current, &current, &id, created)?;
+        let working = DetailedTask::new(delivered.task.clone(), rmcp::model::TaskPayload::Working);
+        assert!(terminal_agreement(&working, &working, &id, created).is_err());
+        Ok(())
+    }
 }

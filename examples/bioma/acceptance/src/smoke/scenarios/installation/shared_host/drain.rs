@@ -20,6 +20,8 @@ pub(super) struct DrainInput {
     deployment: String,
     pod: String,
     container: String,
+    #[serde(default)]
+    pub(super) working_query_recovery: Option<super::recovery::Input>,
 }
 
 impl DrainInput {
@@ -88,6 +90,7 @@ mod tests {
             deployment: deployment.into(),
             pod: "duckdb-mcp-abc-123".into(),
             container: container.into(),
+            working_query_recovery: None,
         }
     }
 

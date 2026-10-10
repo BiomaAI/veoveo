@@ -167,6 +167,8 @@ pub(super) async fn notification(
     id: &CanonicalTaskId,
     created: &str,
 ) -> Result<DetailedTask> {
+    // SDK Subscription::next rejects absent/foreign subscription IDs and updates
+    // outside its acknowledged filter before returning an observation.
     let next = state
         .subscription
         .as_mut()
@@ -298,10 +300,7 @@ pub(super) async fn run(
         );
         let current = current(handles.client.as_ref().unwrap(), &id).await?;
         same_task(&current, &id, &created)?;
-        ensure!(
-            current == terminal,
-            "Timeseries lifecycle delivered/current terminal Tasks differ"
-        );
+        output_assertions::terminal_agreement(&terminal, &current, &id, &created)?;
         observe(file, receipt, Step::Terminal, Some(current))?;
         if input.mode != Mode::Cancel {
             output_assertions::verify_output(
