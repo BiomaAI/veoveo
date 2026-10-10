@@ -386,6 +386,13 @@ or more and body rates of 360 degrees per second or more. Ground contact below
 test-only 250 Hz plant and HIL profile with a fresh state for each sensor sample.
 Run the same flight check separately for each profile when comparing sensor cadence.
 Selecting the comparison profile does not change the simulator's production rates.
+`UAV_SIM_PX4_SCHEDULE=grouped-catch-up` selects the production clock's debt loop
+with the `held-30-60` profile. It delivers both HIL frames immediately after each
+plant step and injects one synthetic 500 ms wall stall at the start of each mission.
+Its trace keeps each control snapshot's MAVLink time and local receive sequence.
+The trace distinguishes enqueued sensor time from received actuator time; neither
+timestamp establishes a per-sample acknowledgement. The stalls exercise catch-up
+scheduling and do not establish rendering performance or instability during a turn.
 
 ```sh
 PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src:showcase/uav-sim/runtime/tests_gpu \

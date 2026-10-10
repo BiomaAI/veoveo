@@ -27,8 +27,10 @@ absence of a failsafe does not establish stability. The existing native flight
 harness measures the nonacrobatic motion envelope. Both the current 30/60 Hz
 held-sample profile and the test-only 250 Hz fresh-sample profile pass two native
 CUDA/PX4 flight cycles. Their maximum tilts are 22.5 and 21.5 degrees respectively.
-These paced checks do not reproduce the recorded transient; render-stall catch-up
-and asynchronous control feedback need investigation. Production rates are unchanged. Its two
+The grouped production-clock comparison also passes two synthetic 500 ms stalls,
+with maximum tilt 27.9 degrees. It observes actuator feedback lag during catch-up
+but does not reproduce the recorded transient. Longer render stalls and turning
+flight remain unqualified. Production rates are unchanged. Its two
 temporary PVCs were deleted during cleanup; the saved MP4s and PX4 log survive.
 The [flight checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#fresh-uav-flight-and-runtime-output-repair--october-10-2026)
 records the results, losses and remaining qualification.

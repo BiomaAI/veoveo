@@ -28,6 +28,17 @@ def _unsigned_centimeters_per_second(value_mps: float) -> int:
 
 
 @dataclass(frozen=True, slots=True)
+class ActuatorObservation:
+    """One received MAVLink actuator message, with decoded rotor speeds in rad/s."""
+
+    controls_rad_s: tuple[float, float, float, float]
+    time_usec: int
+    flags: int
+    receive_sequence: int
+    received_monotonic_ns: int
+
+
+@dataclass(frozen=True, slots=True)
 class Px4ProcessCommand:
     executable: Path
     romfs: Path
@@ -122,6 +133,7 @@ class Px4HilBridge:
         self._stop = False
         self._pending: deque[tuple[int, HilSensorFrame]] = deque()
         self._controls = (0.0, 0.0, 0.0, 0.0)
+        self._actuator_observation: ActuatorObservation | None = None
         self._heartbeat_received = False
         self._failure: BaseException | None = None
         self._connection: Any = None
@@ -150,6 +162,12 @@ class Px4HilBridge:
         with self._condition:
             self._raise_if_failed_locked()
             return self._controls
+
+    def actuator_observation(self) -> ActuatorObservation | None:
+        """Atomically observe feedback metadata; no per-sensor echo is implied."""
+        with self._condition:
+            self._raise_if_failed_locked()
+            return self._actuator_observation
 
     def publish(self, sequence: int, frame: HilSensorFrame) -> None:
         with self._condition:
@@ -218,6 +236,14 @@ class Px4HilBridge:
                         message.controls,
                         int(message.mode),
                         mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED,
+                    )
+                    previous = self._actuator_observation
+                    self._actuator_observation = ActuatorObservation(
+                        controls_rad_s=self._controls,
+                        time_usec=int(message.time_usec),
+                        flags=int(message.flags),
+                        receive_sequence=1 if previous is None else previous.receive_sequence + 1,
+                        received_monotonic_ns=time.monotonic_ns(),
                     )
                 self._condition.notify_all()
 

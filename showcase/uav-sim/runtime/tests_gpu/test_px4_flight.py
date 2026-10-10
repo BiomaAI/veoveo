@@ -23,6 +23,7 @@ from test_plant import CudaPlant, NativeSensorProfile
 from veoveo_uav_sim.contracts import Waypoint
 from veoveo_uav_sim.px4 import CommandDeadline, Px4Commander
 from veoveo_uav_sim.px4_hil import Px4HilBridge
+from veoveo_uav_sim.realtime import MonotonicPhysicsClock
 from veoveo_uav_sim.vehicle_spec import (
     PX4_IRIS_IMU_NOISE_REFERENCE_HZ, decode_hil_packet,
 )
@@ -34,6 +35,11 @@ class Px4FlightTests(unittest.TestCase):
         root = Path(os.environ["UAV_SIM_PX4_DIRECTORY"])
         instance = 42
         profile = NativeSensorProfile.selected()
+        schedule = os.environ.get("UAV_SIM_PX4_SCHEDULE", "paced")
+        if schedule not in {"paced", "grouped-catch-up"}:
+            raise ValueError("UAV_SIM_PX4_SCHEDULE must be paced or grouped-catch-up")
+        if schedule == "grouped-catch-up" and profile.name != "held-30-60":
+            raise ValueError("grouped-catch-up diagnoses the production held-30-60 profile")
         plant = CudaPlant(fleet_size=1, physics_hz=profile.physics_hz)
         plant.sample(1)  # CUDA compilation must finish before the sensor deadline starts.
         bridge = Px4HilBridge(str(root), instance=instance)
@@ -45,6 +51,9 @@ class Px4FlightTests(unittest.TestCase):
         samples: list[np.ndarray] = []
         control_samples: list[np.ndarray] = []
         sample_timing: list[tuple[float, float]] = []
+        feedback_timing: list[dict[str, object]] = []
+        stall_observations: list[dict[str, object]] = []
+        catch_up_passes: list[dict[str, object]] = []
         saturation_seconds = np.zeros(4)
         saturation_run = np.zeros(4)
         longest_saturation = np.zeros(4)
@@ -53,7 +62,8 @@ class Px4FlightTests(unittest.TestCase):
         capture = Path(os.environ.get("UAV_SIM_PX4_FLIGHT_LOG_DIRECTORY") or
                        tempfile.mkdtemp(prefix="veoveo-px4-flight-"))
         capture.mkdir(parents=True, exist_ok=True)
-        print(json.dumps({"profile": profile.name, "physicsHz": profile.physics_hz,
+        print(json.dumps({"profile": profile.name, "schedule": schedule, "stalls": stall_observations,
+                        "physicsHz": profile.physics_hz,
                           "hilHz": profile.hil_hz, "capture": str(capture)}), flush=True)
 
         def check_truth(packet: np.ndarray, controls: np.ndarray, step: int) -> None:
@@ -85,28 +95,92 @@ class Px4FlightTests(unittest.TestCase):
         def publish() -> None:
             try:
                 started = time.monotonic()
-                packet = None
-                for step in range(1, profile.hil_hz * 540 + 1):
-                    if stop.is_set():
-                        return
-                    plant_step = profile.plant_step(step)
-                    if plant_step is not None:
-                        controls = np.asarray(bridge.controls(), dtype=np.float32)
-                        plant.controls.assign(controls[None, :])
-                        packet = plant.sample(plant_step)[0]
-                        latest[:] = [packet]
-                        samples.append(np.concatenate(([step / profile.hil_hz], packet)))
-                        control_samples.append(np.concatenate(([step / profile.hil_hz], controls)))
-                        sample_timing.append((step / profile.hil_hz, time.monotonic() - started))
-                        check_truth(packet, controls, step)
-                    frame, _ = decode_hil_packet(
-                        packet, time_usec=round(step * 1_000_000 / profile.hil_hz),
-                        fields_updated=profile.cadence.fields_updated(profile.hil_hz, step),
-                        gps_updated=profile.cadence.gps_due(profile.hil_hz, step),
+                last_published_sensor_usec: int | None = None
+
+                def sample(plant_step: int, hil_step: int) -> np.ndarray:
+                    observation = bridge.actuator_observation()
+                    controls = np.asarray(
+                        observation.controls_rad_s if observation is not None else bridge.controls(),
+                        dtype=np.float32,
                     )
-                    bridge.publish(step, frame)
+                    plant.controls.assign(controls[None, :])
+                    packet = plant.sample(plant_step)[0]
+                    latest[:] = [packet]
+                    samples.append(np.concatenate(([hil_step / profile.hil_hz], packet)))
+                    control_samples.append(np.concatenate(([hil_step / profile.hil_hz], controls)))
+                    sample_timing.append((hil_step / profile.hil_hz, time.monotonic() - started))
+                    feedback_timing.append({
+                        "plantStep": plant_step, "hilStep": hil_step,
+                        "wallSeconds": time.monotonic() - started,
+                        "lastEnqueuedSensorUsec": last_published_sensor_usec,
+                        "actuatorTimeUsec": observation.time_usec if observation else None,
+                        "actuatorFlags": observation.flags if observation else None,
+                        "actuatorReceiveSequence": observation.receive_sequence if observation else None,
+                        "actuatorReceivedMonotonicNs": observation.received_monotonic_ns if observation else None,
+                    })
+                    check_truth(packet, controls, hil_step)
+                    return packet
+
+                def emit(packet: np.ndarray, hil_step: int) -> None:
+                    nonlocal last_published_sensor_usec
+                    frame, _ = decode_hil_packet(
+                        packet, time_usec=round(hil_step * 1_000_000 / profile.hil_hz),
+                        fields_updated=profile.cadence.fields_updated(profile.hil_hz, hil_step),
+                        gps_updated=profile.cadence.gps_due(profile.hil_hz, hil_step),
+                    )
+                    bridge.publish(hil_step, frame)
+                    last_published_sensor_usec = frame.time_usec
                     bridge.raise_if_failed()
-                    stop.wait(max(0.0, started + step / profile.hil_hz - time.monotonic()))
+
+                if schedule == "paced":
+                    packet = None
+                    for step in range(1, profile.hil_hz * 540 + 1):
+                        if stop.is_set():
+                            return
+                        plant_step = profile.plant_step(step)
+                        if plant_step is not None:
+                            packet = sample(plant_step, step)
+                        emit(packet, step)
+                        stop.wait(max(0.0, started + step / profile.hil_hz - time.monotonic()))
+                else:
+                    clock = MonotonicPhysicsClock(
+                        profile.physics_hz, maximum_steps_per_pass=profile.physics_hz,
+                    )
+                    clock.reset(0, now=started)
+                    plant_step = 0
+                    stalled_phases: set[str] = set()
+                    while time.monotonic() - started < 540:
+                        if stop.is_set():
+                            return
+                        current_phase = phase[0]
+                        if current_phase.startswith("mission ") and current_phase not in stalled_phases:
+                            stalled_phases.add(current_phase)
+                            stall_start = time.monotonic()
+                            if stop.wait(0.5):
+                                return
+                            stall_observations.append({
+                                "phase": current_phase, "plantStep": plant_step,
+                                "wallStartSeconds": stall_start - started,
+                                "wallEndSeconds": time.monotonic() - started,
+                            })
+                        due = clock.due_steps(plant_step)
+                        if due:
+                            catch_up_passes.append({
+                                "firstPlantStep": plant_step + 1, "dueSteps": due,
+                                "wallSeconds": time.monotonic() - started,
+                            })
+                        for _ in range(due):
+                            if stop.is_set():
+                                return
+                            plant_step += 1
+                            first_hil_step = (plant_step - 1) * 2 + 1
+                            packet = sample(plant_step, first_hil_step)
+                            # Match fleet_runtime.step: one plant sample, then BOTH frames
+                            # enqueued immediately, with no wait for actuator feedback.
+                            emit(packet, first_hil_step)
+                            emit(packet, first_hil_step + 1)
+                        if due == 0:
+                            stop.wait(min(clock.seconds_until_next_step(plant_step), 0.005))
                 raise TimeoutError("CUDA flight publisher exceeded 540 seconds")
             except BaseException as error:
                 failures.append(error)
@@ -186,6 +260,9 @@ class Px4FlightTests(unittest.TestCase):
                              lambda: (commander._px4_main_mode, commander._px4_sub_mode)
                              == mavutil.px4_map["LAND"][1:])
             self.assertFalse(failures, str(failures))
+            if schedule == "grouped-catch-up":
+                self.assertEqual([row["phase"] for row in stall_observations],
+                                 ["mission 1", "mission 2"])
         finally:
             # Simulator process teardown ends any unresolved simulated operation;
             # this fixture never shares a vehicle with an installation or another test.
@@ -200,8 +277,15 @@ class Px4FlightTests(unittest.TestCase):
                     np.save(destination / "hil-samples.npy", np.asarray(samples))
                     np.save(destination / "motor-rotor-speed-rad-s.npy", np.asarray(control_samples))
                     np.save(destination / "sample-timing.npy", np.asarray(sample_timing))
+                    (destination / "catch-up-passes.jsonl").write_text(
+                        "".join(json.dumps(row) + "\n" for row in catch_up_passes)
+                    )
+                    (destination / "feedback-timing.jsonl").write_text(
+                        "".join(json.dumps(row) + "\n" for row in feedback_timing)
+                    )
                     (destination / "flight-diagnostics.json").write_text(json.dumps({
-                        "profile": profile.name, "physicsHz": profile.physics_hz,
+                        "profile": profile.name, "schedule": schedule, "stalls": stall_observations,
+                        "physicsHz": profile.physics_hz,
                         "hilHz": profile.hil_hz, "samples": len(samples),
                         "motorCommandUnit": "rad/s",
                         "saturationNormalizedThresholds": [0.01, 0.99],

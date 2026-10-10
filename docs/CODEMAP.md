@@ -1455,6 +1455,7 @@ Simulation live-view ownership:
 | `showcase/uav-sim/runtime/tests_gpu/test_plant.py` | hardware CUDA plant qualification for reproducible barometer, magnetic and IMU noise with separate vehicle truth |
 | `showcase/uav-sim/runtime/tests_gpu/test_px4_health.py` | native pinned PX4 qualification of all stationary sensor validators through the CUDA plant and production HIL bridge |
 | `showcase/uav-sim/runtime/tests_gpu/test_px4_flight.py`, `showcase/uav-sim/runtime/tests_gpu/test_magnetic.py` | CUDA earth-field agreement with PX4, body-frame sensor admission, and repeated native takeoff, movement, landing and re-arm qualification |
+| `showcase/uav-sim/runtime/tests/test_px4_hil_observation.py` | atomic actuator feedback observations with decoded rotor units, MAVLink clock/flags and local receive identity; the flight harness correlates these facts with grouped catch-up timing |
 | `showcase/uav-sim/runtime/tests_gpu/test_stream_rtp.py` | isolated production RTP publication through the Stream NVDEC/TensorRT runner; steady and catch-up delivery with preview timestamp checks |
 
 ## Recordings

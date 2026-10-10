@@ -36,6 +36,16 @@ Private terminal receipts are `native-250-receipt.json` and
 `a7cbd959a64ecb67b5b3d18226687315ac3fdef2164da848c49f0eceb5393cae`
 and `e20543a1e15585154f5dce811912001524e5929868ec2961c0283b6ef770a2b3`.
 
+The grouped production-clock comparison passes in 146.003 seconds. Each of its
+two synthetic 500 ms stalls produces fifteen catch-up steps. Maximum tilt is
+27.88 degrees and body rate 72.50 degrees per second. The last enqueued sensor
+time leads the received actuator's wire time by up to 116.667 ms; an unchanged
+feedback snapshot spans at most three sampled plant steps. The stalls precede
+mission dispatch, so this check does not establish behavior during turns or the
+longer stalls seen in the original run. The terminal receipt is
+`/tmp/veoveo-flight-dynamics-20261010/native-grouped-receipt.json`, SHA-256
+`0f195a4ae48f1dcb13212226fa0f92544aa5b579c55f21345f25732466797348`.
+
 The subsequent capture-clock batch binds completed Warp time to Isaac's supported
 external Fabric clock and uses the stock SRTX H.264 writer. Typed per-picture SEI
 metadata reaches WebCodecs without reconstructing timestamps from sequence or FPS.
