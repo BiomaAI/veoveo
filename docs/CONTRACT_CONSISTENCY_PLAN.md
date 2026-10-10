@@ -193,6 +193,18 @@ existing Ring provider before constructing the client. Its constructor passes al
 in a fresh process, and all eleven native controls pass with the three installed
 cases ignored. Independent review accepts the repair; the installed run remains open.
 
+The reference now prepares an isolated `knowledge-acceptance` profile and ordinary
+public PKCE client for the required caller-policy check. It exposes the six approved
+Time collections and Knowledge catalog resources, while refusing Knowledge's own
+documents. The client's separate operations Viewer membership and audience leave
+normal operator and indexing authority unchanged. Four native configuration controls
+exercise canonical policy selection and pass after adding the new audience to the
+existing enterprise OIDC bridge. Compiler, lint, bundle hashing and independent
+review pass. The profile has not been published or qualified installed. Reference
+Helm rendering still rejects the pre-existing module-plan composition `1cca14…`
+against the locked Gateway composition `87193…`; matched module and image inputs
+are required before publication.
+
 Current image qualification uses source `c5a2c6c3e` and authentic fresh stage
 receipts. Each image batch has its own growth budget above the filesystem reserve;
 the former 96-GiB admission and 84-GiB cancellation guard do not protect this node.

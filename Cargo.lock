@@ -16364,6 +16364,7 @@ dependencies = [
  "veoveo-media-mcp",
  "veoveo-modules",
  "veoveo-platform-store",
+ "veoveo-policy",
  "veoveo-reason-mcp",
  "veoveo-recording-contract",
  "veoveo-recording-forwarder",

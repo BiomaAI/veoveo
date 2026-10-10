@@ -1092,6 +1092,43 @@ verified links; each run requires a new output path. Remove the temporary token 
 after the check. Domain retrieval quality and GPU execution have their own acceptance
 cases in the Knowledge and embedding designs.
 
+The separate `knowledge-acceptance` profile checks restricted discovery and document
+denial with the ordinary public client `knowledge-acceptance-public`. It exposes the
+approved Time collections and Knowledge catalog resources and completion, while
+hiding Knowledge's own documentation, tools, prompts and Tasks. Publish the admitted
+full catalog through the maintained configuration path before running this case;
+keep that catalog and caller policy unchanged throughout the test. Normal operator
+and indexing profiles keep their existing access.
+
+Obtain a token through the existing Veoveo browser authorization-code flow with
+S256 PKCE, client `knowledge-acceptance-public`, resource
+`https://veoveo.bioma.ai/mcp/knowledge-acceptance`, scopes `operator:use knowledge:read time:read`
+and Work Context `operations`. Use a registered callback such as
+`http://127.0.0.1:8789/oauth/callback`, then exchange the returned code at the issuer's
+token endpoint with the original verifier. Store the access token in a private
+mode-0600 file. This public client uses no client secret or signing-key assertion.
+The selected sources and qualified hardware embedding runtime must already be ready.
+
+Create a private JSON fixture with absolute `controlPlane`, `tokenFile` and new
+`output` paths, `profile: "knowledge-acceptance"`, independent `expected` sets
+(`collections`, `tools`, `resources`, `templates`), and one to eight existing hidden
+`deniedDocuments` IDs. Empty tool expectations are intentional. Select resource
+identities and templates from the Knowledge contract, and independently enumerate
+the approved Time collection IDs. The [Knowledge instructions](../../servers/knowledge-mcp/AGENTS.md#build-and-test)
+and [fixture contract](../../servers/knowledge-mcp/DESIGN.md#verification) define
+admission, paging and denial checks. Run the existing policy case:
+
+~~~bash
+VEOVEO_KNOWLEDGE_POLICY_INPUT=/private/installation/knowledge/policy-input.json \
+  cargo test -p veoveo-knowledge-mcp --test http \
+    installed::policy::restricted_caller_lists_catalog_and_document_denials_agree_through_installed_gateway \
+    -- --ignored --exact
+~~~
+
+The private report records observed lists and exact document-policy denials. Profile
+configuration and native checks prepare this acceptance case; they do not establish
+an installed pass. Remove the temporary caller token after the run.
+
 Reason's installed finding tests use a completed analysis produced by the current
 GPU image. Create a private JSON input with `endpoint` set to the operator MCP URL,
 `analysis` set to its native UUIDv7 analysis ID, and `query` set to a question that

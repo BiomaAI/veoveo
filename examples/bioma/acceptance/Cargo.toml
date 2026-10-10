@@ -77,6 +77,7 @@ veoveo-modules = { workspace = true, default-features = false, optional = true }
 
 
 [dev-dependencies]
+veoveo-policy = { path = "../../../platform/policy" }
 http.workspace = true
 chrono.workspace = true
 veoveo-modules = { workspace = true, features = ["runner"] }

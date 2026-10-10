@@ -3360,6 +3360,77 @@
         }
       ],
       "metadata": {}
+    },
+    {
+      "id": "knowledge-acceptance",
+      "identityProvider": "enterprise",
+      "authorizationServer": "veoveo",
+      "protectedResource": "https://veoveo.bioma.ai/mcp/knowledge-acceptance",
+      "policyVersion": "knowledge-acceptance-v1",
+      "authModes": [
+        "oidc_authorization_code_pkce"
+      ],
+      "discoveryFailureMode": "fail_closed",
+      "requiredScopes": [
+        "operator:use",
+        "knowledge:read",
+        "time:read"
+      ],
+      "servers": [
+        {
+          "server": "knowledge",
+          "tools": {
+            "mode": "none"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "uri_prefix",
+                "prefix": "knowledge://sources"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "knowledge://source/"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "knowledge://collection/"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "knowledge://contract"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "enabled",
+          "tasks": "disabled"
+        },
+        {
+          "server": "time",
+          "tools": {
+            "mode": "none"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "time"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
+        }
+      ],
+      "metadata": {}
     }
   ],
   "recording_ingest_resources": [
@@ -7119,6 +7190,95 @@
           "metadata": {}
         }
       ]
+    },
+    {
+      "version": "knowledge-acceptance-v1",
+      "rules": [
+        {
+          "id": "discover_knowledge_acceptance",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "resources_list",
+            "resources_templates_list",
+            "subscriptions_listen",
+            "prompts_list"
+          ],
+          "profiles": [
+            "knowledge-acceptance"
+          ],
+          "requiredScopes": [
+            "operator:use",
+            "knowledge:read",
+            "time:read"
+          ],
+          "tenantIds": [
+            "bioma"
+          ],
+          "roles": [
+            "operator",
+            "administrator"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "read_knowledge_acceptance",
+          "effect": "allow",
+          "actions": [
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen"
+          ],
+          "profiles": [
+            "knowledge-acceptance"
+          ],
+          "servers": [
+            "knowledge",
+            "time"
+          ],
+          "requiredScopes": [
+            "operator:use",
+            "knowledge:read",
+            "time:read"
+          ],
+          "tenantIds": [
+            "bioma"
+          ],
+          "roles": [
+            "operator",
+            "administrator"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "complete_knowledge_acceptance",
+          "effect": "allow",
+          "actions": [
+            "completion_complete"
+          ],
+          "profiles": [
+            "knowledge-acceptance"
+          ],
+          "servers": [
+            "knowledge"
+          ],
+          "requiredScopes": [
+            "operator:use",
+            "knowledge:read",
+            "time:read"
+          ],
+          "tenantIds": [
+            "bioma"
+          ],
+          "roles": [
+            "operator",
+            "administrator"
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
     }
   ],
   "dataLabels": [
@@ -7210,6 +7370,12 @@
           "level": "contributor",
           "oauthClients": [
             "bioma-computers-worker"
+          ]
+        },
+        {
+          "level": "viewer",
+          "oauthClients": [
+            "knowledge-acceptance-public"
           ]
         }
       ]
@@ -7752,6 +7918,43 @@
         "source": "file",
         "path": "/etc/veoveo/gateway/computers-worker-jwks.json"
       }
+    },
+    {
+      "id": "knowledge-acceptance-public",
+      "authorizationServer": "veoveo",
+      "defaultWorkContext": "operations",
+      "invocationMode": "direct",
+      "displayName": "Knowledge Read-only Acceptance Client",
+      "clientSurface": "full_mcp",
+      "allowedResources": [
+        "https://veoveo.bioma.ai/mcp/knowledge-acceptance"
+      ],
+      "grantTypes": [
+        "authorization_code_pkce",
+        "refresh_token"
+      ],
+      "authMethods": [
+        "none"
+      ],
+      "allowedScopes": [
+        "operator:use",
+        "knowledge:read",
+        "time:read"
+      ],
+      "metadata": {
+        "client_boundary": "knowledge_acceptance_public"
+      },
+      "redirectUris": [
+        "http://localhost:6274/oauth/callback",
+        "http://localhost:6274/oauth/callback/debug",
+        "http://127.0.0.1:6274/oauth/callback",
+        "http://127.0.0.1:6274/oauth/callback/debug",
+        "http://localhost:8789/callback",
+        "http://127.0.0.1:8789/callback",
+        "http://localhost:8789/oauth/callback",
+        "http://127.0.0.1:8789/oauth/callback"
+      ],
+      "tenant": "bioma"
     }
   ],
   "oidcClients": [
@@ -7764,7 +7967,8 @@
         "https://veoveo.bioma.ai/mcp/operator-initial",
         "https://veoveo.bioma.ai/mcp/admin",
         "https://veoveo.bioma.ai/mcp/rerun",
-        "https://veoveo.bioma.ai/mcp/workspace"
+        "https://veoveo.bioma.ai/mcp/workspace",
+        "https://veoveo.bioma.ai/mcp/knowledge-acceptance"
       ],
       "clientId": "853550a7-5fd4-421c-abd2-bea0216fa579",
       "redirectUri": "https://veoveo.bioma.ai/oauth/callback",
