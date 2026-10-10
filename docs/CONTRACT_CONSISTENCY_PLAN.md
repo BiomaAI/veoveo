@@ -4,7 +4,7 @@ Status: The published 34-image closure and charts for `6431c30c6621` retain thei
 recorded qualification. GitOps is suspended during source work. Development image
 extraction triggered node disk pressure; all seventeen desired Deployments and both
 StatefulSets recovered by 02:42 UTC on October 10. Compiler checks and all twenty-seven
-focused native recovery/consumer controls pass. Twenty-three images at `c5a2c6c3e`,
+focused native recovery/consumer controls pass. Twenty-seven images at `c5a2c6c3e`,
 including all seven stock-rollout images, pass staging, attested qualification and node-side registry readback.
 Gateway, Agent Manager and Knowledge run compatible qualified images against the
 published full catalog. Knowledge passes retained-index cold-start qualification;
@@ -225,7 +225,7 @@ zero persisted Computer bindings, permitting this candidate hard cut without a
 compatibility template. Both native reference-template guards pass. Host/Computers
 activation and installed stock-template qualification remain open.
 Eleven additional existing reference pins and the managed-kernel image now select
-their qualified inputs. Twenty-three of the thirty-four affected images are
+their qualified inputs. Twenty-seven of the thirty-four affected images are
 qualified; these prepared pin changes do not deploy workloads or qualify the
 remaining images.
 
@@ -314,9 +314,16 @@ stage takes 489.455 seconds and qualification takes 41.728 seconds. The observed
 stage filesystem growth is 7.75 GB against its 12 GiB cap; the node and core
 services stay healthy. Installed pins and reconciliation holds are unchanged.
 
+Time, UAV-Sim MCP, Datasheet and Anonymous Simulation pass stage/release runtime
+digest equality, attestation checks and node-network readback at `c5a2c6c3e`.
+The three consumed reference pins select those runtime digests; Anonymous Simulation
+is a qualified fixture/tool image without a reference workload or lock entry.
+Rollout and installed acceptance remain open. The cohort's observed free-space
+samples do not establish peak growth.
+
 The full source cut from `6431c30c6621` through `c5a2c6c3e` affects 34 tagged images:
-31 production images and three tool/fixture images. Twenty-three are qualified;
-eleven remain.
+31 production images and three tool/fixture images. Twenty-seven are qualified;
+seven remain.
 The unchanged Charts, simulation-runtime and UAV-runtime production inputs retain
 their own accepted `6431c30c6621` publication proof. Fresh node-network manifest and
 config reads return 200 with matching hashes for all three; their source and
@@ -325,12 +332,10 @@ artifact identities are preserved. The 30-Rust-target count and the historical
 
 | Remaining image family | Targets |
 |---|---|
-| Trixie Rust | `uav-sim-mcp` |
-| Bookworm Rust | `time-mcp`, `map-mcp` |
+| Bookworm Rust | `map-mcp` |
 | View CUDA | `view-mcp` |
 | GPU control runtimes | `reason-mcp`, `stream-mcp`, `speech-mcp` |
 | SUMO Rust | `sumo-mcp` |
-| Python runtimes | `datasheet-mcp`, `anonymous-simulation-mcp` |
 | NVIDIA executor | `cuopt-executor` |
 
 The full catalog, including the worker section and restricted public client, is
