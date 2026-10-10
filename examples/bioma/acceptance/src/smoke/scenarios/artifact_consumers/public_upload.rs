@@ -33,6 +33,17 @@ enum Record<'a> {
         upload_id: ArtifactUploadId,
         operation: &'static str,
     },
+    AcceptedPart {
+        session: &'a ArtifactUploadSession,
+        part: &'a UploadPartReceipt,
+    },
+    Unfinished {
+        session: &'a ArtifactUploadSession,
+        part: &'a UploadPartReceipt,
+    },
+    Resumed {
+        session: &'a ArtifactUploadSession,
+    },
     Received {
         receipt: &'a ArtifactUploadReceipt,
     },
@@ -67,6 +78,9 @@ struct State {
 struct Cleanup {
     state: tokio::sync::Mutex<State>,
     id: Mutex<Option<ArtifactUploadId>>,
+    accepted: Mutex<Option<(ArtifactUploadSession, UploadPartReceipt)>>,
+    unfinished: Mutex<Option<(ArtifactUploadSession, UploadPartReceipt)>>,
+    resumed: Mutex<Option<ArtifactUploadSession>>,
     observations: Mutex<Vec<ArtifactUploadReceipt>>,
     publication: Mutex<Option<ArtifactUploadReceipt>>,
     client: reqwest::Client,
@@ -120,6 +134,9 @@ impl Journal {
                 deadline: None,
             }),
             id: Mutex::new(None),
+            accepted: Mutex::new(None),
+            unfinished: Mutex::new(None),
+            resumed: Mutex::new(None),
             observations: Mutex::new(Vec::new()),
             publication: Mutex::new(None),
             client: client.clone(),
@@ -157,6 +174,58 @@ impl Upload {
             upload_id: id,
             operation,
         })
+    }
+    pub(super) fn accepted(
+        &self,
+        session: &ArtifactUploadSession,
+        part: &UploadPartReceipt,
+    ) -> Result<()> {
+        let mut state = self
+            .cleanup
+            .state
+            .try_lock()
+            .context("part observation overlaps cleanup")?;
+        *self.cleanup.accepted.lock().expect("accepted part") =
+            Some((session.clone(), part.clone()));
+        let recorded = self
+            .cleanup
+            .journal
+            .append(&Record::AcceptedPart { session, part });
+        state.failed |= recorded.is_err();
+        recorded
+    }
+    pub(super) fn unfinished(
+        &self,
+        session: &ArtifactUploadSession,
+        part: &UploadPartReceipt,
+    ) -> Result<()> {
+        let mut state = self
+            .cleanup
+            .state
+            .try_lock()
+            .context("unfinished observation overlaps cleanup")?;
+        *self
+            .cleanup
+            .unfinished
+            .lock()
+            .expect("unfinished observation") = Some((session.clone(), part.clone()));
+        let recorded = self
+            .cleanup
+            .journal
+            .append(&Record::Unfinished { session, part });
+        state.failed |= recorded.is_err();
+        recorded
+    }
+    pub(super) fn resumed(&self, session: &ArtifactUploadSession) -> Result<()> {
+        let mut state = self
+            .cleanup
+            .state
+            .try_lock()
+            .context("resume observation overlaps cleanup")?;
+        *self.cleanup.resumed.lock().expect("resume observation") = Some(session.clone());
+        let recorded = self.cleanup.journal.append(&Record::Resumed { session });
+        state.failed |= recorded.is_err();
+        recorded
     }
     // Receiving a typed receipt is an observation, before any independent
     // identity/content assertion. Failed sync retains it without settlement.
@@ -852,6 +921,267 @@ mod tests {
             ensure!(
                 output.status.success(),
                 "publication/expiry control {mode} failed: {} {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        Ok(())
+    }
+    #[tokio::test]
+    async fn unfinished_public_upload_reuses_original_session_across_replacement() -> Result<()> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        const MODE: &str = "VEOVEO_ARTIFACT_UNFINISHED_UPLOAD_CONTROL";
+        const ROOT: &str = "VEOVEO_ARTIFACT_UNFINISHED_UPLOAD_ROOT";
+        if let Ok(mode) = std::env::var(MODE) {
+            let root = PathBuf::from(std::env::var_os(ROOT).context("control root")?);
+            let journal_path = root.join("receipt.uploads.jsonl");
+            let journal = Journal::create(&root.join("receipt.json"), true)?;
+            let id = ArtifactUploadId::new();
+            let artifact_id = veoveo_artifact_contract::ArtifactId::new();
+            let sha = UploadSha256::parse(hex::encode(Sha256::digest(FOCUSED_BYTES)))?;
+            let part = UploadPartReceipt {
+                part_number: NonZeroU32::new(1).unwrap(),
+                byte_len: 2048,
+                sha256: sha.clone(),
+            };
+            let now = chrono::Utc::now();
+            let initial = ArtifactUploadSession {
+                upload_id: id,
+                state: veoveo_artifact_contract::ArtifactUploadState::Open,
+                descriptor: CreateArtifactUpload {
+                    filename: "fixture.bin".into(),
+                    mime_type: "application/octet-stream".into(),
+                    byte_len: Some(2048),
+                    sha256: Some(sha.clone()),
+                },
+                layout: veoveo_artifact_contract::UploadLayout {
+                    part_bytes: std::num::NonZeroU64::new(5 * 1024 * 1024).unwrap(),
+                    max_parts: NonZeroU32::new(1).unwrap(),
+                    max_total_bytes: std::num::NonZeroU64::new(5 * 1024 * 1024).unwrap(),
+                    parallel_parts: NonZeroU32::new(1).unwrap(),
+                },
+                accepted_bytes: 0,
+                accepted_part_count: 0,
+                parts: vec![],
+                next_part_cursor: None,
+                created_at: now,
+                expires_at: now + chrono::Duration::minutes(10),
+                receipt: None,
+                failure: None,
+            };
+            let receipt = ArtifactUploadReceipt {
+                upload_id: id,
+                artifact_id,
+                artifact_uri: veoveo_artifact_contract::ArtifactUri::plane(artifact_id),
+                sha256: sha.clone(),
+                byte_len: 2048,
+                mime_type: initial.descriptor.mime_type.clone(),
+                filename: initial.descriptor.filename.clone(),
+                created_at: now,
+            };
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+            let base = format!("http://{}/uploads", listener.local_addr()?);
+            let replacements = Arc::new(AtomicUsize::new(0));
+            let counted = replacements.clone();
+            let server_mode = mode.clone();
+            let server_receipt = receipt.clone();
+            let server = tokio::spawn(async move {
+                let mut accepted = initial.clone();
+                // Production finish_part renews inactivity expiry; compare the
+                // frozen post-part expiry across replacement, not create time.
+                accepted.expires_at += chrono::Duration::seconds(1);
+                accepted.accepted_bytes = part.byte_len;
+                accepted.accepted_part_count = 1;
+                accepted.parts = vec![part.clone()];
+                let mut completed = accepted.clone();
+                completed.state = veoveo_artifact_contract::ArtifactUploadState::Completed;
+                completed.receipt = Some(server_receipt);
+                let successful = server_mode == "pass";
+                let methods = if successful {
+                    vec![
+                        "POST", "PUT", "GET", "GET", "PUT", "PUT", "POST", "POST", "DELETE",
+                    ]
+                } else if server_mode == "interrupted" {
+                    vec!["POST", "PUT", "GET", "DELETE"]
+                } else {
+                    vec!["POST", "PUT", "GET", "GET", "DELETE"]
+                };
+                for (index, method) in methods.into_iter().enumerate() {
+                    let (mut socket, _) =
+                        tokio::time::timeout(Duration::from_secs(4), listener.accept()).await??;
+                    let request = control_request(&mut socket).await?;
+                    let path = if index == 0 {
+                        "/uploads".to_owned()
+                    } else if method == "PUT" {
+                        format!("/uploads/{id}/parts/1")
+                    } else if method == "POST" {
+                        format!("/uploads/{id}/complete")
+                    } else {
+                        format!("/uploads/{id}")
+                    };
+                    ensure!(
+                        request.starts_with(format!("{method} {path} HTTP/1.1").as_bytes()),
+                        "unfinished upload changed phase/identity"
+                    );
+                    if index <= 2 {
+                        ensure!(
+                            counted.load(Ordering::SeqCst) == 0,
+                            "replacement preceded accepted unfinished observation"
+                        );
+                    } else {
+                        ensure!(
+                            counted.load(Ordering::SeqCst) == 1,
+                            "replacement count differs"
+                        );
+                    }
+                    let (status, body) = match (index, method) {
+                        (0, _) => ("201 Created", serde_json::to_vec(&initial)?),
+                        (1 | 4, "PUT") => ("200 OK", serde_json::to_vec(&part)?),
+                        (5, "PUT") => ("409 Conflict", vec![]),
+                        (_, "GET") => {
+                            let mut current = accepted.clone();
+                            if index == 3 && server_mode == "wrongId" {
+                                current.upload_id = ArtifactUploadId::new();
+                            }
+                            if index == 3 && server_mode == "changedPart" {
+                                current.parts[0].sha256 =
+                                    UploadSha256::parse(hex::encode(Sha256::digest(b"changed")))?;
+                            }
+                            ("200 OK", serde_json::to_vec(&current)?)
+                        }
+                        (_, "POST") => ("200 OK", serde_json::to_vec(&completed)?),
+                        (_, "DELETE") => (
+                            if successful {
+                                "409 Conflict"
+                            } else {
+                                "204 No Content"
+                            },
+                            vec![],
+                        ),
+                        _ => anyhow::bail!("unexpected control phase"),
+                    };
+                    socket.write_all(format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes()).await?;
+                    socket.write_all(&body).await?;
+                    socket.shutdown().await?;
+                }
+                ensure!(
+                    tokio::time::timeout(Duration::from_millis(100), listener.accept())
+                        .await
+                        .is_err(),
+                    "unexpected retry or cleanup mutation"
+                );
+                Ok::<_, anyhow::Error>(())
+            });
+            let client = reqwest::Client::builder()
+                .timeout(Duration::from_secs(2))
+                .redirect(Policy::none())
+                .build()?;
+            let actual = owner::run(async {
+                let replacement = async {
+                    let records = fs::read_to_string(&journal_path)?;
+                    let rows = records
+                        .lines()
+                        .map(serde_json::from_str::<Value>)
+                        .collect::<std::result::Result<Vec<_>, _>>()?;
+                    let observed = rows
+                        .iter()
+                        .find(|row| row["phase"] == "unfinished")
+                        .context("no durable unfinished receipt before restart")?;
+                    let session: ArtifactUploadSession =
+                        serde_json::from_value(observed["session"].clone())?;
+                    let saved_part: UploadPartReceipt =
+                        serde_json::from_value(observed["part"].clone())?;
+                    ensure!(
+                        session.upload_id == id
+                            && session.parts == [saved_part]
+                            && session.receipt.is_none(),
+                        "restart lost acknowledged unfinished identity"
+                    );
+                    replacements.fetch_add(1, Ordering::SeqCst);
+                    if mode == "interrupted" {
+                        std::future::pending::<()>().await;
+                    }
+                    Ok(())
+                };
+                let future = super::super::upload_small_across_replacement(
+                    super::super::PublicUploadContext {
+                        client: &client,
+                        token: "synthetic-private",
+                        base: &base,
+                        journal: &journal,
+                    },
+                    super::super::SmallUploadFixture {
+                        filename: "fixture.bin",
+                        mime: "application/octet-stream",
+                        bytes: FOCUSED_BYTES.to_vec(),
+                        known: true,
+                    },
+                    Some(replacement),
+                );
+                if mode == "interrupted" {
+                    ensure!(
+                        tokio::time::timeout(Duration::from_millis(200), future)
+                            .await
+                            .is_err(),
+                        "pending replacement settled"
+                    );
+                    anyhow::bail!("controlled interrupted replacement");
+                }
+                let actual = future.await?;
+                ensure!(actual == receipt, "completion changed original occurrence");
+                Ok(())
+            })
+            .await;
+            ensure!(
+                actual.is_ok() == (mode == "pass"),
+                "unfinished upload failure was hidden"
+            );
+            server.await??;
+            let rows = fs::read_to_string(&journal_path)?
+                .lines()
+                .map(serde_json::from_str::<Value>)
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            let cleanup = rows
+                .iter()
+                .rev()
+                .find(|row| row["phase"] == "cleanup")
+                .context("missing owned cleanup outcome")?;
+            ensure!(
+                cleanup["status"]
+                    == if mode == "pass" {
+                        "retainedPublished"
+                    } else {
+                        "cancelled"
+                    },
+                "unfinished cleanup outcome differs"
+            );
+            ensure!(
+                rows.iter()
+                    .filter(|row| row["phase"] == "createIntent")
+                    .count()
+                    == 1,
+                "recovery redispatched session creation"
+            );
+            return Ok(());
+        }
+        for mode in ["pass", "wrongId", "changedPart", "interrupted"] {
+            let directory = tempfile::tempdir()?;
+            fs::create_dir(directory.path().join("groups"))?;
+            let mut command = tokio::process::Command::new(std::env::current_exe()?);
+            command
+                .args([
+                    "unfinished_public_upload_reuses_original_session_across_replacement",
+                    "--nocapture",
+                ])
+                .env(MODE, mode)
+                .env(ROOT, directory.path())
+                .env("VEOVEO_SMOKE_LOCAL_GROUPS", directory.path().join("groups"))
+                .env("VEOVEO_SMOKE_CLEANUP_SECONDS", "2");
+            let output =
+                veoveo_testing_support::output_async(command, Duration::from_secs(12)).await?;
+            ensure!(
+                output.status.success(),
+                "unfinished upload control {mode} failed: {} {}",
                 String::from_utf8_lossy(&output.stdout),
                 String::from_utf8_lossy(&output.stderr)
             );

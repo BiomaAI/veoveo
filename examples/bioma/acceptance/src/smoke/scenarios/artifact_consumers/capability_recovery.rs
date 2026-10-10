@@ -137,6 +137,10 @@ enum Record<'a> {
         child: ChildSettlement,
         mcp: CloseStatus,
     },
+    PublicRecovered {
+        receipt: &'a ArtifactUploadReceipt,
+        proof: &'a public_recovery::Proof,
+    },
     Outcome {
         operation_passed: bool,
         child_cleanup: ChildSettlement,
@@ -150,7 +154,7 @@ enum Record<'a> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 enum Reconciliation {
-    OneOccurrenceVerifiedNoDeletionApi,
+    SeparatePublicAndCapabilityOccurrencesVerifiedNoDeletionApi,
     UnresolvedInspectIntentNoMutationRetry,
 }
 
@@ -410,7 +414,11 @@ fn validate_observation(
     Ok(after)
 }
 
-pub(super) async fn run(installation: &InstalledTarget, output: &Path) -> Result<()> {
+pub(super) async fn run(
+    installation: &InstalledTarget,
+    output: &Path,
+    public: PublicUploadContext<'_>,
+) -> Result<()> {
     admit(installation, output)?;
     let consumer = installation
         .target
@@ -458,7 +466,7 @@ pub(super) async fn run(installation: &InstalledTarget, output: &Path) -> Result
             .trim()
             .to_owned(),
         payload_sha256: UploadSha256::parse(hex::encode(Sha256::digest(BYTES)))?,
-        transport: "internal-delegated-sdk; public OAuth MCP used only for backend readiness",
+        transport: "normal OAuth unfinished public upload; separate internal-delegated-sdk retained capability",
         issue: &input.issue,
         artifact: &input.artifact,
         idempotency_key: &input.idempotency_key,
@@ -484,7 +492,7 @@ pub(super) async fn run(installation: &InstalledTarget, output: &Path) -> Result
             &installation.target,
             &recovery.deployment,
             "artifact-service",
-            peer,
+            peer.clone(),
             ArtifactResource::Index { cursor: None }.to_uri(),
         )?;
         let selected = restart
@@ -541,49 +549,72 @@ pub(super) async fn run(installation: &InstalledTarget, output: &Path) -> Result
             "issued capability changed Task or expiry"
         );
         let before = catalog(&pages)?;
-        journal.append(&Record::RestartIntent {
-            selected: selected.identity(),
+        let public_receipt = upload_small_across_replacement(
+            PublicUploadContext {
+                client: public.client,
+                token: public.token,
+                base: public.base,
+                journal: public.journal,
+            },
+            SmallUploadFixture {
+                filename: "artifact-unfinished-recovery.bin",
+                mime: "application/octet-stream",
+                bytes: FOCUSED_BYTES.to_vec(),
+                known: true,
+            },
+            Some(async {
+                journal.append(&Record::RestartIntent {
+                    selected: selected.identity(),
+                })?;
+                let receipt = restart.restart_with_drain(&selected).await?;
+                journal.append(&Record::Replaced { receipt })?;
+                journal.append(&Record::RedeemIntent)?;
+                stdin.write_all(b"redeem\n").await?;
+                stdin.flush().await?;
+                let redeemed = event(&mut stdout).await?;
+                journal.append(&redeemed)?;
+                let Event::Redeemed { observation: first } = redeemed else {
+                    anyhow::bail!("recovery SDK redemption failed");
+                };
+                let after = validate_observation(
+                    installation,
+                    &first,
+                    &input.artifact,
+                    &input.caller.identity,
+                    &before,
+                )?;
+                journal.append(&Record::ReplayIntent)?;
+                stdin.write_all(b"replay\n").await?;
+                stdin.flush().await?;
+                let replayed = event(&mut stdout).await?;
+                journal.append(&replayed)?;
+                let Event::Replayed {
+                    observation: replay,
+                } = replayed
+                else {
+                    anyhow::bail!("recovery SDK replay failed");
+                };
+                ensure!(
+                    first.metadata == replay.metadata,
+                    "capability replay created a different occurrence"
+                );
+                let replay_after = validate_observation(
+                    installation,
+                    &replay,
+                    &input.artifact,
+                    &input.caller.identity,
+                    &before,
+                )?;
+                ensure!(replay_after == after, "capability replay changed catalog");
+                Ok(())
+            }),
+        )
+        .await?;
+        let proof = public_recovery::verify(installation, &public, &peer, &public_receipt).await?;
+        journal.append(&Record::PublicRecovered {
+            receipt: &public_receipt,
+            proof: &proof,
         })?;
-        let receipt = restart.restart_with_drain(&selected).await?;
-        journal.append(&Record::Replaced { receipt })?;
-        journal.append(&Record::RedeemIntent)?;
-        stdin.write_all(b"redeem\n").await?;
-        stdin.flush().await?;
-        let redeemed = event(&mut stdout).await?;
-        journal.append(&redeemed)?;
-        let Event::Redeemed { observation: first } = redeemed else {
-            anyhow::bail!("recovery SDK redemption failed");
-        };
-        let after = validate_observation(
-            installation,
-            &first,
-            &input.artifact,
-            &input.caller.identity,
-            &before,
-        )?;
-        journal.append(&Record::ReplayIntent)?;
-        stdin.write_all(b"replay\n").await?;
-        stdin.flush().await?;
-        let replayed = event(&mut stdout).await?;
-        journal.append(&replayed)?;
-        let Event::Replayed {
-            observation: replay,
-        } = replayed
-        else {
-            anyhow::bail!("recovery SDK replay failed");
-        };
-        ensure!(
-            first.metadata == replay.metadata,
-            "capability replay created a different occurrence"
-        );
-        let replay_after = validate_observation(
-            installation,
-            &replay,
-            &input.artifact,
-            &input.caller.identity,
-            &before,
-        )?;
-        ensure!(replay_after == after, "capability replay changed catalog");
         drop(stdin);
         ensure!(
             process.wait().await?.success(),
@@ -646,7 +677,7 @@ pub(super) async fn run(installation: &InstalledTarget, output: &Path) -> Result
         capability_expires_at: expires_at,
         requested_retention_expires_at: expires_at,
         reconciliation: if outcome.is_ok() {
-            Reconciliation::OneOccurrenceVerifiedNoDeletionApi
+            Reconciliation::SeparatePublicAndCapabilityOccurrencesVerifiedNoDeletionApi
         } else {
             Reconciliation::UnresolvedInspectIntentNoMutationRetry
         },

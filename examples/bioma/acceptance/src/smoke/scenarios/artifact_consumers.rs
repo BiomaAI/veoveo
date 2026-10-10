@@ -1,5 +1,7 @@
 #[path = "artifact_consumers/capability_recovery.rs"]
 mod capability_recovery;
+#[path = "artifact_consumers/public_recovery.rs"]
+mod public_recovery;
 #[path = "artifact_consumers/public_upload.rs"]
 mod public_upload;
 #[path = "artifact_consumers/python.rs"]
@@ -381,7 +383,17 @@ pub(crate) async fn artifact_upload_consumers(
         "Python foreign tenant could consume the artifact"
     );
     if service_recovery {
-        capability_recovery::run(installation, evidence_output).await?;
+        capability_recovery::run(
+            installation,
+            evidence_output,
+            PublicUploadContext {
+                client: &client,
+                token: &token,
+                base: &upload_base,
+                journal: &journal,
+            },
+        )
+        .await?;
     }
     let revision = run_checked(Path::new("git"), ["rev-parse".into(), "HEAD".into()], [])?
         .trim()
@@ -454,6 +466,37 @@ async fn upload_small(
     fixture: SmallUploadFixture<'_>,
     journal: &public_upload::Journal,
 ) -> Result<ArtifactUploadReceipt> {
+    upload_small_across_replacement(
+        PublicUploadContext {
+            client,
+            token,
+            base,
+            journal,
+        },
+        fixture,
+        None::<std::future::Ready<Result<()>>>,
+    )
+    .await
+}
+
+struct PublicUploadContext<'a> {
+    client: &'a reqwest::Client,
+    token: &'a str,
+    base: &'a str,
+    journal: &'a public_upload::Journal,
+}
+
+async fn upload_small_across_replacement(
+    context: PublicUploadContext<'_>,
+    fixture: SmallUploadFixture<'_>,
+    replacement: Option<impl std::future::Future<Output = Result<()>>>,
+) -> Result<ArtifactUploadReceipt> {
+    let PublicUploadContext {
+        client,
+        token,
+        base,
+        journal,
+    } = context;
     let SmallUploadFixture {
         filename,
         mime,
@@ -500,6 +543,43 @@ async fn upload_small(
         };
         owned.intent(session.upload_id, "partAndExactReplay")?;
         let first: UploadPartReceipt = send_part().send().await?.error_for_status()?.json().await?;
+        owned.accepted(&session, &first)?;
+        ensure!(
+            first.part_number.get() == 1
+                && first.sha256 == sha
+                && first.byte_len == bytes.len() as u64,
+            "accepted part changed bytes or identity"
+        );
+        if let Some(replacement) = replacement {
+            // No completion has been requested. Persist the accepted part and
+            // authoritative Open session before permission for the one restart.
+            let unfinished: ArtifactUploadSession = client
+                .get(&url)
+                .bearer_auth(token)
+                .send()
+                .await?
+                .error_for_status()?
+                .json()
+                .await?;
+            owned.unfinished(&unfinished, &first)?;
+            admit_unfinished(&session, &unfinished, &first)?;
+            owned.intent(session.upload_id, "serviceReplacement")?;
+            replacement.await?;
+            let resumed: ArtifactUploadSession = client
+                .get(&url)
+                .bearer_auth(token)
+                .send()
+                .await?
+                .error_for_status()?
+                .json()
+                .await?;
+            owned.resumed(&resumed)?;
+            admit_unfinished(&unfinished, &resumed, &first)?;
+            ensure!(
+                resumed.expires_at == unfinished.expires_at,
+                "replacement changed unfinished upload expiry"
+            );
+        }
         let repeat: UploadPartReceipt =
             send_part().send().await?.error_for_status()?.json().await?;
         ensure!(
@@ -556,8 +636,16 @@ async fn upload_small(
                 .json()
                 .await?;
         }
-        let receipt = status.receipt.unwrap();
+        let receipt = status
+            .receipt
+            .clone()
+            .context("completion receipt missing")?;
         owned.received(&receipt)?;
+        ensure!(
+            status.upload_id == session.upload_id
+                && status.state == veoveo_artifact_contract::ArtifactUploadState::Completed,
+            "completion changed upload identity or state"
+        );
         ensure!(
             receipt.upload_id == session.upload_id
                 && receipt.sha256 == sha
@@ -602,4 +690,26 @@ async fn upload_small(
             .context("public upload failed; owned cleanup also failed")?;
     }
     result
+}
+
+fn admit_unfinished(
+    original: &ArtifactUploadSession,
+    current: &ArtifactUploadSession,
+    part: &UploadPartReceipt,
+) -> Result<()> {
+    ensure!(
+        current.upload_id == original.upload_id
+            && current.created_at == original.created_at
+            && current.descriptor == original.descriptor
+            && current.layout == original.layout
+            && current.state == veoveo_artifact_contract::ArtifactUploadState::Open
+            && current.receipt.is_none()
+            && current.failure.is_none()
+            && current.accepted_bytes == part.byte_len
+            && current.accepted_part_count == 1
+            && current.parts.as_slice() == std::slice::from_ref(part)
+            && current.next_part_cursor.is_none(),
+        "unfinished upload identity, accepted part or state changed"
+    );
+    Ok(())
 }

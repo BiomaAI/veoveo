@@ -129,25 +129,42 @@ retained effect.
 
 `--service-recovery` additionally selects `artifactConsumer.serviceRecovery` and an
 isolated, stable fixture WorkContext. The case admits the Artifact service's
-namespace, Deployment, Pod and container before retaining a tiny write capability
-bound to a typed fixture `ArtifactTaskId` across one service replacement. This
-binding does not claim an executed or acknowledged Task. Issuance uses the internal
-signed-identity Artifact service API, separately from the Gateway's normal-OAuth
-upload API. It redeems the original request and
-replays its idempotency key, requiring the same occurrence, metadata and bytes.
-The public Artifact index probes the service after replacement. Artifact MCP
-documents alone cannot establish service readiness. Capability secrets stay in
-the child process; receipts record identities and expiry. The API provides no
-capability revoke or Artifact deletion operation, so the fixture uses short expiry
-and retention and records those retained effects for reconciliation. The scenario
-declares Kubernetes mutation because this explicitly selected mode restarts a
-service; its default consumer profile performs no restart.
-The installation must identify the service behind both its private SDK origin and
-the public Artifact index. The selected container is `artifact-service`. The
-synthetic delegated caller keeps empty clearance, so this profile admits only a
-WorkContext whose output policy has no inherited classification or labels. Public
-upload checks do not imply a public capability endpoint or interrupted-write
-recovery.
+namespace, Deployment, Pod and container. Before one service replacement, it
+retains a tiny write capability and acknowledges a separate 2,048-byte public
+upload with one accepted immutable part. The public session must remain Open
+without a completion receipt. Its full typed session and accepted-part receipt
+are retained by the upload cleanup owner and synced before restart intent.
+
+The existing fenced restart proves old-process exit and replacement readiness.
+The case then redeems the retained capability and replays its idempotency key,
+requiring one occurrence with unchanged metadata and bytes. Capability issuance
+uses the internal signed-identity API and binds a typed fixture `ArtifactTaskId`;
+that binding does not claim an executed Task or an acknowledged unfinished
+capability redemption. Capability secrets stay in the child process. Its receipts
+record identities and expiry. The API provides no capability revoke or Artifact
+deletion operation, so the fixture uses short expiry and retention.
+
+After capability checks, the normal-OAuth caller reads the original public upload
+session. Its ID, creation/expiry, descriptor, layout and accepted part must match
+the pre-replacement observation. The case repeats that accepted part, refuses
+changed bytes, completes the original session and replays completion with the
+same occurrence. An independent public download verifies the known bytes and
+digest. Normal-OAuth MCP metadata and index reads verify the occurrence,
+descriptor and WorkContext. Index traversal admits at most 256 pages of 100
+members and rejects repeated members or cursors. This is unfinished public
+multipart-session recovery, separately from retained unredeemed-capability
+authority. Neither check claims interruption during capability redemption.
+
+The public Artifact index probes the service after replacement; Artifact MCP
+documents alone cannot establish service readiness. The installation must identify
+the service behind both its private SDK origin and public index. The selected
+container is `artifact-service`. The synthetic delegated caller keeps empty
+clearance, so this profile admits only a WorkContext whose output policy has no
+inherited classification or labels. The scenario declares Kubernetes mutation
+because this explicitly selected mode restarts a service. Its default profile
+performs no restart. Unknown replacement or completion outcomes preserve the
+original upload identity and registered cleanup; they do not authorize a new
+session. Published occurrences remain stored and appear in the private journals.
 Recovery work has a 300-second local limit within the scenario's execution budget.
 The actual MCP client's consuming close future is registered before acquisition
 and retained across cancellation. The existing process-group owner drains the SDK
