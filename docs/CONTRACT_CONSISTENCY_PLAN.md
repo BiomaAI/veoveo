@@ -4,8 +4,8 @@ Status: The published 34-image closure and charts for `6431c30c6621` retain thei
 recorded qualification. GitOps is suspended during source work. Development image
 extraction triggered node disk pressure; all seventeen desired Deployments and both
 StatefulSets recovered by 02:42 UTC on October 10. Compiler checks and all twenty-seven
-focused native recovery/consumer controls pass. All seven stock-rollout images at
-`c5a2c6c3e` pass staging, attested qualification and node-side registry readback;
+focused native recovery/consumer controls pass. Twelve images at `c5a2c6c3e`,
+including all seven stock-rollout images, pass staging, attested qualification and node-side registry readback;
 deployed pins and reconciliation holds stay unchanged. Further image batches require
 separate disk-space admission. Speech's previously
 selected headed Workspace consumer passes with fixture audio;
@@ -220,7 +220,7 @@ rejecting duplicate targets and preserving every selected repository and runnabl
 digest. Strict compiler checks, five native controls and independent review pass.
 Unselected rows are not claimed as qualified. All seven stock-rollout targets now
 have their own accepted stage and qualified release evidence. The resource gate,
-complete thirty-target coverage for the final
+complete affected-image coverage for the final
 cut, catalog-reader replacement order and installed acceptance remain open.
 
 The first Computers/Gateway qualification rebuilt both images successfully but
@@ -243,6 +243,36 @@ after BFF qualification is 294,392,238,080 bytes. The preceding inactive Cargo-c
 cleanup recovers 28.58 GB by filesystem measurement and exceeds the assigned 24 GiB
 combined cap; the deletion manifest records that deviation. Deployed image pins
 stay unchanged. The final affected closure and installed qualification remain open.
+
+Artifact service, Artifact MCP, Media, Frames and Optimization MCP also pass staging
+and qualification at `c5a2c6c3e`. Their five runnable digests agree across both native
+commands, every qualified publication includes SBOM and provenance, and every
+node-side manifest/config read returns 200 with matching hashes. Four runtime
+package-install steps execute without cache during staging; one is cached.
+Qualification reuses those steps. Stage elapsed time is 199.90 seconds, including
+180.825 seconds in compilation. Free-space snapshots show 2.04 GB stage growth;
+these snapshots do not establish a peak. Available space after qualification is
+292,243,443,712 bytes. Deployed image pins are unchanged.
+
+The full source cut from `6431c30c6621` through `c5a2c6c3e` affects 34 tagged images:
+31 production images and three tool/fixture images. Twelve are qualified; 22 remain.
+The remaining set includes the stock Computer provider, whose earlier assembled
+artifact has stage evidence but no standalone attested release and node readback.
+The unchanged Charts, simulation-runtime and UAV-runtime production inputs may reuse
+their own accepted publication proof. Their source identity does not authorize
+relabeling an older artifact. The 30-Rust-target count and the historical 34-image
+production release describe different sets.
+
+| Remaining image family | Targets |
+|---|---|
+| Trixie Rust | `computer-storage`, `recording-forwarder`, `recording-hub`, `recording-mcp`, `timeseries-mcp`, `duckdb-mcp`, `mcp-stdio-bridge`, `mcp-legacy-bridge`, `mcp-conformance`, `agent-kernel`, `uav-sim-mcp` |
+| Bookworm Rust | `time-mcp`, `map-mcp` |
+| View CUDA | `view-mcp` |
+| GPU control runtimes | `reason-mcp`, `stream-mcp`, `speech-mcp` |
+| SUMO Rust | `sumo-mcp` |
+| Python runtimes | `datasheet-mcp`, `anonymous-simulation-mcp` |
+| Stock provider | `computer-provider` |
+| NVIDIA executor | `cuopt-executor` |
 
 The matching
 worker catalog section and client must stay unpublished until every
