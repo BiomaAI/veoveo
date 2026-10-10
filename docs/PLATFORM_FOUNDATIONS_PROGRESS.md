@@ -6,6 +6,47 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Manager Native Qualification And Final Source Closure — October 10, 2026
+
+The scope-admission repair is committed and pushed as `3820c0db5`. Manager's warm
+native build exits zero in 42.53 seconds, and its startup-loader regression runs
+one test and passes. Together with the fourteen runtime, authoring, catalog and
+Gateway controls, the source batch has fifteen passing controls. The continuation
+explicitly raises the iteration allowance from 24 to 28 GiB while preserving the
+original aggregate baseline and installation reserve. Its sampled minimum free
+space is 266,250,366,976 bytes. Postflight verifies the node and five core services
+healthy, with Cargo and linkers stopped.
+
+The existing clean publication checkout advances to `3820c0db5`. Native affected
+and planning commands select thirty Rust targets and cuOpt, for thirty-one images
+across five Rust families. Trixie and BFF source inputs change from the prepared
+`715796541` plan; the other three families and all cache identities agree. The
+selected Trixie family contains twenty-two images for one stage and qualification
+union. No final image build, publication or rollout has run.
+
+Operations retires two clean obsolete detached worktrees, seven unused local
+patched-provider experiment images and the completed Manager test executable.
+The current publication checkout, shared target libraries, useful build outputs,
+BuildKit caches, retained volumes and needed images are preserved. Concurrent
+compilation prevents attributing a filesystem delta to image deletion; the image
+removal report does not claim the estimated shared-layer recovery as measured bytes.
+The production acceptance CLI then rebuilds at `3820c0db5` in 32.02 seconds with
+Cargo exit zero. General and Manager help, missing-argument refusal and maintained
+dispatcher help pass. Its delivery receipt binds the executable and native libraries;
+no installed scenario runs. The reviewed third Manager fixture declares all five
+profile scopes, and the reviewed Time recovery and authority fixtures await fresh
+live bindings and final images. Time recovery requires an ancestor-runtime signal
+and observed container replacement; the ineffective in-container PID-one path is
+excluded.
+
+| Private record | SHA-256 |
+|---|---|
+| `/tmp/veoveo-profile-scopes-20261010/manager-native-final-receipt.json` | `43e5b45cc0fb8c061a02b045073414c9d01f5d4b86ae95e689bb3264b54116fe` |
+| `/tmp/veoveo-profile-scopes-20261010/production-cli-current-delivery-receipt.json` | `45535000aaef3020a068a6e4400e63516f77d2dafd2b53efe44e4935dae87da5` |
+| `/tmp/veoveo-final-release-3820c0db5/final-source-closure.json` | `4b12fd633bff106fc4f24c6b73e6cf06c2853a441e3e0ef5300a22a468bb22be` |
+| `/tmp/veoveo-worktree-retirement-20261010/postflight.json` | `f786a1fad68196035454b52caed39460c624330fd9cc97398e2894559ee83f87` |
+| `/tmp/veoveo-docker-experiment-image-review-20261010/compiler-feedback-batch-postflight.json` | `e912862c994b16a373293d0038e8e131d9d8dba5573aa531b557314ec0e27324` |
+
 ## Agent Manager Profile-Scope Admission — October 10, 2026
 
 The second maintained public OAuth journey runs once with the complete, reviewed

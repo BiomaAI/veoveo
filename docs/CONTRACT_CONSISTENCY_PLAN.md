@@ -28,9 +28,11 @@ Gateway, Agent Manager and Knowledge run compatible qualified images against the
 published full catalog. Manager is Ready with the reviewed immutable pilot template,
 qualified kernel and matching admission policies. Its installed fixture implements
 public OAuth authoring, prearmed SSE with current Ready checks and owned Stop/archive;
-review and five native controls pass. The installed journey failed because its
-temporary manifest omitted a required field. Archive, physical drain and restoration
-pass; the corrected full manifest passes kernel admission but has not run installed.
+review and five native controls pass. Two installed attempts exposed fixture
+configuration defects: an incomplete manifest, then insufficient profile scopes.
+Archive, physical drain and restoration pass. The shared scope-admission repair
+passes fourteen runtime/Gateway controls and the Manager loader control; the
+corrected five-scope installed journey remains open.
 Knowledge passes retained-index cold-start qualification;
 generation two and restricted caller policy remain open. Reconciliation
 holds stay set. Further image batches require
@@ -477,16 +479,16 @@ is a qualified fixture/tool image without a reference workload or lock entry.
 Rollout and installed acceptance remain open. The cohort's observed free-space
 samples do not establish peak growth.
 
-The prepared image plan selects committed source `715796541` from the existing clean
-publication checkout. The Manager profile-scope admission repair supersedes that
-source selection; refresh the plan after committing and qualifying the repair.
+The refreshed image plan selects committed source `3820c0db5` from the existing clean
+publication checkout and includes the qualified Manager profile-scope admission repair.
 The prepared dependency graph selects thirty Rust targets and retains
 the pending cuOpt executor, for thirty-one images. Planning passes; none of this
 final source's image builds, stage/release checks or registry publication has run.
-Earlier C5 and `6431c30c6621` receipts qualify their original inputs. Every selected
-Rust family's source digest differs from the compared earlier plan; stable cache
-identities permit reuse but do not qualify changed source. The
-[preparation checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#recovery-cli-and-final-image-preparation--october-10-2026)
+Earlier C5 and `6431c30c6621` receipts qualify their original inputs. Trixie and BFF
+source digests change from the prepared `715796541` plan; the other three Rust
+families preserve those prepared inputs. All five families still require their
+final-source qualification. Stable cache identities permit reuse. The
+[preparation checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#manager-native-qualification-and-final-source-closure--october-10-2026)
 records the source closure and planner outputs.
 
 The unchanged Charts, simulation-runtime and UAV-runtime production inputs retain
@@ -525,8 +527,9 @@ facts discarded each profile's required scopes. The source repair preserves thos
 typed requirements and rejects incomplete templates in Gateway and Manager without
 adding grants. Contract-only and combined consumer compiler checks, strict lint and
 independent review pass. All fourteen native authoring, catalog and Gateway loader
-controls pass after correcting a pre-existing digest golden. Manager's native loader
-control and installed qualification remain open.
+controls pass after correcting a pre-existing digest golden. A separate warm build
+exits zero and the Manager native loader control passes, bringing this source batch
+to fifteen passing controls. Installed qualification remains open.
 Independent reads verify the second instance is archived at generation three, its
 operation claim is cleared, no admissions, live runtime leases or episodes remain,
 and its owned Kubernetes workload is gone. One runtime row and the original Bound
