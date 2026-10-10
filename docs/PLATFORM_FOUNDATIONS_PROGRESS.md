@@ -6,6 +6,34 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Knowledge And Time Repair Rollout — October 10, 2026
+
+Both images at `6653288ba` pass staging, attested release qualification and
+node-network manifest/config readback. Knowledge rolls first, followed by Time,
+with each old Pod drained before its replacement starts. Both selected Pods pass
+health/readiness HTTP 200 and thirty seconds of stability with zero restarts.
+Knowledge briefly returns readiness 503 while indexing the changed Time source,
+then becomes Ready on the same container without intervention. Old Time Pod absence
+is recorded; no retained exit code establishes successful process termination.
+
+The normal OAuth operator reads Time's updated design and Knowledge's source and
+collection resources, then searches `time.docs`. The collection reports two members
+and ninety chunks. These targeted calls pass. The broader knowledge-source helper
+reports incomplete resource-template discovery; that diagnostic does not invalidate
+the targeted observations or qualify the broader helper. Its cause requires separate
+request/backend evidence.
+
+The final fleet has seventeen enabled Deployments Ready, eight disabled Deployments
+and two Ready StatefulSets. All three reconciliation holds stay suspended. Image
+operation growth peaks at 879,869,952 bytes against the admitted 8 GiB cap, with a
+minimum 291,990,138,880 free bytes. The original baseline is 292,870,008,832 bytes;
+subsequent native validation has its own admitted operation. Private final receipt:
+`/tmp/veoveo-k-time-665-pair-20261010/final-receipt.json`, SHA-256
+`0ff1502de295966e914762ce424da18bc133b0973bb8024642f3bd1cba324767`.
+Fixed-image Time cancellation and unfinished recovery remain unqualified. The
+separate completed-state cross-replica fixture requires its compiler, native and
+logic-review gates before installed execution.
+
 ## Knowledge Source Admission Checkpoint — October 10, 2026
 
 The Time image at `2314d96a5` passes stage/release runtime digest agreement,

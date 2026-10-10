@@ -8,6 +8,10 @@ focused native recovery/consumer controls pass. Twenty-seven images at `c5a2c6c3
 including all seven stock-rollout images, pass staging, attested qualification and node-side registry readback.
 The current source closure requires thirty Rust targets and the pending cuOpt image;
 those earlier receipts do not qualify the new inputs.
+The Knowledge and Time repair at `6653288ba` is published and deployed. Both Pods
+pass probes and thirty seconds of stability without a restart. Normal OAuth reads
+and Knowledge search reach the updated Time documents. Time cancellation, unfinished
+recovery and the separate completed-state cross-replica check remain unqualified.
 Gateway, Agent Manager and Knowledge run compatible qualified images against the
 published full catalog. Manager is Ready with the reviewed immutable pilot template,
 qualified kernel and matching admission policies; its full installed instance journey
@@ -163,17 +167,20 @@ async responsiveness, original-job joining, Task settlement and engine behavior.
 Fixed-image installed cancellation and recovery remain unqualified; attributing the
 observed cancellation refusal requires the selected process measurements and logs.
 
-The corrected Time image passes stage/release digest agreement, attestation and
-node-network readback, and its Pod reaches Ready with both probes returning 200.
-That rollout exposed Knowledge's repeated 64 KiB source-member limit: the served
-Time design contains 71,502 bytes. Knowledge resumed readiness after the original
-Time image was restored without a manual Knowledge restart. The Knowledge repair
-declares one 256 KiB source-member limit shared by resource reads, source admission,
-chunking and indexed-member admission. It preserves whole-text digests, 256 chunks
-per member and the embedding text/batch limits. Compiler, strict lint, logic
-review and three focused native controls pass. The repaired installed image pair
-remains required. Time currently uses the original image, so the corrected image's Task
-cancellation and recovery checks have not run.
+Knowledge uses one 256 KiB source-member limit across resource reads, source
+admission, chunking and indexed-member admission. Whole-text digests, 256 chunks
+per member and embedding text/batch limits stay enforced. Compiler, strict lint,
+logic review and three focused native controls pass. The Knowledge and Time images
+at `6653288ba` pass stage/release digest agreement, attestation and node-network
+readback. Their coordinated rollout, direct probes and thirty-second stability
+checks pass without a restart. Normal OAuth reads verify Time documents and the
+Knowledge source/collection; scoped search reaches the indexed `time.docs` members.
+All seventeen enabled Deployments and both StatefulSets are Ready; the three
+reconciliation holds stay set. A broader source helper reports incomplete resource
+template discovery and is recorded separately from these targeted passes. Time's
+corrected-image cancellation and unfinished recovery have not run. The completed-state
+cross-replica fixture is undergoing source review and does not qualify unfinished
+recovery or delivery after a mutation.
 
 The added Speech resource and Stream/Reason public-caller cases pass compiler,
 strict lint, formatting, documentation and independent source review. Their seventeen
