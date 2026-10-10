@@ -6,6 +6,34 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Time Handoff Guard Interruption — October 10, 2026
+
+Time11 fails after 18.007 seconds when a parent-authorized metadata Cargo check
+runs alongside the installed acceptance guard, which forbids any Cargo process.
+The supervisor stops the native run at `restore_original_intent`. This is a parent
+coordination error, not an established Time or host regression. Original baseline,
+B readiness, B-only handoff, the watch barrier and original A process exit zero
+are observed. These partial facts do not qualify completed-state cross-replica
+acceptance; the native outcome is failed and restoration is unresolved.
+
+All four caller/listener handles and native watches close, and every owned process
+is terminal. Operations separately verifies original A one-of-one Ready, its sole
+Service endpoint and the exact B Deployment, ReplicaSets and Pods absent. All five
+core services are Ready; the node is Ready without disk, memory or PID pressure.
+The temporary token file is removed. Physical reconciliation does not convert the
+aborted native run into a pass. Unfinished recovery, installed authority
+qualification and final-image gates also stay open. Time10's earlier domain and
+routing assertions keep their recorded scope below.
+
+Receipts under `/tmp/veoveo-time-handoff-attempt11-prep-20261010` bind this outcome:
+
+| File | SHA-256 |
+|---|---|
+| `terminal-receipt.json` | `b65ef31f23af4d33d3b77fcef09035db96c0ea2bc425f5b2f8507996787c24c3` |
+| `reconcile-postflight.json` | `b4f76642700eb9b07433b6606cf231f12fa3f7b86faad5d0ed9f97dd33d7ca43` |
+| `terminal-resource-addendum.json` | `1679032bd955def8f34142c19a1d144790e7c50ef792bdf2602a56eba9978358` |
+| `dispatcher-result.json` | `cf85e9085a4de4f803ee094d5297d7bff76510b7b6e3eafe6d974a4cf437841f` |
+
 ## Time Handoff Authentication And Restoration — October 10, 2026
 
 Time9 fails during ordinary SDK connection initialization, before the original

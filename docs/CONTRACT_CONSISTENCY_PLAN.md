@@ -18,13 +18,16 @@ scenario pass. Retained capability redemption and idempotent replay also pass
 across one fenced Artifact service replacement. Interrupted-write recovery and
 final-image qualification remain open.
 The completed-state cross-replica fixture passes source qualification and review.
-Time9 fails before Task access because its token omits operator-profile required
-scopes; the corrected preparation derives the union of the full profile and Time
-read/schedule scopes. Time10 passes completed Task/result/authority checks through
-B-only routing, the watch barrier and original process exit zero. Overall acceptance
-fails because Operations restores the selector after native cleanup expires. All
-SDK handles and watches close; Operations subsequently restores A-only routing and
-verifies B absent. Completed-state handoff acceptance remains open.
+Time10 passes completed Task/result/authority checks through B-only routing, the
+watch barrier and original process exit zero, but fails late selector restoration.
+Time11 is aborted after 18 seconds because a parent-authorized metadata Cargo
+check overlaps the acceptance guard's prohibition on any Cargo process. This is
+coordination error, not an established product regression. Its original baseline,
+B readiness, B-only handoff, watch barrier and original process exit zero are
+observed; it stops at original-restoration intent. Owned processes and SDK/watch
+handles close. Separate physical reconciliation restores A Ready with its sole
+route and verifies B Deployment, ReplicaSets and Pods absent. Completed-state
+handoff acceptance remains open.
 Gateway, Agent Manager and Knowledge run compatible qualified images against the
 published full catalog. Manager is Ready with the reviewed immutable pilot template,
 qualified kernel and matching admission policies; its full installed instance journey
@@ -146,7 +149,7 @@ Earlier installed checkpoints keep their recorded scope below.
 
 | Owner | Prepared installed checks | Remaining qualification |
 |---|---|---|
-| Time | Read consumers and explicit complete/cancel/recover schedule fixtures; completion and cancellation pass; completed Task/result/authority checks pass through B-only routing and the watch barrier, but the overall handoff fails late selector restoration | Unfinished process recovery, completed-state cross-replica acceptance with timely restoration, authority activation and final images |
+| Time | Read consumers and explicit complete/cancel/recover schedule fixtures; completion and cancellation pass; Time10 passes completed Task/result/authority and B-only checks but fails restoration; Time11 is aborted by overlapping Cargo after handoff/barrier observations, with separate physical restoration verified | Unfinished process recovery, completed-state cross-replica acceptance with completed native restoration, authority activation and final images |
 | Artifact | Focused normal-OAuth uploads with independent public byte/digest checks, delegated SDK reads and a separately selected retained Task-bound write capability across one service replacement; source/native controls and review pass at `dd7958d26` | Interrupted-write recovery and final images |
 | Timeseries | Four-row forecast, RRD Artifact and usage; typed cancellation, connection replacement and process-crash fixtures with original Task/result agreement | Installed unfinished process recovery, selected cross-replica routing and final images |
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
@@ -247,10 +250,17 @@ original process exit zero. It reaches selector-restoration intent, but Operatio
 applies the selector restore after native cleanup expires. Overall acceptance
 fails with restoration unresolved even though all four SDK handles and watches
 close. Operations later verifies A Ready with its original sole route and B Pods
-absent. No host or product regression is established by these failures. The
-[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#time-handoff-authentication-and-restoration--october-10-2026)
-binds the terminal receipts. Completed-state handoff, unfinished recovery and
-installed authority qualification remain separate open gates.
+absent. Time11 then reaches original baseline, B readiness, B-only handoff,
+the watch barrier and original process exit zero. At original-restoration intent,
+the supervisor aborts the run after 18 seconds because a parent-authorized metadata
+Cargo check violates the guard's prohibition on any Cargo process. This is a
+coordination error; the failed run establishes no product regression. SDK handles,
+watches and owned processes close. Separate reconciliation verifies A one-of-one
+Ready, the original sole Service endpoint and B Deployment, ReplicaSets and Pods
+absent; all five core services are Ready and the node has no pressure conditions.
+The [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#time-handoff-guard-interruption--october-10-2026)
+binds the terminal receipts. Completed-state handoff, unfinished recovery,
+installed authority qualification and final-image gates remain open.
 
 Gateway-routed Knowledge source checks now admit each templates/tools page against
 the selected typed server. Unrelated server failures are retained as limited K01
