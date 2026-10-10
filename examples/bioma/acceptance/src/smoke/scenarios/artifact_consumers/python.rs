@@ -150,7 +150,7 @@ async fn fixture_issuer(installation: &InstalledTarget) -> Result<GatewayInterna
         .kill_on_drop(true);
     let result = veoveo_testing_support::output_async(command, Duration::from_secs(45))
         .await
-        .context("reading installed conformance signing material timed out")?;
+        .context("reading installed conformance signing material")?;
     ensure!(
         result.status.success(),
         "could not read installed conformance signing material"
