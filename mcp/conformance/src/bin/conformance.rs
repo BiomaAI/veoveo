@@ -1,4 +1,4 @@
-//! Domain-neutral MCP conformance. Credentials enter as an out-of-band bearer.
+//! Domain-neutral MCP conformance and separate public-client OAuth login.
 use anyhow::Result;
 use anyhow::anyhow;
 use clap::Parser;
@@ -26,6 +26,8 @@ mod cli;
 mod client;
 #[path = "conformance/mcp_commands.rs"]
 mod mcp_commands;
+#[path = "conformance/oauth_login.rs"]
+mod oauth_login;
 #[path = "conformance/source_checks.rs"]
 mod source_checks;
 use cli::Args;
@@ -37,6 +39,11 @@ use mcp_commands::*;
 async fn main() -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let args = Args::parse();
+    if let Cmd::OAuthLogin(login) = &args.cmd {
+        return oauth_login::run(login)
+            .await
+            .map_err(|_| anyhow!("OAuth login failed"));
+    }
     let endpoint = args.url.clone();
     let bearer = bearer_token_from_args(&args)?;
     let result = execute(args).await;
@@ -146,7 +153,8 @@ async fn execute(args: Args) -> Result<()> {
             argument,
             prefix,
         } => cmd_complete_resource(&client, uri, argument, prefix).await,
-        Cmd::KnowledgeSource(_)
+        Cmd::OAuthLogin(_)
+        | Cmd::KnowledgeSource(_)
         | Cmd::Certify { .. }
         | Cmd::Schemas { .. }
         | Cmd::AuthDiscovery { .. } => unreachable!("handled before MCP connection"),

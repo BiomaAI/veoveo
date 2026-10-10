@@ -17,6 +17,8 @@ pub(super) struct Args {
 }
 #[derive(Subcommand)]
 pub(super) enum Cmd {
+    /// Obtain an ordinary public-client OAuth token through browser PKCE.
+    OAuthLogin(super::oauth_login::LoginArgs),
     KnowledgeSource(super::source_checks::SourceChecks),
     Certify {
         /// JSON conformance profile.

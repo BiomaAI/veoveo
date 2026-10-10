@@ -12932,6 +12932,7 @@ dependencies = [
  "http-body",
  "http-body-util",
  "indexmap 2.14.0",
+ "oauth2",
  "pastey 0.2.3",
  "pin-project-lite",
  "process-wrap",
@@ -12948,6 +12949,7 @@ dependencies = [
  "tokio-util",
  "tower-service",
  "tracing",
+ "url",
  "uuid",
 ]
 
@@ -17278,12 +17280,14 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "axum-server",
  "base64 0.23.1",
  "chrono",
  "clap",
  "hex",
  "jsonschema",
  "jsonwebtoken 11.0.0",
+ "oauth2",
  "rcgen",
  "reqwest 0.13.5",
  "rmcp",
@@ -17293,6 +17297,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "tokio",
+ "tracing",
  "tracing-subscriber",
  "url",
  "uuid",

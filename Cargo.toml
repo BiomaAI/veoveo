@@ -185,6 +185,7 @@ re_uri = "=0.38.1"
 re_build_info = "=0.38.1"
 # Stable RMCP 3.5.0 plus exact Task filters and typed HTTP rejections.
 # Qualification and patch retirement: platform/gateway/DESIGN.md#sdk-transport-profile
+oauth2 = { version = "=5.0.0", default-features = false }
 rmcp = { version = "=3.5.0", git = "https://github.com/rozgo/rust-sdk", rev = "917e7914c93975fc1eddbff8792f1e2de933bc17" }
 rstar = "0.13.0"
 rustls = { version = "0.23.43", default-features = false, features = ["ring", "std", "tls12"] }

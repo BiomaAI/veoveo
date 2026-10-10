@@ -170,7 +170,7 @@ export VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE=/private/bioma/operator-service.pe
 export VEOVEO_SERVICE_CLIENT_KEY_ID=bioma-operator-service-20260911
 ```
 
-Use `conformance gateway-token-exchange` with the installation HTTPS token endpoint,
+Use `gateway-smoke-support gateway-token-exchange` with the installation HTTPS token endpoint,
 the `operator-service` client and its admitted resource/scopes. Administrator acceptance
 uses its distinct private file and `bioma-admin-service-20260911` key ID. Existing caller
 credentials must be provisioned by the installation owner; copying this public example
@@ -1068,7 +1068,7 @@ checks, and no object-storage address in metadata or response headers.
 
 After Knowledge finishes indexing, verify its catalog and retrieval through the
 public gateway. Obtain an operator token with the installation target's requested
-scopes using `conformance gateway-token-exchange`, and redirect it into a private
+scopes using `gateway-smoke-support gateway-token-exchange`, and redirect it into a private
 mode-0600 file. The embedding workload must be running on its allocated NVIDIA GPU.
 
 ~~~bash
@@ -1100,14 +1100,27 @@ full catalog through the maintained configuration path before running this case;
 keep that catalog and caller policy unchanged throughout the test. Normal operator
 and indexing profiles keep their existing access.
 
-Obtain a token through the existing Veoveo browser authorization-code flow with
-S256 PKCE, client `knowledge-acceptance-public`, resource
-`https://veoveo.bioma.ai/mcp/knowledge-acceptance`, scopes `operator:use knowledge:read time:read`
-and Work Context `operations`. Use a registered callback such as
-`http://127.0.0.1:8789/oauth/callback`, then exchange the returned code at the issuer's
-token endpoint with the original verifier. Store the access token in a private
-mode-0600 file. This public client uses no client secret or signing-key assertion.
+Use the maintained public-client login command with the registered loopback
+callback. Create the private parent directory first; the command creates new
+mode-0600 files and waits for browser authorization. Open the URL file locally and complete the browser flow before its deadline. The
+registered client supplies its default Work Context `operations`.
 The selected sources and qualified hardware embedding runtime must already be ready.
+
+~~~bash
+cargo run --locked -p veoveo-mcp-conformance --bin conformance -- oauth-login \
+  --issuer https://veoveo.bioma.ai/oauth \
+  --client-id knowledge-acceptance-public \
+  --resource https://veoveo.bioma.ai/mcp/knowledge-acceptance \
+  --redirect-uri http://127.0.0.1:8789/oauth/callback \
+  --scope operator:use --scope knowledge:read --scope time:read \
+  --authorization-url-file /private/installation/knowledge/authorization-url \
+  --token-file /private/installation/knowledge/restricted-token \
+  --timeout-seconds 180
+~~~
+
+This public client uses no client secret or signing-key assertion. Supply the new
+token file as the policy fixture's `tokenFile`; delete the private authorization URL
+and token after the check.
 
 Create a private JSON fixture with absolute `controlPlane`, `tokenFile` and new
 `output` paths, `profile: "knowledge-acceptance"`, independent `expected` sets

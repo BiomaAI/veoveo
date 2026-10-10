@@ -9,7 +9,9 @@
 | Owner-generated JSON Schema Draft7 | guarded local definitions/ref and legacy dependencies/tuple subset; published MCP schemas retain their normative 2020-12 obligation |
 | JSON Schema 2020-12 | bounded tool input schemas with same-document references and composition, plus generated profile/report schemas |
 | OAuth 2.0 protected-resource metadata | unauthenticated Bearer rejection checks selected by the profile |
-| OAuth 2.0 client credentials / RFC 7523 | RS256 private-key client assertions with explicit installation key identity; redirects are rejected |
+| OAuth 2.0 authorization code / RFC 7636 | separate public-client CLI login with S256 PKCE and an installation-registered client |
+| RFC 8414 / RFC 8707 | SDK authorization-server discovery and explicit resource indication; requested and granted scopes must match |
+| RFC 8252 | numeric loopback HTTP redirect on an explicit port; remote issuer and resource require HTTPS |
 | `veoveo.ai/mcp-conformance-profile/v2` | domain-neutral declaration of applicable hosted-server checks |
 | `veoveo.ai/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
 | `veoveo.ai/hosted-mcp/v4` | Veoveo hosted-server contract revision for MCP `2026-07-28` |
@@ -276,27 +278,39 @@ it does not synthesize document URLs from parsed identifiers.
 
 ## CLI Output
 
-`gateway-token-exchange` accepts `--client-key-file` and `--client-key-id`, also
-read from `VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE` and `VEOVEO_SERVICE_CLIENT_KEY_ID`.
-The RSA PEM file remains outside repository artifacts and must have owner-only
-permissions on Unix. Remote endpoints require HTTPS and an explicit key. The public
-conformance key is confined to loopback token endpoints. Installations use distinct
-client keys and register their public JWKS through their own configuration.
-Token exchanges have a thirty-second deadline and never follow redirects.
+`oauth-login` obtains a token for an installation-registered public client through
+browser authorization and S256 PKCE. It runs before MCP connection and does not
+require an existing bearer. The issuer, client, resource, registered loopback redirect
+and requested scopes are explicit inputs. The SDK owns OAuth discovery and exchange;
+the CLI owns callback lifetime and private-file output. Callback shutdown closes
+the listener and accepted connections within the original login deadline, reserving
+its last two seconds for cleanup.
+Dropping the login signals the same server handle to close its accepted connections.
+Authorization URLs and tokens
+are written only to new owner-private files. Operators open the authorization URL
+locally without copying it into reports. The 30–900-second login deadline covers discovery, authorization, exchange and
+cleanup.
+Success prints only granted scopes, expiry and private-file paths; failures print a
+closed phase and status without SDK error details. SDK tracing is suppressed during
+the OAuth flow because authorization codes and token responses are private. Typed
+OAuth getters admit bearer type, expiry and scope before the access-token secret is
+exposed for its final private-file write; the complete token model is never serialized.
+The library,
+`certify` and ordinary MCP commands continue to receive credentials out of band.
+
+Machine-client `gateway-token-exchange` belongs to
+[`gateway-smoke-support`](../../platform/gateway/composition/src/smoke/utility/cli.rs).
+Its installation-owned signing input and client registration are separate from this
+public-client login.
 
 Each CLI command reserves standard output for its requested result. Structured resources
 therefore remain parseable even when the server emits notifications while the command is
 running. Unsolicited progress, task-status, resource-update, and list-change notifications
 are operator diagnostics on standard error.
-The generation CLI drains request-scoped notifications through the SDK's subscription
-handle while waiting for the next Task read. A stream error or premature end fails the
-command; it does not submit another Task.
-
-Media generation completion uses the server library's checked result contract. The
-CLI compares structured completion metadata with the canonical result resource and
-downloads its typed Artifact addresses. Gateway Task handles stay opaque; Media's
-result supplies the native Task identity. The CLI requires the current result profile
-specified by the [Media design](../../servers/media-mcp/DESIGN.md#catalog-and-result-contracts).
+The Gateway's `gateway-smoke-support` utility owns Media generation and its
+request-scoped Task notification drain. It checks the owner result contract and
+Artifact downloads described in the
+[Media design](../../servers/media-mcp/DESIGN.md#catalog-and-result-contracts).
 
 ## Distribution
 
