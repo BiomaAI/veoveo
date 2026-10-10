@@ -86,6 +86,13 @@ Changed titles require a full read and new embeddings.
 Conditional validation failures name the collection and differing field in service
 logs; source contents, access values and external URLs are excluded.
 
+The reader, source document constructor, chunker and indexed-member admission share
+the Knowledge contract's `MAX_SOURCE_MEMBER_BYTES` limit of 256 KiB for complete
+UTF-8 members. Reads still require one URI-matching text item and its exact digest.
+Oversized members fail whole. Each member admits at most 256 chunks; embedding
+text and batch limits apply independently. This source bound requires no stored
+wire migration and preserves the chunker output of already admitted input.
+
 The indexer accepts only the installed `structure-v1` chunker version.
 The chunker preserves source-byte ranges and starts sections at Markdown headings or
 top-level JSON fields. It caps both Unicode characters and embedding input bytes, and

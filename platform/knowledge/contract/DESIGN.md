@@ -57,8 +57,11 @@ checks its size, vector space and the selected qualified runtime/producer relati
 that constructor. `IndexedMember::new` admits a complete source
 observation, verifies its content digest and collection/tenant relationships, and
 checks every chunk against the source and generation. It accepts at most 256 chunks
-from a 64 KiB source item, all from one producer profile. Its retained generation fingerprint prevents attaching an
+from a source item of at most 256 KiB (`MAX_SOURCE_MEMBER_BYTES`), all from one producer profile. Its retained generation fingerprint prevents attaching an
 admitted member to a read ticket for another embedding space or chunker configuration.
+The byte bound applies to complete UTF-8 source text before chunking. Oversized
+members fail whole; no text is truncated. The bound does not change persisted
+records, generation fingerprints or chunker output for already admitted input.
 This constructor accepts `content` indexing. `IndexedMember::metadata` checks the same
 source digest and admits chunks only from `metadata_text`: title, collection, revision,
 modification time and external system/native identity. Source bodies and navigation URLs

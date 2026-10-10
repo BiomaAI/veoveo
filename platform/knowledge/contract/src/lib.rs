@@ -1,4 +1,8 @@
 //! Knowledge catalog and index contracts shared by persistence and service adapters.
+/// Maximum UTF-8 bytes in one complete source member admitted for indexing.
+/// Chunk and embedding limits apply independently; oversized members fail whole.
+pub const MAX_SOURCE_MEMBER_BYTES: usize = 256 * 1024;
+
 mod approval;
 pub use approval::{KnowledgeCollectionApproval, KnowledgeIndexingRegistration, KnowledgeSubject};
 mod evaluation;

@@ -163,6 +163,18 @@ async responsiveness, original-job joining, Task settlement and engine behavior.
 Fixed-image installed cancellation and recovery remain unqualified; attributing the
 observed cancellation refusal requires the selected process measurements and logs.
 
+The corrected Time image passes stage/release digest agreement, attestation and
+node-network readback, and its Pod reaches Ready with both probes returning 200.
+That rollout exposed Knowledge's repeated 64 KiB source-member limit: the served
+Time design contains 71,502 bytes. Knowledge resumed readiness after the original
+Time image was restored without a manual Knowledge restart. The Knowledge repair
+declares one 256 KiB source-member limit shared by resource reads, source admission,
+chunking and indexed-member admission. It preserves whole-text digests, 256 chunks
+per member and the embedding text/batch limits. Compiler, strict lint, logic
+review and three focused native controls pass. The repaired installed image pair
+remains required. Time currently uses the original image, so the corrected image's Task
+cancellation and recovery checks have not run.
+
 The added Speech resource and Stream/Reason public-caller cases pass compiler,
 strict lint, formatting, documentation and independent source review. Their seventeen
 focused native controls pass within the twenty-seven-control batch; installed execution is held.
@@ -217,6 +229,10 @@ The case exits successfully after closing its observers and port-forwards, and
 Knowledge stays at one Ready replica. First-ever index construction remains
 unqualified. An isolated eight-lane first-empty configuration is prepared only;
 its installation, empty-state proof and startup have not been admitted or executed.
+The read-only empty-state inventory passes SurrealDB 3.3 syntax validation and
+independent review. It checks all eleven Knowledge tables, eight static indexes
+and the absence of dynamic chunk tables; actual execution still requires the
+isolated database, complete read authority and stopped-writer/no-restore proof.
 Generation-two publication, Host activation and the restricted
 caller-policy case still require their separately selected checks.
 

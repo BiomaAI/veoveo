@@ -101,7 +101,11 @@ impl KnowledgeSource for GatewaySource {
             })?;
             return Ok(SourceRead::NotModified(observation));
         }
-        let text = text(&result, &uri, 64 * 1024)?;
+        let text = text(
+            &result,
+            &uri,
+            veoveo_knowledge_contract::MAX_SOURCE_MEMBER_BYTES,
+        )?;
         Ok(SourceRead::Modified(SourceDocument::new(
             text.to_owned(),
             observation,

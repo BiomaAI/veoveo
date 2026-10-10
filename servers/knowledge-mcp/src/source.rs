@@ -97,7 +97,7 @@ pub struct SourceDocument {
 }
 impl SourceDocument {
     pub fn new(text: String, observation: Observation) -> Result<Self, KnowledgeError> {
-        if text.len() > 64 * 1024
+        if text.len() > veoveo_knowledge_contract::MAX_SOURCE_MEMBER_BYTES
             || observation.not_modified()
             || content_digest(&text) != *observation.content_sha256()
         {

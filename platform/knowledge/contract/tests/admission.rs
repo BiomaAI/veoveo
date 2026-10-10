@@ -174,6 +174,59 @@ fn metadata_constructor_rejects_body_chunks_and_mismatched_mode() {
         )
         .is_ok()
     );
+
+    // Full content admission uses the same byte bound as the source reader.
+    let mut content_registration = registration.clone();
+    content_registration.descriptor = CollectionDescriptor::new(
+        registration.descriptor.collection().clone(),
+        "record".parse().unwrap(),
+        ResourceTemplateUri::new("fixture://records{?cursor}").unwrap(),
+        Freshness::immutable(),
+        ChangeSignal::Immutable,
+        AccessModel::Profile,
+        IndexingMode::Content,
+    )
+    .unwrap();
+    let content_spec = GenerationSpec::new(
+        space.clone(),
+        "Find passages",
+        ChunkSettings::new("structure-v1", 1000, 0).unwrap(),
+        [(
+            content_registration.descriptor.collection().clone(),
+            content_registration.revision(),
+        )]
+        .into(),
+    )
+    .unwrap();
+    for length in [MAX_SOURCE_MEMBER_BYTES, MAX_SOURCE_MEMBER_BYTES + 1] {
+        let text = "x".repeat(length);
+        let observation = Observation::builder(
+            content_registration.descriptor.collection().clone(),
+            "1".parse().unwrap(),
+            content_digest(&text),
+            observed,
+        )
+        .build(&content_registration.descriptor)
+        .unwrap();
+        let chunk = IndexedChunk::from_range(
+            &text,
+            0..1000,
+            vector(),
+            &content_spec,
+            &embedding_fixture::runtime(space.clone()),
+        )
+        .unwrap();
+        let result = IndexedMember::new(
+            &content_registration,
+            &content_spec,
+            ResourceUri::new("fixture://records/boundary").unwrap(),
+            observation,
+            &text,
+            MemberTitle::new("Boundary").unwrap(),
+            vec![chunk],
+        );
+        assert_eq!(result.is_ok(), length == MAX_SOURCE_MEMBER_BYTES);
+    }
 }
 
 #[test]

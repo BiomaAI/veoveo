@@ -302,3 +302,130 @@ async fn incomplete_ambiguous_and_foreign_source_catalogs_fail_closed() {
     .await
     .expect("source discovery refusal exceeded 30 seconds");
 }
+
+#[derive(Clone, Copy)]
+enum MemberMode {
+    TimeDesign,
+    Boundary,
+    Oversized,
+    WrongUri,
+    Duplicate,
+    WrongDigest,
+}
+#[derive(Clone)]
+struct MemberGateway(Arc<Mutex<MemberMode>>);
+impl ServerHandler for MemberGateway {
+    fn get_info(&self) -> ServerConfig {
+        let mut capabilities = ServerCapabilities::builder().enable_resources().build();
+        knowledge::server::declare(&mut capabilities);
+        ServerConfig::new(capabilities)
+    }
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResponse, ErrorData> {
+        let mode = *self.0.lock().unwrap();
+        let text = match mode {
+            MemberMode::TimeDesign => include_str!("../../time-mcp/DESIGN.md").to_owned(),
+            MemberMode::Oversized => {
+                "x".repeat(veoveo_knowledge_contract::MAX_SOURCE_MEMBER_BYTES + 1)
+            }
+            _ => "x".repeat(veoveo_knowledge_contract::MAX_SOURCE_MEMBER_BYTES),
+        };
+        let observation = Observation::builder(
+            descriptor().collection().clone(),
+            "1".parse().unwrap(),
+            content_digest(&text),
+            "2026-10-10T00:00:00Z".parse().unwrap(),
+        )
+        .build(&descriptor())
+        .unwrap();
+        let mut result = knowledge::server::member_result(
+            &ResourceUri::new(&request.uri).unwrap(),
+            "text/markdown",
+            text,
+            observation,
+            &descriptor(),
+            Some(&context.meta),
+        )
+        .unwrap();
+        match mode {
+            MemberMode::WrongUri => {
+                if let ResourceContents::TextResourceContents { uri, .. } = &mut result.contents[0]
+                {
+                    *uri = "fixture://records/foreign".into();
+                }
+            }
+            MemberMode::Duplicate => result.contents.push(result.contents[0].clone()),
+            MemberMode::WrongDigest => {
+                if let ResourceContents::TextResourceContents { text, .. } = &mut result.contents[0]
+                {
+                    text.replace_range(..1, "y");
+                }
+            }
+            _ => (),
+        }
+        Ok(result.into())
+    }
+}
+
+#[tokio::test]
+async fn source_member_bound_admits_full_time_design_and_rejects_invalid_reads() {
+    use veoveo_knowledge_mcp::source::{KnowledgeSource, SourceRead};
+    tokio::time::timeout(Duration::from_secs(30), async {
+        let mode = Arc::new(Mutex::new(MemberMode::TimeDesign));
+        let (server_io, client_io) = tokio::io::duplex(64 * 1024);
+        let handler = MemberGateway(mode.clone());
+        let serving = tokio::spawn(async move { handler.serve(server_io).await.unwrap() });
+        let client = ()
+            .serve_with_lifecycle(
+                client_io,
+                rmcp::ClientLifecycleMode::Discover {
+                    preferred_versions: vec![ProtocolVersion::V_2026_07_28],
+                },
+            )
+            .await
+            .unwrap();
+        let server = serving.await.unwrap();
+        let source = GatewaySource::from_authenticated_peer(client.peer().clone());
+        let uri = ResourceUri::new("fixture://records/one").unwrap();
+        let SourceRead::Modified(document) =
+            source.read(&descriptor(), uri.clone(), None).await.unwrap()
+        else {
+            panic!("full read must return source bytes");
+        };
+        assert_eq!(document.text(), include_str!("../../time-mcp/DESIGN.md"));
+        assert!(document.text().len() > 64 * 1024);
+        let ranges = veoveo_knowledge_mcp::chunk::ranges(
+            document.text(),
+            &veoveo_knowledge_contract::ChunkSettings::new("structure-v1", 1500, 150).unwrap(),
+        )
+        .unwrap();
+        assert!(!ranges.is_empty() && ranges.len() <= 256);
+        assert_eq!(ranges.last().unwrap().end, document.text().len());
+        *mode.lock().unwrap() = MemberMode::Boundary;
+        let SourceRead::Modified(document) =
+            source.read(&descriptor(), uri.clone(), None).await.unwrap()
+        else {
+            panic!("full read required")
+        };
+        assert_eq!(
+            document.text().len(),
+            veoveo_knowledge_contract::MAX_SOURCE_MEMBER_BYTES
+        );
+        for invalid in [
+            MemberMode::Oversized,
+            MemberMode::WrongUri,
+            MemberMode::Duplicate,
+            MemberMode::WrongDigest,
+        ] {
+            *mode.lock().unwrap() = invalid;
+            assert!(source.read(&descriptor(), uri.clone(), None).await.is_err());
+        }
+        client.cancel().await.unwrap();
+        server.cancel().await.unwrap();
+    })
+    .await
+    .expect("member read control exceeded 30 seconds");
+}

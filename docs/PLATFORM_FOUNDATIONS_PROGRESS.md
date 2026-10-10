@@ -6,6 +6,40 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Knowledge Source Admission Checkpoint — October 10, 2026
+
+The Time image at `2314d96a5` passes stage/release runtime digest agreement,
+SBOM/provenance verification and node-network manifest/config readback. Its selected
+Pod reaches Ready with health and readiness HTTP 200. The old Pod disappears
+0.25 seconds after the drain patch, inside its thirty-second grace; no retained
+container exit code or shutdown log proves a successful process exit.
+
+The rollout exposes Knowledge's 64 KiB source-member bound. The served Time design
+is byte-identical to its 71,502-byte source, and Knowledge reports the fixed
+text-response admission error. Restoring the original Time image brings Knowledge
+back to Ready without a manual Knowledge restart. The repaired Knowledge profile
+uses one 256 KiB constant at all four ingestion guards. Full-source digests, URI
+agreement, the 256-chunk limit and embedding text/batch bounds stay enforced.
+Compiler, strict lint, independent logic review and three focused native controls
+pass. The controls cover the actual Time design through the maintained SDK,
+byte-boundary and digest/URI/count refusals, UTF-8 chunking and indexed-member
+admission. Installed qualification of the repaired image pair remains open.
+Private native receipt:
+`/tmp/veoveo-time-handoff-metadata-20261010/knowledge-eleven-path-native-receipt.json`,
+SHA-256 `5c3861606fd9cf9f093f55bf8c2ce72f2efd2ef1e11723758d1c515dbacf3c76`.
+The restore receipt records Time and Knowledge Ready with all seventeen desired
+Deployments and both StatefulSets healthy, and the three Flux holds suspended:
+`/tmp/veoveo-time-activation-20261010/restore-final-receipt.json`, SHA-256
+`c5ead9cf4fe7fa58ca9e653aaf5d8c8ac5ed750bedcf574ae63b75c3160140d4`.
+
+The isolated first-empty Knowledge inventory passes SurrealDB 3.3 syntax validation
+and independent review. It compares eleven owner tables and eight static indexes,
+rejects dynamic chunk tables and returns metadata/presence counts without source
+payloads. Its database execution, full read authority, stopped-writer fence and
+fresh/no-restore provenance remain unproved. Private preparation receipt:
+`/tmp/veoveo-knowledge-first-empty-prep-e7n223dx/first-empty-inventory-receipt-v1.json`,
+SHA-256 `f17d90b5d71305a6b8af6be1f967d2fccda47a2fae4a597bd31fafd88c642b4c`.
+
 ## Installed Time And Preparation Checkpoint — October 10, 2026
 
 At source `c3371e654`, the maintained `time-installed-schedule-task` complete

@@ -36,6 +36,18 @@ listener readiness with in-process MCP transports. The HTTP suite adds signed ga
 changes and cross-replica reads. It runs the shared hosted conformance checker against
 the server's HTTP surface and immutable documentation collection. The indexing-host suite adds signed machine authentication,
 credential rotation, source-loss recovery, catalog replacement, readiness and shutdown.
+Source member bounds have CPU-only controls in the existing targets:
+
+```sh
+cargo test -p veoveo-knowledge-mcp --test source_gateway source_member_bound_admits_full_time_design_and_rejects_invalid_reads
+cargo test -p veoveo-knowledge-mcp --test chunking source_member_byte_bound_preserves_utf8_and_independent_chunk_limit
+cargo test -p veoveo-knowledge-contract --test admission metadata_constructor_rejects_body_chunks_and_mismatched_mode
+```
+
+These controls preserve full source bytes through the 256 KiB member limit and
+reject invalid observations and oversized members before indexing. Synthetic
+embedding vectors establish contract admission, without GPU inference claims.
+
 The fixtures need Docker and the pinned SurrealDB image; each owns its
 containers and has a 180-second timeout per case. Run
 `cargo check -p veoveo-knowledge-mcp --no-default-features --features contract` to

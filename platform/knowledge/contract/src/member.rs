@@ -132,7 +132,7 @@ impl IndexedMember {
         }
         if observation.not_modified()
             || content_digest(source_text) != *observation.content_sha256()
-            || source_text.len() > 64 * 1024
+            || source_text.len() > crate::MAX_SOURCE_MEMBER_BYTES
             || observation
                 .access()
                 .is_some_and(|access| access.tenant != registration.tenant)

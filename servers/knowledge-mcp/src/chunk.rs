@@ -8,8 +8,8 @@ pub const VERSION: &str = "structure-v1";
 /// Splits at Markdown headings or top-level JSON fields, then applies character
 /// and UTF-8 byte caps. Overlap never crosses a structural section boundary.
 pub fn ranges(text: &str, settings: &ChunkSettings) -> Result<Vec<Range<usize>>, KnowledgeError> {
-    if text.len() > 64 * 1024 {
-        return Err(KnowledgeError("source exceeds 64 KiB"));
+    if text.len() > veoveo_knowledge_contract::MAX_SOURCE_MEMBER_BYTES {
+        return Err(KnowledgeError("source exceeds 256 KiB"));
     }
     let boundaries = sections(text);
     let mut output = Vec::new();
