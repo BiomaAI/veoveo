@@ -3,8 +3,9 @@
 Status: The published 34-image closure and charts for `6431c30c6621` retain their
 recorded qualification. GitOps is suspended during source work. Development image
 extraction triggered node disk pressure; all seventeen desired Deployments and both
-StatefulSets recovered by 02:42 UTC on October 10. Metadata-only compiler checks
-have resumed and pass; image staging and expensive builds remain held. Authorization
+StatefulSets recovered by 02:42 UTC on October 10. Compiler checks and all twenty-seven
+focused native recovery/consumer controls pass; image staging awaits a separate
+peak-space admission. Authorization
 signing-key rotation passes installed verification: the Gateway serves only the fresh
 key, accepts fresh OAuth and rejects the retired key. Speech's previously
 selected headed Workspace consumer passes with fixture audio;
@@ -120,16 +121,16 @@ Earlier installed checkpoints keep their recorded scope below.
 |---|---|---|
 | Time | Read consumers and schedule Tasks with independent expected occurrences, exact-ID delivered completion and current result agreement | Cancellation, unfinished restart recovery, authority activation and final images |
 | Artifact | Delegated SDK reads and retained Task-bound write capability across one selected service replacement, followed by redemption and idempotent replay | Public OAuth issuance, actual service replacement, interrupted-write recovery and final images |
-| Timeseries | Four-row forecast, RRD Artifact and usage; optional typed cancellation and connection replacement with original Task/result agreement; new terminal comparison permits mutable polling/TTL hints | Native controls, unfinished server restart, selected cross-replica routing and final images |
-| Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture prepared | Native controls, installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
+| Timeseries | Four-row forecast, RRD Artifact and usage; optional typed cancellation and connection replacement with original Task/result agreement; native terminal comparison permits mutable polling/TTL hints | Unfinished server restart, selected cross-replica routing and final images |
+| Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
 | Stream | Existing GPU replay with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed result checks and an initial current resource snapshot | Installed public delivery, post-mutation updates, unfinished recovery and final images |
 | Reason | Existing GPU analysis with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed analysis checks and an initial current resource snapshot | Installed public delivery, unfinished recovery and final images |
 | Knowledge | Full-catalog baseline and separate restricted-caller discovery, collection/completion visibility and document denials, with retained SDK cleanup | Installed caller-policy checks, unattended cold startup, current-generation recovery and final images |
 | Optimization | Multi-page existing solve corpus, exact products, usage, public Task results and canonical Artifact bytes under allowed and denied caller contexts; separately selected coordinated control/executor replacement repeats the retained consumers | Installed GPU-produced corpus, mid-run policy changes, coordinated control/executor replacement and unfinished/cross-replica recovery |
 
 The added Speech resource and Stream/Reason public-caller cases pass compiler,
-strict lint, formatting, documentation and independent source review. Their 17
-focused native controls await a resource window; installed execution is held.
+strict lint, formatting, documentation and independent source review. Their seventeen
+focused native controls pass within the twenty-seven-control batch; installed execution is held.
 Stream and Reason reuse the existing GPU scenarios and shared SDK cleanup owner. Their private
 journals sync dispatch intent and the acknowledged Task identity before listening,
 so delivery failure preserves the known identity. Resource observations establish
@@ -144,8 +145,12 @@ Working after the selected replacement before accepting delivered completion.
 Timeseries and View compare stable Task identity and terminal payload while allowing
 mutable transport hints. Speech and View bind replacement to their maintained Rust
 server roles. Both final strict compiler checks pass, including the corrected Speech
-role admission. Independent review approves the source batch. Native and installed
-execution have not qualified it. View's existing local listener and recovered-client
+role admission. Independent review approves the source batch. All twenty-seven distinct
+focused native controls pass after correcting two synthetic resource-notification
+fixtures to use the SDK's received-envelope metadata API. No product behavior changed.
+One zero-selection diagnostic was corrected from the current executable's test inventory
+and is not counted as a passing control. Installed execution remains unqualified.
+View's existing local listener and recovered-client
 cleanup are unchanged and are not qualified by its terminal-comparison update.
 
 Optimization's Artifact GET adapter maps typed policy denials to its existing
@@ -198,8 +203,12 @@ storage, worktrees and cluster volumes are preserved. Kubelet cleared disk press
 at 02:25 UTC without manual taint removal. By 02:42 UTC all seventeen desired
 Deployments and both StatefulSets were Ready; the other eight Deployments matched
 their desired zero replicas. Available space was 267,337,420,800 bytes. Both resumed
-strict metadata checks pass. Image publication and expensive builds remain held
-until staging has an admitted peak-space budget. Recovery did not change image pins
+strict metadata checks pass. A subsequent targeted sacrifice of eighteen unrelated
+test incremental directories recovered 9.2 GiB while preserving the pending native
+batch's caches, dependency libraries, build-script outputs, images and data. The
+twenty-seven-control batch then passed with 6.66 GiB peak filesystem growth against
+its 16 GiB budget; the node and core services stayed healthy. Image publication and
+staging still require their own admitted peak-space budget. Recovery did not change image pins
 or resume application reconciliation. Knowledge needed several natural restarts;
 its unattended cold-start qualification remains open.
 Staging keeps `releaseEligible=false`; installed image pins and the application holds
