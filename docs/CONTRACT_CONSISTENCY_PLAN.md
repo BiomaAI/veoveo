@@ -4,8 +4,9 @@ Status: The published 34-image closure and charts for `6431c30c6621` retain thei
 recorded qualification. GitOps is suspended during source work. Development image
 extraction triggered node disk pressure; all seventeen desired Deployments and both
 StatefulSets recovered by 02:42 UTC on October 10. Metadata-only compiler checks
-have resumed and pass; image staging and expensive builds remain held. The approved
-authorization signing-key rotation is in preparation. Speech's previously
+have resumed and pass; image staging and expensive builds remain held. Authorization
+signing-key rotation passes installed verification: the Gateway serves only the fresh
+key, accepts fresh OAuth and rejects the retired key. Speech's previously
 selected headed Workspace consumer passes with fixture audio;
 Reason and the other GPU workloads stay at zero replicas. The unmodified OpenShell 0.1.2 source
 package passes its focused artifact, Host and packaging checks. The owner approved
@@ -163,7 +164,9 @@ Installed node activation and the stock rollout are halted after Secret values
 accidentally appeared in a tool transcript. Both tracked Veoveo and UAV HelmReleases
 explicitly suspend application reconciliation to preserve this installation hold. The incident inventory comprised
 sixteen Secret objects: thirteen application Secrets and three Helm Secrets. Node
-configuration and installed credentials are unchanged. The image-staging disk incident
+configuration is unchanged. The authorization signing key has been replaced and
+qualified as recorded below; the other installed credential replacements remain open.
+The image-staging disk incident
 below interrupted baseline availability independently of this credential hold.
 The eighteen selected stock native cases stay
 qualified, including the implemented aggregate Host profile of 1 CPU, 6 GiB and 1,024 PIDs.
@@ -216,20 +219,30 @@ WaveSpeed and Google Maps replacement still requires account-management authorit
 or private references to fresh credentials. Existing authorization applies to the
 rollout.
 
-The installed authorization-server private key exactly matches the public disposable
-development fixture, including its cryptographic public-key identity. The Ready
-Gateway references that Secret field. Rotation must generate a fresh signing key
-and key ID, retire the compromised verification key and qualify rejection of old
-tokens alongside successful normal OAuth with the replacement. Ten other selected
-installation credential fields and the agents namespace's runtime-password copy
-differ from the fixture; this does not clear the earlier transcript exposure.
-The public JWKS check returned HTTP 403. A direct Gateway service check returned 200
-and confirmed that the served RSA public key matches the installed fixture key.
-The owner approved rotation; a fresh key is prepared privately and its new public
-key ID is committed in the reference configuration. Installed key replacement and
-old-token rejection are still pending. One audit command mistakenly re-emitted the
-same public fixture key into a tool transcript; it adds no new key to this rotation
-scope. The private comparison receipt contains only names, metadata and booleans.
+The authorization signing-key rotation completed on October 10. The previous key
+matched the public disposable development fixture. The live Secret and private
+provisioning input now contain the same fresh RSA key in the Gateway's required
+PKCS#1 DER encoding. Both live catalog copies and the committed reference configuration
+use key ID `veoveo-bioma-2026-10-10-8b1a48bef0ea`; the catalog change preserves the
+existing server, policy and module composition. The maintained control-plane publication
+Job succeeded. The Gateway is Ready, its direct `readyz` and JWKS return 200, and JWKS
+contains only the fresh public key with matching cryptographic identity. A fresh normal
+OAuth token successfully reads `frames://contract`. The pre-cut token had expired by
+verification time, but the request-correlated Gateway log explicitly rejects its
+retired key ID before expiry validation, establishing key retirement independently
+of that expiry. The owned Job and port-forward have been removed.
+
+The first restart failed because the runbook omitted control-plane publication;
+the Gateway correctly refused the unpublished catalog revision. The supported
+publication command resolved that refusal. The provisioning guide now states the
+required key encoding and private-input synchronization. Ten other selected installation
+credential fields and the agents namespace's runtime-password copy differ from the
+development fixture; this does not clear their earlier transcript exposure or qualify
+their installed replacement. The earlier public JWKS route returned HTTP 403;
+the successful direct Gateway check does not establish that route's availability.
+One audit command re-emitted the same public fixture key into a tool transcript;
+no new signing key was printed. Private receipts contain metadata and verification
+results, and the replacement material stays outside Git.
 
 Recording playback-key replacement passes its native grant, chunk and transport
 checks. The supported procedure drains every old serving instance before starting
