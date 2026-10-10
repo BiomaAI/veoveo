@@ -69,14 +69,36 @@ async fn run(
             .as_ref()
             .is_some_and(|e| e.contains_key(veoveo_mcp_knowledge_extension::EXTENSION_ID));
         if declares {
-            let templates =
-                target.templates(crate::catalog::templates(connection.peer()).await?)?;
+            let mut coverage = target
+                .gateway_server()
+                .map(crate::catalog::SourceCatalogCoverage::new);
+            let templates = target.templates(match &mut coverage {
+                Some(coverage) => coverage.templates(connection.peer()).await?,
+                None => crate::catalog::templates(connection.peer()).await?,
+            })?;
             let tools = if info.capabilities.tools.is_some() {
-                target.tools(crate::catalog::tools(connection.peer()).await?)?
+                target.tools(match &mut coverage {
+                    Some(coverage) => coverage.tools(connection.peer()).await?,
+                    None => crate::catalog::tools(connection.peer()).await?,
+                })?
             } else {
                 vec![]
             };
             knowledge::check(&connection, target, &templates, &tools, probes, &mut checks).await;
+            if let Some(coverage) = coverage.filter(|coverage| coverage.is_limited()) {
+                let check = checks
+                    .iter_mut()
+                    .find(|check| check.requirement_id == "K01")
+                    .context("selected source omitted K01 coverage")?;
+                let evidence = check.evidence.get_or_insert_with(|| serde_json::json!({}));
+                evidence
+                    .as_object_mut()
+                    .context("K01 evidence must be an object")?
+                    .insert(
+                        "selectedSourceCatalog".into(),
+                        serde_json::to_value(coverage)?,
+                    );
+            }
         } else {
             checks.push(failed(
                 "K01",

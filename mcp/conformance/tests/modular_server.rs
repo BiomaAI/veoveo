@@ -65,8 +65,10 @@ async fn independent_typed_server_passes_hosted_conformance_and_scope_denial() -
 
 async fn qualify() -> anyhow::Result<()> {
     std::sync::LazyLock::force(&SETUP);
+    let catalog_fault = std::sync::Arc::new(std::sync::atomic::AtomicU8::new(0));
+    let factory_fault = catalog_fault.clone();
     let service = StreamableHttpService::new(
-        || Ok(ObservatoryMcp),
+        move || Ok(CatalogFixture(factory_fault.clone())),
         veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config(),
     );
@@ -163,6 +165,7 @@ async fn qualify() -> anyhow::Result<()> {
                 .all(|c| c.requirement_id.starts_with('K'))
         );
     }
+    qualify_selected_catalog(&endpoint, &catalog_fault, &profile).await?;
     let missing = veoveo_mcp_conformance::KnowledgeSourceTarget::new(
         endpoint.parse()?,
         "absent".parse()?,
@@ -399,4 +402,253 @@ async fn knowledge_read(
         rmcp::model::ServerResult::ReadResourceResult(result) => Ok(result),
         _ => Err(rmcp::ServiceError::UnexpectedResponse),
     }
+}
+
+/// Catalog faults wrap the existing source, retaining its domain/read authorization.
+#[derive(Clone)]
+struct CatalogFixture(std::sync::Arc<std::sync::atomic::AtomicU8>);
+
+impl CatalogFixture {
+    fn mode(&self) -> u8 {
+        self.0.load(std::sync::atomic::Ordering::SeqCst)
+    }
+    fn metadata(
+        &self,
+        last: bool,
+        surface: veoveo_gateway_contract::GatewayDiscoverySurface,
+    ) -> Option<rmcp::model::MetaObject> {
+        use veoveo_gateway_contract::{
+            GatewayDiscoveryDegradation, GatewayDiscoveryFailure, GatewayDiscoveryFailureCode,
+            GatewayDiscoverySurface,
+        };
+        use veoveo_mcp_contract::GatewayDiscoveryMetadata;
+        let raw_mode = self.mode();
+        if raw_mode >= 8 && surface != GatewayDiscoverySurface::Tools {
+            return None;
+        }
+        let mode = if raw_mode >= 8 {
+            raw_mode - 6
+        } else {
+            raw_mode
+        };
+        if mode == 0 || (!last && mode >= 5) {
+            return None;
+        }
+        if mode == 3 || mode == 6 {
+            let mut meta = rmcp::model::MetaObject::new();
+            meta.insert(veoveo_gateway_contract::GATEWAY_DISCOVERY_DEGRADATION_META_KEY.into(), serde_json::json!({"failures":[{"server":"other","surface":"tools","code":"unsupported"}]}));
+            return Some(meta);
+        }
+        GatewayDiscoveryDegradation::new([GatewayDiscoveryFailure {
+            server: if mode == 2 || mode == 5 {
+                "observatory"
+            } else {
+                "other"
+            }
+            .parse()
+            .unwrap(),
+            surface: if mode == 4 {
+                GatewayDiscoverySurface::Resources
+            } else {
+                surface
+            },
+            code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
+        }])
+        .into_meta()
+    }
+}
+
+impl rmcp::ServerHandler for CatalogFixture {
+    fn get_info(&self) -> rmcp::model::ServerConfig {
+        let mut info = ObservatoryMcp.get_info();
+        if self.mode() != 0 {
+            info.capabilities.tools = Some(Default::default());
+        }
+        info
+    }
+    async fn list_resource_templates(
+        &self,
+        request: Option<rmcp::model::PaginatedRequestParams>,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<rmcp::model::ListResourceTemplatesResult, rmcp::ErrorData> {
+        let last = request
+            .as_ref()
+            .and_then(|request| request.cursor.as_ref())
+            .is_some();
+        let mut page = ObservatoryMcp
+            .list_resource_templates(request, context)
+            .await?;
+        if self.mode() != 0 {
+            if !last {
+                page.resource_templates.clear();
+                page.next_cursor = Some("templates-last".into());
+            }
+            page.meta = self.metadata(
+                last,
+                veoveo_gateway_contract::GatewayDiscoverySurface::ResourceTemplates,
+            );
+        }
+        Ok(page)
+    }
+    async fn list_tools(
+        &self,
+        request: Option<rmcp::model::PaginatedRequestParams>,
+        _: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<rmcp::model::ListToolsResult, rmcp::ErrorData> {
+        let last = request.and_then(|request| request.cursor).is_some();
+        Ok(rmcp::model::ListToolsResult {
+            tools: vec![],
+            next_cursor: (!last).then(|| "tools-last".into()),
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            ttl_ms: Some(60_000),
+            cache_scope: Some(rmcp::model::CacheScope::Private),
+            meta: self.metadata(
+                last,
+                veoveo_gateway_contract::GatewayDiscoverySurface::Tools,
+            ),
+        })
+    }
+    async fn list_resources(
+        &self,
+        request: Option<rmcp::model::PaginatedRequestParams>,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<rmcp::model::ListResourcesResult, rmcp::ErrorData> {
+        ObservatoryMcp.list_resources(request, context).await
+    }
+    async fn read_resource(
+        &self,
+        request: rmcp::model::ReadResourceRequestParams,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<rmcp::model::ReadResourceResponse, rmcp::ErrorData> {
+        ObservatoryMcp.read_resource(request, context).await
+    }
+    async fn complete(
+        &self,
+        request: rmcp::model::CompleteRequestParams,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<rmcp::model::CompleteResult, rmcp::ErrorData> {
+        ObservatoryMcp.complete(request, context).await
+    }
+}
+
+async fn qualify_selected_catalog(
+    endpoint: &str,
+    fault: &std::sync::atomic::AtomicU8,
+    profile: &HostedServerConformanceProfile,
+) -> anyhow::Result<()> {
+    use veoveo_mcp_conformance::{
+        KnowledgeRoute, KnowledgeSourceTarget, run_knowledge_source_conformance,
+    };
+    let target = |route| {
+        KnowledgeSourceTarget::new(
+            endpoint.parse().unwrap(),
+            "observatory".parse().unwrap(),
+            ["observatory".parse().unwrap()].into(),
+            route,
+        )
+        .unwrap()
+    };
+    fault.store(1, std::sync::atomic::Ordering::SeqCst);
+    let report = run_knowledge_source_conformance(
+        &target(KnowledgeRoute::Gateway),
+        &ConformanceCredentials::bearer("fixture-read"),
+        &Default::default(),
+    )
+    .await?;
+    assert!(report.passed(), "{:#?}", report.checks);
+    let evidence = report
+        .checks
+        .iter()
+        .find(|check| check.requirement_id == "K01")
+        .unwrap()
+        .evidence
+        .as_ref()
+        .unwrap();
+    assert_eq!(evidence["collections"], 1);
+    assert_eq!(
+        evidence["selectedSourceCatalog"]["selectedServer"],
+        "observatory"
+    );
+    assert_eq!(
+        evidence["selectedSourceCatalog"]["wholeProfileComplete"],
+        false
+    );
+    let failures = evidence["selectedSourceCatalog"]["unrelatedGatewayFailures"]
+        .as_array()
+        .unwrap();
+    assert_eq!(failures.len(), 4);
+    for (index, failure) in failures.iter().enumerate() {
+        assert_eq!(failure["server"], "other");
+        assert_eq!(failure["code"], "upstream_unavailable");
+        assert_eq!(
+            failure["surface"],
+            if index < 2 {
+                "resource_templates"
+            } else {
+                "tools"
+            }
+        );
+    }
+    assert!(
+        run_knowledge_source_conformance(
+            &target(KnowledgeRoute::Direct),
+            &ConformanceCredentials::bearer("fixture-read"),
+            &Default::default()
+        )
+        .await
+        .is_err()
+    );
+    let mut full_profile = profile.clone();
+    full_profile.surfaces.tools = SurfaceExpectation::Optional;
+    let full = veoveo_mcp_conformance::run_hosted_server_conformance(
+        &full_profile,
+        &ConformanceCredentials::bearer("fixture-read"),
+    )
+    .await?;
+    assert!(!full.passed());
+    for requirement in ["VV-MCP-TOOLS-001", "VV-MCP-TEMPLATES-001"] {
+        assert!(full.checks.iter().any(|check| {
+            check.requirement_id == requirement
+                && check.status == veoveo_mcp_conformance::CheckStatus::Failed
+                && check
+                    .summary
+                    .contains("admitted gateway discovery failures")
+        }));
+    }
+    let client = ()
+        .serve_with_lifecycle(
+            StreamableHttpClientTransport::from_config(
+                StreamableHttpClientTransportConfig::with_uri(endpoint).auth_header("fixture-read"),
+            ),
+            ClientLifecycleMode::Discover {
+                preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
+            },
+        )
+        .await?;
+    assert!(
+        veoveo_mcp_conformance::catalog::templates(client.peer())
+            .await
+            .is_err()
+    );
+    assert!(
+        veoveo_mcp_conformance::catalog::tools(client.peer())
+            .await
+            .is_err()
+    );
+    client.cancel().await?;
+    for mode in [2, 3, 4, 5, 6, 8, 9, 10, 11, 12] {
+        fault.store(mode, std::sync::atomic::Ordering::SeqCst);
+        assert!(
+            run_knowledge_source_conformance(
+                &target(KnowledgeRoute::Gateway),
+                &ConformanceCredentials::bearer("fixture-read"),
+                &Default::default()
+            )
+            .await
+            .is_err(),
+            "catalog fault mode {mode} was accepted"
+        );
+    }
+    fault.store(0, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
 }

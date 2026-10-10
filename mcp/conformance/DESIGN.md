@@ -15,6 +15,7 @@
 | `veoveo.ai/mcp-conformance-profile/v2` | domain-neutral declaration of applicable hosted-server checks |
 | `veoveo.ai/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
 | `veoveo.ai/hosted-mcp/v4` | Veoveo hosted-server contract revision for MCP `2026-07-28` |
+| `ai.veoveo/gateway-discovery-degradation` | typed server/surface/failure-code catalog metadata; full-catalog rejection and selected-source coverage admission |
 | `ai.veoveo/knowledge-source` | typed collection declarations, enumeration, observations and conditional member reads; [extension rules](../knowledge-extension/DESIGN.md#server-rules) |
 | `veoveo.ai/live-view/v4` | optional provider-neutral authoritative cameras, typed camera regions in shared encoded products, actor/browser authorization, Annex B H.264 WebSocket fanout, and redaction profile layered on a domain-owned simulation server |
 
@@ -221,6 +222,19 @@ duplicates for K01 to reject. It converts checked gateway tool names into source
 names for declaration matching, then builds the gateway name when calling a tool.
 Member and collection addresses keep their source-owned schemes. The runner has no
 domain registry or implementation dependencies for this selection.
+
+For this Gateway-routed source check, each templates and tools page admits typed
+Gateway discovery degradation against the selected server slug. A failure for that
+server, a mismatched surface, or malformed or unsupported degradation metadata
+refuses the check. Failures for other servers permit the selected source checks;
+K01 evidence preserves its collection count and records `selectedSourceCatalog`
+with the selected server, `wholeProfileComplete: false`, and every unrelated typed
+server/surface/code observation. This establishes selected-source coverage only.
+Direct-source checks and the default catalog readers used by full hosted
+certification reject any degradation. Both selected catalog surfaces share a
+256 KiB degradation-metadata budget and a 4,096-failure budget, including repeated
+rows on later pages. Each traversal retains its thirty-second deadline,
+1,024-page and 16,384-item limits and repeated-cursor rejection.
 
 The result uses the shared report format with a `knowledge-{server}` profile ID and
 the observed endpoint implementation, which may be the gateway. It contains only

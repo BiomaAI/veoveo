@@ -1,4 +1,7 @@
 //! Complete catalog reads with traversal bounds for conformance and CLI consumers.
+mod selected;
+pub(crate) use selected::SourceCatalogCoverage;
+
 use anyhow::{Context, Result, bail};
 use rmcp::{RoleClient, model::*, service::Peer};
 use std::{collections::BTreeSet, future::Future, time::Duration};
@@ -19,17 +22,30 @@ pub(crate) async fn before_naming_deadline<T>(
         .context("aggregate naming discovery deadline expired")?
 }
 
-async fn collect<T, F, Fut>(operation: &str, mut request: F) -> Result<Vec<T>>
+async fn collect<T, F, Fut>(operation: &str, request: F) -> Result<Vec<T>>
 where
     F: FnMut(Option<String>) -> Fut,
     Fut: Future<Output = Result<(Vec<T>, Option<String>)>>,
+{
+    collect_admitted(operation, request, Ok).await
+}
+
+async fn collect_admitted<T, P, F, Fut, A>(
+    operation: &str,
+    mut request: F,
+    mut admit: A,
+) -> Result<Vec<T>>
+where
+    F: FnMut(Option<String>) -> Fut,
+    Fut: Future<Output = Result<P>>,
+    A: FnMut(P) -> Result<(Vec<T>, Option<String>)>,
 {
     tokio::time::timeout(DEADLINE, async {
         let mut items = Vec::new();
         let mut cursor = None;
         let mut seen = BTreeSet::new();
         for _ in 0..MAX_PAGES {
-            let (page, next) = request(cursor).await?;
+            let (page, next) = admit(request(cursor).await?)?;
             if items.len() + page.len() > MAX_ITEMS {
                 bail!("{operation} exceeded {MAX_ITEMS} catalog items");
             }

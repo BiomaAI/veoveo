@@ -1823,6 +1823,7 @@ dispatch preflights and budgeted execution.
 | Path | Responsibility |
 |---|---|
 | `mcp/conformance/src/requirements.rs`, `catalog/coverage.json` | exhaustive separately versioned requirement-to-runtime-check mapping with explicit runtime/review/mixed modes; missing or skipped checks cannot establish success |
+| `mcp/conformance/src/catalog.rs`, `catalog/selected.rs` | bounded discovery traversal; strict complete-catalog admission and typed Gateway selected-source admission with unrelated discovery failures recorded in K01 coverage |
 | `mcp/conformance/src/naming.rs`, `naming/discovery.rs` | bounded discovery and input/output schema traversal with naming-role admission, contextual references and mixed-verification reporting |
 | `mcp/conformance/src/naming/literal.rs` | associates controlled literal values with contributing schema constraints through maintained JSON Schema validation and evaluation footprints; preserves owner naming contexts across references and applicators |
 | `mcp/conformance/src/schema_evidence.rs` | typed in-memory owner body schemas and safe observations with distinct remote, observed and source-only origins |

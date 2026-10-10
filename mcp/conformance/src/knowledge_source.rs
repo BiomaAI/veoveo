@@ -57,6 +57,9 @@ impl KnowledgeSourceTarget {
     pub fn server(&self) -> &ServerSlug {
         &self.server
     }
+    pub(crate) fn gateway_server(&self) -> Option<&ServerSlug> {
+        (self.route == KnowledgeRoute::Gateway).then_some(&self.server)
+    }
     pub fn schemes(&self) -> &BTreeSet<ResourceScheme> {
         &self.schemes
     }
