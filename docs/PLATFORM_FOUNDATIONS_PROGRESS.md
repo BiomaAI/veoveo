@@ -6,6 +6,32 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Recovery CLI And Final Image Preparation — October 10, 2026
+
+The production `installation-smoke` executable builds at committed source
+`715796541` with locked, offline Cargo and two build jobs. The build exits zero
+after 25.518 seconds. Its SHA-256 is
+`49d6e0cd71657cc8c365c2d360feba383564a2ed80227efd4b6543160e32186f`.
+General help, Agent Manager journey help and maintained dispatcher help exit zero;
+missing required journey arguments exit two. The delivery receipt binds the
+compiler artifact, required native libraries and source hashes. These checks do
+not execute an installed journey or GPU recovery.
+
+The existing publication checkout advances to that same committed source under its
+source lock. Native affected-target and image planning select thirty Rust images
+across five compiler families and retain the cuOpt executor, for thirty-one images.
+Cache identities stay stable. Selected Rust source digests change, so earlier
+publication receipts cannot qualify the final source. No image builds, publication
+or cluster changes run in this preparation. The completed owner-test executable
+is retired after its receipt and library references are retained; dependency
+libraries, incremental caches and the production CLI are preserved.
+
+| Preparation receipt | SHA-256 |
+|---|---|
+| `/tmp/veoveo-recovery-production-cli-715796541/final-delivery-receipt.json` | `7e4601a67d68fb7fed9b7e75d88cc2a32183404425a49e5a68fc171e75c2bfc4` |
+| `/tmp/veoveo-final-release-715796541/final-source-closure.json` | `eb1b9c502674d8889be6380bed7fab1de404853dfb9f086651a4f8299c0327ca` |
+| `/tmp/veoveo-final-release-715796541/plan.json` | `dd4c0ee2e9778cd455a8daa765975107301dd3fed2ddbad215ad5dbd5ed5432d` |
+
 ## Stream And Reason Unfinished Recovery Fixtures — October 10, 2026
 
 The shared SDK recovery support at `6a8325374` preserves one acknowledged Task's

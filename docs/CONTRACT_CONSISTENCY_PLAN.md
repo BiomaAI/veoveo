@@ -284,7 +284,8 @@ deadline and cancellation failures. The owner batch passes all twenty selected
 native controls after correcting a Reason fixture and refusing zero-test subprocess
 success. Owner cleanup preserves partial Task facts and failures across interrupted
 close operations. Compiler checks, strict lint and independent source review pass.
-The actual GPU recovery runs and current production CLI remain unqualified; see the
+The production CLI builds and passes its command-line admission checks at
+`715796541`; actual GPU recovery remains unqualified. See the
 [checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#stream-and-reason-unfinished-recovery-fixtures--october-10-2026).
 
 The source batch at `31f2f45c3` prepares unfinished DuckDB query recovery and Speech process
@@ -474,22 +475,30 @@ is a qualified fixture/tool image without a reference workload or lock entry.
 Rollout and installed acceptance remain open. The cohort's observed free-space
 samples do not establish peak growth.
 
-The full source cut from `6431c30c6621` through `c5a2c6c3e` affects 34 tagged images:
-31 production images and three tool/fixture images. Twenty-seven are qualified;
-seven remain.
+The final image plan selects committed source `715796541` from the existing clean
+publication checkout. Its dependency graph selects thirty Rust targets and retains
+the pending cuOpt executor, for thirty-one images. Planning passes; none of this
+final source's image builds, stage/release checks or registry publication has run.
+Earlier C5 and `6431c30c6621` receipts qualify their original inputs. Every selected
+Rust family's source digest differs from the compared earlier plan; stable cache
+identities permit reuse but do not qualify changed source. The
+[preparation checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#recovery-cli-and-final-image-preparation--october-10-2026)
+records the source closure and planner outputs.
+
 The unchanged Charts, simulation-runtime and UAV-runtime production inputs retain
 their own accepted `6431c30c6621` publication proof. Fresh node-network manifest and
 config reads return 200 with matching hashes for all three; their source and
-artifact identities are preserved. The 30-Rust-target count and the historical
-34-image production release describe different sets.
+artifact identities are preserved. The final thirty-one-image selection and the
+historical thirty-four-image publication describe different sets.
 
-| Remaining image family | Targets |
+| Final image family | Image count |
 |---|---|
-| Bookworm Rust | `map-mcp` |
-| View CUDA | `view-mcp` |
-| GPU control runtimes | `reason-mcp`, `stream-mcp`, `speech-mcp` |
-| SUMO Rust | `sumo-mcp` |
-| NVIDIA executor | `cuopt-executor` |
+| Trixie Rust | 22 |
+| Trixie browser BFF | 1 |
+| Bookworm Rust: Map, Time and View | 3 |
+| GPU control runtimes: Reason, Speech and Stream | 3 |
+| SUMO Rust | 1 |
+| NVIDIA executor | 1 |
 
 The full catalog, including the worker section and restricted public client, is
 published with runtime authentication verified: nineteen servers and nine profiles.
