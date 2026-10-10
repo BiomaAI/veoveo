@@ -6,6 +6,41 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Final Trixie Publication And Artifact Recovery Controls — October 10, 2026
+
+All twenty-two selected Trixie images at `3820c0db5` complete staging and attested
+release qualification. Stage takes 644.114 seconds and release takes 58.008
+seconds. The target sets and all runnable digests agree. Node-origin reads verify
+all twenty-two manifests and their twenty-two configs against their hashes.
+An initial curl probe treats the registry's `.localhost` alias as loopback and
+fails before reaching the registry. Explicit resolution to the registry's current
+node-network address succeeds; the registry container, configuration, volume and
+K3s mirror stay unchanged. No workload rolls out. The execution receipt records
+283,629,387,776 free bytes and healthy core services.
+
+The unfinished public-upload fixture is committed as `90b743d3c`. It retains an
+acknowledged Open session and immutable part before the existing single Artifact
+service replacement, resumes and completes the same upload, and independently
+checks public bytes and MCP metadata/catalog identity. Capability redemption
+keeps its separate retained-authority claim. Compiler checks, strict lint, four
+focused native controls and independent review pass. Installed execution remains
+open. Native validation ends with Cargo idle and 282,671,927,296 free bytes.
+
+The remaining nine-image stage/release batch is admitted with a 12 GiB growth
+ceiling, cancellation at 8 GiB and 4 GiB reserved for work already in flight.
+Fresh resource, node, core-service and reconciliation-hold checks must pass before
+launch and between commands. The original aggregate baseline and 28 GiB cap stay
+unchanged. This admission includes publication only; deployment remains separate.
+
+| Private record | SHA-256 |
+|---|---|
+| `/tmp/veoveo-final-release-3820c0db5/final22-proposal/execution-receipt.json` | `a097a77897f8a760df6451fe0b10b7071033a690d3b02d77e3aad6df58baaba9` |
+| `/tmp/veoveo-final-release-3820c0db5/final22-proposal/stage-evidence.json` | `6faa6d5944a0d9f314bfa2831cbd107b76d171b82597ff1fc04e8da8d2b3bbd4` |
+| `/tmp/veoveo-final-release-3820c0db5/final22-proposal/release-evidence.json` | `ba30ef2dcea6d86567ce3538a021ae20e62517eb56e3d92ca09257820534fdec` |
+| `/tmp/veoveo-final-release-3820c0db5/final22-proposal/node-registry-readback.json` | `38fd9925642b4fa52a4a47279694c6c94ccbec8238fd265676897ee88d60100d` |
+| `/tmp/veoveo-artifact-unfinished-upload-20261010/native-receipt.json` | `23109669254f2688438b3229cc2f575bce89ce9be04ae92891454f2532780d20` |
+| `/tmp/veoveo-final-release-3820c0db5/remaining9-resource-proposal.json` | `79971a22e6eb04b372276e4ac81a8bb316748319bca0166ee345ea1b9b21f5da` |
+
 ## Final Trixie Image Batch Launch — October 10, 2026
 
 The twenty-two-target Trixie stage starts from clean source `3820c0db5` on the

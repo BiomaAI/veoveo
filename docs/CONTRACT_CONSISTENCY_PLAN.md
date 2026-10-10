@@ -6,8 +6,10 @@ extraction triggered node disk pressure; all seventeen desired Deployments and b
 StatefulSets recovered by 02:42 UTC on October 10. Compiler checks and all twenty-seven
 focused native recovery/consumer controls pass. Twenty-seven images at `c5a2c6c3e`,
 including all seven stock-rollout images, pass staging, attested qualification and node-side registry readback.
-The current source closure requires thirty Rust targets and the pending cuOpt image;
-those earlier receipts do not qualify the new inputs.
+The current source closure requires thirty Rust targets and the pending cuOpt image.
+Twenty-two Trixie images at `3820c0db5` now pass stage/release digest agreement,
+attestation checks and node-network registry readback. The remaining nine-image
+batch is admitted; rollout and installed qualification remain open.
 The Knowledge and Time repair at `6653288ba` is published and deployed. Both Pods
 pass probes and thirty seconds of stability without a restart. Normal OAuth reads
 and Knowledge search reach the updated Time documents. Time completion and
@@ -15,8 +17,10 @@ cancellation pass through normal Gateway OAuth. Unfinished process recovery
 remains unqualified because the attempted crash did not replace its container.
 Datasheet's SDK replacement and the complete focused normal-OAuth Artifact consumer
 scenario pass. Retained capability redemption and idempotent replay also pass
-across one fenced Artifact service replacement. Interrupted-write recovery and
-final-image qualification remain open.
+across one fenced Artifact service replacement. The unfinished public-upload
+fixture at `90b743d3c` passes compiler checks, strict lint, four native controls and
+independent review. Its installed recovery case and final-image qualification
+remain open.
 Time12 passes completed-state cross-replica acceptance on the selected deployed
 Time image. The same historical Task's eight independently expected occurrences,
 result and authority agree through B-only routing after original A exits zero.
@@ -152,7 +156,7 @@ Earlier installed checkpoints keep their recorded scope below.
 | Owner | Prepared installed checks | Remaining qualification |
 |---|---|---|
 | Time | Read consumers and explicit complete/cancel/recover schedule fixtures; completion and cancellation pass; Time12 completed-state cross-replica Task/result/authority delivery and native restoration pass on the selected deployed image | Unfinished process recovery, authority activation and final images |
-| Artifact | Focused normal-OAuth uploads with independent public byte/digest checks, delegated SDK reads and a separately selected retained Task-bound write capability across one service replacement; source/native controls and review pass at `dd7958d26` | Interrupted-write recovery and final images |
+| Artifact | Focused normal-OAuth uploads, independent bytes/digest and SDK consumers; retained capability redemption passes across one service replacement. The same replacement now spans an acknowledged Open public upload and accepted part; compiler, strict lint, four native controls and review pass at `90b743d3c` | Installed unfinished public-upload recovery and final images; interruption during capability redemption is not claimed |
 | Timeseries | Four-row forecast, RRD Artifact and usage; typed cancellation, connection replacement and process-crash fixtures with original Task/result agreement | Installed unfinished process recovery, selected cross-replica routing and final images |
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
 | Stream | Existing GPU replay with a normal-OAuth Gateway caller, delivered completion and current resource snapshot; an opt-in unfinished recovery fixture selects a retained Recording, fences the replaced process and checks the same Task's creation identity, current Working state and recovered products. Compiler, strict lint, native controls and review pass | Installed public delivery, post-mutation updates, unfinished recovery and final images |
@@ -176,6 +180,14 @@ does not establish an executed Task. Core services stay Ready. Interrupted-write
 and unfinished-Task recovery remain unqualified. The
 [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#artifact-service-replacement-and-retained-capability--october-10-2026)
 binds the report, restart and retained effects.
+
+The extended service-recovery fixture journals an Open public upload and accepted
+immutable part before the same replacement. It resumes that original session,
+checks immutable-part retry/refusal, completes and replays the same occurrence,
+then independently verifies public bytes, metadata and catalog membership. Four
+native controls cover ordering, identity refusal and interrupted cleanup. This
+qualifies the harness at `90b743d3c`; its installed execution remains open. The
+retained capability check continues to make its separate, narrower claim.
 
 The Time and Timeseries lifecycle fixtures pass sixteen focused native controls,
 including shared crash-receipt decoding and cleanup after failed journal writes.
@@ -482,14 +494,16 @@ samples do not establish peak growth.
 The refreshed image plan selects committed source `3820c0db5` from the existing clean
 publication checkout and includes the qualified Manager profile-scope admission repair.
 The prepared dependency graph selects thirty Rust targets and retains
-the pending cuOpt executor, for thirty-one images. Planning passes, and the
-twenty-two-target Trixie stage is running under the admitted disk and process guard.
-No final-source stage or release qualification has completed; the other nine
-images still await their build batches.
+the pending cuOpt executor, for thirty-one images. The twenty-two-target Trixie
+batch completes staging and release qualification. All twenty-two runnable
+digests agree between commands, with SBOM/provenance and matching node-network
+manifest/config reads. The remaining nine targets are admitted as one serial
+stage/release batch; their qualification is still pending.
 Earlier C5 and `6431c30c6621` receipts qualify their original inputs. Trixie and BFF
 source digests change from the prepared `715796541` plan; the other three Rust
-families preserve those prepared inputs. All five families still require their
-final-source qualification. Stable cache identities permit reuse. The
+families preserve those prepared inputs. Trixie's final-source qualification
+passes; the other four Rust families and cuOpt remain pending. Stable cache
+identities permit reuse. The
 [preparation checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#manager-native-qualification-and-final-source-closure--october-10-2026)
 records the source closure and planner outputs.
 
@@ -499,11 +513,14 @@ All 395 retained manifests pass digest readback; the registry and core services
 are healthy. Measured free space is 291,324,821,504 bytes after recovering
 23.82 GiB. BuildKit caches and the current acceptance CLI are preserved. The
 [retirement checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#reviewed-registry-retirement--october-10-2026)
-records the exact deletion sets and postflight. The admitted Trixie batch preserves
-the original aggregate budget baseline and has a combined stage/release growth
-cap of 20 GiB, with cancellation beginning at 16 GiB. It uses the existing builder
-and caches. The [launch checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#final-trixie-image-batch-launch--october-10-2026)
-identifies the running operation; no rollout is authorized by this build admission.
+records the exact deletion sets and postflight. The completed Trixie batch stayed
+within its 20 GiB allowance. The remaining nine-image admission allows 12 GiB,
+begins cancellation at 8 GiB and preserves 4 GiB for work already in flight.
+Both batches preserve the original aggregate baseline, 28 GiB cap and installation
+reserve. The existing builder and caches are retained. The
+[publication checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#final-trixie-publication-and-artifact-recovery-controls--october-10-2026)
+records the completed checks and remaining scope. Build admission does not authorize
+rollout.
 
 The unchanged Charts, simulation-runtime and UAV-runtime production inputs retain
 their own accepted `6431c30c6621` publication proof. Fresh node-network manifest and
