@@ -10,6 +10,7 @@
 | Native MCP clients | Official Rust SDK MCP 2026-07-28 Discover, Tasks, resource reads and request-scoped subscriptions over Streamable HTTP; bearer issuance uses the runtime-owned fixture adapter |
 | Installed DuckDB | Existing `installation-verify --scope duckdb` consumer, owner contract CSV/schema/catalog/usage and Artifact provenance over normal Gateway OAuth; private `veoveo.ai/installed-duckdb/v1` receipt |
 | Installed Stream | Owner-library run identities, completion products and analysis results; cross-replica DeepStream replay requires NVIDIA hardware |
+| Public Stream and Reason callers | Existing GPU scenarios use normal OAuth at the installation's operator MCP endpoint; private `veoveo.ai/stream-public-caller/v1` and `veoveo.ai/reason-public-caller/v1` inputs, with corresponding `public-consumer/v1` JSONL observations |
 | Candidate process ownership | Python standard-library Linux pidfd APIs; private `veoveo.ai/candidate-launch/v1` JSON with camelCase invocation, process group and start ticks; no public protocol extension |
 | Installation input | Required `--installation` file using `veoveo.ai/installation-target/v1`; identities and endpoints validated against its control-plane document |
 | MCP and authentication | Repository conformance CLI over public HTTPS, the hosted MCP 2026-07-28 profile, OAuth token exchange, exact Work Context and profile scopes |
@@ -183,6 +184,40 @@ Their assertion includes a checked `GatewayRequestContext` with fresh audit corr
 matching actor, client, scopes and expiration. Artifact admission requires that context
 before issuing read or write capabilities. These fixtures do not establish public OAuth
 authentication; public acceptance uses the installation's registered client.
+
+## Public Stream And Reason Consumers
+
+The existing GPU scenarios select their public caller profile through a private input
+file. They dispatch once through the Gateway with a normal OAuth token and retain the
+existing NVIDIA workload and domain-result assertions.
+
+| Scenario | Input selector | Input schema |
+|---|---|---|
+| `stream-gpu` | `VEOVEO_STREAM_PUBLIC_CALLER_INPUT` | `veoveo.ai/stream-public-caller/v1` |
+| `reason-gpu` | `VEOVEO_REASON_PUBLIC_CALLER_INPUT` | `veoveo.ai/reason-public-caller/v1` |
+
+Each input declares `schema`, `installationTarget`, `endpoint`, `profile`,
+`callerTokenFile` and `output`. Admission requires the same installation as the
+scenario, its operator profile and its public `/mcp/{profile}` endpoint. The input,
+token and new output journal use absolute private file paths. Candidate mode and
+Stream's direct-replica mode cannot combine with this profile. Admission precedes
+fixture effects. Recording production and Store fixture checks keep their declared
+credentials; the public MCP consumer does not issue an internal assertion.
+
+The official SDK creates the Task and listens to that acknowledged Task ID. The
+private journal syncs dispatch intent and the acknowledged identity before waiting
+for delivery. Completion requires the matching subscription identity, a delivered
+Completed payload and agreement with `tasks/get`. The owner decodes the tool output,
+constructs its typed result address and checks the domain result. A separate exact
+resource subscription must deliver its initial current snapshot. The journal records
+that observation separately from Task completion. Interrupted runs preserve intent
+and known identities for reconciliation; reusing the journal path is refused.
+
+SDK connections and subscriptions retain their consuming cleanup futures under the
+existing lifecycle owner. Closing a subscription proves that listener closed. It
+does not establish Task cancellation. Initial resource delivery does not establish
+post-mutation invalidation, unfinished process recovery or cross-replica delivery;
+those checks use their separate owner profiles.
 
 ## Composed Flight Acceptance
 

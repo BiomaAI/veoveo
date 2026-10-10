@@ -32,7 +32,7 @@ struct Report<'a> {
     task_notifications: u32,
     resource_notifications: u32,
     reconnect_verified: bool,
-    cancellation_verified: bool,
+    subscription_cancellation_verified: bool,
     completed: bool,
     failure: Option<String>,
 }
@@ -101,7 +101,7 @@ impl ReplicaProbe {
             task_notifications: 0,
             resource_notifications: 0,
             reconnect_verified: false,
-            cancellation_verified: false,
+            subscription_cancellation_verified: false,
             completed: false,
             failure: None,
         };
@@ -276,7 +276,7 @@ async fn observe(
         resumed.next().await?.is_none(),
         "cancelled reconnect still delivers updates"
     );
-    report.cancellation_verified = true;
+    report.subscription_cancellation_verified = true;
     Ok(output)
 }
 

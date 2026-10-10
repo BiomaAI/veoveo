@@ -289,10 +289,7 @@ mod baseline_tests {
                 },
             );
             let dispatched = std::cell::Cell::new(false);
-            let result = gate.and_then(|()| {
-                dispatched.set(true);
-                Ok(())
-            });
+            let result = gate.map(|()| dispatched.set(true));
             assert!(result.is_err() && !dispatched.get());
         }
         Ok(())

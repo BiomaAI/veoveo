@@ -1,3 +1,5 @@
+#[path = "stream/public.rs"]
+mod public;
 #[path = "stream/replicas.rs"]
 mod replicas;
 use super::candidate;
@@ -102,8 +104,23 @@ pub(crate) async fn stream_gpu(
     let environment = load_environment(env_file)?;
     let context = &installation.target.kubernetes.context;
     let namespace = &installation.target.kubernetes.namespace;
-    let signing_key = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")?;
-    let signing_key_id = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_ID")?;
+    let public_input = std::env::var_os("VEOVEO_STREAM_PUBLIC_CALLER_INPUT")
+        .map(PathBuf::from)
+        .or_else(|| {
+            environment
+                .get("VEOVEO_STREAM_PUBLIC_CALLER_INPUT")
+                .map(PathBuf::from)
+        });
+    let mut public = public_input
+        .as_deref()
+        .map(|path| {
+            public::Profile::load(
+                path,
+                installation,
+                candidate_inputs.is_some() || !replica_pods.is_empty(),
+            )
+        })
+        .transpose()?;
     let replicas = replicas::ReplicaProbe::prepare(installation, replica_pods, work_dir)?;
     let sample_h264 = prepare_sample_h264(work_dir, installation)?;
     let tmpdir = smoke_tmpdir()?;
@@ -213,27 +230,66 @@ pub(crate) async fn stream_gpu(
         "includeSourceClip": true
     });
 
-    let bearer_token = issue_internal_token(
-        signing_key,
-        signing_key_id,
-        "stream",
-        "stream-gpu-smoke",
-        &environment,
-        installation,
-    )
-    .await?;
-    let task_client =
-        FinalTaskSmokeClient::new(STREAM_MCP_URL, bearer_token.clone()).with_host(STREAM_HOST);
+    let bearer_token = if public.is_none() {
+        Some(
+            issue_internal_token(
+                required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")?,
+                required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_ID")?,
+                "stream",
+                "stream-gpu-smoke",
+                &environment,
+                installation,
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
+    let direct_client = bearer_token.as_ref().map(|token| {
+        FinalTaskSmokeClient::new(STREAM_MCP_URL, token.clone()).with_host(STREAM_HOST)
+    });
+    let task_client = public
+        .as_ref()
+        .map(|profile| &profile.client)
+        .or(direct_client.as_ref())
+        .context("Stream caller profile missing")?;
     let task = if let Some(mut replicas) = replicas {
         replicas
             .run(
                 installation,
-                &task_client,
-                bearer_token,
+                task_client,
+                bearer_token.context("replica profile requires direct caller")?,
                 arguments,
                 &mut stream_forward,
             )
             .await
+    } else if let Some(profile) = &public {
+        profile.record(public::ObservationKind::TaskDispatchIntent, None, &[], None)?;
+        let delivered = task_client
+            .run_tool_delivered_observed(
+                "stream__run_recording",
+                arguments,
+                Duration::from_secs(300),
+                |id| {
+                    profile.record(
+                        public::ObservationKind::TaskAcknowledged,
+                        Some(id),
+                        &[],
+                        None,
+                    )
+                },
+            )
+            .await?;
+        profile.record(
+            public::ObservationKind::DeliveredTaskCompleted,
+            Some(&delivered.task_id),
+            &delivered.statuses,
+            None,
+        )?;
+        delivered
+            .result
+            .structured_content
+            .context("Stream public Task omitted structured output")
     } else {
         task_client
             .run_tool_structured("run_recording", arguments, Duration::from_secs(300))
@@ -242,6 +298,9 @@ pub(crate) async fn stream_gpu(
     let task = match task {
         Ok(output) => output,
         Err(error) => {
+            if public.is_some() {
+                bail!("public Stream Task failed; inspect private outcome journal");
+            }
             if let Some(candidate) = candidate.as_mut() {
                 candidate.finish(
                     work_dir,
@@ -260,7 +319,7 @@ pub(crate) async fn stream_gpu(
         }
     };
     let output: veoveo_stream_mcp::contract::RunRecordingOutput = serde_json::from_value(task)
-        .context("Stream recording run did not return its typed contract")?;
+        .map_err(|_| anyhow::anyhow!("Stream recording run did not return its typed contract"))?;
     let results: veoveo_stream_mcp::contract::AnalysisResults = task_client
         .read_resource(&output.result_uri().to_uri())
         .await
@@ -277,17 +336,40 @@ pub(crate) async fn stream_gpu(
     let processed_frames = output.summary.processed_frames;
     ensure!(
         processed_frames > 0,
-        "Stream recording run processed no GPU frames: {output:?}"
+        "Stream recording run processed no GPU frames"
     );
     ensure!(
         output.source_clip_artifact.is_some(),
         "Stream recording run omitted its requested source clip"
     );
 
+    if let Some(profile) = &public {
+        let uri = public::resource_identity(&output)?;
+        profile.record(
+            public::ObservationKind::ResourceSnapshotIntent,
+            None,
+            &[],
+            Some(&uri),
+        )?;
+        let snapshot = task_client
+            .resource_snapshot_delivery(&uri, Duration::from_secs(30))
+            .await?;
+        ensure!(
+            snapshot.uri == uri,
+            "Stream public resource snapshot identity differs"
+        );
+        profile.record(
+            public::ObservationKind::AcknowledgedInitialCurrentResourceSnapshot,
+            None,
+            &[],
+            Some(&snapshot.uri),
+        )?;
+    }
+
     let detection_count = output.summary.detection_count;
     ensure!(
         detection_count > 0,
-        "Stream recording run returned no detections: {output:?}"
+        "Stream recording run returned no detections"
     );
     println!(
         "Stream GPU smoke ok: recording {recording_id}, {processed_frames} frames, {detection_count} detections, typed artifacts published"
@@ -304,6 +386,9 @@ pub(crate) async fn stream_gpu(
     stream_forward.close().await?;
     surreal_forward.close().await?;
     cleanup.remove_on_drop();
+    if let Some(profile) = &mut public {
+        profile.complete()?;
+    }
     Ok(())
 }
 

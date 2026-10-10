@@ -6,6 +6,10 @@ use rmcp::model::{CallToolResult, TaskPayload};
 
 use super::*;
 
+mod delivery;
+pub mod public_caller;
+pub use delivery::{DeliveredTaskResult, ResourceSnapshotDelivery};
+
 /// Full-profile task client used by smoke scenarios that address a hosted
 /// server directly. It uses rmcp's Discover lifecycle and official Tasks
 /// methods; no duplicate JSON-RPC or task wire model lives in the harness.
@@ -16,6 +20,17 @@ pub struct FinalTaskSmokeClient {
 }
 
 impl FinalTaskSmokeClient {
+    /// Admit an owner-private OAuth token without exposing it in caller diagnostics.
+    pub fn from_private_token_file(endpoint: &veoveo_types::HttpsUrl, path: &Path) -> Result<Self> {
+        let header = crate::installed::knowledge::bearer_header(path)
+            .map_err(|_| anyhow!("private bearer file admission failed"))?;
+        let bearer = header
+            .to_str()
+            .ok()
+            .and_then(|value| value.strip_prefix("Bearer "))
+            .context("private bearer header admission failed")?;
+        Ok(Self::new(endpoint.as_str(), bearer.to_owned()))
+    }
     pub fn new(endpoint: &str, bearer_token: String) -> Self {
         Self {
             endpoint: endpoint.to_owned(),
@@ -38,7 +53,14 @@ impl FinalTaskSmokeClient {
         let client = tokio::time::timeout(
             Duration::from_secs(30),
             SmokeMcpHandler.serve_with_lifecycle(
-                StreamableHttpClientTransport::from_config(config),
+                StreamableHttpClientTransport::with_client(
+                    reqwest::Client::builder()
+                        .connect_timeout(Duration::from_secs(10))
+                        .timeout(Duration::from_secs(65))
+                        .redirect(reqwest::redirect::Policy::none())
+                        .build()?,
+                    config,
+                ),
                 ClientLifecycleMode::Discover {
                     preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
                 },
@@ -113,15 +135,7 @@ impl FinalTaskSmokeClient {
         &self,
         uri: &veoveo_types::ResourceUri,
     ) -> Result<T> {
-        tokio::time::timeout(Duration::from_secs(30), async {
-            let client = self.connect().await?;
-            let value = read_mcp_resource_json(&client, uri.as_str()).await;
-            client.cancel().await?;
-            serde_json::from_value(value?)
-                .context("MCP resource does not match its owning contract")
-        })
-        .await
-        .context("MCP resource read exceeded 30 seconds")?
+        self.read_resource_owned(uri).await
     }
 
     pub async fn run_tool_structured(
