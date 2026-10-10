@@ -8,7 +8,10 @@ use super::*;
 
 mod delivery;
 pub mod public_caller;
-pub use delivery::{DeliveredTaskResult, ResourceSnapshotDelivery};
+pub use delivery::{
+    DeliveredTaskResult, RecoveredTaskResult, ResourceSnapshotDelivery, WorkingCheckpoint,
+    WorkingTaskRecovery,
+};
 
 /// Full-profile task client used by smoke scenarios that address a hosted
 /// server directly. It uses rmcp's Discover lifecycle and official Tasks

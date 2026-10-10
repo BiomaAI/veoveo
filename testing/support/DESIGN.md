@@ -69,6 +69,30 @@ Framework dispatch verifies one exact selected case and reads maintained framewo
 
 ## Qualification
 
+### Unfinished Task Recovery
+
+`FinalTaskSmokeClient::run_tool_delivered_recovered` creates one official MCP Task.
+Its synchronous creation observer receives the admitted ID and full creation record
+before another wait. An exact Task subscription must acknowledge the requested filter,
+deliver Working and agree with a current `tasks/get` identity and creation time.
+The owner's `WorkingTaskRecovery` checkpoint then proves a real process replacement.
+Provider identity, crash signalling and independent domain assertions belong to that owner.
+
+After the checkpoint, the helper closes the original SDK generation and reconnects
+once through the same public caller configuration. The original Task must still be
+Working with the same ID and creation time. A required synchronous observer records
+that verified state before the replacement subscription opens. Completion requires
+delivered Completed and a matching current result. No recovery path repeats
+`tools/call`. A Task that completes before either Working gate refuses this profile.
+
+The supplied total timeout starts before connection and is shortened by the active
+owner deadline. Its final two seconds are reserved for SDK cleanup. Both generations
+register their actual handles before subsequent waits, and consuming close futures
+survive interruption. Cleanup latches its first cap, preserves errors and refuses to
+poll an expired close even when that future later becomes ready. An already-ended
+subscription follows the pinned SDK's normal cancellation semantics; transport and
+join errors fail cleanup. The existing delivered-completion helper keeps its API.
+
 Existing owner assertions and independent onboarding controls exercise declaration rejection, source containment, compiler artifact tampering, hashed/external targets, native library drift, exact framework selection and cancellation. Protocol, installation, provider and hardware prerequisites remain with those owning harnesses.
 
 The ignored `framework_execution` integration case requires Node and the locked independent-fixture Python dev environment. Explicit selection executes actual passed, skipped, failed and missing cases through both maintained frameworks; model-only count checks cannot replace that gate. It requires no service or graphics context.

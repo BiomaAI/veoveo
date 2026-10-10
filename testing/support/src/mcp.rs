@@ -56,6 +56,16 @@ impl SmokeMcpClient {
         }
         Ok(())
     }
+    /// Move the existing Task cleanup registration across an explicit SDK reconnect.
+    pub(crate) fn take_task_cleanup(
+        &self,
+        id: &veoveo_types::CanonicalTaskId,
+    ) -> Option<crate::lifecycle::owner::CleanupRegistration> {
+        self.owned_tasks
+            .lock()
+            .expect("owned Task registrations")
+            .remove(id.as_str())
+    }
 }
 
 pub fn run_mcp(

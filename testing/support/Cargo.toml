@@ -27,3 +27,5 @@ uuid.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+axum.workspace = true
+veoveo-mcp-contract = { workspace = true, default-features = false, features = ["runtime"] }

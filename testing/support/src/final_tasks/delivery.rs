@@ -11,6 +11,9 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use tokio::sync::Mutex;
 use veoveo_types::{CanonicalTaskId, ResourceUri};
 
+mod recovery;
+pub use recovery::{RecoveredTaskResult, WorkingCheckpoint, WorkingTaskRecovery};
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeliveredTaskResult {
