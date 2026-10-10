@@ -32,7 +32,7 @@ All eighteen selected stock native acceptance cases pass, including Host image
 replacement, directed template upgrade/rollback and the unmodified CLI transport.
 Installed identity materialization and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
 and owning controls. Knowledge's prearmed cold-start case passes compiler, lint,
-nine focused native controls and independent review; its installed run remains open.
+ten focused native controls and independent review; its installed run remains open.
 Task/subscription fixtures and complete installed A/F/H
 qualification remain open. See [Current Status](#current-status).
 
@@ -174,6 +174,16 @@ HelmReleases suspend application reconciliation; node configuration is unchanged
 The eighteen selected stock native cases are qualified, including the aggregate Host
 profile of 1 CPU, 6 GiB and 1,024 PIDs. The installed 8 CPU, 12 GiB and 4,096-PID
 profile has not been activated.
+
+The first installed Knowledge cold-start attempt exits before the initial watch
+bookmark, launch or any MCP request. Its native watch includes a completed Pod from
+the prior ReplicaSet, whose old image fails candidate admission. An identity-checked
+rollback restores the original Knowledge image and one Ready replica; Embedding,
+Speech, Gateway and Manager stay Ready. The repaired watch excludes Succeeded and
+Failed Pods through Kubernetes field selection while preserving active-image,
+ownership and selected-instance failure checks. Compiler, lint, ten native controls
+and independent review pass. Installed cold-start qualification still requires a
+new run against the repaired observer.
 
 Current image qualification uses source `c5a2c6c3e` and authentic fresh stage
 receipts. Each image batch has its own growth budget above the filesystem reserve;

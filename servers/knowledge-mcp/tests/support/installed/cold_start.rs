@@ -200,9 +200,18 @@ struct ContainerStatus {
 #[serde(rename_all = "camelCase")]
 struct PodStatus {
     #[serde(default)]
+    phase: Option<PodPhase>,
+    #[serde(default)]
     container_statuses: Vec<ContainerStatus>,
     #[serde(default)]
     conditions: Vec<PodCondition>,
+}
+#[derive(Clone, Copy, Deserialize)]
+enum PodPhase {
+    Succeeded,
+    Failed,
+    #[serde(other)]
+    ActiveOrUnknown,
 }
 #[derive(Clone, Deserialize)]
 struct PodCondition {
@@ -287,6 +296,13 @@ enum Event {
 }
 impl Pod {
     fn instance(&self, expected_image: &str, namespace: &str) -> Result<Option<Instance>> {
+        ensure!(
+            !self.status.as_ref().is_some_and(|status| matches!(
+                status.phase,
+                Some(PodPhase::Succeeded | PodPhase::Failed)
+            )),
+            "Knowledge observed candidate Pod is terminal"
+        );
         name(&self.metadata.name)?;
         ensure!(
             self.metadata.namespace == namespace
@@ -520,11 +536,11 @@ struct Watch {
     in_progress: Option<Event>,
 }
 impl Watch {
-    fn start(input: &Input, handles: &mut cleanup::Handles) -> Result<Self> {
+    fn url(namespace: &str, timeout_seconds: u64) -> Result<reqwest::Url> {
         let mut url = reqwest::Url::parse("https://kubernetes.invalid/")?;
         url.path_segments_mut()
             .map_err(|_| anyhow::anyhow!("Kubernetes API URL invalid"))?
-            .extend(["api", "v1", "namespaces", &input.namespace, "pods"]);
+            .extend(["api", "v1", "namespaces", namespace, "pods"]);
         url.query_pairs_mut()
             .append_pair("watch", "true")
             .append_pair("sendInitialEvents", "true")
@@ -532,10 +548,20 @@ impl Watch {
             .append_pair("resourceVersion", "")
             .append_pair("resourceVersionMatch", "NotOlderThan")
             .append_pair("labelSelector", "app.kubernetes.io/component=knowledge-mcp")
+            // Exclude only historical completed Pods. Leaving this selection
+            // produces DELETED, which still passes through the refusal below.
             .append_pair(
-                "timeoutSeconds",
-                &(input.startup_seconds + input.stability_seconds + 300).to_string(),
-            );
+                "fieldSelector",
+                "status.phase!=Succeeded,status.phase!=Failed",
+            )
+            .append_pair("timeoutSeconds", &timeout_seconds.to_string());
+        Ok(url)
+    }
+    fn start(input: &Input, handles: &mut cleanup::Handles) -> Result<Self> {
+        let url = Self::url(
+            &input.namespace,
+            input.startup_seconds + input.stability_seconds + 300,
+        )?;
         let raw = &url[url::Position::BeforePath..];
         let mut command = command(&input.context, &input.namespace);
         command
@@ -1073,6 +1099,7 @@ fn control_pod(ready: bool, restarts: u32) -> Pod {
             }],
         },
         status: Some(PodStatus {
+            phase: Some(PodPhase::ActiveOrUnknown),
             conditions: vec![PodCondition {
                 kind: PodConditionKind::Ready,
                 status: if ready {
@@ -1090,6 +1117,34 @@ fn control_pod(ready: bool, restarts: u32) -> Pod {
             }],
         }),
     }
+}
+
+#[test]
+fn cold_start_watch_selects_active_candidates_and_refuses_terminal_instances() -> Result<()> {
+    let url = Watch::url("fixture", 335)?;
+    let pairs = url.query_pairs().collect::<BTreeMap<_, _>>();
+    ensure!(
+        pairs.get("fieldSelector").map(|s| s.as_ref())
+            == Some("status.phase!=Succeeded,status.phase!=Failed")
+    );
+    ensure!(pairs.get("sendInitialEvents").map(|s| s.as_ref()) == Some("true"));
+    ensure!(pairs.get("resourceVersionMatch").map(|s| s.as_ref()) == Some("NotOlderThan"));
+    // The native API excludes both historical terminal phases before emitting
+    // initial events; no owner/image mismatch is ignored by the local parser.
+    for phase in ["Pending", "Running", "Unknown", "Succeeded", "Failed"] {
+        let mut pod = control_pod(false, 0);
+        pod.status.as_mut().unwrap().phase =
+            Some(serde_json::from_value(serde_json::json!(phase))?);
+        let image = pod.spec.containers[0].image.clone();
+        let terminal = matches!(phase, "Succeeded" | "Failed");
+        ensure!(pod.instance(&image, "fixture").is_err() == terminal);
+        pod.spec.containers[0].image = "wrong-image".into();
+        ensure!(
+            pod.instance(&image, "fixture").is_err(),
+            "active wrong-image candidate admitted"
+        );
+    }
+    Ok(())
 }
 
 #[test]
@@ -1416,7 +1471,7 @@ async fn cold_start_retains_watch_event_when_ownership_admission_is_cancelled() 
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
-    for case in ["fence", "unready", "deleted", "restart"] {
+    for case in ["fence", "unready", "deleted", "terminal", "restart"] {
         let directory = super::controls::Scratch::new()?;
         let journal =
             receipt::Journal::open(&directory.0.join("outcome.json"), "operator".parse()?)?;
@@ -1442,10 +1497,10 @@ async fn cold_start_retains_watch_event_when_ownership_admission_is_cancelled() 
         }
         // Native pipe supplies an ordinary API frame, not a prefilled event slot.
         let status = &pod.status.as_ref().unwrap().container_statuses[0];
-        let event = serde_json::json!({"type":if case == "deleted" {"DELETED"} else {"MODIFIED"},"object":{
+        let event = serde_json::json!({"type":if matches!(case, "deleted" | "terminal") {"DELETED"} else {"MODIFIED"},"object":{
             "metadata":{"name":pod.metadata.name,"namespace":pod.metadata.namespace,"uid":pod.metadata.uid,"resourceVersion":pod.metadata.resource_version},
             "spec":{"containers":[{"name":"knowledge-mcp","image":image}]},
-            "status":{"containerStatuses":[{"name":"knowledge-mcp","containerId":status.container_id,"imageId":status.image_id,"restartCount":status.restart_count,"ready":status.ready}],"conditions":[{"type":"Ready","status":if case=="unready" {"False"} else {"True"}}]}
+            "status":{"phase":if case=="terminal" {"Succeeded"} else {"Running"},"containerStatuses":[{"name":"knowledge-mcp","containerId":status.container_id,"imageId":status.image_id,"restartCount":status.restart_count,"ready":status.ready}],"conditions":[{"type":"Ready","status":if case=="unready" {"False"} else {"True"}}]}
         }});
         let mut command = tokio::process::Command::new("printf");
         command.arg("%s%s").arg(serde_json::to_string(&event)?).arg(r#"{"type":"BOOKMARK","object":{"metadata":{"resourceVersion":"following-event"}}}"#).stdout(std::process::Stdio::piped());
