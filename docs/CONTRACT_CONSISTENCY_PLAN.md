@@ -6,8 +6,12 @@ extraction triggered node disk pressure; all seventeen desired Deployments and b
 StatefulSets recovered by 02:42 UTC on October 10. Compiler checks and all twenty-seven
 focused native recovery/consumer controls pass. Twenty-seven images at `c5a2c6c3e`,
 including all seven stock-rollout images, pass staging, attested qualification and node-side registry readback.
+The current source closure requires thirty Rust targets and the pending cuOpt image;
+those earlier receipts do not qualify the new inputs.
 Gateway, Agent Manager and Knowledge run compatible qualified images against the
-published full catalog. Knowledge passes retained-index cold-start qualification;
+published full catalog. Manager is Ready with the reviewed immutable pilot template,
+qualified kernel and matching admission policies; its full installed instance journey
+is open. Knowledge passes retained-index cold-start qualification;
 generation two and restricted caller policy remain open. Reconciliation
 holds stay set. Further image batches require
 separate disk-space admission. Speech's previously
@@ -119,12 +123,13 @@ Store and cleanup controls pass. Actual unfinished restart, HTTP shutdown and
 stepped simulator qualification remain open.
 
 The existing owner harnesses prepare the following checks. Previously qualified
-native controls pass; the new installed cases have not yet executed.
+native controls pass. Time schedule completion also passes through normal public
+OAuth; cancellation and recovery keep their separate qualification gates.
 Earlier installed checkpoints keep their recorded scope below.
 
 | Owner | Prepared installed checks | Remaining qualification |
 |---|---|---|
-| Time | Read consumers and explicit complete/cancel/recover schedule fixtures with independent expected occurrences, original Task identity and delivered/current agreement | Installed cancellation, unfinished process recovery, authority activation and final images |
+| Time | Read consumers and explicit complete/cancel/recover schedule fixtures; installed completion passes independent one-row output, delivered/current Completed agreement and cleanup | Installed cancellation, unfinished process recovery, authority activation and final images |
 | Artifact | Delegated SDK reads and retained Task-bound write capability across one selected service replacement, followed by redemption and idempotent replay | Public OAuth issuance, actual service replacement, interrupted-write recovery and final images |
 | Timeseries | Four-row forecast, RRD Artifact and usage; typed cancellation, connection replacement and process-crash fixtures with original Task/result agreement | Installed unfinished process recovery, selected cross-replica routing and final images |
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
@@ -138,8 +143,11 @@ including shared crash-receipt decoding and cleanup after failed journal writes.
 Process recovery requires the original Task Working before and after replacement;
 early completion refuses qualification. A real million-day Time recurrence scan
 produced its independent one-row result in 9.614 seconds locally. That sample does
-not establish an installed unfinished window. Installed cancellation and process
-recovery have not run. Time recover mode selects one 300-second operation deadline;
+not establish an installed unfinished window. Installed Time completion passes; its
+cancellation attempt refused early completion before any cancellation intent or request.
+Ops is reconciling that Task; the attempt does not qualify cancellation. Process
+recovery is held and unrun. Together with the three administrative API controls,
+the tracked native batch has nineteen passing controls. Time recover mode selects one 300-second operation deadline;
 its other modes keep 120 seconds.
 
 Time’s administrative `/active-authorities` response now exposes `pointerVersion`
@@ -147,7 +155,10 @@ with the selected release. Clients use that guard for activation;
 `release.recordVersion` identifies release metadata. The response hard cut has no
 compatibility alias. Three focused native controls pass, covering admitted wire
 and schema, persisted pointer/release consistency and two hosted activations.
-Installed authority activation remains open.
+Installed authority activation remains open. Time engine calculations currently run
+synchronously inside the async worker and can block HTTP and heartbeat progress.
+The CPU execution repair is in progress and unqualified; installed root-cause
+attribution still requires the selected process measurements and logs.
 
 The added Speech resource and Stream/Reason public-caller cases pass compiler,
 strict lint, formatting, documentation and independent source review. Their seventeen
@@ -201,7 +212,9 @@ verify four sources, sixteen collections and eleven links; the verified generati
 matches the active generation.
 The case exits successfully after closing its observers and port-forwards, and
 Knowledge stays at one Ready replica. First-ever index construction remains
-unqualified. Generation-two publication, Host activation and the restricted
+unqualified. An isolated eight-lane first-empty configuration is prepared only;
+its installation, empty-state proof and startup have not been admitted or executed.
+Generation-two publication, Host activation and the restricted
 caller-policy case still require their separately selected checks.
 
 The observer's canonical Pod decoding, readiness ordering and owned port-forward
@@ -245,8 +258,12 @@ their qualified inputs. Twenty-seven of the thirty-four affected images are
 qualified; these prepared pin changes do not deploy workloads or qualify the
 remaining images.
 
-Current image qualification uses source `c5a2c6c3e` and authentic fresh stage
-receipts. Each image batch has its own growth budget above the filesystem reserve;
+The authoritative current-source image plan selects thirty Rust targets plus the
+pending cuOpt image. Complete local manifests, entrypoints and root Cargo inputs
+change compiler source contexts beyond the directly edited runtime packages. The
+prior C5 qualification covers its recorded inputs; it does not close this source
+revision. Stable compiler cache identities are preserved. Each image batch has its
+own growth budget above the filesystem reserve;
 the former 96-GiB admission and 84-GiB cancellation guard do not protect this node.
 The remaining GPU image families require separate base-layer and disk admission.
 

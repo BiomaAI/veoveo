@@ -6,6 +6,40 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Installed Time And Preparation Checkpoint — October 10, 2026
+
+At source `c3371e654`, the maintained `time-installed-schedule-task` complete
+profile passes in eight seconds through normal public Gateway OAuth. It compares
+an independently expected one-row output with delivered and current Completed
+observations and closes its owned clients/listeners. The cancel profile observes
+early completion and refuses the required Working precondition. It records no
+cancel intent and sends no cancel request. Ops is reconciling the actual Task;
+missing receipt settlement fields do not establish an unsettled durable Task.
+Recover remains held and unrun. The nineteen focused native lifecycle/API controls
+keep their recorded scope. Private execution receipt:
+`/tmp/veoveo-time-schedule-prep-20261010.SB2nwl/execution-final.json`, SHA-256
+`4ed8fe9b6ae107bddd312bf12899fa370ae328ccaac056fefcdd4320f03ca2e1`.
+
+Source inspection finds synchronous Time engine calculations inside the async
+worker, which can block HTTP and heartbeat progress. The CPU repair is being
+implemented and has not been qualified. Installed incident attribution still
+requires Ops' process CPU measurements and correlated logs.
+
+Agent Manager is Ready with immutable template `uav-pilot-037b21aaa992`, qualified
+kernel `8b0fae16caafa85ce363e94a6843fd8e4901ca386d43d45c88c4c414abeac558`
+and matching admission policies. This establishes the instance journey's setup
+prerequisite; the full installed journey remains open. The isolated first-empty
+Knowledge preparation selects seven kernel lanes plus Time. Its configuration
+remains unadmitted, and no isolated startup or authoritative empty-state inventory
+has run.
+
+The authoritative `c3371e654` source plan requires thirty Rust targets plus pending
+`cuopt-executor`, thirty-one images in total. The prior C5 twenty-seven-of-thirty-four
+qualification does not qualify these changed source inputs. Compiler cache IDs
+remain stable. Private closure receipt:
+`/tmp/veoveo-c337-authoritative-plan-20261010/final-source-closure.json`, SHA-256
+`a5b0b22350d3d667682807e8135011f297af78ae90a63063227cdae0d75d6fbb`.
+
 ## Consolidation Checkpoints At `c120b9aaa`
 
 The following qualification and installation status was moved from the active plan
