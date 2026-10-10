@@ -4,6 +4,15 @@ use tokio::io::AsyncReadExt;
 use veoveo_embedding_contract::QualifiedEmbeddingRuntime;
 use veoveo_testing_support::installed::knowledge::InstalledSource;
 
+fn probe_client() -> Result<reqwest::Client> {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    Ok(reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(2))
+        .timeout(Duration::from_secs(3))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 enum Schema {
     #[vocabulary(rename = "veoveo.ai/knowledge-cold-start-input/v1")]
@@ -978,7 +987,7 @@ async fn unattended_cold_start_converges_then_preserves_ready_generation() -> Re
                 Ok::<_,anyhow::Error>(())
             }).await.context("Knowledge streaming initial-event handshake missing; API support required")??;
             let deadline = tokio::time::Instant::now()+Duration::from_secs(input.startup_seconds);
-            let http = reqwest::Client::builder().connect_timeout(Duration::from_secs(2)).timeout(Duration::from_secs(3)).redirect(reqwest::redirect::Policy::none()).build()?;
+            let http = probe_client()?;
             let mut current: Option<Instance> = None;
             let mut local = None;
             let mut probes = tokio::time::interval(Duration::from_secs(1));
@@ -1077,6 +1086,18 @@ async fn unattended_cold_start_converges_then_preserves_ready_generation() -> Re
             anyhow::bail!("Knowledge cold-start unqualified; inspect private outcome");
         }
     }
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn cold_start_probe_client_initializes_crypto_before_installed_connect() -> Result<()> {
+    // Run this selector alone in a fresh test process to qualify the cold-case
+    // construction order without installed connect or another TLS fixture.
+    let client = probe_client()?;
+    ensure!(rustls::crypto::CryptoProvider::get_default().is_some());
+    let request = client.get("https://probe.invalid/readyz").build()?;
+    ensure!(request.url().scheme() == "https");
+    Ok(())
 }
 
 #[cfg(test)]

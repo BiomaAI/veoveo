@@ -32,7 +32,7 @@ All eighteen selected stock native acceptance cases pass, including Host image
 replacement, directed template upgrade/rollback and the unmodified CLI transport.
 Installed identity materialization and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
 and owning controls. Knowledge's prearmed cold-start case passes compiler, lint,
-ten focused native controls and independent review; its installed run remains open.
+eleven focused native controls and independent review; its installed run remains open.
 Task/subscription fixtures and complete installed A/F/H
 qualification remain open. See [Current Status](#current-status).
 
@@ -184,6 +184,14 @@ Failed Pods through Kubernetes field selection while preserving active-image,
 ownership and selected-instance failure checks. Compiler, lint, ten native controls
 and independent review pass. Installed cold-start qualification still requires a
 new run against the repaired observer.
+
+The second attempt records the initial watch bookmark, then its local probe client
+panics because Rustls has no selected crypto provider. No launch or MCP request
+occurs. Ops verifies that the watch process has exited and restores the original
+Ready image with an identity-checked rollback. The probe now initializes Knowledge's
+existing Ring provider before constructing the client. Its constructor passes alone
+in a fresh process, and all eleven native controls pass with the three installed
+cases ignored. Independent review accepts the repair; the installed run remains open.
 
 Current image qualification uses source `c5a2c6c3e` and authentic fresh stage
 receipts. Each image batch has its own growth budget above the filesystem reserve;
