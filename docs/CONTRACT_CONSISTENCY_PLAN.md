@@ -5,8 +5,10 @@ recorded qualification. GitOps is suspended during source work. Development imag
 extraction triggered node disk pressure; all seventeen desired Deployments and both
 StatefulSets recovered by 02:42 UTC on October 10. Compiler checks and all twenty-seven
 focused native recovery/consumer controls pass. Twenty-three images at `c5a2c6c3e`,
-including all seven stock-rollout images, pass staging, attested qualification and node-side registry readback;
-deployed pins and reconciliation holds stay unchanged. Further image batches require
+including all seven stock-rollout images, pass staging, attested qualification and node-side registry readback.
+Gateway and Agent Manager run their qualified images against the existing catalog;
+Knowledge's replacement and the worker-catalog publication remain open. Reconciliation
+holds stay set. Further image batches require
 separate disk-space admission. Speech's previously
 selected headed Workspace consumer passes with fixture audio;
 Reason and the other GPU workloads stay at zero replicas. The unmodified OpenShell 0.1.2 source
@@ -29,7 +31,9 @@ Frames completed-state retention passes across one actual same-Pod process crash
 All eighteen selected stock native acceptance cases pass, including Host image
 replacement, directed template upgrade/rollback and the unmodified CLI transport.
 Installed identity materialization and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
-and owning controls. Task/subscription fixtures and complete installed A/F/H
+and owning controls. Knowledge's prearmed cold-start case passes compiler, lint,
+nine focused native controls and independent review; its installed run remains open.
+Task/subscription fixtures and complete installed A/F/H
 qualification remain open. See [Current Status](#current-status).
 
 This is the single implementation plan for the former Foundations, Contract
@@ -275,13 +279,19 @@ artifact identities are preserved. The 30-Rust-target count and the historical
 | Python runtimes | `datasheet-mcp`, `anonymous-simulation-mcp` |
 | NVIDIA executor | `cuopt-executor` |
 
-The matching
-worker catalog section and client must stay unpublished until every
+The matching worker catalog section and client must stay unpublished until every
 deployed catalog reader admits the full catalog. Rollout must preserve the actual live catalog,
 policy and enabled module composition. The strict full-catalog readers are Gateway,
-Computers MCP, Agent Manager and Knowledge. Retained Manager `affcaf` and Knowledge `7f2bd`
-images have no source provenance admitting the worker section introduced at
-`b6e7e0e00`; their replacement and old-reader drain must precede publication.
+Computers MCP, Agent Manager and Knowledge. Gateway and Agent Manager now run their
+qualified `c5a2c6c3e` images, and no active old-image process remains for either reader.
+Gateway readiness and OAuth metadata return 200. Manager's current-container startup
+marker proves full-catalog admission and controller initialization; managed-operation
+reconciliation still needs its own check. Catalog ConfigMap bytes and all three
+GitOps holds are preserved. Knowledge briefly withdraws readiness during the Gateway
+replacement, then recovers on the same container without another restart. The selected
+Knowledge image `7f2bd` has no source provenance admitting the worker section introduced
+at `b6e7e0e00`; its replacement, authenticated catalog/search check and old-reader drain
+must precede publication.
 
 | Phase | Current state | Remaining gate |
 |---|---|---|
