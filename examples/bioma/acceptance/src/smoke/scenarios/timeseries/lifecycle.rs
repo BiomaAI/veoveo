@@ -8,17 +8,22 @@ use serde::{Deserialize, Serialize};
 use veoveo_types::CanonicalTaskId;
 #[path = "lifecycle/assertions.rs"]
 mod output_assertions;
+#[path = "lifecycle/recovery.rs"]
+mod recovery;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub(super) enum Mode {
     Cancel,
     Reconnect,
+    ProcessCrash,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct Input {
     mode: Mode,
     request: TimeseriesForecastRequest,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    crash: Option<recovery::Fixture>,
 }
 impl Input {
     pub fn load(path: &Path) -> Result<Self> {
@@ -26,14 +31,20 @@ impl Input {
             path.is_absolute(),
             "Timeseries lifecycle input requires an absolute path"
         );
+        use std::os::unix::fs::PermissionsExt;
+        let metadata = std::fs::symlink_metadata(path)?;
         ensure!(
-            std::fs::metadata(path)?.len() <= 256 * 1024,
-            "Timeseries lifecycle input exceeds256KiB"
+            metadata.is_file() && metadata.permissions().mode() & 0o777 == 0o600,
+            "Timeseries lifecycle input requires a private 0600 regular file"
+        );
+        ensure!(
+            metadata.len() <= 256 * 1024,
+            "Timeseries lifecycle input exceeds 256 KiB"
         );
         let bytes = std::fs::read(path)?;
         ensure!(
             bytes.len() <= 256 * 1024,
-            "Timeseries lifecycle input exceeds256KiB"
+            "Timeseries lifecycle input exceeds 256 KiB"
         );
         let input: Self = serde_json::from_slice(&bytes)
             .map_err(|_| anyhow!("invalid Timeseries lifecycle input"))?;
@@ -43,13 +54,20 @@ impl Input {
     fn validate(&self) -> Result<()> {
         ensure!(
             matches!(&self.request.source, DuckDbTabularSource::InlineCsv { csv, .. } if !csv.is_empty() && csv.len() <= 128*1024),
-            "lifecycle workload requires nonempty inline CSV at most128KiB"
+            "lifecycle workload requires nonempty inline CSV at most 128 KiB"
         );
         ensure!(
             self.request.method
                 == veoveo_timeseries_mcp::contract::TimeseriesForecastMethod::NaiveTrend,
             "lifecycle fixture requires CPU NaiveTrend"
         );
+        ensure!(
+            (self.mode == Mode::ProcessCrash) == self.crash.is_some(),
+            "process_crash requires crash input; cancel/reconnect forbid it"
+        );
+        if let Some(crash) = &self.crash {
+            crash.validate()?;
+        }
         Ok(())
     }
 }
@@ -63,6 +81,10 @@ pub(super) enum Step {
     Reconnected,
     AfterAction,
     Terminal,
+    WatchArmed,
+    ReadyForCrash,
+    CrashObserved,
+    ReplacementFenced,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -77,6 +99,8 @@ pub(super) struct Journal {
     task_id: Option<CanonicalTaskId>,
     created_at: Option<String>,
     observations: Vec<Observation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    crash: Option<recovery::Journal>,
     pub(super) cleanup: cleanup::Trace,
     output: Option<TimeseriesForecastOutput>,
     artifact_digest: Option<veoveo_types::Sha256Digest>,
@@ -119,7 +143,12 @@ fn nonterminal(task: &DetailedTask) -> Result<()> {
     Ok(())
 }
 fn before_action(mode: Mode, task: &DetailedTask) -> Result<()> {
-    if mode == Mode::Cancel {
+    if mode == Mode::ProcessCrash {
+        ensure!(
+            task.status() == TaskStatus::Working,
+            "process crash requires an actually Working forecast; workload is unqualified"
+        );
+    } else if mode == Mode::Cancel {
         nonterminal(task)?;
     }
     Ok(())
@@ -203,6 +232,7 @@ pub(super) async fn run(
         task_id: None,
         created_at: None,
         observations: Vec::new(),
+        crash: input.crash.as_ref().map(|_| recovery::Journal::default()),
         cleanup: cleanup::Trace::default(),
         output: None,
         artifact_digest: None,
@@ -213,11 +243,24 @@ pub(super) async fn run(
     persist(file, receipt)?;
     let (owned, registration) = cleanup::register(file, cleanup::Role::Lifecycle)?;
     let mut cleanup_file = file.try_clone()?;
-    let result = tokio::time::timeout(Duration::from_secs(300), async {
+    let (watch_owned, watch_registration) = recovery::register(file)?;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
+    let result = tokio::time::timeout_at(deadline, async {
         let mut handles = owned.lock().await;
         handles.opened_client(connect(installation).await?)?;
         handles.sync(receipt);
         persist(file, receipt)?;
+        if let Some(fixture) = &input.crash {
+            fixture.admit(installation)?;
+            let driver = recovery::driver(installation, fixture, handles.client.as_ref().unwrap())?;
+            driver.admit_crash_target(&fixture.target).await?;
+            let mut retained = watch_owned.lock().await;
+            driver
+                .arm_crash_watch(&fixture.target, &mut retained.watch)
+                .await?;
+            retained.sync(receipt)?;
+            observe(file, receipt, Step::WatchArmed, None)?;
+        }
         observe(file, receipt, Step::DispatchIntent, None)?;
         let admitted = call_tool_as_task(
             handles.client.as_ref().unwrap(),
@@ -252,6 +295,57 @@ pub(super) async fn run(
                     .await
                     .map_err(|_| anyhow!("Timeseries lifecycle cancellation outcome unresolved"))?;
                 observe(file, receipt, Step::CancelAcknowledged, None)?;
+            }
+            Mode::ProcessCrash => {
+                // This durable handshake authorizes only the externally applied, selected crash.
+                let fixture = input
+                    .crash
+                    .as_ref()
+                    .context("Timeseries crash fixture absent")?;
+                let driver =
+                    recovery::driver(installation, fixture, handles.client.as_ref().unwrap())?;
+                recovery::ready_for_crash(
+                    driver.admit_crash_target(&fixture.target),
+                    file,
+                    receipt,
+                )
+                .await?;
+                let mut retained = watch_owned.lock().await;
+                let progress = retained
+                    .watch
+                    .as_mut()
+                    .context("Timeseries crash watch absent")?
+                    .wait(deadline)
+                    .await;
+                retained.sync(receipt)?;
+                persist(file, receipt)?;
+                progress?;
+                observe(file, receipt, Step::CrashObserved, None)?;
+                // A fresh listener snapshot cannot reuse a queued pre-crash Working update.
+                let closed = handles
+                    .close_until(
+                        tokio::time::Instant::from_std(
+                            veoveo_testing_support::lifecycle::owner::cleanup_deadline()?,
+                        ),
+                        &mut cleanup_file,
+                    )
+                    .await;
+                handles.sync(receipt);
+                persist(file, receipt)?;
+                closed?;
+                handles.opened_client(connect(installation).await?)?;
+                handles.sync(receipt);
+                persist(file, receipt)?;
+                open_listener(&mut handles, &id).await?;
+                handles.sync(receipt);
+                persist(file, receipt)?;
+                let delivered = notification(&mut handles.state, &id, &created).await?;
+                observe(file, receipt, Step::AfterAction, Some(delivered.clone()))?;
+                before_action(input.mode, &delivered)?;
+                let after = current(handles.client.as_ref().unwrap(), &id).await?;
+                same_task(&after, &id, &created)?;
+                observe(file, receipt, Step::AfterAction, Some(after.clone()))?;
+                before_action(input.mode, &after)?;
             }
             Mode::Reconnect => {
                 let closed = handles
@@ -313,13 +407,35 @@ pub(super) async fn run(
             )
             .await?;
         }
+        if input.mode == Mode::ProcessCrash {
+            let mut retained = watch_owned.lock().await;
+            retained
+                .watch
+                .as_mut()
+                .context("Timeseries crash watch absent")?
+                .admit_recovered_target()
+                .await?;
+            retained.sync(receipt)?;
+            observe(file, receipt, Step::ReplacementFenced, None)?;
+        }
         Ok::<_, anyhow::Error>(())
     })
     .await
     .map_err(|_| {
-        anyhow!("Timeseries lifecycle exceeded300seconds; retained Task outcome unresolved")
+        anyhow!("Timeseries lifecycle exceeded 300 seconds; retained Task outcome unresolved")
     })
     .and_then(|result| result);
+    let watch_closed = {
+        let mut retained = watch_owned.lock().await;
+        let result = retained.close(&mut cleanup_file).await;
+        let sync = retained.sync(receipt);
+        let settled = if retained.closed() {
+            watch_registration.settled()
+        } else {
+            Ok(())
+        };
+        result.and(sync).and(settled)
+    };
     let mut handles = owned.lock().await;
     let closed = handles
         .close_until(
@@ -331,13 +447,14 @@ pub(super) async fn run(
         .await;
     handles.sync(receipt);
     receipt.lifecycle.as_mut().unwrap().passed =
-        result.is_ok() && closed.is_ok() && handles.closed();
+        result.is_ok() && closed.is_ok() && watch_closed.is_ok() && handles.closed();
     persist(file, receipt)?;
     if handles.closed() {
         registration.settled()?;
     }
     result?;
     closed?;
+    watch_closed?;
 
     Ok(())
 }
@@ -369,6 +486,8 @@ mod tests {
             },
         );
         assert!(before_action(Mode::Cancel, &completed).is_err());
+        before_action(Mode::ProcessCrash, &working)?;
+        assert!(before_action(Mode::ProcessCrash, &completed).is_err());
         before_action(Mode::Reconnect, &completed)?;
         let cancelled = task(
             id.as_str(),
@@ -392,6 +511,7 @@ mod tests {
         let mut input = Input {
             mode: Mode::Cancel,
             request: forecast_request()?,
+            crash: None,
         };
         input.validate()?;
         let mut wire = serde_json::to_value(&input)?;
@@ -416,12 +536,14 @@ mod tests {
         let input = Input {
             mode: Mode::Cancel,
             request: forecast_request()?,
+            crash: None,
         };
         let mut receipt = Receipt::new(forecast_request()?);
         receipt.lifecycle = Some(Journal {
             input,
             task_id: None,
             created_at: None,
+            crash: None,
             cleanup: cleanup::Trace::default(),
             observations: vec![Observation {
                 step: Step::DispatchIntent,

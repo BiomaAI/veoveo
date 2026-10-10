@@ -124,14 +124,23 @@ Earlier installed checkpoints keep their recorded scope below.
 
 | Owner | Prepared installed checks | Remaining qualification |
 |---|---|---|
-| Time | Read consumers and schedule Tasks with independent expected occurrences, exact-ID delivered completion and current result agreement | Cancellation, unfinished restart recovery, authority activation and final images |
+| Time | Read consumers and explicit complete/cancel/recover schedule fixtures with independent expected occurrences, original Task identity and delivered/current agreement | Installed cancellation, unfinished process recovery, authority activation and final images |
 | Artifact | Delegated SDK reads and retained Task-bound write capability across one selected service replacement, followed by redemption and idempotent replay | Public OAuth issuance, actual service replacement, interrupted-write recovery and final images |
-| Timeseries | Four-row forecast, RRD Artifact and usage; optional typed cancellation and connection replacement with original Task/result agreement; native terminal comparison permits mutable polling/TTL hints | Unfinished server restart, selected cross-replica routing and final images |
+| Timeseries | Four-row forecast, RRD Artifact and usage; typed cancellation, connection replacement and process-crash fixtures with original Task/result agreement | Installed unfinished process recovery, selected cross-replica routing and final images |
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
 | Stream | Existing GPU replay with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed result checks and an initial current resource snapshot | Installed public delivery, post-mutation updates, unfinished recovery and final images |
 | Reason | Existing GPU analysis with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed analysis checks and an initial current resource snapshot | Installed public delivery, unfinished recovery and final images |
 | Knowledge | Full-catalog baseline, qualified retained-index/current-generation cold startup and separate restricted-caller discovery, collection/completion visibility and document denials, with retained SDK cleanup | First-ever empty-index startup, generation-two publication, installed caller-policy checks, current-generation recovery and final images |
 | Optimization | Multi-page existing solve corpus, exact products, usage, public Task results and canonical Artifact bytes under allowed and denied caller contexts; separately selected coordinated control/executor replacement repeats the retained consumers | Installed GPU-produced corpus, mid-run policy changes, coordinated control/executor replacement and unfinished/cross-replica recovery |
+
+The Time and Timeseries lifecycle fixtures pass sixteen focused native controls,
+including shared crash-receipt decoding and cleanup after failed journal writes.
+Process recovery requires the original Task Working before and after replacement;
+early completion refuses qualification. A real million-day Time recurrence scan
+produced its independent one-row result in 9.614 seconds locally. That sample does
+not establish an installed unfinished window. Installed cancellation and process
+recovery have not run. Time recover mode selects one 300-second operation deadline;
+its other modes keep 120 seconds.
 
 The added Speech resource and Stream/Reason public-caller cases pass compiler,
 strict lint, formatting, documentation and independent source review. Their seventeen

@@ -507,6 +507,30 @@ cleanup. Operation success, cleanup and overall qualification are distinct recei
 The descriptor's 3600-second preparation-inclusive and 180-second cleanup ceilings preserve
 room for compiler prerequisites; they do not extend the owner operation deadline.
 
+## Installed Time Schedule Tasks
+
+The existing Time `gateway_consumers` harness selects its schedule case through
+`VEOVEO_TIME_SCHEDULE_TASK_INPUT`. The private fixture requires an explicit
+`complete`, `cancel` or `recover` mode, an admitted authority and independent
+expected occurrences. The [Time owner design](../../../servers/time-mcp/DESIGN.md#verification)
+defines the request and receipt contract.
+
+Recovery arms the shared native crash watch, verifies delivered and current
+Working for the original Task, and persists its ready-for-crash handshake before
+an externally authorized selected process crash. After replacement, that same
+Task must still be Working before delivered completion agrees with its current
+result. The supplied recurrence must naturally span both observations; early
+completion refuses recovery qualification. The native historical recurrence
+control checks a million daily candidates against independent UTC/TAI arithmetic
+with a one-row result. An installed run must establish its own unfinished window.
+
+Complete and cancel modes select a 120-second operation deadline. Recover selects
+300 seconds once before connection or target admission, allowing the existing
+120-second worker lease to expire. Every nested wait uses the remaining original
+interval. The scenario permits 360 seconds for execution and 30 seconds for owned
+cleanup. Interrupted close futures retain their first deadline; expiration stays
+failed even if a later poll could observe successful completion.
+
 ## Installed Timeseries
 
 `timeseries-installed` selects `installation-smoke timeseries-installed` with
@@ -545,18 +569,30 @@ uses ordinary OAuth to verify the native Task-usage read refusal. Artifact metad
 is read through the Artifact MCP contract-only library’s `metadata_uri` builder and
 admitted as the owner’s bare metadata resource response. This contract edge adds no
 Artifact runtime integration. The Task, Artifact and usage are retained domain writes.
-The scenario performs no Kubernetes mutation.
+The baseline performs no Kubernetes mutation.
 
-`--lifecycle-input` selects a second typed forecast workload for cancellation or
-connection replacement. The original four-row consumer assertions still run.
+`--lifecycle-input` selects a second typed forecast workload with an explicit
+`cancel`, `reconnect` or `process_crash` mode. The original four-row consumer assertions still run.
 Cancellation requires an observed unfinished Task, dispatches once and requires
 current cancelled state; a completed Task cannot qualify it. Connection replacement
 requires completion of the original Task with matching identity, creation time,
 owner output and Artifact provenance. That Task may finish during reconnection;
 the receipt preserves its observed states. This proves connection independence.
-Unfinished server-restart recovery and selected cross-replica qualification require
-additional owner cases. These data and lifecycle checks establish no GPU or visual
-rendering guarantee.
+The `process_crash` mode requires a `crash` fixture with schema
+`veoveo.ai/timeseries-process-crash/v1`, installation context and namespace,
+operator resource, and the shared typed crash target. The target must select the
+Timeseries server container. The harness arms its native watch before dispatch,
+persists the selected identity and a ready-for-crash handshake, then observes one
+externally authorized process crash. Both delivered and current observations must
+show the original Task Working before the crash and after replacement. The final
+delivered completion must agree with the current Task and owner output.
+
+The supplied inline CSV and NaiveTrend forecast must naturally provide this
+unfinished window within the existing CPU fixture limits. Early completion refuses
+qualification; a completed Task retained across replacement cannot prove unfinished
+recovery. The harness adds no workload delay and does not retry an uncertain
+forecast. Selected cross-replica qualification requires another owner case. These
+data and lifecycle checks establish no GPU or visual rendering guarantee.
 
 The baseline operation has a 300-second deadline. OAuth and MCP connection admissions
 have 15 seconds each, catalogs have 30 seconds each, and individual reads have 15
@@ -572,7 +608,9 @@ its own 300-second operation limit. Baseline success, including SDK cleanup and 
 written receipt, must precede its dispatch. Both phases register retained listener
 and connection slots with the outer scenario owner. Their original consuming close
 futures survive operation cancellation and share the owner's cleanup deadline.
-Receipts preserve pending or failed earlier closes across reconnection. A timeout
+Process-crash mode also retains its watch, original close future and partial crash
+observations through cleanup. Every recovery wait uses the original lifecycle
+deadline. Receipts preserve pending or failed earlier closes across reconnection. A timeout
 cannot authorize another forecast dispatch or removal of an unresolved retained
 fixture.
 
