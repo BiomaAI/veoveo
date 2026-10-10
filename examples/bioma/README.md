@@ -570,6 +570,31 @@ publishes both public keys, then updates the signing Secret and worker configura
 remove the retired public key after existing connections drain. The service rereads
 the mounted key when authenticating a new connection.
 
+The authorization server uses RS256 with a qualified 2048-bit RSA key. Its
+`VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64` provisioning input contains base64
+of a **PKCS#1 RSA private-key DER** document. PKCS#8 DER is not accepted. Convert an
+existing installation-owned RSA private PEM key into new private files:
+
+~~~bash
+(
+  set -eu
+  set -C
+  umask 077
+  openssl rsa -in /private/installation/authorization-server.pem \
+    -traditional -outform DER > /private/installation/authorization-server.pkcs1.der
+  openssl base64 -A -in /private/installation/authorization-server.pkcs1.der \
+    > /private/installation/authorization-server.pkcs1.der.b64
+)
+~~~
+
+Run this in an owner-only private directory. The shell refuses existing output files
+and creates both files with mode `0600`; key bytes stay in files. Import the base64
+file through the installation's private secret-management workflow as
+`VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64`. Keep that source and the private
+`.env` used below synchronized with the installed key, preventing later Secret
+materialization from restoring a retired key. Rotate the public `accessTokenKeyId` in
+[gateway.json](gateway.json) together with the signing key.
+
 The enterprise owns Secret creation. For this local reference, load the main
 worktree .env and create the required Secret objects before the root Kustomization.
 Bootstrap the managed-kernel namespace with the chart's security labels and Helm
