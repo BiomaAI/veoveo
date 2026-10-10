@@ -6,6 +6,23 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Agent Manager Public Journey Fixture — October 10, 2026
+
+The existing installation-smoke command gains the Agent Manager journey in
+`examples/bioma/acceptance/src/smoke/scenarios/agent_manager.rs` and its focused
+input, journey and native-control children. It admits the existing controller,
+module plan and idle template, uses public admin OAuth authoring and prearmed SSE,
+checks current Ready state, then stops and archives its owned instance and definition.
+Compiler, strict lint and five native controls pass; independent review accepts
+the repaired source. The controls reject fast Ready/Archived views after only an
+initial SSE event and EOF, and refuse destructive cleanup after a create conflict
+exposes a same-owner object with different draft content. Lost-response reconciliation
+and actual stream cleanup also pass. The final native receipt is
+`/tmp/veoveo-agent-manager-repair-native-20261010/final-receipt.json`, SHA-256
+`f162bd4d4a4d03d4fa4afcca33c2bbe92da480b004e7992a86774f29e6e9fbe6`.
+The repaired production CLI refresh is deferred. The installed journey and independent
+physical workload/lease drain remain unqualified; archive preserves storage.
+
 ## Time Handoff Guard Interruption — October 10, 2026
 
 Time11 fails after 18.007 seconds when a parent-authorized metadata Cargo check

@@ -1619,6 +1619,34 @@
       "cleanupSeconds": 180
     },
     {
+      "id": "agent-manager-journey",
+      "description": "Exercise public admin OAuth authoring, SSE Ready and stop/archive through an admitted existing Manager and idle template.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "examples/bioma/acceptance",
+          "package": "veoveo-bioma-acceptance",
+          "target": "installation-smoke",
+          "features": ["smoke"],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": ["agent-manager-journey"],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Requires a private admin OAuth fixture, the existing Manager/controller and an independently admitted idle template. Public provisioning causes Manager-owned Kubernetes resources and retained storage; cleanup stops/archives only the owned instance and definition. No operator messages, subscriptions, actionable wakes or provider calls are selected."
+      },
+      "deadlineSeconds": 240,
+      "cleanupSeconds": 30
+    },
+    {
       "id": "agent-kernel",
       "description": "Smoke-test the agent kernel's durable task detach and resume across processes.",
       "target": {

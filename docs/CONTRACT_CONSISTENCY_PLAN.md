@@ -30,8 +30,10 @@ route and verifies B Deployment, ReplicaSets and Pods absent. Completed-state
 handoff acceptance remains open.
 Gateway, Agent Manager and Knowledge run compatible qualified images against the
 published full catalog. Manager is Ready with the reviewed immutable pilot template,
-qualified kernel and matching admission policies; its full installed instance journey
-is open. Knowledge passes retained-index cold-start qualification;
+qualified kernel and matching admission policies. Its installed fixture implements
+public OAuth authoring, prearmed SSE with current Ready checks and owned Stop/archive;
+review and five native controls pass. The actual installed journey and independent
+physical drain qualification remain open. Knowledge passes retained-index cold-start qualification;
 generation two and restricted caller policy remain open. Reconciliation
 holds stay set. Further image batches require
 separate disk-space admission. Speech's previously

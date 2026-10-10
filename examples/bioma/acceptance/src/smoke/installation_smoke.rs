@@ -53,6 +53,15 @@ enum ArtifactProfileChoice {
 #[derive(Subcommand, Debug)]
 enum Cmd {
     SurrealIntegration,
+    /// Installed public authoring and SSE lifecycle through the existing controller.
+    AgentManagerJourney {
+        #[arg(long)]
+        installation: PathBuf,
+        #[arg(long)]
+        fixture: PathBuf,
+        #[arg(long)]
+        evidence_output: PathBuf,
+    },
     InstallationVerify {
         /// Select the complete installation gate or the CPU DuckDB owner gate.
         #[arg(long, value_enum, default_value_t = InstallationScope::Full)]
@@ -458,6 +467,8 @@ enum Cmd {
         candidate_runner: Option<PathBuf>,
     },
 }
+#[path = "scenarios/agent_manager.rs"]
+mod agent_manager;
 #[path = "scenarios/agent_kernel.rs"]
 mod case_0;
 use case_0::*;
@@ -539,6 +550,11 @@ async fn execute() -> Result<()> {
     let args = Args::parse();
     match args.cmd {
         Cmd::SurrealIntegration => surreal_integration().await,
+        Cmd::AgentManagerJourney {
+            installation,
+            fixture,
+            evidence_output,
+        } => agent_manager::run(&installation, &fixture, &evidence_output).await,
         Cmd::InstallationVerify {
             conformance_bin,
             installation,

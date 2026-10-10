@@ -10,6 +10,7 @@
 | Native MCP clients | Official Rust SDK MCP 2026-07-28 Discover, Tasks, resource reads and request-scoped subscriptions over Streamable HTTP; bearer issuance uses the runtime-owned fixture adapter |
 | Focused Artifact consumers | `veoveo.ai/artifact-focused-consumer-acceptance/v1` private JSON; bounded public OAuth upload receipts, direct SDK observations and declared consumer checks; no public protocol extension |
 | Public upload intents | `veoveo.ai/artifact-public-upload-intents/v1` private JSONL; selected profile, upload dispatch intents, acknowledged identities, received receipts, qualified publications and cleanup outcomes |
+| Installed Agent Manager | Existing public authoring HTTP DTOs and WHATWG SSE through pinned `sse-stream` 0.2.5; private closed `veoveo.ai/agent-manager-journey-input/v1` input and `veoveo.ai/agent-manager-journey/v1` JSONL observations |
 | Installed DuckDB | Existing `installation-verify --scope duckdb` consumer, owner contract CSV/schema/catalog/usage and Artifact provenance over normal Gateway OAuth; private `veoveo.ai/installed-duckdb/v1` receipt |
 | Installed Stream | Owner-library run identities, completion products and analysis results; cross-replica DeepStream replay requires NVIDIA hardware |
 | Public Stream and Reason callers | Existing GPU scenarios use normal OAuth at the installation's operator MCP endpoint; private `veoveo.ai/stream-public-caller/v1` and `veoveo.ai/reason-public-caller/v1` inputs, with corresponding `public-consumer/v1` JSONL observations |
@@ -906,3 +907,80 @@ watch gap, identity mismatch or incomplete restoration preserves failure and par
 facts in the private journal and ownership lease. This profile establishes completed
 state readback on another backend; unfinished recovery and later mutation updates
 require separate qualification.
+
+## Installed Agent Manager Journey
+
+`agent-manager-journey` uses the existing `installation-smoke` executable and one
+already running controller. Its `--installation`, `--fixture` and
+`--evidence-output` paths select installation coordinates, a private input and a new
+0600 journal. The input supplies a private normal OAuth bearer file for the
+installation's administrator `admin` profile and current Work Context; it never
+mints internal assertions or uses privileged database authoring.
+
+The closed input binds the caller's expected owner UUID, fresh definition and
+instance IDs, and `timeoutSeconds` in 180–240. `controller` selects namespace,
+Deployment name/UID, pinned image, mounted Manager ConfigMap and its `manager.json`
+SHA-256. `modulePlan` selects the declared Gateway Deployment/UID, mounted plan
+ConfigMap, exact `plan.json` digest, generation and credential revision. `template`
+is the complete typed approved RuntimeTemplate; `model` is the current typed model
+reference and revision. Kubernetes GETs admit those identities and both configured
+and publicly exposed template/model revisions before authoring, then repeat the
+configuration admission after Ready. Relative control-plane references in the
+InstallationTarget keep their normal target-directory meaning. The fixture and
+bearer paths are absolute private regular files.
+
+Ops must prepare an explicitly reviewed idle template. Its immutable ConfigMap
+contains only `manifest.json`, with no migrations, context queries, prompt or wake
+producers. The accepted manifest has the managed identity/model/gateway fields,
+`episode`, `preamble`, an empty `resourceSubscriptions` list and a schedule whose
+heartbeat exceeds the entire operation and cleanup interval. The approved template
+also has no tools, subscriptions or parameters. The journey supplies no messages,
+Tasks, grants or other actionable wakes. A stock pilot template cannot be silently
+substituted. This configuration profile avoids selecting model inference; it does
+not measure provider execution or independently count database episodes.
+
+The client opens the maintained SSE parser and receives the initial typed
+`change` before its first mutation. Each notification's SSE ID must equal its
+`CatalogWake.revision`; notifications invalidate a view, rather than proving the
+causal success of a write. Current typed GETs establish the selected instance,
+owner, Work Context, revision, operation and generation. Ready additionally requires
+the active generation/revision and current operation phase to agree. Ready and
+Archived qualification each require a delivered post-dispatch change followed by
+the current typed reads; the initial stream event alone cannot qualify either. Every write
+records its complete typed request and idempotency identity before dispatch. A lost
+response triggers reads of the same retained IDs. It never dispatches that mutation
+again or chooses a replacement identity. Received typed observations enter retained
+state and the journal before independent assertions.
+
+The original total deadline includes 30 seconds reserved for stop/archive and
+transport cleanup. One SSE connection must suffice; token expiry, catalog replacement,
+stream termination or missing change delivery fails qualification without reconnect.
+The parser admits at most 128 observations and 256 KiB, each change payload at most
+4 KiB. HTTP responses are capped at 256 KiB; individual requests have a 15-second
+budget and no redirects. The outer owner deadline may shorten execution.
+
+Before any destructive cleanup, current definition metadata and complete draft
+content must match the retained create request, with the same retained published
+revision. An instance must also match the complete provision identity, definition,
+name, template, revision, owner, Work Context and admitted generation/operation.
+A conflicting or unknown create response never authorizes cleanup of a merely
+same-owner object; mismatches preserve unresolved IDs without Stop or archive.
+Cleanup records Stop first, checks its next generation and acknowledged operation,
+then requests archive at the current generation. Stop fences dispatch; it does not
+mean Paused or physical shutdown. The harness waits for current instance/operation
+Archived and archives its owned definition. The registered cleanup action holds the
+original client and SSE body across cancellation. Its first cleanup cap can only
+shorten the original deadline, and failures stay unqualified. Dropping the retained
+reqwest response body closes the stream; reqwest exposes no asynchronous close API.
+Unknown mutation outcomes preserve IDs and typed requests for reconciliation.
+Archive preserves storage and other retained Manager resources. The report explicitly
+marks independent physical workload/lease drain unproven; it does not substitute
+public lifecycle settlement for a native physical-drain observation.
+
+CPU controls cover idle-profile admission, typed SSE filtering, wrong owner/instance,
+stale generations and acknowledged operations, a lost dispatch response reconciled
+without replay, refusal of fast terminal views after initial-event EOF, conflicting
+creates with foreign draft content, and actual SSE cleanup on operation error,
+cancellation and expiry.
+They qualify the owner client mechanics; the installed journey requires its actual
+admitted controller, OAuth authority and idle template.
