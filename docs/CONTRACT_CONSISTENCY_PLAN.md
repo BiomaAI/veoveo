@@ -235,8 +235,12 @@ failed the required staged-runtime digest comparison. Their server binaries and
 wall-clock text in apt and dpkg logs. The publisher accepted no release evidence,
 and deployed image pins are unchanged. Thirty-one owned runtime Dockerfiles now
 remove those disposable logs in the same package-install RUN. Source checks and
-independent review pass. Fresh staging and qualification at the repaired source
-revision must demonstrate matching runnable digests before rollout.
+independent review pass. Fresh staging and qualification at `c5a2c6c3e` pass for
+Computers and Gateway: the stage executes both runtime package-install steps
+without cache, and the qualified warm build reproduces both runnable digests with
+SBOM and provenance. Node-network manifest/config readback returns 200 with matching
+hashes. Deployed image pins stay unchanged. The remaining stock images and final
+affected closure still require fresh staging and qualification.
 
 A private credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
 WaveSpeed and Google Maps replacement still requires account-management authority
