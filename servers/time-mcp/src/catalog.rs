@@ -225,11 +225,31 @@ impl TimeCatalog {
         &self,
         scope: &TimeAccessContext,
     ) -> Result<Vec<AuthorityRelease>> {
+        Ok(self
+            .active_authorities(scope)
+            .await?
+            .into_iter()
+            .map(|active| active.release.clone())
+            .collect())
+    }
+
+    /// Read the actual pointer versions and releases from the admitted joined rows.
+    pub async fn active_authorities(
+        &self,
+        scope: &TimeAccessContext,
+    ) -> Result<Vec<crate::ActiveAuthoritySelection>> {
         self.persistence
             .list_active_time_authorities(scope.identity.tenant_id)
             .await?
             .into_iter()
-            .map(|active| release_from_record(active.release))
+            .map(|active| {
+                crate::ActiveAuthoritySelectionValue {
+                    pointer_version: active.record_version,
+                    release: release_from_record(active.release)?,
+                }
+                .build()
+                .map_err(anyhow::Error::from)
+            })
             .collect()
     }
 

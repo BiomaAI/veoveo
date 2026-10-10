@@ -36,6 +36,13 @@ leap second assumptions.
   load of the prospective TZDB and leap second pair; one active release per
   family per tenant. Acquisition downloads run under fixed host, media,
   digest, size, and time policy with archive traversal rejected.
+- `GET /active-authorities` returns `AdminPage<ActiveAuthoritySelection>` with
+  closed `{pointerVersion, release}` entries. Use `selection.write_guard()` for
+  activation; the persisted pointer version differs from `release.recordVersion`.
+  Preserve the joined tenant/parent/body admission and reject non-active releases.
+  An absent family uses `TimeWriteGuard::Absent`; packaged effective references
+  never supply a persisted pointer version. Administrative clients and Time use
+  this response together in a coordinated reference upgrade, without old-shape aliases.
 - Packaged bootstrap references bind the authority family and source-file SHA-256.
   Their immutable resource IDs must change with the bytes, never with a process
   restart or path. `server/bootstrap.rs` owns construction and qualification.
@@ -80,6 +87,11 @@ leap second assumptions.
   for Resume recovery. Keep token checks at both selected-snapshot dispatch seams;
   a transition already entered may settle despite a later local stop. Installed cancellation and unfinished restart
   still require their own observable qualification.
+- `cargo test -p veoveo-time-mcp --test metadata_versions active_selection_exposes_pointer_guard_and_rejects_unadmitted_wire`
+  checks the closed active-selection response and schema. The focused hosted
+  `registry::tests::active_authorities::operator_reads_pointer_guard_for_next_activation`
+  library control reads the real pointer guard for two successive activations;
+  preserve the existing native active-pointer corruption checks.
 - `cargo test -p veoveo-time-mcp`
 - `tests/gateway_source_conformance.rs` supplies two disposable scheduled events to
   the shared source checker. It cancels one before a Time Deployment restart and one

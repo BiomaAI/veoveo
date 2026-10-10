@@ -135,6 +135,21 @@ async fn active_reads_reject_corrupt_pointers_and_filter_release_relationships_i
                 .await
                 .unwrap();
         }
+        let selections = catalog.active_authorities(&owner).await.unwrap();
+        assert_eq!(selections.len(), 1);
+        assert_eq!(selections[0].pointer_version, TimeVersion::FIRST);
+        assert_eq!(selections[0].release.record_version.get(), 2);
+        assert_eq!(selections[0].release.release_id, current.release_id);
+        assert_eq!(
+            selections[0].write_guard(),
+            TimeWriteGuard::Existing(TimeVersion::FIRST)
+        );
+        assert_eq!(
+            catalog.active_authorities(&foreign).await.unwrap()[0]
+                .release
+                .release_id,
+            other.release_id
+        );
         let key = time_record(
             "time_active_authority",
             format!("{}:tzdb", owner.identity.tenant_id),

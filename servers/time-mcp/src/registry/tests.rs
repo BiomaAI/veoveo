@@ -1,5 +1,9 @@
 mod activation;
+#[cfg(feature = "mcp")]
+mod active_authorities;
 mod digest;
+#[cfg(feature = "mcp")]
+mod hosted;
 mod lifecycle;
 #[cfg(feature = "mcp")]
 mod tool_input_tests;

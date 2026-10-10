@@ -142,6 +142,13 @@ not establish an installed unfinished window. Installed cancellation and process
 recovery have not run. Time recover mode selects one 300-second operation deadline;
 its other modes keep 120 seconds.
 
+Time’s administrative `/active-authorities` response now exposes `pointerVersion`
+with the selected release. Clients use that guard for activation;
+`release.recordVersion` identifies release metadata. The response hard cut has no
+compatibility alias. Three focused native controls pass, covering admitted wire
+and schema, persisted pointer/release consistency and two hosted activations.
+Installed authority activation remains open.
+
 The added Speech resource and Stream/Reason public-caller cases pass compiler,
 strict lint, formatting, documentation and independent source review. Their seventeen
 focused native controls pass within the twenty-seven-control batch; installed execution is held.

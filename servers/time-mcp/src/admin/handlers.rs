@@ -195,9 +195,9 @@ pub(super) async fn activate_release(
 pub(super) async fn list_active_authorities(
     State(state): State<Arc<TimeApplication>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-) -> ApiResult<AdminPage<AuthorityRelease>> {
+) -> ApiResult<AdminPage<crate::ActiveAuthoritySelection>> {
     let scope = state.scope(&identity).await.map_err(ApiError::internal)?;
-    Ok(Json(page(state.catalog.active_releases(&scope).await?)))
+    Ok(Json(page(state.catalog.active_authorities(&scope).await?)))
 }
 
 pub(super) async fn list_calendars(

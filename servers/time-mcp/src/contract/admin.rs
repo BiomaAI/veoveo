@@ -372,6 +372,76 @@ impl veoveo_types::Check for AuthorityReleaseValue {
     }
 }
 
+/// One persisted active pointer and its currently admitted release.
+/// Bootstrap fallback references are not persisted selections.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(rename = "ActiveAuthoritySelection")]
+pub struct ActiveAuthoritySelectionValue {
+    pub pointer_version: super::TimeVersion,
+    pub release: AuthorityRelease,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    try_from = "ActiveAuthoritySelectionValue",
+    into = "ActiveAuthoritySelectionValue"
+)]
+pub struct ActiveAuthoritySelection(veoveo_types::Checked<ActiveAuthoritySelectionValue>);
+impl std::ops::Deref for ActiveAuthoritySelection {
+    type Target = ActiveAuthoritySelectionValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for ActiveAuthoritySelection {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "ActiveAuthoritySelection".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        let mut schema = ActiveAuthoritySelectionValue::json_schema(generator);
+        schema.insert(
+            "allOf".into(),
+            serde_json::json!([{
+                "properties": {"release": {"properties": {"state": {"const": "active"}}}}
+            }]),
+        );
+        schema
+    }
+}
+impl TryFrom<ActiveAuthoritySelectionValue> for ActiveAuthoritySelection {
+    type Error = super::admission::TimeValueError;
+    fn try_from(value: ActiveAuthoritySelectionValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<ActiveAuthoritySelection> for ActiveAuthoritySelectionValue {
+    fn from(value: ActiveAuthoritySelection) -> Self {
+        value.0.into_inner()
+    }
+}
+impl ActiveAuthoritySelectionValue {
+    pub fn build(self) -> Result<ActiveAuthoritySelection, super::admission::TimeValueError> {
+        self.try_into()
+    }
+}
+impl ActiveAuthoritySelection {
+    pub fn write_guard(&self) -> super::TimeWriteGuard {
+        super::TimeWriteGuard::Existing(self.pointer_version)
+    }
+}
+impl veoveo_types::Check for ActiveAuthoritySelectionValue {
+    type Error = super::admission::TimeValueError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.release.state != AuthorityReleaseState::Active {
+            return Err(super::admission::TimeValueError(
+                "active selection requires an active release",
+            ));
+        }
+        Ok(())
+    }
+}
+
 impl veoveo_types::Check for TimeAcquisition {
     type Error = super::admission::TimeValueError;
     fn check(&self) -> Result<(), Self::Error> {

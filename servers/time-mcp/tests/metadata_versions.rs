@@ -104,3 +104,80 @@ fn source_creation_keeps_zero_and_cannot_decode_persisted_metadata() {
     wire.as_object_mut().unwrap().remove("recordVersion");
     assert!(serde_json::from_value::<NewTimeSource>(wire).is_err());
 }
+
+fn active_selection() -> Value {
+    json!({"pointerVersion":1,"release":{
+        "releaseId":"time-release-fixture", "sourceId":"time-source-fixture",
+        "datasetKind":"tzdb", "versionLabel":"fixture", "sourceUrl":"https://example.test/data",
+        "sourceDigestSha256":"a".repeat(64), "artifactPath":"/tmp/fixture", "state":"active",
+        "retrievedAt":"2026-01-01T00:00:00Z", "validatedAt":"2026-01-01T00:00:00Z", "recordVersion":2
+    }})
+}
+#[test]
+fn active_selection_exposes_pointer_guard_and_rejects_unadmitted_wire() {
+    let wire = active_selection();
+    let selection: ActiveAuthoritySelection = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(selection.pointer_version.get(), 1);
+    assert_eq!(selection.release.record_version.get(), 2);
+    assert_eq!(
+        selection.write_guard(),
+        TimeWriteGuard::Existing(TimeVersion::FIRST)
+    );
+    assert_eq!(serde_json::to_value(&selection).unwrap(), wire);
+    check::<ActiveAuthoritySelection>(wire.clone(), "pointerVersion");
+    let schema = serde_json::to_value(schemars::schema_for!(ActiveAuthoritySelection)).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&wire));
+    for invalid in [
+        {
+            let mut value = wire.clone();
+            value["pointerVersion"] = json!(0);
+            value
+        },
+        {
+            let mut value = wire.clone();
+            value["release"]["state"] = json!("staged");
+            value
+        },
+        {
+            let mut value = wire.clone();
+            value["release"]["state"] = json!("retired");
+            value
+        },
+        {
+            let mut value = wire.clone();
+            value["unexpected"] = json!(true);
+            value
+        },
+        wire["release"].clone(),
+    ] {
+        assert!(!validator.is_valid(&invalid));
+        assert!(serde_json::from_value::<ActiveAuthoritySelection>(invalid).is_err());
+    }
+    let mut staged: AuthorityReleaseValue = selection.release.clone().into();
+    staged.state = AuthorityReleaseState::Staged;
+    assert!(
+        ActiveAuthoritySelectionValue {
+            pointer_version: TimeVersion::FIRST,
+            release: staged.build().unwrap()
+        }
+        .build()
+        .is_err()
+    );
+    let page = AdminPage {
+        items: vec![selection],
+        next_cursor: None,
+    };
+    let wire = serde_json::to_value(page).unwrap();
+    let admitted: AdminPage<ActiveAuthoritySelection> =
+        serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(admitted.items.len(), 1);
+    let validator = jsonschema::validator_for(
+        &serde_json::to_value(schemars::schema_for!(AdminPage<ActiveAuthoritySelection>)).unwrap(),
+    )
+    .unwrap();
+    assert!(validator.is_valid(&wire));
+    let old = json!({"items":[wire["items"][0]["release"].clone()],"nextCursor":null});
+    assert!(!validator.is_valid(&old));
+    assert!(serde_json::from_value::<AdminPage<ActiveAuthoritySelection>>(old).is_err());
+}

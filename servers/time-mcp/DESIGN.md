@@ -789,6 +789,24 @@ not an alternate authority. The gateway exposes it through
 | `GET /clock-policy` | read the tenant clock policy |
 | `PUT /clock-policy` | replace clock policy under optimistic concurrency |
 
+`GET /active-authorities` returns `AdminPage<ActiveAuthoritySelection>`. Each
+closed entry contains `pointerVersion` and `release`, an admitted active
+`AuthorityRelease`. The positive pointer version advances independently of the
+release's `recordVersion`. An operator uses the selection's `write_guard()` as
+`ActivateReleaseRequest.expected_active_pointer_version`; the method constructs
+`TimeWriteGuard::Existing(pointerVersion)` rather than using the release version.
+
+The catalog reads pointers and releases in one joined statement and admits their
+tenant, key, family, active state and stored body relationships. A visible invalid
+pointer fails the read. An omitted family has no persisted pointer and uses
+`TimeWriteGuard::Absent` for its first activation; an empty page means neither
+family has a persisted pointer. Bootstrap effective references belong to
+`time://authorities/current` and do not invent persisted pointer versions.
+
+Administrative clients decode the closed selection shape. Release-only entries
+have no compatibility alias or fallback. A coordinated reference upgrade updates
+these clients with the Time image that serves this response.
+
 Administrative errors use a typed body containing `code`, `message`, `retryable`, and
 `traceId`. The gateway applies `admin_read` or `admin_write` policy and records the
 proxied operation in the standard audit path.
