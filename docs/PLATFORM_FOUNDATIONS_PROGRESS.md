@@ -6,6 +6,21 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Time Recovery Fault Injection — October 10, 2026
+
+The second installed recovery attempt uses the admission repair at `e07467759`.
+The original Task reaches delivered and current Working state, and the fixture
+persists its armed crash intent. The first signal command finds no `/bin/kill`;
+the subsequent shell-builtin command returns zero. Neither Kubernetes nor the
+native observer records a container termination or replacement. The same Pod
+stays Ready with restart count zero, and the observer exits with an owner-lifecycle
+failure after closing its caller and watch. Operations issues no further signal,
+Task retry or cancellation. The terminal receipt under
+`/tmp/veoveo-time-recover-attempt2-e074-20261010` has SHA-256
+`ad03c065a7c3dc8009137b590223e4c565f99560f0b17ec10aa0ac0525271964`.
+This result leaves process recovery unqualified and the original Task's terminal
+outcome unobserved; it does not establish a product recovery failure.
+
 ## Time Schedule Completion And Cancellation — October 10, 2026
 
 The maintained `time-installed-schedule-task` scenario passes separate complete

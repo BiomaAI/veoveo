@@ -155,11 +155,16 @@ now passes completion and cancellation on the repaired Time image. Completion
 agrees with all eight independently expected occurrences and delivered and current
 Completed state. Cancellation observes Working before recording its intent,
 receives acknowledgement and reaches current Cancelled state. Both cases close
-their caller and listener. Recovery fails during fixture admission: a second
-installation validation rejects the journal already created by the first admission.
-No Kubernetes crash-target check, Task dispatch or signal occurs. The fixture repair
-retains the initially admitted typed installation and passes strict compiler and
-focused native checks. Together with the three administrative API controls, the
+their caller and listener. The initial recovery attempt fails before dispatch
+because a second installation validation rejects the fixture's own journal.
+The repair at `e07467759` retains the initially admitted typed installation and
+passes strict compiler and focused native checks. A subsequent attempt reaches
+delivered and current Working state and records its crash intent. Its signal
+command returns zero, but the selected container never terminates or restarts;
+the recovery observer fails and closes its owned transports. An authoritative
+follow-up must establish the original Task's outcome before another attempt.
+This run qualifies neither process recovery nor a product recovery failure.
+Together with the three administrative API controls, the
 earlier native batch has nineteen passing controls. Time recover mode selects one
 300-second operation deadline; its other modes keep 120 seconds.
 
@@ -173,7 +178,7 @@ blocking pool with cooperative stop checks and the original job retained through
 normal worker exit. Compiler, strict lint and ten focused native controls qualify
 async responsiveness, original-job joining, Task settlement and engine behavior.
 Installed cancellation passes on the repaired image. Unfinished recovery remains
-unqualified until the fixture repair and actual process-replacement case pass.
+unqualified until an actual process-replacement case passes.
 
 Knowledge uses one 256 KiB source-member limit across resource reads, source
 admission, chunking and indexed-member admission. Whole-text digests, 256 chunks
