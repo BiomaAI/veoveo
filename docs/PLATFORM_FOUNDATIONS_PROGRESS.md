@@ -6,6 +6,38 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Time Schedule Completion And Cancellation — October 10, 2026
+
+The maintained `time-installed-schedule-task` scenario passes separate complete
+and cancel modes through normal Gateway OAuth on the deployed `6653288ba` repair.
+Both use version two of the eight-window calendar and fresh private attempt files.
+Completion observes Working, then delivered and current Completed, and compares
+all eight occurrences with the independent expectation. Cancellation observes and
+receives Working before recording its intent, receives cancellation acknowledgement
+and reaches current Cancelled state. Both native processes exit zero, close their
+listeners and callers, and remove their temporary credentials. The terminal
+receipts under `/tmp/veoveo-time-schedule-8window-prep-0ky2g9up/run-20261010` have
+SHA-256 `452862bc3b7843a9a20d6781b1222dc66ddccde78c506f07ff56da424ddbb5d5`
+for complete and `5b65a44358cc6f33309e9cf718f9060ca437239a52030517fc3c1ebad3dee40f`
+for cancel.
+
+The recovery attempt exits one during `crash_admission`, before Kubernetes target
+checks, Task dispatch or any process signal. Its failure hash matches the static
+diagnostic `source report requires a new absolute path`: the fixture revalidates
+its installation after creating its own journal. The selected Time Pod and
+container remain Ready and unchanged. Cleanup closes the caller, listener and
+watch ownership. Recovery remains unqualified. The failed terminal receipt has
+SHA-256 `0b7811c9e7350f3119745c859c2e15f7a4d7995eb941642397831f226e86a705`;
+its append-only journal has SHA-256
+`9bfd9ab2e905e4fd39bc277fbfbc271f38389dbb8fbc3946c678c25d946ff8ae`.
+
+The separate completed-state A/B handoff fixture passes strict compiler checks,
+focused native controls and independent logic review, and is committed at
+`29831d530`. Its final cleanup-admission receipt has SHA-256
+`061358b73a8ef070322aff9305ebfdb7f6e5faba0ee79642c5c5d4ec340d56cd`.
+No installed A/B handoff has run, and the source result qualifies neither unfinished
+recovery nor a subscription update after a mutation.
+
 ## Knowledge And Time Repair Rollout — October 10, 2026
 
 Both images at `6653288ba` pass staging, attested release qualification and

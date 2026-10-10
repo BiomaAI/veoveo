@@ -10,8 +10,11 @@ The current source closure requires thirty Rust targets and the pending cuOpt im
 those earlier receipts do not qualify the new inputs.
 The Knowledge and Time repair at `6653288ba` is published and deployed. Both Pods
 pass probes and thirty seconds of stability without a restart. Normal OAuth reads
-and Knowledge search reach the updated Time documents. Time cancellation, unfinished
-recovery and the separate completed-state cross-replica check remain unqualified.
+and Knowledge search reach the updated Time documents. Time completion and
+cancellation pass through normal Gateway OAuth. Recovery stops before dispatch
+because the fixture revalidates its own newly created journal; its repair passes
+compiler and native checks. The completed-state cross-replica fixture passes source
+qualification and independent review; installed execution remains open.
 Gateway, Agent Manager and Knowledge run compatible qualified images against the
 published full catalog. Manager is Ready with the reviewed immutable pilot template,
 qualified kernel and matching admission policies; its full installed instance journey
@@ -127,13 +130,13 @@ Store and cleanup controls pass. Actual unfinished restart, HTTP shutdown and
 stepped simulator qualification remain open.
 
 The existing owner harnesses prepare the following checks. Previously qualified
-native controls pass. Time schedule completion also passes through normal public
-OAuth; cancellation and recovery keep their separate qualification gates.
+native controls pass. Time schedule completion and cancellation also pass through
+normal public OAuth; recovery keeps its separate qualification gate.
 Earlier installed checkpoints keep their recorded scope below.
 
 | Owner | Prepared installed checks | Remaining qualification |
 |---|---|---|
-| Time | Read consumers and explicit complete/cancel/recover schedule fixtures; installed completion passes independent one-row output, delivered/current Completed agreement and cleanup | Installed cancellation, unfinished process recovery, authority activation and final images |
+| Time | Read consumers and explicit complete/cancel/recover schedule fixtures; installed completion agrees with eight independent occurrences and delivered/current Completed state; cancellation reaches Cancelled after observed Working, with cleanup passing | Unfinished process recovery, completed-state cross-replica execution, authority activation and final images |
 | Artifact | Delegated SDK reads and retained Task-bound write capability across one selected service replacement, followed by redemption and idempotent replay | Public OAuth issuance, actual service replacement, interrupted-write recovery and final images |
 | Timeseries | Four-row forecast, RRD Artifact and usage; typed cancellation, connection replacement and process-crash fixtures with original Task/result agreement | Installed unfinished process recovery, selected cross-replica routing and final images |
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
@@ -147,13 +150,18 @@ including shared crash-receipt decoding and cleanup after failed journal writes.
 Process recovery requires the original Task Working before and after replacement;
 early completion refuses qualification. A real million-day Time recurrence scan
 produced its independent one-row result in 9.614 seconds locally. That sample does
-not establish an installed unfinished window. Installed Time completion passes; its
-cancellation attempt refused early completion before any cancellation intent or request.
-Authoritative reads return both known Tasks Completed with successful complete
-results and matching structured one-row output hashes. The operation completed
-normally; the attempt does not qualify cancellation. Process recovery is held and unrun. Together with the three administrative API controls,
-the tracked native batch has nineteen passing controls. Time recover mode selects one 300-second operation deadline;
-its other modes keep 120 seconds.
+not establish an installed unfinished window. The installed eight-window fixture
+now passes completion and cancellation on the repaired Time image. Completion
+agrees with all eight independently expected occurrences and delivered and current
+Completed state. Cancellation observes Working before recording its intent,
+receives acknowledgement and reaches current Cancelled state. Both cases close
+their caller and listener. Recovery fails during fixture admission: a second
+installation validation rejects the journal already created by the first admission.
+No Kubernetes crash-target check, Task dispatch or signal occurs. The fixture repair
+retains the initially admitted typed installation and passes strict compiler and
+focused native checks. Together with the three administrative API controls, the
+earlier native batch has nineteen passing controls. Time recover mode selects one
+300-second operation deadline; its other modes keep 120 seconds.
 
 Time’s administrative `/active-authorities` response now exposes `pointerVersion`
 with the selected release. Clients use that guard for activation;
@@ -164,8 +172,8 @@ Installed authority activation remains open. Hosted Time calculations run on the
 blocking pool with cooperative stop checks and the original job retained through
 normal worker exit. Compiler, strict lint and ten focused native controls qualify
 async responsiveness, original-job joining, Task settlement and engine behavior.
-Fixed-image installed cancellation and recovery remain unqualified; attributing the
-observed cancellation refusal requires the selected process measurements and logs.
+Installed cancellation passes on the repaired image. Unfinished recovery remains
+unqualified until the fixture repair and actual process-replacement case pass.
 
 Knowledge uses one 256 KiB source-member limit across resource reads, source
 admission, chunking and indexed-member admission. Whole-text digests, 256 chunks
@@ -177,10 +185,10 @@ checks pass without a restart. Normal OAuth reads verify Time documents and the
 Knowledge source/collection; scoped search reaches the indexed `time.docs` members.
 All seventeen enabled Deployments and both StatefulSets are Ready; the three
 reconciliation holds stay set. A broader source helper reports incomplete resource
-template discovery and is recorded separately from these targeted passes. Time's
-corrected-image cancellation and unfinished recovery have not run. The completed-state
-cross-replica fixture is undergoing source review and does not qualify unfinished
-recovery or delivery after a mutation.
+template discovery and is recorded separately from these targeted passes. The
+completed-state cross-replica fixture passes strict compiler checks, focused native
+controls and independent review at `29831d530`. Its installed A/B execution remains
+open; its scope excludes unfinished recovery and delivery after a mutation.
 
 The added Speech resource and Stream/Reason public-caller cases pass compiler,
 strict lint, formatting, documentation and independent source review. Their seventeen
