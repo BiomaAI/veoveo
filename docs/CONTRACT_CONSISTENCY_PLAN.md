@@ -477,8 +477,10 @@ is a qualified fixture/tool image without a reference workload or lock entry.
 Rollout and installed acceptance remain open. The cohort's observed free-space
 samples do not establish peak growth.
 
-The final image plan selects committed source `715796541` from the existing clean
-publication checkout. Its dependency graph selects thirty Rust targets and retains
+The prepared image plan selects committed source `715796541` from the existing clean
+publication checkout. The Manager profile-scope admission repair supersedes that
+source selection; refresh the plan after committing and qualifying the repair.
+The prepared dependency graph selects thirty Rust targets and retains
 the pending cuOpt executor, for thirty-one images. Planning passes; none of this
 final source's image builds, stage/release checks or registry publication has run.
 Earlier C5 and `6431c30c6621` receipts qualify their original inputs. Every selected
@@ -512,16 +514,27 @@ Host and Computers stay at zero replicas, and GitOps holds remain set. Generatio
 two, restricted caller-policy qualification and first-ever empty-index startup
 still require their separate checks.
 
-The Agent Manager public journey failed before its kernel became Ready because the
-temporary seed omitted `agent.tenant`. Owned Stop/archive completed. Independent
-database and Kubernetes reads verify the archived instance, zero admissions,
-runtime rows, live leases and episodes, and retained Bound storage. Manager,
-Gateway and admission policies are restored; temporary workloads and configuration
-are removed. The complete replacement seed passes the kernel's decoder and
-validator with synthetic credential-presence inputs. Independent review accepts
-that preparation; the corrected installed journey still requires execution. The
-[checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#agent-manager-fixture-failure-and-cleanup--october-10-2026)
-preserves the failed outcome and cleanup scope.
+The first Agent Manager public journey failed before its kernel became Ready because
+the temporary seed omitted `agent.tenant`; its owned cleanup and restoration passed.
+The complete replacement seed passes the kernel's decoder and validator. The second
+installed journey loads that seed and acquires a scheduler lease, then fails MCP
+authentication: its template grants one scope while the selected Gateway profile
+requires five. Correlated Gateway logs report missing required scopes. This is a
+qualification configuration defect and exposes a shared admission gap: installation
+facts discarded each profile's required scopes. The source repair preserves those
+typed requirements and rejects incomplete templates in Gateway and Manager without
+adding grants. Contract-only and combined consumer compiler checks, strict lint and
+independent review pass. All fourteen native authoring, catalog and Gateway loader
+controls pass after correcting a pre-existing digest golden. Manager's native loader
+control and installed qualification remain open.
+Independent reads verify the second instance is archived at generation three, its
+operation claim is cleared, no admissions, live runtime leases or episodes remain,
+and its owned Kubernetes workload is gone. One runtime row and the original Bound
+PVC are retained. Manager, Gateway and temporary admission policies are restored;
+temporary configuration and workloads are absent, and core services are Ready.
+No installed Manager lifecycle pass is established. The
+[checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#agent-manager-profile-scope-admission--october-10-2026)
+records the second failure and the repair scope.
 
 | Phase | Current state | Remaining gate |
 |---|---|---|

@@ -16,7 +16,12 @@ pub fn installation_facts(
             .work_contexts
             .iter()
             .map(|context| (context.id.clone(), context.tenant.clone())),
-        control.profiles.iter().map(|profile| profile.id.clone()),
+        control.profiles.iter().map(|profile| {
+            (
+                profile.id.clone(),
+                profile.required_scopes.iter().cloned().collect(),
+            )
+        }),
         control
             .secrets
             .iter()
@@ -46,7 +51,12 @@ mod tests {
             assert_eq!(facts.context_tenant(&context.id), Some(&context.tenant));
         }
         for profile in &control.profiles {
-            assert!(facts.profile_installed(&profile.id));
+            let required_scopes: std::collections::BTreeSet<_> =
+                profile.required_scopes.iter().cloned().collect();
+            assert_eq!(
+                facts.profile_required_scopes(&profile.id),
+                Some(&required_scopes)
+            );
         }
         for secret in &control.secrets {
             assert_eq!(facts.secret_purpose(&secret.id), Some(&secret.purpose));
@@ -56,5 +66,24 @@ mod tests {
             serde_json::json!({"profiles": []}),
         );
         assert!(installation_facts(&control, &registry).is_err());
+    }
+
+    #[test]
+    fn installation_projection_preserves_agent_profile_required_scopes() {
+        let control: GatewayControlPlane =
+            serde_json::from_str(include_str!("../../../examples/bioma/gateway.json")).unwrap();
+        let facts = installation_facts(&control, &crate::catalog_fixture::registry()).unwrap();
+        let profile = control
+            .profiles
+            .iter()
+            .find(|profile| profile.id.as_str() == "agent")
+            .unwrap();
+        assert_eq!(profile.required_scopes.len(), 5);
+        let required_scopes: std::collections::BTreeSet<_> =
+            profile.required_scopes.iter().cloned().collect();
+        assert_eq!(
+            facts.profile_required_scopes(&profile.id),
+            Some(&required_scopes)
+        );
     }
 }

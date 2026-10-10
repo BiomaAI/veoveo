@@ -83,3 +83,43 @@ impl ManagedTemplateCatalog {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catalog_loading_rejects_missing_profile_scopes_without_widening_grants() {
+        let control =
+            serde_json::from_str(include_str!("../../../../examples/bioma/gateway.json")).unwrap();
+        let catalog =
+            GatewayCatalog::from_control_plane(control, crate::catalog_fixture::binding()).unwrap();
+        let capture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../manager/testdata/rendered-installation.json"
+        ))
+        .unwrap();
+        let manager: serde_json::Value =
+            serde_json::from_str(capture["managerData"]["manager.json"].as_str().unwrap()).unwrap();
+        let template: wire::RuntimeTemplate =
+            serde_json::from_value(manager["templates"][0].clone()).unwrap();
+        let grants = template.scopes.clone();
+        assert_eq!(grants.len(), 5);
+        let admitted = ManagedTemplateCatalog::from_json(
+            &serde_json::to_string(&[&template]).unwrap(),
+            &catalog,
+        )
+        .unwrap();
+        assert_eq!(admitted.get(&template.id).unwrap().scopes, grants);
+        let mut missing = template;
+        missing
+            .scopes
+            .retain(|scope| scope.as_str() == "operator:use");
+        let error = ManagedTemplateCatalog::from_json(
+            &serde_json::to_string(&[&missing]).unwrap(),
+            &catalog,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("requires missing scope"));
+        assert_eq!(missing.scopes.len(), 1);
+    }
+}

@@ -9,7 +9,10 @@ fn template() -> RuntimeTemplate {
 fn facts() -> InstallationFacts {
     InstallationFacts::new(
         [("operations".parse().unwrap(), "tenant-a".parse().unwrap())],
-        ["operator".parse().unwrap()],
+        [(
+            "operator".parse().unwrap(),
+            BTreeSet::from(["operator:use".parse().unwrap()]),
+        )],
         [(
             "media_provider_api_key".parse().unwrap(),
             SecretPurpose::ProviderApiKey,
@@ -23,12 +26,12 @@ fn template_digest_binds_fixed_serialization_and_private_workload() {
     let mut template = template();
     assert_eq!(
         runtime_template_revision(&template).hex(),
-        "ff907fcbee9917f9ceae3bda54ddbbb890a8e38205ff8ec6f7394319878df80d"
+        "c01242b34b31e2ae054b6d10c95e1fca3d7dd0f69762689c54651bae39d0f032"
     );
     template.workload.config_digest = veoveo_types::Sha256Digest::from_hex("c".repeat(64)).unwrap();
     assert_ne!(
         runtime_template_revision(&template).hex(),
-        "ff907fcbee9917f9ceae3bda54ddbbb890a8e38205ff8ec6f7394319878df80d"
+        "c01242b34b31e2ae054b6d10c95e1fca3d7dd0f69762689c54651bae39d0f032"
     );
 }
 
@@ -50,7 +53,10 @@ fn template_validation_requires_installed_relationships_and_safe_parameters() {
     assert!(original.validate(&missing_profile).is_err());
     let other_tenant = InstallationFacts::new(
         [("operations".parse().unwrap(), "tenant-b".parse().unwrap())],
-        ["operator".parse().unwrap()],
+        [(
+            "operator".parse().unwrap(),
+            BTreeSet::from(["operator:use".parse().unwrap()]),
+        )],
         [(
             "media_provider_api_key".parse().unwrap(),
             SecretPurpose::ProviderApiKey,
@@ -60,7 +66,10 @@ fn template_validation_requires_installed_relationships_and_safe_parameters() {
     assert!(original.validate(&other_tenant).is_err());
     let wrong_secret = InstallationFacts::new(
         [("operations".parse().unwrap(), "tenant-a".parse().unwrap())],
-        ["operator".parse().unwrap()],
+        [(
+            "operator".parse().unwrap(),
+            BTreeSet::from(["operator:use".parse().unwrap()]),
+        )],
         [(
             "media_provider_api_key".parse().unwrap(),
             SecretPurpose::WebhookSecret,
@@ -155,4 +164,45 @@ fn template_wire_refuses_retired_nested_names_without_closing_parameter_dictiona
             );
         }
     }
+}
+
+#[test]
+fn template_scopes_cover_installed_profile_without_mutating_grants() {
+    let required: BTreeSet<veoveo_types::ScopeName> = [
+        "operator:use",
+        "manager:read",
+        "manager:write",
+        "time:read",
+        "time:schedule",
+    ]
+    .into_iter()
+    .map(|scope| scope.parse().unwrap())
+    .collect();
+    let installed = InstallationFacts::new(
+        [("operations".parse().unwrap(), "tenant-a".parse().unwrap())],
+        [("operator".parse().unwrap(), required.clone())],
+        [(
+            "media_provider_api_key".parse().unwrap(),
+            SecretPurpose::ProviderApiKey,
+        )],
+    )
+    .unwrap();
+    let mut candidate = template();
+    let original = serde_json::to_value(&candidate).unwrap();
+    assert!(candidate.validate(&installed).is_err());
+    assert_eq!(serde_json::to_value(&candidate).unwrap(), original);
+    assert_eq!(
+        installed.profile_required_scopes(&candidate.profile),
+        Some(&required)
+    );
+
+    candidate.scopes = required.clone();
+    candidate.validate(&installed).unwrap();
+    candidate.scopes.insert("artifact:read".parse().unwrap());
+    candidate.validate(&installed).unwrap();
+
+    candidate.profile = "unknown".parse().unwrap();
+    let unknown = serde_json::to_value(&candidate).unwrap();
+    assert!(candidate.validate(&installed).is_err());
+    assert_eq!(serde_json::to_value(&candidate).unwrap(), unknown);
 }

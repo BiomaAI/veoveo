@@ -21,10 +21,16 @@ impl wire::RuntimeTemplate {
                 "template context belongs to another tenant"
             );
         }
-        ensure!(
-            facts.profile_installed(&template.profile),
-            "template profile is not installed"
-        );
+        let required_scopes = facts
+            .profile_required_scopes(&template.profile)
+            .with_context(|| format!("template profile {} is not installed", template.profile))?;
+        if let Some(scope) = required_scopes.difference(&template.scopes).next() {
+            anyhow::bail!(
+                "template profile {} requires missing scope {}",
+                template.profile,
+                scope
+            );
+        }
         ensure!(
             !template.scopes.is_empty()
                 && template.scopes.len() <= 64

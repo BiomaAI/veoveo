@@ -161,3 +161,58 @@ impl Config {
         Ok((template, model))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn startup_loader_rejects_missing_profile_scopes_without_widening_grants() -> Result<()> {
+        struct Scratch(std::path::PathBuf);
+        impl Drop for Scratch {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let scratch = Scratch(std::env::temp_dir().join(format!(
+            "veoveo-manager-profile-scopes-{}",
+            uuid::Uuid::now_v7()
+        )));
+        std::fs::create_dir(&scratch.0)?;
+        let capture: serde_json::Value =
+            serde_json::from_str(include_str!("../testdata/rendered-installation.json"))?;
+        let mut config: Config = serde_json::from_str(
+            capture["managerData"]["manager.json"]
+                .as_str()
+                .context("manager fixture")?,
+        )?;
+        let control_path = scratch.0.join("gateway.json");
+        std::fs::write(
+            &control_path,
+            include_bytes!("../../../examples/bioma/gateway.json"),
+        )?;
+        let config_path = scratch.0.join("manager.json");
+        // The captured wire preserves all ordinary loader fields and model references.
+        let mut document: serde_json::Value = serde_json::from_str(
+            capture["managerData"]["manager.json"]
+                .as_str()
+                .context("manager fixture")?,
+        )?;
+        let grants = config.templates[0].scopes.clone();
+        assert_eq!(grants.len(), 5);
+        std::fs::write(&config_path, serde_json::to_vec(&document)?)?;
+        let admitted = Config::load(&config_path, &control_path)?;
+        assert_eq!(admitted.templates[0].scopes, grants);
+        config.templates[0]
+            .scopes
+            .retain(|scope| scope.as_str() == "operator:use");
+        document["templates"][0] = serde_json::to_value(&config.templates[0])?;
+        std::fs::write(&config_path, serde_json::to_vec(&document)?)?;
+        let error = Config::load(&config_path, &control_path)
+            .err()
+            .context("missing scope accepted")?;
+        assert!(error.to_string().contains("requires missing scope"));
+        assert_eq!(config.templates[0].scopes.len(), 1);
+        Ok(())
+    }
+}

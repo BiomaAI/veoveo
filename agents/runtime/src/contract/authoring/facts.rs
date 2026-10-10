@@ -8,13 +8,13 @@ use veoveo_types::{GatewayProfileId, ScopeName, TenantId, WorkContextId};
 #[derive(Clone, Debug)]
 pub struct InstallationFacts {
     contexts: BTreeMap<WorkContextId, TenantId>,
-    profiles: BTreeSet<GatewayProfileId>,
+    profiles: BTreeMap<GatewayProfileId, BTreeSet<ScopeName>>,
     secrets: BTreeMap<SecretReferenceId, SecretPurpose>,
 }
 impl InstallationFacts {
     pub fn new(
         contexts: impl IntoIterator<Item = (WorkContextId, TenantId)>,
-        profiles: impl IntoIterator<Item = GatewayProfileId>,
+        profiles: impl IntoIterator<Item = (GatewayProfileId, BTreeSet<ScopeName>)>,
         secrets: impl IntoIterator<Item = (SecretReferenceId, SecretPurpose)>,
     ) -> Result<Self> {
         let mut admitted_contexts = BTreeMap::new();
@@ -24,10 +24,10 @@ impl InstallationFacts {
                 "duplicate installation Work Context"
             );
         }
-        let mut admitted_profiles = BTreeSet::new();
-        for profile in profiles {
+        let mut admitted_profiles = BTreeMap::new();
+        for (profile, required_scopes) in profiles {
             ensure!(
-                admitted_profiles.insert(profile),
+                admitted_profiles.insert(profile, required_scopes).is_none(),
                 "duplicate installed profile"
             );
         }
@@ -47,8 +47,11 @@ impl InstallationFacts {
     pub fn context_tenant(&self, context: &WorkContextId) -> Option<&TenantId> {
         self.contexts.get(context)
     }
-    pub fn profile_installed(&self, profile: &GatewayProfileId) -> bool {
-        self.profiles.contains(profile)
+    pub fn profile_required_scopes(
+        &self,
+        profile: &GatewayProfileId,
+    ) -> Option<&BTreeSet<ScopeName>> {
+        self.profiles.get(profile)
     }
     pub fn secret_purpose(&self, reference: &SecretReferenceId) -> Option<&SecretPurpose> {
         self.secrets.get(reference)
@@ -78,7 +81,20 @@ mod tests {
             .is_err()
         );
         let profile: GatewayProfileId = "author".parse().unwrap();
-        assert!(InstallationFacts::new([], [profile.clone(), profile], []).is_err());
+        assert!(
+            InstallationFacts::new(
+                [],
+                [
+                    (profile.clone(), BTreeSet::new()),
+                    (
+                        profile,
+                        BTreeSet::from([ScopeName::parse("operator:use").unwrap()])
+                    )
+                ],
+                []
+            )
+            .is_err()
+        );
         let secret: SecretReferenceId = "provider".parse().unwrap();
         assert!(
             InstallationFacts::new(

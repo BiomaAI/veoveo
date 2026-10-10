@@ -80,10 +80,13 @@ on September 19, 2026.
 
 The `contract` feature exposes authoring DTOs, template validation and digest functions
 without MCP, Store, gateway runtime or asynchronous dependencies. `InstallationFacts`
-contains context-to-tenant relationships, installed profiles and secret purposes from
-one admitted revision. Its typed constructor rejects duplicate keys. It does not certify
-current installation readiness. `CallerFacts` borrows the caller's tenant and scopes;
-current authentication and authorization belong to the adapter.
+contains context-to-tenant relationships, installed profiles with their required scopes,
+and secret purposes from one admitted revision. Its typed constructor rejects duplicate
+keys. It does not certify current installation readiness. Template admission requires
+its declared scopes to include every required scope of its selected profile and reports
+missing scopes without adding grants. Gateway and Manager apply this check before
+provisioning. `CallerFacts` borrows the caller's tenant and scopes; current authentication
+and authorization belong to the adapter.
 
 The separately gated `catalog` adapter validates a control-plane revision and projects
 these facts. The gateway reads one admitted catalog snapshot for that projection. The

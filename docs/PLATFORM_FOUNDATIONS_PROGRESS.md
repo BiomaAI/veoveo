@@ -6,6 +6,71 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Agent Manager Profile-Scope Admission — October 10, 2026
+
+The second maintained public OAuth journey runs once with the complete, reviewed
+910-byte seed. The managed kernel decodes the manifest and acquires its scheduler
+lease. It then exits during MCP initialization; the selected template grants
+`operator:use`, while the installation's `agent` profile also requires
+`uav-sim:control`, `map:dataset:read`, `map:route` and `time:read`. Gateway logs
+correlate three missing-required-scope refusals with the kernel's connection attempts.
+The Pod never becomes Ready. The native report records `operationPassed=false` and
+`cleanupPassed=true`; this run does not qualify installed Manager startup.
+
+An independent database query follows operation
+`9b275d45-b105-5214-8019-0b63dc546e32` to its actual managed instance. It verifies
+the requested identity, tenant, owner, context, definition, image and archived
+generation three, with the operation claim cleared. Admissions, live runtime leases
+and episodes are zero. One runtime row is retained. Fresh Kubernetes reads find no
+owned Deployment, ReplicaSet or Pod, and the original 2 GiB PVC remains Bound.
+Manager and Gateway are Ready. Manager's baseline configuration and checksum, the
+Gateway's corrected single-pilot template list and both temporary admission-policy
+arrays are restored. The temporary ReplicaSets and immutable ConfigMap are absent;
+no actual DELETE was sent after their immediate post-dry-run reads returned NotFound.
+Core Deployments are Ready, the node reports no pressure and all three GitOps holds
+stay suspended. The readback uses the second run's identity and does not reuse the
+first run's drain result. The original native and observer processes are absent.
+Their execution session is no longer pollable, so its exact process exit code was
+not retained; the terminal harness report supplies the failed journey and successful
+owned-cleanup outcome.
+
+The configuration defect exposes an admission gap: `InstallationFacts` stored
+profile IDs but discarded their required scopes. The source repair stores typed
+profile-to-scope sets and checks that a template declares every required scope of
+its selected profile. Gateway and Manager reuse that validator before provisioning.
+The validator reports missing scope names and never adds grants. Tests cover exact
+and extra grants, missing and unknown profiles, duplicate profile keys, preservation
+of catalog requirements and both configuration loaders. Contract-only and combined
+Gateway/Manager compiler checks pass, as does strict lint. Independent review finds
+no material issues. A clean warm native build and all fourteen pure authoring,
+catalog and Gateway loader controls pass after the golden repair below. Manager's
+native loader control still needs link headroom; installed qualification is open.
+The final image plan must be refreshed after this repair is committed and qualified.
+
+The first native build emits a complete test executable before the local resource
+guard terminates its parent; it is recorded as a guarded stop, not a clean Cargo
+exit. Direct execution runs all nine selected controls: eight pass and one template
+digest golden fails. Independent hashing and Git history show that the expected
+digest still describes the snake_case fixture from before `17517f9d1`, while the
+unchanged current fixture and native implementation agree on the camelCase digest.
+The repair changes only the expected test literals. Production hashing and template
+wire forms are unchanged. The diagnostic executable is retired after its receipt
+and consumer-closure proof are retained; dependency and codegen caches stay intact.
+
+| Private record | SHA-256 |
+|---|---|
+| `/tmp/veoveo-profile-scopes-20261010/compiler-checkpoint.json` | `22763a39b7d6d7d4f417b31dbd275b8dd96d6f6535b1ffd0dbaf14d4a8b4d102` |
+| `/tmp/veoveo-profile-scopes-20261010/runtime-final-native-receipt.json` | `9c2bc926232ba727f27b3b8d0284f4731683a56bd50823c654fb15c94bc5f35f` |
+| `execution-corrected-20261010/journey-final/dispatch-launch.json` | `752d12cba8c15dd9aeb101a5d08b92fe8c38e883fec4af4ad61ae62027fe5b88` |
+| `execution-corrected-20261010/journey-final/diagnostics/gateway-auth-window.log.private` | `446366c532ad064909810bab175ec8ed18164f2b0d3b9fab7ea48a8284780127` |
+| `execution-corrected-20261010/journey-final/postflight-live/same-operation-drain-readback.surql` | `a4ea5a2a64fb8dcf7964ba6bcf6498a13fce823e8a8ec8f2bbe404450f407518` |
+| `execution-corrected-20261010/journey-final/postflight-live/terminal-postflight-receipt.json` | `d845210fe35171746dcf41a289c8438c9759a42f6dcc8480e1a4ff6a79f889c8` |
+
+The execution paths are relative to the private
+`/tmp/veoveo-agentmanager-idle-correction-20261010` package. Raw diagnostics stay
+outside the repository; the retained records identify this failed attempt and its
+cleanup scope.
+
 ## Agent Manager Fixture Failure And Cleanup — October 10, 2026
 
 The maintained public OAuth journey exits one before the kernel becomes Ready.
