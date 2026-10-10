@@ -9,6 +9,7 @@
 | `veoveo.ai/mcp-conformance-report/v1` | Source-only requirement results and the observed endpoint implementation |
 | Installation target | Repository-owned typed public origin, Kubernetes coordinates and expected workload names from `veoveo-deploy-contract` |
 | Kubernetes Deployment API | One requested rolling restart, native rollout/deletion watches and typed before/after readiness checks |
+| `veoveo.ai/time-authority-acceptance/v1` | Private owner journal for isolated authority acquisition, guarded activation, resource invalidations and immutable epoch reads; no public protocol extension |
 
 ## Ownership
 
@@ -206,6 +207,56 @@ Neither consumer scenario activates authority releases. Authority activation,
 conflict rollback and selected cross-replica routing need separate installed
 qualification. Prepared cancellation and recovery modes establish acceptance only
 when their required Working, replacement and terminal observations actually occur.
+
+## Time Authority Acquisition And Activation
+
+`cargo xtask smoke time-installed-authorities` selects the ignored authority case
+in Time's existing `gateway_consumers` harness. Set `VEOVEO_TIME_AUTHORITY_INPUT`
+to its private closed input. Run it only in a dedicated installation and tenant
+whose source catalog and persisted active-authority pointers are empty. The
+effective initial references come from that installation's packaged bootstrap.
+Operations verifies the ordinary reader and administrator OAuth identities before
+admission; the fixture records that attestation rather than decoding bearer claims.
+
+| Input | Required values |
+|---|---|
+| `installation`, `administrator` | Selected installation, public Gateway endpoint, private reader/admin token references, admin profile and new journal path |
+| `isolation` | Dedicated namespace, tenant, Work Context and verified reader/admin principal IDs; namespace and context must match the installation target |
+| `initialAuthority` | Independently verified effective bootstrap pair |
+| `tzdb`, `leaps` | Typed `CreateSourceRequest`, independently verified HTTPS product digest and version label, and three distinct acquisition keys per family |
+| `epoch`, `epochIdempotencyKeys` | Version-one epoch bound to the bootstrap pair and two distinct publication keys |
+| `relativeOffsetNanoseconds`, `expectedRelativeTaiNanoseconds`, `expectedUtc` | Independent physical arithmetic and UTC expectation, supplied before execution |
+
+The fixture creates two sources and four acquisition jobs: one TZDB candidate and
+three leap-second candidates. It checks an acknowledged acquisition's idempotent
+replay and rejects changed input under the same key. Each first activation uses
+the absent-pointer guard, then verifies pointer version one and release version
+two. Two concurrent leap activations share one pointer guard; exactly one succeeds,
+the other returns a typed version conflict, and the TZDB selection stays unchanged.
+The previous leap release becomes retired while the losing candidate stays staged.
+A stale activation must preserve both selections and release records.
+
+The exact-authority subscription records its acknowledged initial snapshot
+separately. Later resource invalidations accompany uncached reads of the expected
+changed authority binding and acquisition provenance. Notifications carry no
+mutation revision, and Time also emits broad reconciliation invalidations; this
+check does not attribute a notification to one particular activation.
+Epoch version one must keep its original binding and fail relative resolution
+after that authority becomes inactive. An explicitly published version two keeps
+the independent physical instant under the new pair. Latest/versioned reads,
+resolution and conversion must agree with the supplied physical and UTC values.
+
+One 900-second operation deadline covers connection, requests and concurrent work.
+Each acquisition allows at most 66 correlated status reads spaced five seconds
+apart within a 330-second observation interval and the original deadline. Admin
+requests have a thirty-second cap; the whole fixture allows at most 512 requests.
+The scenario provides 960 seconds and one thirty-second cleanup grace. Its private
+append-only journal records dispatch intent, typed acknowledgements, safe response
+status/code/digests and unresolved identities. Retained SDK close futures keep
+their original caps. Operations owns retirement of sources, releases, epochs and
+unresolved jobs; the fixture does not reset authority state or revive retired
+releases. Acquisition interruption, restart and replica behavior require their
+separately selected qualification.
 
 ## Restart And Cleanup
 

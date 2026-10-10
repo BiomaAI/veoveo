@@ -90,6 +90,31 @@ leap second assumptions.
   retirement. Fresh acknowledged exact-ID delivery is an initial completed snapshot.
   Keep unfinished cross-replica recovery and later mutation delivery separate.
   The operation uses one 300-second deadline and the existing 30-second cleanup grace.
+- `cargo xtask smoke time-installed-authorities --help` describes the separate
+  ignored `authority::isolated_authority_acquisition_activation_and_retained_epoch_through_gateway`
+  profile in the existing harness. `VEOVEO_TIME_AUTHORITY_INPUT` selects a private
+  fixture with an Ops-attested isolated namespace, tenant, context and verified
+  reader/admin principal identities; normal private OAuth token files; typed TZDB
+  and leap sources; independent product digests/version labels; initial bootstrap
+  references; and independent epoch physical/UTC expectations. Persisted pointers
+  and the source catalog must initially be empty. Never run this profile against
+  reference authorities. It creates four acquisition jobs, activates both families,
+  checks one concurrent winner and typed conflict, refuses a stale pointer guard,
+  and verifies immutable epoch v1 plus explicitly rebound v2. Resource delivery
+  must acknowledge the requested filter and accompany a changed current authority
+  after activation; initial snapshot delivery is recorded separately.
+  One original 900-second operation deadline caps all requests and joins. Each
+  acquisition permits at most 66 correlated status GETs separated by five seconds,
+  with bounded initial/final reads. The scenario allows 960 seconds and the existing
+  30-second owner cleanup grace. The private append-only journal records mutation
+  intents, acknowledged and unresolved identities, safe status/code/digests and
+  consuming SDK close futures under their original caps. It does not roll back
+  published authorities or delete retained state; Ops owns isolated retirement.
+  Acquisition interruption, authority restart/replica delivery and coordinated
+  installed upgrades require separate qualification. Local admission, pointer guard
+  and subscription counterexamples live in `gateway_consumers/authority/tests.rs`;
+  the shared owner close control is now
+  `cleanup::tests::interrupted_close_retains_original_future_and_deadline`.
 - `cargo test -p veoveo-time-mcp --lib server::tasks::tests` qualifies durable
   cancellation at calculation checkpoints and final settlement using distinct
   workers on the existing isolated Store fixture. Keep the cancellation/completion

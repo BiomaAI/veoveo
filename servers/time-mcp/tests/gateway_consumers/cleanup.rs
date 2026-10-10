@@ -1,5 +1,6 @@
 //! Consuming close futures stay with the original owner across interruption.
 use super::*;
+use anyhow::Context;
 use std::{future::Future, pin::Pin, time::Instant};
 type Closing = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
 #[derive(Default)]
@@ -54,6 +55,7 @@ impl CloseState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
     #[tokio::test]
     async fn interrupted_close_retains_original_future_and_deadline() -> Result<()> {
         let mut state = CloseState::default();

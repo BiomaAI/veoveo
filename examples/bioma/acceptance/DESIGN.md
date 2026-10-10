@@ -38,6 +38,7 @@
 | Installed CPU Host fixture | Closed owner JSON with `deployment`, `pod` and `container`; private absolute regular-file input capped at 64 KiB; database identity enters through the DuckDB owner type |
 | Installed CPU Host evidence | `veoveo.ai/installed-cpu-host/v1` JSON with gateway Task identity, admitted process/drain identities and separate completion, retained-payload and connection-cleanup results |
 | Installed Speech recovery | Existing private Speech Task input with explicit `recover` mode and a selected `CrashTarget`; normal OAuth/MCP observations and the shared same-Pod crash watch, with no harness-issued crash signal |
+| Installed Time authorities | `veoveo.ai/time-authority-acceptance/v1` private journal; typed owner admin requests, normal OAuth/MCP reads and resource invalidations in a dedicated installation |
 | Installed View evidence | `veoveo.ai/view-installed-evidence/v1` private JSON; official OAuth/MCP Tasks and the shared selected-container Kubernetes drain profile |
 | View process interruption | Docker Engine HTTP API 1.44 subset over the fixture's active local Unix socket; version and owned-container inspection precede one STOP signal, followed by durable claim admission and the existing restart checks |
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v2` JSON receipt with the output file SHA-256 |
@@ -566,6 +567,15 @@ Complete and cancel modes select a 120-second operation deadline. Recover select
 interval. The scenario permits 360 seconds for execution and 30 seconds for owned
 cleanup. Interrupted close futures retain their first deadline; expiration stays
 failed even if a later poll could observe successful completion.
+
+## Installed Time Authorities
+
+Time's separately selected `time-installed-authorities` scenario owns isolated
+acquisition, activation conflicts and epoch rebinding in the existing Time harness.
+Its [input and observation contract](../../../testing/installed/DESIGN.md#time-authority-acquisition-and-activation)
+requires a dedicated installation and independent authority products. Resource
+invalidations and changed authoritative reads do not identify a notification's
+causal mutation.
 
 ## Installed Timeseries
 

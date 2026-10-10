@@ -13,6 +13,10 @@ use std::{
     time::Duration,
 };
 use veoveo_testing_support::installed::knowledge as installed;
+#[path = "gateway_consumers/authority.rs"]
+mod authority;
+#[path = "gateway_consumers/cleanup.rs"]
+mod cleanup;
 #[path = "gateway_consumers/schedule.rs"]
 mod schedule;
 #[path = "gateway_consumers/trace.rs"]

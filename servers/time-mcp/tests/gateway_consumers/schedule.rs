@@ -1,7 +1,6 @@
 //! Selected schedule Task acceptance over the maintained installed SDK/lifecycle.
+use super::cleanup;
 use super::{installed, open_receipt, trace};
-#[path = "schedule/cleanup.rs"]
-mod cleanup;
 #[path = "schedule/handoff.rs"]
 mod handoff;
 #[path = "schedule/lifecycle.rs"]

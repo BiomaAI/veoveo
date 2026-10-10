@@ -97,6 +97,38 @@
       },
       "deadlineSeconds": 360,
       "cleanupSeconds": 30
+    },
+    {
+      "id": "time-installed-authorities",
+      "description": "Qualify isolated authority acquisition, guarded activation, delivered changes and retained epoch rebinding through the public gateway.",
+      "target": {
+        "kind": "cargo_test",
+        "selection": {
+          "owner": "servers/time-mcp",
+          "package": "veoveo-time-mcp",
+          "target": "gateway_consumers",
+          "features": [
+            "mcp"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        },
+        "case": "authority::isolated_authority_acquisition_activation_and_retained_epoch_through_gateway",
+        "ignored": true
+      },
+      "arguments": [],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Requires VEOVEO_TIME_AUTHORITY_INPUT: a private fixture selecting a dedicated isolated installation/tenant, verified ordinary reader and administrator OAuth identities, two admitted immutable HTTPS authority products with independent SHA-256 digests/version labels, bootstrap authority and independent epoch/UTC expectations, and a new private JSONL receipt. Writes retained sources, four acquisition jobs, authority selections and two immutable epoch versions. Uses one 900-second operation deadline; each acquisition permits at most 66 correlated GETs spaced five seconds. No reference authority mutation, reset, process signal or automatic mutation retry. Ops owns retirement of isolated state and unresolved jobs."
+      },
+      "deadlineSeconds": 960,
+      "cleanupSeconds": 30
     }
   ]
 }
