@@ -228,23 +228,36 @@ actual issuer/JWKS HTTPS destinations in `computers.host.issuerEgress`. Worker
 selectors even with the global flag disabled; qualify all their allowed paths before
 adding it. The stock rollout must cover seven images: Computer Host, Computer
 template, Computers MCP, Gateway, Console BFF, Agent Manager and Knowledge. Gateway,
-Computers MCP, Manager and Knowledge decode the full catalog. Before publishing the
-matching worker authorization section and client, qualify source-bound Manager and
-Knowledge images against the actual live catalog, policy and enabled module composition,
-replace their old readers, and prove Manager Ready.
-The current registry accepts the old catalog without both the worker section and
-its client. A reader that does not register the new section rejects it; retained image
-admission is unproven. Preserve Knowledge desired replicas at one through its Recreate
-transition, then restore Ready and functional indexing and search before publication.
-Keep Embedding and Speech Ready. Ordinary chart reconciliation starts Deployments
-and publication Jobs concurrently and cannot enforce that order. The tracked Veoveo
-and UAV HelmReleases suspend application reconciliation for the coordinated stock
-rollout. Keep reconciliation suspended while replacing and draining catalog readers.
-Source refresh must not publish the candidate catalog or resume UAV work. After
-compatible-reader admission and drain are proved, publish the matching section and
-client atomically in one full catalog and activate the matched worker, Host and chart
-through the coordinated drain, preserving unresolved operations and retained writer
-fences. Release each reconciliation suspension only
+Computers MCP, Manager and Knowledge decode the full catalog. Qualify compatible
+reader images against the live catalog and drain old readers before mounting the
+candidate public bundle. That bundle includes the worker JWKS. Preserve the live
+policy and enabled module composition. Knowledge must keep one desired replica;
+Embedding and Speech must stay Ready. Computers remains stopped until its activation
+prerequisites are met.
+
+After mounting the candidate bundle and matching public mirrors, publish the full
+catalog under the current prepared plan before triggering rollouts. Gateway
+startup checks the active database catalog hash against its mounted expected
+control-plane file. Rolling against candidate files before publication would reject
+startup. After publication, roll Gateway, Agent Manager and Knowledge in that order,
+checking readiness and functional admission at each step.
+
+Metadata-only catalog publication uses the installation's current prepared module
+plan when all nineteen SQL histories and runtime credentials are unchanged. Publish
+with that current plan; a prepared later-generation file is not a metadata prerequisite.
+Advance the module generation only with coordinated startup-plan references for all
+affected owners, so their next restart admits the same installed generation.
+
+The public worker JWKS is required for reader admission and catalog publication.
+Worker private signing and provider trust Secrets are required when activating Host
+and Computers; metadata-only publication does not activate them. Publish the matching
+section and client atomically through the maintained full-catalog command. Activate
+the matched worker, Host and chart separately through the coordinated drain,
+preserving unresolved operations and retained writer fences. Ordinary chart
+reconciliation starts Deployments and publication Jobs concurrently and cannot enforce
+this order. Keep the tracked Veoveo and UAV HelmReleases suspended throughout the
+coordinated rollout.
+Release each reconciliation suspension only
 after its coordinated rollout checks pass. Selected native stopped-maintenance,
 terminal renewal and Host same-image restart cases pass under the stock profile. The
 [active plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md) records their current scope and
