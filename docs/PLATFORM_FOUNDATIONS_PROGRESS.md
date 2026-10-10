@@ -6,6 +6,40 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Time Handoff Authentication And Restoration — October 10, 2026
+
+Time9 fails during ordinary SDK connection initialization, before the original
+Task baseline. Gateway records HTTP 401 on `POST /mcp/operator` with
+`JWT is missing required gateway scope`. The token has Time read/schedule scopes
+but omits other required scopes of the operator profile. Preparation is corrected
+to derive the union of the full selected profile requirements and Time owner
+requirements; no policy widening or product change is needed. The retained failure
+digest is `4e26a7852476a247a6b23679f675bbf88bfc0dde6c96da8dca88145a8acfac17`.
+
+Time10 passes original and replacement completed Task identity, result and authority
+checks, sole B routing, the native watch barrier and original A process exit zero.
+The journal reaches `replacement_verified`, then restoration progresses through
+`restore_original_intent` and `restore_selector_intent`. Operations applies the
+selector restore after native cleanup expires. The native run therefore fails
+with `restorationFailed=true` and `restored=false`; all four caller/listener handles
+and native watches close. These partial assertions do not qualify the full handoff.
+
+Operations subsequently restores the original selector with HTTP 200, verifies
+A Ready with its sole endpoint, and deletes only the owned B Deployment using UID
+and resourceVersion preconditions. B Deployment and Pods are absent afterward.
+Core services stay Ready and reconciliation holds stay suspended. No host or
+product regression is established, and no response body beyond the recorded
+status is inferred. Unfinished recovery, installed authority qualification and
+final-image gates remain open.
+
+The Time10 terminal postflight receipt is
+`/tmp/veoveo-time-handoff-attempt10-prep-20261010/terminal-postflight.json`, SHA-256
+`cb93abf773a7a1ed45dd0b150f4463622b7385b32037af29bb5c6764359eb66c`.
+It binds the journal SHA-256
+`915f62e1f85ded692db7797be3e6481921e52a3804916098b138bf0d8444a36d`
+and the selector/owned-B cleanup responses. Post-run physical restoration does not
+change the failed native outcome.
+
 ## Time Handoff Native Stack Overflow — October 10, 2026
 
 Attempt eight uses the audited historical completed-Task pair and changes only

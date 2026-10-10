@@ -17,14 +17,14 @@ Datasheet's SDK replacement and the complete focused normal-OAuth Artifact consu
 scenario pass. Retained capability redemption and idempotent replay also pass
 across one fenced Artifact service replacement. Interrupted-write recovery and
 final-image qualification remain open.
-The completed-state cross-replica fixture
-passes source qualification and independent review. Its latest installed attempt
-passes original completed-Task reads with the required OAuth scopes and creates a
-Ready second Pod, then the native acceptance process overflows its stack before
-switching traffic. The second Pod is removed with its UID precondition; Time's
-original Pod and routing stay healthy. The harness stack repair passes its
-reproduced native regression and eight focused controls; installed handoff remains
-open.
+The completed-state cross-replica fixture passes source qualification and review.
+Time9 fails before Task access because its token omits operator-profile required
+scopes; the corrected preparation derives the union of the full profile and Time
+read/schedule scopes. Time10 passes completed Task/result/authority checks through
+B-only routing, the watch barrier and original process exit zero. Overall acceptance
+fails because Operations restores the selector after native cleanup expires. All
+SDK handles and watches close; Operations subsequently restores A-only routing and
+verifies B absent. Completed-state handoff acceptance remains open.
 Gateway, Agent Manager and Knowledge run compatible qualified images against the
 published full catalog. Manager is Ready with the reviewed immutable pilot template,
 qualified kernel and matching admission policies; its full installed instance journey
@@ -146,7 +146,7 @@ Earlier installed checkpoints keep their recorded scope below.
 
 | Owner | Prepared installed checks | Remaining qualification |
 |---|---|---|
-| Time | Read consumers and explicit complete/cancel/recover schedule fixtures; installed completion agrees with eight independent occurrences and delivered/current Completed state; cancellation reaches Cancelled after observed Working, with cleanup passing | Unfinished process recovery, completed-state cross-replica execution, authority activation and final images |
+| Time | Read consumers and explicit complete/cancel/recover schedule fixtures; completion and cancellation pass; completed Task/result/authority checks pass through B-only routing and the watch barrier, but the overall handoff fails late selector restoration | Unfinished process recovery, completed-state cross-replica acceptance with timely restoration, authority activation and final images |
 | Artifact | Focused normal-OAuth uploads with independent public byte/digest checks, delegated SDK reads and a separately selected retained Task-bound write capability across one service replacement; source/native controls and review pass at `dd7958d26` | Interrupted-write recovery and final images |
 | Timeseries | Four-row forecast, RRD Artifact and usage; typed cancellation, connection replacement and process-crash fixtures with original Task/result agreement | Installed unfinished process recovery, selected cross-replica routing and final images |
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
@@ -234,24 +234,23 @@ template discovery and is recorded separately from these targeted passes. The
 completed-state cross-replica fixture passes strict compiler checks, focused native
 controls and independent review at `29831d530`. Its installed A/B execution remains
 open; its scope excludes unfinished recovery and delivery after a mutation.
-The audited input, original-only topology and required OAuth scopes pass admission.
-The original completed-Task baseline also passes. The latest attempt creates its
-second Pod, which becomes Ready, then the native acceptance process reports a
-stack overflow while awaiting the next handoff gate. No Service selector or
-original replica mutation is dispatched. Operations removes the unselected second
-Deployment with its UID precondition and verifies its Pods absent; original
-routing, core services and reconciliation holds stay unchanged. The captured
-binary has large nested async poll frames; source inspection finds no recursive
-path, but no core or backtrace identifies the precise overflowing instruction.
-The source repair heap-pins the large owner and shared observer futures and keeps
-the original deadlines, watch fences and assertions. The same five-native-watch
-control overflows before the repair and passes afterward on a 512 KiB stack.
-All eight focused shared and Time controls pass, along with compiler and strict
-lint checks. The complete installed handoff still needs a retry with the repaired
-executable and no stack override. This was an acceptance-process crash;
-no Time service crash or MCP error response was observed. The
-[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#time-handoff-native-stack-overflow--october-10-2026)
-records the partial effects and restoration.
+The earlier installed stack overflow is repaired by heap-pinning large owner and
+shared observer futures without changing deadlines or watch fences. The same
+five-native-watch control overflows before the repair and passes afterward on a
+512 KiB stack; all eight focused controls, compiler checks and strict lint pass.
+Time9 then fails connection initialization with HTTP 401 because the token lacks
+part of the operator profile's required scope set. This is preparation failure;
+normal token acquisition must include the full profile/Time scope union.
+Time10 uses that union and passes original and replacement completed Task payload,
+independent output and authority agreement, B-only routing, the watch barrier and
+original process exit zero. It reaches selector-restoration intent, but Operations
+applies the selector restore after native cleanup expires. Overall acceptance
+fails with restoration unresolved even though all four SDK handles and watches
+close. Operations later verifies A Ready with its original sole route and B Pods
+absent. No host or product regression is established by these failures. The
+[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#time-handoff-authentication-and-restoration--october-10-2026)
+binds the terminal receipts. Completed-state handoff, unfinished recovery and
+installed authority qualification remain separate open gates.
 
 Gateway-routed Knowledge source checks now admit each templates/tools page against
 the selected typed server. Unrelated server failures are retained as limited K01
