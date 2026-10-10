@@ -4,7 +4,8 @@ FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc401
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
+    && useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
+    && rm -rf /var/log/apt /var/log/dpkg.log
 
 COPY --from=veoveo-rust-artifacts /bin/certify /usr/local/bin/veoveo-mcp-certify
 

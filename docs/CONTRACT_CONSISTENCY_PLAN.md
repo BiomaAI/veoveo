@@ -229,6 +229,15 @@ closure to proceed without republishing unrelated cohort members; Console BFF st
 needs its own stage. The resource gate, complete thirty-target coverage for the final
 cut, catalog-reader replacement order and installed acceptance remain open.
 
+The first Computers/Gateway qualification rebuilt both images successfully but
+failed the required staged-runtime digest comparison. Their server binaries and
+103 package-version records match; the changed package-install layers contain
+wall-clock text in apt and dpkg logs. The publisher accepted no release evidence,
+and deployed image pins are unchanged. Thirty-one owned runtime Dockerfiles now
+remove those disposable logs in the same package-install RUN. Source checks and
+independent review pass. Fresh staging and qualification at the repaired source
+revision must demonstrate matching runnable digests before rollout.
+
 A private credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
 WaveSpeed and Google Maps replacement still requires account-management authority
 or private references to fresh credentials. Existing authorization applies to the

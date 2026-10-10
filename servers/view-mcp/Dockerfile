@@ -15,7 +15,7 @@ RUN apt-get update \
         libvulkan1 \
         libx11-6 \
         libxext6 \
-    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/lib/apt/lists/* /var/log/apt /var/log/dpkg.log \
     && useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
     && mkdir -p /etc/veoveo/view \
     && chown -R veoveo:veoveo /var/lib/veoveo

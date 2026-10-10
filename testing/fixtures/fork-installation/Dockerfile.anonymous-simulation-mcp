@@ -18,7 +18,7 @@ FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf3
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /var/log/apt /var/log/dpkg.log
 
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
 

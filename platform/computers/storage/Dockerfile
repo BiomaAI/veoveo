@@ -20,7 +20,8 @@ SOURCES
 RUN apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends ca-certificates e2fsprogs util-linux \
     && dpkg-query -W > /usr/share/veoveo-computer-storage-packages.txt \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/log/apt /var/log/dpkg.log
 
 COPY --from=veoveo-rust-artifacts /bin/veoveo-computer-storage /usr/local/bin/veoveo-computer-storage
 # Mount/loop privileges are confined to this separately deployed storage process.

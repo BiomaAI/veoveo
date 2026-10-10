@@ -32,7 +32,7 @@ RUN rm -f /etc/apt/sources.list.d/apache-arrow.sources \
     && apt-get install -y --no-install-recommends \
       ca-certificates curl libczmq4 libluajit-5.1-2 libprotobuf-lite32t64 libstdc++6 \
       libzmq5 openjdk-21-jre-headless osmium-tool python3 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /var/log/apt /var/log/dpkg.log
 RUN --mount=type=bind,from=python-package-tools,source=/usr/local/bin/uv,target=/usr/local/bin/uv,readonly \
     --mount=type=bind,source=servers/map-mcp/data/pyproject.toml,target=/tmp/map-package/pyproject.toml,readonly \
     --mount=type=bind,source=servers/map-mcp/data/uv.lock,target=/tmp/map-package/uv.lock,readonly \

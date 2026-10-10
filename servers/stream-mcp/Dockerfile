@@ -30,7 +30,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates curl gstreamer1.0-plugins-bad gstreamer1.0-plugins-good \
         libjson-c5 \
-    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/lib/apt/lists/* /var/log/apt /var/log/dpkg.log \
     && useradd --system --uid 10001 --create-home \
         --home-dir /var/lib/veoveo veoveo
 

@@ -9,7 +9,8 @@ RUN apt-get update \
         --home-dir /var/lib/veoveo veoveo \
     && mkdir -p /var/lib/veoveo-recording-forwarder \
     && chown -R veoveo:veoveo \
-        /var/lib/veoveo /var/lib/veoveo-recording-forwarder
+        /var/lib/veoveo /var/lib/veoveo-recording-forwarder \
+    && rm -rf /var/log/apt /var/log/dpkg.log
 
 COPY --from=veoveo-rust-artifacts /bin/recording-forwarder /usr/local/bin/recording-forwarder
 

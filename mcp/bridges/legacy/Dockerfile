@@ -20,7 +20,8 @@ RUN apt-get update \
         python3 \
         python3-pip \
         python3-venv \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/log/apt /var/log/dpkg.log
 
 RUN python3 -m venv /opt/rerun \
     && /opt/rerun/bin/pip install --no-cache-dir \

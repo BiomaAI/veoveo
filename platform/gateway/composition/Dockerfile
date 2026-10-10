@@ -3,7 +3,8 @@ FROM debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl libstdc++6 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/log/apt /var/log/dpkg.log
 
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
     && mkdir -p /etc/veoveo \

@@ -7,7 +7,8 @@ FROM veoveo-computer-storage
 RUN apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends iptables nftables iproute2 kmod \
     && dpkg-query -W > /usr/share/veoveo-computer-host-packages.txt \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/log/apt /var/log/dpkg.log
 COPY --from=engine /usr/local/bin/dockerd /usr/local/bin/docker /usr/local/bin/containerd /usr/local/bin/containerd-shim-runc-v2 /usr/local/bin/ctr /usr/local/bin/runc /usr/local/bin/docker-init /usr/local/bin/docker-proxy /usr/local/bin/dind /usr/local/bin/
 COPY --from=veoveo-computer-provider /usr/local/bin/ /usr/local/bin/
 COPY --from=veoveo-computer-provider /usr/share/veoveo-computer-provider /usr/share/veoveo-computer-provider

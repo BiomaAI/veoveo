@@ -14,7 +14,8 @@ ARG TYPING_EXTENSIONS_VERSION=4.16.0
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates libstdc++6 python3 python3-pip python3-venv netcat-openbsd \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/log/apt /var/log/dpkg.log
 
 # The `rerun` CLI (freeze optimize/verify + `rerun server` catalog).
 RUN python3 -m venv /opt/rerun \

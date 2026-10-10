@@ -21,7 +21,7 @@ SOURCES
 RUN apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && dpkg-query -W > /usr/share/veoveo-computers-service-packages.txt \
-    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/lib/apt/lists/* /var/log/apt /var/log/dpkg.log \
     && useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
 
 COPY --from=veoveo-rust-artifacts /bin/computers-mcp /usr/local/bin/computers-mcp

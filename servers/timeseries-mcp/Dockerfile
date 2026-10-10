@@ -3,7 +3,7 @@ FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc401
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl libstdc++6 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /var/log/apt /var/log/dpkg.log
 
 COPY --from=veoveo-rust-artifacts /lib/libduckdb.so /usr/local/lib/libduckdb.so
 RUN ldconfig

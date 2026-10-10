@@ -35,7 +35,7 @@ FROM --platform=${SUMO_PLATFORM} ${SUMO_BASE_IMAGE}
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/lib/apt/lists/* /var/log/apt /var/log/dpkg.log \
     && useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
     && mkdir -p /var/lib/veoveo/sumo \
     && chown -R veoveo:veoveo /var/lib/veoveo \

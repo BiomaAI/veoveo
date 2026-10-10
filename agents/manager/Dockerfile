@@ -4,7 +4,8 @@ FROM debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
+    && useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
+    && rm -rf /var/log/apt /var/log/dpkg.log
 
 COPY --from=veoveo-rust-artifacts /bin/agent-manager /usr/local/bin/agent-manager
 USER veoveo

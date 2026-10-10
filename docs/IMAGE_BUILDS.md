@@ -358,6 +358,15 @@ release evidence. Cold and warm registry builds of one source state must produce
 same runnable platform-manifest digest. Build cache remains an optimization and never
 supplies the source identity or release tag.
 
+Timestamp rewriting changes filesystem metadata, not file contents. Veoveo-owned
+runtime package-install RUNs remove `/var/log/apt` and `/var/log/dpkg.log` in the
+same RUN after package operations; those disposable logs contain wall-clock text
+that would otherwise change the runnable digest. Package inventories and installed
+package state stay in the image. This cleanup changes image contents, so publication
+requires fresh staging and qualification at the new frozen source revision. Existing
+staged runtimes cannot be relabeled as containing the cleanup or substituted when
+stage-digest comparison fails.
+
 Every qualified registry release attaches BuildKit SBOM and maximum-mode provenance
 attestations. Its SBOM generator is Docker BuildKit Syft scanner 1.12.0 (Syft 1.51.0),
 pinned by OCI digest in the image command. This pin was verified against the

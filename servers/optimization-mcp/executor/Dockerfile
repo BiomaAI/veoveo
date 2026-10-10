@@ -13,7 +13,7 @@ RUN --mount=type=bind,from=python-package-tools,source=/usr/local/bin/uv,target=
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
         libgomp1=12.3.0-1ubuntu1~22.04.3 \
-    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/lib/apt/lists/* /var/log/apt /var/log/dpkg.log \
     && cudss_threading_layer=/usr/local/lib/python3.14/dist-packages/nvidia/cu13/lib/libcudss_mtlayer_gomp.so.0 \
     && test -f "${cudss_threading_layer}" \
     && ! ldd "${cudss_threading_layer}" | grep --quiet 'not found'

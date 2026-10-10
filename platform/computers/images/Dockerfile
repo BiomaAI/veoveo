@@ -18,7 +18,8 @@ RUN dpkg-deb --extract /tmp/ca-certificates.deb /tmp/bootstrap-ca \
        ca-certificates curl git iproute2 nftables openssh-sftp-server \
        procps python3 python3-venv \
     && rm -rf /var/lib/apt/lists/* /tmp/ca-certificates.deb /tmp/bootstrap-ca \
-    && dpkg-query -W > /usr/share/veoveo-computer-packages.txt
+    && dpkg-query -W > /usr/share/veoveo-computer-packages.txt \
+    && rm -rf /var/log/apt /var/log/dpkg.log
 
 FROM packages
 RUN groupadd --gid 10001 computer \
