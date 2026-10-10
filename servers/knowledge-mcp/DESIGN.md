@@ -17,7 +17,9 @@ collection approvals and signing credentials.
 | W3C DCAT 3 | Required JSON catalog shape; no RDF serialization or full DCAT conformance claim |
 | SurrealDB 3.3.0 | BM25, filtered HNSW cosine search and native `search::rrf` with k=60 |
 | JSON Schema 2020-12 | Schemars-generated contract models and checked request deserialization |
-| `veoveo.ai/knowledge-installed-outcome/v1` | Private installed consumer outcome with request intents, protocol codes, selected discovery identities and SDK cleanup states; contains the unchanged successful baseline report |
+| `veoveo.ai/knowledge-installed-outcome/v1` | Private installed consumer outcome with request intents, protocol codes, selected discovery identities, native observer and SDK cleanup states; contains the successful baseline report and optional cold-start observations |
+| `veoveo.ai/knowledge-cold-start-input/v1` | Closed private unattended-startup fixture with installation, workload and qualified embedding prerequisites; outside the public MCP API |
+| Kubernetes streaming initial events | Kubernetes 1.32+ API-server support for `sendInitialEvents`, `NotOlderThan` and the initial-events-end bookmark is required by the observation-only cold-start case; kubectl uses the installation context |
 | `veoveo.ai/knowledge-retrieval-evaluation/v1` | Private JSON benchmark reports with generation identity, judgments, ranks, recall and throughput; outside the public MCP surface |
 | OAuth 2.0 / RFC 6749, RFC 7523, RFC 8707 | Client credentials with a signed JWT assertion, explicit resource and Veoveo Work Context; HTTPS endpoints, with loopback HTTP for native fixtures |
 | [Embedding runtime](../../platform/runtimes/embedding/DESIGN.md) | Internal HTTP API through the shared client; query priority is interactive and indexing priority is bulk |
@@ -553,6 +555,55 @@ allows at most 32 pages per surface, source catalogs 100 pages and the journal
 SDK cleanup. Native input, matching and cancellation controls qualify harness
 behavior; cold startup, installed recovery and GPU execution require their own
 installed qualification.
+
+The separately selected ignored cold-start case reads
+`VEOVEO_KNOWLEDGE_COLD_START_INPUT`. Its closed private JSON contains `schema`,
+`source` (the shared installed-source installation-target path, public endpoint,
+private caller-token file, deployment and new absolute output path), `profile`,
+`context`, `namespace`, `deploymentUid`, `namespaceUid`, digest-pinned `image`,
+`embeddingDeployment`, `embeddingRuntime`, `launchGeneration`, `startupSeconds`
+and `stabilitySeconds`. The runtime is the installation's independently qualified
+`QualifiedEmbeddingRuntime`; native synthetic fixtures cannot supply installation
+qualification. Admission binds its image digest and required NVIDIA request and
+limit to the selected embedding workload. The successful public verification must
+report that runtime's embedding space.
+
+The operator prepares the selected Knowledge Deployment at zero replicas and
+supplies the next deployment generation for one externally authorized launch.
+The test performs only reads and local watch/port-forward operations. It rejects
+initial selected Pods, arms a streaming initial-events watch, and synchronizes
+`watchArmedResourceVersion` to the private mode-0600 outcome before the operator
+launches. The operator makes no further changes during observation. Kubernetes
+must supply the initial-events-end bookmark; a gap, API error or missing handshake
+fails qualification without a transport fallback. A consumed watch event stays
+owned by the watch while its ReplicaSet ownership read is pending. Competing
+verification or probe work can interrupt that read without losing the event;
+state, journal and event settlement commit together after admission.
+
+Startup allows 30–1800 seconds and records up to 16 Pod identities and 64 restarts
+per container before first Ready. A selected container must return readyz 503 then
+200 through its Pod port-forward with the owner-declared Host authority. Native
+identity reads fence both sides of each accepted HTTP sample. This qualifies a
+cold process start against the admitted retained installation state; first-ever
+index construction requires separate proof of empty state. HTTP 200 freezes the
+successful Pod UID, container ID, image ID and restart count. A post-200 Pod GET
+admits that instance and supplies an opaque resourceVersion fence for the same
+prearmed watch. Earlier queued startup observations may drain before this fence.
+Kubelet's initial Ready condition may lag HTTP success; the original startup
+deadline covers that wait. After the fence and first selected Pod Ready condition,
+readiness regressions fail qualification. Stale observations from previously
+admitted startup Pods cannot replace the successful instance, and newly appearing
+competing Pods are refused. The test then runs the existing OAuth catalog,
+search, document and embedding assertions against the frozen instance.
+A 5–120 second stability interval and final watch/current-Pod fence check readiness
+and one common Knowledge generation. The total case has an additional 300 seconds
+for admission and verification. The shared owner's default overall deadline is
+300 seconds; longer cases require an explicit `VEOVEO_SMOKE_DEADLINE_UNIX_MS`.
+The fixture cannot extend that global deadline. Original native child cleanup and SDK close futures
+stay owned outside cancellation, share the owner's cleanup deadline and keep
+failed or expired cleanup unqualified. Native controls establish fixture,
+observation and cleanup behavior; installed unattended startup and hardware
+execution require a separate successful run.
 
 Installed acceptance also requires the following cases:
 

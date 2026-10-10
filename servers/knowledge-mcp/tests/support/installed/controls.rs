@@ -9,9 +9,9 @@ use std::{
     },
 };
 
-struct Scratch(PathBuf);
+pub(super) struct Scratch(pub(super) PathBuf);
 impl Scratch {
-    fn new() -> Result<Self> {
+    pub(super) fn new() -> Result<Self> {
         let path = std::env::temp_dir().join(format!("knowledge-policy-{}", uuid::Uuid::now_v7()));
         fs::DirBuilder::new().mode(0o700).create(&path)?;
         Ok(Self(path))
@@ -67,6 +67,12 @@ async fn registered_owner_drop_closes_actual_client_and_listener_without_empty_r
             let (server_io, client_io) = tokio::io::duplex(8192);
             let server = tokio::spawn(async move { Source.serve(server_io).await });
             let mut handles = owned.lock().await;
+            let slots = &mut *handles;
+            for slot in [&mut slots.cold_watch, &mut slots.cold_forward] {
+                let mut command = tokio::process::Command::new("sleep");
+                command.arg("30");
+                *slot = Some(veoveo_testing_support::spawn_async(command)?);
+            }
             journal
                 .acquire(&mut handles.caller, async {
                     ClientConfig::default()
@@ -99,7 +105,9 @@ async fn registered_owner_drop_closes_actual_client_and_listener_without_empty_r
             // Inject only the delay/error of close acknowledgement; the retained
             // future still owns and closes the real official SDK caller.
             handles.retain_control_close(counted, failed);
-            handles.close(&journal).await?;
+            if mode != "native-drop" {
+                handles.close(&journal).await?;
+            }
             std::future::pending::<Result<()>>().await
         })
         .await;
@@ -129,7 +137,7 @@ async fn registered_owner_drop_closes_actual_client_and_listener_without_empty_r
         let text = fs::read_to_string(&output)?;
         let report: serde_json::Value = serde_json::from_str(&text)?;
         ensure!(
-            report["listener"] == "closed",
+            report["listener"] == "closed" && report["nativeObservers"] == "closed",
             "actual SDK listener cleanup unproven"
         );
         ensure!(
@@ -148,7 +156,7 @@ async fn registered_owner_drop_closes_actual_client_and_listener_without_empty_r
         );
         return Ok(());
     }
-    for mode in ["interrupted", "failed"] {
+    for mode in ["interrupted", "failed", "native-drop"] {
         let directory = Scratch::new()?;
         let deadline = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?

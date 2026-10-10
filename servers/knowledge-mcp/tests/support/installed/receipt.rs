@@ -81,11 +81,14 @@ struct Report {
     requests: Vec<Observation>,
     caller: Close,
     listener: Close,
+    native_observers: Close,
     #[serde(skip_serializing_if = "Option::is_none")]
     baseline: Option<InstalledReport>,
     #[serde(skip_serializing_if = "Option::is_none")]
     policy: Option<PolicySnapshot>,
     failure_sha256: Option<veoveo_types::Sha256Digest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cold_start: Option<cold_start::Observation>,
 }
 struct State {
     file: fs::File,
@@ -116,9 +119,11 @@ impl Journal {
                 requests: vec![],
                 caller: Close::Absent,
                 listener: Close::Absent,
+                native_observers: Close::Absent,
                 baseline: None,
                 policy: None,
                 failure_sha256: None,
+                cold_start: None,
             },
         })));
         journal.update(|_| ())?;
@@ -134,6 +139,17 @@ impl Journal {
         state.file.write_all(b"\n")?;
         state.file.sync_all()?;
         Ok(())
+    }
+    pub fn native_observers(&self, state: Close) -> Result<()> {
+        self.update(|r| {
+            r.native_observers = state;
+            if state == Close::Failed {
+                r.outcome = Outcome::Failed;
+            }
+        })
+    }
+    pub fn cold_start(&self, value: cold_start::Observation) -> Result<()> {
+        self.update(|r| r.cold_start = Some(value))
     }
     #[cfg(test)]
     pub fn break_writer_for_control(&self) -> Result<()> {

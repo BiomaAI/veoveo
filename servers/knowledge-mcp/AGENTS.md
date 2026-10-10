@@ -61,6 +61,28 @@ cleanup controls. Both installed cases create private outcome files before netwo
 access and retain original close futures through owner cancellation. These native
 controls do not qualify unattended installed startup or hardware embedding.
 
+The observation-only cold-start case is separately selected:
+
+```sh
+cargo test -p veoveo-knowledge-mcp --test http installed::cold_start::unattended_cold_start_converges_then_preserves_ready_generation -- --ignored --exact
+```
+
+Supply `VEOVEO_KNOWLEDGE_COLD_START_INPUT` using the private fixture described in
+[DESIGN.md](DESIGN.md#verification). The operator must wait for the persisted watch
+handshake before the externally authorized launch. The harness never starts,
+scales, restarts or deletes workloads or indices. Kubernetes streaming initial
+events and a qualified NVIDIA embedding installation are prerequisites. Startup
+retries are recorded. HTTP success freezes the instance; the existing watch orders
+queued startup events before the post-200 Pod resourceVersion fence and allows the
+initial kubelet Ready delay within the original startup deadline. Identity and
+readiness stay stable after first Ready. Cases longer than the owner's default
+300 seconds require `VEOVEO_SMOKE_DEADLINE_UNIX_MS`; fixture deadlines cannot extend
+that cap.
+Run the `installed::cold_start::cold_start_` filter without `--ignored` for CPU
+admission/readiness/watch controls, and the existing registered-owner control for
+actual retained native-child and official SDK cleanup. These controls do not
+qualify installed startup or GPU execution.
+
 `tests/evaluation.rs` qualifies corpus completeness, source revision checks, recall
 scoring and generation-linked report persistence with synthetic vectors. The ignored
 `tests/gpu_retrieval.rs` measures actual-model retrieval and rebuild throughput under

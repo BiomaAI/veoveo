@@ -14,6 +14,10 @@ pub(super) struct Handles {
     caller_state: Option<Close>,
     listener_state: Option<Close>,
     deadline: Option<tokio::time::Instant>,
+    pub cold_watch: Option<veoveo_testing_support::AsyncChild>,
+    pub cold_forward: Option<veoveo_testing_support::AsyncChild>,
+    native_failed: bool,
+    native_started: bool,
 }
 impl Handles {
     #[cfg(test)]
@@ -71,6 +75,32 @@ impl Handles {
     pub async fn close(&mut self, journal: &receipt::Journal) -> Result<()> {
         let end = tokio::time::Instant::from_std(owner::cleanup_deadline()?);
         let end = *self.deadline.get_or_insert(end);
+        let mut native = Ok(());
+        let native_intent = if self.cold_forward.is_some() || self.cold_watch.is_some() {
+            self.native_started = true;
+            journal.native_observers(Close::Pending)
+        } else {
+            Ok(())
+        };
+        for slot in [&mut self.cold_forward, &mut self.cold_watch] {
+            if let Some(child) = slot.as_mut() {
+                if child.cleanup_until(end.into_std()).await.is_err() {
+                    self.native_failed = true;
+                    native = Err(anyhow::anyhow!(
+                        "Knowledge native observer cleanup unproven"
+                    ));
+                } else {
+                    slot.take();
+                }
+            }
+        }
+        let native_record = journal.native_observers(if self.native_failed {
+            Close::Failed
+        } else if self.native_started {
+            Close::Closed
+        } else {
+            Close::Absent
+        });
         let mut intent = Ok(());
         if self.listener_close.is_none() && self.listener.is_some() {
             self.listener_state = Some(Close::Pending);
@@ -102,6 +132,13 @@ impl Handles {
         }
         let caller = finish(&mut self.caller_close, &mut self.caller_state, end).await;
         let recorded = self.record(journal);
+        native_intent?;
+        native_record?;
+        native?;
+        ensure!(
+            !self.native_failed,
+            "Knowledge prior native cleanup unproven"
+        );
         listener?;
         caller?;
         intent?;
@@ -119,6 +156,10 @@ async fn finish(
     state: &mut Option<Close>,
     end: tokio::time::Instant,
 ) -> Result<()> {
+    ensure!(
+        *state != Some(Close::Failed),
+        "Knowledge prior close failed"
+    );
     let Some(future) = pending.as_mut() else {
         ensure!(
             !matches!(state, Some(Close::Open | Close::Pending | Close::Failed)),
@@ -136,7 +177,10 @@ async fn finish(
             pending.take();
             result
         }
-        Err(_) => anyhow::bail!("Knowledge close deadline; original future retained"),
+        Err(_) => {
+            *state = Some(Close::Failed);
+            anyhow::bail!("Knowledge close deadline; original future retained")
+        }
     }
 }
 pub(super) fn register(journal: &receipt::Journal) -> Result<Arc<Mutex<Handles>>> {

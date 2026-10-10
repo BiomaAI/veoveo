@@ -25,6 +25,8 @@ use veoveo_types::{ResourceAddress, ResourceUri, ServerSlug};
 
 #[path = "installed/cleanup.rs"]
 mod cleanup;
+#[path = "installed/cold_start.rs"]
+mod cold_start;
 #[cfg(test)]
 #[path = "../../../../testing/fixtures/knowledge_control.rs"]
 mod control_fixture;
