@@ -225,6 +225,13 @@ fn valid_scheme(value: &str) -> bool {
         })
 }
 
+fn profile_format_naming(schema: &mut schemars::Schema) {
+    let profile = veoveo_types::ScalarNaming::owner(module_path!(), "conformance-profile-format")
+        .expect("static owner naming declaration");
+    *schema = veoveo_types::scalar_schema(schema.clone(), profile)
+        .expect("owned format schema is scalar");
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -313,11 +320,4 @@ mod tests {
             "https://extension.example.internal:8443/admin/docs/llms.txt".to_owned();
         assert!(other_port.validate().is_err());
     }
-}
-
-fn profile_format_naming(schema: &mut schemars::Schema) {
-    let profile = veoveo_types::ScalarNaming::owner(module_path!(), "conformance-profile-format")
-        .expect("static owner naming declaration");
-    *schema = veoveo_types::scalar_schema(schema.clone(), profile)
-        .expect("owned format schema is scalar");
 }

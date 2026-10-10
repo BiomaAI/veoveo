@@ -212,8 +212,10 @@ fn schema_and_aggregate_budgets_refuse_before_unbounded_work() {
         v = json!({"allOf":[v]});
     }
     assert!(inspect(v).is_err());
-    let mut inspection = NamingInspection::default();
-    inspection.started = Instant::now() - NAMING_DEADLINE;
+    let mut inspection = NamingInspection {
+        started: Instant::now() - NAMING_DEADLINE,
+        ..Default::default()
+    };
     assert!(
         inspection
             .schema(
@@ -361,7 +363,7 @@ fn adopted_tool_metadata_and_unqualified_prompt_names_are_inspected() {
         &[tool.clone()],
         &[],
         &[],
-        &[prompt.clone()],
+        std::slice::from_ref(&prompt),
         None,
         &NamingEvidence::default(),
     )
@@ -463,8 +465,7 @@ fn actual_schema_reference_branch_node_and_aggregate_root_limits_are_enforced() 
     assert!(
         inspection
             .schema("overflow", &scalar, None, SchemaEvidenceOrigin::Remote)
-            .err()
-            .expect("schema must reject")
+            .expect_err("schema must reject")
             .to_string()
             .contains("aggregate roots")
     );
@@ -1042,8 +1043,10 @@ fn literal_full_applicator_roles_footprints_and_legacy_guards() {
         inspect(json!({"type":"object","const":{"$ref":"https://foreign.example/schema"}}))
             .is_err()
     );
-    let mut exhausted = NamingInspection::default();
-    exhausted.started = Instant::now() - NAMING_DEADLINE;
+    let mut exhausted = NamingInspection {
+        started: Instant::now() - NAMING_DEADLINE,
+        ..Default::default()
+    };
     assert!(
         exhausted
             .schema(

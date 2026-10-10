@@ -466,9 +466,6 @@ fn ensure_call_tool_succeeded(result: &CallToolResult) -> Result<()> {
     }))
 }
 
-/// Request-scoped subscriptions deliver through their SDK handle, independently
-/// of the ordinary ClientHandler notification callbacks.
-
 #[cfg(test)]
 mod schema_validation_tests {
     use super::*;
