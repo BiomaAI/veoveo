@@ -108,8 +108,8 @@ work, and setup errors close acquired driver and Recording resources. Its native
 Store and cleanup controls pass. Actual unfinished restart, HTTP shutdown and
 stepped simulator qualification remain open.
 
-The existing owner harnesses prepare the following checks. Their native controls
-pass; the new installed cases remain unexecuted during the installation hold.
+The existing owner harnesses prepare the following checks. Previously qualified
+native controls pass; the new installed cases are unexecuted during the installation hold.
 Earlier installed checkpoints keep their recorded scope below.
 
 | Owner | Prepared installed checks | Remaining qualification |
@@ -117,9 +117,22 @@ Earlier installed checkpoints keep their recorded scope below.
 | Time | Read consumers and schedule Tasks with independent expected occurrences, exact-ID delivered completion and current result agreement | Cancellation, unfinished restart recovery, authority activation and final images |
 | Artifact | Delegated SDK reads and retained Task-bound write capability across one selected service replacement, followed by redemption and idempotent replay | Public OAuth issuance, actual service replacement, interrupted-write recovery and final images |
 | Timeseries | Four-row forecast, RRD Artifact and usage; optional typed cancellation and connection replacement with original Task/result agreement | Unfinished server restart, selected cross-replica routing and final images |
-| Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
+| Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
+| Stream | Existing GPU replay with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed result checks and an initial current resource snapshot | Installed public delivery, post-mutation updates, unfinished recovery and final images |
+| Reason | Existing GPU analysis with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed analysis checks and an initial current resource snapshot | Installed public delivery, unfinished recovery and final images |
 | Knowledge | Full-catalog baseline and separate restricted-caller discovery, collection/completion visibility and document denials, with retained SDK cleanup | Installed caller-policy checks, unattended cold startup, current-generation recovery and final images |
 | Optimization | Multi-page existing solve corpus, exact products, usage, public Task results and canonical Artifact bytes under allowed and denied caller contexts; separately selected coordinated control/executor replacement repeats the retained consumers | Installed GPU-produced corpus, mid-run policy changes, coordinated control/executor replacement and unfinished/cross-replica recovery |
+
+The added Speech resource and Stream/Reason public-caller cases pass compiler,
+strict lint, formatting, documentation and independent source review. Their 17
+focused native controls await a resource window; installed execution is held.
+Stream and Reason reuse the existing GPU scenarios and shared SDK cleanup owner. Their private
+journals sync dispatch intent and the acknowledged Task identity before listening,
+so delivery failure preserves the known identity. Resource observations establish
+an initial current snapshot; subscription closure does not establish Task
+cancellation. These additions do not qualify unfinished process recovery.
+The [acceptance design](../examples/bioma/acceptance/DESIGN.md#public-stream-and-reason-consumers)
+defines their private inputs and observation scope.
 
 Optimization's Artifact GET adapter maps typed policy denials to its existing
 missing-resource response. Native HTTP controls distinguish those denials from
@@ -207,7 +220,7 @@ installed replacement; installed changes and external account rotations stay hel
 | Phase | Current state | Remaining gate |
 |---|---|---|
 | 0 — Shared declarations | Source qualification passes; owner admission, wire forms and schema metadata are preserved | Qualify affected installed consumers with the final cut |
-| 1–4 — Modules, extension points and storage | Selected owner SQL, native records, authority and recovery pass source qualification. The repaired runner and chart pass all three isolated installation generations, managed-kernel credential replacement and retained-data checks. Kubernetes accepts all five Agent policies, and the owning admission suite passes | Reconcile required owner coverage and qualify the final reference installation |
+| 1–4 — Modules, extension points and storage | Production composition and the independent schema fixture each declare all 19 required owners. Selected owner SQL, native records, authority and recovery pass source qualification. The repaired runner and chart pass all three isolated installation generations, managed-kernel credential replacement and retained-data checks. Kubernetes accepts all five Agent policies, and the owning admission suite passes | Qualify the final reference installation's selected owner lanes and affected consumers |
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | Console, Kernel and MCP Apps pass owning native and browser checks, isolation, strict lint and generation. The current 18 generated bundles agree across all 36 files; the consumer batch passes 178 browser cases and eight maintained builds | Qualify remaining affected native consumers and close the required installed F-register conditions |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the actual Computer Host workload boundary, final installed profile/current generation and simultaneous GPU workload budget |
@@ -242,7 +255,7 @@ Phase 7 supplies immutable execution profiles, directional qualifications and
 producer receipts. Its 15 embedding-client checks and 41 Store/Knowledge checks
 pass, including publication rollback, receipt reclamation, all four ranking-depth
 races and the hosted generation-change response. The fresh schema and independent
-consumer agree on 169 owner tables plus three runner tables. Reclamation deletes
+consumer agree on 166 owner tables plus three runner tables. Reclamation deletes
 chunk rows before removing their table, then cascades generation receipts in the
 same transaction. Shared runtime registries survive. The full local hardware
 Knowledge workload passes; installed acceptance remains open. Runtime identity comes from an installation-supplied
@@ -703,11 +716,11 @@ The current source checkpoints are:
 | Isolated browser/report contracts and standalone Flight dependencies | `944e95496` |
 | Python offset admission and registered template receiver | `61435785e` |
 | Computer file header v2, helper admission and coordinated drain | `eb1fef5e4` |
-| Computer companion recovery, unresolved state and lifecycle locking | `796054f1f` |
 | Recording and simulation operator reports and module identity output | `eda9987b7` |
 | Safe terminal stages and bounded native failure diagnostics | `47868a1b5` |
-| Bounded retained-supervisor relay admission and closed launch diagnostics | `eee60fed3` |
-| Typed companion binding v2 and settled Stop→Start succession | `c16879bcd` |
+| Stock OpenShell resources under aggregate Host CPU, memory and PID limits | `5ec40a4a5` |
+| Installed Speech transcript-resource snapshot assertions | `9bc60e8cf` |
+| Public Stream and Reason Task delivery, resource snapshots and retained SDK cleanup | `81802e8eb` |
 | Strict saved-upload row admission before browser restoration | `28ff03897` |
 | Complete Gateway bundle pin fixture | `1c645d680` |
 | Public Audit cursor and generated consumer hard cut | `0b43ab6f6` |
@@ -1826,8 +1839,9 @@ may leave production schema, migration histories and bootstrap unchanged until e
 hosts are qualified. Phase 1 completion still requires the declared commands and Jobs;
 this staging does not waive those gates.
 
-The native foundation and all 16 schema-only owner exports are qualified. The complete
-catalog resolves the reviewed 166 tables, 14 functions and two analyzers. Store also
+The native foundation is qualified. Production composition and the independent
+schema fixture declare all 19 required owners. Their catalog declares 166 owner
+tables, 39 functions and two analyzers. Store also
 owns the lane history, migration history and installation preparation tables. These
 claims declare target ownership without admitting the existing mixed production SQL.
 The runner qualifies nonempty lanes, fixed prerequisite identity, known disabled
