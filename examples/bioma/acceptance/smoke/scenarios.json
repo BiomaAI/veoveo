@@ -332,7 +332,7 @@
         "billedEffects": false,
         "nvidia": false,
         "headedGraphics": false,
-        "explanation": "Requires ordinary operator OAuth, public uploads and Datasheet, installed Python SDK and private Artifact service fixture. The focused profile uses bounded bytes without browser evidence. Optional --service-recovery replaces one admitted Artifact service and uses a separate internally signed typed fixture Task binding; no unfinished-write or large-browser qualification."
+        "explanation": "Requires ordinary operator OAuth, public uploads and Datasheet, installed Python SDK and private Artifact service fixture. The focused profile uses bounded bytes without browser evidence. Optional --service-recovery uses one admitted Artifact service replacement to verify an acknowledged unfinished public upload with its accepted part and a separate unredeemed internal capability bound to a typed fixture Task. Large-browser qualification is separate."
       },
       "deadlineSeconds": 900,
       "cleanupSeconds": 180
