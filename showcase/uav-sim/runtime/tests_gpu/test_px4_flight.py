@@ -1,6 +1,6 @@
 """CUDA plant and native PX4 takeoff, movement, landing and re-arm qualification.
 
-Requires the pinned patched PX4 tree in UAV_SIM_PX4_DIRECTORY, hardware CUDA,
+Requires the repository-qualified PX4 tree in UAV_SIM_PX4_DIRECTORY, hardware CUDA,
 MAVLINK20=1, and free ports for instance 42. Run with a 600-second outer timeout.
 The fixture owns its process, sockets, thread and temporary writable root.
 """
@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import subprocess
 import shutil
+import tempfile
 import threading
 import time
 import unittest
@@ -18,12 +19,12 @@ import unittest
 import numpy as np
 from pymavlink import mavutil
 
-from test_plant import CudaPlant
+from test_plant import CudaPlant, NativeSensorProfile
 from veoveo_uav_sim.contracts import Waypoint
 from veoveo_uav_sim.px4 import CommandDeadline, Px4Commander
 from veoveo_uav_sim.px4_hil import Px4HilBridge
 from veoveo_uav_sim.vehicle_spec import (
-    PX4_HIL_HZ, PX4_IRIS_IMU_NOISE_REFERENCE_HZ, PX4_IRIS_SENSOR_CADENCE, decode_hil_packet,
+    PX4_IRIS_IMU_NOISE_REFERENCE_HZ, decode_hil_packet,
 )
 
 
@@ -32,7 +33,8 @@ class Px4FlightTests(unittest.TestCase):
         self.assertEqual(os.environ.get("MAVLINK20"), "1", "MAVLink 2 is required")
         root = Path(os.environ["UAV_SIM_PX4_DIRECTORY"])
         instance = 42
-        plant = CudaPlant(fleet_size=1)
+        profile = NativeSensorProfile.selected()
+        plant = CudaPlant(fleet_size=1, physics_hz=profile.physics_hz)
         plant.sample(1)  # CUDA compilation must finish before the sensor deadline starts.
         bridge = Px4HilBridge(str(root), instance=instance)
         commander = Px4Commander(instance=instance, origin_height_m=-17.0)
@@ -41,30 +43,75 @@ class Px4FlightTests(unittest.TestCase):
         observations: list[dict[str, object]] = []
         latest: list[np.ndarray] = []
         samples: list[np.ndarray] = []
+        control_samples: list[np.ndarray] = []
+        sample_timing: list[tuple[float, float]] = []
+        saturation_seconds = np.zeros(4)
+        saturation_run = np.zeros(4)
+        longest_saturation = np.zeros(4)
+        phase = ["preflight"]
+        maxima = {"tiltDegrees": 0.0, "bodyRateDegreesPerSecond": 0.0}
+        capture = Path(os.environ.get("UAV_SIM_PX4_FLIGHT_LOG_DIRECTORY") or
+                       tempfile.mkdtemp(prefix="veoveo-px4-flight-"))
+        capture.mkdir(parents=True, exist_ok=True)
+        print(json.dumps({"profile": profile.name, "physicsHz": profile.physics_hz,
+                          "hilHz": profile.hil_hz, "capture": str(capture)}), flush=True)
+
+        def check_truth(packet: np.ndarray, controls: np.ndarray, step: int) -> None:
+            context = f"profile={profile.name} step={step} phase={phase[0]}"
+            self.assertTrue(np.isfinite(packet).all(), f"nonfinite plant ground truth {context}")
+            q = packet[3:7]
+            self.assertLessEqual(abs(float(np.linalg.norm(q)) - 1.0), 1e-3,
+                                 f"plant orientation quaternion lost normalization {context}")
+            # Ground contact only: on-ground reaction impulses are outside flight acceptance.
+            if packet[2] <= 0.10:
+                return
+            tilt_deg = float(np.degrees(np.arccos(np.clip(1-2*(q[0]**2+q[1]**2), -1, 1))))
+            rate_deg_s = float(np.degrees(np.linalg.norm(packet[10:13])))
+            maxima["tiltDegrees"] = max(maxima["tiltDegrees"], tilt_deg)
+            maxima["bodyRateDegreesPerSecond"] = max(maxima["bodyRateDegreesPerSecond"], rate_deg_s)
+            # bridge.controls() supplies decoded rotor rad/s, not PX4 normalized commands.
+            # The owning decoder maps normalized*1000+100 and disarmed output to zero.
+            self.assertTrue(np.isfinite(controls).all() and np.all((controls >= 0) & (controls <= 1100)),
+                            f"invalid rotor command rad/s {controls.tolist()} {context}")
+            normalized = np.clip((controls - 100.0) / 1000.0, 0.0, 1.0)
+            saturated = (normalized <= 0.01) | (normalized >= 0.99)
+            saturation_seconds[:] += saturated / profile.physics_hz
+            saturation_run[:] = np.where(saturated, saturation_run + 1/profile.physics_hz, 0)
+            longest_saturation[:] = np.maximum(longest_saturation, saturation_run)
+            self.assertLess(tilt_deg, 60.0, f"ground-truth tilt={tilt_deg:.3f}deg {context}")
+            self.assertLess(rate_deg_s, 360.0, f"ground-truth rate={rate_deg_s:.3f}deg/s {context}")
+
 
         def publish() -> None:
             try:
                 started = time.monotonic()
                 packet = None
-                for step in range(1, PX4_HIL_HZ * 540 + 1):
+                for step in range(1, profile.hil_hz * 540 + 1):
                     if stop.is_set():
                         return
-                    if step % 2 == 1:
-                        plant.controls.assign(np.asarray([bridge.controls()], dtype=np.float32))
-                        packet = plant.sample((step + 1) // 2)[0]
+                    plant_step = profile.plant_step(step)
+                    if plant_step is not None:
+                        controls = np.asarray(bridge.controls(), dtype=np.float32)
+                        plant.controls.assign(controls[None, :])
+                        packet = plant.sample(plant_step)[0]
                         latest[:] = [packet]
-                        samples.append(np.concatenate(([step / PX4_HIL_HZ], packet)))
+                        samples.append(np.concatenate(([step / profile.hil_hz], packet)))
+                        control_samples.append(np.concatenate(([step / profile.hil_hz], controls)))
+                        sample_timing.append((step / profile.hil_hz, time.monotonic() - started))
+                        check_truth(packet, controls, step)
                     frame, _ = decode_hil_packet(
-                        packet, time_usec=round(step * 1_000_000 / PX4_HIL_HZ),
-                        fields_updated=PX4_IRIS_SENSOR_CADENCE.fields_updated(PX4_HIL_HZ, step),
-                        gps_updated=PX4_IRIS_SENSOR_CADENCE.gps_due(PX4_HIL_HZ, step),
+                        packet, time_usec=round(step * 1_000_000 / profile.hil_hz),
+                        fields_updated=profile.cadence.fields_updated(profile.hil_hz, step),
+                        gps_updated=profile.cadence.gps_due(profile.hil_hz, step),
                     )
                     bridge.publish(step, frame)
                     bridge.raise_if_failed()
-                    stop.wait(max(0.0, started + step / PX4_HIL_HZ - time.monotonic()))
+                    stop.wait(max(0.0, started + step / profile.hil_hz - time.monotonic()))
                 raise TimeoutError("CUDA flight publisher exceeded 540 seconds")
             except BaseException as error:
                 failures.append(error)
+                print(json.dumps({"phase": phase[0], "profile": profile.name,
+                                  "publisherFailure": str(error)}), flush=True)
                 stop.set()
 
         def topic(name: str) -> str:
@@ -103,6 +150,7 @@ class Px4FlightTests(unittest.TestCase):
                 ).stdout
                 self.assertRegex(value, rf"{name}.*:\s*{expected}\s", value)
             for cycle in range(2):
+                phase[:] = [f"takeoff {cycle + 1}"]
                 commander.takeoff(8.0, deadline=CommandDeadline.after(30.0))
                 wait_for(f"takeoff {cycle + 1}", 45.0, lambda: bool(latest) and latest[0][2] > 6.0)
                 # Changes in horizontal velocity make EKF yaw observable against GPS.
@@ -111,8 +159,10 @@ class Px4FlightTests(unittest.TestCase):
                              -9.0, 5.0, 1.0)
                     for east, north in ((40.0, 0.0), (40.0, 40.0), (0.0, 0.0))
                 )
+                phase[:] = [f"mission {cycle + 1}"]
                 self.assertEqual(commander.execute_mission(route, timeout_seconds=100.0), len(route))
                 self.assertIn("cs_mag_fault: False", topic("estimator_status_flags"))
+                phase[:] = [f"landing {cycle + 1}"]
                 commander.land(deadline=CommandDeadline.after(20.0))
                 wait_for(f"landed {cycle + 1}", 60.0,
                          lambda: commander.status().flight_state in {"landed", "standby"}
@@ -143,12 +193,25 @@ class Px4FlightTests(unittest.TestCase):
             if producer.ident is not None:
                 producer.join(timeout=5.0)
             try:
-                capture = os.environ.get("UAV_SIM_PX4_FLIGHT_LOG_DIRECTORY")
                 if capture:
                     # These isolated simulation logs contain no installation credentials.
                     destination = Path(capture)
                     destination.mkdir(parents=True, exist_ok=True)
                     np.save(destination / "hil-samples.npy", np.asarray(samples))
+                    np.save(destination / "motor-rotor-speed-rad-s.npy", np.asarray(control_samples))
+                    np.save(destination / "sample-timing.npy", np.asarray(sample_timing))
+                    (destination / "flight-diagnostics.json").write_text(json.dumps({
+                        "profile": profile.name, "physicsHz": profile.physics_hz,
+                        "hilHz": profile.hil_hz, "samples": len(samples),
+                        "motorCommandUnit": "rad/s",
+                        "saturationNormalizedThresholds": [0.01, 0.99],
+                        "saturationSecondsPerMotor": saturation_seconds.tolist(),
+                        "longestSaturationSecondsPerMotor": longest_saturation.tolist(),
+                        "maximumObserved": maxima, "lastPhase": phase[0],
+                        "groundContactExclusionUpM": 0.10,
+                        "maxTiltDegrees": 60, "maxBodyRateDegreesPerSecond": 360,
+                        "failures": [str(error) for error in failures],
+                    }, indent=2) + "\n")
                     for name in ("vehicle_attitude", "vehicle_local_position",
                                  "estimator_status_flags", "estimator_sensor_bias",
                                  "yaw_estimator_status", "vehicle_status"):
@@ -156,12 +219,19 @@ class Px4FlightTests(unittest.TestCase):
                             (destination / f"{name}.txt").write_text(topic(name))
                         except (OSError, subprocess.SubprocessError) as error:
                             print(f"diagnostic topic {name} unavailable: {error}", flush=True)
+                    # Reap PX4 before copying: its logger must finish writing while the root exists.
+                    exit_code = bridge._process.stop()
+                    (destination / "px4-exit.json").write_text(json.dumps({
+                        "exitCode": exit_code, "reapedBeforeLogCopy": True,
+                    }) + "\n")
                     for log in bridge._process.command.working_directory.glob("log/**/*.ulg"):
                         shutil.copyfile(log, destination / log.name)
             finally:
                 commander.close()
                 bridge.close()
             self.assertFalse(producer.is_alive(), "CUDA flight publisher did not terminate")
+            # The last in-flight packet may fail after the pre-finally assertion.
+            self.assertFalse(failures, str(failures))
 
 
 if __name__ == "__main__":

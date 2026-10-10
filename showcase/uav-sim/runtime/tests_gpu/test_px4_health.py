@@ -1,6 +1,6 @@
 """CUDA HIL with native PX4; no cluster, rendering, or arming is required.
 
-Requires the pinned patched PX4 tree in UAV_SIM_PX4_DIRECTORY, CUDA, MAVLINK20=1,
+Requires the repository-qualified PX4 tree in UAV_SIM_PX4_DIRECTORY, CUDA, MAVLINK20=1,
 and free local ports for PX4 instance 41. Run with a 120-second outer timeout.
 The process, writable root and bridge belong to this fixture and close on failure.
 """
@@ -15,16 +15,17 @@ import threading
 import time
 import unittest
 
-from test_plant import CudaPlant
+from test_plant import CudaPlant, NativeSensorProfile
 from veoveo_uav_sim.px4_hil import Px4HilBridge
-from veoveo_uav_sim.vehicle_spec import PX4_HIL_HZ, PX4_IRIS_SENSOR_CADENCE, decode_hil_packet
+from veoveo_uav_sim.vehicle_spec import decode_hil_packet
 
 
 class Px4SensorHealthTests(unittest.TestCase):
     def test_stationary_cuda_measurements_keep_all_px4_validators_healthy(self) -> None:
         self.assertEqual(os.environ.get("MAVLINK20"), "1", "MAVLink 2 is required")
         root = Path(os.environ["UAV_SIM_PX4_DIRECTORY"])
-        plant = CudaPlant(fleet_size=1)
+        profile = NativeSensorProfile.selected()
+        plant = CudaPlant(fleet_size=1, physics_hz=profile.physics_hz)
         plant.sample(1)  # Finish CUDA compilation before PX4 starts its sensor deadline.
         bridge = Px4HilBridge(str(root), instance=41)
         stop = threading.Event()
@@ -34,19 +35,20 @@ class Px4SensorHealthTests(unittest.TestCase):
             try:
                 started = time.monotonic()
                 packet = None
-                for step in range(1, PX4_HIL_HZ * 45 + 1):
+                for step in range(1, profile.hil_hz * 45 + 1):
                     if stop.is_set():
                         return
-                    if step % 2 == 1:
-                        packet = plant.sample((step + 1) // 2)[0]
+                    plant_step = profile.plant_step(step)
+                    if plant_step is not None:
+                        packet = plant.sample(plant_step)[0]
                     frame, _ = decode_hil_packet(
-                        packet, time_usec=round(step * 1_000_000 / PX4_HIL_HZ),
-                        fields_updated=PX4_IRIS_SENSOR_CADENCE.fields_updated(PX4_HIL_HZ, step),
-                        gps_updated=PX4_IRIS_SENSOR_CADENCE.gps_due(PX4_HIL_HZ, step),
+                        packet, time_usec=round(step * 1_000_000 / profile.hil_hz),
+                        fields_updated=profile.cadence.fields_updated(profile.hil_hz, step),
+                        gps_updated=profile.cadence.gps_due(profile.hil_hz, step),
                     )
                     bridge.publish(step, frame)
                     bridge.raise_if_failed()
-                    stop.wait(max(0.0, started + step / PX4_HIL_HZ - time.monotonic()))
+                    stop.wait(max(0.0, started + step / profile.hil_hz - time.monotonic()))
             except BaseException as error:
                 failures.append(error)
                 stop.set()

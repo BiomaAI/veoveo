@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+from dataclasses import dataclass
 import unittest
 
 import numpy as np
@@ -9,7 +11,33 @@ import warp as wp
 
 from veoveo_uav_sim.plant_warp import PACKET_WIDTH, advance_fleet_and_sample_hil
 from veoveo_uav_sim.magnetic_warp import upload_magnetic_tables
-from veoveo_uav_sim.vehicle_spec import PX4_IRIS_IMU_NOISE_REFERENCE_HZ, decode_hil_packet
+from veoveo_uav_sim.vehicle_spec import (
+    PX4_IRIS_IMU_NOISE_REFERENCE_HZ, PX4_IRIS_SENSOR_CADENCE, SensorCadence, decode_hil_packet,
+)
+
+
+@dataclass(frozen=True)
+class NativeSensorProfile:
+    name: str
+    physics_hz: int
+    hil_hz: int
+    cadence: SensorCadence
+
+    @classmethod
+    def selected(cls) -> "NativeSensorProfile":
+        name = os.environ.get("UAV_SIM_PX4_SENSOR_PROFILE", "held-30-60")
+        if name == "held-30-60":
+            return cls(name, 30, 60, PX4_IRIS_SENSOR_CADENCE)
+        if name == "new-sample-250":
+            cadence = SensorCadence(imu_hz=250, barometer_hz=50, magnetometer_hz=50, gps_hz=10)
+            cadence.validate_for_physics(250)
+            return cls(name, 250, 250, cadence)
+        raise ValueError("UAV_SIM_PX4_SENSOR_PROFILE must be held-30-60 or new-sample-250")
+
+    def plant_step(self, hil_step: int) -> int | None:
+        # Preserve the original odd-step sample + held even-step baseline.
+        ratio = self.hil_hz // self.physics_hz
+        return (hil_step - 1) // ratio + 1 if (hil_step - 1) % ratio == 0 else None
 
 
 class CudaPlant:

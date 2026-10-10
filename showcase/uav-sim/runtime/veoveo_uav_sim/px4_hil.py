@@ -93,9 +93,9 @@ class Px4Process:
                 f"PX4 instance {self.command.instance} exited with status {status}"
             )
 
-    def close(self) -> None:
+    def stop(self) -> int | None:
+        """End and reap this owned process while retaining its writable diagnostic root."""
         process = self._process
-        self._process = None
         if process is not None and process.poll() is None:
             try:
                 os.killpg(process.pid, signal.SIGTERM)
@@ -104,6 +104,11 @@ class Px4Process:
                 if process.poll() is None:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait(timeout=5.0)
+        self._process = None
+        return process.returncode if process is not None else None
+
+    def close(self) -> None:
+        self.stop()
         self._temporary_root.cleanup()
 
 
