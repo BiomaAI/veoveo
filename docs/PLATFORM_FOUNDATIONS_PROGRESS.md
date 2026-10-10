@@ -6,6 +6,49 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Time Handoff Launch And Prior Receipt Admission — October 10, 2026
+
+The second completed-state handoff attempt stops during the outer `cargo xtask`
+rebuild, before the native test or any cluster mutation. In-flight compiler/linker
+allocation continues after the stop. The retained post-stop snapshot is
+1,420,757,312 bytes below that attempt's 12-GiB growth floor; core services stay
+Ready and the filesystem reserve is preserved. The pretest abort receipt under
+`/tmp/veoveo-time-handoff-attempt2-20261010.131422` has SHA-256
+`eb931e4cdb512e0c5a3c533c580bbe4c5cef9cdd973c6bbf65aa123c097a93e9`.
+Completed build outputs are retained. The completed native xtask executable avoids
+another outer rebuild while preserving its normal Cargo preparation steps.
+
+The amended window preserves the original 292,122,492,928-byte baseline, raises
+the aggregate cap to 18 GiB and sets a 274,942,623,744-byte early stop above the
+272,795,140,096-byte hard floor. It does not erase the earlier overrun. A private
+guard initially mistakes an owned preparation subprocess for a competing build
+because the maintained launcher gives children separate process groups. That
+attempt stops before the test. The corrected guard tracks descendant process
+identities, samples resources independently every 200 ms and passes a local nested
+process-group termination check while leaving an unrelated process untouched.
+
+Attempt four runs the exact selected ignored case from the maintained artifact
+manifest. Its executable SHA-256 is
+`3568c430744877b3502f8494ac66d7a69996b07e919a54f8ca2c0b1e0b42a27c`.
+The test fails in 0.01 seconds before journal creation or any MCP request. The
+prepared copy of the successful prior input changes `installation.output` to a
+nonexistent attempt-local receipt, while `completionReceipt` still selects the
+original successful receipt. The strict prior-run admission correctly refuses
+that mismatch. Operations and the source owner independently identify the original
+input/receipt pair; neither historical file needs a change. No source fix or
+admission relaxation is required.
+
+The attempt-four terminal receipt under
+`/tmp/veoveo-time-handoff-attempt4-20261010.133851` has SHA-256
+`c11534836cebbc84716738c5aa371942a4b78aeb1bffdf27e2efae0303e9ff4b`.
+All owned launcher processes terminate. No A/B mutation occurs; readback confirms
+the original Time Deployment, Pod and Service selector, no candidate B, a healthy
+node and Ready Knowledge, Embedding, Speech and Gateway. The fast test exits before
+live process capture, so the retained compiler artifact and libtest result establish
+execution rather than a claimed live capture. Installed handoff and unfinished
+process recovery remain unqualified. This failure establishes a fixture
+materialization error, not a Time product regression.
+
 ## Focused Artifact Installed SDK Mismatch — October 10, 2026
 
 The focused public run uses CLI SHA-256

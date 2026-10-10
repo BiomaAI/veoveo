@@ -11,10 +11,12 @@ those earlier receipts do not qualify the new inputs.
 The Knowledge and Time repair at `6653288ba` is published and deployed. Both Pods
 pass probes and thirty seconds of stability without a restart. Normal OAuth reads
 and Knowledge search reach the updated Time documents. Time completion and
-cancellation pass through normal Gateway OAuth. Recovery stops before dispatch
-because the fixture revalidates its own newly created journal; its repair passes
-compiler and native checks. The completed-state cross-replica fixture passes source
-qualification and independent review; installed execution remains open.
+cancellation pass through normal Gateway OAuth. Unfinished process recovery
+remains unqualified because the attempted crash did not replace its container.
+The completed-state cross-replica fixture
+passes source qualification and independent review. Its latest installed attempt
+refuses a prepared prior input whose receipt path differs from the historical
+successful run; Operations must use the unchanged original input/receipt pair.
 Gateway, Agent Manager and Knowledge run compatible qualified images against the
 published full catalog. Manager is Ready with the reviewed immutable pilot template,
 qualified kernel and matching admission policies; its full installed instance journey
@@ -216,12 +218,15 @@ template discovery and is recorded separately from these targeted passes. The
 completed-state cross-replica fixture passes strict compiler checks, focused native
 controls and independent review at `29831d530`. Its installed A/B execution remains
 open; its scope excludes unfinished recovery and delivery after a mutation.
-The first installed attempt refuses its initial Pod inventory before SDK calls or
-topology changes: a retained Succeeded Pod matches the original-backend selector
-alongside the serving Pod. Operations removes only that terminal Pod after proving
-its identity, stopped runtime and zero-replica owner. The serving Pod and endpoint
-stay unchanged. The corrected handoff attempt remains pending; this precondition
-failure establishes no Time or SDK regression.
+The latest installed attempt reaches the selected test but fails before journal
+creation, MCP requests or topology changes. A copied prior input redirects its
+receipt output while the selected receipt still names the successful historical
+run. Operations has identified the authentic input/receipt pair and must bind both
+without rewriting either file. Time's original Pod, Service selector and ready
+endpoint are unchanged. Installed handoff and unfinished recovery remain
+unqualified; this fixture materialization failure establishes no Time or SDK
+regression. Earlier launch and inventory failures are recorded in the
+[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#time-handoff-launch-and-prior-receipt-admission--october-10-2026).
 
 Gateway-routed Knowledge source checks now admit each templates/tools page against
 the selected typed server. Unrelated server failures are retained as limited K01
