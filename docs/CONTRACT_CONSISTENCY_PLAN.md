@@ -137,7 +137,7 @@ Earlier installed checkpoints keep their recorded scope below.
 | Owner | Prepared installed checks | Remaining qualification |
 |---|---|---|
 | Time | Read consumers and explicit complete/cancel/recover schedule fixtures; installed completion agrees with eight independent occurrences and delivered/current Completed state; cancellation reaches Cancelled after observed Working, with cleanup passing | Unfinished process recovery, completed-state cross-replica execution, authority activation and final images |
-| Artifact | Delegated SDK reads and retained Task-bound write capability across one selected service replacement, followed by redemption and idempotent replay | Public OAuth issuance, actual service replacement, interrupted-write recovery and final images |
+| Artifact | Focused normal-OAuth uploads with independent public byte/digest checks, delegated SDK reads and a separately selected retained Task-bound write capability across one service replacement; source/native controls and review pass at `dd7958d26` | Installed public OAuth issuance and consumers, actual service replacement, interrupted-write recovery and final images |
 | Timeseries | Four-row forecast, RRD Artifact and usage; typed cancellation, connection replacement and process-crash fixtures with original Task/result agreement | Installed unfinished process recovery, selected cross-replica routing and final images |
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
 | Stream | Existing GPU replay with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed result checks and an initial current resource snapshot | Installed public delivery, post-mutation updates, unfinished recovery and final images |
@@ -161,8 +161,11 @@ The repair at `e07467759` retains the initially admitted typed installation and
 passes strict compiler and focused native checks. A subsequent attempt reaches
 delivered and current Working state and records its crash intent. Its signal
 command returns zero, but the selected container never terminates or restarts;
-the recovery observer fails and closes its owned transports. An authoritative
-follow-up must establish the original Task's outcome before another attempt.
+the recovery observer fails and closes its owned transports. A subsequent normal
+OAuth read through the Gateway confirms Completed with all eight expected results.
+Runtime inspection identifies the unchanged container process as namespace PID one;
+Operations has verified an ancestor-namespace containerd signal path for a future
+attempt.
 This run qualifies neither process recovery nor a product recovery failure.
 Together with the three administrative API controls, the
 earlier native batch has nineteen passing controls. Time recover mode selects one
@@ -180,6 +183,16 @@ async responsiveness, original-job joining, Task settlement and engine behavior.
 Installed cancellation passes on the repaired image. Unfinished recovery remains
 unqualified until an actual process-replacement case passes.
 
+The existing Time consumer harness now prepares a separately selected isolated
+authority profile: HTTPS acquisition, first activation, concurrent pointer conflicts,
+stale-guard refusal and immutable epoch rebinding. Compiler, strict lint, five focused
+native controls and independent review pass. Received typed mutation identities
+survive cancellation while awaiting the journal lock. The actual-HTTP regression
+passes in a fresh process, and scenario discovery admits the profile. Installed
+execution remains open.
+The fixture observes an initial subscription baseline, later invalidations and
+uncached changed authority; its notifications do not identify a causal mutation.
+
 Knowledge uses one 256 KiB source-member limit across resource reads, source
 admission, chunking and indexed-member admission. Whole-text digests, 256 chunks
 per member and embedding text/batch limits stay enforced. Compiler, strict lint,
@@ -194,6 +207,19 @@ template discovery and is recorded separately from these targeted passes. The
 completed-state cross-replica fixture passes strict compiler checks, focused native
 controls and independent review at `29831d530`. Its installed A/B execution remains
 open; its scope excludes unfinished recovery and delivery after a mutation.
+The first installed attempt refuses its initial Pod inventory before SDK calls or
+topology changes: a retained Succeeded Pod matches the original-backend selector
+alongside the serving Pod. Operations removes only that terminal Pod after proving
+its identity, stopped runtime and zero-replica owner. The serving Pod and endpoint
+stay unchanged. The corrected handoff attempt remains pending; this precondition
+failure establishes no Time or SDK regression.
+
+Gateway-routed Knowledge source checks now admit each templates/tools page against
+the selected typed server. Unrelated server failures are retained as limited K01
+coverage; selected-server failures or malformed metadata refuse qualification.
+Direct and full-profile checks still require complete discovery. Compiler, strict
+lint, three focused native controls and independent review pass. Installed execution
+remains open, and the earlier source-helper failure has no established backend cause.
 
 The added Speech resource and Stream/Reason public-caller cases pass compiler,
 strict lint, formatting, documentation and independent source review. Their seventeen

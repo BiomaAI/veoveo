@@ -6,6 +6,79 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Isolated Time Authority Fixture — October 10, 2026
+
+Time's existing gateway consumer harness adds a separately selected authority
+profile with normal OAuth reader/admin identities and an Ops-attested isolated
+installation. It prepares immutable HTTPS acquisition, guarded first activation,
+concurrent pointer conflicts, stale-guard refusal and epoch rebinding. Initial
+subscription snapshots, invalidations and uncached changed bindings have separate
+observations; the fixture makes no causal notification claim. Sources, releases,
+epochs and unresolved jobs stay available for Operations to reconcile.
+
+Compiler, strict lint, five focused native controls, scenario-help admission and
+independent review pass. The four initial controls cover input/authority admission,
+pointer conflicts, resource observations and shared connection cleanup. The new
+actual-HTTP control drops a request after receiving its acknowledgement while the
+journal lock is blocked, then proves the typed identity survives and provider
+status text is absent.
+The first standalone replay stops at Rustls initialization before any request.
+The fixture now initializes the existing provider before both installed-client and
+native-client construction; the exact regression passes in a fresh process.
+The final source/native receipt under `/tmp/veoveo-time-handoff-final-20261010`
+has SHA-256 `511cc3ab4bb12191b7718e3edce97376a2c3aacaf2be81f0b749bd3d69e5bb89`.
+Installed authority execution, acquisition interruption and authority restart or
+replica qualification remain open.
+
+## Selected Knowledge Source Discovery — October 10, 2026
+
+The Gateway-routed source checker admits every templates/tools page against the
+selected typed server. Unrelated server failures produce limited K01 coverage
+with the original collection count and each typed server/surface/code observation.
+Selected-server failures, malformed metadata and wrong surfaces refuse the check.
+Direct and full-profile catalog checks still reject degradation. Both selected
+surfaces share 256 KiB and 4,096-failure limits in addition to the existing catalog
+traversal bounds.
+
+Compiler, strict lint, two collector controls, the existing actual-SDK fixture and
+independent review pass. The native receipt under
+`/tmp/veoveo-time-handoff-final-20261010` has SHA-256
+`4094e443a1e2062b35874de29858e14442eb1024042060aca516636a7cae4719`.
+This source checkpoint does not qualify an installed source run or establish which
+backend caused the broader helper failure during the earlier Knowledge/Time rollout.
+
+## Time Completed Handoff Inventory — October 10, 2026
+
+The first installed A/B handoff attempt exits one before SDK observations, Task
+reads or topology changes. Its strict original-only inventory finds both the
+serving Time Pod and a retained Succeeded Pod. The journal contains no delivered
+events or SDK trace observations. The terminal receipt under
+`/tmp/veoveo-time-completed-handoff-live-20261010` has SHA-256
+`45ee9b85efa525678dbb1fe4a93489e06657e1a866929fcfe4297dc3616606e8`.
+This fixture precondition failure does not establish a Time or SDK regression.
+
+Operations verifies that the obsolete Pod's UID is unchanged, every container
+has terminated, its ReplicaSet desires zero replicas and neither containerd nor
+CRI has a live task for it. Its private metadata and available logs are preserved.
+A Kubernetes DELETE with that UID precondition returns 200, and readback proves
+the old Pod absent. The serving Pod UID and sole ready endpoint stay unchanged.
+The delete/readback receipt under
+`/tmp/veoveo-time-terminal-pod-cleanup-20261010` has SHA-256
+`821455d956f66cc1fd66bd0d90c4a3ac16e7bbb76fabc2483918e779e5475d5c`.
+No ReplicaSet, PVC or running workload is deleted. The corrected installed handoff
+still requires a new admitted attempt using the retained eight-row completed Task.
+
+## Focused Artifact Consumer Fixture — October 10, 2026
+
+Commit `dd7958d26` adds the focused normal-OAuth upload profile to the existing
+installation smoke harness. Native controls and independent review pass. The
+fixture preserves received upload identities before validation or journal awaits,
+checks public bytes and digests, and exercises delegated SDK reads with retained
+cleanup. Its native receipt has SHA-256
+`1fb325611bdb89c7e8e680e27169471238d70733a7532a2b51071f430252cc78`.
+Installed public OAuth execution and the separately selected service-replacement
+and interrupted-write checks remain open.
+
 ## Time Recovery Fault Injection — October 10, 2026
 
 The second installed recovery attempt uses the admission repair at `e07467759`.
@@ -18,8 +91,16 @@ failure after closing its caller and watch. Operations issues no further signal,
 Task retry or cancellation. The terminal receipt under
 `/tmp/veoveo-time-recover-attempt2-e074-20261010` has SHA-256
 `ad03c065a7c3dc8009137b590223e4c565f99560f0b17ec10aa0ac0525271964`.
-This result leaves process recovery unqualified and the original Task's terminal
-outcome unobserved; it does not establish a product recovery failure.
+The later normal-OAuth Gateway read confirms that the original Task completed
+with all eight independently expected occurrences. Its reconciliation receipt has
+SHA-256 `fb3ae840ae51902a6ebfe0b9d6ce39ac8307d93bd0fc97ed17385b786efcdc82`.
+Runtime inspection maps the unchanged container to node PID 377710 and container
+PID one. Operations verifies the installed containerd task-kill interface without
+sending another signal. The [Linux PID namespace rules](https://kernel.googlesource.com/pub/scm/docs/man-pages/man-pages/+/refs/tags/man-pages-6.12/man/man7/pid_namespaces.7)
+explain why an inside-container command can return without killing namespace init;
+the next admitted crash must use its verified ancestor-namespace runtime path.
+This result leaves process recovery unqualified and does not establish a product
+recovery failure.
 
 ## Time Schedule Completion And Cancellation — October 10, 2026
 
