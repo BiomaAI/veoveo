@@ -6,8 +6,9 @@ extraction triggered node disk pressure; all seventeen desired Deployments and b
 StatefulSets recovered by 02:42 UTC on October 10. Compiler checks and all twenty-seven
 focused native recovery/consumer controls pass. Twenty-three images at `c5a2c6c3e`,
 including all seven stock-rollout images, pass staging, attested qualification and node-side registry readback.
-Gateway and Agent Manager run their qualified images against the existing catalog;
-Knowledge's replacement and the worker-catalog publication remain open. Reconciliation
+Gateway, Agent Manager and Knowledge run compatible qualified images against the
+existing catalog. Knowledge passes retained-index cold-start qualification; worker-catalog
+publication, generation two and restricted caller policy remain open. Reconciliation
 holds stay set. Further image batches require
 separate disk-space admission. Speech's previously
 selected headed Workspace consumer passes with fixture audio;
@@ -31,8 +32,8 @@ Frames completed-state retention passes across one actual same-Pod process crash
 All eighteen selected stock native acceptance cases pass, including Host image
 replacement, directed template upgrade/rollback and the unmodified CLI transport.
 Installed identity materialization and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
-and owning controls. Knowledge's prearmed cold-start case passes compiler, lint,
-eleven focused native controls and independent review; its installed run remains open.
+and owning controls. Knowledge's prearmed retained-index/current-generation cold-start
+case passes installed qualification; first-ever index construction remains unqualified.
 Task/subscription fixtures and complete installed A/F/H
 qualification remain open. See [Current Status](#current-status).
 
@@ -129,7 +130,7 @@ Earlier installed checkpoints keep their recorded scope below.
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
 | Stream | Existing GPU replay with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed result checks and an initial current resource snapshot | Installed public delivery, post-mutation updates, unfinished recovery and final images |
 | Reason | Existing GPU analysis with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed analysis checks and an initial current resource snapshot | Installed public delivery, unfinished recovery and final images |
-| Knowledge | Full-catalog baseline and separate restricted-caller discovery, collection/completion visibility and document denials, with retained SDK cleanup | Installed caller-policy checks, unattended cold startup, current-generation recovery and final images |
+| Knowledge | Full-catalog baseline, qualified retained-index/current-generation cold startup and separate restricted-caller discovery, collection/completion visibility and document denials, with retained SDK cleanup | First-ever empty-index startup, generation-two publication, installed caller-policy checks, current-generation recovery and final images |
 | Optimization | Multi-page existing solve corpus, exact products, usage, public Task results and canonical Artifact bytes under allowed and denied caller contexts; separately selected coordinated control/executor replacement repeats the retained consumers | Installed GPU-produced corpus, mid-run policy changes, coordinated control/executor replacement and unfinished/cross-replica recovery |
 
 The added Speech resource and Stream/Reason public-caller cases pass compiler,
@@ -175,15 +176,17 @@ The eighteen selected stock native cases are qualified, including the aggregate 
 profile of 1 CPU, 6 GiB and 1,024 PIDs. The installed 8 CPU, 12 GiB and 4,096-PID
 profile has not been activated.
 
-Knowledge's fourth cold-start attempt observes HTTP 503 then 200 on the same
-container and passes the watched Ready fence. The first SDK connection is rejected
-with `MissingRequiredScope`: the normal caller token lacks seven scopes required
-by the live operator profile. No Knowledge resource read reaches the service. Ops
-restores the original image and one Ready replica. This partial startup observation
-does not qualify the installed cold-start case or generation two.
-An ordinary operator-service token carrying all twelve allowed scopes subsequently
-passes maintained SDK discovery and a `knowledge://contract` read with a 900-second
-TTL. This establishes the caller prerequisite for a new cold-start attempt.
+Knowledge's retained-index/current-generation unattended cold-start profile passes
+installed qualification on the C5 image. The observer records HTTP 503 then 200
+on the same container, drains the readiness watch fence, and verifies Ready status
+through ten seconds of stability.
+The ordinary OAuth caller carries all thirteen required scopes. Its 89 requests
+verify four sources, sixteen collections and eleven links; the verified generation
+matches the active generation.
+The case exits successfully after closing its observers and port-forwards, and
+Knowledge stays at one Ready replica. First-ever index construction remains
+unqualified. Generation-two publication, Host activation and the restricted
+caller-policy case still require their separately selected checks.
 
 The observer's canonical Pod decoding, readiness ordering and owned port-forward
 cleanup pass compiler, strict lint, thirteen native controls and independent review.
@@ -193,9 +196,9 @@ details. Two Knowledge acquisition controls and the canonical wrapped-error
 control pass. Fifteen distinct Knowledge native controls have passing results;
 two deadline-sensitive lifecycle controls require isolated serial replay after
 parallel failures, whose results are retained. Knowledge HTTP and the conformance
-production library pass strict lint; five unrelated conformance test-lint findings
-stay open. The updated conformance tool needs a compatible image refresh in the
-final closure. Installed qualification remains open.
+library and test targets pass strict lint. The updated conformance tool needs a
+compatible image refresh in the final closure. The cold-start installed pass does
+not close the separate restricted caller-policy qualification.
 
 The reference now prepares an isolated `knowledge-acceptance` profile and ordinary
 public PKCE client for the required caller-policy check. It exposes the six approved
@@ -324,19 +327,11 @@ artifact identities are preserved. The 30-Rust-target count and the historical
 | Python runtimes | `datasheet-mcp`, `anonymous-simulation-mcp` |
 | NVIDIA executor | `cuopt-executor` |
 
-The matching worker catalog section and client must stay unpublished until every
-deployed catalog reader admits the full catalog. Rollout must preserve the actual live catalog,
-policy and enabled module composition. The strict full-catalog readers are Gateway,
-Computers MCP, Agent Manager and Knowledge. Gateway and Agent Manager now run their
-qualified `c5a2c6c3e` images, and no active old-image process remains for either reader.
-Gateway readiness and OAuth metadata return 200. Manager's current-container startup
-marker proves full-catalog admission and controller initialization; managed-operation
-reconciliation still needs its own check. Catalog ConfigMap bytes and all three
-GitOps holds are preserved. Knowledge briefly withdraws readiness during the Gateway
-replacement, then recovers on the same container without another restart. The selected
-Knowledge image `7f2bd` has no source provenance admitting the worker section introduced
-at `b6e7e0e00`; its replacement, authenticated catalog/search check and old-reader drain
-must precede publication.
+Gateway, Agent Manager and Knowledge now run compatible catalog readers.
+Knowledge's C5 cold-start case verifies the retained generation through normal
+OAuth, and its old Pod is absent. Computers stays at zero replicas. The candidate
+full-catalog worker section and client still await maintained publication; GitOps
+holds and the live catalog, policy and enabled module composition are preserved.
 
 | Phase | Current state | Remaining gate |
 |---|---|---|
@@ -347,7 +342,7 @@ must precede publication.
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the actual Computer Host workload boundary, final installed profile/current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. Selected stock native Host same-image restart, stopped controller maintenance and terminal renewal/revocation pass. Running-controller crash recovery is unsupported by the accepted stock profile. All eighteen selected ignored native acceptance cases pass, including distinct-image Host replacement, directed template upgrade/rollback and stock CLI transport. Node RuntimeClass activation and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The selected four-server CPU protocol case at `1393fdc36` passes authenticated discovery, all four anonymous discovery refusals, documents, transport, Gateway health/audit and prompt isolation. Frames completed-state retention passes across one same-Pod process crash. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`; catalog/source paging, CSV/schema, Artifact publication and usage consumers pass at `374e25f345`. GitOps is suspended; Knowledge, Embedding and Speech are Ready, while Host, Computers, Reason and other GPU workloads stay off. Focused Frames and Knowledge installed cases also pass on admitted deployed images. Speech Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture audio on headed RTX 4090 WebGL | Complete remaining owner fixtures, remaining owner-required recovery cases, the seven-image stock closure with catalog readers replaced before publication, final source/image closure, unattended Knowledge cold-start, installed consumers, Agent Manager and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The selected four-server CPU protocol case at `1393fdc36` passes authenticated discovery, all four anonymous discovery refusals, documents, transport, Gateway health/audit and prompt isolation. Frames completed-state retention passes across one same-Pod process crash. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`; catalog/source paging, CSV/schema, Artifact publication and usage consumers pass at `374e25f345`. GitOps is suspended; Knowledge, Embedding and Speech are Ready, while Host, Computers, Reason and other GPU workloads stay off. Focused Frames and Knowledge installed cases also pass on admitted deployed images. Speech Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture audio on headed RTX 4090 WebGL | Complete remaining owner fixtures, remaining owner-required recovery cases, the seven-image stock closure with catalog readers replaced before publication, final source/image closure, first-ever empty-index Knowledge startup, generation-two publication, restricted caller policy, installed consumers, Agent Manager and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
