@@ -187,11 +187,43 @@ fn computers_configuration_and_artifact_dependency_match_the_service_profile() {
 
 #[test]
 fn bioma_compute_host_admits_every_control_plane_template() {
+    use sha2::{Digest, Sha256};
+
     let read = |path| -> Value {
         serde_json::from_slice(&std::fs::read(repository().join(path)).unwrap()).unwrap()
     };
     let service = read("examples/bioma/computers/computers.json");
     let host = read("examples/bioma/computers/host.json");
+    let yaml = |path| -> Value {
+        serde_yaml_ng::from_slice(&std::fs::read(repository().join(path)).unwrap()).unwrap()
+    };
+    let lock = yaml("examples/bioma/images/veoveo.lock.yaml");
+    let values = yaml("examples/bioma/values.yaml");
+    let locked_template = format!(
+        "{}/veoveo/computer-template@{}",
+        lock["global"]["veoveoRegistry"].as_str().unwrap(),
+        lock["global"]["imageDigests"]["veoveo/computer-template"]
+            .as_str()
+            .unwrap()
+    );
+    assert_eq!(host["defaultImage"], locked_template);
+    for (path, revision) in [
+        (
+            "examples/bioma/computers/computers.json",
+            &values["computers"]["configurationRevision"],
+        ),
+        (
+            "examples/bioma/computers/host.json",
+            &values["computers"]["host"]["configurationRevision"],
+        ),
+    ] {
+        assert_eq!(
+            revision.as_str().unwrap(),
+            hex::encode(Sha256::digest(
+                std::fs::read(repository().join(path)).unwrap()
+            ))
+        );
+    }
     assert_eq!(service["providerInstanceId"], host["providerId"]);
     let templates = service["capacity"]["templates"].as_array().unwrap();
     for template in templates {
@@ -219,6 +251,14 @@ fn bioma_compute_host_admits_every_control_plane_template() {
         .find(|entry| entry["fingerprint"] == service["capacity"]["defaultTemplate"])
         .unwrap();
     assert_eq!(host["defaultImage"], default["image"]);
+    for key in ["templateFingerprints", "fileTemplateFingerprints"] {
+        assert!(
+            service["capacity"]["execution"][key]
+                .as_array()
+                .unwrap()
+                .contains(&default["fingerprint"])
+        );
+    }
 }
 
 #[test]

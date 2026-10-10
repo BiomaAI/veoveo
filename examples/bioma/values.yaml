@@ -204,7 +204,7 @@ computers:
   resources:
     requests: {cpu: "0", memory: "0"}
   existingConfigMap: bioma-computers-configuration
-  configurationRevision: cd290eb6b55a7b5866cec77b676988842a8aec13f56c095c953b4891c9e83e79
+  configurationRevision: 178e0b91533e1aa21f34aba4e05f2856b27322c171f639249907e93c937de0f6
   existingTrustSecret: bioma-computers-worker-trust
   existingOAuthSecret: veoveo-computers-worker-oauth
   oauthCredentialRevision: 1ed8ff9127d82b5eff6704ba50e4f5d165bf3c30e6911bb94925c50612898b29
@@ -213,7 +213,7 @@ computers:
     existingConfigMap: bioma-computer-host-configuration
     resources:
       requests: {cpu: "0", memory: "0"}
-    configurationRevision: bd5197262cb6a325e35522403e7048906cd7fff7a44d86382f1dc360ea5fecf5
+    configurationRevision: e633b1a56d7f14b893553b38a38bbebee236b1002af474bf7fb5ff4f8b5f64c3
     existingTrustSecret: bioma-computer-host-trust
     persistence:
       size: 100Gi
