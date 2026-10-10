@@ -127,7 +127,7 @@ gateway:
         namespace: veoveo-agents
         configMap: uav-pilot-037b21aaa992
         configDigest: sha256:037b21aaa99257ed211e51e8ea2477aff0649a79374a87503c5ed7377837a2bf
-        image: k3d-veoveo-registry.localhost:5000/veoveo/agent-kernel@sha256:b3aff146d3ca6b065077081667b9e4e45f784b5bf4cd9f6a59729e3ab6e9ad85
+        image: k3d-veoveo-registry.localhost:5000/veoveo/agent-kernel@sha256:8b0fae16caafa85ce363e94a6843fd8e4901ca386d43d45c88c4c414abeac558
         databaseSecret: veoveo-surreal-runtime
         storageClass: local-path
         storageGib: 2
