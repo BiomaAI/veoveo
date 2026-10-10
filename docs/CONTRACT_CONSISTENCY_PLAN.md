@@ -9,7 +9,15 @@ including all seven stock-rollout images, pass staging, attested qualification a
 The current source closure requires thirty Rust targets and the pending cuOpt image.
 Twenty-two Trixie images at `3820c0db5` now pass stage/release digest agreement,
 attestation checks and node-network registry readback. The remaining nine-image
-batch is admitted; rollout and installed qualification remain open.
+batch is running; rollout and installed qualification remain open.
+The fresh single-vehicle UAV capture exposed a runtime output failure after tile
+updates and incorrect RTSP video timestamps. The state repair at `1b9070590`
+passes all 151 owning Python tests and independent review; its image and installed
+acceptance remain open. The video clock and fixed browser codec declaration still
+need repair. This capture does not close composed-flight acceptance. Its two
+temporary PVCs were deleted during cleanup; the saved MP4s and PX4 log survive.
+The [flight checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#fresh-uav-flight-and-runtime-output-repair--october-10-2026)
+records the results, losses and remaining qualification.
 The Knowledge and Time repair at `6653288ba` is published and deployed. Both Pods
 pass probes and thirty seconds of stability without a restart. Normal OAuth reads
 and Knowledge search reach the updated Time documents. Time completion and
@@ -497,8 +505,8 @@ The prepared dependency graph selects thirty Rust targets and retains
 the pending cuOpt executor, for thirty-one images. The twenty-two-target Trixie
 batch completes staging and release qualification. All twenty-two runnable
 digests agree between commands, with SBOM/provenance and matching node-network
-manifest/config reads. The remaining nine targets are admitted as one serial
-stage/release batch; their qualification is still pending.
+manifest/config reads. The remaining nine targets run as one serial stage/release
+batch after fresh resource admission; their qualification is still pending.
 Earlier C5 and `6431c30c6621` receipts qualify their original inputs. Trixie and BFF
 source digests change from the prepared `715796541` plan; the other three Rust
 families preserve those prepared inputs. Trixie's final-source qualification
@@ -2805,8 +2813,12 @@ pagination. The affected Rust policy and result consumers pass 28 focused checks
 the current 18-package compile/lint graph and isolated Store runtime build pass.
 Real installation commands, independent schema consumption and generated clients
 also pass. The enumerated Phase 4 field and adapter families have qualified
-source/native checkpoints. Final installed qualification of the affected owners
-and consumers remains open.
+source/native checkpoints. Subsequent UAV runtime tile, camera and recording
+mutations still wrote retired snake_case keys into closed camelCase output models.
+The repair at `1b9070590` passes the 151-test owning Python suite and independent
+review. Qualify live updates on its rebuilt runtime image before closing that
+producer gap. Final installed qualification of the affected owners and consumers
+remains open.
 
 ### Opaque Payloads And Declared Lookups
 

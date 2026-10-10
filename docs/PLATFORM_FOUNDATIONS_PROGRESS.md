@@ -6,6 +6,67 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Fresh UAV Flight And Runtime Output Repair — October 10, 2026
+
+A fresh one-vehicle PX4 flight produces 3,601 NVENC H.264 frames over 153.26 seconds
+of capture. Physics runs at 30 Hz and rendering at 24 Hz. The RTSP stream timestamps
+the frames as 60 fps, making its stream-copy MP4 play in 60 seconds. A separate
+copy with scaled timestamps plays in 149.975 seconds. Both files preserve the same
+encoded packet sequence. The corrected file presents 360 frames without a drop
+during a fifteen-second headed playback sample. WebGL uses the RTX 4090;
+Media Capabilities reports smooth supported software H.264 decode, which the
+player identifies. These observations do not certify full-flight stability or
+the composed OAuth mission, fleet, Stream and Recording replay gates.
+
+The flight's PX4 log reports no failsafe in the sampled capture window. Native
+telemetry confirms landed and disarmed before teardown. Source inspection finds
+automatic Newton stepping disabled and Veoveo's Warp kernel integrating the body
+state. It does not establish competing solver steps. The 30 Hz dynamics and 60 Hz
+held sensor delivery need qualification with the composed flight. The public
+viewer has a separate timing path: its adapter drops RTP timestamps and the
+browser constructs timestamps from sequence and configured FPS. Its fixed codec
+declaration also differs from the captured SPS. The corrected MP4 is a diagnostic
+artifact, not a repair of those producers.
+
+Live tile updates make `/v2/state` return 500 because three mutation paths add
+snake_case members to closed camelCase models. Commit `1b9070590` corrects tile,
+camera and recording updates without changing the output models. Regression
+controls send actual mutations through the production validator and cover failure
+and recovery. All 151 owning Python tests and independent review pass. A rebuilt
+runtime and installed live-update acceptance remain required.
+
+Cleanup incorrectly uses Helm uninstall after adding keep annotations only to
+live PVC objects. Helm's stored release manifest deletes `uav-sim-runtime-cache`
+and `uav-sim-recording-forwarder`; their local-path PV directories are absent.
+The run's cache and forwarder-volume content are lost. The two MP4s and PX4 log
+survive under `output/development/uav-flight-20261010-2143/`. No empty replacement
+claims are created. An earlier claim inventory was not retained, so unchanged
+status of unrelated claims cannot be certified. Future cleanup for this plan
+scales owned Deployments to zero while preserving the release and claims unless
+retention is proven in the stored release manifest.
+
+The remaining nine-image publication's first dispatch exits at argument parsing
+because its private command omits `stage`; no image solve starts. Publication is
+held during the flight. A fresh read-only inventory records 282,380,898,304 free
+bytes and healthy Knowledge, Embedding and Speech with the three Flux holds set.
+The corrected dispatch is admitted against the original nine-target command
+arrays, source `3820c0db5`, aggregate baseline and resource bounds. Stage is live
+under guard session `86446`, supervisor PID `3634687` and xtask PID/PGID `3634841`
+with start ticks `26559988`. Initial preflight passes and the guard records
+282,356,486,144 free bytes. Rollout remains separate. The UAV state repair changes runtime inputs and needs its own subsequent
+image qualification; it is not covered by the frozen publication source.
+
+| Private record or saved artifact | SHA-256 |
+|---|---|
+| `/tmp/veoveo-flight-uav-launch-20261010/final-incident-receipt.json` | `ec032df8b058c951727a48b1e6c4c227e6a023448da6870f9a6c747d64f4c0c4` |
+| `/tmp/veoveo-flight-uav-launch-20261010/final-claim-inventory.json` | `dc8c55e62efe55b78e12fbfcc21477a4e108462f26da75fd2e3424040a0237df` |
+| `output/development/uav-flight-20261010-2143/follow-camera.mp4` | `add7495c0ddf6ec3ea6ae9cdd1453a50d14678769f860f07849f4f6fe2ec7824` |
+| `output/development/uav-flight-20261010-2143/follow-camera-24fps.mp4` | `c0372a46b01580813d4f0053de6343ba41a34c617b159265482f4f89190ec87b` |
+| `output/development/uav-flight-20261010-2143/flight.ulg` | `1dac2c2a7e39a30fe6085140466b25f07d190c24532fbeedea429d0adb913d99` |
+| `/tmp/veoveo-uav-state-regression-20261010/final-receipt.json` | `c9d4db4fa2827610c87fe7c3757108cbb237ddeeeed9d742edd202af5363eee8` |
+| `/tmp/veoveo-final-release-3820c0db5/remaining9-readonly-fresh-admission.json` | `ec3bb8614b6a351c2bea8d944266a69cceb97947b7d587336f80a34ab24ce315` |
+| `/tmp/veoveo-final-release-3820c0db5/remaining9-execution/attempt-03/runtime-admission.json` | `ccc059b64fbeaf069c7da80d990c0269192c73ff01a204d8cd9125810869e57c` |
+
 ## Final Trixie Publication And Artifact Recovery Controls — October 10, 2026
 
 All twenty-two selected Trixie images at `3820c0db5` complete staging and attested
