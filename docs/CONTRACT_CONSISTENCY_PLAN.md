@@ -28,8 +28,10 @@ Gateway, Agent Manager and Knowledge run compatible qualified images against the
 published full catalog. Manager is Ready with the reviewed immutable pilot template,
 qualified kernel and matching admission policies. Its installed fixture implements
 public OAuth authoring, prearmed SSE with current Ready checks and owned Stop/archive;
-review and five native controls pass. The actual installed journey and independent
-physical drain qualification remain open. Knowledge passes retained-index cold-start qualification;
+review and five native controls pass. The installed journey failed because its
+temporary manifest omitted a required field. Archive, physical drain and restoration
+pass; the corrected full manifest passes kernel admission but has not run installed.
+Knowledge passes retained-index cold-start qualification;
 generation two and restricted caller policy remain open. Reconciliation
 holds stay set. Further image batches require
 separate disk-space admission. Speech's previously
@@ -509,6 +511,17 @@ validation and the normal operator Knowledge search/source-revision case pass.
 Host and Computers stay at zero replicas, and GitOps holds remain set. Generation
 two, restricted caller-policy qualification and first-ever empty-index startup
 still require their separate checks.
+
+The Agent Manager public journey failed before its kernel became Ready because the
+temporary seed omitted `agent.tenant`. Owned Stop/archive completed. Independent
+database and Kubernetes reads verify the archived instance, zero admissions,
+runtime rows, live leases and episodes, and retained Bound storage. Manager,
+Gateway and admission policies are restored; temporary workloads and configuration
+are removed. The complete replacement seed passes the kernel's decoder and
+validator with synthetic credential-presence inputs. Independent review accepts
+that preparation; the corrected installed journey still requires execution. The
+[checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#agent-manager-fixture-failure-and-cleanup--october-10-2026)
+preserves the failed outcome and cleanup scope.
 
 | Phase | Current state | Remaining gate |
 |---|---|---|

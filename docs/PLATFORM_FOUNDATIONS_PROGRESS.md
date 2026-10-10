@@ -6,6 +6,35 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Agent Manager Fixture Failure And Cleanup — October 10, 2026
+
+The maintained public OAuth journey exits one before the kernel becomes Ready.
+Its temporary seed manifest omits `agent.tenant`; the kernel reports
+`missing field tenant`. This is a qualification setup defect. No Ready lifecycle
+pass is established. The journey's owned Stop/archive succeeds, and independent
+database reads follow the actual operation-to-instance relation to verify the
+archived generation, cleared operation claim and zero admissions, runtime rows,
+live leases and episodes. Kubernetes has no remaining owned Deployment, ReplicaSet
+or Pod; the same 2 GiB PVC stays Bound.
+
+Manager and Gateway return to their reviewed one-pilot configurations and become
+Ready. The Gateway keeps its corrected qualified pilot image. All three admission
+policies are restored. Operations removes the owned temporary zero-replica Gateway
+ReplicaSet and its unreferenced immutable ConfigMap with identity preconditions.
+Caller material, observers and port-forwards close. The node is Ready without
+pressure, and all three reconciliation holds stay suspended.
+
+A complete replacement seed reuses the maintained deployment-smoke manifest shape,
+with a one-hour heartbeat, empty subscriptions and a static preamble. The actual
+910-byte candidate passes the exported kernel decoder and validator. The private
+helper uses synthetic values solely for the validator's two environment-presence
+checks; it executes no kernel, model, database or network operation. Independent
+review accepts the seed and helper. This admission does not establish installed
+startup or credential validity; no corrected journey has run at this checkpoint.
+The candidate admission receipt is
+`/tmp/veoveo-managed-idle-manifest-admission-20261010/actual-candidate-admission-receipt.json`,
+SHA-256 `087810b5dadb191276b846a817b9ee9c41c9ddd15ed84c36cf433c26df929a06`.
+
 ## Recovery CLI And Final Image Preparation — October 10, 2026
 
 The production `installation-smoke` executable builds at committed source
