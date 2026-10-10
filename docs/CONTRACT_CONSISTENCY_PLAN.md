@@ -140,13 +140,20 @@ sixteen Secret objects: thirteen application Secrets and three Helm Secrets. All
 eight baseline services are Ready; the node is unchanged and uncordoned, and no
 installed credentials have changed. The eighteen selected stock native cases stay
 qualified, including the implemented aggregate Host profile of 1 CPU, 6 GiB and 1,024 PIDs.
-The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated. Gateway and
-Computers images are staged from `a9236ba6f`; final images must include the later
-TaskRuntime and owner settlement changes. Node-network manifest and config readback
-pass. The other five stock-provider image
-pins are preserved. Staging does not activate the installation or establish release
-eligibility. A private
-credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
+The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated.
+
+Development staging has published ten of the thirty affected Rust image targets from
+`b46430e17`, including the TaskRuntime and owner settlement changes. Gateway,
+Computers, Agent Manager, Knowledge, Time, Timeseries, Artifact, Frames, Media and
+Optimization pass node-network manifest and config readback with matching hashes.
+Compatible remaining targets build together under the measured 96-GiB admission
+and 84-GiB cancellation guard. Staging keeps `releaseEligible=false`; installed
+image pins and the application holds stay unchanged. Final lock composition requires
+the authentic publisher-generated DeploymentLock or genuine profile qualification.
+The reference Helm pins and schema fixture cannot supply qualified base lineage.
+The full release resource gate and complete thirty-target coverage remain open.
+
+A private credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
 WaveSpeed and Google Maps replacement still requires account-management authority
 or private references to fresh credentials. Existing authorization applies to the
 rollout.
