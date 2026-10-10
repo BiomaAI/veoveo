@@ -261,7 +261,7 @@ async fn typed_schedule_task_through_public_gateway() -> Result<()> {
     input
         .admit()
         .map_err(|_| anyhow::anyhow!("Time schedule fixture preconditions failed"))?;
-    input
+    let target = input
         .installation
         .validate()
         .map_err(|_| anyhow::anyhow!("Time schedule installation admission failed"))?;
@@ -306,7 +306,14 @@ async fn typed_schedule_task_through_public_gateway() -> Result<()> {
         owned.caller_closed = false;
         let exercise = tokio::time::timeout_at(
             deadline,
-            exercise(&mut owned, &input, &mut journal, &mut output, deadline),
+            exercise(
+                &mut owned,
+                &input,
+                &target,
+                &mut journal,
+                &mut output,
+                deadline,
+            ),
         )
         .await
         .context("Time schedule exercise deadline")
@@ -444,6 +451,7 @@ async fn close_slot<H, F: std::future::Future<Output = Result<()>>>(
 async fn exercise(
     handles: &mut Handles,
     input: &Input,
+    target: &veoveo_deploy_contract::InstallationTarget,
     journal: &mut Journal<'_>,
     output: &mut fs::File,
     deadline: tokio::time::Instant,
@@ -477,7 +485,7 @@ async fn exercise(
         calendar == input.request.calendar,
         "selected schedule calendar differs"
     );
-    let driver = lifecycle::admit_target(input, caller, journal, output).await?;
+    let driver = lifecycle::admit_target(input, target, caller, journal, output).await?;
     journal.phase = Phase::Preconditions;
     journal.persist(output)?;
     journal.phase = Phase::DispatchIntent;

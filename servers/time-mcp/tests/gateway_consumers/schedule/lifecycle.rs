@@ -78,8 +78,22 @@ pub(super) fn admit(input: &Input) -> Result<()> {
     }
     Ok(())
 }
+fn recovery_driver(
+    input: &Input,
+    target: &veoveo_deploy_contract::InstallationTarget,
+    caller: rmcp::Peer<rmcp::RoleClient>,
+) -> Result<DeploymentRestart> {
+    DeploymentRestart::new(
+        target,
+        &input.installation.deployment,
+        "time-mcp",
+        caller,
+        TimeResource::AuthoritiesCurrent.to_uri()?,
+    )
+}
 pub(super) async fn admit_target(
     input: &Input,
+    target: &veoveo_deploy_contract::InstallationTarget,
     caller: &SmokeMcpClient,
     journal: &mut Journal<'_>,
     file: &mut fs::File,
@@ -89,13 +103,7 @@ pub(super) async fn admit_target(
     };
     journal.phase = Phase::CrashAdmission;
     journal.persist(file)?;
-    let driver = DeploymentRestart::new(
-        &input.installation.validate()?,
-        &input.installation.deployment,
-        "time-mcp",
-        caller.peer().clone(),
-        TimeResource::AuthoritiesCurrent.to_uri()?,
-    )?;
+    let driver = recovery_driver(input, target, caller.peer().clone())?;
     tokio::time::timeout(
         Duration::from_secs(30),
         driver.admit_crash_target(&fixture.target),
@@ -282,6 +290,63 @@ mod tests {
                 "containerId":"containerd://selected","imageId":"sha256:selected","restartCount":0},
             "replacementTimeoutSeconds":60
         }))?)
+    }
+    #[tokio::test]
+    async fn retained_installation_admits_recovery_driver_after_private_journal_creation()
+    -> Result<()> {
+        use rmcp::{ClientServiceExt, ServiceExt};
+        let root = tempfile::tempdir()?;
+        let mut input = super::super::tests::fixture()?;
+        input.mode = Mode::Recover;
+        input.recovery = Some(target()?);
+        input.installation.installation_target = root.path().join("target.json");
+        input.installation.output = root.path().join("receipt.jsonl");
+        fs::write(
+            &input.installation.installation_target,
+            serde_json::to_vec(&serde_json::json!({
+                "schema":"veoveo.ai/installation-target/v1",
+                "kubernetes":{"context":"fixture","namespace":"fixture"},
+                "localBaseUrl":"http://127.0.0.1:8080",
+                "publicBaseUrl":"https://installation.example",
+                "controlPlane":"gateway.json","expectedDeployments":["time-mcp"],
+                "minimumGpuShares":0,
+                "operator":{"clientId":"fixture","profile":"operator","scopes":["time:read"],"workContext":"fixture"}
+            }))?,
+        )?;
+        let admitted = input.installation.validate()?;
+        let mut output = open_receipt(&input.installation.output)?;
+        Journal::new(&input).persist(&mut output)?;
+        ensure!(
+            input.installation.validate().is_err(),
+            "existing output must still refuse initial admission"
+        );
+        ensure!(open_receipt(&input.installation.output).is_err());
+        struct Source;
+        impl rmcp::ServerHandler for Source {}
+        let (server_io, client_io) = tokio::io::duplex(8192);
+        let (server, client) = tokio::time::timeout(Duration::from_secs(5), async {
+            tokio::join!(
+                Source.serve(server_io),
+                ().serve_with_lifecycle(
+                    client_io,
+                    rmcp::ClientLifecycleMode::Discover {
+                        preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
+                    }
+                )
+            )
+        })
+        .await
+        .context("native recovery driver SDK deadline")?;
+        let server = server?;
+        let client = client?;
+        let result = recovery_driver(&input, &admitted, client.peer().clone()).map(|_| ());
+        let (client_closed, server_closed) = tokio::join!(
+            tokio::time::timeout(Duration::from_secs(5), client.cancel()),
+            tokio::time::timeout(Duration::from_secs(5), server.cancel()),
+        );
+        client_closed.context("native client cleanup deadline")??;
+        server_closed.context("native server cleanup deadline")??;
+        result
     }
     #[test]
     fn lifecycle_fixture_requires_mode_target_role_and_bounded_timeout() -> Result<()> {
