@@ -273,6 +273,71 @@
       "cleanupSeconds": 180
     },
     {
+      "id": "artifact-focused-consumers",
+      "description": "Verify bounded normal-OAuth uploads and SDK consumers, with separately selected internal Artifact service capability recovery.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "examples/bioma/acceptance",
+          "package": "veoveo-bioma-acceptance",
+          "target": "installation-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "artifact-upload-consumers",
+        "--profile",
+        "focused"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "uv_sync",
+          "owner": "sdk/python",
+          "extras": [],
+          "groups": []
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Requires ordinary operator OAuth, public uploads and Datasheet, installed Python SDK and private Artifact service fixture. The focused profile uses bounded bytes without browser evidence. Optional --service-recovery replaces one admitted Artifact service and uses a separate internally signed typed fixture Task binding; no unfinished-write or large-browser qualification."
+      },
+      "deadlineSeconds": 900,
+      "cleanupSeconds": 180
+    },
+    {
       "id": "surreal-integration",
       "description": "Run every live SurrealDB integration target against an isolated 3.3.0 container.",
       "target": {

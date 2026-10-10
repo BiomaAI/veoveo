@@ -8,6 +8,8 @@
 | SurrealDB 3.3.0 | Native Rust SDK, parameterized SurrealQL transactions and the platform-store schema; recovery exports use native SQL values |
 | Kubernetes | Existing Deployment, Secret, PersistentVolume and PersistentVolumeClaim APIs; retained local-path storage is installation-owned |
 | Native MCP clients | Official Rust SDK MCP 2026-07-28 Discover, Tasks, resource reads and request-scoped subscriptions over Streamable HTTP; bearer issuance uses the runtime-owned fixture adapter |
+| Focused Artifact consumers | `veoveo.ai/artifact-focused-consumer-acceptance/v1` private JSON; bounded public OAuth upload receipts, direct SDK observations and declared consumer checks; no public protocol extension |
+| Public upload intents | `veoveo.ai/artifact-public-upload-intents/v1` private JSONL; selected profile, upload dispatch intents, acknowledged identities, received receipts, qualified publications and cleanup outcomes |
 | Installed DuckDB | Existing `installation-verify --scope duckdb` consumer, owner contract CSV/schema/catalog/usage and Artifact provenance over normal Gateway OAuth; private `veoveo.ai/installed-duckdb/v1` receipt |
 | Installed Stream | Owner-library run identities, completion products and analysis results; cross-replica DeepStream replay requires NVIDIA hardware |
 | Public Stream and Reason callers | Existing GPU scenarios use normal OAuth at the installation's operator MCP endpoint; private `veoveo.ai/stream-public-caller/v1` and `veoveo.ai/reason-public-caller/v1` inputs, with corresponding `public-consumer/v1` JSONL observations |
@@ -83,19 +85,52 @@ these checks.
 
 ## Installation Assertion Delivery
 
-The `artifact-upload-consumers` case checks public OAuth upload/MCP interoperability
-and separately runs the Python SDK inside the selected installation Pod with a
-delegated signed identity. The latter verifies typed metadata, resolution, one-member
-catalog pages within 60 seconds and 256 pages, isolated-tenant refusal and selected
-bytes. Its request context must pass Artifact service
-audit admission. The private `veoveo.ai/artifact-upload-consumer-acceptance/v3`
-receipt preserves both consumer profiles. Installed execution requires its own
-qualification.
+The `artifact-upload-consumers` command selects a closed `browser` or `focused`
+profile before effects. The default browser profile requires `--browser-evidence`
+from the existing headed hardware browser workflow and a receipt exceeding 4 GiB.
+Its private `veoveo.ai/artifact-upload-consumer-acceptance/v3` report preserves the
+large upload and installed SDK observations. The `artifact-focused-consumers`
+scenario selects `--profile focused`, which rejects browser evidence and publishes
+a known 2048-byte object plus tiny Parquet and unknown-length CSV fixtures. Both
+profiles check normal-OAuth upload policy, immutable part retry, changed-part
+refusal, completion replay, Work Context denial and Datasheet consumption. Focused
+also compares downloaded public bytes and digest independently of the upload
+receipt. Its v1 report records these bounded consumers without claiming browser
+or large-transfer qualification.
+
+Both profiles separately run the Python SDK inside the selected installation Pod
+with a delegated signed identity. Rust checks typed metadata, URI resolution,
+one-member catalog pages within 60 seconds and 256 pages, isolated-tenant refusal
+and selected bytes. The delegated request context must pass Artifact service audit
+admission; this internal transport does not establish public OAuth issuance.
+
+Before public upload creation, the command creates a new mode-0600
+`.uploads.jsonl` journal beside the selected evidence output and registers owned
+session cleanup. It records creation intent and the original idempotency key,
+retains each acknowledged upload ID before another await, then records mutation
+intents and receipt observations. The first typed received receipt is retained and
+synced before independent identity/content assertions or another await. A mismatched
+receipt stays an observation and cannot qualify publication. Successful assertions
+permit a separate publication record; cleanup settles only after that sync succeeds.
+A journal failure keeps the typed observation and a sticky failure in the owner.
+Cleanup starts its interval at the first actual attempt and retains that owner's deadline and original consuming request across
+interruption; later attempts cannot extend the interval or erase a failed result.
+An expired interval fails before polling a retained request, even if it is ready.
+A cancellation conflict requires a current Completed session and retained receipt
+with the original upload ID. Its full typed receipt is observed before those checks
+and synced as a qualified publication before settlement. Published occurrences remain stored. Unacknowledged
+creation keeps its dispatch identity unresolved rather than guessing an upload ID
+or retrying creation. Only `ConsumersPassed` and the final consumer report qualify
+the consumer phase; an interrupted journal preserves the last known intent or
+retained effect.
 
 `--service-recovery` additionally selects `artifactConsumer.serviceRecovery` and an
 isolated, stable fixture WorkContext. The case admits the Artifact service's
-namespace, Deployment, Pod and container before retaining a tiny Task-bound write
-capability across one service replacement. It redeems the original request and
+namespace, Deployment, Pod and container before retaining a tiny write capability
+bound to a typed fixture `ArtifactTaskId` across one service replacement. This
+binding does not claim an executed or acknowledged Task. Issuance uses the internal
+signed-identity Artifact service API, separately from the Gateway's normal-OAuth
+upload API. It redeems the original request and
 replays its idempotency key, requiring the same occurrence, metadata and bytes.
 The public Artifact index probes the service after replacement. Artifact MCP
 documents alone cannot establish service readiness. Capability secrets stay in
@@ -108,7 +143,8 @@ The installation must identify the service behind both its private SDK origin an
 the public Artifact index. The selected container is `artifact-service`. The
 synthetic delegated caller keeps empty clearance, so this profile admits only a
 WorkContext whose output policy has no inherited classification or labels. Public
-OAuth capability issuance and interrupted-write recovery require separate cases.
+upload checks do not imply a public capability endpoint or interrupted-write
+recovery.
 Recovery work has a 300-second local limit within the scenario's execution budget.
 The actual MCP client's consuming close future is registered before acquisition
 and retained across cancellation. The existing process-group owner drains the SDK

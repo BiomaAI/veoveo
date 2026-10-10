@@ -44,6 +44,12 @@ enum InstallationScope {
     Full,
     Duckdb,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+enum ArtifactProfileChoice {
+    #[default]
+    Browser,
+    Focused,
+}
 #[derive(Subcommand, Debug)]
 enum Cmd {
     SurrealIntegration,
@@ -88,8 +94,15 @@ enum Cmd {
         conformance_bin: Option<PathBuf>,
         #[arg(long)]
         installation: PathBuf,
-        #[arg(long)]
-        browser_evidence: PathBuf,
+        /// Select browser large-file evidence or focused bounded machine uploads.
+        #[arg(long, value_enum)]
+        profile: Option<ArtifactProfileChoice>,
+        #[arg(
+            long,
+            required_unless_present = "profile",
+            required_if_eq("profile", "browser")
+        )]
+        browser_evidence: Option<PathBuf>,
         #[arg(long)]
         evidence_output: PathBuf,
         /// Opt in to the selected Artifact service recovery fixture.
@@ -575,9 +588,14 @@ async fn execute() -> Result<()> {
             conformance_bin,
             installation,
             browser_evidence,
+            profile,
             evidence_output,
             service_recovery,
         } => {
+            let selected = ArtifactConsumerProfile::admit(
+                profile.unwrap_or_default() == ArtifactProfileChoice::Focused,
+                browser_evidence,
+            )?;
             let conformance_bin = veoveo_testing_support::artifacts::requested_executable(
                 conformance_bin,
                 "veoveo-mcp-conformance",
@@ -588,7 +606,7 @@ async fn execute() -> Result<()> {
             artifact_upload_consumers(
                 &conformance_bin,
                 &target,
-                &browser_evidence,
+                selected,
                 &evidence_output,
                 service_recovery,
             )
@@ -1375,6 +1393,57 @@ mod frames_cli_tests {
     }
     #[test]
     fn lifecycle_profiles_require_explicit_cli_selection() -> Result<()> {
+        let focused = Args::try_parse_from([
+            "installation-smoke",
+            "artifact-upload-consumers",
+            "--installation",
+            "target.json",
+            "--profile",
+            "focused",
+            "--evidence-output",
+            "receipt.json",
+        ])?;
+        let Cmd::ArtifactUploadConsumers {
+            profile,
+            browser_evidence,
+            ..
+        } = focused.cmd
+        else {
+            bail!("wrong Artifact command")
+        };
+        assert!(matches!(
+            ArtifactConsumerProfile::admit(
+                profile.unwrap_or_default() == ArtifactProfileChoice::Focused,
+                browser_evidence
+            )?,
+            ArtifactConsumerProfile::Focused
+        ));
+        assert!(ArtifactConsumerProfile::admit(true, Some(PathBuf::from("browser.json"))).is_err());
+        assert!(ArtifactConsumerProfile::admit(false, None).is_err());
+        assert!(
+            Args::try_parse_from([
+                "installation-smoke",
+                "artifact-upload-consumers",
+                "--installation",
+                "target.json",
+                "--evidence-output",
+                "receipt.json"
+            ])
+            .is_err()
+        );
+        assert!(
+            Args::try_parse_from([
+                "installation-smoke",
+                "artifact-upload-consumers",
+                "--installation",
+                "target.json",
+                "--profile",
+                "browser",
+                "--evidence-output",
+                "receipt.json"
+            ])
+            .is_err()
+        );
         for selected in [false, true] {
             let mut args = vec![
                 "installation-smoke",

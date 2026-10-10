@@ -1,5 +1,7 @@
 #[path = "artifact_consumers/capability_recovery.rs"]
 mod capability_recovery;
+#[path = "artifact_consumers/public_upload.rs"]
+mod public_upload;
 #[path = "artifact_consumers/python.rs"]
 mod python;
 use super::*;
@@ -21,6 +23,36 @@ use veoveo_bioma_acceptance::reports::artifact_upload::{
 };
 use veoveo_mcp_contract::*;
 
+#[derive(Debug)]
+pub(crate) enum ArtifactConsumerProfile {
+    Browser { evidence: std::path::PathBuf },
+    Focused,
+}
+impl ArtifactConsumerProfile {
+    pub(crate) fn admit(focused: bool, browser: Option<std::path::PathBuf>) -> Result<Self> {
+        match (focused, browser) {
+            (false, Some(evidence)) => Ok(Self::Browser { evidence }),
+            (true, None) => Ok(Self::Focused),
+            _ => anyhow::bail!(
+                "browser profile requires browser evidence; focused profile forbids it"
+            ),
+        }
+    }
+}
+const FOCUSED_BYTES: [u8; 2048] = [b'a'; 2048];
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FocusedEvidence {
+    schema: &'static str,
+    source_revision: String,
+    public_base_url: String,
+    bounded_receipt: ArtifactUploadReceipt,
+    python: python::Observation,
+    parquet_receipt: ArtifactUploadReceipt,
+    unknown_length_receipt: ArtifactUploadReceipt,
+    checks: Vec<&'static str>,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Evidence {
@@ -37,7 +69,7 @@ struct Evidence {
 pub(crate) async fn artifact_upload_consumers(
     conformance: &Path,
     installation: &InstalledTarget,
-    browser_evidence: &Path,
+    selected: ArtifactConsumerProfile,
     evidence_output: &Path,
     service_recovery: bool,
 ) -> Result<()> {
@@ -49,20 +81,30 @@ pub(crate) async fn artifact_upload_consumers(
     if service_recovery {
         capability_recovery::admit(installation, evidence_output)?;
     }
-    let browser: BrowserEvidence = serde_json::from_slice(&fs::read(browser_evidence)?)?;
-    ensure!(
-        browser.schema == BrowserUploadReportSchema::Upload,
-        "expected current browser upload report"
-    );
-    browser.check_receipts()?;
-    let large_receipt = browser
-        .large_receipt
-        .context("large upload receipt missing")?;
-    let csv_receipt = browser.csv_receipt.context("CSV upload receipt missing")?;
-    ensure!(
-        large_receipt.byte_len > u64::from(u32::MAX),
-        "large fixture must exceed 4 GiB"
-    );
+    let focused = matches!(selected, ArtifactConsumerProfile::Focused);
+    let browser_receipts = match selected {
+        ArtifactConsumerProfile::Browser { evidence } => {
+            let browser: BrowserEvidence = serde_json::from_slice(&fs::read(evidence)?)?;
+            ensure!(
+                browser.schema == BrowserUploadReportSchema::Upload,
+                "expected current browser upload report"
+            );
+            browser.check_receipts()?;
+            let large = browser
+                .large_receipt
+                .context("large upload receipt missing")?;
+            ensure!(
+                large.byte_len > u64::from(u32::MAX),
+                "large fixture must exceed 4 GiB"
+            );
+            Some((
+                large,
+                browser.csv_receipt.context("CSV upload receipt missing")?,
+            ))
+        }
+        ArtifactConsumerProfile::Focused => None,
+    };
+    let journal = public_upload::Journal::create(evidence_output, focused)?;
     let base = installation.public_base();
     let profile = installation.profile();
     let comparison_context = installation
@@ -94,20 +136,73 @@ pub(crate) async fn artifact_upload_consumers(
         "installed profile did not authorize machine uploads"
     );
 
-    let other_actor = client
-        .get(format!("{upload_base}/{}", large_receipt.upload_id))
-        .bearer_auth(&token)
-        .send()
-        .await?;
-    ensure!(
-        other_actor.status() == StatusCode::NOT_FOUND,
-        "foreign-actor upload status returned {}, expected concealed 404",
-        other_actor.status()
-    );
-    ensure!(
-        other_actor.json::<ArtifactUploadError>().await?.code == UploadErrorCode::NotFound,
-        "foreign upload response did not come from the typed upload boundary"
-    );
+    if let Some((large, _)) = &browser_receipts {
+        let other_actor = client
+            .get(format!("{upload_base}/{}", large.upload_id))
+            .bearer_auth(&token)
+            .send()
+            .await?;
+        ensure!(
+            other_actor.status() == StatusCode::NOT_FOUND,
+            "foreign-actor upload status returned {}, expected concealed 404",
+            other_actor.status()
+        );
+        ensure!(
+            other_actor.json::<ArtifactUploadError>().await?.code == UploadErrorCode::NotFound,
+            "foreign upload response did not come from the typed upload boundary"
+        );
+    }
+    // A real Parquet producer supplies bytes; protocol assertions remain here in Rust.
+    let temporary = tempfile::tempdir()?;
+    let parquet = temporary.path().join("upload-consumer.parquet");
+    let db = ::duckdb::Connection::open_in_memory()?;
+    db.execute_batch(&format!("COPY (SELECT * FROM (VALUES ('alpha', 1), ('beta', 2)) AS t(name, value)) TO '{}' (FORMAT PARQUET)", parquet.display().to_string().replace('\'', "''")))?;
+    let parquet_bytes = fs::read(&parquet)?;
+    let parquet_receipt = upload_small(
+        &client,
+        &token,
+        &upload_base,
+        SmallUploadFixture {
+            filename: "upload-consumer.parquet",
+            mime: "application/vnd.apache.parquet",
+            bytes: parquet_bytes,
+            known: true,
+        },
+        &journal,
+    )
+    .await?;
+    let unknown_length_receipt = upload_small(
+        &client,
+        &token,
+        &upload_base,
+        SmallUploadFixture {
+            filename: "upload-consumer.csv",
+            mime: "text/csv",
+            bytes: b"name,value\nalpha,1\nbeta,2\n".to_vec(),
+            known: false,
+        },
+        &journal,
+    )
+    .await?;
+    let (large_receipt, csv_receipt) = match browser_receipts {
+        Some(receipts) => receipts,
+        None => {
+            let bounded = upload_small(
+                &client,
+                &token,
+                &upload_base,
+                SmallUploadFixture {
+                    filename: "focused-artifact.bin",
+                    mime: "application/octet-stream",
+                    bytes: FOCUSED_BYTES.to_vec(),
+                    known: true,
+                },
+                &journal,
+            )
+            .await?;
+            (bounded, unknown_length_receipt.clone())
+        }
+    };
     let independent = installation.token_for_context(comparison_context).await?;
     let denied = client
         .get(format!(
@@ -123,32 +218,30 @@ pub(crate) async fn artifact_upload_consumers(
         denied.status()
     );
 
-    // A real Parquet producer supplies bytes; protocol assertions remain here in Rust.
-    let temporary = tempfile::tempdir()?;
-    let parquet = temporary.path().join("upload-consumer.parquet");
-    let db = ::duckdb::Connection::open_in_memory()?;
-    db.execute_batch(&format!("COPY (SELECT * FROM (VALUES ('alpha', 1), ('beta', 2)) AS t(name, value)) TO '{}' (FORMAT PARQUET)", parquet.display().to_string().replace('\'', "''")))?;
-    let parquet_bytes = fs::read(&parquet)?;
-    let parquet_receipt = upload_small(
-        &client,
-        &token,
-        &upload_base,
-        "upload-consumer.parquet",
-        "application/vnd.apache.parquet",
-        parquet_bytes,
-        true,
-    )
-    .await?;
-    let unknown_length_receipt = upload_small(
-        &client,
-        &token,
-        &upload_base,
-        "upload-consumer.csv",
-        "text/csv",
-        b"name,value\nalpha,1\nbeta,2\n".to_vec(),
-        false,
-    )
-    .await?;
+    if focused {
+        let mut response = client
+            .get(format!(
+                "{base}/artifacts/{profile}/{}/download",
+                large_receipt.artifact_id
+            ))
+            .bearer_auth(&token)
+            .send()
+            .await?
+            .error_for_status()?;
+        let mut bytes = Vec::with_capacity(FOCUSED_BYTES.len());
+        while let Some(chunk) = response.chunk().await? {
+            ensure!(
+                bytes.len() + chunk.len() <= FOCUSED_BYTES.len(),
+                "public focused download exceeded fixture bytes"
+            );
+            bytes.extend_from_slice(&chunk);
+        }
+        ensure!(
+            bytes == FOCUSED_BYTES
+                && large_receipt.sha256.as_str() == hex::encode(Sha256::digest(FOCUSED_BYTES)),
+            "public focused bytes or digest changed"
+        );
+    }
     for uri in [
         &csv_receipt.artifact_uri,
         &parquet_receipt.artifact_uri,
@@ -232,6 +325,8 @@ pub(crate) async fn artifact_upload_consumers(
             .context("Artifact pages omitted a selected upload occurrence")?;
         ensure!(
             metadata.artifact_uri == receipt.artifact_uri
+                && metadata.filename.as_deref() == Some(receipt.filename.as_str())
+                && metadata.mime_type.as_deref() == Some(receipt.mime_type.as_str())
                 && metadata.byte_len == receipt.byte_len
                 && metadata.compliance.work_context.as_ref()
                     == Some(&installation.operator.work_context.id),
@@ -264,7 +359,7 @@ pub(crate) async fn artifact_upload_consumers(
     );
     ensure!(
         python.peak_rss_kib < 256 * 1024 && python.max_chunk_bytes <= 1024 * 1024,
-        "Python large download exceeded its bounded working set: {python:?}"
+        "Python selected download exceeded its bounded working set"
     );
     ensure!(
         python.early_bytes > 0
@@ -291,24 +386,42 @@ pub(crate) async fn artifact_upload_consumers(
     let revision = run_checked(Path::new("git"), ["rev-parse".into(), "HEAD".into()], [])?
         .trim()
         .to_owned();
-    let evidence = Evidence {
-        schema: "veoveo.ai/artifact-upload-consumer-acceptance/v3",
-        source_revision: revision,
-        public_base_url: base.into(),
-        large_receipt,
-        python,
-        parquet_receipt,
-        unknown_length_receipt,
-        checks: vec![
-            "Public machine OAuth and actor/Work Context denial",
-            "Known and unknown length uploads with immutable retry and completion replay",
-            "Real CSV and Parquet consumed through public Datasheet MCP",
-            "Installed Python SDK streamed the entire large object with exact SHA-256",
-            "Direct-plane Python SDK metadata and URI resolution preserve the selected CSV occurrence",
-            "Direct-plane Python SDK limit-one catalog traversal preserves both selected occurrences and tenant isolation",
-            "Bounded Python memory, early exit, byte ceiling, temporary-file cleanup, and tenant denial",
-        ],
+    let evidence = if focused {
+        serde_json::to_vec_pretty(&FocusedEvidence {
+            schema: "veoveo.ai/artifact-focused-consumer-acceptance/v1",
+            source_revision: revision,
+            public_base_url: base.into(),
+            bounded_receipt: large_receipt,
+            python,
+            parquet_receipt,
+            unknown_length_receipt,
+            checks: vec![
+                "Normal OAuth upload admission, immutable part retry, changed part refusal and completion replay",
+                "Independent public bounded bytes and digest; direct SDK metadata, URI resolution, paging and tenant isolation",
+                "CSV and Parquet consumed through normal OAuth Datasheet MCP",
+            ],
+        })?
+    } else {
+        serde_json::to_vec_pretty(&Evidence {
+            schema: "veoveo.ai/artifact-upload-consumer-acceptance/v3",
+            source_revision: revision,
+            public_base_url: base.into(),
+            large_receipt,
+            python,
+            parquet_receipt,
+            unknown_length_receipt,
+            checks: vec![
+                "Public machine OAuth and actor/Work Context denial",
+                "Known and unknown length uploads with immutable retry and completion replay",
+                "Real CSV and Parquet consumed through public Datasheet MCP",
+                "Installed Python SDK streamed the entire large object with exact SHA-256",
+                "Direct-plane Python SDK metadata and URI resolution preserve the selected CSV occurrence",
+                "Direct-plane Python SDK limit-one catalog traversal preserves both selected occurrences and tenant isolation",
+                "Bounded Python memory, early exit, byte ceiling, temporary-file cleanup, and tenant denial",
+            ],
+        })?
     };
+    journal.passed()?;
     if let Some(parent) = evidence_output.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -318,7 +431,7 @@ pub(crate) async fn artifact_upload_consumers(
         .create_new(true)
         .mode(0o600)
         .open(evidence_output)?;
-    output.write_all(&serde_json::to_vec_pretty(&evidence)?)?;
+    output.write_all(&evidence)?;
     output.sync_all()?;
     println!(
         "Installed Artifact consumers passed. Evidence: {}",
@@ -327,15 +440,26 @@ pub(crate) async fn artifact_upload_consumers(
     Ok(())
 }
 
+struct SmallUploadFixture<'a> {
+    filename: &'a str,
+    mime: &'a str,
+    bytes: Vec<u8>,
+    known: bool,
+}
+
 async fn upload_small(
     client: &reqwest::Client,
     token: &str,
     base: &str,
-    filename: &str,
-    mime: &str,
-    bytes: Vec<u8>,
-    known: bool,
+    fixture: SmallUploadFixture<'_>,
+    journal: &public_upload::Journal,
 ) -> Result<ArtifactUploadReceipt> {
+    let SmallUploadFixture {
+        filename,
+        mime,
+        bytes,
+        known,
+    } = fixture;
     let sha = UploadSha256::parse(hex::encode(Sha256::digest(&bytes)))?;
     let descriptor = CreateArtifactUpload {
         filename: filename.into(),
@@ -343,10 +467,12 @@ async fn upload_small(
         byte_len: known.then_some(bytes.len() as u64),
         sha256: Some(sha.clone()),
     };
+    let key = uuid::Uuid::now_v7().to_string();
+    let owned = journal.begin(client, token, base, &key, &descriptor)?;
     let response = client
         .post(base)
         .bearer_auth(token)
-        .header("Idempotency-Key", uuid::Uuid::now_v7().to_string())
+        .header("Idempotency-Key", &key)
         .json(&descriptor)
         .send()
         .await?;
@@ -356,6 +482,7 @@ async fn upload_small(
         response.status()
     );
     let session: ArtifactUploadSession = response.json().await?;
+    owned.acknowledge(session.upload_id)?;
     let url = format!("{base}/{}", session.upload_id);
     let result = async {
         ensure!(
@@ -371,6 +498,7 @@ async fn upload_small(
                 .header(UPLOAD_PART_SHA256_HEADER, sha.as_str())
                 .body(bytes.clone())
         };
+        owned.intent(session.upload_id, "partAndExactReplay")?;
         let first: UploadPartReceipt = send_part().send().await?.error_for_status()?.json().await?;
         let repeat: UploadPartReceipt =
             send_part().send().await?.error_for_status()?.json().await?;
@@ -380,6 +508,7 @@ async fn upload_small(
         );
         let mut changed = bytes.clone();
         changed[0] ^= 1;
+        owned.intent(session.upload_id, "changedPartRefusal")?;
         let conflict = client
             .put(&part_url)
             .bearer_auth(token)
@@ -401,6 +530,7 @@ async fn upload_small(
             part_count: NonZeroU32::new(1).unwrap(),
             sha256: Some(sha.clone()),
         };
+        owned.intent(session.upload_id, "complete")?;
         let response = client
             .post(format!("{url}/complete"))
             .bearer_auth(token)
@@ -427,10 +557,17 @@ async fn upload_small(
                 .await?;
         }
         let receipt = status.receipt.unwrap();
+        owned.received(&receipt)?;
         ensure!(
-            receipt.sha256 == sha && receipt.byte_len == bytes.len() as u64,
+            receipt.upload_id == session.upload_id
+                && receipt.sha256 == sha
+                && receipt.byte_len == bytes.len() as u64
+                && receipt.filename == filename
+                && receipt.mime_type == mime,
             "uploaded object changed bytes"
         );
+        owned.published(&receipt)?;
+        owned.intent(session.upload_id, "completionReplay")?;
         let replay: ArtifactUploadSession = client
             .post(format!("{url}/complete"))
             .bearer_auth(token)
@@ -444,6 +581,7 @@ async fn upload_small(
             replay.receipt.as_ref() == Some(&receipt),
             "completion replay changed occurrence"
         );
+        owned.intent(session.upload_id, "completedCancellationRefusal")?;
         ensure!(
             client
                 .delete(&url)
@@ -458,7 +596,10 @@ async fn upload_small(
     }
     .await;
     if result.is_err() {
-        let _ = client.delete(&url).bearer_auth(token).send().await;
+        owned
+            .cancel()
+            .await
+            .context("public upload failed; owned cleanup also failed")?;
     }
     result
 }
