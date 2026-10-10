@@ -6,6 +6,107 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Focused Artifact Installed Consumers — October 10, 2026
+
+The complete focused scenario passes after the qualified Datasheet SDK rollout.
+It reuses production CLI SHA-256
+`f800add97ff02d4c0c15b189a686ea60487c80902bc3d17e1ca901d1e5cbaf8b`
+with the admitted generation-one installation and normal operator OAuth. The final
+report records source checkpoint `31d2387f5a5a6b595f128d78d2ddbab4ed875f43`.
+No build, service replacement, Task creation or GPU/browser workflow runs.
+
+Public checks cover upload admission, identical immutable-part retry, changed-part
+refusal, completion replay, independent bytes/digest and cross-context denial.
+Datasheet consumes the exact CSV and Parquet values. Delegated Python SDK checks
+cover metadata, URI resolution, byte streaming, limit-one catalog traversal with
+unique ordered membership, foreign-tenant denial/empty pages, byte-ceiling refusal
+and temporary-file cleanup. The report observes 2,048 bounded bytes, matching
+SHA-256, and no materialized file after leaving its context.
+
+The upload journal ends with `consumersPassed` after three received/publication
+observations and three `retainedPublished` cleanup records. The new occurrences
+are retained because the API has no deletion contract; the earlier failed run's
+three publications are also preserved. The process exits zero and no CLI/helper
+process remains. Core services and all eight selected Deployments stay Ready;
+node pressure stays false and all three reconciliation holds stay set. The private
+run output totals 24,575 bytes, below its 256-MiB allowance.
+
+Evidence under `/tmp/veoveo-artifact-focused-retry-20261010-hoyobl_w`:
+
+| Artifact | SHA-256 |
+|---|---|
+| Terminal receipt | `48dd087e1411385cd3cdff3d5d9b45f37b300f6cc6d896abaaddc3ff36a02f2f` |
+| Complete report | `0e233828d97eebb4e94131f094364eaa31328f7a85bdd8a4184c8f069c383293` |
+| Upload journal | `8af0f2d65a9d050cc8cf4dc9c4d295f05b1777b78580a27c617b440de15b00e4` |
+
+This pass qualifies the focused upload/consumer profile. Retained Task-bound
+capability redemption across Artifact service replacement, interrupted writes,
+large/headed consumers and final image closure keep separate gates.
+
+## Datasheet SDK Rollout — October 10, 2026
+
+Read-only OCI inspection verifies all seven compressed layers and both required
+SDK modules in the candidate's final filesystem. The Artifact contract module has
+SHA-256 `9d1ee48f144c9bc999b9689445c0d1d72664accb5e1332f4fedd5ba907dc9456`;
+the client module has SHA-256
+`b92024060f4f01c7112c3b1bbe06a7dcb847e79793a88800cfe3a64cf40d9d0b`.
+Both match source. No speculative cache change or rebuild is required.
+
+The first rollout preflight refuses a historical Succeeded Pod alongside the
+serving Pod without changing the Deployment. Native field selection excluding
+only Succeeded and Failed Pods identifies the single active Pod while preserving
+the historical object. The admitted replacement scales Datasheet to zero, observes
+the old Pod absent, changes only its image and restores one replica. The new image
+is `sha256:dab488f8787489dd3a80823586627612b0d8200bdaec84ca28a2e1153c42315f`
+from qualified source `c5a2c6c3e2c4113eb632846682bebde6bd59549e`.
+Its resolved configuration digest is
+`sha256:a0bb3f4cfd152e22ac07ff6c48f5d1d8d0864dedb5102db755b2d21e1c2f6f09`;
+the receipt's `resolvedManifestDigest` field names this configuration digest.
+
+The replacement becomes Ready without overlap, returns 200 at
+`/datasheet/healthz`, and passes installed hash/API checks. Seven observations
+cover a separate 30.071-second stability interval with zero restarts. Knowledge,
+Embedding, Speech, Gateway and Time stay Ready; the node has no disk or memory
+pressure. Observed maximum filesystem growth is 527,060,992 bytes against the
+1-GiB cap, using the original cumulative resource window. All three reconciliation
+holds stay set. The immutable suspended Flux values still select the old image;
+this operation does not publish or reconcile a new values object.
+
+The terminal receipt under `/tmp/veoveo-datasheet-rollout-prep-20261010` has SHA-256
+`584218a2427bd2ee427836a2e6fec9d4b86cfd2c1e12a9f684ce39bbb219bcb0`.
+The stability addendum has SHA-256
+`7cfe9dcf30a5a21a514c4503e57f381d1fc7e8ee5065daebbf14d23c38b0e3b4`.
+This qualifies the SDK replacement prerequisite, not the full Artifact scenario or
+an independently observed old-container exit status.
+
+## Time Handoff Operational Guards And Input Projection — October 10, 2026
+
+Attempt five uses the unchanged original completion input and receipt. Prior-run
+admission and the original completed-Task baseline pass. The journal reaches
+`create_replacement_intent` before a private guard's periodic Kubernetes command
+fails and cancels the native test. That command's exact failure is not retained,
+so its cause is unknown. No replacement is created and the original route stays
+healthy. The corrected guard keeps independent resource/process/deadline controls
+and fresh bounded Kubernetes reads before mutations without the repeated periodic
+command. The terminal receipt under
+`/tmp/veoveo-time-handoff-attempt5-20261010.dO8JTg` has SHA-256
+`01f8c9db24bf491c4dcd862d621df484b6e0fa4dc2517e7b04b5b8f530e0aa57`.
+
+Attempt six terminates before journal creation or MCP requests. Its private input
+copies `setup.pvc.phase` from an operational snapshot into the closed PVC identity,
+which accepts only name and UID. Source-owner inspection confirms the other prior
+receipt invariants pass; the already-admitted attempt-five shape uses the proper
+projection. No Rust change or admission relaxation is required. The terminal
+receipt under `/tmp/veoveo-time-handoff-attempt6-prep-20261010.yzjz9git` has SHA-256
+`47d3bc812271f8ba8a26bab5e8648013e9a00cde8b052c1cee3bc4ca83c91be5`.
+
+Both attempts leave the original Time Deployment, Pod, Service selector and ready
+endpoint unchanged, with replacement B absent. Owned processes terminate and
+core services stay Ready. These runs do not qualify installed handoff or unfinished
+recovery and establish no Time domain or SDK regression. A fresh input must use
+explicit identity projections and pass complete source-owner admission review
+before the next installed launch.
+
 ## Time Handoff Launch And Prior Receipt Admission — October 10, 2026
 
 The second completed-state handoff attempt stops during the outer `cargo xtask`
