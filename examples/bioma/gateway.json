@@ -37,7 +37,7 @@
         "source": "remote",
         "jwksUri": "https://veoveo.bioma.ai/oauth/jwks.json"
       },
-      "accessTokenKeyId": "veoveo-bioma-2026-07",
+      "accessTokenKeyId": "veoveo-bioma-2026-10-10-8b1a48bef0ea",
       "accessTokenSigningKey": "veoveo_access_token_private_key",
       "identityProvider": "enterprise",
       "authorizationEndpoint": "https://veoveo.bioma.ai/oauth/authorize",
