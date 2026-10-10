@@ -23,6 +23,35 @@ and actual stream cleanup also pass. The final native receipt is
 The repaired production CLI refresh is deferred. The installed journey and independent
 physical workload/lease drain remain unqualified; archive preserves storage.
 
+## Time Completed-State Cross-Replica Acceptance — October 10, 2026
+
+Time12 passes in 35.736 seconds at source `095cdc523`. The selected native executable
+has SHA-256 `bdd4af8e7bd624cf503cf662b1ba5674325b5c84510139b3e1edd28e3f92a7ec`;
+the Operations driver has SHA-256
+`ab661597a65f8307bcba14b3076f19372f477073f56f2a45825a56833f6a3969`.
+The journal advances from admission through original baseline, B readiness, B-only
+handoff, watch barrier and `replacement_verified`, then restores A and the original
+selector, retires B and records `passed`. Original A exits zero. The same historical
+Task preserves its eight independently expected occurrences, current result and
+authority through the second backend.
+
+Supervisor, native test and driver exit zero. All caller/listener handles and native
+watches close. Postflight verifies A one-of-one Ready with its sole endpoint and
+B Deployment, ReplicaSets and Pods absent. All five core services are Ready, owned
+processes are terminal and the temporary caller file is removed. This qualifies
+completed-state cross-replica delivery on the selected deployed Time image. It does
+not qualify unfinished recovery, authority activation or final-image publication.
+Prior Time10 and Time11 failures keep their historical outcomes below.
+
+Receipts under `/tmp/veoveo-time12-prep-20261010/launch-preflight` bind this pass:
+
+| File | SHA-256 |
+|---|---|
+| `time12-final-receipt.json` | `0f8fc0ac333559b9fb52f3fa54127efe8d45369d6115cab0ce5006a3914ade79` |
+| `handoff.receipt.jsonl` | `6908900a9e4002894e1de84d33cf24132aff6b28c33b67493bdc01dcb02251c1` |
+| `ops-actions.jsonl` | `7fffdaf1b15d808058c224e345b58f0158e4c36eb67b038f49446197a7c05cbc` |
+| `terminal-postflight.json` | `cc8b98b53a8bd7bce6fcd6cafefe87584bfe0db5ddb0e97edae9601d5149fe74` |
+
 ## Time Handoff Guard Interruption — October 10, 2026
 
 Time11 fails after 18.007 seconds when a parent-authorized metadata Cargo check
