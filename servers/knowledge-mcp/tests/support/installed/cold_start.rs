@@ -133,6 +133,8 @@ pub(super) struct Instance {
 #[derive(Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct Observation {
+    stage: Stage,
+    startup_deadline_expired: bool,
     watch_armed_resource_version: Option<String>,
     deployment_uid: Option<uuid::Uuid>,
     namespace_uid: Option<uuid::Uuid>,
@@ -150,6 +152,21 @@ pub(super) struct Observation {
     ready: Option<Instance>,
     generation: Option<GenerationId>,
     stable: bool,
+}
+#[derive(Clone, Copy, Default, PartialEq, Eq, veoveo_types::Vocabulary)]
+enum Stage {
+    #[default]
+    Admission,
+    InitialWatchHandshake,
+    AwaitingPod,
+    MissingContainerStatus,
+    MissingContainerIds,
+    AwaitingHttp503,
+    AwaitingHttp200,
+    ReadinessFence,
+    McpVerification,
+    Stability,
+    Complete,
 }
 #[derive(Clone)]
 struct WatchedPod {
@@ -198,9 +215,9 @@ struct Resources {
 #[serde(rename_all = "camelCase")]
 struct ContainerStatus {
     name: String,
-    #[serde(default)]
+    #[serde(default, rename = "containerID")]
     container_id: String,
-    #[serde(default)]
+    #[serde(default, rename = "imageID")]
     image_id: String,
     restart_count: u32,
     ready: bool,
@@ -383,6 +400,24 @@ impl Observation {
         initial: bool,
     ) -> Result<Option<Instance>> {
         let instance = pod.instance(expected_image, namespace)?;
+        if self.http_succeeded.is_none() {
+            self.stage = if instance.is_some() {
+                if self.unavailable.as_ref() == instance.as_ref() {
+                    Stage::AwaitingHttp200
+                } else {
+                    Stage::AwaitingHttp503
+                }
+            } else if pod.status.as_ref().is_some_and(|status| {
+                status
+                    .container_statuses
+                    .iter()
+                    .any(|container| container.name == "knowledge-mcp")
+            }) {
+                Stage::MissingContainerIds
+            } else {
+                Stage::MissingContainerStatus
+            };
+        }
         ensure!(
             !initial || !pod.ready(),
             "Knowledge cold-start baseline already Ready"
@@ -489,7 +524,10 @@ impl Observation {
     }
     fn status(&mut self, instance: &Instance, status: u16) -> Result<bool> {
         match status {
-            503 if self.http_succeeded.is_none() => self.unavailable = Some(instance.clone()),
+            503 if self.http_succeeded.is_none() => {
+                self.unavailable = Some(instance.clone());
+                self.stage = Stage::AwaitingHttp200;
+            }
             200 => {
                 ensure!(
                     self.unavailable.as_ref() == Some(instance),
@@ -502,6 +540,7 @@ impl Observation {
                     "Knowledge ready instance changed"
                 );
                 self.http_succeeded = Some(instance.clone());
+                self.stage = Stage::ReadinessFence;
                 return Ok(true);
             }
             _ => anyhow::bail!("Knowledge readyz returned unexpected status or regressed"),
@@ -742,6 +781,62 @@ async fn observe_using(
     Ok(value)
 }
 
+pub(super) struct ForwardOutput {
+    stdout: Option<tokio::process::ChildStdout>,
+    drain: Option<tokio::task::JoinHandle<Result<()>>>,
+    failed: bool,
+    deadline: Option<tokio::time::Instant>,
+}
+impl ForwardOutput {
+    fn start_drain(&mut self) {
+        let mut stdout = self.stdout.take().expect("retained forward stdout");
+        self.drain = Some(tokio::spawn(async move {
+            let mut bytes = 0usize;
+            let mut buffer = [0; 4096];
+            loop {
+                let count = stdout.read(&mut buffer).await?;
+                if count == 0 {
+                    return Ok(());
+                }
+                bytes += count;
+                ensure!(
+                    bytes <= 1024 * 1024,
+                    "Knowledge portforward output budget exceeded"
+                );
+            }
+        }));
+    }
+    pub(super) async fn close(&mut self, end: tokio::time::Instant) -> Result<()> {
+        let end = *self.deadline.get_or_insert(end);
+        ensure!(
+            !self.failed,
+            "Knowledge prior portforward output cleanup unproven"
+        );
+        // The child/group is settled first; an interrupted handshake still owns
+        // its pipe here and has no separate drain task to await.
+        self.stdout.take();
+        if let Some(drain) = self.drain.as_mut() {
+            match tokio::time::timeout_at(end, drain).await {
+                Ok(Ok(Ok(()))) => {
+                    self.drain.take();
+                }
+                _ => {
+                    self.failed = true;
+                    anyhow::bail!("Knowledge portforward output cleanup unproven");
+                }
+            }
+        }
+        Ok(())
+    }
+}
+impl Drop for ForwardOutput {
+    fn drop(&mut self) {
+        if let Some(drain) = &self.drain {
+            drain.abort();
+        }
+    }
+}
+
 async fn forward(
     input: &Input,
     instance: &Instance,
@@ -749,12 +844,11 @@ async fn forward(
     handles: &mut cleanup::Handles,
 ) -> Result<u16> {
     // Hand the old exact process back only after its original cleanup completed.
-    if let Some(previous) = handles.cold_forward.as_mut() {
-        previous
-            .cleanup_until(veoveo_testing_support::lifecycle::owner::cleanup_deadline()?)
-            .await?;
-    }
-    handles.cold_forward.take();
+    handles
+        .close_forward(tokio::time::Instant::from_std(
+            veoveo_testing_support::lifecycle::owner::cleanup_deadline()?,
+        ))
+        .await?;
     let mut command = command(&input.context, &input.namespace);
     command
         .args([
@@ -765,6 +859,14 @@ async fn forward(
             &format!(":{port}"),
         ])
         .stdout(std::process::Stdio::piped());
+    retain_forward(command, port, handles).await
+}
+
+async fn retain_forward(
+    command: tokio::process::Command,
+    port: u16,
+    handles: &mut cleanup::Handles,
+) -> Result<u16> {
     let mut child = veoveo_testing_support::spawn_async(command)?;
     let stdout = child
         .stdout
@@ -772,7 +874,13 @@ async fn forward(
         .context("Knowledge portforward stdout absent")?;
     // Retain synchronously before waiting for the actual listening handshake.
     handles.cold_forward = Some(child);
-    let mut stdout = stdout;
+    handles.cold_forward_output = Some(ForwardOutput {
+        stdout: Some(stdout),
+        drain: None,
+        failed: false,
+        deadline: None,
+    });
+    let output = handles.cold_forward_output.as_mut().unwrap();
     let line = tokio::time::timeout(Duration::from_secs(10), async {
         let mut bytes = Vec::new();
         loop {
@@ -780,7 +888,7 @@ async fn forward(
                 bytes.len() < 256,
                 "Knowledge portforward handshake oversized"
             );
-            let byte = stdout.read_u8().await?;
+            let byte = output.stdout.as_mut().unwrap().read_u8().await?;
             bytes.push(byte);
             if byte == b'\n' {
                 break;
@@ -799,6 +907,7 @@ async fn forward(
         "Knowledge portforward targets wrong port"
     );
     let local = value.0.parse::<u16>()?;
+    output.start_drain();
     Ok(local)
 }
 
@@ -980,19 +1089,23 @@ async fn unattended_cold_start_converges_then_preserves_ready_generation() -> Re
             admit_embedding(&embedding,&input.namespace,input.embedding_runtime.profile().contents().runtime_image.hex())?;
             let mut state = Observation { deployment_uid:Some(input.deployment_uid), namespace_uid:Some(input.namespace_uid),launch_generation:Some(input.launch_generation),image:Some(input.image.clone()), ..Observation::default() };
             journal.cold_start(state.clone())?;
+            state.stage = Stage::InitialWatchHandshake;
+            journal.cold_start(state.clone())?;
             let mut watch = Watch::start(&input,&mut handles)?;
             journal.native_observers(receipt::Close::Open)?;
             tokio::time::timeout(Duration::from_secs(15),async {
                 while state.watch_armed_resource_version.is_none() { observe(&input,&mut watch,&mut state,&journal,true).await?; }
                 Ok::<_,anyhow::Error>(())
             }).await.context("Knowledge streaming initial-event handshake missing; API support required")??;
+            state.stage = Stage::AwaitingPod;
+            journal.cold_start(state.clone())?;
             let deadline = tokio::time::Instant::now()+Duration::from_secs(input.startup_seconds);
             let http = probe_client()?;
             let mut current: Option<Instance> = None;
             let mut local = None;
             let mut probes = tokio::time::interval(Duration::from_secs(1));
             probes.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            tokio::time::timeout_at(deadline, async { loop {
+            let startup = tokio::time::timeout_at(deadline, async { loop {
                 tokio::select! {
                     value = observe(&input,&mut watch,&mut state,&journal,false) => {
                         if let Some(instance) = value? && current.as_ref() != Some(&instance) {
@@ -1020,11 +1133,21 @@ async fn unattended_cold_start_converges_then_preserves_ready_generation() -> Re
                             }
                         }
                     }
-                    _ = tokio::time::sleep_until(deadline) => anyhow::bail!("Knowledge startup deadline expired"),
+
                 }
             }
             Ok::<_,anyhow::Error>(())
-            }).await.context("Knowledge startup deadline expired")??;
+            }).await;
+            match startup {
+                Ok(result) => result?,
+                Err(_) => {
+                    state.startup_deadline_expired = true;
+                    journal.cold_start(state.clone())?;
+                    anyhow::bail!("Knowledge startup deadline expired; inspect typed cold-start stage");
+                }
+            }
+            state.stage = Stage::McpVerification;
+            journal.cold_start(state.clone())?;
             verify_deployment(&input).await?;
             journal.acquire(&mut handles.caller,connect(&input.source.endpoint,&input.source.caller_token_file)).await?;
             handles.opened_caller(&journal)?;
@@ -1039,6 +1162,7 @@ async fn unattended_cold_start_converges_then_preserves_ready_generation() -> Re
                 }}
             };
             ensure!(&report.embedding_space == input.embedding_runtime.space(),"Knowledge generation embedding space differs from qualified installation runtime");
+            state.stage = Stage::Stability;
             state.generation = Some(report.generation);
             journal.cold_start(state.clone())?;
             let stable = tokio::time::Instant::now()+Duration::from_secs(input.stability_seconds);
@@ -1070,6 +1194,7 @@ async fn unattended_cold_start_converges_then_preserves_ready_generation() -> Re
                 }
                 Ok::<_,anyhow::Error>(())
             }).await.context("Knowledge final Pod watch fence missing")??;
+            state.stage = Stage::Complete;
             state.stable = true;
             journal.cold_start(state)?;
             handles.close(&journal).await?;
@@ -1086,6 +1211,78 @@ async fn unattended_cold_start_converges_then_preserves_ready_generation() -> Re
             anyhow::bail!("Knowledge cold-start unqualified; inspect private outcome");
         }
     }
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn cold_start_portforward_drains_later_output_and_owns_cancelled_cleanup() -> Result<()> {
+    const MODE: &str = "VEOVEO_KNOWLEDGE_FORWARD_CONTROL";
+    if let Ok(mode) = std::env::var(MODE) {
+        let directory = super::controls::Scratch::new()?;
+        let journal =
+            receipt::Journal::open(&directory.0.join("outcome.json"), "operator".parse()?)?;
+        let mut retained = None;
+        let result: Result<()> = veoveo_testing_support::lifecycle::owner::run(async {
+            let owned = cleanup::register(&journal)?;
+            retained = Some(owned.clone());
+            let mut handles = owned.lock().await;
+            let marker = directory.0.join("drained");
+            let mut command = tokio::process::Command::new("sh");
+            if mode == "handshake-drop" {
+                command.args(["-c", "exec sleep 30"]);
+            } else {
+                command.args(["-c", "printf 'Forwarding from 127.0.0.1:12345 -> 8080\\n'; sleep 0.05; head -c 786432 /dev/zero; printf 'Handling connection for 12345\\n'; printf drained > \"$1\"; exec sleep 30", "forward-control"]).arg(&marker);
+            }
+            command.stdout(std::process::Stdio::piped());
+            if mode == "handshake-drop" {
+                ensure!(tokio::time::timeout(Duration::from_millis(50), retain_forward(command, 8080, &mut handles)).await.is_err());
+                anyhow::bail!("controlled handshake interruption");
+            }
+            ensure!(retain_forward(command, 8080, &mut handles).await? == 12345);
+            tokio::time::timeout(Duration::from_secs(1), async {
+                while !marker.exists() { tokio::time::sleep(Duration::from_millis(5)).await; }
+            }).await.context("later portforward output was not drained")?;
+            ensure!(handles.cold_forward_output.as_ref().unwrap().drain.as_ref().is_some_and(|drain| !drain.is_finished()));
+            ensure!(tokio::time::timeout(Duration::from_millis(20), handles.cold_forward.as_mut().unwrap().wait()).await.is_err(), "connection notice terminated forward child");
+            if mode == "owner-drop" {
+                std::future::pending::<()>().await;
+            }
+            handles.close_forward(tokio::time::Instant::from_std(veoveo_testing_support::lifecycle::owner::cleanup_deadline()?)).await?;
+            ensure!(handles.cold_forward.is_none() && handles.cold_forward_output.is_none());
+            // Replacement also owns its original stdout through owner cleanup.
+            let mut replacement = tokio::process::Command::new("sh");
+            replacement.args(["-c", "printf 'Forwarding from 127.0.0.1:12346 -> 8080\\n'; exec sleep 30"]).stdout(std::process::Stdio::piped());
+            ensure!(retain_forward(replacement, 8080, &mut handles).await? == 12346);
+            Ok(())
+        }).await;
+        ensure!(result.is_ok() == (mode == "replacement"));
+        let handles = retained.unwrap();
+        let handles = handles.lock().await;
+        ensure!(
+            handles.cold_forward.is_none() && handles.cold_forward_output.is_none(),
+            "owned forward cleanup did not settle child and drain"
+        );
+        return Ok(());
+    }
+    for mode in ["replacement", "owner-drop", "handshake-drop"] {
+        let directory = super::controls::Scratch::new()?;
+        let deadline = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_millis()
+            + 2500;
+        let mut command = tokio::process::Command::new(std::env::current_exe()?);
+        command.args(["installed::cold_start::cold_start_portforward_drains_later_output_and_owns_cancelled_cleanup", "--exact", "--nocapture"])
+            .env(MODE, mode).env("VEOVEO_SMOKE_DEADLINE_UNIX_MS", deadline.to_string())
+            .env("VEOVEO_SMOKE_CLEANUP_SECONDS", "4").env("VEOVEO_SMOKE_LOCAL_GROUPS", &directory.0);
+        let output = veoveo_testing_support::output_async(command, Duration::from_secs(10)).await?;
+        ensure!(
+            output.status.success(),
+            "Knowledge owned portforward control failed: {} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1138,6 +1335,53 @@ fn control_pod(ready: bool, restarts: u32) -> Pod {
             }],
         }),
     }
+}
+
+#[test]
+fn cold_start_decodes_kubernetes_container_ids_and_reports_missing_instance_stage() -> Result<()> {
+    let mut pod = control_pod(false, 0);
+    let image = pod.spec.containers[0].image.clone();
+    let wire = serde_json::json!({
+        "metadata": {"name":"knowledge-1", "namespace":"fixture", "uid":pod.metadata.uid, "resourceVersion":"native-wire"},
+        "spec":{"containers":[{"name":"knowledge-mcp","image":image}]},
+        "status":{"phase":"Running","containerStatuses":[{
+            "name":"knowledge-mcp","containerID":"containerd://actual-instance",
+            "imageID":"sha256:actual-image","restartCount":0,"ready":false
+        }],"conditions":[{"type":"Ready","status":"False"}]}
+    });
+    let decoded: Pod = serde_json::from_value(wire)?;
+    let mut state = Observation::default();
+    let instance = state.pod(&decoded, &image, "fixture", false)?.unwrap();
+    ensure!(
+        instance.container_id == "containerd://actual-instance"
+            && instance.image_id == "sha256:actual-image"
+    );
+    ensure!(state.startup_restart_counts.get(&pod.metadata.uid) == Some(&0));
+    ensure!(state.stage == Stage::AwaitingHttp503);
+    state.status(&instance, 503)?;
+    ensure!(state.stage == Stage::AwaitingHttp200);
+    state.status(&instance, 200)?;
+    ensure!(state.stage == Stage::ReadinessFence);
+    // Kubernetes may initially omit status, then publish a waiting container.
+    pod.status = None;
+    let mut waiting = Observation::default();
+    ensure!(waiting.pod(&pod, &image, "fixture", false)?.is_none());
+    ensure!(waiting.stage == Stage::MissingContainerStatus);
+    let misspelled: ContainerStatus = serde_json::from_value(serde_json::json!({
+        "name":"knowledge-mcp","containerId":"obsolete","imageId":"obsolete","restartCount":0,"ready":false
+    }))?;
+    ensure!(
+        misspelled.container_id.is_empty() && misspelled.image_id.is_empty(),
+        "misspelled wire aliases admitted"
+    );
+    pod.status = Some(PodStatus {
+        phase: Some(PodPhase::ActiveOrUnknown),
+        container_statuses: vec![misspelled],
+        conditions: vec![],
+    });
+    ensure!(waiting.pod(&pod, &image, "fixture", false)?.is_none());
+    ensure!(waiting.stage == Stage::MissingContainerIds);
+    Ok(())
 }
 
 #[test]
@@ -1521,7 +1765,7 @@ async fn cold_start_retains_watch_event_when_ownership_admission_is_cancelled() 
         let event = serde_json::json!({"type":if matches!(case, "deleted" | "terminal") {"DELETED"} else {"MODIFIED"},"object":{
             "metadata":{"name":pod.metadata.name,"namespace":pod.metadata.namespace,"uid":pod.metadata.uid,"resourceVersion":pod.metadata.resource_version},
             "spec":{"containers":[{"name":"knowledge-mcp","image":image}]},
-            "status":{"phase":if case=="terminal" {"Succeeded"} else {"Running"},"containerStatuses":[{"name":"knowledge-mcp","containerId":status.container_id,"imageId":status.image_id,"restartCount":status.restart_count,"ready":status.ready}],"conditions":[{"type":"Ready","status":if case=="unready" {"False"} else {"True"}}]}
+            "status":{"phase":if case=="terminal" {"Succeeded"} else {"Running"},"containerStatuses":[{"name":"knowledge-mcp","containerID":status.container_id,"imageID":status.image_id,"restartCount":status.restart_count,"ready":status.ready}],"conditions":[{"type":"Ready","status":if case=="unready" {"False"} else {"True"}}]}
         }});
         let mut command = tokio::process::Command::new("printf");
         command.arg("%s%s").arg(serde_json::to_string(&event)?).arg(r#"{"type":"BOOKMARK","object":{"metadata":{"resourceVersion":"following-event"}}}"#).stdout(std::process::Stdio::piped());

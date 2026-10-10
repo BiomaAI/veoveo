@@ -16,10 +16,35 @@ pub(super) struct Handles {
     deadline: Option<tokio::time::Instant>,
     pub cold_watch: Option<veoveo_testing_support::AsyncChild>,
     pub cold_forward: Option<veoveo_testing_support::AsyncChild>,
+    pub cold_forward_output: Option<cold_start::ForwardOutput>,
     native_failed: bool,
     native_started: bool,
 }
 impl Handles {
+    pub async fn close_forward(&mut self, end: tokio::time::Instant) -> Result<()> {
+        let child = if let Some(child) = self.cold_forward.as_mut() {
+            child.cleanup_until(end.into_std()).await.map(|_| ())
+        } else {
+            Ok(())
+        };
+        let output = if let Some(output) = self.cold_forward_output.as_mut() {
+            output.close(end).await
+        } else {
+            Ok(())
+        };
+        if child.is_err() || output.is_err() {
+            self.native_failed = true;
+        }
+        child?;
+        output?;
+        ensure!(
+            !self.native_failed,
+            "Knowledge prior native cleanup unproven"
+        );
+        self.cold_forward.take();
+        self.cold_forward_output.take();
+        Ok(())
+    }
     #[cfg(test)]
     pub fn retain_control_close(
         &mut self,
@@ -82,16 +107,19 @@ impl Handles {
         } else {
             Ok(())
         };
-        for slot in [&mut self.cold_forward, &mut self.cold_watch] {
-            if let Some(child) = slot.as_mut() {
-                if child.cleanup_until(end.into_std()).await.is_err() {
-                    self.native_failed = true;
-                    native = Err(anyhow::anyhow!(
-                        "Knowledge native observer cleanup unproven"
-                    ));
-                } else {
-                    slot.take();
-                }
+        if self.close_forward(end).await.is_err() {
+            native = Err(anyhow::anyhow!(
+                "Knowledge native observer cleanup unproven"
+            ));
+        }
+        if let Some(child) = self.cold_watch.as_mut() {
+            if child.cleanup_until(end.into_std()).await.is_err() {
+                self.native_failed = true;
+                native = Err(anyhow::anyhow!(
+                    "Knowledge native observer cleanup unproven"
+                ));
+            } else {
+                self.cold_watch.take();
             }
         }
         let native_record = journal.native_observers(if self.native_failed {
