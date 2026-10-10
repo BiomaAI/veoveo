@@ -6,6 +6,99 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Artifact Service Replacement And Retained Capability — October 10, 2026
+
+The existing focused Artifact consumer scenario passes with its separately selected
+service-recovery case at source `7a5d499376fdda8f5861ed17f051a1e228e0f5b4`.
+It uses the normal operator OAuth client, the qualified Datasheet SDK and the
+existing Artifact service image. No image, catalog or credential policy changes
+are part of this run.
+
+The native CLI exits zero in 37.187 seconds. Public upload admission, immutable
+part replay/refusal, completion replay, independent byte/digest checks, delegated
+SDK isolation and eighteen limit-one catalog pages pass. Datasheet consumes both
+CSV and Parquet. The public journal ends with `consumersPassed` and records three
+retained publications.
+
+The recovery journal records capability issuance before one UID/resourceVersion-
+fenced Artifact SERVICE restart. The selected old container exits with code zero;
+the replacement becomes Ready on the same image with zero restarts. Redeeming the
+retained capability and replaying the identical request produce one occurrence
+with matching bytes, digest, metadata and provenance. Its terminal outcome reports
+`operationPassed=true`, child cleanup `observedExit`, MCP cleanup `passed` and
+`oneOccurrenceVerifiedNoDeletionApi`. This fourth occurrence is retained. The
+capability's generated typed Task reference is a fixture identity; it does not
+establish an executed Task or unfinished-Task recovery.
+
+All owned local processes are terminal. The Artifact service EndpointSlice selects
+only the replacement, all eight selected core/consumer Deployments are Ready, and
+all three reconciliation holds stay suspended. The existing aggregate disk budget
+is unchanged: observed peak growth is 14,474,833,920 bytes against its 18-GiB cap.
+Final receipt free space is 277,652,205,568 bytes. Interrupted writes, cross-replica
+routing, large/headed consumers and final-image qualification keep their separate
+gates.
+
+Private outputs under `/tmp/veoveo-artifact-service-recovery-attempt3-20261010`:
+
+| Output | SHA-256 |
+|---|---|
+| `run-output/focused.json` | `16b6e339773bae33acf975f09400c3852810ebf7f81dc795056cf74ce8a5e168` |
+| `run-output/focused.uploads.jsonl` | `c247619fb90de325c69445f862003974534ac2605b48fc1c24a57546867ad653` |
+| `run-output/focused.service-recovery.jsonl` | `5fca25ae36153abf1244d346a7c10cd472c37b8522b55d3a05c277f168ba21c7` |
+| `execution/runner-result.json` | `b5c9568875a87c07a826dbe0fd89ea02cf265418eef8d397ff1d0f7577a1aa8d` |
+| `terminal-postflight.json` | `495046ee2c21953250f238e52f9417246a02081b9421c64fa025c1628c492f8c` |
+
+Two preceding local setup failures dispatched no service restart or capability.
+The first copied installation target lacked its relative `gateway.json` dependency;
+loading failed before OAuth or scenario entry. Its private runner receipt is
+`/tmp/veoveo-artifact-service-recovery-20261010-11z71x0p/runner-result.json`, SHA-256
+`0c209474bdace52654583517b0ec218ee778f7a0530e21ef74c5766394c5fdc8`.
+The second run published three retained public fixtures, then could not launch
+`kubectl` because its guard's PATH excluded the maintained executable directory.
+The reported outer timeout context hid an ENOENT launch error; no signing-material
+read occurred and the 45-second timeout did not expire. There was no HTTP response
+or server-handler request for either local failure. Both service and core workload
+identities stayed unchanged. Its upload journal under
+`/tmp/veoveo-artifact-service-recovery-prepared2-20261010-8g5kbxs5/run-output` has
+SHA-256 `069d7b2e634912a87b79a9b35b33f212018618d07ce92dc5519fcdc3b03dca0c`.
+The passing launch binds the complete input dependencies and resolves the maintained
+commands in its actual environment. The one-line owning diagnostic correction
+preserves the inner launch/timeout cause and the original timeout budget.
+
+## Time Handoff Task Subscription Scope Denial — October 10, 2026
+
+Attempt seven uses the fully audited closed input, unchanged original completion
+pair and the selected native executable. Live routing and original-only topology
+admission pass. The first retained-Task `subscriptions/listen` request through the
+normal Gateway client returns MCP -32600 before the completed baseline, result
+reads or replacement intent. The private native trace records the code and failure
+digest; it does not retain an HTTP status or complete response body.
+
+Source-owner reconstruction of the fixed Gateway policy message and pinned SDK
+error formatting matches that failure digest. Gateway maps both MissingScope and
+UnknownScope to this message. Earlier retained-route identity/ownership checks
+would instead return -32602, and the seven-day Task/route lifetime excludes age.
+The failed run did not retain granted-scope booleans and its owned token is removed;
+the exact omitted scope and private policy reason are unknown. The correction is
+to materialize the same normal client/profile/context token with existing allowed
+`operator:use`, `time:read` and `time:schedule`, record safe granted-scope booleans,
+and verify expiry before dispatch. These observations justify neither permission widening nor a source fix.
+
+The supervisor exits one after 7.845 seconds with its owned process tree terminal.
+The journal contains only admitted and failed states, with restored=true and
+watchesClosed=true. No B creation, Service patch or A scale occurs. The original
+A-only endpoint, core readiness, node health and all three holds are preserved.
+The pre-existing shared Gateway port-forward remains untouched. Evidence under
+`/tmp/veoveo-time-handoff-after-artifact-20261010-rtmk0j3c`:
+
+| Artifact | SHA-256 |
+|---|---|
+| Input | `a842784d616138785cb39b81de3cce9b646bdddfb9cc1dd6216a098d59defdb5` |
+| Native journal | `e85ecd427473013821744c04b8c13a2a6ec704b770a62d1d6ce43d24a7dbf256` |
+| Terminal addendum | `4a5da8500c9c8a3765ff6f0cbd8e33914089b8c7f1e3440b4d48cee20d3d74a4` |
+
+This run qualifies neither replica handoff nor a Time recovery regression.
+
 ## Focused Artifact Installed Consumers — October 10, 2026
 
 The complete focused scenario passes after the qualified Datasheet SDK rollout.

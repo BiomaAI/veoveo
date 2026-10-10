@@ -14,12 +14,15 @@ and Knowledge search reach the updated Time documents. Time completion and
 cancellation pass through normal Gateway OAuth. Unfinished process recovery
 remains unqualified because the attempted crash did not replace its container.
 Datasheet's SDK replacement and the complete focused normal-OAuth Artifact consumer
-scenario pass. Service-replacement and interrupted-write recovery remain open.
+scenario pass. Retained capability redemption and idempotent replay also pass
+across one fenced Artifact service replacement. Interrupted-write recovery and
+final-image qualification remain open.
 The completed-state cross-replica fixture
-passes source qualification and independent review. Installed prior-run admission
-and the original completed-Task baseline pass. The handoff remains unqualified:
-one operational guard cancels before replacement, and the next input includes an
-unsupported diagnostic PVC field. No Time topology change occurs.
+passes source qualification and independent review. Its latest installed attempt
+passes input and original-only topology admission, then receives MCP -32600 on
+the first retained-Task subscription. The error digest matches the Gateway's
+required-scope denial. Operations must verify all three required granted scopes
+before the next launch. No Time topology change occurs; handoff remains unqualified.
 Gateway, Agent Manager and Knowledge run compatible qualified images against the
 published full catalog. Manager is Ready with the reviewed immutable pilot template,
 qualified kernel and matching admission policies; its full installed instance journey
@@ -142,7 +145,7 @@ Earlier installed checkpoints keep their recorded scope below.
 | Owner | Prepared installed checks | Remaining qualification |
 |---|---|---|
 | Time | Read consumers and explicit complete/cancel/recover schedule fixtures; installed completion agrees with eight independent occurrences and delivered/current Completed state; cancellation reaches Cancelled after observed Working, with cleanup passing | Unfinished process recovery, completed-state cross-replica execution, authority activation and final images |
-| Artifact | Focused normal-OAuth uploads with independent public byte/digest checks, delegated SDK reads and a separately selected retained Task-bound write capability across one service replacement; source/native controls and review pass at `dd7958d26` | Actual service replacement, interrupted-write recovery and final images |
+| Artifact | Focused normal-OAuth uploads with independent public byte/digest checks, delegated SDK reads and a separately selected retained Task-bound write capability across one service replacement; source/native controls and review pass at `dd7958d26` | Interrupted-write recovery and final images |
 | Timeseries | Four-row forecast, RRD Artifact and usage; typed cancellation, connection replacement and process-crash fixtures with original Task/result agreement | Installed unfinished process recovery, selected cross-replica routing and final images |
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
 | Stream | Existing GPU replay with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed result checks and an initial current resource snapshot | Installed public delivery, post-mutation updates, unfinished recovery and final images |
@@ -157,10 +160,15 @@ limit-one catalog traversal, foreign-tenant isolation, byte limits and temporary
 cleanup. Its journal records three retained publications and `consumersPassed`.
 Datasheet runs the qualified C5 image with both required SDK modules verified in
 the installed Pod; its replacement passes readiness, direct liveness and thirty
-seconds of stability without a restart. Core services stay Ready. Artifact
-service replacement and interrupted-write recovery remain unqualified. The
-[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#focused-artifact-installed-consumers--october-10-2026)
-binds the report and retained effects.
+seconds of stability without a restart. The separately selected Artifact service
+replacement now passes: the old container exits successfully, its replacement
+becomes Ready, and the retained capability redeems and replays as one occurrence.
+The repeated focused scenario traverses eighteen SDK pages and passes all three
+consumer groups. Four occurrences are retained; the fixture's typed Task reference
+does not establish an executed Task. Core services stay Ready. Interrupted-write
+and unfinished-Task recovery remain unqualified. The
+[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#artifact-service-replacement-and-retained-capability--october-10-2026)
+binds the report, restart and retained effects.
 
 The Time and Timeseries lifecycle fixtures pass sixteen focused native controls,
 including shared crash-receipt decoding and cleanup after failed journal writes.
@@ -224,17 +232,20 @@ template discovery and is recorded separately from these targeted passes. The
 completed-state cross-replica fixture passes strict compiler checks, focused native
 controls and independent review at `29831d530`. Its installed A/B execution remains
 open; its scope excludes unfinished recovery and delivery after a mutation.
-The authentic historical input/receipt pair now passes admission, and the
-original completed-Task baseline passes through the Gateway. That attempt reaches
-replacement intent before an operational guard cancels it; no replacement is
-created. The next attempt stops before journal creation because its private input
-copies the diagnostic PVC phase into a closed identity model that accepts only
-name and UID. Operations must project the already-admitted input shape and keep
-phase validation in its guard. Time's original Pod, Service selector and ready
-endpoint are unchanged. Installed handoff and unfinished recovery remain
-unqualified; neither failure establishes a Time or SDK regression. The
-[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#time-handoff-operational-guards-and-input-projection--october-10-2026)
-records the attempt-specific results.
+The fully audited input and original-only topology pass admission. The latest
+attempt then receives MCP -32600 on the first retained-Task subscription. Its
+failure digest matches the Gateway's fixed missing-scope denial; both missing and
+unknown scopes use that message, so the private policy reason is not distinguished.
+Retained identity and route checks occur before this policy check and would return
+-32602 on failure. The seven-day Task/route retention also excludes elapsed time
+as the explanation. Operations must request and verify granted `operator:use`,
+`time:read` and `time:schedule` through the same normal OAuth client and context.
+The old granted-scope projection was not retained; the exact omitted scope is
+unknown. The original Time Pod, Service selector and ready endpoint are unchanged,
+B is absent, and restoration/watch cleanup pass. Installed handoff and unfinished
+recovery remain unqualified; no source defect is established. The
+[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#time-handoff-task-subscription-scope-denial--october-10-2026)
+records the request failure and its diagnostic limits.
 
 Gateway-routed Knowledge source checks now admit each templates/tools page against
 the selected typed server. Unrelated server failures are retained as limited K01
@@ -477,7 +488,7 @@ still require their separate checks.
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification. The FP16 candidate and CUDA reference pass all 1,320 vector comparisons against the 0.999 cosine gate, with a minimum of 0.999959. Ranking retains all 150 judgments across 78 cases. Capacity reaches 309.584 inputs/s against the 250 gate; interactive embedding latency is 71.439 ms against the 250 ms gate. The full production Knowledge build, concurrent search, rebuild and independent persisted readback pass. Both current client GPU controls and reference Helm/Kustomize checks pass | Qualify the actual Computer Host workload boundary, final installed profile/current generation and simultaneous GPU workload budget |
 | 8 — Installation and naming cut | C33 and selected owner naming, Artifact and `resultUri` controls pass. Workspace, SUMO, Python Task admission and the coordinated template cut pass their owning checks. UAV collection pages, Chart envelope admission and stale caller/schema fixtures are repaired. Flight compiles through isolated report and browser contracts. Python offset admission matches the preserved Rust profile. The unmodified OpenShell 0.1.2 decision supersedes patched-provider companion-adoption/replay qualification. The fresh SSH shell terminal cut passes owning controls and review. Official stock artifact packaging and Host checks pass. The restricted worker profile reuses Veoveo OAuth through private-key authentication and Computers-owned role authority; its signer, transport, registration and focused Gateway native controls pass independent review. Certificate-to-user promotion stays disabled. Selected stock native Host same-image restart, stopped controller maintenance and terminal renewal/revocation pass. Running-controller crash recovery is unsupported by the accepted stock profile. All eighteen selected ignored native acceptance cases pass, including distinct-image Host replacement, directed template upgrade/rollback and stock CLI transport. Node RuntimeClass activation and installed qualification remain open; activation is gated. Remaining operator reports use current fields. Independent review accepts the materialized format and receiver closure. Native-fixture lint and producer provenance pass. Client-types checks all 18 bundles and 36 outputs | Qualify final image pins and installed format consumers; drain writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The catalog checkpoint covers 22 owners and all 73 scenario declarations. Both isolated normal certification binaries and their dependency graphs exclude production owners and runtimes. The discovered dependency gate admits 19 independent hosted contract graphs and four reusable kernel graphs. SUMO's contract-only and normal server profiles compile. Discovery, compiler-artifact/native-library delivery, exact framework selection and the independent scenario's actual offline dispatch pass. The composed schema smoke passes its actual owner export and all five Gateway configuration validators. The Linux deployment-smoke batch passes 54 native cases and six GitOps command scenarios, with zero ignored cases. Owner documents agree with hosted revision 4 and catalog revision 2; generation checks all 22 owners | Qualify final generation and scenario discovery. Preserve dependency admission through the remaining cut; the current shared-host compliance fixture and transport controls pass |
-| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The selected four-server CPU protocol case at `1393fdc36` passes authenticated discovery, all four anonymous discovery refusals, documents, transport, Gateway health/audit and prompt isolation. Frames completed-state retention passes across one same-Pod process crash. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`; catalog/source paging, CSV/schema, Artifact publication and usage consumers pass at `374e25f345`. The complete focused normal-OAuth Artifact upload/SDK/Datasheet consumer scenario also passes after the qualified Datasheet SDK replacement. GitOps is suspended; Knowledge, Embedding and Speech are Ready, while Host, Computers, Reason and other GPU workloads stay off. Focused Frames and Knowledge installed cases also pass on admitted deployed images. Speech Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture audio on headed RTX 4090 WebGL | Complete remaining owner fixtures, remaining owner-required recovery cases, the remaining stock activation checks, final source/image closure, first-ever empty-index Knowledge startup, generation-two publication, restricted caller policy, installed consumers, Agent Manager and hardware gates |
+| 10 — Installed acceptance | The 34-image closure and both charts for `6431c30c6621` are published; matching inputs and fresh credentials were validated, pushed and applied. All 19 owner lanes and preparation/publication Jobs completed. Reviewed PVC recovery is applied and kept Embedding/Map claim identity and checkpoint checksum retention pass. The selected four-server CPU protocol case at `1393fdc36` passes authenticated discovery, all four anonymous discovery refusals, documents, transport, Gateway health/audit and prompt isolation. Frames completed-state retention passes across one same-Pod process crash. The focused DuckDB Task, delivered completion and graceful restart pass through normal Gateway OAuth at source `10821ea750`; catalog/source paging, CSV/schema, Artifact publication and usage consumers pass at `374e25f345`. The complete focused normal-OAuth Artifact upload/SDK/Datasheet consumer scenario also passes after the qualified Datasheet SDK replacement; a separate fenced Artifact service replacement preserves capability redemption and idempotent replay as one occurrence. GitOps is suspended; Knowledge, Embedding and Speech are Ready, while Host, Computers, Reason and other GPU workloads stay off. Focused Frames and Knowledge installed cases also pass on admitted deployed images. Speech Workspace cancel-draft, explicit-send, Task-after-reload and downloads pass with fixture audio on headed RTX 4090 WebGL | Complete remaining owner fixtures, remaining owner-required recovery cases, the remaining stock activation checks, final source/image closure, first-ever empty-index Knowledge startup, generation-two publication, restricted caller policy, installed consumers, Agent Manager and hardware gates |
 
 Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
@@ -1480,9 +1491,9 @@ The shared macro and module work must preserve these requirements.
 
 1. Complete the required rows in the Foundations transfer register through phases
    0, 3, 4, 5 and 6; phase 10 qualifies their remaining installed consumers.
-2. Review the proposed architecture, then implement phases 0–9 in dependency order.
-   Module lanes, the JSON naming cut and repository enforcement are added scope;
-   they are not evidence that Foundations was previously unimplemented.
+2. Close remaining implementation and consumer gaps under the accepted phases
+   0–9. Preserve qualified native results within their recorded scope; final-image,
+   installed recovery and hardware requirements still need their own results.
 3. Run phase 10 against the final selected images, preserving the accepted audit,
    Knowledge, recovery and hardware requirements.
 4. Audit each required phase, F-row and required H-row. Record the implementation
