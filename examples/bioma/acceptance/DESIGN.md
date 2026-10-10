@@ -790,3 +790,73 @@ bounds. Failures preserve known mutations and partial watch progress in the priv
 receipt and never authorize another dispatch or kill. The fixture stays append-only.
 This case qualifies completed-state crash persistence and owner isolation on selected
 installed images; in-flight mutation recovery and other owners require their own cases.
+
+
+## Installed Time Completed-Task Backend Handoff
+
+`time-installed-completed-task-handoff` selects the existing Time
+[`gateway_consumers` harness](../../../servers/time-mcp/tests/gateway_consumers/schedule/handoff.rs).
+`VEOVEO_TIME_SCHEDULE_HANDOFF_INPUT` names an installation, the original private
+complete-mode input, its successful version-2 completion receipt and SHA-256,
+acknowledged opaque Task ID and creation time, and the selected Kubernetes setup.
+The case creates no Task. Both readers must return the independently supplied schedule
+output and unchanged effective authority.
+
+The closed `routing` attestation identifies the actual active public catalog copy
+and its SHA-256, Gateway Deployment and Pod names/UIDs/resource versions, selected
+container/process/image, and mounted ConfigMap name/UID/resource version/key plus
+its complete data-map digest. Ops attests that the active database catalog equals
+this mounted expected catalog and freezes publication throughout the case. An
+unpublished repository candidate cannot supply this attestation. The owner uses
+Gateway's canonical control-plane decoder and requires Time's upstream URL to name
+the selected Service, namespace, port and `/time/mcp` mount. Before A reads and
+after the B marker, native read-only checks fence the selected Gateway resources,
+Pod ownership chain, process and actual expected-catalog mount/data. These checks
+emit selected identities and hashes; they never emit configuration or credentials.
+
+
+Ops admits original A as the only Ready backend before temporary B exists. The setup
+binds namespace, Service and Deployment UIDs, Service resource version and full selector,
+Service specification digest, original Pod and process identity, immutable image,
+normalized workload specification digest, node and authority PVC UID. B preserves
+installation labels and changes the orchestration component selected by the Service.
+Its same-node authority mount is read-only; Ops freezes referenced configuration and
+immutable authority bytes throughout the case. Cross-node volume access is outside
+this profile.
+
+The private append-only journal signals `create_replacement_intent` after A-only Task
+read/listen agreement. Ops creates B and waits for its admission, then follows
+`handoff_intent` by selecting only B and scaling A to zero. The observer requires the
+selected A process's successful exit 0 and all A Pods absent. During fresh normal OAuth
+reads and an acknowledged exact-ID subscription, native Kubernetes watches fence B's
+unchanged process, sole EndpointSlice target and A's absence. The delivered Completed
+state must agree with current Task payload, creation identity and independent output.
+This delivery is an initial completed-state snapshot. Before recording replacement
+success, the journal publishes `barrier_requested` with a fresh UUID nonce and selected
+B Pod UID. Ops CAS-patches only B Pod metadata annotation
+`veoveo.ai/acceptance-fence` to that nonce using a fresh UID/resource-version test.
+The original Pod watch must consume that event while rejecting A's return and any
+B process change. Missing, foreign or replayed markers fail within the original
+operation deadline. A final inventory must preserve the pre-assertion Service,
+Deployment and ReplicaSet resource versions and EndpointSlice identities/versions;
+restored transient routing edits therefore also fail. Kubernetes resource versions
+are compared for equality, never ordered numerically.
+
+Cleanup uses the original owner's 30-second grace after the 300-second operation.
+Restoration reserves the final two seconds of that same grace for native watch
+closure. A shorter remaining grace skips restoration and still attempts closure
+against the original end. Restoration and watch failures are recorded separately;
+watch closure also runs after a restoration or journal failure.
+Ops follows `restore_original_intent` to restore A to one Ready replica while routing
+still selects B, `restore_selector_intent` to CAS the original full selector and
+observe A routing, then `retire_replacement_intent` to remove B. The observer requires
+B Deployment and Pods absent before cleanup passes. If a failure occurs before
+handoff and fresh observations already establish A Ready with A-only routing,
+cleanup signals B retirement directly, including a pending B; it does not switch
+healthy original routing to B. Nonzero original exit facts remain diagnostic
+failure and cannot qualify the successful handoff. Actual SDK handles and native
+watch processes stay with their original owners through interruption. A timeout,
+watch gap, identity mismatch or incomplete restoration preserves failure and partial
+facts in the private journal and ownership lease. This profile establishes completed
+state readback on another backend; unfinished recovery and later mutation updates
+require separate qualification.

@@ -81,6 +81,15 @@ leap second assumptions.
   qualification. The private append-only receipt retains intents, opaque Gateway
   Task identity, replacement progress and unresolved cleanup. See the installed input
   contract for selected crash fields and external operator coordination.
+- `cargo xtask smoke time-installed-completed-task-handoff --help` describes the
+  retained completed-Task profile in the same harness. Its private input selects the
+  original complete-mode input, successful receipt and SHA-256, opaque Task ID and
+  creation time, and a typed physical A/B setup. Ops owns every routing and Deployment
+  mutation. Require A-only reads before B exists, A's observed process exit and Pod
+  absence during B-only reads, then A restoration before selector restoration and B
+  retirement. Fresh acknowledged exact-ID delivery is an initial completed snapshot.
+  Keep unfinished cross-replica recovery and later mutation delivery separate.
+  The operation uses one 300-second deadline and the existing 30-second cleanup grace.
 - `cargo test -p veoveo-time-mcp --lib server::tasks::tests` qualifies durable
   cancellation at calculation checkpoints and final settlement using distinct
   workers on the existing isolated Store fixture. Keep the cancellation/completion

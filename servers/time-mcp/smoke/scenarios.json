@@ -65,6 +65,38 @@
       },
       "deadlineSeconds": 360,
       "cleanupSeconds": 30
+    },
+    {
+      "id": "time-installed-completed-task-handoff",
+      "description": "Qualify retained completed schedule Task reads and initial snapshot delivery through distinct physically fenced backends.",
+      "target": {
+        "kind": "cargo_test",
+        "selection": {
+          "owner": "servers/time-mcp",
+          "package": "veoveo-time-mcp",
+          "target": "gateway_consumers",
+          "features": [
+            "mcp"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        },
+        "case": "schedule::handoff::retained_completed_schedule_task_through_distinct_backends",
+        "ignored": true
+      },
+      "arguments": [],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Requires VEOVEO_TIME_SCHEDULE_HANDOFF_INPUT, the original private complete-mode input and successful v2 completion receipt plus its digest, retained opaque Task ID/createdAt, a private normal OAuth caller token and typed A/B setup. Ops alone creates and routes the same-image/config read-only authority-volume replica, scales original A to zero, restores A before the original selector, then retires B. Native Kubernetes watches admit process exit, Pod absence and sole Service endpoints while fresh Gateway reads/listens verify the original independent output. No Task creation, unfinished recovery or post-mutation delivery is qualified."
+      },
+      "deadlineSeconds": 360,
+      "cleanupSeconds": 30
     }
   ]
 }

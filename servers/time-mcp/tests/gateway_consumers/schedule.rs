@@ -2,6 +2,8 @@
 use super::{installed, open_receipt, trace};
 #[path = "schedule/cleanup.rs"]
 mod cleanup;
+#[path = "schedule/handoff.rs"]
+mod handoff;
 #[path = "schedule/lifecycle.rs"]
 mod lifecycle;
 #[cfg(test)]
@@ -129,8 +131,8 @@ enum Phase {
 enum Failure {
     OwnerLifecycle,
 }
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct TaskObservation {
     task_id: CanonicalTaskId,
     status: TaskStatus,

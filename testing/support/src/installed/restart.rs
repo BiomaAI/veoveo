@@ -17,11 +17,16 @@ use veoveo_types::ResourceUri;
 mod crash;
 mod drain;
 mod group;
+mod handoff;
 pub use crash::{CrashIdentity, CrashReceipt, CrashTarget, CrashWatch};
 pub use drain::{DrainProfile, DrainReceipt, SelectedDrainIdentity, SelectedDrainTarget};
 pub use group::{
     ContainerExit, DrainGroupProgress, DrainGroupReceipt, DrainGroupState,
     ReplacementContainerIdentity, SelectedDrainGroup,
+};
+pub use handoff::{
+    HandoffFixture, HandoffObjectKind, HandoffObservation, HandoffObserver, HandoffPhase,
+    HandoffReceipt, HandoffResourceVersion,
 };
 
 #[derive(Clone)]
