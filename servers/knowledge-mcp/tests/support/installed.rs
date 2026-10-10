@@ -118,6 +118,11 @@ async fn connect(
             .build()?,
         StreamableHttpClientTransportConfig::with_uri(endpoint.as_str()),
     );
+    connect_transport(transport).await
+}
+async fn connect_transport(
+    transport: StreamableHttpClientTransport<reqwest::Client>,
+) -> Result<rmcp::service::RunningService<RoleClient, ClientConfig>> {
     let mut capabilities = ClientCapabilities::default();
     client::declare(&mut capabilities);
     ClientConfig::new(
@@ -131,7 +136,10 @@ async fn connect(
         },
     )
     .await
-    .map_err(|_| anyhow::anyhow!("Knowledge connection failed"))
+    .map_err(connection_failure)
+}
+fn connection_failure(error: rmcp::service::ClientInitializeError) -> anyhow::Error {
+    anyhow::Error::from(error).context("Knowledge connection failed")
 }
 #[tokio::test]
 #[ignore = "requires deployed Knowledge, approved sources, hardware embeddings and a caller token"]

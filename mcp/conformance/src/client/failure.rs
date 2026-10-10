@@ -133,12 +133,21 @@ fn transport_observation(
     if error.downcast_ref::<InsufficientScopeError>().is_some() {
         return Some(ObservedFailure::Http { status: 403 });
     }
-    if let Some(StreamableHttpError::<reqwest::Error>::HttpResponse { status, .. }) =
-        error.downcast_ref::<StreamableHttpError<reqwest::Error>>()
-    {
-        return Some(ObservedFailure::Http {
-            status: status.as_u16(),
-        });
+    if let Some(error) = error.downcast_ref::<StreamableHttpError<reqwest::Error>>() {
+        match error {
+            StreamableHttpError::AuthRequired(_) => {
+                return Some(ObservedFailure::Http { status: 401 });
+            }
+            StreamableHttpError::InsufficientScope(_) => {
+                return Some(ObservedFailure::Http { status: 403 });
+            }
+            StreamableHttpError::HttpResponse { status, .. } => {
+                return Some(ObservedFailure::Http {
+                    status: status.as_u16(),
+                });
+            }
+            _ => {}
+        }
     }
     if let Some(error) = error.downcast_ref::<reqwest::Error>() {
         return error.status().map(|status| ObservedFailure::Http {
@@ -218,6 +227,41 @@ mod tests {
                 .unwrap()
                 .contains("private-challenge")
         );
+    }
+    #[test]
+    fn wrapped_initialization_auth_denials_preserve_status_without_private_details() {
+        use rmcp::transport::streamable_http_client::{
+            AuthRequiredError, InsufficientScopeError, StreamableHttpError,
+        };
+        const SECRET: &str = "private-auth-challenge-and-scope";
+        for (status, wrapped) in [
+            (
+                401,
+                StreamableHttpError::<reqwest::Error>::AuthRequired(AuthRequiredError::new(
+                    SECRET.into(),
+                )),
+            ),
+            (
+                403,
+                StreamableHttpError::<reqwest::Error>::InsufficientScope(
+                    InsufficientScopeError::new(SECRET.into(), Some(SECRET.into())),
+                ),
+            ),
+        ] {
+            let transport = rmcp::transport::DynamicTransportError::from_parts(
+                "fixture",
+                std::any::TypeId::of::<()>(),
+                Box::new(wrapped),
+            );
+            let error = anyhow::Error::new(rmcp::service::ClientInitializeError::TransportError {
+                error: transport,
+                context: "discover".into(),
+            })
+            .context("redacted initialization failure");
+            let observed = observe(&error).unwrap();
+            assert_eq!(observed, ObservedFailure::Http { status });
+            assert!(!serde_json::to_string(&observed).unwrap().contains(SECRET));
+        }
     }
     #[test]
     fn unrelated_mcp_message_cannot_satisfy_same_code_denial() {

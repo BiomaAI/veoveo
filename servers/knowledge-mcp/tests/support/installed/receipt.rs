@@ -52,7 +52,13 @@ pub(super) enum Request {
 enum Status {
     Pending,
     Complete,
-    Mcp { code: i32 },
+    Mcp {
+        code: i32,
+    },
+    Http {
+        #[serde(rename = "httpStatus")]
+        http_status: u16,
+    },
     Transport,
     Interrupted,
 }
@@ -245,11 +251,11 @@ impl Journal {
             }
         })
     }
-    async fn acquire_slot<T, E>(
+    async fn acquire_slot<T>(
         &self,
         request: Request,
         slot: &mut Option<T>,
-        future: impl std::future::Future<Output = std::result::Result<T, E>>,
+        future: impl std::future::Future<Output = Result<T>>,
     ) -> Result<()> {
         let index = {
             let state = self.0.lock().expect("Knowledge outcome lock");
@@ -267,17 +273,28 @@ impl Journal {
         })?;
         let result = future.await;
         let ok = result.is_ok();
+        let status = match &result {
+            Ok(_) => Status::Complete,
+            Err(error) => match veoveo_mcp_conformance::client::failure::observe(error) {
+                Some(veoveo_mcp_conformance::client::failure::ObservedFailure::Http { status }) => {
+                    Status::Http {
+                        http_status: status,
+                    }
+                }
+                Some(veoveo_mcp_conformance::client::failure::ObservedFailure::Mcp {
+                    code,
+                    ..
+                }) => i32::try_from(code).map_or(Status::Transport, |code| Status::Mcp { code }),
+                None => Status::Transport,
+            },
+        };
         // The actual handle reaches retained storage before any fallible journal
         // write; a disk failure must not discard an acknowledged SDK handle.
         if let Ok(handle) = result {
             *slot = Some(handle);
         }
         self.update(|r| {
-            r.requests[index].status = if ok {
-                Status::Complete
-            } else {
-                Status::Transport
-            }
+            r.requests[index].status = status;
         })?;
         ensure!(
             ok,
@@ -300,8 +317,10 @@ impl Journal {
         peer: &Peer<RoleClient>,
         filter: SubscriptionFilter,
     ) -> Result<()> {
-        self.acquire_slot(Request::Listen, slot, peer.listen(filter))
-            .await
+        self.acquire_slot(Request::Listen, slot, async {
+            peer.listen(filter).await.map_err(anyhow::Error::from)
+        })
+        .await
     }
     pub async fn request<T>(
         &self,

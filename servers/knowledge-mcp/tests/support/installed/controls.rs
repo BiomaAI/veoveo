@@ -178,6 +178,156 @@ async fn registered_owner_drop_closes_actual_client_and_listener_without_empty_r
 }
 
 #[tokio::test]
+async fn actual_http_initialization_denial_reaches_private_acquisition_status() -> Result<()> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    const SECRET: &str = "PRIVATE_LOOPBACK_AUTH_CHALLENGE_AND_BODY";
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    let transport = StreamableHttpClientTransport::with_client(
+        http,
+        StreamableHttpClientTransportConfig::with_uri(format!("http://{address}/mcp")),
+    );
+    let directory = Scratch::new()?;
+    let path = directory.0.join("outcome.json");
+    let journal = receipt::Journal::open(&path, "operator".parse()?)?;
+    let server = tokio::spawn(async move {
+        tokio::time::timeout(Duration::from_secs(3), async {
+            let (mut socket, _) = listener.accept().await?;
+            let mut request = Vec::new();
+            let mut buffer = [0; 1024];
+            while !request.windows(4).any(|part| part == b"\r\n\r\n") {
+                let count = socket.read(&mut buffer).await?;
+                ensure!(count > 0 && request.len() + count <= 8192);
+                request.extend_from_slice(&buffer[..count]);
+            }
+            ensure!(request.starts_with(b"POST /mcp HTTP/1.1\r\n"));
+            let header_end = request.windows(4).position(|part| part == b"\r\n\r\n").unwrap() + 4;
+            let headers = std::str::from_utf8(&request[..header_end])?;
+            let content_length: usize = headers.lines().find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.eq_ignore_ascii_case("content-length").then_some(value.trim())
+            }).context("loopback request lacks content length")?.parse()?;
+            ensure!(header_end + content_length <= 8192);
+            while request.len() < header_end + content_length {
+                let count = socket.read(&mut buffer).await?;
+                ensure!(count > 0 && request.len() + count <= 8192);
+                request.extend_from_slice(&buffer[..count]);
+            }
+            let response = format!("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Bearer realm=\"{SECRET}\"\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{SECRET}", SECRET.len());
+            socket.write_all(response.as_bytes()).await?;
+            socket.shutdown().await?;
+            Ok::<_,anyhow::Error>(())
+        }).await?
+    });
+    let mut slot = None;
+    // Same SDK startup and typed-error conversion as the installed HTTPS path.
+    let result = journal
+        .acquire(&mut slot, super::connect_transport(transport))
+        .await;
+    let served = server.await?;
+    served?;
+    let error = result.unwrap_err();
+    ensure!(slot.is_none() && !format!("{error:#}").contains(SECRET));
+    let text = fs::read_to_string(path)?;
+    ensure!(!text.contains(SECRET));
+    let report: serde_json::Value = serde_json::from_str(&text)?;
+    ensure!(
+        report["requests"][0]["status"] == "http" && report["requests"][0]["httpStatus"] == 401
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn acquisition_retains_typed_initialization_denials_without_private_details() -> Result<()> {
+    use rmcp::{
+        service::ClientInitializeError,
+        transport::{
+            DynamicTransportError,
+            streamable_http_client::{AuthRequiredError, StreamableHttpError},
+        },
+    };
+    const SECRET: &str = "PRIVATE_INITIALIZATION_TOKEN_HEADER_BODY_MUST_NOT_APPEAR";
+    for case in ["http401", "http403", "mcp", "unknown"] {
+        let error = match case {
+            "http401" => ClientInitializeError::TransportError {
+                error: DynamicTransportError::from_parts(
+                    "fixture",
+                    std::any::TypeId::of::<()>(),
+                    Box::new(AuthRequiredError::new(format!("Bearer {SECRET}"))),
+                ),
+                context: "send discover request".into(),
+            },
+            "http403" => ClientInitializeError::TransportError {
+                error: DynamicTransportError::from_parts(
+                    "fixture",
+                    std::any::TypeId::of::<()>(),
+                    Box::new(StreamableHttpError::<reqwest::Error>::HttpResponse {
+                        status: reqwest::StatusCode::FORBIDDEN,
+                        body: SECRET.into(),
+                    }),
+                ),
+                context: "send discover request".into(),
+            },
+            "mcp" => ClientInitializeError::JsonRpcError(rmcp::ErrorData::invalid_request(
+                SECRET,
+                Some(serde_json::json!({"private":SECRET})),
+            )),
+            "unknown" => ClientInitializeError::ConnectionClosed(SECRET.into()),
+            _ => unreachable!(),
+        };
+        // Exercise the exact initialization conversion used by installed connect,
+        // then the real intent/acquisition/outcome path rather than just observe.
+        let error = super::connection_failure(error);
+        ensure!(
+            error.downcast_ref::<ClientInitializeError>().is_some(),
+            "typed initialization cause erased"
+        );
+        ensure!(error.to_string() == "Knowledge connection failed");
+        let directory = Scratch::new()?;
+        let path = directory.0.join("outcome.json");
+        let journal = receipt::Journal::open(&path, "operator".parse()?)?;
+        let mut slot = None;
+        let failure = journal
+            .acquire(&mut slot, async { Err(error) })
+            .await
+            .unwrap_err();
+        ensure!(slot.is_none());
+        ensure!(!format!("{failure:#}").contains(SECRET));
+        let text = fs::read_to_string(&path)?;
+        ensure!(!text.contains(SECRET));
+        let report: serde_json::Value = serde_json::from_str(&text)?;
+        let observation = &report["requests"][0];
+        ensure!(report["requests"].as_array().unwrap().len() == 1);
+        ensure!(observation["request"]["operation"] == "connect");
+        match case {
+            "http401" => ensure!(
+                observation["status"] == "http"
+                    && observation["httpStatus"] == 401
+                    && observation["code"].is_null()
+            ),
+            "http403" => ensure!(
+                observation["status"] == "http"
+                    && observation["httpStatus"] == 403
+                    && observation["code"].is_null()
+            ),
+            "mcp" => ensure!(observation["status"] == "mcp" && observation["code"] == -32600),
+            "unknown" => ensure!(
+                observation["status"] == "transport"
+                    && observation["code"].is_null()
+                    && observation["httpStatus"].is_null()
+            ),
+            _ => unreachable!(),
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn journal_refuses_intent_write_failure_before_poll_and_redacts_protocol_failures()
 -> Result<()> {
     let directory = Scratch::new()?;

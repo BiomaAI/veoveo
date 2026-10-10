@@ -175,33 +175,27 @@ The eighteen selected stock native cases are qualified, including the aggregate 
 profile of 1 CPU, 6 GiB and 1,024 PIDs. The installed 8 CPU, 12 GiB and 4,096-PID
 profile has not been activated.
 
-The first installed Knowledge cold-start attempt exits before the initial watch
-bookmark, launch or any MCP request. Its native watch includes a completed Pod from
-the prior ReplicaSet, whose old image fails candidate admission. An identity-checked
-rollback restores the original Knowledge image and one Ready replica; Embedding,
-Speech, Gateway and Manager stay Ready. The repaired watch excludes Succeeded and
-Failed Pods through Kubernetes field selection while preserving active-image,
-ownership and selected-instance failure checks. Compiler, lint, ten native controls
-and independent review pass. Installed cold-start qualification still requires a
-new run against the repaired observer.
+Knowledge's fourth cold-start attempt observes HTTP 503 then 200 on the same
+container and passes the watched Ready fence. The first SDK connection is rejected
+with `MissingRequiredScope`: the normal caller token lacks seven scopes required
+by the live operator profile. No Knowledge resource read reaches the service. Ops
+restores the original image and one Ready replica. This partial startup observation
+does not qualify the installed cold-start case or generation two.
+An ordinary operator-service token carrying all twelve allowed scopes subsequently
+passes maintained SDK discovery and a `knowledge://contract` read with a 900-second
+TTL. This establishes the caller prerequisite for a new cold-start attempt.
 
-The second attempt records the initial watch bookmark, then its local probe client
-panics because Rustls has no selected crypto provider. No launch or MCP request
-occurs. Ops verifies that the watch process has exited and restores the original
-Ready image with an identity-checked rollback. The probe now initializes Knowledge's
-existing Ring provider before constructing the client. Its constructor passes alone
-in a fresh process, and all eleven native controls pass with the three installed
-cases ignored. Independent review accepts the repair; the installed run remains open.
-
-The third attempt fails in the fixture's Pod decoder: Kubernetes sends `containerID`
-and `imageID`, while the fixture expects `containerId` and `imageId` and defaults both
-identities to empty values. No HTTP probe or MCP request occurs. Ops restores the
-original image and one Ready replica. The repaired decoder admits the canonical
-fields and reports the missing-instance stage under the original startup deadline.
-The fixture also owns the port-forward output drain through replacement and
-cancellation, with one cleanup deadline. Compiler, strict lint and thirteen native
-controls pass; the three installed cases stay ignored. This attempt establishes no
-Knowledge product failure or installed cold-start pass.
+The observer's canonical Pod decoding, readiness ordering and owned port-forward
+cleanup pass compiler, strict lint, thirteen native controls and independent review.
+The three installed cases stay separately selected. Typed SDK-error observations
+now preserve HTTP 401/403 status and MCP error codes without private response
+details. Two Knowledge acquisition controls and the canonical wrapped-error
+control pass. Fifteen distinct Knowledge native controls have passing results;
+two deadline-sensitive lifecycle controls require isolated serial replay after
+parallel failures, whose results are retained. Knowledge HTTP and the conformance
+production library pass strict lint; five unrelated conformance test-lint findings
+stay open. The updated conformance tool needs a compatible image refresh in the
+final closure. Installed qualification remains open.
 
 The reference now prepares an isolated `knowledge-acceptance` profile and ordinary
 public PKCE client for the required caller-policy check. It exposes the six approved
@@ -221,6 +215,10 @@ fingerprint and matching configuration revisions. An authoritative inventory fin
 zero persisted Computer bindings, permitting this candidate hard cut without a
 compatibility template. Both native reference-template guards pass. Publication
 and installed stock-template qualification remain open.
+Eleven additional existing reference pins and the managed-kernel image now select
+their qualified inputs. Twenty-three of the thirty-four affected images are
+qualified; these prepared pin changes do not deploy workloads or qualify the
+remaining images.
 
 Current image qualification uses source `c5a2c6c3e` and authentic fresh stage
 receipts. Each image batch has its own growth budget above the filesystem reserve;
