@@ -18,7 +18,7 @@ uuid.workspace = true
 veoveo-computers-contract = { path = "../contract" }
 # Latest reqwest-websocket 0.6.0 exposes this version's configuration type.
 # Keep its upstream-selected wire engine until that adapter qualifies a successor.
-tungstenite = { version = "=0.28.0", default-features = false }
+tungstenite = { version = "=0.30.0", default-features = false }
 
 [dev-dependencies]
 rustls.workspace = true
