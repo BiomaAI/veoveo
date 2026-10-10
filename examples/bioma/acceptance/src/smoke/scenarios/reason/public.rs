@@ -40,7 +40,7 @@ struct Observation<'a> {
 }
 pub(super) struct Profile {
     pub(super) client: FinalTaskSmokeClient,
-    journal: PrivateCallerJournal,
+    journal: std::sync::Arc<PrivateCallerJournal>,
     complete: bool,
 }
 impl Profile {
@@ -55,7 +55,7 @@ impl Profile {
             &input.endpoint,
             &input.caller_token_file,
         )?;
-        let journal = PrivateCallerJournal::create(&input.output)?;
+        let journal = std::sync::Arc::new(PrivateCallerJournal::create(&input.output)?);
         let profile = Self {
             client,
             journal,
@@ -78,6 +78,9 @@ impl Profile {
             statuses,
             resource,
         })
+    }
+    pub(super) fn journal(&self) -> std::sync::Arc<PrivateCallerJournal> {
+        self.journal.clone()
     }
     pub(super) fn complete(&mut self) -> Result<()> {
         self.record(ObservationKind::Complete, None, &[], None)?;

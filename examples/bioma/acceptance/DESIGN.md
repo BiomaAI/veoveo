@@ -14,6 +14,7 @@
 | Installed DuckDB | Existing `installation-verify --scope duckdb` consumer, owner contract CSV/schema/catalog/usage and Artifact provenance over normal Gateway OAuth; private `veoveo.ai/installed-duckdb/v1` receipt |
 | Installed Stream | Owner-library run identities, completion products and analysis results; cross-replica DeepStream replay requires NVIDIA hardware |
 | Public Stream and Reason callers | Existing GPU scenarios use normal OAuth at the installation's operator MCP endpoint; private `veoveo.ai/stream-public-caller/v1` and `veoveo.ai/reason-public-caller/v1` inputs, with corresponding `public-consumer/v1` JSONL observations |
+| Unfinished Stream and Reason recovery | Private `veoveo.ai/stream-recovery/v1`, `veoveo.ai/reason-process-crash/v1` and `veoveo.ai/reason-process-recovery/v1` fixtures/observations; selected native Kubernetes process-crash watch and one normal-OAuth Task reconnection, without a public protocol extension |
 | Candidate process ownership | Python standard-library Linux pidfd APIs; private `veoveo.ai/candidate-launch/v1` JSON with camelCase invocation, process group and start ticks; no public protocol extension |
 | Installation input | Required `--installation` file using `veoveo.ai/installation-target/v1`; identities and endpoints validated against its control-plane document |
 | MCP and authentication | Repository conformance CLI over public HTTPS, the hosted MCP 2026-07-28 profile, OAuth token exchange, exact Work Context and profile scopes |
@@ -257,6 +258,60 @@ existing lifecycle owner. Closing a subscription proves that listener closed. It
 does not establish Task cancellation. Initial resource delivery does not establish
 post-mutation invalidation, unfinished process recovery or cross-replica delivery;
 those checks use their separate owner profiles.
+
+## Unfinished Stream And Reason Process Recovery
+
+The existing GPU scenarios expose a separately selected unfinished-recovery profile.
+Reason requires `VEOVEO_REASON_PUBLIC_CALLER_INPUT` and adds
+`VEOVEO_REASON_PROCESS_CRASH_INPUT`, a closed private
+`veoveo.ai/reason-process-crash/v1` object with `context`, `namespace`,
+`operatorResource` and `target`. The typed CrashTarget supplies the selected
+Deployment/Pod/container, Namespace/Deployment/ReplicaSet/Pod UIDs, exact runtime
+container/image IDs and restart count. The container and component must both be
+`reason-mcp`, and the Deployment must be declared by the installation. Candidate
+mode and a missing public caller fail admission before Recording preparation.
+Reason keeps its authenticated Recording producer and existing three-second,
+sixteen-frame GPU reasoning request; the workload has no guaranteed unfinished window.
+
+Stream selects the closed `veoveo.ai/stream-recovery/v1` object through
+`VEOVEO_STREAM_PUBLIC_CALLER_INPUT`. It supplies `mode: recover`, the ordinary
+public `caller` and a `fixture` containing the selected `target`,
+`replacementTimeoutSeconds` (1–300), a typed `RunRecordingRequest` over an existing
+authorized Recording and independent `expected` source/range/pipeline/model/product
+facts. This mode skips sample
+production, producer processes and direct port forwarding. Its selected container
+and component are `stream-mcp`; direct-replica and compiler-candidate selections
+cannot combine with recovery.
+
+Both owners dispatch exactly one Task through normal Gateway OAuth. The journal
+syncs the full acknowledged Task and its ID before waiting. Exact subscription
+acknowledgment and delivered Working must agree with current Working before the
+owner arms its retained native crash watch. A fresh original-instance admission
+and same-Task current Working read immediately precede the private ReadyForCrash
+marker. Only the external operator
+may then crash that selected process; the harness never signals or redispatches it.
+The watch must observe the actual exit and same-Pod replacement under unchanged
+Deployment/image ownership. A Ready Pod or a completed retained Task alone cannot
+qualify recovery.
+
+After replacement the shared client reconnects once as the same caller. It requires
+the same original Task ID and creation time to remain Working, syncs that current
+observation before another await, and receives completion through the new exact
+subscription. Delivered Completed must agree with the current typed payload.
+Existing owner result, Artifact and current resource assertions still apply; a
+final native fence checks the same replacement after those reads. Early completion
+before either Working witness refuses qualification.
+
+One original 600-second Task lifecycle interval covers replacement observation,
+the unchanged 120-second lease profile, completion and result/resource assertions.
+Both owners reserve the final 20 seconds for cleanup. Reason Recording setup and producer
+cleanup use the enclosing scenario's original owner deadline. Every nested wait is
+capped by the remaining interval. Native watches and both SDK generations retain
+their original consuming close futures across cancellation, and expired/failed
+cleanup cannot later become qualified. Journals preserve partial replacement facts
+and known Task identities. These profiles qualify unfinished process recovery only
+when an actual installed run passes; native fixture controls establish admission,
+delivery and cleanup mechanics. Cross-replica routing has its own qualification.
 
 ## Installed Speech Recovery
 

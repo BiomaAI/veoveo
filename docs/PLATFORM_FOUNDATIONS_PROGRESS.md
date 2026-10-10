@@ -6,6 +6,35 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Stream And Reason Unfinished Recovery Fixtures — October 10, 2026
+
+The shared SDK recovery support at `6a8325374` preserves one acknowledged Task's
+ID and creation time across an explicit connection replacement. Before the selected
+process crash, delivered and current states must both be Working. The replacement
+connection must see that same Task still Working before accepting its delivered
+completion and current result. Two native controls cover seven isolated SDK modes.
+Their receipt is `/tmp/veoveo-unfinished-recovery-support-native-20261010/final-receipt.json`,
+SHA-256 `d105260001d1f5b00962cc22cde672a248f613429d8a3723dfe1ce6c00cb4ed6`.
+
+Stream and Reason reuse their existing GPU scenarios with opt-in unfinished-recovery
+inputs. Stream selects an authorized retained Recording and independent source and
+product expectations. Both fixtures admit the selected process and refresh current
+Task state before publishing permission to crash it. They preserve Task facts and
+cleanup failures when journal writes or consuming close operations are interrupted.
+Each Task lifecycle has one 600-second limit, including twenty seconds for owner
+cleanup. Native checks do not execute GPU inference or replace an installed process.
+
+Compiler checks and strict lint pass; independent review accepts the production
+source. The first owner diagnostic reports nineteen passes and one Reason fixture
+failure. The repair adds the expected deployment to that native fixture and corrects
+a subprocess selector, with an explicit assertion that its child runs one test.
+One repaired executable runs all twenty controls with twenty passes and zero ignored
+cases: four Reason recovery, seven Stream recovery, four affected public-caller and
+five Agent Manager controls. The receipt is
+`/tmp/veoveo-unfinished-recovery-owner-native-20261010/final-repaired-receipt.json`,
+SHA-256 `ed307bcff672f875c35112a0e71c2ab091e08defe1ea829cca9a29a6c8356e60`.
+The installed GPU recovery runs and current production CLI remain unqualified.
+
 ## Agent Manager Public Journey Fixture — October 10, 2026
 
 The existing installation-smoke command gains the Agent Manager journey in

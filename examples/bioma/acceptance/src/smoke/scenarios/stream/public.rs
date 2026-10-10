@@ -7,7 +7,7 @@ use veoveo_testing_support::final_tasks::public_caller::{
 use veoveo_types::ResourceUri;
 
 #[derive(Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
-enum Schema {
+pub(super) enum Schema {
     #[vocabulary(rename = "veoveo.ai/stream-public-caller/v1")]
     V1,
 }
@@ -40,7 +40,8 @@ struct Observation<'a> {
 }
 pub(super) struct Profile {
     pub(super) client: FinalTaskSmokeClient,
-    journal: PrivateCallerJournal,
+    pub(super) journal: std::sync::Arc<PrivateCallerJournal>,
+    pub(super) recovery: Option<super::recovery::Fixture>,
     complete: bool,
 }
 impl Profile {
@@ -49,16 +50,30 @@ impl Profile {
         installation: &InstalledTarget,
         candidate: bool,
     ) -> Result<Self> {
-        let input: Input = read_private_input(path)?;
+        #[derive(serde::Deserialize)]
+        #[serde(untagged)]
+        enum Selection {
+            Complete(Input),
+            Recover(Box<super::recovery::Input>),
+        }
+        let (input, recovery) = match read_private_input::<Selection>(path)? {
+            Selection::Complete(input) => (input, None),
+            Selection::Recover(input) => {
+                let input = *input;
+                input.admit(installation)?;
+                (input.caller, Some(input.fixture))
+            }
+        };
         input.admit(&installation.target, candidate, &Schema::V1)?;
         let client = FinalTaskSmokeClient::from_private_token_file(
             &input.endpoint,
             &input.caller_token_file,
         )?;
-        let journal = PrivateCallerJournal::create(&input.output)?;
+        let journal = std::sync::Arc::new(PrivateCallerJournal::create(&input.output)?);
         let profile = Self {
             client,
             journal,
+            recovery,
             complete: false,
         };
         profile.record(ObservationKind::Prepared, None, &[], None)?;

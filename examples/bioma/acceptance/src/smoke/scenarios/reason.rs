@@ -14,6 +14,8 @@ use std::time::Duration;
 use veoveo_reason_mcp::contract::{AnalyzeRecordingOutput, ReasoningResults};
 #[path = "reason/public.rs"]
 mod public;
+#[path = "reason/recovery.rs"]
+mod recovery;
 
 const REASON_MCP_URL: &str = "http://127.0.0.1:8803/reason/mcp";
 
@@ -46,6 +48,24 @@ pub(crate) async fn reason_gpu(
     let mut public = public_input
         .as_deref()
         .map(|path| public::Profile::load(path, installation, candidate_inputs.is_some()))
+        .transpose()?;
+    let recovery_input = std::env::var_os("VEOVEO_REASON_PROCESS_CRASH_INPUT")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            environment
+                .get("VEOVEO_REASON_PROCESS_CRASH_INPUT")
+                .map(std::path::PathBuf::from)
+        });
+    let mut recovery = recovery_input
+        .as_deref()
+        .map(|path| {
+            recovery::Recovery::load(
+                path,
+                installation,
+                public.as_ref(),
+                candidate_inputs.is_some(),
+            )
+        })
         .transpose()?;
     let sample_h264 = prepare_sample_h264(work_dir, installation)?;
     let tmpdir = smoke_tmpdir()?;
@@ -207,131 +227,184 @@ pub(crate) async fn reason_gpu(
     if let Some(public) = &public {
         public.record(public::ObservationKind::TaskDispatchIntent, None, &[], None)?;
     }
-    let task = task_client
-        .run_tool_delivered_observed(tool, arguments, Duration::from_secs(600), |task| {
-            if let Some(public) = &public {
-                public.record(
-                    public::ObservationKind::TaskAcknowledged,
-                    Some(task),
-                    &[],
-                    None,
-                )?;
-            }
-            Ok(())
-        })
-        .await;
-    let output = match task {
-        Ok(output) => output,
-        Err(error) => {
-            if public.is_some() {
-                bail!("public Reason Task delivery failed; private outcome retained");
-            }
-            if let Some(candidate) = candidate.as_mut() {
-                candidate.finish(
-                    work_dir,
-                    candidate::ProbeOutcome::WorkloadFailed {
-                        message: format!("{error:#}"),
-                    },
-                )?;
-                bail!(
-                    "Reason compiler workload failed: {error:#}; candidate logs: {}",
-                    work_dir.display()
-                );
-            }
-            let logs = kubernetes_logs(context, namespace, "deployment/reason-mcp")
-                .unwrap_or_else(|log_error| format!("failed to collect logs: {log_error:#}"));
-            bail!("reason MCP task failed: {error:#}\nKubernetes logs:\n{logs}");
-        }
-    };
-    ensure!(
-        output.statuses.last() == Some(&rmcp::model::TaskStatus::Completed),
-        "Reason delivery did not complete"
-    );
-    if let Some(public) = &public {
-        public.record(
-            public::ObservationKind::DeliveredTaskCompleted,
-            Some(&output.task_id),
-            &output.statuses,
-            None,
-        )?;
-    }
-    let delivered_id = output.task_id;
-    let delivered_statuses = output.statuses;
-    let output = output.result;
-    let result: AnalyzeRecordingOutput = serde_json::from_value(
-        output
-            .structured_content
-            .context("Reason task omitted structured content")?,
-    )
-    .context("Reason task returned an invalid canonical output")?;
-    ensure!(
-        matches!(output.content.as_slice(), [ContentBlock::Text(status), ContentBlock::ResourceLink(link)]
-            if status.text == "Analysis completed." && link.uri == result.result_uri().to_string()),
-        "Reason terminal content must contain the status and one canonical result link"
-    );
-    result.check_request(&request)?;
-    let selected_resource = public::resource_identity(&result)?;
-    let observed_frames = result.summary.observed_frames;
-    ensure!(observed_frames > 0, "Reason task observed no GPU frames");
-    let resource: ReasoningResults = task_client
-        .read_resource(&result.result_uri().to_uri())
-        .await?;
-    ensure!(
-        resource.pipeline_id == *result.pipeline_uri.id()
-            && resource.model_id == *result.model_uri.id()
-            && resource.observed_frames == observed_frames
-            && resource.elapsed_ms == result.summary.elapsed_ms
-            && resource.answer.event_count() == result.summary.event_count
-            && resource.requested_range.start == result.summary.requested_start_index
-            && resource.requested_range.end == result.summary.requested_end_index,
-        "Reason canonical resource disagrees with the terminal completion"
-    );
-    result.check_results(&request, &result.results_artifact, &resource)?;
-    let snapshot = if let Some(public) = &public {
-        public.record(
-            public::ObservationKind::ResourceSnapshotIntent,
-            Some(&delivered_id),
-            &delivered_statuses,
-            Some(&selected_resource),
-        )?;
-        Some(
+    let recovery_end = recovery
+        .as_mut()
+        .map(recovery::Recovery::start)
+        .transpose()?;
+    let lifecycle = Box::pin(async {
+        let task = if let Some(recovery) = &mut recovery {
+            let acknowledgments = recovery.acknowledger();
             task_client
-                .resource_snapshot_delivery(&selected_resource, Duration::from_secs(45))
-                .await?,
-        )
-    } else {
-        None
-    };
-    if let Some(public) = &mut public {
-        public.record(
-            public::ObservationKind::DeliveredTaskCompleted,
-            Some(&delivered_id),
-            &delivered_statuses,
-            Some(&selected_resource),
-        )?;
-        let snapshot = snapshot.context("public Reason snapshot was not observed")?;
+                .run_tool_delivered_recovered(
+                    tool,
+                    arguments,
+                    recovery_end
+                        .expect("recovery deadline")
+                        .saturating_duration_since(tokio::time::Instant::now())
+                        .saturating_sub(Duration::from_secs(20)),
+                    |id, task| acknowledgments.record(id, task),
+                    recovery,
+                )
+                .await
+                .map(
+                    |recovered| veoveo_testing_support::final_tasks::DeliveredTaskResult {
+                        task_id: recovered.task_id,
+                        statuses: recovered.statuses,
+                        result: recovered.result,
+                    },
+                )
+        } else {
+            task_client
+                .run_tool_delivered_observed(tool, arguments, Duration::from_secs(600), |task| {
+                    if let Some(public) = &public {
+                        public.record(
+                            public::ObservationKind::TaskAcknowledged,
+                            Some(task),
+                            &[],
+                            None,
+                        )?;
+                    }
+                    Ok(())
+                })
+                .await
+        };
+        let output = match task {
+            Ok(output) => output,
+            Err(error) => {
+                if public.is_some() {
+                    bail!("public Reason Task delivery failed; private outcome retained");
+                }
+                if let Some(candidate) = candidate.as_mut() {
+                    candidate.finish(
+                        work_dir,
+                        candidate::ProbeOutcome::WorkloadFailed {
+                            message: format!("{error:#}"),
+                        },
+                    )?;
+                    bail!(
+                        "Reason compiler workload failed: {error:#}; candidate logs: {}",
+                        work_dir.display()
+                    );
+                }
+                let logs = kubernetes_logs(context, namespace, "deployment/reason-mcp")
+                    .unwrap_or_else(|log_error| format!("failed to collect logs: {log_error:#}"));
+                bail!("reason MCP task failed: {error:#}\nKubernetes logs:\n{logs}");
+            }
+        };
+        if let Some(recovery) = &recovery {
+            recovery.completed(&output)?;
+        }
         ensure!(
-            snapshot.uri == selected_resource,
-            "Reason update delivered a different resource"
+            output.statuses.last() == Some(&rmcp::model::TaskStatus::Completed),
+            "Reason delivery did not complete"
         );
-        public.record(
-            public::ObservationKind::AcknowledgedInitialCurrentResourceSnapshot,
-            Some(&delivered_id),
-            &delivered_statuses,
-            Some(&snapshot.uri),
-        )?;
-    }
-    if let Some(candidate) = candidate.as_mut() {
-        candidate.finish(
-            work_dir,
-            candidate::ProbeOutcome::ReasonGpuQualified {
-                result: Box::new(result),
-            },
-        )?;
-    }
-    println!(
-        "reason GPU smoke ok: recording {recording_id}, {observed_frames} observed frames, typed artifacts published"
-    );
+        if let Some(public) = &public {
+            public.record(
+                public::ObservationKind::DeliveredTaskCompleted,
+                Some(&output.task_id),
+                &output.statuses,
+                None,
+            )?;
+        }
+        let delivered_id = output.task_id;
+        let delivered_statuses = output.statuses;
+        let output = output.result;
+        let result: AnalyzeRecordingOutput = serde_json::from_value(
+            output
+                .structured_content
+                .context("Reason task omitted structured content")?,
+        )
+        .context("Reason task returned an invalid canonical output")?;
+        ensure!(
+            matches!(output.content.as_slice(), [ContentBlock::Text(status), ContentBlock::ResourceLink(link)]
+            if status.text == "Analysis completed." && link.uri == result.result_uri().to_string()),
+            "Reason terminal content must contain the status and one canonical result link"
+        );
+        result.check_request(&request)?;
+        let selected_resource = public::resource_identity(&result)?;
+        let observed_frames = result.summary.observed_frames;
+        ensure!(observed_frames > 0, "Reason task observed no GPU frames");
+        let resource: ReasoningResults = task_client
+            .read_resource(&result.result_uri().to_uri())
+            .await?;
+        ensure!(
+            resource.pipeline_id == *result.pipeline_uri.id()
+                && resource.model_id == *result.model_uri.id()
+                && resource.observed_frames == observed_frames
+                && resource.elapsed_ms == result.summary.elapsed_ms
+                && resource.answer.event_count() == result.summary.event_count
+                && resource.requested_range.start == result.summary.requested_start_index
+                && resource.requested_range.end == result.summary.requested_end_index,
+            "Reason canonical resource disagrees with the terminal completion"
+        );
+        result.check_results(&request, &result.results_artifact, &resource)?;
+        let snapshot = if let Some(public) = &public {
+            public.record(
+                public::ObservationKind::ResourceSnapshotIntent,
+                Some(&delivered_id),
+                &delivered_statuses,
+                Some(&selected_resource),
+            )?;
+            Some(
+                task_client
+                    .resource_snapshot_delivery(&selected_resource, Duration::from_secs(45))
+                    .await?,
+            )
+        } else {
+            None
+        };
+        if let Some(public) = &public {
+            public.record(
+                public::ObservationKind::DeliveredTaskCompleted,
+                Some(&delivered_id),
+                &delivered_statuses,
+                Some(&selected_resource),
+            )?;
+            let snapshot = snapshot.context("public Reason snapshot was not observed")?;
+            ensure!(
+                snapshot.uri == selected_resource,
+                "Reason update delivered a different resource"
+            );
+            public.record(
+                public::ObservationKind::AcknowledgedInitialCurrentResourceSnapshot,
+                Some(&delivered_id),
+                &delivered_statuses,
+                Some(&snapshot.uri),
+            )?;
+        }
+        if let Some(recovery) = &mut recovery {
+            recovery.verify_current().await?;
+        }
+        if let Some(candidate) = candidate.as_mut() {
+            candidate.finish(
+                work_dir,
+                candidate::ProbeOutcome::ReasonGpuQualified {
+                    result: Box::new(result),
+                },
+            )?;
+        }
+        println!(
+            "reason GPU smoke ok: recording {recording_id}, {observed_frames} observed frames, typed artifacts published"
+        );
+        Ok::<_, anyhow::Error>(())
+    });
+    let lifecycle_result = if let Some(end) = recovery_end {
+        tokio::time::timeout_at(end - Duration::from_secs(20), lifecycle)
+            .await
+            .map_err(|_| {
+                anyhow::anyhow!("Reason process recovery deadline; retained outcome unqualified")
+            })
+            .and_then(|r| r)
+    } else {
+        lifecycle.await
+    };
+    let recovery_cleanup = if let Some(recovery) = &mut recovery {
+        recovery.finish().await
+    } else {
+        Ok(())
+    };
+    lifecycle_result?;
+    recovery_cleanup?;
     recording_forwarder.drain(Duration::from_secs(40)).await?;
     if let Some(public) = &mut public {
         public.complete()?;

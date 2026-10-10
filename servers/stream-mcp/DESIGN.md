@@ -135,6 +135,27 @@ Run those tests through an independent Cargo consumer to check dependency isolat
 a workspace build can unify runtime features. Native runner fixtures exercise process
 and validation behavior. GPU and installed acceptance use the owning workload checks.
 
+The existing `stream-gpu` harness accepts an opt-in `stream-recovery/v1` public
+caller profile through `VEOVEO_STREAM_PUBLIC_CALLER_INPUT`. Recovery selects an
+already authorized recording and independent expected source and product facts;
+it skips sample production. Candidate and direct-replica modes exclude this profile.
+Its 600-second total interval reserves the final 20 seconds for owned cleanup.
+The selected replacement wait is at most 300 seconds and uses the remaining work
+interval. The request must naturally remain Working through process replacement;
+early completion refuses qualification.
+
+The harness records the original acknowledged Task and an exact-filter delivered
+Working update before arming the selected process watch. Ops signals only after
+the persisted live-target handshake. After observing replacement, the client
+reconnects once through the public Gateway and records the same Task's creation
+identity and current Working payload before awaiting delivered completion. Reads
+check the recovered product, immutable Recording sources and Artifact provenance.
+A resource subscription checks an initial current snapshot, which does not prove
+a later mutation notification. Registered cleanup retains the original consuming
+watch and client close futures, records unresolved failures, and shares the original
+cleanup cap. This profile does not establish another backend's recovery or undo
+GPU and Artifact effects that were already dispatched.
+
 ## MCP Setup And Compliance
 
 `StreamTaskKind` declares durable operation names in the contract-only library through

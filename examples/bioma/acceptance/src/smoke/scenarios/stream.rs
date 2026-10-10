@@ -1,5 +1,7 @@
 #[path = "stream/public.rs"]
 mod public;
+#[path = "stream/recovery.rs"]
+mod recovery;
 #[path = "stream/replicas.rs"]
 mod replicas;
 use super::candidate;
@@ -121,6 +123,12 @@ pub(crate) async fn stream_gpu(
             )
         })
         .transpose()?;
+    if let Some(profile) = &mut public
+        && let Some(fixture) = profile.recovery.take()
+    {
+        // A selected retained recording needs no generated sample or producer effects.
+        return recovery::run(installation, profile, fixture).await;
+    }
     let replicas = replicas::ReplicaProbe::prepare(installation, replica_pods, work_dir)?;
     let sample_h264 = prepare_sample_h264(work_dir, installation)?;
     let tmpdir = smoke_tmpdir()?;

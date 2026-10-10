@@ -151,8 +151,8 @@ Earlier installed checkpoints keep their recorded scope below.
 | Artifact | Focused normal-OAuth uploads with independent public byte/digest checks, delegated SDK reads and a separately selected retained Task-bound write capability across one service replacement; source/native controls and review pass at `dd7958d26` | Interrupted-write recovery and final images |
 | Timeseries | Four-row forecast, RRD Artifact and usage; typed cancellation, connection replacement and process-crash fixtures with original Task/result agreement | Installed unfinished process recovery, selected cross-replica routing and final images |
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
-| Stream | Existing GPU replay with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed result checks and an initial current resource snapshot | Installed public delivery, post-mutation updates, unfinished recovery and final images |
-| Reason | Existing GPU analysis with an opt-in normal-OAuth Gateway caller, acknowledged Task identity, delivered completion, typed analysis checks and an initial current resource snapshot | Installed public delivery, unfinished recovery and final images |
+| Stream | Existing GPU replay with a normal-OAuth Gateway caller, delivered completion and current resource snapshot; an opt-in unfinished recovery fixture selects a retained Recording, fences the replaced process and checks the same Task's creation identity, current Working state and recovered products. Compiler, strict lint, native controls and review pass | Installed public delivery, post-mutation updates, unfinished recovery and final images |
+| Reason | Existing GPU analysis with a normal-OAuth Gateway caller, delivered completion and current resource snapshot; an opt-in unfinished recovery fixture retains acknowledged Task facts, fences the replaced process and checks the same Task's creation identity, current Working state and recovered analysis. Compiler, strict lint, native controls and review pass | Installed public delivery, unfinished recovery and final images |
 | Knowledge | Full-catalog baseline, qualified retained-index/current-generation cold startup and separate restricted-caller discovery, collection/completion visibility and document denials, with retained SDK cleanup | First-ever empty-index startup, generation-two publication, installed caller-policy checks, current-generation recovery and final images |
 | Optimization | Multi-page existing solve corpus, exact products, usage, public Task results and canonical Artifact bytes under allowed and denied caller contexts; separately selected coordinated control/executor replacement repeats the retained consumers | Installed GPU-produced corpus, mid-run policy changes, coordinated control/executor replacement and unfinished/cross-replica recovery |
 
@@ -274,6 +274,18 @@ an initial current snapshot; subscription closure does not establish Task
 cancellation. These additions do not qualify unfinished process recovery.
 The [acceptance design](../examples/bioma/acceptance/DESIGN.md#public-stream-and-reason-consumers)
 defines their private inputs and observation scope.
+
+Stream and Reason now also prepare unfinished process recovery in those same GPU
+scenarios. The shared SDK helper creates one Task, preserves its acknowledged ID
+and creation time, closes the original connection and reconnects once after the
+selected process replacement. Both delivered and current Working states must agree
+before completion. Its two native controls cover seven SDK modes, including EOF,
+deadline and cancellation failures. The owner batch passes all twenty selected
+native controls after correcting a Reason fixture and refusing zero-test subprocess
+success. Owner cleanup preserves partial Task facts and failures across interrupted
+close operations. Compiler checks, strict lint and independent source review pass.
+The actual GPU recovery runs and current production CLI remain unqualified; see the
+[checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#stream-and-reason-unfinished-recovery-fixtures--october-10-2026).
 
 The source batch at `31f2f45c3` prepares unfinished DuckDB query recovery and Speech process
 recovery in their existing harnesses. Both require the original Task to remain
