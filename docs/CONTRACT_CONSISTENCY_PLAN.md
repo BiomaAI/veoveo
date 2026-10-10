@@ -13,13 +13,17 @@ batch stops at its second disk-growth guard without stage evidence; rollout and 
 qualification remain open.
 The fresh single-vehicle UAV capture exposed a runtime output failure after tile
 updates and incorrect RTSP video timestamps. The state repair at `1b9070590`
-passes all 151 owning Python tests and independent review; its image and installed
-acceptance remain open. The browser derives the actual codec from its SPS.
+passes all 151 owning Python tests and independent review. It is included in the
+published UAV runtime; installed acceptance remains open. The browser derives
+the actual codec from its SPS.
 The capture-clock batch passes 175 Python tests, eight JS tests, TypeScript and
 bundling; its asset agrees with the earlier compiler and four native App checks.
 It carries stock NVIDIA SEI capture time through RTSP to WebCodecs and retires
 stream resources before clock reset. Independent lifecycle review passes. Actual
-Isaac clock qualification and the paired runtime/MCP image rollout remain open. This capture
+Isaac clock qualification and the paired runtime/MCP image rollout remain open. Both
+images at `3da4c8446` pass staging, release digest agreement, attestations and
+node-origin manifest/configuration readback. The actuator-observation checkpoint
+passes all 177 owning Python controls and review. This capture
 does not close composed-flight acceptance. Independent PX4 log inspection finds a
 severe roll transient and motor saturation around log-relative 123 seconds, followed
 by much calmer cruise. Flight dynamics and feedback timing require qualification;

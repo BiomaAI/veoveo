@@ -8,6 +8,20 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Fresh UAV Flight And Runtime Output Repair — October 10, 2026
 
+The focused runtime/MCP image pair at `3da4c844662dc5fa13789bfe44af1f63b71d3cb6`
+passes staging and release qualification in 191 seconds. Runtime digest
+`sha256:0b072d943ed2eba3de427a5333673bcc5732ee568dae82475d4a538a172ed2c1`
+and MCP digest
+`sha256:fc0251e9acb3fefadc15b39815c6b705e6bae4906030c725279d8037122d2cea`
+agree between both phases. Node-origin reads return 200 for both manifests and
+configurations and verify their digests. The batch leaves 301,798,785,024 free
+bytes with the node healthy and core services Ready. No node image pull or
+rollout occurs. The private execution receipt is
+`/tmp/veoveo-uav-publish-3da4c844-20261010/attempt01/execution-receipt.json`,
+SHA-256 `62c2c7bee2a5a31436aee0d4f580200646d6153d3bd7d212a7a2047e96ad55e4`.
+The paired installed flight, actual capture clock and smooth full-fleet video
+remain open.
+
 Independent inspection of the retained PX4 log finds a severe control transient
 at log-relative 123.067–123.35 seconds: roll crosses inversion, angular velocity
 reaches about −1,088 degrees per second and motor commands saturate. Raw gyro
