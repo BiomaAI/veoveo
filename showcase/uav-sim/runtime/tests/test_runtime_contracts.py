@@ -36,6 +36,7 @@ from veoveo_uav_sim.h264 import (
     make_decoder_reentrant,
     parse_native_h264_access_unit,
 )
+from veoveo_uav_sim.outbound import SimulationState, admit_output
 from veoveo_uav_sim.physical_camera import (
     physical_camera_path,
     physical_camera_product_name,
@@ -67,6 +68,7 @@ from veoveo_uav_sim.runtime_events import (
 )
 from veoveo_uav_sim.state import (
     RuntimeState,
+    VehicleTelemetry,
     initial_runtime_timing,
 )
 from veoveo_uav_sim.stream_output import (
@@ -77,7 +79,9 @@ from veoveo_uav_sim.stream_output import (
 from veoveo_uav_sim.tile_lifecycle import (
     NativeTileEvent,
     NativeTileEventBridge,
+    TileFailure,
     TileLifecycleController,
+    TileLifecycleSnapshot,
     TileRenderStatistics,
     begin_provider_session_replacement,
     tile_content_ready,
@@ -736,6 +740,99 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status.lifecycle, "stopped")
         self.assertEqual(status.dropped_access_units, 0)
         self.assertEqual(status.published_access_units, 2)
+
+    def test_live_tile_mutations_admit_closed_state_through_failure_and_recovery(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            state = RuntimeState(RuntimeConfig.from_environment(), WORLD, RECORDING_KEY)
+        state.update_vehicles([VehicleTelemetry(
+            vehicle_id="uav-1",
+            position_enu=(0.0, 0.0, 0.0),
+            attitude_xyzw=(0.0, 0.0, 0.0, 1.0),
+            linear_velocity_enu_mps=(0.0, 0.0, 0.0),
+            flight_state="landed",
+            battery_percent=100.0,
+            px4_connected=True,
+        )])
+        admit_output(SimulationState, state.snapshot())
+        failure = TileFailure("provider_unavailable", "tile_content", 503, 2)
+        for lifecycle, generation, event, last_failure, diagnostic in (
+            ("ready", 1, 3, None, None),
+            ("degraded", 2, 4, failure, "provider unavailable"),
+            ("ready", 3, 5, None, None),
+        ):
+            with self.subTest(lifecycle=lifecycle, generation=generation):
+                state.set_tiles(TileLifecycleSnapshot(
+                    lifecycle=lifecycle,
+                    provider_generation=generation,
+                    event_sequence=event,
+                    refresh_count=2,
+                    resident_tiles=11,
+                    visible_tiles=7,
+                    loading_tiles=1,
+                    geometries_loaded=19,
+                    geometries_rendered=13,
+                    materials_loaded=17,
+                    last_failure=last_failure,
+                    diagnostic=diagnostic,
+                ))
+                tiles = admit_output(SimulationState, state.snapshot())["tiles"]
+                self.assertEqual(tiles["lifecycle"], lifecycle)
+                self.assertEqual(tiles["providerGeneration"], generation)
+                self.assertEqual(tiles["eventSequence"], event)
+                self.assertEqual(tiles["refreshCount"], 2)
+                self.assertEqual(tiles["residentTiles"], 11)
+                self.assertEqual(tiles["visibleTiles"], 7)
+                self.assertEqual(tiles["loadingTiles"], 1)
+                self.assertEqual(tiles["geometriesLoaded"], 19)
+                self.assertEqual(tiles["geometriesRendered"], 13)
+                self.assertEqual(tiles["materialsLoaded"], 17)
+                if last_failure is None:
+                    self.assertNotIn("lastFailure", tiles)
+                    self.assertNotIn("diagnostic", tiles)
+                else:
+                    self.assertEqual(tiles["lastFailure"], {
+                        "code": "provider_unavailable", "loadType": "tile_content",
+                        "httpStatus": 503, "generation": 2,
+                    })
+                    self.assertEqual(tiles["diagnostic"], diagnostic)
+
+    def test_live_camera_and_recording_mutations_admit_closed_state(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            state = RuntimeState(RuntimeConfig.from_environment(), WORLD, RECORDING_KEY)
+        state.update_vehicles([VehicleTelemetry(
+            vehicle_id="uav-1",
+            position_enu=(0.0, 0.0, 0.0),
+            attitude_xyzw=(0.0, 0.0, 0.0, 1.0),
+            linear_velocity_enu_mps=(0.0, 0.0, 0.0),
+            flight_state="landed",
+            battery_percent=100.0,
+            px4_connected=True,
+        )])
+        for lifecycle, diagnostic in (("ready", None), ("failed", "encoder unavailable"), ("ready", None)):
+            with self.subTest(lifecycle=lifecycle):
+                state.update_camera("uav-1", lifecycle, 23, 4096, keyframe=True, diagnostic=diagnostic)
+                camera = admit_output(SimulationState, state.snapshot())["cameras"][0]
+                self.assertEqual(camera["lifecycle"], lifecycle)
+                self.assertEqual(camera["framesObserved"], 23)
+                self.assertEqual(camera["lastAccessUnitBytes"], 4096)
+                self.assertTrue(camera["lastFrameKeyframe"])
+                self.assertEqual(camera.get("diagnostic"), diagnostic)
+        new_key = "019f7122-3d89-7d21-8312-8940d1e0f511"
+        for lifecycle, diagnostic in (("degraded", "network unavailable"), ("ready", None)):
+            state.update_recording_publisher(lifecycle, 17, 9, diagnostic, new_key)
+            recording = admit_output(SimulationState, state.snapshot())["recordings"][0]
+            self.assertEqual(recording["publisherLifecycle"], lifecycle)
+            self.assertEqual(recording["queuedEvents"], 17)
+            self.assertEqual(recording["droppedEvents"], 9)
+            self.assertEqual(recording["recordingKey"], new_key)
+            self.assertEqual(recording.get("diagnostic"), diagnostic)
+        state.set_lifecycle("ready")
+        state.advance(1.5, 600)
+        state.set_recording_active(False)
+        snapshot = admit_output(SimulationState, state.snapshot())
+        self.assertEqual(snapshot["simulationTimeS"], 1.5)
+        self.assertEqual(snapshot["physicsStep"], 600)
+        self.assertFalse(snapshot["recordings"][0]["active"])
 
     def test_recording_degradation_is_visible_without_blocking_readiness(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
@@ -2206,7 +2303,7 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertIn("ready = simulation_ready and visual_ready", server_source)
         self.assertIn("status=200 if ready else 503", server_source)
         self.assertIn("tile_content_ready(", server_source)
-        self.assertIn('materials_loaded=tiles["materials_loaded"]', server_source)
+        self.assertIn("materials_loaded=tiles['materialsLoaded']", server_source)
 
     def test_provider_replacement_preserves_cache_and_authors_shadow(self) -> None:
         operations: list[tuple[str, str | None]] = []

@@ -154,15 +154,15 @@ class RuntimeState:
             tiles = self._state["tiles"]
             tiles.update(
                 lifecycle=snapshot.lifecycle,
-                resident_tiles=snapshot.resident_tiles,
-                visible_tiles=snapshot.visible_tiles,
-                loading_tiles=snapshot.loading_tiles,
-                geometries_loaded=snapshot.geometries_loaded,
-                geometries_rendered=snapshot.geometries_rendered,
-                materials_loaded=snapshot.materials_loaded,
-                provider_generation=snapshot.provider_generation,
-                event_sequence=snapshot.event_sequence,
-                refresh_count=snapshot.refresh_count,
+                residentTiles=snapshot.resident_tiles,
+                visibleTiles=snapshot.visible_tiles,
+                loadingTiles=snapshot.loading_tiles,
+                geometriesLoaded=snapshot.geometries_loaded,
+                geometriesRendered=snapshot.geometries_rendered,
+                materialsLoaded=snapshot.materials_loaded,
+                providerGeneration=snapshot.provider_generation,
+                eventSequence=snapshot.event_sequence,
+                refreshCount=snapshot.refresh_count,
             )
             if snapshot.last_failure is not None:
                 tiles['lastFailure'] = {
@@ -252,9 +252,9 @@ class RuntimeState:
                 if camera['vehicleId'] == vehicle_id:
                     camera.update(
                         lifecycle=lifecycle,
-                        frames_observed=max(0, frames_observed),
-                        last_access_unit_bytes=access_unit_bytes,
-                        last_frame_keyframe=keyframe,
+                        framesObserved=max(0, frames_observed),
+                        lastAccessUnitBytes=access_unit_bytes,
+                        lastFrameKeyframe=keyframe,
                     )
                     if diagnostic:
                         camera["diagnostic"] = diagnostic
@@ -328,9 +328,9 @@ class RuntimeState:
         with self._condition:
             recording = self._state["recordings"][0]
             recording.update(
-                publisher_lifecycle=lifecycle,
-                queued_events=max(0, queued_events),
-                dropped_events=max(0, dropped_events),
+                publisherLifecycle=lifecycle,
+                queuedEvents=max(0, queued_events),
+                droppedEvents=max(0, dropped_events),
             )
             if recording_key is not None and recording_key != recording['recordingKey']:
                 recording['recordingKey'] = recording_key
