@@ -69,11 +69,11 @@ impl HandoffObserver {
         let (c, rest) = rest.split_at_mut(1);
         let (d, e) = rest.split_at_mut(1);
         let (kind, event) = tokio::select! {
-            event = a[0].next() => (a[0].kind, event?),
-            event = b[0].next() => (b[0].kind, event?),
-            event = c[0].next() => (c[0].kind, event?),
-            event = d[0].next() => (d[0].kind, event?),
-            event = e[0].next() => (e[0].kind, event?),
+            event = Box::pin(a[0].next()) => (a[0].kind, event?),
+            event = Box::pin(b[0].next()) => (b[0].kind, event?),
+            event = Box::pin(c[0].next()) => (c[0].kind, event?),
+            event = Box::pin(d[0].next()) => (d[0].kind, event?),
+            event = Box::pin(e[0].next()) => (e[0].kind, event?),
         };
         let inventory = self.inventories.get_mut(&kind).expect("admitted inventory");
         match event.kind.as_str() {
@@ -105,14 +105,17 @@ impl HandoffObserver {
         phase: HandoffPhase,
         deadline: tokio::time::Instant,
     ) -> Result<()> {
-        tokio::time::timeout_at(deadline, async {
-            loop {
-                if model::check(&self.fixture, &self.inventories, &mut self.receipt, phase)? {
-                    return Ok(());
+        tokio::time::timeout_at(
+            deadline,
+            Box::pin(async {
+                loop {
+                    if model::check(&self.fixture, &self.inventories, &mut self.receipt, phase)? {
+                        return Ok(());
+                    }
+                    Box::pin(self.next()).await?;
                 }
-                self.next().await?;
-            }
-        })
+            }),
+        )
         .await
         .map_err(|_| anyhow::anyhow!("handoff phase deadline"))?
     }
@@ -127,11 +130,11 @@ impl HandoffObserver {
             self.receipt.assertion_versions =
                 model::versions(&self.fixture, &self.inventories, &self.receipt)?;
         }
-        tokio::pin!(work);
+        let mut work = Box::pin(work);
         loop {
             tokio::select! {
                 biased;
-                event = self.next() => { event?; self.check(phase)?; }
+                event = Box::pin(self.next()) => { event?; self.check(phase)?; }
                 result = &mut work => {
                     let result = result?;
                     // Fresh API inventories also fence the final domain observation.
@@ -162,27 +165,30 @@ impl HandoffObserver {
             self.receipt.barrier_nonce.is_some(),
             "handoff barrier was not requested"
         );
-        tokio::time::timeout_at(deadline, async {
-            while !self.receipt.barrier_observed {
-                self.next().await?;
+        tokio::time::timeout_at(
+            deadline,
+            Box::pin(async {
+                while !self.receipt.barrier_observed {
+                    Box::pin(self.next()).await?;
+                    self.check(HandoffPhase::ReplacementOnly)?;
+                }
+                watch::admit_storage_identity(&self.target, &self.fixture).await?;
+                for &kind in watch::Kind::ALL {
+                    self.inventories.insert(
+                        kind,
+                        watch::inventory(&self.target, &self.fixture, kind).await?,
+                    );
+                }
                 self.check(HandoffPhase::ReplacementOnly)?;
-            }
-            watch::admit_storage_identity(&self.target, &self.fixture).await?;
-            for &kind in watch::Kind::ALL {
-                self.inventories.insert(
-                    kind,
-                    watch::inventory(&self.target, &self.fixture, kind).await?,
+                self.receipt.final_versions =
+                    model::versions(&self.fixture, &self.inventories, &self.receipt)?;
+                ensure!(
+                    self.receipt.final_versions == self.receipt.assertion_versions,
+                    "handoff routing/configuration changed during assertions"
                 );
-            }
-            self.check(HandoffPhase::ReplacementOnly)?;
-            self.receipt.final_versions =
-                model::versions(&self.fixture, &self.inventories, &self.receipt)?;
-            ensure!(
-                self.receipt.final_versions == self.receipt.assertion_versions,
-                "handoff routing/configuration changed during assertions"
-            );
-            Ok(())
-        })
+                Ok(())
+            }),
+        )
         .await
         .map_err(|_| anyhow::anyhow!("handoff barrier original deadline"))?
     }

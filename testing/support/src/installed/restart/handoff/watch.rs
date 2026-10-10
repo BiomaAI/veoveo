@@ -257,6 +257,20 @@ impl Watch {
             bytes: 0,
         })
     }
+    #[cfg(test)]
+    pub(super) fn native_control(kind: Kind, mut child: crate::AsyncChild) -> Result<Self> {
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("native watch stdout absent"))?;
+        Ok(Self {
+            kind,
+            child,
+            stdout,
+            pending: vec![],
+            bytes: 0,
+        })
+    }
     pub async fn next(&mut self) -> Result<Event> {
         loop {
             let mut decoder =

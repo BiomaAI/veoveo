@@ -370,7 +370,9 @@ async fn run() -> Result<()> {
     }));
     let a = Arc::new(Mutex::new(Handles::new()));
     let b = Arc::new(Mutex::new(Handles::new()));
-    let outcome = owner::run(async {
+    // Keep the composed SDK/watch operation off the libtest thread's stack.
+    // Pinning changes storage only; the owner still drops work before cleanup.
+    let outcome = owner::run(Box::pin(async {
         let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
         let restoration = physical.clone();
         let restoration_journal = journal.clone();
@@ -389,71 +391,74 @@ async fn run() -> Result<()> {
                 move || async move { close_handles(&mut *handles.lock().await).await },
             )?;
         }
-        tokio::time::timeout_at(deadline, async {
-            let mut topology = physical.lock().await;
-            input.routing.live(&target, &input.setup).await?;
-            topology.observer.initialize().await?;
-            topology.initialized = true;
-            let baseline = topology
-                .observer
-                .protect(
-                    HandoffPhase::OriginalOnly,
-                    observe(&a, &input, &original, &prior, &journal),
-                )
-                .await?;
-            {
-                let mut journal = journal.lock().await;
-                journal.evidence.original = Some(baseline);
-                journal.evidence.physical = topology.observer.receipt().clone();
-                journal.persist(Step::OriginalBaseline)?;
-                // Ops may create B only after this append is durable.
-                journal.persist(Step::CreateReplacementIntent)?;
-            }
-            topology.changed = true;
-            topology
-                .observer
-                .wait(HandoffPhase::BothReady, deadline)
-                .await?;
-            ensure!(
+        tokio::time::timeout_at(
+            deadline,
+            Box::pin(async {
+                let mut topology = physical.lock().await;
+                input.routing.live(&target, &input.setup).await?;
+                topology.observer.initialize().await?;
+                topology.initialized = true;
+                let baseline = topology
+                    .observer
+                    .protect(
+                        HandoffPhase::OriginalOnly,
+                        observe(&a, &input, &original, &prior, &journal),
+                    )
+                    .await?;
+                {
+                    let mut journal = journal.lock().await;
+                    journal.evidence.original = Some(baseline);
+                    journal.evidence.physical = topology.observer.receipt().clone();
+                    journal.persist(Step::OriginalBaseline)?;
+                    // Ops may create B only after this append is durable.
+                    journal.persist(Step::CreateReplacementIntent)?;
+                }
+                topology.changed = true;
                 topology
                     .observer
-                    .receipt()
-                    .pod_b_created_at
-                    .is_some_and(|created| created > input.created_at),
-                "replacement predates retained Task acknowledgement"
-            );
-            journal.lock().await.persist(Step::BothReady)?;
-            journal.lock().await.persist(Step::HandoffIntent)?;
-            topology
-                .observer
-                .wait(HandoffPhase::ReplacementOnly, deadline)
-                .await?;
-            let replacement = topology
-                .observer
-                .protect(
-                    HandoffPhase::ReplacementOnly,
-                    observe(&b, &input, &original, &prior, &journal),
-                )
-                .await?;
-            topology.observer.request_barrier(uuid::Uuid::now_v7())?;
-            {
+                    .wait(HandoffPhase::BothReady, deadline)
+                    .await?;
+                ensure!(
+                    topology
+                        .observer
+                        .receipt()
+                        .pod_b_created_at
+                        .is_some_and(|created| created > input.created_at),
+                    "replacement predates retained Task acknowledgement"
+                );
+                journal.lock().await.persist(Step::BothReady)?;
+                journal.lock().await.persist(Step::HandoffIntent)?;
+                topology
+                    .observer
+                    .wait(HandoffPhase::ReplacementOnly, deadline)
+                    .await?;
+                let replacement = topology
+                    .observer
+                    .protect(
+                        HandoffPhase::ReplacementOnly,
+                        observe(&b, &input, &original, &prior, &journal),
+                    )
+                    .await?;
+                topology.observer.request_barrier(uuid::Uuid::now_v7())?;
+                {
+                    let mut journal = journal.lock().await;
+                    journal.evidence.physical = topology.observer.receipt().clone();
+                    journal.persist(Step::BarrierRequested)?;
+                }
+                topology.observer.finish_barrier(deadline).await?;
+                input.routing.live(&target, &input.setup).await?;
                 let mut journal = journal.lock().await;
+                journal.evidence.replacement = Some(replacement);
+                journal.evidence.result = Some(original.expected.clone());
                 journal.evidence.physical = topology.observer.receipt().clone();
-                journal.persist(Step::BarrierRequested)?;
-            }
-            topology.observer.finish_barrier(deadline).await?;
-            input.routing.live(&target, &input.setup).await?;
-            let mut journal = journal.lock().await;
-            journal.evidence.replacement = Some(replacement);
-            journal.evidence.result = Some(original.expected.clone());
-            journal.evidence.physical = topology.observer.receipt().clone();
-            journal.persist(Step::ReplacementVerified)?;
-            Ok::<_, anyhow::Error>(())
-        })
+                journal.persist(Step::ReplacementVerified)?;
+                Ok::<_, anyhow::Error>(())
+            }),
+        )
         .await
         .map_err(|_| anyhow::anyhow!("handoff original operation deadline"))
         .and_then(|v| v)
-    })
+    }))
     .await;
     let a = a.lock().await;
     let b = b.lock().await;

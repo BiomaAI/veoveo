@@ -19,10 +19,12 @@ across one fenced Artifact service replacement. Interrupted-write recovery and
 final-image qualification remain open.
 The completed-state cross-replica fixture
 passes source qualification and independent review. Its latest installed attempt
-passes input and original-only topology admission, then receives MCP -32600 on
-the first retained-Task subscription. The error digest matches the Gateway's
-required-scope denial. Operations must verify all three required granted scopes
-before the next launch. No Time topology change occurs; handoff remains unqualified.
+passes original completed-Task reads with the required OAuth scopes and creates a
+Ready second Pod, then the native acceptance process overflows its stack before
+switching traffic. The second Pod is removed with its UID precondition; Time's
+original Pod and routing stay healthy. The harness stack repair passes its
+reproduced native regression and eight focused controls; installed handoff remains
+open.
 Gateway, Agent Manager and Knowledge run compatible qualified images against the
 published full catalog. Manager is Ready with the reviewed immutable pilot template,
 qualified kernel and matching admission policies; its full installed instance journey
@@ -232,20 +234,24 @@ template discovery and is recorded separately from these targeted passes. The
 completed-state cross-replica fixture passes strict compiler checks, focused native
 controls and independent review at `29831d530`. Its installed A/B execution remains
 open; its scope excludes unfinished recovery and delivery after a mutation.
-The fully audited input and original-only topology pass admission. The latest
-attempt then receives MCP -32600 on the first retained-Task subscription. Its
-failure digest matches the Gateway's fixed missing-scope denial; both missing and
-unknown scopes use that message, so the private policy reason is not distinguished.
-Retained identity and route checks occur before this policy check and would return
--32602 on failure. The seven-day Task/route retention also excludes elapsed time
-as the explanation. Operations must request and verify granted `operator:use`,
-`time:read` and `time:schedule` through the same normal OAuth client and context.
-The old granted-scope projection was not retained; the exact omitted scope is
-unknown. The original Time Pod, Service selector and ready endpoint are unchanged,
-B is absent, and restoration/watch cleanup pass. Installed handoff and unfinished
-recovery remain unqualified; no source defect is established. The
-[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#time-handoff-task-subscription-scope-denial--october-10-2026)
-records the request failure and its diagnostic limits.
+The audited input, original-only topology and required OAuth scopes pass admission.
+The original completed-Task baseline also passes. The latest attempt creates its
+second Pod, which becomes Ready, then the native acceptance process reports a
+stack overflow while awaiting the next handoff gate. No Service selector or
+original replica mutation is dispatched. Operations removes the unselected second
+Deployment with its UID precondition and verifies its Pods absent; original
+routing, core services and reconciliation holds stay unchanged. The captured
+binary has large nested async poll frames; source inspection finds no recursive
+path, but no core or backtrace identifies the precise overflowing instruction.
+The source repair heap-pins the large owner and shared observer futures and keeps
+the original deadlines, watch fences and assertions. The same five-native-watch
+control overflows before the repair and passes afterward on a 512 KiB stack.
+All eight focused shared and Time controls pass, along with compiler and strict
+lint checks. The complete installed handoff still needs a retry with the repaired
+executable and no stack override. This was an acceptance-process crash;
+no Time service crash or MCP error response was observed. The
+[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#time-handoff-native-stack-overflow--october-10-2026)
+records the partial effects and restoration.
 
 Gateway-routed Knowledge source checks now admit each templates/tools page against
 the selected typed server. Unrelated server failures are retained as limited K01

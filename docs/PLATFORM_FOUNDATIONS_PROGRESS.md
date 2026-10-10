@@ -6,6 +6,76 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Time Handoff Native Stack Overflow — October 10, 2026
+
+Attempt eight uses the audited historical completed-Task pair and changes only
+the new token-file and output paths. Immediately before launch its ordinary OAuth
+caller has granted `operator:use`, `time:read` and `time:schedule`, the expected
+audience/context and 794 seconds of remaining lifetime. Original Time, Service,
+PVC, catalog and core health gates pass. The native executable remains
+`3568c430744877b3502f8494ac66d7a69996b07e919a54f8ca2c0b1e0b42a27c`;
+source HEAD is `579e846d3151c617197014ba91ab330a982e83d9`.
+
+The receipt records `admitted`, `original_baseline` and
+`create_replacement_intent`. The create-only action receives success and the second
+Time Pod becomes Ready on the same node with the admitted image and PVC mount.
+The native test process then reports `overflowed its stack` and a fatal stack
+overflow. The dispatcher exits one. No Service-selector or original-replica
+mutation occurs; the receipt never reaches the post-switch Task gate. One read
+completes and three trace operations remain unfinished. This local abort has no
+HTTP/MCP failure response and does not establish a Time server crash.
+
+Operations deletes only the owned second Deployment using UID
+`c2258590-0c81-4816-b739-373da361b57e`; the API returns HTTP 200 Status Success.
+Its Deployment and Pods are absent afterward. Original Time remains one Ready
+replica with Service resourceVersion 20638 and only its original endpoint. All
+eight selected core Deployments are Ready, the node reports no pressure and all
+three holds stay suspended. The private OAuth file and owned proxy are removed.
+Native observer cleanup did not complete after the process abort; physical
+restoration by Operations does not turn that run into a pass.
+
+Read-only inspection of the exact captured debug ELF finds about 1.58 MiB of
+nested poll frames on the composed wait path before the remaining runtime and
+decoding frames. The five inline watch-read futures each retain an 8192-byte
+scratch buffer. Source inspection finds no recursive path. The inherited thread
+stack size was not recorded, and no core/backtrace identifies the precise overflow
+instruction. No owned core artifact is found. The repair moves large futures to
+the heap and adds a composed, bounded-stack native control; increasing every test's
+stack is not its acceptance criterion. Native repair qualification and the real
+installed retry remain separate gates.
+
+The source repair heap-pins the composed Time owner operation and the shared
+observer's watch, wait, protection and barrier futures. Deadlines, journal order,
+routing fences and cleanup ownership are unchanged. The new control runs five
+owned native streams on a 512 KiB thread stack, observes readiness, rejects a
+streamed route invalidation and awaits watch cleanup. Against the original shared
+implementation it exits 101 with a fatal stack overflow in 1.583 seconds. The
+identical control passes after the repair in 0.264 seconds. All five shared and
+three Time controls pass; compiler checks, strict lint, formatting and whitespace
+checks pass. Independent source review finds no logic or contract issue.
+
+The source/native receipt is
+`/tmp/veoveo-time-stack-fix-20261010/source-native-receipt.json`, SHA-256
+`c2b099ea0f11859efbdcbe511118e5981cee78d344d201983733ef48f5c47e03`.
+It binds all four source hashes and the compiler artifacts. The repaired Time
+executable has SHA-256
+`bdd4af8e7bd624cf503cf662b1ba5674325b5c84510139b3e1edd28e3f92a7ec`.
+These native controls establish the shared stack regression and owner checks;
+they do not qualify the complete installed handoff. That retry remains open and
+must use the repaired executable without a stack override.
+
+Private files under `/tmp/veoveo-time-handoff-after-artifact-20261010-attempt8`:
+
+| Output | SHA-256 |
+|---|---|
+| `handoff.input.json` | `3453f3dcd931c7571a7fd570440cbf626dde41225408471ed3418c9e87fcae80` |
+| Terminal postflight addendum | `3620b7853d518dd5aed22b90c7b8e1146e27e5cb2a19fd46e34942a4beb1a13c` |
+| Dispatcher result | `da49fd2dd707029b0ae069adf2d8fb48d62012b3fd3b8d9926facf4009143f0b` |
+| Three-record journal | `0fa55687156dfab814b70becd062d2ed8e2f4158d66bcc80d02d333b00b50d3d` |
+| Captured framework stderr | `02a4aad2abfca0ac58ec53254ffd9da3aedf2f303225a050957d3517100edf25` |
+| Bounded Time Pod logs | `8f5a14b1c8365a629ecf3afe90ef77514993e496d373bd30d7c0d1ed18fdc86e` |
+| Bounded Gateway Pod logs | `05f42dd5265a83a7cd36450850283c713aa86c573dd5e0646014b586cf3e05fd` |
+
 ## Artifact Service Replacement And Retained Capability — October 10, 2026
 
 The existing focused Artifact consumer scenario passes with its separately selected

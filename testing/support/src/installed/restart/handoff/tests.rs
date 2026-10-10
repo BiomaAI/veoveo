@@ -480,3 +480,76 @@ fn cancelled_owner_admits_cleanup_inventory_with_original_grace() -> Result<()> 
     crate::lifecycle::owner::test_activate(None);
     result
 }
+
+#[test]
+fn handoff_five_native_watches_wait_and_protect_on_small_stack() -> Result<()> {
+    const KEY: &str = "VEOVEO_TEST_HANDOFF_FINITE_STACK";
+    if std::env::var_os(KEY).is_none() {
+        crate::process::tests::isolated_control(
+            "installed::restart::handoff::tests::handoff_five_native_watches_wait_and_protect_on_small_stack",
+            KEY,
+            "finite",
+        );
+        return Ok(());
+    }
+    // Isolate an overflow from the native test runner. This bounds the shared
+    // observation graph, without changing the installed runtime's stack setting.
+    std::thread::Builder::new().stack_size(512 * 1024).spawn(|| -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let owner = crate::lifecycle::owner::test_scope(root.path().to_owned(), Duration::from_secs(10));
+        crate::lifecycle::owner::test_activate(Some(&owner));
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+        let result = runtime.block_on(Box::pin(async {
+            use tokio::io::AsyncWriteExt;
+            let (f, mut all) = fixture()?;
+            add_b(&f, &mut all)?;
+            let ready = all[&watch::Kind::Pods].objects[&uid(7)].clone();
+            all.get_mut(&watch::Kind::Pods).unwrap().objects.get_mut(&uid(7)).unwrap().status["containerStatuses"][0]["ready"] = json!(false);
+            let target = InstallationTarget::decode(&serde_json::to_vec(&json!({
+                "schema":"veoveo.ai/installation-target/v1",
+                "kubernetes":{"context":"fixture","namespace":"fixture"},
+                "localBaseUrl":"http://127.0.0.1:18781","publicBaseUrl":"https://fixture.example.test",
+                "controlPlane":"gateway.json","expectedDeployments":["a"],"minimumGpuShares":1,
+                "operator":{"clientId":"fixture","profile":"fixture","workContext":"fixture","scopes":["fixture:use"]}
+            }))?)?;
+            let mut observer = HandoffObserver { target, fixture:f, inventories:all, watches:vec![], receipt:HandoffReceipt::default(), cleanup_read:None };
+            let mut inputs = BTreeMap::new();
+            for &kind in watch::Kind::ALL {
+                let mut command = tokio::process::Command::new("/bin/cat");
+                command.stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null());
+                let mut child = crate::spawn_async(command)?;
+                inputs.insert(kind, child.stdin.take().ok_or_else(|| anyhow::anyhow!("native watch stdin absent"))?);
+                observer.watches.push(watch::Watch::native_control(kind, child)?);
+            }
+            let observed = async {
+                for input in inputs.values_mut() {
+                    input.write_all(br#"{"type":"BOOKMARK","object":{}}"#).await?;
+                }
+                for _ in watch::Kind::ALL { observer.next().await?; }
+                ensure!(observer.receipt.watch_events == 5);
+                let event = serde_json::to_vec(&json!({"type":"MODIFIED","object":{
+                    "metadata":{"name":"b-pod","uid":uid(7),"resourceVersion":"ready",
+                    "labels":{"app.kubernetes.io/component":"b","app.kubernetes.io/instance":"fixture"},
+                    "ownerReferences":[{"kind":"ReplicaSet","uid":uid(8),"controller":true}]},
+                    "spec":ready.spec,"status":ready.status
+                }}))?;
+                inputs.get_mut(&watch::Kind::Pods).unwrap().write_all(&event).await?;
+                observer.wait(HandoffPhase::BothReady, tokio::time::Instant::now()+Duration::from_secs(2)).await?;
+                ensure!(observer.receipt.watch_events == 6);
+                // A real native stream invalidates the physical route while the
+                // independent owner work is pending; protect must refuse it.
+                inputs.get_mut(&watch::Kind::Services).unwrap().write_all(br#"{"type":"MODIFIED","object":{"metadata":{"name":"service","uid":"00000000-0000-0000-0000-000000000002","resourceVersion":"changed"},"spec":{}}}"#).await?;
+                let refused = tokio::time::timeout(Duration::from_secs(2), observer.protect(HandoffPhase::BothReady, std::future::pending::<Result<()>>())).await?;
+                ensure!(refused.is_err() && observer.receipt.watch_events == 7, "protect lost the streamed route invalidation");
+                Ok::<_,anyhow::Error>(())
+            }.await;
+            let closed = observer.close_until(std::time::Instant::now()+Duration::from_secs(3)).await;
+            observed?;
+            closed?;
+            ensure!(observer.receipt.watches_closed);
+            Ok::<_,anyhow::Error>(())
+        }));
+        crate::lifecycle::owner::test_activate(None);
+        result
+    })?.join().map_err(|_| anyhow::anyhow!("native handoff stack control panicked"))?
+}
