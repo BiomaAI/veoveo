@@ -491,6 +491,15 @@ final-source qualification. Stable cache identities permit reuse. The
 [preparation checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#manager-native-qualification-and-final-source-closure--october-10-2026)
 records the source closure and planner outputs.
 
+Reviewed registry retirement is complete. Native offline collection removes the
+approved obsolete blobs while preserving all current pins and retained references.
+All 395 retained manifests pass digest readback; the registry and core services
+are healthy. Measured free space is 291,324,821,504 bytes after recovering
+23.82 GiB. BuildKit caches and the current acceptance CLI are preserved. The
+[retirement checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#reviewed-registry-retirement--october-10-2026)
+records the exact deletion sets and postflight. The final build still requires
+resource admission; the original aggregate budget baseline is unchanged.
+
 The unchanged Charts, simulation-runtime and UAV-runtime production inputs retain
 their own accepted `6431c30c6621` publication proof. Fresh node-network manifest and
 config reads return 200 with matching hashes for all three; their source and

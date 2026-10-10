@@ -6,6 +6,52 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Reviewed Registry Retirement — October 10, 2026
+
+The reviewed retirement preserves all thirty current image pins, qualified
+publication and runnable images, provider images, dependency and cache aliases,
+and their referenced objects. Fresh inspection agrees with the frozen inventory
+of 1,583 manifest revisions. The online registry accepts all 1,188 selected
+manifest DELETEs, and each selected digest subsequently returns 404. All 395
+retained manifest bodies still match their original digests.
+
+Independent inspection resolves the twenty-nine chart manifests omitted from
+the projected media classification: each has a known schema-two config/layers
+layout. Native offline garbage collection marks exactly 1,571 retained digests.
+Its dry-run selects 3,142 other blobs and 2,043 repository-local layer links;
+neither set removes an object or link needed by a retained manifest. Separate
+review and parent admission precede the single actual collection. The actual
+native deletion sets agree with the reviewed dry-run, and collection exits zero.
+The command uses the existing registry 3.1.1 image, configuration and volume,
+without `--delete-untagged`.
+
+Postflight finds exactly the 1,571 retained blobs and none of the 3,142 removed
+blobs. All 395 retained manifests return byte-identical bodies. The same registry
+container is running and its API returns 200. Knowledge, Embedding and Speech
+are Ready; the node reports Ready without disk pressure, and the three Flux
+holds keep their identities and suspension settings. All 142 retained tag aliases
+resolve to their original digests; the 457 approved aliases are absent from
+the repository tag lists. Free space rises from
+265,752,817,664 to 291,324,821,504 bytes, an observed increase of 23.82 GiB.
+BuildKit caches, Cargo libraries, the current acceptance CLI and retained data
+are preserved. The original aggregate budget baseline is unchanged. Final image
+builds and installed acceptance remain separate work.
+
+The failed verification receipts remain alongside the successful records. Local
+request-header, projection and receipt-serialization errors stop their drivers
+before collection; corrected verification does not repeat the manifest DELETEs.
+An immediate post-start connection reset is followed by successful registry
+readiness and retained-object checks. Actual garbage collection runs once.
+
+| Private record | SHA-256 |
+|---|---|
+| `/tmp/veoveo-registry-retention-review-20261010/registry-retirement-proposal-v7.json` | `d99c29702d9bd7f43a12260ea0b30f9b7be3c6e08f049ee3c0561dae0dfab9f3` |
+| `/tmp/veoveo-registry-retention-review-20261010/execution-v7-dryrun-20261010T202958Z/gc-dry-run-set-comparison.json` | `dcc3be490d2971b12d3d609efa484aa1e83d63646f0be50f0043def0a705ccf9` |
+| `/tmp/veoveo-registry-retention-review-20261010/execution-v7-actual-gc-20261010T203358Z/actual-gc-receipt.json` | `b61568a49ea162c63d5ef46e63cb1dfe2c7da42172754974de35ddc503164bfe` |
+| `/tmp/veoveo-registry-retention-review-20261010/execution-v7-actual-gc-20261010T203358Z/actual-gc-set-comparison.json` | `c619351ac8e9f87d2c568fd018b42238f0954b2b3dbeb2ffa831ff0d1dd329a8` |
+| `/tmp/veoveo-registry-retention-review-20261010/execution-v7-actual-gc-20261010T203358Z/post-gc-verification.json` | `4b094cf215e9ba7b4a96fed194d759446731bc5b133a55de5158312603bfb36a` |
+| `/tmp/veoveo-registry-retention-review-20261010/execution-v7-actual-gc-20261010T203358Z/post-gc-alias-verification.json` | `4ce1b1900b7d664681cdb6895581036092c718a6306ccc92ce220c273ccd417d` |
+
 ## Manager Native Qualification And Final Source Closure — October 10, 2026
 
 The scope-admission repair is committed and pushed as `3820c0db5`. Manager's warm
