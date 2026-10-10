@@ -581,8 +581,14 @@ records retain for seven days unless a retention pin extends their lifetime.
 Workers read durable cancellation before scope resolution, after scope resolution,
 and after authority and epoch loading. These checkpoints observe requests committed
 through another server replica without relying on a shared local cancellation token.
-Schedule expansion and timeline validation execute synchronously; cancellation does
-not interrupt their CPU loops. The checkpoints also honor the local worker token.
+Hosted schedule expansion and timeline validation run finite calculations on Tokio's
+blocking pool. The registered async worker retains the original job outside its
+cancellable waiter and awaits that job before normal exit, including after a failed
+lease heartbeat. Cooperative stop checks occur at calendar windows, recurrence
+days, timeline points and constraints, and output indexing. Public engine methods
+stay synchronous for library callers. Sorting and serialization finish between
+checkpoints; this profile promises neither hard abort nor a fixed drain latency.
+Hard process termination follows the existing Resume lease profile.
 A local shutdown stop without durable cancellation prevents result publication and
 leaves the current lease and request for `Resume` recovery; it does not fabricate a
 terminal cancellation. Success publication carries that token through snapshot

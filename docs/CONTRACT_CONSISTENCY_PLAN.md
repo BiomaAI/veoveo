@@ -145,8 +145,9 @@ early completion refuses qualification. A real million-day Time recurrence scan
 produced its independent one-row result in 9.614 seconds locally. That sample does
 not establish an installed unfinished window. Installed Time completion passes; its
 cancellation attempt refused early completion before any cancellation intent or request.
-Ops is reconciling that Task; the attempt does not qualify cancellation. Process
-recovery is held and unrun. Together with the three administrative API controls,
+Authoritative reads return both known Tasks Completed with successful complete
+results and matching structured one-row output hashes. The operation completed
+normally; the attempt does not qualify cancellation. Process recovery is held and unrun. Together with the three administrative API controls,
 the tracked native batch has nineteen passing controls. Time recover mode selects one 300-second operation deadline;
 its other modes keep 120 seconds.
 
@@ -155,10 +156,12 @@ with the selected release. Clients use that guard for activation;
 `release.recordVersion` identifies release metadata. The response hard cut has no
 compatibility alias. Three focused native controls pass, covering admitted wire
 and schema, persisted pointer/release consistency and two hosted activations.
-Installed authority activation remains open. Time engine calculations currently run
-synchronously inside the async worker and can block HTTP and heartbeat progress.
-The CPU execution repair is in progress and unqualified; installed root-cause
-attribution still requires the selected process measurements and logs.
+Installed authority activation remains open. Hosted Time calculations run on the
+blocking pool with cooperative stop checks and the original job retained through
+normal worker exit. Compiler, strict lint and ten focused native controls qualify
+async responsiveness, original-job joining, Task settlement and engine behavior.
+Fixed-image installed cancellation and recovery remain unqualified; attributing the
+observed cancellation refusal requires the selected process measurements and logs.
 
 The added Speech resource and Stream/Reason public-caller cases pass compiler,
 strict lint, formatting, documentation and independent source review. Their seventeen

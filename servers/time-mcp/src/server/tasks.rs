@@ -1,3 +1,4 @@
+mod calculation;
 mod settlement;
 #[cfg(test)]
 mod tests;
@@ -235,19 +236,32 @@ async fn run_time_task(
     request: TimeTaskRequest,
     cancellation: CancellationToken,
 ) {
-    let work = run_time_task_inner(state.clone(), task_id, owner, request, cancellation.clone());
-    tokio::pin!(work);
-    let mut heartbeat = tokio::time::interval(TASK_LEASE_HEARTBEAT);
-    heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-    heartbeat.tick().await;
-    loop {
-        tokio::select! { result = &mut work => {
-            if let Err(error) = result {
-                tracing::warn!(%task_id, "Time task execution did not settle: {error}");
-            }
-            break;
-        }, _ = heartbeat.tick() => { if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await { tracing::warn!(%task_id, "Time task lease heartbeat failed: {error}"); cancellation.cancel(); break; } } }
+    let mut calculation = calculation::Calculation::new(&cancellation);
+    {
+        let work = run_time_task_inner(
+            state.clone(),
+            task_id,
+            owner,
+            request,
+            cancellation.clone(),
+            &mut calculation,
+        );
+        tokio::pin!(work);
+        let mut heartbeat = tokio::time::interval(TASK_LEASE_HEARTBEAT);
+        heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        heartbeat.tick().await;
+        loop {
+            tokio::select! { result = &mut work => {
+                if let Err(error) = result {
+                    tracing::warn!(%task_id, "Time task execution did not settle: {error}");
+                }
+                break;
+            }, _ = heartbeat.tick() => { if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await { tracing::warn!(%task_id, "Time task lease heartbeat failed: {error}"); cancellation.cancel(); break; } } }
+        }
     }
+    // A failed heartbeat drops the async work, but never its original CPU job.
+    // Cooperative stop and join complete before this registered worker exits.
+    calculation.stop_and_drain().await;
 }
 
 async fn run_time_task_inner(
@@ -256,6 +270,7 @@ async fn run_time_task_inner(
     owner: TaskOwner,
     request: TimeTaskRequest,
     cancellation: CancellationToken,
+    calculation: &mut calculation::Calculation,
 ) -> anyhow::Result<()> {
     update_task(
         &state,
@@ -310,14 +325,25 @@ async fn run_time_task_inner(
     if !settlement::continue_work(&state.tasks, task_id, &cancellation).await? {
         return Ok(());
     }
-    let result = match request {
-        TimeTaskRequest::ExpandSchedule(request) => engine
-            .expand_schedule(&request)
-            .and_then(|output| tool_result("expanded operational schedule", &output)),
-        TimeTaskRequest::ValidateTimeline(request) => engine
-            .validate_timeline(&request)
-            .and_then(|output| tool_result("validated mission timeline", &output)),
-    };
+    let result = calculation
+        .run(move |stop| match request {
+            TimeTaskRequest::ExpandSchedule(request) => engine
+                .expand_schedule_with_stop(&request, &stop)
+                .and_then(|output| tool_result("expanded operational schedule", &output)),
+            TimeTaskRequest::ValidateTimeline(request) => engine
+                .validate_timeline_with_stop(&request, &stop)
+                .and_then(|output| tool_result("validated mission timeline", &output)),
+        })
+        .await;
+    if result
+        .as_ref()
+        .is_err_and(|error| error.is::<crate::engine::CalculationStopped>())
+    {
+        // A cooperative stop is not a calculation failure. Observe durable intent
+        // to settle remote/local cancellation, or leave shutdown for Resume.
+        settlement::continue_work(&state.tasks, task_id, &cancellation).await?;
+        return Ok(());
+    }
     // Shutdown can cancel a local worker without a durable cancellation request.
     // Stop publication and let the retained lease follow Resume recovery.
     if settlement::local_stop(&state.tasks, task_id, &cancellation).await? {

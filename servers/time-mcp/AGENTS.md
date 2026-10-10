@@ -48,7 +48,11 @@ leap second assumptions.
   restart or path. `server/bootstrap.rs` owns construction and qualification.
 - `expand_schedule` and `validate_timeline` run only through the final Task
   API extension on `veoveo-task-runtime`; a direct call returns an instruction
-  to use the task form.
+  to use the task form. Hosted calculations use Tokio's blocking pool. Retain the
+  original job outside the cancellable waiter and await it on normal worker exit,
+  including heartbeat failure. Preserve cooperative stop checks; sorting and
+  serialization between checks do not supply a hard abort or drain-time guarantee.
+  Public engine methods stay synchronous for library callers.
 - Civil fold and gap resolution defaults to `reject`; military zone `J` is
   rejected by the DTG parser. A positive leap second keeps its `:60`
   representation.
@@ -87,6 +91,10 @@ leap second assumptions.
   for Resume recovery. Keep token checks at both selected-snapshot dispatch seams;
   a transition already entered may settle despite a later local stop. Installed cancellation and unfinished restart
   still require their own observable qualification.
+- `cargo test -p veoveo-time-mcp --lib server::tasks::calculation::tests`
+  checks async responsiveness during a retained blocking job and joins the original
+  job after interruption. `cargo test -p veoveo-time-mcp --lib cooperative_stop`
+  checks engine stop handling separately from calculation failures.
 - `cargo test -p veoveo-time-mcp --test metadata_versions active_selection_exposes_pointer_guard_and_rejects_unadmitted_wire`
   checks the closed active-selection response and schema. The focused hosted
   `registry::tests::active_authorities::operator_reads_pointer_guard_for_next_activation`

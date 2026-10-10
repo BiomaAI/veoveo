@@ -1,5 +1,16 @@
 mod windows;
 
+#[derive(Debug, thiserror::Error)]
+#[error("temporal calculation stopped")]
+pub(crate) struct CalculationStopped;
+
+fn calculation_checkpoint(stop: &tokio_util::sync::CancellationToken) -> Result<()> {
+    if stop.is_cancelled() {
+        return Err(CalculationStopped.into());
+    }
+    Ok(())
+}
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     str::FromStr,
@@ -113,6 +124,15 @@ impl TemporalEngine {
     }
 
     pub fn expand_schedule(&self, request: &ExpandScheduleRequest) -> Result<ExpandScheduleOutput> {
+        self.expand_schedule_with_stop(request, &tokio_util::sync::CancellationToken::new())
+    }
+
+    pub(crate) fn expand_schedule_with_stop(
+        &self,
+        request: &ExpandScheduleRequest,
+        stop: &tokio_util::sync::CancellationToken,
+    ) -> Result<ExpandScheduleOutput> {
+        calculation_checkpoint(stop)?;
         self.ensure_authority(request.horizon.start())?;
         if request.maximum_occurrences == 0 || request.maximum_occurrences > 1_000_000 {
             bail!("maximum_occurrences must be in 1..=1000000");
@@ -135,6 +155,7 @@ impl TemporalEngine {
         let mut occurrences = Vec::new();
         let mut truncated = false;
         for calendar_window in &request.calendar.windows {
+            calculation_checkpoint(stop)?;
             if calendar_window.recurrence.interval == 0 {
                 bail!("calendar recurrence interval must be positive");
             }
@@ -154,6 +175,7 @@ impl TemporalEngine {
             let mut emitted = 0_u32;
             let mut examined_days = 0_u64;
             loop {
+                calculation_checkpoint(stop)?;
                 if examined_days > 3_660_000 {
                     bail!("calendar expansion exceeds the ten-thousand-year safety horizon");
                 }
@@ -216,8 +238,10 @@ impl TemporalEngine {
                 break;
             }
         }
+        calculation_checkpoint(stop)?;
         occurrences.sort_by_key(|occurrence| occurrence.window.start().total_nanoseconds());
         for (index, occurrence) in occurrences.iter_mut().enumerate() {
+            calculation_checkpoint(stop)?;
             occurrence.sequence = index.try_into().unwrap_or(u32::MAX);
         }
         Ok(ExpandScheduleOutput {
@@ -230,11 +254,21 @@ impl TemporalEngine {
         &self,
         request: &ValidateTimelineRequest,
     ) -> Result<ValidateTimelineOutput> {
+        self.validate_timeline_with_stop(request, &tokio_util::sync::CancellationToken::new())
+    }
+
+    pub(crate) fn validate_timeline_with_stop(
+        &self,
+        request: &ValidateTimelineRequest,
+        stop: &tokio_util::sync::CancellationToken,
+    ) -> Result<ValidateTimelineOutput> {
+        calculation_checkpoint(stop)?;
         if request.points.len() > 100_000 || request.constraints.len() > 1_000_000 {
             bail!("timeline exceeds the supported point or constraint limit");
         }
         let mut points = BTreeMap::new();
         for point in &request.points {
+            calculation_checkpoint(stop)?;
             if point.name.trim().is_empty() || points.contains_key(&point.name) {
                 bail!("timeline point names must be non-empty and unique");
             }
@@ -242,6 +276,7 @@ impl TemporalEngine {
         }
         let mut violations = Vec::new();
         for (index, constraint) in request.constraints.iter().enumerate() {
+            calculation_checkpoint(stop)?;
             if constraint
                 .maximum_separation_nanoseconds
                 .is_some_and(|maximum| maximum < constraint.minimum_separation_nanoseconds)
@@ -941,6 +976,18 @@ mod tests {
             maximum_occurrences: 2,
         };
         let output = engine.expand_schedule(&request).unwrap();
+        let stop = tokio_util::sync::CancellationToken::new();
+        assert_eq!(
+            engine.expand_schedule_with_stop(&request, &stop).unwrap(),
+            output
+        );
+        stop.cancel();
+        assert!(
+            engine
+                .expand_schedule_with_stop(&request, &stop)
+                .unwrap_err()
+                .is::<CalculationStopped>()
+        );
         assert!(!output.truncated);
         assert_eq!(
             output.occurrences,
@@ -1024,6 +1071,29 @@ mod tests {
         update_recurrence(&mut request, |rule| rule.until = None);
         request.horizon = TimeWindow::new(foreign_start, foreign_end).unwrap();
         assert!(engine.expand_schedule(&request).is_err());
+    }
+
+    #[test]
+    fn timeline_cooperative_stop_is_distinct_from_validation_failure() {
+        let engine = engine();
+        let request = crate::ValidateTimelineRequestValue {
+            points: vec![],
+            constraints: vec![],
+        }
+        .build()
+        .unwrap();
+        let stop = tokio_util::sync::CancellationToken::new();
+        assert_eq!(
+            engine.validate_timeline_with_stop(&request, &stop).unwrap(),
+            engine.validate_timeline(&request).unwrap()
+        );
+        stop.cancel();
+        assert!(
+            engine
+                .validate_timeline_with_stop(&request, &stop)
+                .unwrap_err()
+                .is::<CalculationStopped>()
+        );
     }
 
     #[test]

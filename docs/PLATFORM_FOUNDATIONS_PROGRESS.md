@@ -13,17 +13,23 @@ profile passes in eight seconds through normal public Gateway OAuth. It compares
 an independently expected one-row output with delivered and current Completed
 observations and closes its owned clients/listeners. The cancel profile observes
 early completion and refuses the required Working precondition. It records no
-cancel intent and sends no cancel request. Ops is reconciling the actual Task;
-missing receipt settlement fields do not establish an unsettled durable Task.
-Recover remains held and unrun. The nineteen focused native lifecycle/API controls
+cancel intent and sends no cancel request. Authoritative `tasks/get` reads return
+HTTP 200 for both known Tasks, with Completed status, `isError: false`, complete
+result type and the same structured one-row output hash. The operation completed
+normally. Recover remains held and unrun. The nineteen focused native lifecycle/API controls
 keep their recorded scope. Private execution receipt:
 `/tmp/veoveo-time-schedule-prep-20261010.SB2nwl/execution-final.json`, SHA-256
 `4ed8fe9b6ae107bddd312bf12899fa370ae328ccaac056fefcdd4320f03ca2e1`.
 
-Source inspection finds synchronous Time engine calculations inside the async
-worker, which can block HTTP and heartbeat progress. The CPU repair is being
-implemented and has not been qualified. Installed incident attribution still
-requires Ops' process CPU measurements and correlated logs.
+The Time CPU repair runs hosted calculations on the blocking pool, checks
+cooperative stops and joins the retained original job before normal worker exit.
+Compiler, strict lint, formatting, documentation and logic review pass. Ten focused
+native controls cover two responsiveness/retained-job cases, four existing Task
+Store cases and four engine cases. Fixed-image installed cancellation and recovery
+remain unqualified; incident attribution still requires Ops' process measurements
+and correlated logs. Private final receipt:
+`/tmp/veoveo-time-cpu-repair-20261010/final-receipt.json`, SHA-256
+`4b76078d4ea5626d5ae971e8c9d967646dc4906ac895384094800c4d321dc376`.
 
 Agent Manager is Ready with immutable template `uav-pilot-037b21aaa992`, qualified
 kernel `8b0fae16caafa85ce363e94a6843fd8e4901ca386d43d45c88c4c414abeac558`
