@@ -4,8 +4,10 @@ Status: The published 34-image closure and charts for `6431c30c6621` retain thei
 recorded qualification. GitOps is suspended during source work. Development image
 extraction triggered node disk pressure; all seventeen desired Deployments and both
 StatefulSets recovered by 02:42 UTC on October 10. Compiler checks and all twenty-seven
-focused native recovery/consumer controls pass; image staging awaits a separate
-peak-space admission. Authorization
+focused native recovery/consumer controls pass. All seven stock-rollout images at
+`c5a2c6c3e` pass staging, attested qualification and node-side registry readback;
+deployed pins and reconciliation holds stay unchanged. Further image batches require
+separate disk-space admission. Authorization
 signing-key rotation passes installed verification: the Gateway serves only the fresh
 key, accepts fresh OAuth and rejects the retired key. Speech's previously
 selected headed Workspace consumer passes with fixture audio;
@@ -224,9 +226,9 @@ block Bioma's direct publication path. The publisher now accepts a nonempty subs
 of an authentic larger stage cohort while validating the complete original receipt,
 rejecting duplicate targets and preserving every selected repository and runnable
 digest. Strict compiler checks, five native controls and independent review pass.
-Unselected rows are not claimed as qualified. This permits the seven-image stock
-closure to proceed without republishing unrelated cohort members; Console BFF still
-needs its own stage. The resource gate, complete thirty-target coverage for the final
+Unselected rows are not claimed as qualified. All seven stock-rollout targets now
+have their own accepted stage and qualified release evidence. The resource gate,
+complete thirty-target coverage for the final
 cut, catalog-reader replacement order and installed acceptance remain open.
 
 The first Computers/Gateway qualification rebuilt both images successfully but
@@ -236,13 +238,19 @@ wall-clock text in apt and dpkg logs. The publisher accepted no release evidence
 and deployed image pins are unchanged. Thirty-one owned runtime Dockerfiles now
 remove those disposable logs in the same package-install RUN. Source checks and
 independent review pass. Fresh staging and qualification at `c5a2c6c3e` pass for
-six stock targets: Computers, Gateway, Computer Host, Computer template, Agent
-Manager and Knowledge. Their stages execute the runtime package-install steps
-without cache; qualified warm builds reproduce all six runnable digests with SBOM
-and provenance. Node-network manifest/config readback returns 200 with matching
-hashes. The four-image stage grows the filesystem by 3.39 GB at its observed peak.
-Deployed image pins stay unchanged. Console BFF still needs its separate cold
-browser-family build; the final affected closure remains open.
+all seven stock targets: Computers, Gateway, Computer Host, Computer template, Agent
+Manager, Knowledge and Console BFF. The first six stages execute the runtime
+package-install steps without cache; qualified warm builds reproduce their runnable
+digests. BFF's stage and qualification reuse cached package-install steps. Every
+qualified release includes SBOM and provenance, and node-network manifest/config
+readback returns 200 with matching hashes. These runs do not establish a second
+independent uncached rebuild. The four-image stage grows the filesystem by 3.39 GB
+at its observed peak. BFF stages in 25.98 seconds and qualifies in 5.901 seconds;
+its before/after free-space snapshots do not establish peak growth. Available space
+after BFF qualification is 294,392,238,080 bytes. The preceding inactive Cargo-cache
+cleanup recovers 28.58 GB by filesystem measurement and exceeds the assigned 24 GiB
+combined cap; the deletion manifest records that deviation. Deployed image pins
+stay unchanged. The final affected closure and installed qualification remain open.
 
 A private credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
 WaveSpeed and Google Maps replacement still requires account-management authority
