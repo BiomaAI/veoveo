@@ -53,13 +53,23 @@ leap second assumptions.
   receipt controls. Its ignored public-gateway case uses explicit read-only fixtures;
   `cargo xtask smoke time-installed-consumers --help` lists prerequisites. Follow
   [the installed input contract](../../testing/installed/DESIGN.md#time-consumers).
-  The same harness owns `time-installed-schedule-task`, a separate ignored profile
-  with a typed selected schedule request and independent expected output. It creates
-  one Task, verifies exact-ID Completed delivery and current official result agreement,
-  and uses maintained owner lifecycle cleanup. Its private append-only JSONL receipt
-  retains dispatch intent and the opaque Gateway Task ID. Cancellation and unfinished
-  restart recovery require separate observable qualification; a completed Task cannot
-  qualify either gate.
+  The same harness owns `time-installed-schedule-task`, whose private input requires
+  explicit `complete`, `cancel` or `recover` mode, a typed selected schedule request
+  and independent expected output. Cancel and recover require an acknowledged exact-ID
+  Working delivery and a current Working read. Recover admits a selected single-replica
+  `time-mcp` Rust container before Task creation; Ops alone signals it after the private
+  armed marker. The same Task must still be Working after the observed replacement.
+  Complete/recover verify delivered Completed and current official result agreement;
+  cancel requires delivered and current Cancelled without successful output. The
+  operation deadline starts once before connections: 120 seconds for complete/cancel,
+  300 for recover. The scenario allows 360 seconds plus one 30-second owner cleanup
+  grace, retaining original consuming close futures. Recurrence count may reach
+  1,000,000 while output is capped at 512 and the horizon at 31 days. Historical UTC
+  recurrence scanning can produce a small result after substantial real computation;
+  its duration is not guaranteed. Early completion fails cancellation/recovery
+  qualification. The private append-only receipt retains intents, opaque Gateway
+  Task identity, replacement progress and unresolved cleanup. See the installed input
+  contract for selected crash fields and external operator coordination.
 - `cargo test -p veoveo-time-mcp --lib server::tasks::tests` qualifies durable
   cancellation at calculation checkpoints and final settlement using distinct
   workers on the existing isolated Store fixture. Keep the cancellation/completion

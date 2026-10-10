@@ -123,52 +123,89 @@ the complete received body bytes.
 The separate `time-installed-schedule-task` scenario runs
 `schedule::typed_schedule_task_through_public_gateway` in the same owner harness.
 Set `VEOVEO_TIME_SCHEDULE_TASK_INPUT` to a closed fixture containing `installation`,
-`authority`, a typed `request` (`ExpandScheduleRequest`) and independently supplied
-`expected` (`ExpandScheduleOutput`). The caller profile must expose official Tasks
-and the `time__expand_schedule` tool, with `time:read` and `time:schedule` grants.
-The selected versioned calendar must already
-exist and equal `request.calendar`; the current authority must equal `authority`
-before dispatch and after completion. The horizon binds that authority and spans
-at most 31 days. Select one to eight calendar windows with recurrence count 1–512
-and interval 1–31, and set `maximumOccurrences` to 1–512. Expected occurrences are
-nonempty, untruncated, ordered, sequenced from zero, and contained in the horizon.
-The harness compares the independent expectation with delivered and current results;
-it does not compute its expected schedule through the Time engine.
+`authority`, a typed `request` (`ExpandScheduleRequest`), independently supplied
+`expected` (`ExpandScheduleOutput`) and explicit `mode`: `complete`, `cancel` or
+`recover`. The caller profile must expose official Tasks and the
+`time__expand_schedule` tool, with `time:read` and `time:schedule` grants.
+The selected versioned calendar must already exist and equal `request.calendar`.
+The current authority must equal `authority` before dispatch and after successful
+completion. The horizon binds that authority and spans at most 31 days. Select one
+to eight calendar windows with recurrence count 1–1,000,000 and interval 1–31;
+`maximumOccurrences` stays within 1–512. Expected occurrences are nonempty,
+untruncated, ordered, sequenced from zero and contained in the horizon. The harness
+compares the independent expectation with delivered and current results; it does
+not calculate the expected output through the Time engine. A historical UTC daily
+recurrence can scan one million dates while returning a small result near the end
+of that recurrence. Its execution time depends on the installation and supplies no
+guaranteed unfinished observation window.
 
-This profile creates one Task through the maintained official SDK and opens
-`subscriptions/listen` for its acknowledged opaque Gateway Task ID. It requires
-exact filter acknowledgment and a delivered Completed notification, then compares
-its identity, state and typed output with current `tasks/get` and the official
-Completed payload. The final Task protocol carries results in `tasks/get`; it has
-no separate `tasks/result` request. An initial terminal notification can satisfy
-delivery. The receipt records the first delivered status and whether Working was
-observed before Completed; that distinguishes initial terminal delivery from an
-observed transition.
+Every mode creates one Task through the official SDK and acknowledges an exact
+`subscriptions/listen` filter for its opaque Gateway Task ID. Completion requires
+a delivered Completed notification with the matching subscription identity and
+agreement with current `tasks/get`, creation identity and independent expected
+output. The final Task protocol carries results in `tasks/get`; it has no separate
+`tasks/result` request. In `complete` mode an initial terminal notification can
+satisfy delivery. The receipt records the first delivered status and whether
+Working preceded Completed, distinguishing a terminal baseline from an observed
+transition.
+
+Both `cancel` and `recover` require a delivered Working notification and a current
+Working read for the original acknowledged Task and creation timestamp. An early
+terminal observation fails qualification. Cancellation persists its intent before
+calling the official cancellation method, then requires delivered and current
+Cancelled payloads with the original identity and no successful result.
+
+Only `recover` accepts a `recovery` object. It contains `target` (`CrashTarget`)
+and `replacementTimeoutSeconds` within 1–300. The target supplies `deployment`,
+`pod`, `container`, `namespaceUid`, `deploymentUid`, `replicaSetUid`, `podUid`,
+`containerId`, `imageId` and `restartCount`. Its Deployment must match the supplied
+installation and have one Ready replica; its component and Rust server container
+role must be `time-mcp`. The driver admits the selected live identities before Task
+creation. The harness retains the crash watch before awaiting its initial state,
+then rereads the original Task as Working before syncing its armed marker. Ops may
+signal only that selected process after the persisted Task/watch handshake; the
+harness sends no process signal itself. The watch requires the old container's
+exit and a Ready replacement in the same Pod. A subsequent current read must still
+show the same Task Working. The harness then acknowledges a deliberately separate
+replacement listener and requires later delivered Completed/current result
+agreement, followed by the final replacement-target fence. A completed Task
+surviving replacement cannot qualify unfinished recovery.
 
 The create-new owner-private JSONL receipt uses
-`veoveo.ai/time-schedule-task-acceptance/v1`. Each line is a complete appended
-snapshot. Dispatch intent is synced before creation, and the admitted Gateway Task
-identity is synced before listen/get requests. Typed request traces store response
-and error digests and available codes without raw errors or credentials. The shared
-owner lifecycle registers cancellation/reconciliation before dispatch and retains
-uncertain mutation intent or unresolved identities in its private ownership lease.
-Terminal settlement discharges that cleanup obligation. The harness holds the
-actual caller and listener handles in retained mutex slots outside cancellable work.
-A cleanup action registered before connection or Task effects closes those same
-handles after the operation drops, including protocol errors, timeout and owner
-cancellation. Each awaited listener or caller close has a ten-second limit capped
-by the owner's remaining cleanup deadline. It attempts both while time remains.
-The scenario has a 300-second execution budget and one 30-second cleanup grace;
-connection and exercise are individually limited to 75 and 120 seconds. Remote
-Task reconciliation and local closes share that cleanup grace. Exhaustion or an
-interrupted close leaves its flag false and its cleanup obligation unresolved in
-the private ownership lease. The final receipt records `listenerClosed` and
-`callerClosed`; both must be true for acceptance.
+`veoveo.ai/time-schedule-task-acceptance/v2`. Each appended line is a complete
+snapshot. Dispatch, cancellation and crash-watch intent are synced before their
+corresponding effects. The acknowledged opaque Task ID and creation metadata are
+retained before subsequent effects. The receipt preserves Working observations,
+partial replacement facts, safe failure codes and digests, and unresolved outcomes
+without raw errors or credentials. The shared owner lifecycle registers remote
+Task cancellation/reconciliation and retains uncertain intent or unresolved
+identities in its private ownership lease. Terminal settlement discharges that
+remote obligation.
 
-This profile does not require Working to remain observable. Cancellation, unfinished
-Task restart recovery, authority activation and conflict rollback remain open gates.
-A completed Task cannot qualify unfinished recovery. Neither consumer scenario runs
-a Deployment restart or changes authority state.
+The operation sets its deadline once before connecting: 120 seconds for
+`complete`/`cancel`, 300 seconds for `recover`. Time's worker lease lasts 120 seconds
+and renews every 40 seconds; recovery must allow the old lease to expire before
+another worker resumes calculation. Connection has a 75-second cap, and all nested
+waits end by the original operation deadline. The selected replacement timeout
+cannot extend it. Private input cannot increase these operation budgets. The
+scenario allows 360 seconds of execution and one separate 30-second owner cleanup
+grace.
+
+Actual caller, original and replacement listeners, and crash-watch handles live in
+retained mutex slots outside cancellable work. A cleanup action registered before
+connection or Task effects closes those handles after work drops, including errors,
+timeout and owner cancellation. Consuming close futures keep their original
+identity and deadline across interruption. Each close has a ten-second cap within
+the owner's remaining cleanup grace. Re-entry after the original cap expires fails
+permanently, even if the future has since become ready. Remote Task reconciliation
+and local closes share that grace. Exhaustion or failure leaves cleanup unresolved
+in the ownership lease; the final receipt requires successful caller and listener
+closes, including the replacement listener and watch when selected.
+
+Neither consumer scenario activates authority releases. Authority activation,
+conflict rollback and selected cross-replica routing need separate installed
+qualification. Prepared cancellation and recovery modes establish acceptance only
+when their required Working, replacement and terminal observations actually occur.
 
 ## Restart And Cleanup
 

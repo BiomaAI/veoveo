@@ -1,5 +1,12 @@
 //! Selected schedule Task acceptance over the maintained installed SDK/lifecycle.
 use super::{installed, open_receipt, trace};
+#[path = "schedule/cleanup.rs"]
+mod cleanup;
+#[path = "schedule/lifecycle.rs"]
+mod lifecycle;
+#[cfg(test)]
+#[path = "schedule/workload.rs"]
+mod workload;
 use anyhow::{Context, Result, ensure};
 use rmcp::{
     model::{
@@ -9,7 +16,7 @@ use rmcp::{
     service::Subscription,
 };
 use serde::{Deserialize, Serialize};
-use std::{fs, future::Future, io::Write, sync::Arc, time::Duration};
+use std::{fs, io::Write, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use veoveo_testing_support::{
     SmokeMcpClient, await_task_terminal_with_timeout, call_tool_as_task, lifecycle::owner,
@@ -27,13 +34,12 @@ struct Input {
     authority: EffectiveTimeAuthority,
     request: ExpandScheduleRequest,
     expected: ExpandScheduleOutput,
+    mode: lifecycle::Mode,
+    recovery: Option<lifecycle::Fixture>,
 }
 impl Input {
     fn admit(&self) -> Result<()> {
-        ensure!(
-            self.installation.deployment == "time-mcp",
-            "fixture must select Time MCP"
-        );
+        lifecycle::admit(self)?;
         ensure!(
             (1..=512).contains(&self.request.maximum_occurrences),
             "schedule fixture occurrence limit must be 1..=512"
@@ -48,8 +54,8 @@ impl Input {
                 && window
                     .recurrence
                     .count
-                    .is_some_and(|count| (1..=512).contains(&count))),
-            "schedule fixture recurrence requires count 1..=512 and interval 1..=31"
+                    .is_some_and(|count| (1..=1_000_000).contains(&count))),
+            "schedule fixture recurrence requires count 1..=1000000 and interval 1..=31"
         );
         ensure!(
             self.request.horizon.authority() == &self.authority.binding(),
@@ -104,6 +110,15 @@ enum Phase {
     DispatchIntent,
     Created,
     Listening,
+    Working,
+    CancelIntent,
+    CancelAcknowledged,
+    CrashAdmission,
+    CrashArmIntent,
+    CrashArmed,
+    ReplacementObserved,
+    ReplacementListening,
+    DeliveredCancelled,
     DeliveredCompleted,
     CurrentState,
     Result,
@@ -136,6 +151,8 @@ impl TaskObservation {
 #[serde(rename_all = "camelCase")]
 struct Journal<'a> {
     schema_version: &'static str,
+    mode: lifecycle::Mode,
+    lifecycle: lifecycle::Evidence,
     authority: &'a EffectiveTimeAuthority,
     request: &'a ExpandScheduleRequest,
     expected: &'a ExpandScheduleOutput,
@@ -155,12 +172,14 @@ struct Journal<'a> {
     trace: trace::Trace,
     cleanup_trace: trace::Trace,
     cleanup_owner: &'static str,
-    remaining_gates: [&'static str; 4],
+    remaining_gates: Vec<&'static str>,
 }
 impl<'a> Journal<'a> {
     fn new(input: &'a Input) -> Self {
         Self {
-            schema_version: "veoveo.ai/time-schedule-task-acceptance/v1",
+            schema_version: "veoveo.ai/time-schedule-task-acceptance/v2",
+            mode: input.mode,
+            lifecycle: lifecycle::Evidence::default(),
             authority: &input.authority,
             request: &input.request,
             expected: &input.expected,
@@ -180,7 +199,7 @@ impl<'a> Journal<'a> {
             trace: trace::Trace::default(),
             cleanup_trace: trace::Trace::default(),
             cleanup_owner: "veoveo-testing-support/lifecycle/owner",
-            remaining_gates: [
+            remaining_gates: vec![
                 "schedule_task_cancellation",
                 "unfinished_schedule_task_restart_recovery",
                 "guaranteed_working_to_completed_subscription_transition",
@@ -204,6 +223,13 @@ struct Handles {
     caller_closed: bool,
     listener_closed: bool,
     trace: trace::Trace,
+    caller_close: cleanup::CloseState,
+    listener_close: cleanup::CloseState,
+    replacement_listener: Option<Subscription>,
+    replacement_close: cleanup::CloseState,
+    crash_watch: Option<veoveo_testing_support::installed::restart::CrashWatch>,
+    watch_close: cleanup::CloseState,
+    crash_receipt: Option<veoveo_testing_support::installed::restart::CrashReceipt>,
 }
 impl Handles {
     fn new() -> Self {
@@ -214,6 +240,13 @@ impl Handles {
             caller_closed: true,
             listener_closed: true,
             trace: trace::Trace::default(),
+            caller_close: cleanup::CloseState::default(),
+            listener_close: cleanup::CloseState::default(),
+            replacement_listener: None,
+            replacement_close: cleanup::CloseState::default(),
+            crash_watch: None,
+            watch_close: cleanup::CloseState::default(),
+            crash_receipt: None,
         }
     }
 }
@@ -239,6 +272,7 @@ async fn typed_schedule_task_through_public_gateway() -> Result<()> {
     // Keep actual SDK handles outside work that deadlines or signals can drop.
     let handles = Arc::new(Mutex::new(Handles::new()));
     let result = owner::run(async {
+        let deadline = tokio::time::Instant::now() + input.mode.operation_budget();
         let cleanup_handles = handles.clone();
         owner::register_cleanup(
             owner::CleanupKind::Remote,
@@ -247,12 +281,15 @@ async fn typed_schedule_task_through_public_gateway() -> Result<()> {
             move || async move { close_handles(&mut *cleanup_handles.lock().await).await },
         )?;
 
+        let mut owned = handles.lock().await;
         journal.trace.begin(trace::Request::TaskConnection);
-        let caller =
-            tokio::time::timeout(Duration::from_secs(75), input.installation.task_caller())
-                .await
-                .context("Time schedule connection deadline")
-                .and_then(|value| value);
+        let caller = tokio::time::timeout_at(
+            deadline.min(tokio::time::Instant::now() + Duration::from_secs(75)),
+            input.installation.task_caller(),
+        )
+        .await
+        .context("Time schedule connection deadline")
+        .and_then(|value| value);
         let caller = match caller {
             Ok(caller) => {
                 journal.trace.finish(&Ok::<(), anyhow::Error>(()));
@@ -263,12 +300,11 @@ async fn typed_schedule_task_through_public_gateway() -> Result<()> {
                 anyhow::bail!("Task connection failed");
             }
         };
-        let mut owned = handles.lock().await;
         owned.caller = Some(caller);
         owned.caller_closed = false;
-        let exercise = tokio::time::timeout(
-            Duration::from_secs(120),
-            exercise(&mut owned, &input, &mut journal, &mut output),
+        let exercise = tokio::time::timeout_at(
+            deadline,
+            exercise(&mut owned, &input, &mut journal, &mut output, deadline),
         )
         .await
         .context("Time schedule exercise deadline")
@@ -280,6 +316,7 @@ async fn typed_schedule_task_through_public_gateway() -> Result<()> {
     })
     .await;
     if let Err(error) = &result {
+        journal.lifecycle.failure(error);
         journal.trace.interrupt(error);
     }
     // The registered action ran within the owner's one cleanup grace after work dropped.
@@ -287,8 +324,17 @@ async fn typed_schedule_task_through_public_gateway() -> Result<()> {
     journal.listener_closed = owned.listener_closed;
     journal.caller_closed = owned.caller_closed;
     journal.cleanup_trace = std::mem::take(&mut owned.trace);
+    journal.lifecycle.watch = owned.crash_receipt.clone();
+    journal.lifecycle.watch_closed = owned.crash_watch.is_none() && owned.watch_close.closed();
+    journal.lifecycle.replacement_listener_closed =
+        owned.replacement_listener.is_none() && owned.replacement_close.closed();
     drop(owned);
-    if result.is_err() || !journal.listener_closed || !journal.caller_closed {
+    if result.is_err()
+        || !journal.listener_closed
+        || !journal.caller_closed
+        || !journal.lifecycle.watch_closed
+        || !journal.lifecycle.replacement_listener_closed
+    {
         journal.phase = Phase::Failed;
         journal.failure = Some(Failure::OwnerLifecycle);
     } else {
@@ -305,14 +351,41 @@ async fn typed_schedule_task_through_public_gateway() -> Result<()> {
 }
 
 async fn close_handles(handles: &mut Handles) -> Result<()> {
+    let deadline = owner::cleanup_deadline()?;
+    if let Some(watch) = &handles.crash_watch {
+        handles.crash_receipt = watch.snapshot();
+    }
+    let watch = handles
+        .watch_close
+        .close(
+            &mut handles.crash_watch,
+            |watch| async move {
+                ensure!(watch.close().await, "Time crash watch close failed");
+                Ok(())
+            },
+            deadline,
+        )
+        .await;
+    let replacement =
+        handles
+            .replacement_close
+            .close(
+                &mut handles.replacement_listener,
+                |mut subscription| async move {
+                    subscription.cancel().await.map_err(anyhow::Error::from)
+                },
+                deadline,
+            )
+            .await;
     if !handles.listener_closed {
         if let Some(id) = handles.task_id.as_ref() {
             handles
                 .trace
                 .begin(trace::Request::TaskSubscriptionClose(id.clone()));
         }
-        let closed =
-            close_slot(
+        let closed = handles
+            .listener_close
+            .close(
                 &mut handles.listener,
                 |mut subscription| async move {
                     subscription.cancel().await.map_err(anyhow::Error::from)
@@ -326,15 +399,19 @@ async fn close_handles(handles: &mut Handles) -> Result<()> {
     // A failed listener close does not suppress the caller close's remaining allowance.
     if !handles.caller_closed {
         handles.trace.begin(trace::Request::TaskConnectionClose);
-        let closed = close_slot(
-            &mut handles.caller,
-            |connection| connection.cancel(),
-            owner::cleanup_deadline()?,
-        )
-        .await;
+        let closed = handles
+            .caller_close
+            .close(
+                &mut handles.caller,
+                |connection| connection.cancel(),
+                owner::cleanup_deadline()?,
+            )
+            .await;
         handles.caller_closed = closed.is_ok();
         handles.trace.finish(&closed);
     }
+    watch?;
+    replacement?;
     ensure!(
         handles.listener_closed && handles.caller_closed,
         "Time schedule SDK handle cleanup remains unresolved"
@@ -342,7 +419,8 @@ async fn close_handles(handles: &mut Handles) -> Result<()> {
     Ok(())
 }
 
-async fn close_slot<H, F: Future<Output = Result<()>>>(
+#[cfg(test)]
+async fn close_slot<H, F: std::future::Future<Output = Result<()>>>(
     slot: &mut Option<H>,
     close: impl FnOnce(H) -> F,
     deadline: std::time::Instant,
@@ -366,6 +444,7 @@ async fn exercise(
     input: &Input,
     journal: &mut Journal<'_>,
     output: &mut fs::File,
+    deadline: tokio::time::Instant,
 ) -> Result<()> {
     let caller = handles.caller.as_ref().expect("admitted Task caller");
     ensure!(
@@ -396,6 +475,7 @@ async fn exercise(
         calendar == input.request.calendar,
         "selected schedule calendar differs"
     );
+    let driver = lifecycle::admit_target(input, caller, journal, output).await?;
     journal.phase = Phase::Preconditions;
     journal.persist(output)?;
     journal.phase = Phase::DispatchIntent;
@@ -436,10 +516,25 @@ async fn exercise(
     };
     handles.listener = Some(subscription);
     handles.listener_closed = false;
-    let subscription = handles
-        .listener
-        .as_mut()
-        .expect("admitted exact Task listener");
+    if input.mode != lifecycle::Mode::Complete {
+        lifecycle::observe(
+            input,
+            driver.as_ref(),
+            &created,
+            handles,
+            journal,
+            output,
+            deadline,
+        )
+        .await?;
+    }
+    let caller = handles.caller.as_ref().expect("retained Task caller");
+    let subscription = if input.mode == lifecycle::Mode::Recover {
+        handles.replacement_listener.as_mut()
+    } else {
+        handles.listener.as_mut()
+    }
+    .context("retained terminal listener")?;
     let observed = async {
         ensure!(
             subscription.acknowledged() == &filter,
@@ -471,6 +566,13 @@ async fn exercise(
     journal.current = Some(TaskObservation::admit(&current.task)?);
     journal.phase = Phase::CurrentState;
     journal.persist(output)?;
+    if input.mode == lifecycle::Mode::Cancel {
+        lifecycle::cancelled(&id, &created, &delivered, &current)?;
+        journal
+            .remaining_gates
+            .retain(|gate| *gate != "schedule_task_cancellation");
+        return Ok(());
+    }
     journal.trace.begin(trace::Request::TaskResult(id.clone()));
     let result = task_payload(caller, id.as_str()).await;
     journal.trace.finish(&result);
@@ -500,6 +602,20 @@ async fn exercise(
         authority == input.authority,
         "authority changed during schedule qualification"
     );
+    if let Some(watch) = handles.crash_watch.as_mut() {
+        watch.admit_recovered_target().await?;
+        journal.lifecycle.watch = watch.snapshot();
+        handles.crash_receipt = journal.lifecycle.watch.clone();
+        journal.lifecycle.final_target_checked = true;
+        journal
+            .remaining_gates
+            .retain(|gate| *gate != "unfinished_schedule_task_restart_recovery");
+    }
+    if journal.working_delivered {
+        journal
+            .remaining_gates
+            .retain(|gate| *gate != "guaranteed_working_to_completed_subscription_transition");
+    }
     Ok(())
 }
 
@@ -532,7 +648,12 @@ async fn delivered(
                 journal.working_delivered = true;
                 journal.persist(output)?;
             }
-            TaskStatus::Completed => {
+            TaskStatus::Cancelled if journal.mode == lifecycle::Mode::Cancel => {
+                journal.phase = Phase::DeliveredCancelled;
+                journal.persist(output)?;
+                return Ok(task);
+            }
+            TaskStatus::Completed if journal.mode != lifecycle::Mode::Cancel => {
                 journal.trace.finish(&Ok::<_, anyhow::Error>(&task));
                 journal.delivered_completed = Some(TaskObservation::admit(&task.task)?);
                 journal.phase = Phase::DeliveredCompleted;
@@ -596,7 +717,7 @@ mod tests {
     use super::*;
     use veoveo_time_mcp::{ScheduleOccurrence, TimeInstant, TimeWindow};
 
-    fn fixture() -> Result<Input> {
+    pub(super) fn fixture() -> Result<Input> {
         let base = super::super::fixture_value();
         let authority: EffectiveTimeAuthority = serde_json::from_value(base["authority"].clone())?;
         let instant = |seconds: i128| {
@@ -612,7 +733,7 @@ mod tests {
             truncated: false,
         };
         serde_json::from_value(serde_json::json!({
-            "installation":base["installation"], "authority":authority,
+            "mode":"complete", "installation":base["installation"], "authority":authority,
             "request":{"calendar":base["calendar"], "horizon":horizon,"maximumOccurrences":4},
             "expected":expected
         }))
@@ -624,9 +745,15 @@ mod tests {
         let input = fixture()?;
         input.admit()?;
         let original = serde_json::json!({
-            "installation":super::super::fixture_value()["installation"],
+            "mode":"complete", "installation":super::super::fixture_value()["installation"],
             "authority":input.authority,"request":input.request,"expected":input.expected
         });
+        let mut missing_mode = original.clone();
+        missing_mode.as_object_mut().unwrap().remove("mode");
+        ensure!(serde_json::from_value::<Input>(missing_mode).is_err());
+        let mut unknown_mode = original.clone();
+        unknown_mode["mode"] = "restart".into();
+        ensure!(serde_json::from_value::<Input>(unknown_mode).is_err());
         let mut unknown = original.clone();
         unknown["unexpected"] = true.into();
         ensure!(serde_json::from_value::<Input>(unknown).is_err());
@@ -673,7 +800,10 @@ mod tests {
         Ok(())
     }
 
-    fn completed(id: &CanonicalTaskId, output: &ExpandScheduleOutput) -> Result<DetailedTask> {
+    pub(super) fn completed(
+        id: &CanonicalTaskId,
+        output: &ExpandScheduleOutput,
+    ) -> Result<DetailedTask> {
         let result = rmcp::model::CallToolResult::structured(serde_json::to_value(output)?);
         let result = serde_json::to_value(result)?
             .as_object()

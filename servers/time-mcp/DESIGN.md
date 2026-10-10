@@ -612,6 +612,25 @@ only when current SQL proves physical absence, terminal settlement, or a matchin
 Task held by another worker's unexpired lease. An unproven conflict or recovery
 observation error stops HTTP serving.
 
+The installed schedule fixture in `tests/gateway_consumers/schedule.rs` selects
+completion, cancellation or unfinished process recovery explicitly. Cancellation
+and recovery require both delivered and current Working state for the acknowledged
+opaque Gateway Task identity. Recovery admits one maintained Rust container, observes
+its externally signalled exit and same-Pod replacement, then requires the same Task
+still Working before accepting delivered Completed and its independently expected
+result. A completed Task surviving replacement does not qualify unfinished recovery.
+
+The fixture sets one operation deadline before connecting: 120 seconds for completion
+or cancellation and 300 seconds for recovery. Recovery needs room for the worker's
+120-second lease, renewed every 40 seconds, to expire before another worker resumes
+computation. Every nested wait ends by that operation deadline. The scenario grants
+360 seconds of execution and a separate 30-second owner cleanup interval. Actual
+listener, caller and crash-watch handles keep their original consuming close futures
+and deadlines. The fixture never signals a process itself; Ops must wait for its
+persisted armed Task/watch marker. A selected historical UTC daily recurrence can
+scan up to one million dates per window while returning a small independent output.
+No duration is guaranteed, and an early terminal observation fails qualification.
+
 ### Zone Completion
 
 Time advertises `time://zones/{+zone_id}` to preserve slash and plus signs in zone

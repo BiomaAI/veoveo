@@ -58,7 +58,7 @@ pub struct SelectedDrainTarget {
     pub(super) annotations: BTreeMap<String, String>,
 }
 /// Immutable, secret-free observation of the selected lifecycle identities.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectedDrainIdentity {
     namespace: String,

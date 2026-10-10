@@ -50,7 +50,7 @@ impl CrashTarget {
         Ok(())
     }
 }
-#[derive(Clone, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CrashIdentity {
     pub selected: SelectedDrainIdentity,
@@ -59,7 +59,7 @@ pub struct CrashIdentity {
     pub armed_at: DateTime<Utc>,
 }
 /// Partial progress survives cancellation because the caller owns the watch.
-#[derive(Clone, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CrashReceipt {
     pub identity: CrashIdentity,
@@ -474,6 +474,11 @@ mod tests {
             assert_eq!(observation.receipt.exit_code, Some(137));
             assert_eq!(observation.receipt.reported_signal, signal);
             assert_eq!(observation.receipt.signal_available, signal == Some(9));
+            // Cleanup journals decode this observation without creating an
+            // admitted target or conferring a process mutation capability.
+            let wire = serde_json::to_value(&observation.receipt)?;
+            let retained: CrashReceipt = serde_json::from_value(wire.clone())?;
+            assert_eq!(serde_json::to_value(retained)?, wire);
         }
         Ok(())
     }

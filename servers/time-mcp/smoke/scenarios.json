@@ -36,7 +36,7 @@
     },
     {
       "id": "time-installed-schedule-task",
-      "description": "Qualify selected schedule Task creation, delivered Completed state and independent typed result through the public gateway.",
+      "description": "Qualify selected schedule Task completion, cancellation or externally signalled unfinished recovery through the public gateway.",
       "target": {
         "kind": "cargo_test",
         "selection": {
@@ -57,13 +57,13 @@
       "requirements": {
         "network": true,
         "credentials": true,
-        "clusterMutation": false,
+        "clusterMutation": true,
         "billedEffects": false,
         "nvidia": false,
         "headedGraphics": false,
-        "explanation": "Requires VEOVEO_TIME_SCHEDULE_TASK_INPUT, a public Gateway endpoint/profile with official Time Tasks, a private OAuth caller token file, stable selected current authority/calendar, independent expected schedule output and new private JSONL receipt. Creates one deterministic schedule Task and uses maintained lifecycle cleanup. Performs no Deployment restart or authority activation; cancellation and unfinished recovery remain unqualified."
+        "explanation": "Requires VEOVEO_TIME_SCHEDULE_TASK_INPUT with explicit complete/cancel/recover mode, a public Gateway profile with official Time Tasks, a private OAuth caller token file, selected current authority/calendar, independent expected output and new private JSONL receipt. Cancel/recover require delivered and current Working. Recover requires one admitted time-mcp Rust container and an external operator signal only after the persisted armed marker; replacement must retain the same unfinished Task. The harness sends no process signal or authority activation. A too-fast schedule fails qualification."
       },
-      "deadlineSeconds": 300,
+      "deadlineSeconds": 360,
       "cleanupSeconds": 30
     }
   ]
