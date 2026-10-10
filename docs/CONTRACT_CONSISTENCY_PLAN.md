@@ -142,16 +142,21 @@ installed credentials have changed. The eighteen selected stock native cases sta
 qualified, including the implemented aggregate Host profile of 1 CPU, 6 GiB and 1,024 PIDs.
 The installed 8 CPU, 12 GiB and 4,096-PID profile has not been activated.
 
-Development staging has published ten of the thirty affected Rust image targets from
-`b46430e17`, including the TaskRuntime and owner settlement changes. Gateway,
-Computers, Agent Manager, Knowledge, Time, Timeseries, Artifact, Frames, Media and
-Optimization pass node-network manifest and config readback with matching hashes.
-Compatible remaining targets build together under the measured 96-GiB admission
-and 84-GiB cancellation guard. Staging keeps `releaseEligible=false`; installed
-image pins and the application holds stay unchanged. Final lock composition requires
-the authentic publisher-generated DeploymentLock or genuine profile qualification.
-The reference Helm pins and schema fixture cannot supply qualified base lineage.
-The full release resource gate and complete thirty-target coverage remain open.
+Development staging has published twenty-five of the thirty affected Rust image
+targets from `b46430e17`, including the TaskRuntime and owner settlement changes.
+All twenty-five pass node-network manifest and config readback with matching hashes.
+Reason, Speech and Stream share the current stage; Speech has pushed, while retained
+BuildKit events identify Reason and Stream base-image downloads as the active work.
+Console BFF and SUMO remain afterward. Shared Rust compilation in the current stage
+finished in about 65 seconds; its elapsed time is not a compiler measurement.
+Compatible targets build together under the measured 96-GiB admission and 84-GiB
+cancellation guard. No manual cache cleanup or cluster mutation accompanied staging.
+Staging keeps `releaseEligible=false`; installed image pins and the application holds
+stay unchanged. No authentic publisher-generated DeploymentLock was found in the
+trusted retained outputs checked. Final lock composition requires that lock or genuine
+profile qualification. The reference Helm pins, schema fixture and development-stage
+receipts cannot supply qualified base lineage. The full release resource gate and
+complete thirty-target coverage remain open.
 
 A private credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
 WaveSpeed and Google Maps replacement still requires account-management authority
