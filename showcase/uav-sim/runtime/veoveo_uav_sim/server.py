@@ -305,6 +305,7 @@ class AdapterApplication:
             heartbeat=10.0,
             max_msg_size=16 * 1024 * 1024,
         )
+        source = self._operator_products.stream_source()
         await websocket.prepare(request)
         after_sequence = 0
         control_frames = asyncio.create_task(
@@ -313,7 +314,7 @@ class AdapterApplication:
         try:
             while not websocket.closed:
                 frame = await asyncio.to_thread(
-                    self._operator_products.wait_for_frame,
+                    source.wait_for_frame,
                     camera_id,
                     after_sequence,
                     5.0,

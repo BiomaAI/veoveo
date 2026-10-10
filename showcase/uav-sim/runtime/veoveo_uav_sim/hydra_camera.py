@@ -5,7 +5,7 @@ import math
 import threading
 from collections import deque
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NoReturn, Protocol
 
 import numpy as np
 
@@ -16,6 +16,86 @@ from .rtsp_h264 import RtspEndpoint, RtspH264Receiver
 LOGGER = logging.getLogger("veoveo.uav_sim.hydra_camera")
 RTX_RENDER_PRODUCT_PREFIX = "/Render/OmniverseKit/HydraTextures"
 _MAX_UNPAIRED_FRAMES = 16
+
+
+class RetainedProductOwner(Protocol):
+    @property
+    def cleanup_complete(self) -> bool: ...
+
+    def close(self) -> None: ...
+
+
+class RetainedProductAcquisitionError(RuntimeError):
+    def __init__(self, owner: RetainedProductOwner) -> None:
+        super().__init__("GPU product acquisition failed and owned retirement remains unqualified")
+        self.owner = owner
+
+
+class _PartialProductOwners:
+    def __init__(self, owners: tuple[RetainedProductOwner, ...]) -> None:
+        self._owners = owners
+        self._failure: BaseException | None = None
+
+    @property
+    def cleanup_complete(self) -> bool:
+        return all(owner.cleanup_complete for owner in self._owners)
+
+    def close(self) -> None:
+        for owner in self._owners:
+            if owner.cleanup_complete:
+                continue
+            try:
+                owner.close()
+            except BaseException as error:
+                if self._failure is None:
+                    self._failure = error
+        if self._failure is not None:
+            raise self._failure
+
+
+def _failed_acquisition(owner: RetainedProductOwner, original: BaseException) -> NoReturn:
+    if isinstance(original, RetainedProductAcquisitionError):
+        # The inner factory can fail before returning its acquired writer/render
+        # handle. Retain it together with the caller's resources before retirement.
+        owner = _PartialProductOwners((original.owner, owner))
+    try:
+        owner.close()
+    except BaseException:
+        raise RetainedProductAcquisitionError(owner) from original
+    raise original
+
+
+class _VideoResources(Protocol):
+    _cleanup_lock: Any
+    _cleanup_failure: BaseException | None
+    _receiver: RtspH264Receiver | None
+    _writer: Any
+    _render_product: Any
+    _subscription: Any
+
+
+def _close_video_resources(owner: _VideoResources) -> None:
+    # Publication has already stopped. Never hold the publication lock while joining
+    # a receiver whose final callback may need that same lock.
+    with owner._cleanup_lock:
+        owner._subscription = None
+        for field, method in (("_receiver", "close"), ("_writer", "detach"), ("_render_product", "close")):
+            resource = getattr(owner, field)
+            if resource is None:
+                continue
+            try:
+                getattr(resource, method)()
+            except BaseException as error:
+                if owner._cleanup_failure is None:
+                    owner._cleanup_failure = error
+                if field == "_render_product" and resource.cleanup_complete is True:
+                    # The child reports its earlier sticky failure even after its
+                    # last handle retires. Preserve the failure, release the child.
+                    setattr(owner, field, None)
+            else:
+                setattr(owner, field, None)
+        if owner._cleanup_failure is not None:
+            raise owner._cleanup_failure
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +170,24 @@ def tcp_listener_is_ready(port: int) -> bool:
     return False
 
 
+def _retire_owned_hydra_texture(texture: Any, path: str) -> None:
+    """Release the owned viewport, product prim and per-texture settings."""
+    import carb
+    import omni.usd
+    from pxr import Usd
+
+    # Hydra destroys its viewport when updates are disabled. Releasing our
+    # IHydraTexture reference below retires the scheduler object as well.
+    texture.updates_enabled = False
+    settings_path = texture.get_settings_path()
+    stage = omni.usd.get_context().get_stage()
+    if stage is not None:
+        with Usd.EditContext(stage, stage.GetSessionLayer()):
+            stage.RemovePrim(path)
+    if settings_path:
+        carb.settings.get_settings().destroy_item(settings_path)
+
+
 class RtxHydraRenderProduct:
     def __init__(
         self,
@@ -107,22 +205,26 @@ class RtxHydraRenderProduct:
                 "RTX Hydra render-product width, height, and fps must be positive"
             )
         self._path = render_product_path(name)
-        self._hydra_texture = create_hydra_texture(
-            name,
-            width,
-            height,
-            usd_camera_path=camera_path,
-            hydra_engine_name="rtx",
-            is_async=True,
-            is_async_low_latency=True,
-            hydra_tick_rate=render_fps,
-        )
-        actual_path = self._hydra_texture.get_render_product_path()
-        if actual_path != self._path:
-            self.close()
-            raise RuntimeError(
-                f"RTX HydraTexture created an unexpected render product: {actual_path}"
+        self._hydra_texture = None
+        self._cleanup_failure: BaseException | None = None
+        try:
+            self._hydra_texture = create_hydra_texture(
+                name,
+                width,
+                height,
+                usd_camera_path=camera_path,
+                hydra_engine_name="rtx",
+                is_async=True,
+                is_async_low_latency=True,
+                hydra_tick_rate=render_fps,
             )
+            actual_path = self._hydra_texture.get_render_product_path()
+            if actual_path != self._path:
+                raise RuntimeError(
+                    f"RTX HydraTexture created an unexpected render product: {actual_path}"
+                )
+        except BaseException as error:
+            _failed_acquisition(self, error)
 
     @property
     def path(self) -> str:
@@ -135,8 +237,22 @@ class RtxHydraRenderProduct:
     def set_updates_enabled(self, enabled: bool) -> None:
         self._hydra_texture.updates_enabled = enabled
 
+    @property
+    def cleanup_complete(self) -> bool:
+        return self._hydra_texture is None
+
     def close(self) -> None:
-        self.set_updates_enabled(False)
+        texture = self._hydra_texture
+        if texture is not None:
+            try:
+                _retire_owned_hydra_texture(texture, self._path)
+            except BaseException as error:
+                if self._cleanup_failure is None:
+                    self._cleanup_failure = error
+            else:
+                self._hydra_texture = None
+        if self._cleanup_failure is not None:
+            raise self._cleanup_failure
 
 
 class RtxTiledHydraRenderProduct:
@@ -163,49 +279,53 @@ class RtxTiledHydraRenderProduct:
             raise ValueError(
                 "RTX tiled product dimensions and frame rate must be positive"
             )
-        # The authoritative operator camera objects retain their USD XformOp
-        # handles for every render update. Experimental Camera wrapping resets
-        # Xform ops by default, which would invalidate those exact handles.
-        self._camera = Camera(
-            list(camera_paths), reset_xform_op_properties=False
-        )
-        self._camera.enforce_square_pixels(
-            (tile_height, tile_width), modes="horizontal"
-        )
-
-        columns = math.ceil(math.sqrt(len(camera_paths)))
-        rows = math.ceil(len(camera_paths) / columns)
-        self._width = columns * tile_width
-        self._height = rows * tile_height
-        settings = carb.settings.get_settings()
-        settings.set("/rtx/viewTile/resolution/0", 0)
-        settings.set("/rtx/viewTile/resolution/1", 0)
-
         self._path = render_product_path(name)
-        self._hydra_texture = create_hydra_texture(
-            name,
-            self._width,
-            self._height,
-            usd_camera_path=camera_paths[0],
-            hydra_engine_name="rtx",
-            is_async=True,
-            is_async_low_latency=True,
-            hydra_tick_rate=render_fps,
-        )
-        actual_path = self._hydra_texture.get_render_product_path()
-        if actual_path != self._path:
-            self.close()
-            raise RuntimeError(
-                "Isaac tiled RTX product used an unexpected path: "
-                f"{actual_path}"
+        self._camera = None
+        self._hydra_texture = None
+        self._cleanup_failure: BaseException | None = None
+        try:
+            # The authoritative operator camera objects retain their USD XformOp
+            # handles for every render update. Experimental Camera wrapping resets
+            # Xform ops by default, which would invalidate those exact handles.
+            self._camera = Camera(
+                list(camera_paths), reset_xform_op_properties=False
             )
-        stage = omni.usd.get_context().get_stage()
-        product_prim = stage.GetPrimAtPath(self._path)
-        if not product_prim.IsValid():
-            self.close()
-            raise RuntimeError("Isaac tiled RTX render-product prim was not created")
-        with Usd.EditContext(stage, stage.GetSessionLayer()):
-            product_prim.GetRelationship("camera").SetTargets(list(camera_paths))
+            self._camera.enforce_square_pixels(
+                (tile_height, tile_width), modes="horizontal"
+            )
+
+            columns = math.ceil(math.sqrt(len(camera_paths)))
+            rows = math.ceil(len(camera_paths) / columns)
+            self._width = columns * tile_width
+            self._height = rows * tile_height
+            settings = carb.settings.get_settings()
+            settings.set("/rtx/viewTile/resolution/0", 0)
+            settings.set("/rtx/viewTile/resolution/1", 0)
+
+            self._hydra_texture = create_hydra_texture(
+                name,
+                self._width,
+                self._height,
+                usd_camera_path=camera_paths[0],
+                hydra_engine_name="rtx",
+                is_async=True,
+                is_async_low_latency=True,
+                hydra_tick_rate=render_fps,
+            )
+            actual_path = self._hydra_texture.get_render_product_path()
+            if actual_path != self._path:
+                raise RuntimeError(
+                    "Isaac tiled RTX product used an unexpected path: "
+                    f"{actual_path}"
+                )
+            stage = omni.usd.get_context().get_stage()
+            product_prim = stage.GetPrimAtPath(self._path)
+            if not product_prim.IsValid():
+                raise RuntimeError("Isaac tiled RTX render-product prim was not created")
+            with Usd.EditContext(stage, stage.GetSessionLayer()):
+                product_prim.GetRelationship("camera").SetTargets(list(camera_paths))
+        except BaseException as error:
+            _failed_acquisition(self, error)
 
     @property
     def path(self) -> str:
@@ -226,11 +346,23 @@ class RtxTiledHydraRenderProduct:
     def set_updates_enabled(self, enabled: bool) -> None:
         self._hydra_texture.updates_enabled = enabled
 
+    @property
+    def cleanup_complete(self) -> bool:
+        return self._hydra_texture is None
+
     def close(self) -> None:
-        texture = getattr(self, "_hydra_texture", None)
+        texture = self._hydra_texture
         if texture is not None:
-            texture.updates_enabled = False
-            self._hydra_texture = None
+            try:
+                _retire_owned_hydra_texture(texture, self._path)
+            except BaseException as error:
+                if self._cleanup_failure is None:
+                    self._cleanup_failure = error
+            else:
+                self._hydra_texture = None
+                self._camera = None
+        if self._cleanup_failure is not None:
+            raise self._cleanup_failure
 
 
 class NativeH264CameraSensor:
@@ -260,32 +392,36 @@ class NativeH264CameraSensor:
         self._rtsp_endpoint = RtspEndpoint("127.0.0.1", rtsp_port)
         self._receiver: RtspH264Receiver | None = None
         self._closed = False
-        self._render_product = RtxHydraRenderProduct(
-            name=name,
-            camera_path=camera_path,
-            width=width,
-            height=height,
-            render_fps=render_fps,
-        )
+        self._cleanup_lock = threading.Lock()
+        self._cleanup_failure: BaseException | None = None
+        self._render_product = None
+        self._writer = None
+        self._subscription = None
         try:
+            self._render_product = RtxHydraRenderProduct(
+                name=name,
+                camera_path=camera_path,
+                width=width,
+                height=height,
+                render_fps=render_fps,
+            )
             self._writer = attach_native_rtsp_writer(
                 self._render_product.path,
                 port=rtsp_port,
                 width=width,
                 height=height,
             )
-        except BaseException:
-            self._render_product.close()
-            raise
-        self._subscription = get_eventdispatcher().observe_event(
-            observer_name=f"veoveo_uav_native_h264_{name}",
-            event_name=omni.hydratexture.GLOBAL_EVENT_DRAWABLE_CHANGED,
-            on_event=self._on_drawable_changed,
-            filter=self._render_product.hydra_texture.get_event_key(),
-        )
-        # Isaac's writer encodes the LdrColor render variable with NVENC and
-        # serves its H.264 stream through the NVIDIA RTSP extension.
-        self._render_product.set_updates_enabled(True)
+            self._subscription = get_eventdispatcher().observe_event(
+                observer_name=f"veoveo_uav_native_h264_{name}",
+                event_name=omni.hydratexture.GLOBAL_EVENT_DRAWABLE_CHANGED,
+                on_event=self._on_drawable_changed,
+                filter=self._render_product.hydra_texture.get_event_key(),
+            )
+            # Isaac's writer encodes the LdrColor render variable with NVENC and
+            # serves its H.264 stream through the NVIDIA RTSP extension.
+            self._render_product.set_updates_enabled(True)
+        except BaseException as error:
+            _failed_acquisition(self, error)
 
     @property
     def render_product_path(self) -> str:
@@ -329,16 +465,17 @@ class NativeH264CameraSensor:
             return NativeSensorStatus("warming", 0, "native NVENC stream is warming")
         return NativeSensorStatus("warming", 0, "native RTSP tap is starting")
 
+    @property
+    def cleanup_complete(self) -> bool:
+        return self._receiver is None and self._writer is None and self._render_product is None
+
     def close(self) -> None:
         with self._lock:
             self._closed = True
-            receiver = self._receiver
-            self._receiver = None
-        self._subscription = None
-        if receiver is not None:
-            receiver.close()
-        self._writer.detach()
-        self._render_product.close()
+            self._latest = None
+            self._rendered_samples.clear()
+            self._access_units.clear()
+        _close_video_resources(self)
 
     def _on_drawable_changed(self, event: Any) -> None:
         try:

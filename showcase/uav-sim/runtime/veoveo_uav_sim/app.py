@@ -182,8 +182,13 @@ def run(config: RuntimeConfig) -> None:
     from .cesium_camera import current_pose_cesium_viewport
     from .command_queue import MainThreadQueue
     from .fleet_loop import FleetLoopController
+    from .external_clock import ExternalSimulationClock
     from .fleet_runtime import WarpFleetRuntime
-    from .hydra_camera import NativeH264CameraSensor
+    from .hydra_camera import (
+        NativeH264CameraSensor,
+        RetainedProductAcquisitionError,
+        RetainedProductOwner,
+    )
     from .operator_camera import (
         AuthoritativeOperatorCameraCollection,
         EntityTransform,
@@ -242,6 +247,7 @@ def run(config: RuntimeConfig) -> None:
     fleet_loop: FleetLoopController | None = None
     operator_cameras: AuthoritativeOperatorCameraCollection | None = None
     operator_products: OperatorProductCollection | None = None
+    pending_product_cleanup: list[RetainedProductOwner] = []
     simulation_generation = 1
     tile_event_bridge: NativeTileEventBridge | None = None
     tile_controller: TileLifecycleController | None = None
@@ -468,9 +474,11 @@ def run(config: RuntimeConfig) -> None:
             operator_cameras,
         )
         state.update_stream_products(operator_products.state(content_ready=False))
+        external_clock = ExternalSimulationClock.create(config.physics_hz)
         physics_timeline.play()
         simulation_app.update()
         SimulationManager.initialize_physics()
+        external_clock.admit_initialized()
         if SimulationManager.get_active_physics_engine() != "newton":
             raise RuntimeError("Newton changed during physics initialization")
         if not physics_timeline.is_playing() or not newton_stage.playing:
@@ -608,18 +616,60 @@ def run(config: RuntimeConfig) -> None:
 
         def reset() -> None:
             def action() -> None:
-                nonlocal physics_step, simulation_time_s, simulation_generation
+                nonlocal physics_step, simulation_time_s, simulation_generation, simulation_running, stream_publication
                 assert fleet_runtime is not None
                 was_running = simulation_running
-                fleet_runtime.reset()
-                physics_step = 0
-                simulation_time_s = 0.0
-                simulation_generation += 1
-                recording_cadence.reset()
-                physics_clock.reset(physics_step)
-                render_cadence.reset(physics_step)
-                state.advance(simulation_time_s, physics_step)
-                state.set_lifecycle("running" if was_running else "paused")
+                simulation_running = False
+                external_clock.retire_generation()
+                try:
+                    assert operator_products is not None
+                    # Stop publication first: old stream consumers keep closed sources.
+                    operator_products.close()
+                    for sensor in camera_sensors.values():
+                        sensor.close()
+                    if stream_publication is not None:
+                        stream_publication.close()
+                    def tensor_identity() -> tuple[object, ...]:
+                        native_state = newton_stage.state_0
+                        return (newton_stage.model, native_state,
+                                native_state.body_q, native_state.body_qd)
+                    external_clock.reset_generation(
+                        physics_timeline.stop, physics_timeline.play,
+                        simulation_app.update, fleet_runtime.reset, tensor_identity,
+                    )
+                    physics_step = 0
+                    simulation_time_s = 0.0
+                    simulation_generation += 1
+                    for vehicle_id in tuple(camera_sensors):
+                        camera_sensors[vehicle_id] = NativeH264CameraSensor(
+                            name=f"{physical_product_name}_g{simulation_generation}",
+                            camera_path=physical_camera_path(vehicle_id),
+                            width=config.camera.width, height=config.camera.height,
+                            render_fps=config.camera.fps, rtsp_port=config.camera.rtsp_port,
+                        )
+                        camera_sensor_sequences[vehicle_id] = 0
+                        camera_frames_observed[vehicle_id] = 0
+                    operator_products.restart(
+                        config.operator_live_view, operator_cameras, simulation_generation
+                    )
+                    if config.stream_publication is not None:
+                        # A new RTP publisher owns a fresh SSRC, sequence and
+                        # timestamp offset; old queued frames retired above.
+                        stream_publication = StreamPublicationWorker(config.stream_publication)
+                    recording_cadence.reset()
+                    physics_clock.reset(physics_step)
+                    render_cadence.reset(physics_step)
+                    state.advance(simulation_time_s, physics_step)
+                    simulation_running = was_running
+                    state.set_lifecycle("running" if was_running else "paused")
+                except BaseException as error:
+                    external_clock.retire_generation()
+                    if isinstance(error, RetainedProductAcquisitionError):
+                        # MainThreadQueue delivers command errors to its caller;
+                        # keep partial owners outside that cancellable request.
+                        pending_product_cleanup.append(error.owner)
+                    state.set_lifecycle("failed")
+                    raise
 
             command_queue.submit(action)
 
@@ -631,7 +681,7 @@ def run(config: RuntimeConfig) -> None:
                 for _ in range(steps):
                     fleet_runtime.step(physics_step + 1)
                 update_operator_cameras()
-                simulation_app.update()
+                external_clock.render(physics_step, simulation_app.update)
                 physics_clock.reset(physics_step)
                 render_cadence.reset(physics_step)
                 state.advance(simulation_time_s, physics_step)
@@ -775,7 +825,7 @@ def run(config: RuntimeConfig) -> None:
                         sensor.observe_simulation_time(simulation_time_s, physics_step)
                     update_cesium_viewport()
                     native_update_started = time.monotonic()
-                    simulation_app.update()
+                    external_clock.render(physics_step, simulation_app.update)
                     native_update_wall_seconds = (
                         time.monotonic() - native_update_started
                     )
@@ -799,7 +849,7 @@ def run(config: RuntimeConfig) -> None:
                         )
                     )
             else:
-                simulation_app.update()
+                external_clock.render(physics_step, simulation_app.update)
                 update_cesium_viewport()
                 time.sleep(0.005)
                 continue
@@ -1003,7 +1053,9 @@ def run(config: RuntimeConfig) -> None:
                 )
                 runtime_ready_notified = True
 
-    except BaseException:
+    except BaseException as error:
+        if isinstance(error, RetainedProductAcquisitionError):
+            pending_product_cleanup.append(error.owner)
         if state is not None:
             state.set_lifecycle("failed")
         LOGGER.exception("UAV simulation runtime failed")
@@ -1037,6 +1089,8 @@ def run(config: RuntimeConfig) -> None:
             _cleanup("default fleet loop", fleet_loop.close)
         if server is not None:
             _cleanup("adapter server", server.close)
+        for pending_product in pending_product_cleanup:
+            _cleanup("partially acquired video product", pending_product.close)
         if operator_products is not None:
             _cleanup("operator stream products", operator_products.close)
         for camera_sensor in camera_sensors.values():

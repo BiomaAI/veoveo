@@ -32,7 +32,7 @@ Current, retired and mixed field controls share the durable-result consumer test
 | `veoveo.ai/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
 | WebSocket and H.264 | RFC 6455 binary messages under subprotocol `veoveo.h264.annexb.v1`; each message carries one decoder-reentrant or predicted Annex B H.264 access unit. The App derives its RFC 6381 `avc1` codec from the profile, compatibility and level bytes of a decoder-reentrant SPS. Media Capabilities, WebCodecs and canvas metadata use that observed codec. One tiled NVIDIA NVENC atlas fans out unchanged to authenticated viewers. This WebSocket is a media adapter, not a public simulator-control protocol. |
 | OpenUSD and RTX Hydra | Isaac Sim `6.1.0` stage and render products inside the authoritative runtime. These are implementation details, not MCP wire types. |
-| Native sensor video | Isaac Sim `isaacsim.streaming.rtsp` `0.1.5` supplies `RTSPStreamWriter`. Its CUDA-buffer mode passes resident pixels to `omni.kit.livestream.rtsp` `10.4.1` for one NVIDIA NVENC encode. The private adapter consumes the loopback RTSP/RTP H.264 stream without decoding or re-encoding. This is not an MCP wire type. |
+| Native sensor video | Isaac Sim `isaacsim.streaming.rtsp` `0.1.5` supplies `RTSPStreamWriter`. Its stock `h264` mode uses SRTX compression and NVIDIA NVENC, then passes encoded H.264 with per-picture simulation-time SEI metadata to `omni.kit.livestream.rtsp` `10.4.1`. The private adapter consumes the loopback RTSP/RTP H.264 stream without decoding or re-encoding. This is not an MCP wire type. |
 | RTSP, RTP, and H.264 | RTSP 1.0 over loopback TCP with interleaved RTP/RTCP. The adapter supports the RFC 6184 single-NAL, STAP-A, and FU-A packetization modes and emits decoder-reentrant Annex B access units. |
 | OGC 3D Tiles | Cesium Omniverse `0.29.0` with pinned Cesium Native commit `ca0311f25c412b74ad1af9a3636924122cc76156`, one simulator-owned world, and one cache. The repository extension adds private redacted lifecycle events; it does not add an MCP wire protocol. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit world, physics, entity, rig, and camera coordinate boundaries. |
@@ -737,8 +737,8 @@ WebSocket delivery and one browser decoder, never another simulator render or en
 The domain nadir sensor and operator cameras have independent cadence. The physical
 sensor camera receives the exact current body-and-mount transform at render cadence.
 Cesium receives that viewport every Kit update. The sensor Hydra product renders at the
-declared sensor rate and publishes its CUDA-resident `LdrColor` AOV directly to the
-native RTSP extension. No Replicator orchestrator participates in simulation timing.
+declared sensor rate. The stock writer compresses its `LdrColor` AOV with SRTX/NVENC
+and publishes the encoded pictures through the native RTSP extension. No Replicator orchestrator participates in simulation timing.
 
 The manual Isaac loop advances fixed physics from elapsed monotonic time. It preserves
 bounded physics debt and coalesces missed visual deadlines into one render of the newest
@@ -1112,8 +1112,32 @@ frames during setup. After losing a predicted frame, it refuses subsequent delta
 until a fresh SPS/PPS/IDR repairs the reference chain.
 A changed codec closes the prior decoder and requires a new reentrant keyframe.
 Teardown invalidates pending configuration, and admission of a ninth queued chunk
-ends the connection through the existing recovery path. These codec checks do not
-change the stream framing or its sequence-based presentation timestamps.
+ends the connection through the existing recovery path. The unchanged Annex B framing carries NVIDIA's per-picture SEI metadata. The App
+requires exactly one `user_data_unregistered` record with UUID
+`aa71e48f-0711-5d80-a247-cd31ca6fa49c` per coded access unit. The supported external
+profile is Isaac Sim 6.1.0's RTSP writer 0.1.5: a flat JSON object containing integer
+`publish_sim_time_ns`, integer `frame_num`, integer `timestamp` and string
+`timestamp_iso8601`. It rejects extra or duplicate keys. Native `JSON.parse`
+source-text access preserves integer nanoseconds as BigInt; browsers without that
+API receive an upgrade diagnostic. JSON payloads are limited to 4 KiB, SEI NALs to
+64 KiB and each SEI NAL to 256 messages. The reader removes H.264 emulation-prevention
+bytes before UUID/JSON admission and refuses malformed/truncated messages.
+
+WebCodecs receives simulation capture nanoseconds divided by 1,000, with no sequence
+or configured-rate fallback. Fractional microseconds are truncated to WebCodecs'
+integer unit. Equal simulation times are admitted unchanged to preserve references
+during paused rendering; frame numbers must increase. A backwards simulation time or
+nonincreasing frame number closes the decoder and invokes the existing reconnect
+path. Only a new connection starts a new decoder epoch, with a reentrant keyframe.
+Pending frames keep their original capture timestamp through asynchronous setup and
+drops. The provider's `timestamp` and `timestamp_iso8601` are server-start wall anchors
+advanced by simulation time; they do not establish actual wall capture time.
+
+The runtime producer and MCP App require a coordinated two-image qualification and
+rollout. Operators drain current streams before replacing the pair, then clients
+open new connections and decoder epochs. A viewer connected to a producer without
+the required SEI receives an actionable metadata diagnostic; it cannot substitute a
+sequence clock. Qualification of an earlier image pair does not qualify this profile.
 
 ## Portable State And Adapter Replies
 

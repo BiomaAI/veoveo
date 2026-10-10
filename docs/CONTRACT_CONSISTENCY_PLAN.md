@@ -14,10 +14,21 @@ qualification remain open.
 The fresh single-vehicle UAV capture exposed a runtime output failure after tile
 updates and incorrect RTSP video timestamps. The state repair at `1b9070590`
 passes all 151 owning Python tests and independent review; its image and installed
-acceptance remain open. The browser now derives the actual codec from its SPS;
-six JS tests, TypeScript, four native App controls and independent review pass.
-Its installed qualification and video clock repair remain open. This capture
-does not close composed-flight acceptance. Its two
+acceptance remain open. The browser derives the actual codec from its SPS.
+The capture-clock batch passes 175 Python tests, eight JS tests, TypeScript and
+bundling; its asset agrees with the earlier compiler and four native App checks.
+It carries stock NVIDIA SEI capture time through RTSP to WebCodecs and retires
+stream resources before clock reset. Independent lifecycle review passes. Actual
+Isaac clock qualification and the paired runtime/MCP image rollout remain open. This capture
+does not close composed-flight acceptance. Independent PX4 log inspection finds a
+severe roll transient and motor saturation around log-relative 123 seconds, followed
+by much calmer cruise. Flight dynamics and feedback timing require qualification;
+absence of a failsafe does not establish stability. The existing native flight
+harness measures the nonacrobatic motion envelope. Both the current 30/60 Hz
+held-sample profile and the test-only 250 Hz fresh-sample profile pass two native
+CUDA/PX4 flight cycles. Their maximum tilts are 22.5 and 21.5 degrees respectively.
+These paced checks do not reproduce the recorded transient; render-stall catch-up
+and asynchronous control feedback need investigation. Production rates are unchanged. Its two
 temporary PVCs were deleted during cleanup; the saved MP4s and PX4 log survive.
 The [flight checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#fresh-uav-flight-and-runtime-output-repair--october-10-2026)
 records the results, losses and remaining qualification.

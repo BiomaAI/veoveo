@@ -10,6 +10,8 @@ from typing import Any
 from .h264 import NativeH264AccessUnit
 from .hydra_camera import (
     RtxTiledHydraRenderProduct,
+    _close_video_resources,
+    _failed_acquisition,
     tcp_listener_is_ready,
 )
 from .native_rtsp import attach_native_rtsp_writer
@@ -98,6 +100,7 @@ class OperatorCameraProduct:
         cameras: AuthoritativeOperatorCameraCollection,
         *,
         maximum_frame_age_ms: int = 2_000,
+        generation: int = 1,
     ) -> None:
         import omni.hydratexture
         from carb.eventdispatcher import get_eventdispatcher
@@ -136,42 +139,43 @@ class OperatorCameraProduct:
         self._health.activate()
         self._subscription = None
         self._writer = None
-        self._render_product = RtxTiledHydraRenderProduct(
-            name=OPERATOR_ATLAS_NAME,
-            camera_paths=tuple(
-                camera_by_id[definition.camera_id].camera_path
-                for definition in definitions
-            ),
-            tile_width=optics.width_px,
-            tile_height=optics.height_px,
-            render_fps=optics.frame_rate_hz,
-        )
-        if (
-            self._render_product.width != self._coded_width_px
-            or self._render_product.height != self._coded_height_px
-        ):
-            self.close()
-            raise RuntimeError(
-                "Isaac tiled RTX product resolution does not match its camera atlas"
-            )
+        self._cleanup_lock = threading.Lock()
+        self._cleanup_failure: BaseException | None = None
+        self._render_product = None
         try:
+            self._render_product = RtxTiledHydraRenderProduct(
+                name=(OPERATOR_ATLAS_NAME if generation == 1 else f"{OPERATOR_ATLAS_NAME}_g{generation}"),
+                camera_paths=tuple(
+                    camera_by_id[definition.camera_id].camera_path
+                    for definition in definitions
+                ),
+                tile_width=optics.width_px,
+                tile_height=optics.height_px,
+                render_fps=optics.frame_rate_hz,
+            )
+            if (
+                self._render_product.width != self._coded_width_px
+                or self._render_product.height != self._coded_height_px
+            ):
+                raise RuntimeError(
+                    "Isaac tiled RTX product resolution does not match its camera atlas"
+                )
             self._writer = attach_native_rtsp_writer(
                 self._render_product.path,
                 port=config.atlas_rtsp_port,
                 width=self._coded_width_px,
                 height=self._coded_height_px,
             )
-        except BaseException:
-            self._render_product.close()
-            raise
-        self._subscription = get_eventdispatcher().observe_event(
-            observer_name="veoveo_uav_camera_atlas",
-            event_name=omni.hydratexture.GLOBAL_EVENT_DRAWABLE_CHANGED,
-            on_event=self._on_drawable_changed,
-            filter=self._render_product.hydra_texture.get_event_key(),
-        )
-        # Isaac's writer encodes this tiled render product once with NVENC.
-        self._render_product.set_updates_enabled(True)
+            self._subscription = get_eventdispatcher().observe_event(
+                observer_name="veoveo_uav_camera_atlas",
+                event_name=omni.hydratexture.GLOBAL_EVENT_DRAWABLE_CHANGED,
+                on_event=self._on_drawable_changed,
+                filter=self._render_product.hydra_texture.get_event_key(),
+            )
+            # Isaac's writer encodes this tiled render product once with NVENC.
+            self._render_product.set_updates_enabled(True)
+        except BaseException as error:
+            _failed_acquisition(self, error)
 
     def observe_source_pose(self, monotonic_seconds: float) -> None:
         if not math.isfinite(monotonic_seconds) or monotonic_seconds < 0.0:
@@ -268,20 +272,16 @@ class OperatorCameraProduct:
     def camera_ids(self) -> tuple[str, ...]:
         return self._camera_ids
 
+    @property
+    def cleanup_complete(self) -> bool:
+        return self._receiver is None and self._writer is None and self._render_product is None
+
     def close(self) -> None:
         with self._condition:
-            if self._closed:
-                return
             self._closed = True
-            receiver = self._receiver
-            self._receiver = None
+            self._frames.clear()
             self._condition.notify_all()
-        if receiver is not None:
-            receiver.close()
-        self._subscription = None
-        if self._writer is not None:
-            self._writer.detach()
-        self._render_product.close()
+        _close_video_resources(self)
 
     def _on_access_unit(self, access_unit: NativeH264AccessUnit) -> None:
         with self._condition:
@@ -310,6 +310,19 @@ class OperatorProductCollection:
         cameras: AuthoritativeOperatorCameraCollection,
     ) -> "OperatorProductCollection":
         return cls(OperatorCameraProduct(config, cameras))
+
+    def stream_source(self) -> OperatorCameraProduct:
+        # Each accepted transport keeps this generation even during reset.
+        return self._product
+
+    def restart(
+        self,
+        config: OperatorLiveViewRuntimeConfig,
+        cameras: AuthoritativeOperatorCameraCollection,
+        generation: int,
+    ) -> None:
+        self._product.close()
+        self._product = OperatorCameraProduct(config, cameras, generation=generation)
 
     def wait_for_frame(
         self, camera_id: str, after_sequence: int, timeout_seconds: float

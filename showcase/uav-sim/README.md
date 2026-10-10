@@ -16,7 +16,7 @@ encodes them with NVIDIA NVENC, and streams them to the live-view App.
 | `veoveo.ai/live-view/v4` | Simulator-rendered operator cameras, typed regions in one tiled encoded product, and ephemeral viewer authorizations without viewer quotas. |
 | `veoveo.ai/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
 | WebSocket and H.264 | One continuous tiled NVIDIA NVENC atlas for every operator camera, delivered as Annex B H.264 access units to every authenticated browser. |
-| Native sensor video | Isaac Sim `isaacsim.streaming.rtsp` `0.1.5` attaches NVIDIA's `RTSPStreamWriter` to the RTX render products. Its CUDA-buffer path sends resident pixels to `omni.kit.livestream.rtsp` `10.4.1`, which performs the product's single NVENC encode and serves H.264. |
+| Native sensor video | Isaac Sim `isaacsim.streaming.rtsp` `0.1.5` attaches NVIDIA's `RTSPStreamWriter` in H.264 mode to SRTX-compressed render products. NVIDIA NVENC encodes each product once; `omni.kit.livestream.rtsp` `10.4.1` serves the encoded bytes with simulation capture time in stock SEI metadata. |
 | RTSP, RTP, and H.264 | Pod-local RTSP 1.0 with interleaved RTP/RTCP and RFC 6184 single-NAL, STAP-A, and FU-A packetization. |
 | Rerun RRD | Version `0.38.1` telemetry, leader-camera video, and producer Blueprint publication. |
 | NVIDIA CUDA, Vulkan, RTX, and NVENC | Mandatory simulation, low-latency RTX rendering, and server-side video encoding. |
@@ -218,6 +218,13 @@ deadlines, the runtime advances every due physics step and renders only the newe
 Rerun serialization, browser traffic, native encode, and recording retries run outside
 the simulation loop and cannot slow it.
 
+Before rendering, the external clock adapter writes the completed Warp step's time
+to Isaac's Fabric simulation-time attribute. Multi-tick rendering passes that frame
+reference to the stock RTSP writer. Render-only updates verify that Isaac's native
+physics step count does not advance. Timeline reset preserves Newton's allocations
+through the supported `resetOnStop=False` setting and starts a fresh stream epoch;
+old stream connections close before the new epoch publishes frames.
+
 ## Always-On Fleet
 
 The reference configuration launches four vehicles. After PX4 connects, every vehicle
@@ -369,7 +376,16 @@ requiring the new commander to have observed the previous flight.
 Every test owns its processes and temporary storage. No camera or rendering acceptance
 is implied by these sensor and flight checks.
 Set `UAV_SIM_PX4_FLIGHT_LOG_DIRECTORY` to retain the isolated flight's sensor samples,
-PX4 topic diagnostics and ULog before fixture cleanup.
+rotor commands, sample timing, PX4 topic diagnostics and ULog before fixture cleanup.
+The flight check rejects nonfinite state, quaternion drift, airborne tilt of 60 degrees
+or more and body rates of 360 degrees per second or more. Ground contact below
+0.10 metres is excluded from those flight-motion limits.
+
+`UAV_SIM_PX4_SENSOR_PROFILE=held-30-60` selects the production 30 Hz plant with
+60 Hz held-sample HIL delivery and is the default. `new-sample-250` selects a
+test-only 250 Hz plant and HIL profile with a fresh state for each sensor sample.
+Run the same flight check separately for each profile when comparing sensor cadence.
+Selecting the comparison profile does not change the simulator's production rates.
 
 ```sh
 PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src:showcase/uav-sim/runtime/tests_gpu \

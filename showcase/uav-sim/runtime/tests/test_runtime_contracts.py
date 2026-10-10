@@ -1313,7 +1313,9 @@ class NativeCadenceTests(unittest.TestCase):
         self.assertIn("simulation_app.update()", app_source)
         physics_index = app_source.rindex("fleet_runtime.step(physics_step + 1)")
         camera_index = app_source.rindex("update_operator_cameras()")
-        render_index = app_source.index("simulation_app.update()", camera_index)
+        render_index = app_source.index(
+            "external_clock.render(physics_step, simulation_app.update)", camera_index
+        )
         self.assertLess(physics_index, camera_index)
         self.assertLess(camera_index, render_index)
         self.assertNotIn("from isaacsim.core.api", app_source)
@@ -2340,6 +2342,55 @@ class StreamedWorldHealthTests(unittest.TestCase):
         self.assertNotIn("stream_output", recording_source)
         self.assertIn("recording.offer_camera_access_unit(", app_source)
         self.assertIn("stream_publication.offer(", app_source)
+
+
+class StreamRetirementTests(unittest.TestCase):
+    def test_join_failure_retains_worker_and_stays_failed_after_terminal_retry(self) -> None:
+        from unittest.mock import Mock
+        from veoveo_uav_sim.event_queue import NonBlockingEventQueue
+        worker = StreamPublicationWorker.__new__(StreamPublicationWorker)
+        worker._closed = threading.Event()
+        worker._close_failure = None
+        worker._events = NonBlockingEventQueue(4)
+        worker._worker = Mock()
+        worker._worker.is_alive.side_effect = [True, True, False, False]
+        with self.assertRaisesRegex(RuntimeError, "within 5 seconds") as first:
+            worker.close()
+        self.assertFalse(worker.cleanup_complete)
+        retained = worker._worker
+        with self.assertRaises(RuntimeError) as retry:
+            worker.close()
+        self.assertIs(first.exception, retry.exception)
+        self.assertIs(worker._worker, retained)
+        self.assertTrue(worker.cleanup_complete)
+        self.assertEqual(worker._events.depth(), 1)
+        self.assertEqual(retained.join.call_count, 2)
+
+    def test_retired_queue_cannot_cross_into_new_zero_time_epoch(self) -> None:
+        from unittest.mock import Mock
+        from veoveo_uav_sim.stream_output import RtpH264Publisher
+        sockets = [Mock(), Mock()]
+        for transport in sockets:
+            transport.sendto.side_effect = lambda data, destination: len(data)
+        config = StreamPublicationConfig(host="stream-mcp", port=9000, payload_type=96,
+                                         source_vehicle_id="uav-1", queue_capacity=4)
+        sample = b"\x00\x00\x00\x01\x65\x88\x84"
+        with patch("veoveo_uav_sim.stream_output.socket.getaddrinfo", return_value=[(2, 2, 17, "", ("127.0.0.1", 9000))]), \
+             patch("veoveo_uav_sim.stream_output.socket.socket", side_effect=sockets), \
+             patch("veoveo_uav_sim.stream_output.secrets.randbits", side_effect=[1, 11, 100, 2, 22, 200]):
+            old = RtpH264Publisher(config)
+            old.publish(sample, 1.0)
+            old.close()
+            new = RtpH264Publisher(config)
+            new.publish(sample, 0.0)
+            new.close()
+        old_header = struct.unpack("!BBHII", sockets[0].sendto.call_args.args[0][:12])
+        new_header = struct.unpack("!BBHII", sockets[1].sendto.call_args.args[0][:12])
+        self.assertEqual(old_header[-1], 11)
+        self.assertEqual(new_header[-1], 22)
+        self.assertEqual(new_header[-2], 200)
+        sockets[0].close.assert_called_once()
+        sockets[1].close.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import logging
 import socket
 import struct
 import threading
@@ -108,10 +109,14 @@ class H264RtpDepacketizer:
         self._nals: list[bytes] = []
         self._fragment: bytearray | None = None
         self._decoder_ready = False
+        self._prefix_nals: tuple[bytes, ...] = ()
+        self._prefix_timestamp: int | None = None
 
     def push(self, packet: RtpPacket) -> NativeH264AccessUnit | None:
         if packet.payload_type != self._payload_type:
             return None
+        if self._prefix_nals and packet.timestamp != self._prefix_timestamp:
+            raise RuntimeError("H.264 metadata-only unit has no picture at its RTP timestamp")
         if self._last_sequence is not None:
             expected = (self._last_sequence + 1) & 0xFFFF
             if packet.sequence != expected:
@@ -147,8 +152,16 @@ class H264RtpDepacketizer:
             elif nal_type == _PICTURE_PARAMETER_SET:
                 self._picture_parameter_set = nal
         if not any(1 <= (nal[0] & 0x1F) <= 5 for nal in nals):
+            if any((nal[0] & 0x1F) == 6 for nal in nals):
+                if self._prefix_nals:
+                    raise RuntimeError("H.264 repeated metadata-only unit before picture")
+                self._prefix_nals = nals
+                self._prefix_timestamp = packet.timestamp
             return None
 
+        nals = self._prefix_nals + nals
+        self._prefix_nals = ()
+        self._prefix_timestamp = None
         sample = b"".join(b"\x00\x00\x00\x01" + nal for nal in nals)
         access_unit = parse_native_h264_access_unit(sample)
         if access_unit.is_keyframe:
@@ -375,7 +388,11 @@ class RtspH264Receiver:
         self._stop.set()
         self._session.close()
         if self._thread.ident is not None:
+            if threading.current_thread() is self._thread:
+                raise RuntimeError("native RTSP receiver retirement requires its owning thread")
             self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                raise RuntimeError("native RTSP receiver did not retire within 5 seconds")
 
     def _run(self) -> None:
         try:
@@ -395,12 +412,28 @@ class RtspH264Receiver:
                         return
                     self._session = _RtspSession(self._endpoint)
             self._ready.set()
+            last_capture = None
             while not self._stop.is_set():
                 packet = self._session.receive_interleaved()
                 if not packet:
                     continue
                 access_unit = depacketizer.push(parse_rtp_packet(packet))
                 if access_unit is not None:
+                    from .native_rtsp import capture_simulation_time
+                    capture = capture_simulation_time(access_unit.sample)
+                    if last_capture is not None and (
+                        capture.publish_sim_time_ns < last_capture.publish_sim_time_ns
+                        or capture.frame_num <= last_capture.frame_num
+                    ):
+                        raise RuntimeError("native capture clock changed generation without reconnect")
+                    if last_capture is None:
+                        logging.getLogger("veoveo.uav_sim.native_capture").info(
+                            "native capture admitted rtsp_port=%d sim_time_ns=%d "
+                            "frame_num=%d timestamp_ns=%d timestamp_iso8601=%s",
+                            self._endpoint.port, capture.publish_sim_time_ns,
+                            capture.frame_num, capture.timestamp, capture.timestamp_iso8601,
+                        )
+                    last_capture = capture
                     self._on_access_unit(access_unit)
         except BaseException as error:
             if not self._stop.is_set():

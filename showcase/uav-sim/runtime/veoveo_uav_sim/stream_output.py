@@ -104,6 +104,7 @@ class StreamPublicationWorker:
             config.queue_capacity
         )
         self._closed = threading.Event()
+        self._close_failure: BaseException | None = None
         self._status_lock = threading.Lock()
         self._lifecycle = "connecting"
         self._published_access_units = 0
@@ -134,12 +135,23 @@ class StreamPublicationWorker:
                 last_error=self._last_error,
             )
 
+    @property
+    def cleanup_complete(self) -> bool:
+        return self._closed.is_set() and not self._worker.is_alive()
+
     def close(self) -> None:
-        if self._closed.is_set():
-            return
-        self._closed.set()
-        self._events.offer(_StopEvent())
-        self._worker.join(timeout=5.0)
+        if not self._closed.is_set():
+            self._closed.set()
+            self._events.offer(_StopEvent())
+        if threading.current_thread() is self._worker:
+            if self._close_failure is None:
+                self._close_failure = RuntimeError("RTP publication retirement requires its owning thread")
+        else:
+            self._worker.join(timeout=5.0)
+            if self._worker.is_alive() and self._close_failure is None:
+                self._close_failure = RuntimeError("RTP publication did not retire within 5 seconds")
+        if self._close_failure is not None:
+            raise self._close_failure
 
     def _run(self) -> None:
         publisher: RtpH264Publisher | None = None

@@ -8,6 +8,46 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Fresh UAV Flight And Runtime Output Repair — October 10, 2026
 
+Independent inspection of the retained PX4 log finds a severe control transient
+at log-relative 123.067–123.35 seconds: roll crosses inversion, angular velocity
+reaches about −1,088 degrees per second and motor commands saturate. Raw gyro
+measurements corroborate the event; the latest quaternion reset occurs much earlier.
+Cruise between 180 and 360 seconds has substantially smaller motion and tracking
+error. These observations rule out a camera-only explanation for the full flight;
+the log lacks synchronized simulator ground truth and video time, so the cause is
+unproven. The existing CUDA/PX4 flight harness adds per-sample motion checks and an
+explicit 250 Hz fresh-sample comparison. No production dynamics change is made.
+The private diagnostic receipt is
+`/tmp/veoveo-flight-dynamics-20261010/receipt.json`, SHA-256
+`809b34f74c4d04daee40a57ee84480a4b6f39b5590e2956225eb257b86e1228f`.
+
+Both isolated hardware CUDA/PX4 profiles subsequently pass two takeoff, mission,
+landing and rearm cycles. The 250 Hz fresh-sample check takes 167.502 seconds and
+observes maximum tilt 21.50 degrees and body rate 63.00 degrees per second.
+The production 30/60 Hz held-sample check takes 140.858 seconds and observes
+22.48 degrees and 58.53 degrees per second. Neither observes airborne command
+saturation or a motion-limit failure. Each retains simulator ground truth,
+rotor commands, sample timing and finalized PX4 logs. These paced fixtures do not
+reproduce the recorded transient. The production loop catches up physics after
+slow renders while reading asynchronous latest controls; that timing path remains
+under investigation. No cadence-based cause or full simulator acceptance is claimed.
+Private terminal receipts are `native-250-receipt.json` and
+`native-held-receipt.json` under `/tmp/veoveo-flight-dynamics-20261010/`, with hashes
+`a7cbd959a64ecb67b5b3d18226687315ac3fdef2164da848c49f0eceb5393cae`
+and `e20543a1e15585154f5dce811912001524e5929868ec2961c0283b6ef770a2b3`.
+
+The subsequent capture-clock batch binds completed Warp time to Isaac's supported
+external Fabric clock and uses the stock SRTX H.264 writer. Typed per-picture SEI
+metadata reaches WebCodecs without reconstructing timestamps from sequence or FPS.
+Reset retires old writer, receiver and optional RTP source ownership before starting
+the new clock epoch. Partial acquisitions remain owned through cleanup failures.
+All 175 owning Python controls and eight JS tests pass, together with TypeScript,
+bundling and documentation checks. The generated asset matches the prior compiler
+and four native App checks. Independent lifecycle review approves the repairs.
+Actual Isaac/GPU clock, reset and frame-correlation qualification remain open. The source-check receipt is
+`/tmp/veoveo-flight-dynamics-20261010/final-clock-lifecycle-checkpoint.json`, SHA-256
+`5f5f042e926f4d663665bb1e85d202e9016eed1af87074532c0d13d1d81eed15`.
+
 A fresh one-vehicle PX4 flight produces 3,601 NVENC H.264 frames over 153.26 seconds
 of capture. Physics runs at 30 Hz and rendering at 24 Hz. The RTSP stream timestamps
 the frames as 60 fps, making its stream-copy MP4 play in 60 seconds. A separate

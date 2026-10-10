@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 from collections import deque
 import threading
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock, patch
 
 from veoveo_uav_sim.h264 import NativeH264AccessUnit
 from veoveo_uav_sim.operator_camera import CameraRigKind
@@ -12,6 +14,7 @@ from veoveo_uav_sim.operator_health import OperatorProductHealth
 from veoveo_uav_sim.operator_products import (
     OPERATOR_ATLAS_PRODUCT_ID,
     OperatorCameraProduct,
+    OperatorProductCollection,
     operator_atlas_layout,
 )
 
@@ -160,9 +163,42 @@ class OperatorCameraConfigTests(unittest.TestCase):
 
 
 class OperatorProductTests(unittest.TestCase):
+    def test_reset_closes_captured_generation_and_clears_retained_frames(self) -> None:
+        product = OperatorCameraProduct.__new__(OperatorCameraProduct)
+        product._condition = threading.Condition()
+        product._cleanup_lock = threading.Lock()
+        product._cleanup_failure = None
+        product._closed = False
+        product._failure = None
+        product._frames = deque([object()])
+        product._camera_ids = ("follow",)
+        product._receiver = Mock()
+        product._subscription = object()
+        product._writer = Mock()
+        product._render_product = Mock()
+        render_product = product._render_product
+        receiver = product._receiver
+        writer = product._writer
+        collection = OperatorProductCollection(product)
+        old_source = collection.stream_source()
+        replacement = Mock()
+        with patch("veoveo_uav_sim.operator_products.OperatorCameraProduct", return_value=replacement):
+            collection.restart(Mock(), Mock(), 2)
+        self.assertIs(collection.stream_source(), replacement)
+        self.assertIs(old_source, product)
+        self.assertEqual(list(product._frames), [])
+        with self.assertRaisesRegex(RuntimeError, "closed"):
+            old_source.wait_for_frame("follow", 0, 0.01)
+        receiver.close.assert_called_once()
+        writer.detach.assert_called_once()
+        render_product.close.assert_called_once()
+        self.assertIsNone(product._subscription)
+
     def test_new_viewer_starts_at_latest_keyframe_and_then_advances(self) -> None:
         product = OperatorCameraProduct.__new__(OperatorCameraProduct)
         product._condition = threading.Condition()
+        product._cleanup_lock = threading.Lock()
+        product._cleanup_failure = None
         product._closed = False
         product._failure = None
         product._frames = deque(maxlen=256)
@@ -181,6 +217,38 @@ class OperatorProductTests(unittest.TestCase):
         second = product.wait_for_frame("follow", first.sequence, 0.01)
         assert second is not None
         self.assertEqual(second.sequence, 2)
+
+    def test_failed_receiver_retirement_blocks_next_writer_and_retries_owned_handle(self) -> None:
+        product = OperatorCameraProduct.__new__(OperatorCameraProduct)
+        product._condition = threading.Condition()
+        product._cleanup_lock = threading.Lock()
+        product._cleanup_failure = None
+        product._closed = False
+        product._frames = deque()
+        product._receiver = Mock()
+        product._receiver.close.side_effect = [RuntimeError("receiver still alive"), None]
+        receiver = product._receiver
+        product._subscription = object()
+        product._writer = Mock()
+        writer = product._writer
+        product._render_product = Mock()
+        render_product = product._render_product
+        collection = OperatorProductCollection(product)
+        with patch("veoveo_uav_sim.operator_products.OperatorCameraProduct") as factory:
+            with self.assertRaisesRegex(RuntimeError, "still alive"):
+                collection.restart(Mock(), Mock(), 2)
+            factory.assert_not_called()
+            self.assertIs(product._receiver, receiver)
+            self.assertTrue(product._closed)
+            writer.detach.assert_called_once()
+            render_product.close.assert_called_once()
+            with self.assertRaisesRegex(RuntimeError, "still alive"):
+                collection.restart(Mock(), Mock(), 2)
+            factory.assert_not_called()
+            self.assertIsNone(product._receiver)
+            self.assertTrue(product.cleanup_complete)
+            self.assertIs(collection.stream_source(), product)
+        self.assertEqual(receiver.close.call_count, 2)
 
     def test_tiled_product_regions_and_dimensions(self) -> None:
         cameras = [
@@ -289,3 +357,38 @@ class OperatorProductTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OperatorGenerationHandshakeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reset_during_handshake_cannot_adopt_next_generation(self) -> None:
+        import asyncio
+        from veoveo_uav_sim.server import AdapterApplication, LIVE_STREAM_PROTOCOL
+        from unittest.mock import AsyncMock
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        websocket = SimpleNamespace(closed=False, close=AsyncMock(), send_bytes=AsyncMock())
+        async def prepare(request):
+            entered.set()
+            await release.wait()
+        websocket.prepare = prepare
+        old_source = Mock()
+        old_source.wait_for_frame.side_effect = RuntimeError("old generation closed")
+        new_source = Mock()
+        collection = OperatorProductCollection(old_source)
+        application = AdapterApplication.__new__(AdapterApplication)
+        application._operator_products = collection
+        request = SimpleNamespace(headers={"Sec-WebSocket-Protocol": LIVE_STREAM_PROTOCOL},
+                                  match_info={"cameraId": "follow"})
+        async def consume(_websocket):
+            await asyncio.Event().wait()
+        with patch("veoveo_uav_sim.server.web.WebSocketResponse", return_value=websocket), \
+             patch("veoveo_uav_sim.server._consume_live_stream_control_frames", side_effect=consume):
+            task = asyncio.create_task(application._live_stream(request))
+            await asyncio.wait_for(entered.wait(), 1.0)
+            collection._product = new_source
+            release.set()
+            await asyncio.wait_for(task, 1.0)
+        old_source.wait_for_frame.assert_called_once()
+        new_source.wait_for_frame.assert_not_called()
+        websocket.send_bytes.assert_not_called()
+        websocket.close.assert_awaited_once()

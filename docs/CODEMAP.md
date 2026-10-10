@@ -1058,6 +1058,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/map/` | Map-owned named-place and operational air-network source fixture for the showcase |
 | `showcase/uav-sim/runtime/` | thin domain overlay on the shared Isaac runtime with Cesium, a repository-owned batched Warp plant, Newton Experimental rigid views, PX4 HIL lifecycle, RTX domain sensors, logical cameras, shared RTX/NVENC camera products, direct Stream publication, and Rerun publication |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/fleet_runtime.py` | 30 Hz CUDA fleet simulation, direct Newton Experimental tensor-state writes, and ordered 60 Hz PX4 HIL publication without MuJoCo-Warp stepping |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/external_clock.py` | completed Warp-step time bound to Isaac's Fabric render reference, render-only updates, and explicit clock-generation reset with retained Newton tensor ownership |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/plant_warp.py` | one fused CUDA kernel for batched motors, force, torque, native Newton body integration, launch-surface contact, and HIL sensor sampling |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/magnetic_warp.py`, `showcase/uav-sim/runtime/generate_magnetic_tables.py` | per-vehicle CUDA magnetic-field interpolation using generated, checksum-pinned PX4 tables and body-frame sensor conversion |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | operator-camera orchestration over focused rig, smoothing, product, and health modules |
@@ -1068,6 +1069,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/physical_camera.py` | body-and-mount USD sensor camera, separate from smoothed operator views |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/hydra_camera.py` | physical-camera Hydra product, CUDA AOV-to-native-RTSP configuration, encoded-frame pairing, and nonblocking sensor health |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/rtsp_h264.py` | pod-local RTSP client, interleaved RTP parser, RFC 6184 depacketizer, and native encoded access-unit delivery |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/native_rtsp.py` | stock SRTX H.264 writer attachment and closed typed admission of NVIDIA's per-picture SEI capture metadata |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/h264.py` | strict native Annex B GOP parsing and decoder-reentrant SPS/PPS/IDR qualification |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | retained nonblocking adapter-ready and final-ready lifecycle edges over the authenticated private HTTP stream |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/outbound.py` | strict typed state, acknowledgement, completion and event outputs admitted before private HTTP/NDJSON serialization; shared Python/Rust fixtures live in `runtime/tests/fixtures/adapter_outputs.json` |
