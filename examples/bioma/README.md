@@ -100,6 +100,25 @@ immutable ConfigMap and kernel image. The manager's API and model egress entries
 are installation addresses. Model entries pin the current IPv4 answers for
 `api.cloudflare.com`; a destination change requires a reviewed configuration update.
 
+Prepare the immutable pilot ConfigMap even when simulator startup is held. Render
+only its maintained chart template with the installation values:
+
+~~~bash
+helm template uav-sim showcase/uav-sim/deploy/helm \
+  --namespace veoveo \
+  --values examples/bioma/uav-sim-values.yaml \
+  --show-only templates/agent-template.yaml > "$AGENT_TEMPLATE_RENDER"
+~~~
+
+Choose an output file for `AGENT_TEMPLATE_RENDER` before rendering. Admit the rendered
+ConfigMap's namespace, immutable flag, name and complete data digest against
+`gateway.agents.templates[].workload` before applying that object. The producer takes
+the namespace from `agentTemplate.namespace`; this selection emits no simulator
+workload. Reconcile Manager configuration and its workload admission policies with
+the same approved template and digest-pinned kernel image. Use the current installed
+module plan and credential revision for that render. A prepared later-generation
+plan must not be applied merely to repair a missing template ConfigMap.
+
 The initial managed installation keeps the four existing pilot registrations while
 qualifying new instance creation. Their explicit transfer removes those static
 registrations and per-pilot Helm workloads. This checkpoint does not establish
