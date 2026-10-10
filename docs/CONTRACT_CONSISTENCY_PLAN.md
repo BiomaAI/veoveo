@@ -78,6 +78,11 @@ stays available. Shared native recovery controls pass; owner shutdown controls p
 one HTTP drain deadline and the observer's separate five-second drain. Installed
 Task lifecycle, restart and final-image qualification remain open.
 
+The full current TaskRuntime milestone suite passes 90 native tests and four
+compile-fail documentation tests with two test threads. Its explicit SDK storage
+exchange remains ignored in this invocation; the earlier owning exchange keeps
+its recorded scope. No lease-timing diagnostic replay was needed.
+
 Ten hosted owners use shared Resume settlement: DuckDB, Frames, Map, Optimization,
 Time, Timeseries, Speech, Stream, Reason and View. The helper checks the executing
 worker's live lease, preserves the first terminal outcome and reconciles one
