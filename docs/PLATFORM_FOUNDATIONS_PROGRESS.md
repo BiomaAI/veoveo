@@ -6,6 +6,24 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Final Trixie Image Batch Launch — October 10, 2026
+
+The twenty-two-target Trixie stage starts from clean source `3820c0db5` on the
+existing managed builder. Native preflight, core readiness, node health and the
+three reconciliation holds pass immediately before launch. Free space is
+291,582,529,536 bytes. The combined stage/release allowance is 20 GiB; the private
+process supervisor begins cancellation at 16 GiB and preserves 4 GiB for work
+already in flight. Its harmless-child cancellation and exception-cleanup controls
+pass before launch. BuildKit and Cargo caches are preserved.
+
+The running operation uses session `54779`, supervisor PID `3486554` and stage
+PID/PGID `3486563`, with start ticks `26071022`. The immutable launch binding is
+`/tmp/veoveo-final-release-3820c0db5/final22-proposal/launch-binding.json`, SHA-256
+`0ce0f0d5ab5c5cc856f2389439448f43ceeaa9793222b6b0e6c04ee09ce7d387`.
+Stage and release run serially, with fresh admission between them. No phase has
+completed at this checkpoint. The other nine final images, deployment and installed
+acceptance remain separate work.
+
 ## Reviewed Registry Retirement — October 10, 2026
 
 The reviewed retirement preserves all thirty current image pins, qualified

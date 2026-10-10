@@ -482,8 +482,10 @@ samples do not establish peak growth.
 The refreshed image plan selects committed source `3820c0db5` from the existing clean
 publication checkout and includes the qualified Manager profile-scope admission repair.
 The prepared dependency graph selects thirty Rust targets and retains
-the pending cuOpt executor, for thirty-one images. Planning passes; none of this
-final source's image builds, stage/release checks or registry publication has run.
+the pending cuOpt executor, for thirty-one images. Planning passes, and the
+twenty-two-target Trixie stage is running under the admitted disk and process guard.
+No final-source stage or release qualification has completed; the other nine
+images still await their build batches.
 Earlier C5 and `6431c30c6621` receipts qualify their original inputs. Trixie and BFF
 source digests change from the prepared `715796541` plan; the other three Rust
 families preserve those prepared inputs. All five families still require their
@@ -497,8 +499,11 @@ All 395 retained manifests pass digest readback; the registry and core services
 are healthy. Measured free space is 291,324,821,504 bytes after recovering
 23.82 GiB. BuildKit caches and the current acceptance CLI are preserved. The
 [retirement checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#reviewed-registry-retirement--october-10-2026)
-records the exact deletion sets and postflight. The final build still requires
-resource admission; the original aggregate budget baseline is unchanged.
+records the exact deletion sets and postflight. The admitted Trixie batch preserves
+the original aggregate budget baseline and has a combined stage/release growth
+cap of 20 GiB, with cancellation beginning at 16 GiB. It uses the existing builder
+and caches. The [launch checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#final-trixie-image-batch-launch--october-10-2026)
+identifies the running operation; no rollout is authorized by this build admission.
 
 The unchanged Charts, simulation-runtime and UAV-runtime production inputs retain
 their own accepted `6431c30c6621` publication proof. Fresh node-network manifest and
