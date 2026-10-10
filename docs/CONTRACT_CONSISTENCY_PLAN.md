@@ -137,7 +137,7 @@ cancellation. These additions do not qualify unfinished process recovery.
 The [acceptance design](../examples/bioma/acceptance/DESIGN.md#public-stream-and-reason-consumers)
 defines their private inputs and observation scope.
 
-The next source batch prepares unfinished DuckDB query recovery and Speech process
+The source batch at `31f2f45c3` prepares unfinished DuckDB query recovery and Speech process
 recovery in their existing harnesses. Both require the original Task to remain
 Working after the selected replacement before accepting delivered completion.
 Timeseries and View compare stable Task identity and terminal payload while allowing
@@ -200,11 +200,16 @@ until staging has an admitted peak-space budget. Recovery did not change image p
 or resume application reconciliation. Knowledge needed several natural restarts;
 its unattended cold-start qualification remains open.
 Staging keeps `releaseEligible=false`; installed image pins and the application holds
-stay unchanged. No authentic publisher-generated DeploymentLock was found in the
-trusted retained outputs checked. Final lock composition requires that lock or genuine
-profile qualification. The reference Helm pins, schema fixture and development-stage
-receipts cannot supply qualified base lineage. The full release resource gate and
-complete thirty-target coverage remain open.
+stay unchanged. Bioma uses the documented direct publisher and Helm/GitOps image
+locks. Qualify each authentic stage cohort with `release images --stage-evidence`,
+preserve its runnable digests, and retain the resulting qualified image-release
+evidence before updating consumed-image pins and validating the GitOps release
+inputs. This path requires genuine publication attestations and registry readback;
+stage receipts alone cannot qualify a rollout. The optional development-image-lock
+command requires a publisher-generated DeploymentLock, which was not found in the
+trusted retained outputs. That requirement belongs to that command and does not
+block Bioma's direct publication path. The resource gate, complete thirty-target
+coverage, catalog-reader replacement order and installed acceptance remain open.
 
 A private credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
 WaveSpeed and Google Maps replacement still requires account-management authority
