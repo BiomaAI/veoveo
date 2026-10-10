@@ -88,7 +88,7 @@ dedicated NetworkPolicy applies independently of the general policy switch.
 
 Every workload in the installation's platform namespace may call the runtime, except
 the Computers compute host. Its NetworkPolicy admits pods in that namespace whose
-`app.kubernetes.io/component` is not `computer-host`, and nothing else. Agent kernels
+`app.kubernetes.io/component` is not `computer-host`. Agent kernels
 run in the separate `veoveo-agents` namespace, so the policy excludes them as well.
 Requests carry the installation's embedding API key, which Helm mounts from one Secret
 into the platform workloads that use embeddings. The key guards against a misconfigured
@@ -98,6 +98,25 @@ Computers run arbitrary code, and the compute host's own egress policy already k
 them away from cluster services. Agent kernels, Computers, and external MCP hosts embed
 through the `knowledge__embed` MCP tool, which the gateway authorizes and audits like
 any other tool and an agent's episode budget counts.
+
+An explicitly reviewed first-empty Knowledge qualification overlay may admit one
+additional trusted namespace to the existing GPU runtime. Ops binds that namespace's
+name and UID, applies the owner-controlled label
+`veoveo.ai/embedding-consumer=<namespace UID>`, and selects only its
+`knowledge-mcp` component under one release label. A separate NetworkPolicy combines
+that namespace selector and Pod selector in the same ingress peer on TCP 8000;
+Knowledge egress selects the shared runtime namespace and workload on that port.
+The fixture checks the namespace UID separately because NetworkPolicy selectors
+cannot bind a UID. Computers, agent namespaces and unrelated callers gain no access.
+
+NetworkPolicy grants are additive; Ops reviews their union with existing policies.
+The native fixture binds the existing runtime namespace, Deployment and Service
+identities, selected endpoint and current qualified runtime profile. Ops binds the
+API-key reference and the reviewed NetworkPolicy union. It may omit a duplicate embedding
+GPU workload and point Knowledge at the shared Service FQDN. The base chart and its
+same-namespace access profile stay unchanged. Ops owns these temporary policies and
+retires them with the isolated qualification release; it never retires the shared
+runtime, model cache or API key as fixture cleanup.
 
 ## Client
 
@@ -178,8 +197,9 @@ artifacts. Only a passing full production workload permits installation selectio
   the reported embedding space.
 - A load test records throughput and shows interactive requests completing ahead of a
   concurrent bulk load.
-- A pod outside the platform namespace and the compute host cannot connect, and a
-  request without the key is rejected.
+- The compute host and an unadmitted namespace cannot connect. The explicit
+  qualification overlay admits only its selected Knowledge release on TCP 8000;
+  a request without the key is rejected.
 
 ## Implementation Map
 

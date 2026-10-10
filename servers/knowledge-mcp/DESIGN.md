@@ -18,7 +18,7 @@ collection approvals and signing credentials.
 | SurrealDB 3.3.0 | BM25, filtered HNSW cosine search and native `search::rrf` with k=60 |
 | JSON Schema 2020-12 | Schemars-generated contract models and checked request deserialization |
 | `veoveo.ai/knowledge-installed-outcome/v1` | Private installed consumer outcome with request intents, protocol codes, selected discovery identities, native observer and SDK cleanup states; contains the successful baseline report and optional cold-start observations |
-| `veoveo.ai/knowledge-cold-start-input/v1` | Closed private unattended-startup fixture with installation, workload and qualified embedding prerequisites; outside the public MCP API |
+| `veoveo.ai/knowledge-cold-start-input/v2` | Closed private unattended-startup fixture with installation, workload and qualified embedding prerequisites; outside the public MCP API |
 | Kubernetes streaming initial events | Kubernetes 1.32+ API-server support for `sendInitialEvents`, `NotOlderThan` and the initial-events-end bookmark is required by the observation-only cold-start case; kubectl uses the installation context |
 | `veoveo.ai/knowledge-retrieval-evaluation/v1` | Private JSON benchmark reports with generation identity, judgments, ranks, recall and throughput; outside the public MCP surface |
 | OAuth 2.0 / RFC 6749, RFC 7523, RFC 8707 | Client credentials with a signed JWT assertion, explicit resource and Veoveo Work Context; HTTPS endpoints, with loopback HTTP for native fixtures |
@@ -567,13 +567,30 @@ The separately selected ignored cold-start case reads
 `VEOVEO_KNOWLEDGE_COLD_START_INPUT`. Its closed private JSON contains `schema`,
 `source` (the shared installed-source installation-target path, public endpoint,
 private caller-token file, deployment and new absolute output path), `profile`,
-`context`, `namespace`, `deploymentUid`, `namespaceUid`, digest-pinned `image`,
-`embeddingDeployment`, `embeddingRuntime`, `launchGeneration`, `startupSeconds`
-and `stabilitySeconds`. The runtime is the installation's independently qualified
+`context`, `namespace`, `release`, `deploymentUid`, `namespaceUid`, digest-pinned
+`image`, `embedding`, `launchGeneration`, `startupSeconds` and `stabilitySeconds`.
+The closed `embedding` selection binds namespace name/UID, Deployment name/UID,
+Service name/UID, port 8000 and `runtime`. The runtime is the installation's independently qualified
 `QualifiedEmbeddingRuntime`; native synthetic fixtures cannot supply installation
 qualification. Admission binds its image digest and required NVIDIA request and
 limit to the selected embedding workload. The successful public verification must
 report that runtime's embedding space.
+
+First-empty qualification may use a reviewed overlay that selects an existing
+hardware-GPU runtime in another trusted platform namespace. Ops binds the isolated
+Knowledge namespace UID and the label
+`veoveo.ai/embedding-consumer=<namespace UID>`, and the Knowledge component
+`knowledge-mcp` and `app.kubernetes.io/instance` release label. Same-namespace
+selection does not require changing the reference Namespace label. Narrow ingress
+and egress policies admit only this caller to the selected runtime on TCP 8000.
+The fixture admits the shared Service FQDN, Deployment and Service UIDs, live GPU
+workload and qualified profile. Same-namespace callers may use the local Service
+name. Ops binds the API-key reference and reviews the union of network policies.
+The stock chart still renders with `embedding-runtime` selected. A reviewed
+post-render overlay removes only its isolated duplicate Embedding resources before
+apply and patches Knowledge's endpoint; omission is not a base chart capability. The
+reference public route uses trusted Cloudflare HTTPS followed by Traefik HTTP,
+with `ingress.tls.enabled=false`.
 
 The operator prepares the selected Knowledge Deployment at zero replicas and
 supplies the next deployment generation for one externally authorized launch.

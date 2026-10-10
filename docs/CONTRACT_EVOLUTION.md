@@ -263,6 +263,14 @@ Console. Template defaults must not replace retained running instances. Publish
 once, qualify that artifact, and install its digest. Checkpoints resume from exact
 inputs after failure. No-op operations produce no workload restart.
 
+An isolated Knowledge qualification installation may share a selected hardware
+embedding runtime. Its fixture binds both namespaces and the runtime workload and
+Service identities. Operator-owned access selects only the trusted Knowledge
+release; its Store and indexing writers keep independent state. The
+[runtime design](../platform/runtimes/embedding/DESIGN.md#access) defines this
+additional access profile. Source admission alone does not qualify installed
+isolation or hardware behavior.
+
 Disk accounting distinguishes disposable build caches from retained homes, journals,
 installed rollback artifacts, and pinned template inputs. Cleanup follows declared
 ownership and retention. A free-space target never authorizes deleting user data.

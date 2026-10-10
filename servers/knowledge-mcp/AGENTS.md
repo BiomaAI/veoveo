@@ -90,6 +90,13 @@ initial kubelet Ready delay within the original startup deadline. Identity and
 readiness stay stable after first Ready. Cases longer than the owner's default
 300 seconds require `VEOVEO_SMOKE_DEADLINE_UNIX_MS`; fixture deadlines cannot extend
 that cap.
+The v2 cold-start fixture binds the Knowledge release label and explicitly selects
+the embedding namespace, Deployment, Service, their UIDs, TCP 8000 and qualified
+runtime profile. A reviewed first-empty
+overlay may share the existing GPU runtime with one isolated, owner-labeled
+Knowledge namespace and release through narrow NetworkPolicies. Preserve the
+base same-namespace policy, API-key admission and unrelated caller denials. Ops
+owns overlay materialization and retirement; the harness only observes it.
 Run the `installed::cold_start::cold_start_` filter without `--ignored` for CPU
 admission/readiness/watch controls, and the existing registered-owner control for
 actual retained native-child and official SDK cleanup. These controls do not

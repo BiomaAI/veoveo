@@ -260,6 +260,16 @@ Direct and full-profile checks still require complete discovery. Compiler, stric
 lint, three focused native controls and independent review pass. Installed execution
 remains open, and the earlier source-helper failure has no established backend cause.
 
+Knowledge's closed v2 cold-start fixture now admits an explicitly selected local or
+shared GPU runtime. It binds Namespace, Deployment and Service identities, checks
+the ready endpoint's Pod ownership, and matches Knowledge's configured endpoint.
+Compiler, strict lint, ten focused native controls and independent review pass.
+A reviewed first-empty overlay may reuse the existing runtime for one trusted,
+isolated Knowledge release; its Store and indexing writers stay separate. Actual
+policy and key materialization, current hardware-profile qualification and the
+first-ever empty-index run remain open. The owning
+[design](../servers/knowledge-mcp/DESIGN.md#verification) defines the profile.
+
 The added Speech resource and Stream/Reason public-caller cases pass compiler,
 strict lint, formatting, documentation and independent source review. Their seventeen
 focused native controls pass within the twenty-seven-control batch; installed execution is held.
@@ -3273,7 +3283,7 @@ setting. Quantized and unquantized checkpoints remain different spaces.
 | Provenance and refusal | Producer associations survive restart and same-space runtime changes; missing, altered or unqualified runtime/configuration entries reject before indexing or search. Native fixtures prove these paths without claiming GPU qualification |
 | Current generation | Fresh-state cut activates one generation under the final identity; avoid an unnecessary intermediate production reindex before phase 8 |
 | GPU and capacity | Required NVIDIA resource, CUDA refusal, readiness, declared priority/bulk bound, throughput and search latency pass on hardware |
-| Network and Helm | Installed CNI selectors and Embedding key admission pass the focused same-Service-IP controls; actual Computer Host workload isolation stays open. `veoveo-deployment-smoke` Knowledge/embedding Helm suites pass |
+| Network and Helm | Installed CNI selectors and Embedding key admission pass the focused same-Service-IP controls; actual Computer Host workload isolation stays open. `veoveo-deployment-smoke` Knowledge/embedding Helm suites pass. The explicit shared-runtime cold-start profile passes native admission; its narrow cross-namespace policy and key access still need installed qualification |
 
 The Metal proposal is retained in X1. It requires separate review and Apple hardware;
 it does not block this phase or the current NVIDIA acceptance.

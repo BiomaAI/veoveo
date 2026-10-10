@@ -2,6 +2,8 @@
 use super::*;
 use tokio::io::AsyncReadExt;
 use veoveo_embedding_contract::QualifiedEmbeddingRuntime;
+#[path = "cold_start/embedding.rs"]
+mod embedding;
 use veoveo_testing_support::installed::knowledge::InstalledSource;
 
 fn probe_client() -> Result<reqwest::Client> {
@@ -15,8 +17,8 @@ fn probe_client() -> Result<reqwest::Client> {
 
 #[derive(Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 enum Schema {
-    #[vocabulary(rename = "veoveo.ai/knowledge-cold-start-input/v1")]
-    V1,
+    #[vocabulary(rename = "veoveo.ai/knowledge-cold-start-input/v2")]
+    V2,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -26,11 +28,11 @@ struct Input {
     profile: GatewayProfileId,
     context: String,
     namespace: String,
+    release: String,
     deployment_uid: uuid::Uuid,
     namespace_uid: uuid::Uuid,
     image: String,
-    embedding_deployment: String,
-    embedding_runtime: QualifiedEmbeddingRuntime,
+    embedding: embedding::Selection,
     launch_generation: u64,
     startup_seconds: u64,
     stability_seconds: u64,
@@ -38,13 +40,14 @@ struct Input {
 impl Input {
     fn admit(&self) -> Result<()> {
         ensure!(
-            self.schema == Schema::V1,
+            self.schema == Schema::V2,
             "unsupported Knowledge cold-start profile"
         );
         for value in [
             &self.source.deployment,
             &self.namespace,
-            &self.embedding_deployment,
+            &self.release,
+            &self.embedding.deployment,
         ] {
             name(value)?;
         }
@@ -70,8 +73,7 @@ impl Input {
             "cold-start token path must be absolute"
         );
         image(&self.image, "knowledge-mcp")?;
-        self.embedding_runtime
-            .qualification_for(self.embedding_runtime.profile().id())?;
+        self.embedding.admit()?;
         Ok(())
     }
     fn admit_installation(
@@ -85,7 +87,6 @@ impl Input {
             context == self.context
                 && namespace == self.namespace
                 && deployments.contains(&self.source.deployment)
-                && deployments.contains(&self.embedding_deployment)
                 && profile == self.profile.as_str(),
             "Knowledge cold-start fixture differs from InstallationTarget"
         );
@@ -184,6 +185,8 @@ struct Metadata {
     uid: uuid::Uuid,
     resource_version: String,
     #[serde(default)]
+    labels: BTreeMap<String, String>,
+    #[serde(default)]
     generation: Option<u64>,
     #[serde(default)]
     owner_references: Vec<Owner>,
@@ -203,6 +206,24 @@ struct Container {
     image: String,
     #[serde(default)]
     resources: Resources,
+    #[serde(default)]
+    env: Vec<Environment>,
+    #[serde(default)]
+    ports: Vec<ContainerPort>,
+}
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Environment {
+    name: String,
+    value: Option<String>,
+    value_from: Option<serde::de::IgnoredAny>,
+}
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ContainerPort {
+    name: Option<String>,
+    container_port: u16,
+    protocol: Option<String>,
 }
 #[derive(Clone, Default, Deserialize)]
 struct Resources {
@@ -225,6 +246,8 @@ struct ContainerStatus {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PodStatus {
+    #[serde(default, rename = "podIP")]
+    pod_ip: Option<std::net::IpAddr>,
     #[serde(default)]
     phase: Option<PodPhase>,
     #[serde(default)]
@@ -667,6 +690,19 @@ impl Watch {
     }
 }
 async fn owned_pod(input: &Input, pod: &Pod) -> Result<()> {
+    input
+        .embedding
+        .admit_endpoint(&pod.spec, &input.namespace)?;
+    ensure!(
+        pod.metadata.labels.get("app.kubernetes.io/instance") == Some(&input.release)
+            && pod
+                .metadata
+                .labels
+                .get("app.kubernetes.io/component")
+                .map(String::as_str)
+                == Some("knowledge-mcp"),
+        "Knowledge Pod release or role differs"
+    );
     let owners = pod
         .metadata
         .owner_references
@@ -967,7 +1003,8 @@ fn admit_deployment(input: &Input, deployment: &Deployment, initial: bool) -> Re
         .filter(|c| c.name == "knowledge-mcp")
         .collect::<Vec<_>>();
     ensure!(
-        deployment.metadata.uid == input.deployment_uid
+        deployment.metadata.labels.get("app.kubernetes.io/instance") == Some(&input.release)
+            && deployment.metadata.uid == input.deployment_uid
             && deployment.metadata.namespace == input.namespace
             && deployment.metadata.deletion_timestamp.is_none()
             && deployment.metadata.generation == generation
@@ -983,6 +1020,9 @@ fn admit_deployment(input: &Input, deployment: &Deployment, initial: bool) -> Re
             && selected[0].image == input.image,
         "Knowledge launch generation or workload admission failed"
     );
+    input
+        .embedding
+        .admit_endpoint(&deployment.spec.template.spec, &input.namespace)?;
     Ok(())
 }
 async fn verify_deployment(input: &Input) -> Result<()> {
@@ -1084,9 +1124,9 @@ async fn unattended_cold_start_converges_then_preserves_ready_generation() -> Re
             let namespace: Object = get(&input.context,&input.namespace,"namespace",&input.namespace).await?;
             let deployment: Deployment = get(&input.context,&input.namespace,"deployment",&input.source.deployment).await?;
             ensure!(namespace.metadata.uid == input.namespace_uid,"Knowledge namespace identity changed");
+            embedding::admit_caller_namespace(&input, &namespace.metadata)?;
             admit_deployment(&input,&deployment,true)?;
-            let embedding: Deployment = get(&input.context,&input.namespace,"deployment",&input.embedding_deployment).await?;
-            admit_embedding(&embedding,&input.namespace,input.embedding_runtime.profile().contents().runtime_image.hex())?;
+            embedding::observe(&input).await?;
             let mut state = Observation { deployment_uid:Some(input.deployment_uid), namespace_uid:Some(input.namespace_uid),launch_generation:Some(input.launch_generation),image:Some(input.image.clone()), ..Observation::default() };
             journal.cold_start(state.clone())?;
             state.stage = Stage::InitialWatchHandshake;
@@ -1161,7 +1201,7 @@ async fn unattended_cold_start_converges_then_preserves_ready_generation() -> Re
                     _ = probes.tick() => { probe(&input,&http,local.context("Knowledge probe absent")?,health.path(),&host,&mut state).await?; }
                 }}
             };
-            ensure!(&report.embedding_space == input.embedding_runtime.space(),"Knowledge generation embedding space differs from qualified installation runtime");
+            ensure!(&report.embedding_space == input.embedding.runtime.space(),"Knowledge generation embedding space differs from qualified installation runtime");
             state.stage = Stage::Stability;
             state.generation = Some(report.generation);
             journal.cold_start(state.clone())?;
@@ -1183,6 +1223,7 @@ async fn unattended_cold_start_converges_then_preserves_ready_generation() -> Re
             }
             probe(&input,&http,local.context("Knowledge probe absent")?,health.path(),&host,&mut state).await?;
             verify_deployment(&input).await?;
+            embedding::observe(&input).await?;
             let ready = state.ready.as_ref().context("Knowledge ready instance absent")?;
             let pod: Pod = get(&input.context,&input.namespace,"pod",&ready.pod).await?;
             owned_pod(&input,&pod).await?;
@@ -1305,6 +1346,10 @@ fn control_pod(ready: bool, restarts: u32) -> Pod {
             namespace: "fixture".into(),
             uid: uuid::Uuid::from_u128(1),
             resource_version: "10".into(),
+            labels: BTreeMap::from([
+                ("app.kubernetes.io/instance".into(), "fixture".into()),
+                ("app.kubernetes.io/component".into(), "knowledge-mcp".into()),
+            ]),
             generation: None,
             owner_references: vec![],
             deletion_timestamp: None,
@@ -1314,9 +1359,16 @@ fn control_pod(ready: bool, restarts: u32) -> Pod {
                 name: "knowledge-mcp".into(),
                 image: format!("registry.invalid/knowledge-mcp@sha256:{}", "a".repeat(64)),
                 resources: Resources::default(),
+                ports: vec![],
+                env: vec![Environment {
+                    name: "VEOVEO_EMBEDDING_ENDPOINT".into(),
+                    value: Some("http://embedding.fixture.svc.cluster.local:8000/".into()),
+                    value_from: None,
+                }],
             }],
         },
         status: Some(PodStatus {
+            pod_ip: None,
             phase: Some(PodPhase::ActiveOrUnknown),
             conditions: vec![PodCondition {
                 kind: PodConditionKind::Ready,
@@ -1375,6 +1427,7 @@ fn cold_start_decodes_kubernetes_container_ids_and_reports_missing_instance_stag
         "misspelled wire aliases admitted"
     );
     pod.status = Some(PodStatus {
+        pod_ip: None,
         phase: Some(PodPhase::ActiveOrUnknown),
         container_statuses: vec![misspelled],
         conditions: vec![],
@@ -1557,7 +1610,7 @@ fn cold_start_orders_lagging_readiness_with_exact_watch_fence() -> Result<()> {
 fn cold_start_closed_input_and_qualified_embedding_admission() -> Result<()> {
     let runtime = crate::indexing::SyntheticEmbeddings::new().runtime;
     let mut input = Input {
-        schema: Schema::V1,
+        schema: Schema::V2,
         source: InstalledSource {
             installation_target: "/private/installation.json".into(),
             endpoint: "https://gateway.invalid/operator/mcp".parse()?,
@@ -1568,16 +1621,42 @@ fn cold_start_closed_input_and_qualified_embedding_admission() -> Result<()> {
         profile: "operator".parse()?,
         context: "fixture".into(),
         namespace: "fixture".into(),
+        release: "fixture".into(),
         deployment_uid: uuid::Uuid::from_u128(1),
         namespace_uid: uuid::Uuid::from_u128(2),
         image: format!("registry.invalid/knowledge-mcp@sha256:{}", "a".repeat(64)),
-        embedding_deployment: "embedding".into(),
-        embedding_runtime: runtime,
+        embedding: embedding::Selection {
+            namespace: "fixture".into(),
+            namespace_uid: uuid::Uuid::from_u128(2),
+            deployment: "embedding".into(),
+            deployment_uid: uuid::Uuid::from_u128(3),
+            service: "embedding".into(),
+            service_uid: uuid::Uuid::from_u128(4),
+            port: 8000,
+            runtime,
+        },
         launch_generation: 2,
         startup_seconds: 30,
         stability_seconds: 5,
     };
     input.admit()?;
+    let mut caller = control_pod(false, 0).metadata;
+    caller.name = "fixture".into();
+    caller.uid = input.namespace_uid;
+    embedding::admit_caller_namespace(&input, &caller)?;
+    input.embedding.namespace = "shared".into();
+    ensure!(embedding::admit_caller_namespace(&input, &caller).is_err());
+    caller.labels.insert(
+        "veoveo.ai/embedding-consumer".into(),
+        input.namespace_uid.to_string(),
+    );
+    embedding::admit_caller_namespace(&input, &caller)?;
+    caller.labels.insert(
+        "veoveo.ai/embedding-consumer".into(),
+        uuid::Uuid::from_u128(99).to_string(),
+    );
+    ensure!(embedding::admit_caller_namespace(&input, &caller).is_err());
+    input.embedding.namespace = "fixture".into();
     let deployments = vec!["knowledge-mcp".into(), "embedding".into()];
     input.admit_installation("fixture", "fixture", &deployments, "operator")?;
     ensure!(
@@ -1616,6 +1695,9 @@ fn cold_start_closed_input_and_qualified_embedding_admission() -> Result<()> {
     };
     deployment.metadata.generation = Some(1);
     admit_deployment(&input, &deployment, true)?;
+    input.release = "foreign".into();
+    ensure!(admit_deployment(&input, &deployment, true).is_err());
+    input.release = "fixture".into();
     deployment.spec.replicas = 1;
     ensure!(admit_deployment(&input, &deployment, true).is_err());
     deployment.metadata.generation = Some(2);
@@ -1630,13 +1712,14 @@ fn cold_start_closed_input_and_qualified_embedding_admission() -> Result<()> {
     input.launch_generation = 2;
     input.image = format!("registry.invalid/sidecar@sha256:{}", "a".repeat(64));
     ensure!(input.admit().is_err());
-    ensure!(serde_json::from_value::<Input>(serde_json::json!({"schema":"veoveo.ai/knowledge-cold-start-input/v1","unexpected":true})).is_err());
+    ensure!(serde_json::from_value::<Input>(serde_json::json!({"schema":"veoveo.ai/knowledge-cold-start-input/v2","unexpected":true})).is_err());
     let mut embedding = Deployment {
         metadata: Metadata {
             name: "embedding".into(),
             namespace: "fixture".into(),
             uid: uuid::Uuid::from_u128(3),
             resource_version: "20".into(),
+            labels: BTreeMap::new(),
             generation: Some(1),
             owner_references: vec![],
             deletion_timestamp: None,
@@ -1653,12 +1736,15 @@ fn cold_start_closed_input_and_qualified_embedding_admission() -> Result<()> {
                         image: format!(
                             "registry.invalid/embedding@sha256:{}",
                             input
-                                .embedding_runtime
+                                .embedding
+                                .runtime
                                 .profile()
                                 .contents()
                                 .runtime_image
                                 .hex()
                         ),
+                        env: vec![],
+                        ports: vec![],
                         resources: Resources {
                             requests: BTreeMap::from([("nvidia.com/gpu".into(), "1".into())]),
                             limits: BTreeMap::from([("nvidia.com/gpu".into(), "1".into())]),
@@ -1669,7 +1755,8 @@ fn cold_start_closed_input_and_qualified_embedding_admission() -> Result<()> {
         },
     };
     let digest = input
-        .embedding_runtime
+        .embedding
+        .runtime
         .profile()
         .contents()
         .runtime_image

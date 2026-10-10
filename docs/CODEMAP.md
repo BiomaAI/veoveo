@@ -998,7 +998,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/map-mcp` | Earth geography, feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, logistics routing, and immutable cuOpt travel models |
 | `servers/map-mcp/src/contract/catalog_summaries.rs` and `product_uri.rs` | portable route/matrix catalog summaries, immutable checked ID/address relationships and nominal product URI builders; runtime catalog readers construct these owner values |
 | `servers/knowledge-mcp/src/composition.rs` | selects the explicit static or Agent-owned authority adapter from admitted plan lanes after read-only Modules prerequisite validation |
-| `servers/knowledge-mcp/tests/support/installed.rs`, `installed/` | full-catalog and restricted-caller Gateway acceptance with independent discovery expectations, document denials, private outcome receipts and registered SDK cleanup |
+| `servers/knowledge-mcp/tests/support/installed.rs`, `installed/` | full-catalog and restricted-caller Gateway acceptance with independent discovery expectations, document denials, private outcome receipts and registered SDK cleanup; `cold_start/embedding.rs` admits the selected local/shared GPU workload and Service ownership for observation-only startup |
 | `servers/media-mcp` | webhook-completed provider media work and artifact outputs |
 | `servers/speech-mcp/src/dictation/audit.rs` | private dictation open, denial and terminal counts with verified request attribution |
 | `servers/speech-mcp/contract/src/identity.rs`, `resources.rs`, `dictation.rs` | distinct transcription/dictation identities, typed resource families and checked receipt identity shared by Speech, Gateway and Console |
