@@ -304,6 +304,14 @@ cargo xtask release images \
   --stage-evidence output/stage/mcp-gateway.json
 ```
 
+Direct qualification accepts an authentic larger stage receipt through
+`--stage-evidence` while repeated `--target` flags select a nonempty subset. The
+publisher validates the complete receipt's schema, staging status, source revision,
+registry, unique target names, platforms and digests. Every selected image must
+match its staged repository and runnable digest. Unselected receipt rows are
+validated inputs and are not claimed as qualified by the resulting release evidence.
+The publisher still requires provenance and SBOM attestations for each selected image.
+
 The persistent source lives under:
 
 ```text

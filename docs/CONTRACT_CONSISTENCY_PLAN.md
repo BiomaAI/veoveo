@@ -213,15 +213,21 @@ or resume application reconciliation. Knowledge needed several natural restarts;
 its unattended cold-start qualification remains open.
 Staging keeps `releaseEligible=false`; installed image pins and the application holds
 stay unchanged. Bioma uses the documented direct publisher and Helm/GitOps image
-locks. Qualify each authentic stage cohort with `release images --stage-evidence`,
-preserve its runnable digests, and retain the resulting qualified image-release
+locks. Qualify selected targets against their original authentic stage receipts with
+`release images --stage-evidence`, preserve their runnable digests, and retain the resulting qualified image-release
 evidence before updating consumed-image pins and validating the GitOps release
 inputs. This path requires genuine publication attestations and registry readback;
 stage receipts alone cannot qualify a rollout. The optional development-image-lock
 command requires a publisher-generated DeploymentLock, which was not found in the
 trusted retained outputs. That requirement belongs to that command and does not
-block Bioma's direct publication path. The resource gate, complete thirty-target
-coverage, catalog-reader replacement order and installed acceptance remain open.
+block Bioma's direct publication path. The publisher now accepts a nonempty subset
+of an authentic larger stage cohort while validating the complete original receipt,
+rejecting duplicate targets and preserving every selected repository and runnable
+digest. Strict compiler checks, five native controls and independent review pass.
+Unselected rows are not claimed as qualified. This permits the seven-image stock
+closure to proceed without republishing unrelated cohort members; Console BFF still
+needs its own stage. The resource gate, complete thirty-target coverage for the final
+cut, catalog-reader replacement order and installed acceptance remain open.
 
 A private credential inventory and replacement plan are prepared. Cloudflare, Cesium, Entra,
 WaveSpeed and Google Maps replacement still requires account-management authority

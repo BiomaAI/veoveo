@@ -19,6 +19,7 @@ use veoveo_deploy_runtime::{compile_component_lock, lock_source_charts};
 const IMAGE_STAGE_EVIDENCE_SCHEMA: &str = "veoveo.ai/image-stage-evidence/v3";
 
 pub(crate) mod components;
+mod stage_validation;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -963,65 +964,7 @@ fn validate_qualified_runtime_identity(
         .with_context(|| format!("reading staged image evidence {}", path.display()))?;
     let staged: ImageStageEvidenceInput = serde_json::from_slice(&bytes)
         .with_context(|| format!("decoding staged image evidence {}", path.display()))?;
-    ensure!(
-        staged.schema_version == IMAGE_STAGE_EVIDENCE_SCHEMA,
-        "staged image evidence uses unsupported schema {}",
-        staged.schema_version
-    );
-    ensure!(
-        !staged.release_eligible,
-        "staged image evidence must declare releaseEligible=false"
-    );
-    ensure!(
-        staged.source_revision == revision,
-        "staged source revision {} does not match qualified revision {revision}",
-        staged.source_revision
-    );
-    ensure!(
-        &staged.registry == registry,
-        "staged registry endpoints do not match qualified registry endpoints"
-    );
-    let staged = staged
-        .images
-        .into_iter()
-        .map(|image| {
-            ensure!(
-                image.platform == "linux/amd64",
-                "staged image {} uses unsupported platform {}",
-                image.target,
-                image.platform
-            );
-            validate_oci_digest(&image.runtime_digest, "staged runtime")?;
-            validate_oci_digest(&image.staging_index_digest, "staging index")?;
-            Ok((image.target.clone(), image))
-        })
-        .collect::<Result<BTreeMap<_, _>>>()?;
-    ensure!(
-        staged.len() == qualified.len(),
-        "staged evidence contains {} images while qualification produced {}",
-        staged.len(),
-        qualified.len()
-    );
-    for image in qualified {
-        let prior = staged
-            .get(&image.name)
-            .with_context(|| format!("staged evidence omits qualified image {}", image.name))?;
-        ensure!(
-            prior.repository == image.repository,
-            "qualified image {} changed repository from {} to {}",
-            image.name,
-            prior.repository,
-            image.repository
-        );
-        ensure!(
-            prior.runtime_digest == image.digest,
-            "qualified image {} changed runnable digest from {} to {}; qualification may attach attestations but must not rebuild runtime identity",
-            image.name,
-            prior.runtime_digest,
-            image.digest
-        );
-    }
-    Ok(())
+    stage_validation::validate(staged, revision, registry, qualified)
 }
 
 fn validate_oci_digest(value: &str, kind: &str) -> Result<()> {
