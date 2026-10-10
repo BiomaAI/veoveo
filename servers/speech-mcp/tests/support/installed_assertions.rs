@@ -277,23 +277,24 @@ mod tests {
     #[test]
     fn resource_snapshot_rejects_foreign_malformed_and_wrong_subscription_delivery() -> Result<()> {
         use rmcp::model::{
-            NotificationMetaObject, RequestId, ResourceUpdatedNotification,
-            ResourceUpdatedNotificationParam,
+            RequestId, ResourceUpdatedNotification, ResourceUpdatedNotificationParam,
         };
         let uri = veoveo_speech_contract::TranscriptionUri::new(
             veoveo_speech_contract::TranscriptionId::new(),
         );
         let id = RequestId::Number(7);
         let update = |uri: &str, subscription: Option<RequestId>| {
-            let mut params = ResourceUpdatedNotificationParam::new(uri);
+            let params = ResourceUpdatedNotificationParam::new(uri);
+            let mut notification = ServerNotification::ResourceUpdatedNotification(
+                ResourceUpdatedNotification::new(params),
+            );
+            // Received metadata is owned by the SDK envelope, as after wire decoding.
             if let Some(subscription) = subscription {
-                let mut meta = NotificationMetaObject::new();
-                meta.set_subscription_id(subscription);
-                params.meta = Some(meta);
+                notification
+                    .get_meta_mut()
+                    .set_subscription_id(subscription);
             }
-            ServerNotification::ResourceUpdatedNotification(ResourceUpdatedNotification::new(
-                params,
-            ))
+            notification
         };
         resource_delivery(&update(uri.to_uri().as_str(), Some(id.clone())), &id, &uri)?;
         for wrong in [

@@ -1,8 +1,5 @@
 use super::*;
-use rmcp::model::{
-    NotificationMetaObject, RequestId, ResourceUpdatedNotification,
-    ResourceUpdatedNotificationParam,
-};
+use rmcp::model::{RequestId, ResourceUpdatedNotification, ResourceUpdatedNotificationParam};
 
 #[test]
 fn delivered_completion_requires_stable_identity_and_payload_but_allows_updated_hints() -> Result<()>
@@ -58,12 +55,10 @@ fn snapshot_requires_acknowledged_filter_subscription_and_resource_identity() ->
     );
     let id = RequestId::Number(7);
     let mut params = ResourceUpdatedNotificationParam::new(uri.as_str());
-    let mut meta = NotificationMetaObject::default();
-    meta.set_subscription_id(id.clone());
-    params.meta = Some(meta);
-    let notification = ServerNotification::ResourceUpdatedNotification(
+    let mut notification = ServerNotification::ResourceUpdatedNotification(
         ResourceUpdatedNotification::new(params.clone()),
     );
+    notification.get_meta_mut().set_subscription_id(id.clone());
     resource_delivery(&notification, &id, &uri)?;
     assert!(resource_delivery(&notification, &RequestId::Number(8), &uri).is_err());
     assert!(
