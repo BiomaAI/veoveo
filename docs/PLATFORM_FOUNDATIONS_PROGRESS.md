@@ -35,6 +35,17 @@ controls send actual mutations through the production validator and cover failur
 and recovery. All 151 owning Python tests and independent review pass. A rebuilt
 runtime and installed live-update acceptance remain required.
 
+The browser codec repair derives RFC 6381 profile, compatibility and level from
+the received SPS. Media Capabilities, WebCodecs and canvas metadata share that
+codec. Decoder setup keeps bounded pending data and requires a fresh reentrant
+keyframe after dropping predicted frames during asynchronous configuration.
+Teardown cannot commit a late decoder configuration. Six JS tests, the existing
+TypeScript checker, bundler, four native App controls and independent review pass.
+Two old source assertions are corrected to require current camelCase requests
+and discovery. The refreshed installation CLI contains the unfinished Artifact
+upload harness and passes delivery checks. Hardware and installed codec checks,
+capture timestamps and final UAV image qualification remain open.
+
 Cleanup incorrectly uses Helm uninstall after adding keep annotations only to
 live PVC objects. Helm's stored release manifest deletes `uav-sim-runtime-cache`
 and `uav-sim-recording-forwarder`; their local-path PV directories are absent.
@@ -53,8 +64,31 @@ The corrected dispatch is admitted against the original nine-target command
 arrays, source `3820c0db5`, aggregate baseline and resource bounds. Stage is live
 under guard session `86446`, supervisor PID `3634687` and xtask PID/PGID `3634841`
 with start ticks `26559988`. Initial preflight passes and the guard records
-282,356,486,144 free bytes. Rollout remains separate. The UAV state repair changes runtime inputs and needs its own subsequent
-image qualification; it is not covered by the frozen publication source.
+282,356,486,144 free bytes. That solve stops at 8,644,411,392 bytes of growth with
+no stage evidence or release phase. The process tree exits and its partial
+BuildKit cache is retained.
+
+Cleanup removes 1,446 older Rust incremental variants and recovers
+42,648,027,136 bytes, bringing free space to 318,988,996,608 bytes. The maintained
+planner selects these directories by age and crate name; this does not prove
+supersession across feature, profile and compiler configurations. The parent's
+hold arrives after deletion. Dependency libraries, fingerprints, executables and
+BuildKit/OCI caches survive, but the deleted incremental caches may need rebuilding.
+Further age-only incremental cleanup is stopped. The next nine-target dispatch
+uses a 20 GiB growth ceiling, cancellation at 16 GiB and 4 GiB for work in flight,
+with the original aggregate baseline, cap and reserve. After the native check/CLI
+lane finishes, fresh launch gates pass. The solve starts under session `69321`,
+supervisor PID `3661937` with start ticks `26649492`, and xtask PID/PGID `3662047`
+with start ticks `26649555`. Its guarded baseline is 316,774,588,416 free bytes.
+The guard stops it after 17,186,123,776 bytes of growth; no stage evidence or
+release phase is produced. The supervisor, xtask, Buildx and buildctl children
+exit. Persistent BuildKit remains available and partial caches are preserved.
+Postflight records 299,572,084,736 free bytes. No automatic retry occurs; the next
+admission must account for the remaining build rather than repeat a small allowance.
+
+Rollout remains separate. The UAV state and browser codec repairs change runtime
+and MCP image inputs and need subsequent qualification; the frozen publication
+source does not cover them.
 
 | Private record or saved artifact | SHA-256 |
 |---|---|
@@ -64,8 +98,14 @@ image qualification; it is not covered by the frozen publication source.
 | `output/development/uav-flight-20261010-2143/follow-camera-24fps.mp4` | `c0372a46b01580813d4f0053de6343ba41a34c617b159265482f4f89190ec87b` |
 | `output/development/uav-flight-20261010-2143/flight.ulg` | `1dac2c2a7e39a30fe6085140466b25f07d190c24532fbeedea429d0adb913d99` |
 | `/tmp/veoveo-uav-state-regression-20261010/final-receipt.json` | `c9d4db4fa2827610c87fe7c3757108cbb237ddeeeed9d742edd202af5363eee8` |
+| `/tmp/veoveo-uav-codec-checkpoint-20261010/final-build-checkpoint.json` | `4173fb45bf8ca49b046110eb057ef7a3df0a4bf4b370ba732cfd2cd6364e3972` |
+| `/tmp/veoveo-uav-codec-checkpoint-20261010/production-cli-delivery-receipt.json` | `71a163af587d385cb81803a589b8936a39d5211b4ffea757566eed1a6fa4e808` |
 | `/tmp/veoveo-final-release-3820c0db5/remaining9-readonly-fresh-admission.json` | `ec3bb8614b6a351c2bea8d944266a69cceb97947b7d587336f80a34ab24ce315` |
 | `/tmp/veoveo-final-release-3820c0db5/remaining9-execution/attempt-03/runtime-admission.json` | `ccc059b64fbeaf069c7da80d990c0269192c73ff01a204d8cd9125810869e57c` |
+| `/tmp/veoveo-final-release-3820c0db5/remaining9-execution/attempt-03/execution-receipt.json` | `27f373e8fc568b29326e10bd2928a575fbb6321f11dce849828a9b5c21bc9631` |
+| `/tmp/veoveo-final-release-3820c0db5/remaining9-execution/incremental-prune-receipt.json` | `8f677d1860aefe137a2a29c235f5872bab0d0efa8d12ee64eb682580138bf5ef` |
+| `/tmp/veoveo-final-release-3820c0db5/remaining9-execution/attempt-04/runtime-admission.json` | `d78c3f0a23cb0a455737243fc9bb53ed787a073e18bac4f84f0d708a337d5c3f` |
+| `/tmp/veoveo-final-release-3820c0db5/remaining9-execution/attempt-04/execution-receipt.json` | `7375752c7959315730218985f2c075651c57975b0517e2e6fae6c04157562ec8` |
 
 ## Final Trixie Publication And Artifact Recovery Controls — October 10, 2026
 

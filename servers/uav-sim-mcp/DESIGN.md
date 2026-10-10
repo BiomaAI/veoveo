@@ -30,7 +30,7 @@ Current, retired and mixed field controls share the durable-result consumer test
 | Pydantic `2.13.5` | Private Python adapter models reject undeclared fields and validate controlled JSON and NDJSON before emission. Rust owns the receiving types. |
 | `veoveo.ai/live-view/v4` | Repository-owned provider-neutral profile for authoritative cameras, typed regions in shared encoded products, viewer authorizations, WebSocket H.264 endpoints, and redacted state. |
 | `veoveo.ai/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
-| WebSocket and H.264 | RFC 6455 binary messages under subprotocol `veoveo.h264.annexb.v1`; each message carries one decoder-reentrant or predicted Annex B H.264 access unit. The encoded atlas is H.264 Main Profile Level 5.2, advertised to WebCodecs with the exact RFC 6381 codec string `avc1.4d4034`. One tiled NVIDIA NVENC atlas fans out unchanged to authenticated viewers. This WebSocket is a media adapter, not a public simulator-control protocol. |
+| WebSocket and H.264 | RFC 6455 binary messages under subprotocol `veoveo.h264.annexb.v1`; each message carries one decoder-reentrant or predicted Annex B H.264 access unit. The App derives its RFC 6381 `avc1` codec from the profile, compatibility and level bytes of a decoder-reentrant SPS. Media Capabilities, WebCodecs and canvas metadata use that observed codec. One tiled NVIDIA NVENC atlas fans out unchanged to authenticated viewers. This WebSocket is a media adapter, not a public simulator-control protocol. |
 | OpenUSD and RTX Hydra | Isaac Sim `6.1.0` stage and render products inside the authoritative runtime. These are implementation details, not MCP wire types. |
 | Native sensor video | Isaac Sim `isaacsim.streaming.rtsp` `0.1.5` supplies `RTSPStreamWriter`. Its CUDA-buffer mode passes resident pixels to `omni.kit.livestream.rtsp` `10.4.1` for one NVIDIA NVENC encode. The private adapter consumes the loopback RTSP/RTP H.264 stream without decoding or re-encoding. This is not an MCP wire type. |
 | RTSP, RTP, and H.264 | RTSP 1.0 over loopback TCP with interleaved RTP/RTCP. The adapter supports the RFC 6184 single-NAL, STAP-A, and FU-A packetization modes and emits decoder-reentrant Annex B access units. |
@@ -1104,6 +1104,16 @@ The package build produces the self-contained HTML asset at its existing path,
 with a 2 MiB limit. Schema URLs describe formats and never fetch executable code.
 Behavioral contract tests qualify rejection before rendering or decoding; they
 make no hardware or visual acceptance claim.
+
+The live App waits for an Annex B SPS/PPS/IDR access unit before decoder configuration.
+It serializes asynchronous capability admission and keeps at most one pending reentrant
+access unit of at most 16 MiB and 4,096 NAL units. It drops intervening predicted
+frames during setup. After losing a predicted frame, it refuses subsequent deltas
+until a fresh SPS/PPS/IDR repairs the reference chain.
+A changed codec closes the prior decoder and requires a new reentrant keyframe.
+Teardown invalidates pending configuration, and admission of a ninth queued chunk
+ends the connection through the existing recovery path. These codec checks do not
+change the stream framing or its sequence-based presentation timestamps.
 
 ## Portable State And Adapter Replies
 

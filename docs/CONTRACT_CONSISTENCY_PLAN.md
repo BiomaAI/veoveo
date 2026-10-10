@@ -9,12 +9,15 @@ including all seven stock-rollout images, pass staging, attested qualification a
 The current source closure requires thirty Rust targets and the pending cuOpt image.
 Twenty-two Trixie images at `3820c0db5` now pass stage/release digest agreement,
 attestation checks and node-network registry readback. The remaining nine-image
-batch is running; rollout and installed qualification remain open.
+batch stops at its second disk-growth guard without stage evidence; rollout and installed
+qualification remain open.
 The fresh single-vehicle UAV capture exposed a runtime output failure after tile
 updates and incorrect RTSP video timestamps. The state repair at `1b9070590`
 passes all 151 owning Python tests and independent review; its image and installed
-acceptance remain open. The video clock and fixed browser codec declaration still
-need repair. This capture does not close composed-flight acceptance. Its two
+acceptance remain open. The browser now derives the actual codec from its SPS;
+six JS tests, TypeScript, four native App controls and independent review pass.
+Its installed qualification and video clock repair remain open. This capture
+does not close composed-flight acceptance. Its two
 temporary PVCs were deleted during cleanup; the saved MP4s and PX4 log survive.
 The [flight checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#fresh-uav-flight-and-runtime-output-repair--october-10-2026)
 records the results, losses and remaining qualification.
@@ -505,8 +508,13 @@ The prepared dependency graph selects thirty Rust targets and retains
 the pending cuOpt executor, for thirty-one images. The twenty-two-target Trixie
 batch completes staging and release qualification. All twenty-two runnable
 digests agree between commands, with SBOM/provenance and matching node-network
-manifest/config reads. The remaining nine targets run as one serial stage/release
-batch after fresh resource admission; their qualification is still pending.
+manifest/config reads. The remaining nine targets use one serial stage/release
+batch. Its first actual solve stops at the admitted disk-growth threshold before
+producing stage evidence. After cleanup and the native/CLI build handoff, the
+second solve stops at its 16 GiB early-growth guard with 299.57 GB free. Its
+processes exit and partial build caches survive. A realistic remaining-build
+budget must pass fresh admission before another dispatch; final qualification
+remains pending.
 Earlier C5 and `6431c30c6621` receipts qualify their original inputs. Trixie and BFF
 source digests change from the prepared `715796541` plan; the other three Rust
 families preserve those prepared inputs. Trixie's final-source qualification
@@ -522,19 +530,28 @@ are healthy. Measured free space is 291,324,821,504 bytes after recovering
 23.82 GiB. BuildKit caches and the current acceptance CLI are preserved. The
 [retirement checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#reviewed-registry-retirement--october-10-2026)
 records the exact deletion sets and postflight. The completed Trixie batch stayed
-within its 20 GiB allowance. The remaining nine-image admission allows 12 GiB,
-begins cancellation at 8 GiB and preserves 4 GiB for work already in flight.
-Both batches preserve the original aggregate baseline, 28 GiB cap and installation
-reserve. The existing builder and caches are retained. The
+within its 20 GiB allowance. The nine-image solve reaches 8.64 GB growth and stops
+at its 8 GiB early threshold. Cleanup then recovers 42.65 GB by deleting older
+Rust incremental variants. Those variants were selected by age and crate name;
+their supersession across feature and compiler profiles was not established.
+Dependency libraries, fingerprints, BuildKit and OCI caches are retained, but the
+removed incremental caches may need rebuilding. The next dispatch allows 20 GiB,
+begins cancellation at 16 GiB and preserves 4 GiB for work already in flight.
+That dispatch stops after 17.19 GB of growth without stage evidence or a release
+phase. Its client and transport processes exit. The original aggregate baseline,
+28 GiB cap and installation reserve stay set pending fresh resource admission. The
 [publication checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#final-trixie-publication-and-artifact-recovery-controls--october-10-2026)
 records the completed checks and remaining scope. Build admission does not authorize
 rollout.
 
-The unchanged Charts, simulation-runtime and UAV-runtime production inputs retain
-their own accepted `6431c30c6621` publication proof. Fresh node-network manifest and
+Within the frozen `3820c0db5` selection, unchanged Charts, simulation-runtime and
+UAV-runtime production inputs retain their accepted `6431c30c6621` publication
+proof. Fresh node-network manifest and
 config reads return 200 with matching hashes for all three; their source and
 artifact identities are preserved. The final thirty-one-image selection and the
-historical thirty-four-image publication describe different sets.
+historical thirty-four-image publication describe different sets. The subsequent
+UAV state and browser codec repairs require separate UAV-runtime and UAV MCP image
+publication and installed qualification.
 
 | Final image family | Image count |
 |---|---|

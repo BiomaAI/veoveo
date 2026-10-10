@@ -54,7 +54,7 @@ mod tests {
             "VideoDecoder",
             "EncodedVideoChunk",
             "veoveo.h264.annexb.v1",
-            "avc1.4d4034",
+            "H264DecoderAdmission",
             "list_live_cameras",
             "open_live_view",
             "renew_live_view",
@@ -98,6 +98,7 @@ mod tests {
             "AppStreamer",
             "PressureObserver",
             "avc1.42E01E",
+            "avc1.4d4034",
         ] {
             assert!(!source.contains(removed), "obsolete App source {removed}");
             assert!(
@@ -105,12 +106,13 @@ mod tests {
                 "obsolete packaged App surface {removed}"
             );
         }
-        assert!(source.contains("{session_id:sessionId}"));
+        assert!(source.contains("{sessionId:sessionId}"));
+        assert!(!source.contains("session_id"));
         assert!(source.contains("if(name===\"open_live_view\")await ensureSubscription()"));
         assert!(!source.contains(
             "error(\"Camera recovery is waiting for simulator readiness\");status();return;"
         ));
-        assert!(!source.contains("first.sessionId"));
+        assert!(source.contains("sessionId=first.sessionId"));
         assert!(!source.contains("setInterval"));
     }
 }

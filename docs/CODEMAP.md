@@ -1440,7 +1440,7 @@ Simulation live-view ownership:
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | commit acknowledgements for authorization issuance and queued terminal audit writes |
 | `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict authenticated adapter-ready and final-ready stream receiver, immutable binding reapplication trigger, and MCP subscription projection |
 | `servers/uav-sim-mcp/src/server/service.rs` | MCP tools, resources, subscriptions, well-known surface, and live-view orchestration |
-| `servers/uav-sim-mcp/assets/live-app.html` | self-contained all-camera WebCodecs MCP App with shared H.264 delivery |
+| `servers/uav-sim-mcp/assets/live-app.html`, `app/h264.js`, `app/h264.test.mjs` | self-contained all-camera WebCodecs MCP App, SPS-derived codec admission, serial decoder configuration and shared H.264 delivery |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | simulator-tick camera orchestration, frame transforms, and shared camera/target time |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py` | desired-pose computation for follow, chase, orbit, look-at, stabilized-mounted, formation, and fixed rigs |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | half-life translation/quaternion filtering and reset rules |
