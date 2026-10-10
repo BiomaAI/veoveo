@@ -78,10 +78,18 @@ impl<H> Slot<H> {
 pub(super) struct Handles {
     pub caller: Slot<SmokeMcpClient>,
     pub listener: Slot<Subscription>,
+    pub resource_listener: Slot<Subscription>,
 }
 impl Handles {
     pub async fn close(&mut self) -> Result<()> {
         let deadline = owner::cleanup_deadline()?;
+        let resource = self
+            .resource_listener
+            .close(
+                |mut listener| async move { listener.cancel().await.map_err(anyhow::Error::from) },
+                deadline,
+            )
+            .await;
         let listener = self
             .listener
             .close(
@@ -91,7 +99,7 @@ impl Handles {
             .await;
         // Preserve the caller's opportunity inside the same grace on listener failure.
         let caller = self.caller.close(|caller| caller.cancel(), deadline).await;
-        listener.and(caller)
+        resource.and(listener).and(caller)
     }
 }
 

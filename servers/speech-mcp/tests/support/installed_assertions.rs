@@ -154,6 +154,46 @@ fn metadata(
     }
     Ok(())
 }
+/// Initial/current snapshot delivery only; this does not prove a later mutation.
+pub(super) fn resource_delivery(
+    notification: &ServerNotification,
+    subscription: &rmcp::model::RequestId,
+    expected: &veoveo_speech_contract::TranscriptionUri,
+) -> Result<()> {
+    ensure!(
+        notification.get_meta().subscription_id().as_ref() == Some(subscription),
+        "Speech resource delivery subscription identity differs"
+    );
+    let ServerNotification::ResourceUpdatedNotification(update) = notification else {
+        anyhow::bail!("Speech resource filter delivered a different notification");
+    };
+    ensure!(
+        veoveo_speech_contract::TranscriptionUri::parse(&update.params.uri)? == *expected,
+        "Speech resource delivery identity differs"
+    );
+    Ok(())
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct View {
+    task_id: veoveo_speech_contract::TranscriptionId,
+    status: veoveo_platform_store::TaskStatus,
+    message: Option<String>,
+    output: Option<TranscriptionOutput>,
+}
+fn current_output(view: &View, output: &TranscriptionOutput) -> Result<()> {
+    ensure!(
+        view.task_id == output.result_uri.id()
+            && view.status == veoveo_platform_store::TaskStatus::Succeeded
+            && view
+                .output
+                .as_ref()
+                .is_some_and(|current| same_output(current, output)),
+        "Speech owning Task resource/current output differs"
+    );
+    let _ = &view.message;
+    Ok(())
+}
 pub(super) async fn check_output(
     caller: &SmokeMcpClient,
     input: &Input,
@@ -164,29 +204,12 @@ pub(super) async fn check_output(
     let request = &input.request;
     let expected = &input.expected;
     metadata(request, expected, output)?;
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase", deny_unknown_fields)]
-    struct View {
-        task_id: veoveo_speech_contract::TranscriptionId,
-        status: veoveo_platform_store::TaskStatus,
-        message: Option<String>,
-        output: Option<TranscriptionOutput>,
-    }
     // The domain URI exposes its own typed identity; never decode the opaque Gateway ID as UUID.
     let uri = output.result_uri.to_uri();
     journal.active_resource = Some(uri.clone());
     journal.persist(file)?;
     let view: View = serde_json::from_str(&text(caller, &uri, "application/json").await?)?;
-    ensure!(
-        view.task_id == output.result_uri.id()
-            && view.status == veoveo_platform_store::TaskStatus::Succeeded
-            && view
-                .output
-                .as_ref()
-                .is_some_and(|current| same_output(current, output)),
-        "Speech owning Task resource/current output differs"
-    );
-    let _ = view.message;
+    current_output(&view, output)?;
     let uri = SpeechResource::Artifact(output.transcript.artifact_id()).to_uri();
     journal.active_resource = Some(uri.clone());
     journal.persist(file)?;
@@ -252,6 +275,56 @@ mod tests {
         Ok(())
     }
     #[test]
+    fn resource_snapshot_rejects_foreign_malformed_and_wrong_subscription_delivery() -> Result<()> {
+        use rmcp::model::{
+            NotificationMetaObject, RequestId, ResourceUpdatedNotification,
+            ResourceUpdatedNotificationParam,
+        };
+        let uri = veoveo_speech_contract::TranscriptionUri::new(
+            veoveo_speech_contract::TranscriptionId::new(),
+        );
+        let id = RequestId::Number(7);
+        let update = |uri: &str, subscription: Option<RequestId>| {
+            let mut params = ResourceUpdatedNotificationParam::new(uri);
+            if let Some(subscription) = subscription {
+                let mut meta = NotificationMetaObject::new();
+                meta.set_subscription_id(subscription);
+                params.meta = Some(meta);
+            }
+            ServerNotification::ResourceUpdatedNotification(ResourceUpdatedNotification::new(
+                params,
+            ))
+        };
+        resource_delivery(&update(uri.to_uri().as_str(), Some(id.clone())), &id, &uri)?;
+        for wrong in [
+            "speech://transcript/not-an-id",
+            "artifact://foreign",
+            "speech://dictation/not-an-id",
+        ] {
+            ensure!(resource_delivery(&update(wrong, Some(id.clone())), &id, &uri).is_err());
+        }
+        let other = veoveo_speech_contract::TranscriptionUri::new(
+            veoveo_speech_contract::TranscriptionId::new(),
+        );
+        ensure!(
+            resource_delivery(
+                &update(other.to_uri().as_str(), Some(id.clone())),
+                &id,
+                &uri
+            )
+            .is_err()
+        );
+        for wrong in [None, Some(RequestId::Number(8))] {
+            ensure!(resource_delivery(&update(uri.to_uri().as_str(), wrong), &id, &uri).is_err());
+        }
+        let mut malformed = serde_json::to_value(update(uri.to_uri().as_str(), Some(id.clone())))?;
+        malformed["params"]["_meta"]["io.modelcontextprotocol/subscriptionId"] =
+            serde_json::json!({"unexpected":"object"});
+        let malformed: ServerNotification = serde_json::from_value(malformed)?;
+        ensure!(resource_delivery(&malformed, &id, &uri).is_err());
+        Ok(())
+    }
+    #[test]
     fn fixture_is_closed_and_requires_independent_provenance() -> Result<()> {
         let value = serde_json::json!({"sourceSha256":"a".repeat(64),"text":"fixture text","model":"fixture-model","modelRevision":"fixture-revision", "minimumDurationSeconds":1,"maximumDurationSeconds":2,"compliance":{}});
         let expected: Expected = serde_json::from_value(value.clone())?;
@@ -271,6 +344,27 @@ mod tests {
         let value = serde_json::json!({"resultUri":veoveo_speech_contract::TranscriptionUri::new(veoveo_speech_contract::TranscriptionId::new()),"sourceArtifactUri":fixture.request.artifact_uri,"transcript":metadata_value("application/json"),"captions":metadata_value("text/vtt"),"durationSeconds":1.5});
         let output: TranscriptionOutput = serde_json::from_value(value.clone())?;
         metadata(&fixture.request, &fixture.expected, &output)?;
+        let mut current = View {
+            task_id: output.result_uri.id(),
+            status: veoveo_platform_store::TaskStatus::Succeeded,
+            message: None,
+            output: Some(output.clone()),
+        };
+        current_output(&current, &output)?;
+        let mut changed_duration = value.clone();
+        changed_duration["durationSeconds"] = serde_json::json!(1.75);
+        current.output = Some(serde_json::from_value(changed_duration)?);
+        ensure!(current_output(&current, &output).is_err());
+        current.output = Some(output.clone());
+        current.task_id = veoveo_speech_contract::TranscriptionId::new();
+        ensure!(current_output(&current, &output).is_err());
+        current.task_id = output.result_uri.id();
+        current.status = veoveo_platform_store::TaskStatus::Running;
+        ensure!(current_output(&current, &output).is_err());
+        current.status = veoveo_platform_store::TaskStatus::Succeeded;
+        current.output = None;
+        ensure!(current_output(&current, &output).is_err());
+
         for field in ["model", "sourceSha256"] {
             let mut wrong = value.clone();
             let substitute = if field == "model" {

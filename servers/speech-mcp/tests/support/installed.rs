@@ -37,6 +37,9 @@ enum Phase {
     Delivery,
     Current,
     Output,
+    ResourceIntent,
+    ResourceListening,
+    ResourceDelivery,
     Passed,
     Failed,
 }
@@ -110,6 +113,12 @@ struct Journal<'a> {
     current: Option<Observation>,
     result: Option<TranscriptionOutput>,
     output_checked: bool,
+    resource_uri: Option<veoveo_speech_contract::TranscriptionUri>,
+    resource_subscription_id: Option<rmcp::model::RequestId>,
+    resource_snapshot_delivered: bool,
+    resource_current_checked: bool,
+    resource_listener_closed: bool,
+    resource_listener_close_failed: bool,
     terminal_settled: bool,
     listener_closed: bool,
     caller_closed: bool,
@@ -142,6 +151,12 @@ impl<'a> Journal<'a> {
             current: None,
             result: None,
             output_checked: false,
+            resource_uri: None,
+            resource_subscription_id: None,
+            resource_snapshot_delivered: false,
+            resource_current_checked: false,
+            resource_listener_closed: true,
+            resource_listener_close_failed: false,
             terminal_settled: false,
             listener_closed: true,
             caller_closed: true,
@@ -285,16 +300,24 @@ async fn run(mode: Mode) -> Result<()> {
     let retained = handles.lock().await;
     journal.caller_closed = retained.caller.closed;
     journal.listener_closed = retained.listener.closed;
+    journal.resource_listener_closed = retained.resource_listener.closed;
+    journal.resource_listener_close_failed = retained.resource_listener.failed;
     journal.caller_close_failed = retained.caller.failed;
     journal.listener_close_failed = retained.listener.failed;
     journal.failure |= result.is_err()
         || !journal.caller_closed
+        || !journal.resource_listener_closed
+        || journal.resource_listener_close_failed
         || !journal.listener_closed
         || journal.caller_close_failed
         || journal.listener_close_failed;
     journal.failure |= !journal.terminal_settled
         || match input.mode {
-            Mode::Complete => !journal.output_checked,
+            Mode::Complete => {
+                !journal.output_checked
+                    || !journal.resource_snapshot_delivered
+                    || !journal.resource_current_checked
+            }
             Mode::Cancel => !journal.cancel_intent || !journal.cancel_acknowledged,
         };
     journal.phase = if journal.failure {
@@ -422,7 +445,39 @@ async fn exercise(
         let output = assertions::output(&current)?;
         journal.result = Some(output.clone());
         journal.persist(file)?;
+        // Persist the admitted domain identity before opening its listener. The Gateway
+        // Task ID is opaque and is never used to construct this owner address.
+        journal.resource_uri = Some(output.result_uri);
+        journal.phase = Phase::ResourceIntent;
+        journal.persist(file)?;
+        let filter = SubscriptionFilter::builder()
+            .resource_subscription(output.result_uri.to_uri().as_str())
+            .build();
+        handles.resource_listener.retain(
+            tokio::time::timeout(Duration::from_secs(15), caller.listen(filter.clone()))
+                .await
+                .context("Speech resource subscription deadline")??,
+        );
+        let listener = handles.resource_listener.handle.as_mut().unwrap();
+        ensure!(
+            listener.acknowledged() == &filter,
+            "Speech exact resource subscription differs"
+        );
+        journal.resource_subscription_id = Some(listener.id().clone());
+        journal.phase = Phase::ResourceListening;
+        journal.persist(file)?;
+        let notification = tokio::time::timeout(Duration::from_secs(15), listener.next())
+            .await
+            .context("Speech current resource delivery deadline")??
+            .context("Speech resource listener ended before current snapshot")?;
+        assertions::resource_delivery(&notification, listener.id(), &output.result_uri)?;
+        journal.resource_snapshot_delivered = true;
+        journal.phase = Phase::ResourceDelivery;
+        journal.persist(file)?;
+        // A delivered invalidation carries no transcript. Re-read the owner resource
+        // and all governed outputs to establish agreement with the completed Task.
         assertions::check_output(caller, input, &output, journal, file).await?;
+        journal.resource_current_checked = true;
         journal.output_checked = true;
         journal.persist(file)?;
     }
@@ -508,15 +563,37 @@ mod tests {
         ));
         journal.phase = Phase::Failed;
         journal.persist(&mut file)?;
+        journal.resource_uri = Some(veoveo_speech_contract::TranscriptionUri::new(
+            veoveo_speech_contract::TranscriptionId::new(),
+        ));
+        journal.phase = Phase::ResourceIntent;
+        journal.persist(&mut file)?;
+        journal.resource_subscription_id = Some(rmcp::model::RequestId::Number(7));
+        journal.phase = Phase::ResourceListening;
+        journal.persist(&mut file)?;
+        journal.resource_snapshot_delivered = true;
+        journal.phase = Phase::ResourceDelivery;
+        journal.persist(&mut file)?;
         let bytes = fs::read_to_string(&path)?;
         let rows = bytes
             .lines()
             .map(serde_json::from_str::<serde_json::Value>)
             .collect::<std::result::Result<Vec<_>, _>>()?;
         ensure!(
-            rows.len() == 3 && rows[0]["dispatchIntent"] == true && rows[0]["taskId"].is_null()
+            rows.len() == 6 && rows[0]["dispatchIntent"] == true && rows[0]["taskId"].is_null()
         );
         ensure!(rows[1]["taskId"] == id.as_str() && rows[2]["failurePhase"] == "created");
+        ensure!(
+            rows[3]["phase"] == "resource_intent"
+                && !rows[3]["resourceUri"].is_null()
+                && rows[3]["resourceSubscriptionId"].is_null()
+                && rows[3]["resourceSnapshotDelivered"] == false
+        );
+        ensure!(
+            rows[4]["resourceSubscriptionId"] == 7
+                && rows[4]["resourceSnapshotDelivered"] == false
+                && rows[5]["resourceSnapshotDelivered"] == true
+        );
         ensure!(!bytes.contains("synthetic-credential") && !bytes.contains("callerTokenFile"));
         ensure!(receipt(&path).is_err());
         #[cfg(unix)]
