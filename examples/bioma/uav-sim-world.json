@@ -1,9 +1,9 @@
 {
   "sessionId": "uav-showcase",
   "world": {
-    "revisionUri": "frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-01a0f68b-d863-7a92-8ceb-61fe5a60ebbf",
-    "specSha256": "7941fba19b5edcce73d37e1c1bef82d98f42e9c79b5fdb19671e21d1924e3b8a",
-    "simulationFrameUri": "frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-01a0f68b-d863-7a92-8ceb-61fe5a60ebbf/frame/isaac-world",
+    "revisionUri": "frames://world/uav-showcase-new-york-f7cfaa89907b4dca/revision/revision-01a1283a-4717-7420-a46a-17c8e093a493",
+    "specSha256": "6c9607f78d01cefdfed5b7b7bbe8c48ee1b5391e9bbea8a52bb2d469786b64db",
+    "simulationFrameUri": "frames://world/uav-showcase-new-york-f7cfaa89907b4dca/revision/revision-01a1283a-4717-7420-a46a-17c8e093a493/frame/isaac-world",
     "georeferenceOrigin": {
       "latitudeDegrees": 40.758,
       "longitudeDegrees": -73.9855,
