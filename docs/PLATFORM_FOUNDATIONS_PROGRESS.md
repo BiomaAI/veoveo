@@ -6,6 +6,30 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Focused Artifact Installed SDK Mismatch — October 10, 2026
+
+The focused public run uses CLI SHA-256
+`f800add97ff02d4c0c15b189a686ea60487c80902bc3d17e1ca901d1e5cbaf8b`
+and the admitted generation-one installation. Public OAuth upload policy,
+immutable-part replay/refusal, completion replay, cross-context denial and the
+Datasheet CSV/Parquet assertions pass. The Python child then exits at import,
+before any SDK HTTP request. Datasheet's installed SDK exports
+`ArtifactUploadReceipt` but lacks `ListArtifactsRequest`, `ArtifactPage` and
+`HttpArtifactPlane.list`. Its Artifact module matches the source before the paging
+change; current and C5 source provide that API. The installed SDK/image mismatch
+is established; candidate image contents still require verification before rollout.
+No Artifact HTTP error or domain-service regression is established by this failure.
+
+The overall process exits one without a main report. Its append-only upload journal
+retains three distinct received and published occurrences, each with a retained
+publication cleanup result. The fixture has no deletion API. No service replacement
+or deployment mutation runs. The terminal receipt under
+`/tmp/veoveo-artifact-focused-20261010.3xaYap` has SHA-256
+`bcbc8bd3b3046a37172313616ae9100957b23246d8bbe64d36212103d4a323d4`;
+the upload journal has SHA-256
+`224066f961d10fa95baf0ef9143192d897c5477ee7b25cd71db824ee90d3e825`.
+SDK reads, the overall scenario and service-replacement recovery remain unqualified.
+
 ## Isolated Time Authority Fixture — October 10, 2026
 
 Time's existing gateway consumer harness adds a separately selected authority

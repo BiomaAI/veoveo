@@ -145,6 +145,15 @@ Earlier installed checkpoints keep their recorded scope below.
 | Knowledge | Full-catalog baseline, qualified retained-index/current-generation cold startup and separate restricted-caller discovery, collection/completion visibility and document denials, with retained SDK cleanup | First-ever empty-index startup, generation-two publication, installed caller-policy checks, current-generation recovery and final images |
 | Optimization | Multi-page existing solve corpus, exact products, usage, public Task results and canonical Artifact bytes under allowed and denied caller contexts; separately selected coordinated control/executor replacement repeats the retained consumers | Installed GPU-produced corpus, mid-run policy changes, coordinated control/executor replacement and unfinished/cross-replica recovery |
 
+The first focused Artifact run passes its public OAuth upload, immutable-part
+retry/refusal, completion replay, cross-context denial and Datasheet CSV/Parquet
+checks, then stops before SDK requests. Datasheet's installed SDK predates the
+paging API: its module lacks `ListArtifactsRequest`, `ArtifactPage` and
+`HttpArtifactPlane.list`, which current source provides. All three published
+occurrences and their receipts are retained. The complete scenario remains
+unqualified pending verification and rollout of a matching SDK image; no service
+replacement ran.
+
 The Time and Timeseries lifecycle fixtures pass sixteen focused native controls,
 including shared crash-receipt decoding and cleanup after failed journal writes.
 Process recovery requires the original Task Working before and after replacement;
