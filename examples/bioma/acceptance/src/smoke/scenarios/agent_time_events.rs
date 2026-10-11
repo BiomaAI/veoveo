@@ -162,6 +162,90 @@ fn qualification_catalog(
     Ok(catalog)
 }
 
+const MODEL_KEY_ENV: &str = "SMOKE_LLM_API_KEY";
+const SIGNING_KEY_ENV: &str = "SMOKE_AGENT_PRIVATE_KEY_DER_B64";
+
+fn qualification_manifest(
+    catalog: &GatewayControlPlane,
+    gateway_origin: &url::Url,
+    model_origin: &url::Url,
+    workspace: &Path,
+) -> Result<veoveo_agent_kernel::manifest::AgentManifest> {
+    use veoveo_agent_kernel::manifest::*;
+    let selected = catalog
+        .profiles
+        .first()
+        .context("qualification profile missing")?;
+    let registration = catalog
+        .oauth_clients
+        .first()
+        .context("qualification client missing")?;
+    let tenant = registration
+        .tenant
+        .as_ref()
+        .context("qualification client requires tenant")?;
+    let migrations = workspace.join("migrations");
+    fs::create_dir(&migrations)?;
+    fs::write(
+        migrations.join("0001_effects.sql"),
+        "CREATE TABLE time_effects(event_id TEXT PRIMARY KEY, state TEXT NOT NULL, record_version TEXT NOT NULL);\n",
+    )?;
+    let manifest = AgentManifest {
+        agent: AgentIdentity {
+            tenant: tenant.to_string(),
+            id: format!("time-events-{}", uuid::Uuid::now_v7()),
+            display_name: "Time event qualification".into(),
+        },
+        model: ModelConfig {
+            base_url: model_origin.join("v1")?.to_string(),
+            api_key_env: MODEL_KEY_ENV.into(),
+            model: "fake/time-events".into(),
+            temperature: None,
+            top_p: None,
+            top_k: None,
+            max_output_tokens: None,
+        },
+        gateway: GatewayAccess {
+            url: PUBLIC_BASE_URL.into(),
+            transport_url: gateway_origin.to_string(),
+            profile: selected.id.to_string(),
+            client_id: registration.id.to_string(),
+            work_context: registration.default_work_context.to_string(),
+            audience: url::Url::parse(PUBLIC_BASE_URL)?.join("oauth/token")?.to_string(),
+            resource: selected.protected_resource.to_string(),
+            scopes: selected.required_scopes.iter().map(ToString::to_string).collect(),
+            private_key_env: SIGNING_KEY_ENV.into(),
+            private_key_kid: "test-key".into(),
+            token_refresh_fraction: 0.6,
+        },
+        episode: EpisodeConfig {
+            max_turns: 24,
+            request_timeout_s: 300,
+            task_deadline_s: 60,
+        },
+        memory: MemoryConfig {
+            memory_write_tables: vec!["time_effects".into()],
+            ..Default::default()
+        },
+        context: Default::default(),
+        budgets: Default::default(),
+        schedule: ScheduleConfig {
+            heartbeat_interval_s: 3600,
+            wake_coalesce_window_ms: 100,
+            ..Default::default()
+        },
+        resource_subscriptions: vec![ResourceSubscription {
+            uri: TimeResource::Events { cursor: None }.to_uri()?.to_string(),
+        }],
+        migrations_dir: Some(migrations),
+        preamble: "Read current Time event state. Only Due events authorize one retained semantic effect per event identity. This deterministic fixture does not qualify live model reasoning.".into(),
+    };
+    manifest
+        .validate_with_environment_presence(|key| [MODEL_KEY_ENV, SIGNING_KEY_ENV].contains(&key))
+        .context("admit qualification kernel manifest before preparing Store")?;
+    Ok(manifest)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,6 +312,56 @@ mod tests {
             "http://127.0.0.1:18870/time/mcp"
         );
     }
+    #[test]
+    fn qualification_manifest_admits_origin_and_refuses_path_or_missing_environment() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let catalog = qualification_catalog(
+            &root.join("configs/gateway.smoke.json"),
+            &root.join("examples/bioma/gateway.json"),
+            &url::Url::parse("http://127.0.0.1:18870").unwrap(),
+        )
+        .unwrap();
+        let workspace = tempfile::tempdir().unwrap();
+        let manifest = qualification_manifest(
+            &catalog,
+            &url::Url::parse("http://127.0.0.1:18871").unwrap(),
+            &url::Url::parse("http://127.0.0.1:18872").unwrap(),
+            workspace.path(),
+        )
+        .unwrap();
+        let decoded: veoveo_agent_kernel::manifest::AgentManifest =
+            serde_json::from_slice(&serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let present = |key: &str| [MODEL_KEY_ENV, SIGNING_KEY_ENV].contains(&key);
+        decoded.validate_with_environment_presence(present).unwrap();
+        assert_eq!(
+            decoded.mcp_url(),
+            "http://127.0.0.1:18871/mcp/agent-time-events"
+        );
+        let mut wrong = decoded.clone();
+        wrong.gateway.transport_url = decoded.mcp_url();
+        assert!(
+            wrong
+                .validate_with_environment_presence(present)
+                .unwrap_err()
+                .to_string()
+                .contains("gateway.transport_url")
+        );
+        assert!(
+            decoded
+                .validate_with_environment_presence(|key| key != MODEL_KEY_ENV)
+                .unwrap_err()
+                .to_string()
+                .contains("model.api_key_env")
+        );
+        assert!(
+            decoded
+                .validate_with_environment_presence(|key| key != SIGNING_KEY_ENV)
+                .unwrap_err()
+                .to_string()
+                .contains("gateway.private_key_env")
+        );
+    }
+
     #[tokio::test]
     async fn caller_cleanup_survives_waiter_drop_and_refuses_expired_success() {
         use std::sync::{
@@ -578,6 +712,10 @@ pub(crate) async fn run(binaries: Binaries<'_>, base: &Path, reference: &Path) -
     let catalog = qualification_catalog(base, reference, &time_base)?;
     let control_plane = tmpdir.join("gateway.json");
     fs::write(&control_plane, serde_json::to_vec_pretty(&catalog)?)?;
+    let admitted_manifest = qualification_manifest(&catalog, &gateway_base, &model_base, &tmpdir)?;
+    let manifest = tmpdir.join("manifest.json");
+    fs::write(&manifest, serde_json::to_vec_pretty(&admitted_manifest)?)?;
+    let data = tmpdir.join("agent");
     // Prepare one Gateway-owned composition before starting any service. The
     // artifact-only Store fixture prepares a different plan at the same generation.
     let platform = spawn_gateway_platform_store(binaries.gateway, &control_plane).await?;
@@ -664,36 +802,13 @@ pub(crate) async fn run(binaries: Binaries<'_>, base: &Path, reference: &Path) -
     wait_for_file(&model_ready).await?;
     let selected = &catalog.profiles[0];
     let registration = &catalog.oauth_clients[0];
-    let tenant = registration
-        .tenant
-        .as_ref()
-        .context("qualification client requires tenant")?;
-    let agent_id = format!("time-events-{}", uuid::Uuid::now_v7());
-    let migrations = tmpdir.join("migrations");
-    fs::create_dir(&migrations)?;
-    fs::write(
-        migrations.join("0001_effects.sql"),
-        "CREATE TABLE time_effects(event_id TEXT PRIMARY KEY, state TEXT NOT NULL, record_version TEXT NOT NULL);\n",
-    )?;
-    let data = tmpdir.join("agent");
-    let manifest = tmpdir.join("manifest.json");
-    let root = TimeResource::Events { cursor: None }.to_uri()?;
     let mut transport = gateway_base.clone();
     transport.set_path(&format!("/mcp/{PROFILE}"));
-    fs::write(
-        &manifest,
-        serde_json::to_vec_pretty(&serde_json::json!({
-            "agent":{"tenant":tenant,"id":agent_id,"displayName":"Time event qualification"},
-            "model":{"baseUrl":model_base.join("v1")?,"apiKeyEnv":"SMOKE_LLM_API_KEY","model":"fake/time-events"},
-            "gateway":{"url":PUBLIC_BASE_URL,"transportUrl":transport,"profile":selected.id,"clientId":registration.id,"workContext":registration.default_work_context,"audience":format!("{PUBLIC_BASE_URL}/oauth/token"),"resource":selected.protected_resource,"scopes":selected.required_scopes,"privateKeyEnv":"SMOKE_AGENT_PRIVATE_KEY_DER_B64","privateKeyKid":"test-key"},
-            "episode":{"maxTurns":24,"taskDeadlineS":60},"memory":{"memoryWriteTables":["time_effects"]},"schedule":{"heartbeatIntervalS":3600,"wakeCoalesceWindowMs":100},"resourceSubscriptions":[{"uri":root}],"migrationsDir":migrations,"preamble":"Read current Time event state. Only Due events authorize one retained semantic effect per event identity. This deterministic fixture does not qualify live model reasoning."
-        }))?,
-    )?;
     let spawn_agent = || -> Result<ChildGuard> {
         let mut env = platform.runtime_env();
         env.extend([
-            ("SMOKE_LLM_API_KEY", "fixture".into()),
-            ("SMOKE_AGENT_PRIVATE_KEY_DER_B64", signing.trim().into()),
+            (MODEL_KEY_ENV, "fixture".into()),
+            (SIGNING_KEY_ENV, signing.trim().into()),
         ]);
         ChildGuard::spawn(
             binaries.agent,

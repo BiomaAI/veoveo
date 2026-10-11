@@ -287,6 +287,12 @@ impl AgentManifest {
     }
 
     pub fn validate(&self) -> Result<()> {
+        self.validate_with_environment_presence(|key| std::env::var(key).is_ok())
+    }
+
+    /// Admit the complete configuration against the environment bindings its
+    /// launcher will supply, without mutating the current process environment.
+    pub fn validate_with_environment_presence(&self, present: impl Fn(&str) -> bool) -> Result<()> {
         if self.agent.id.is_empty()
             || !self.agent.id.bytes().all(|byte| {
                 byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-' || byte == b'_'
@@ -402,15 +408,15 @@ impl AgentManifest {
         {
             bail!("migrations_dir `{}` is not a directory", dir.display());
         }
-        std::env::var(&self.model.api_key_env).with_context(|| {
-            format!("model.api_key_env `{}` is not set", self.model.api_key_env)
-        })?;
-        std::env::var(&self.gateway.private_key_env).with_context(|| {
-            format!(
+        if !present(&self.model.api_key_env) {
+            bail!("model.api_key_env `{}` is not set", self.model.api_key_env);
+        }
+        if !present(&self.gateway.private_key_env) {
+            bail!(
                 "gateway.private_key_env `{}` is not set",
                 self.gateway.private_key_env
-            )
-        })?;
+            );
+        }
         Ok(())
     }
 

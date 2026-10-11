@@ -14,6 +14,12 @@ contract and validate its SHA-256 content binding.
 
 Kernel manifests and local Rig tool arguments use closed camelCase object members. Tool names and controlled unit values use snake_case. The manifest loader expands declared environment references before typed admission; it opens no memory or provider connection for a rejected shape. Rig publishes the same DTO-generated schemas that decode its arguments. SQL result columns and provider parameters keep their own spelling.
 
+Launchers can admit a complete typed manifest with
+`AgentManifest::validate_with_environment_presence` against the environment keys
+they will supply. This entry point shares every configuration check with
+`validate()`, which checks the current process environment. Configured migrations directories must exist. The physical Gateway transport URL is an HTTP(S)
+origin; the kernel appends the separately admitted profile's MCP path.
+
 ## Resource Context
 
 The gateway connection declares the knowledge extension through Rig's client

@@ -16349,6 +16349,7 @@ dependencies = [
  "tokio-tungstenite 0.30.0",
  "url",
  "uuid",
+ "veoveo-agent-kernel",
  "veoveo-agent-runtime",
  "veoveo-artifact-contract",
  "veoveo-artifact-mcp",
