@@ -28,8 +28,17 @@ delivers a 29.95-second five-camera MP4 with 442 native NVENC frames and
 the video quality. A fresh authenticated state read returns 200 with all four
 vehicles flying. Individual visibility of all four in the video and composed-flight
 acceptance remain unqualified. The signed-in normal-OAuth Console Live Cameras
-check fails at `/console/api/apps/call` with HTTP 502 and establishes no live-video
-acceptance; the saved videos remain accepted and published. K3s successfully imports the retained digest list
+check fails at `/console/api/apps/call` with HTTP 502. The runtime atlas stops at
+362 frames while the physical sensor advances; MCP correctly refuses the failed
+product, and no Rust fix is required. The native RTSP listener is reachable, but
+the triggering event is unproven. The operator-only receiver repair passes 187
+owning CPU tests, including nine actual-loopback controls within 29 focused tests;
+the old receiver fails the stall/EOF recovery controls. It enforces five-second
+handshake and admitted-picture deadlines with at most two same-source reconnects,
+while preserving Recording's physical-camera readiness and terminal-loss profile.
+Independent source review passes; runtime publication/rollout and live frames remain open.
+These checks do not qualify F59, A11, the full flight or the capture clock. The saved
+videos remain accepted and published. K3s successfully imports the retained digest list
 through local tag aliases; all three selected images report CRI `pinned: true`.
 The persistent node configuration protects the cache when workloads stop. Both
 images at `3da4c8446` pass staging, release digest agreement, attestations and

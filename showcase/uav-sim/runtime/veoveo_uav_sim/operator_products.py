@@ -129,6 +129,7 @@ class OperatorCameraProduct:
         ) = operator_atlas_layout(config)
         self._condition = threading.Condition()
         self._closed = False
+        self._transport_interrupted = False
         self._failure: BaseException | None = None
         self._receiver: RtspH264Receiver | None = None
         self._endpoint = RtspEndpoint("127.0.0.1", config.atlas_rtsp_port)
@@ -202,6 +203,7 @@ class OperatorCameraProduct:
                         self._endpoint,
                         self._on_access_unit,
                         self._record_failure,
+                        on_transport_interrupted=self._interrupt_transport,
                     )
                     start_receiver = True
                 receiver = self._receiver
@@ -221,6 +223,12 @@ class OperatorCameraProduct:
         deadline = time.monotonic() + timeout_seconds
         with self._condition:
             while True:
+                if self._closed:
+                    raise RuntimeError("operator camera atlas is closed")
+                if self._failure is not None:
+                    raise RuntimeError("operator camera atlas failed") from self._failure
+                if self._transport_interrupted:
+                    raise RuntimeError("operator camera atlas transport interrupted")
                 if after_sequence == 0:
                     frame = next(
                         (
@@ -287,9 +295,19 @@ class OperatorCameraProduct:
         with self._condition:
             if self._closed:
                 return
+            self._transport_interrupted = False
             self._sequence += 1
             self._frames.append(OperatorEncodedFrame(self._sequence, access_unit))
             self._health.observe_frame()
+            self._condition.notify_all()
+
+    def _interrupt_transport(self) -> None:
+        with self._condition:
+            if self._closed:
+                return
+            self._transport_interrupted = True
+            self._frames.clear()
+            self._health.interrupt_transport()
             self._condition.notify_all()
 
     def _record_failure(self, error: BaseException) -> None:

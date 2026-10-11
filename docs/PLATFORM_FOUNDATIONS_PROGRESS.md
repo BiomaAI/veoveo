@@ -40,11 +40,27 @@ shows no live frames, with repeated HTTP 502 responses at `/console/api/apps/cal
 and generic readiness text. Read-only logs from 00:19:30–00:20:10 UTC on October 11
 contain thirty UAV MCP `-32600 Invalid Request` warnings matching thirty BFF 502
 observations. The runtime is Ready and has no error lines in that window. This is
-correlation: request/response bodies, request IDs and the exact tool are missing,
-so the cause is not established. Live playback remains unqualified; the saved
+correlation: request/response bodies, request IDs and the exact tool are missing.
+A fresh state projection subsequently identifies the failed atlas product behind
+MCP's valid refusal: its frame count stays at 362 and `lastFrameAt` stays at
+23:56:16.585303 UTC while the physical sensor advances. The native RTSP listener
+responds, but the event that stopped atlas delivery is unproven. No MCP Rust fix
+is required. Live playback remains unqualified; the saved
 videos remain accepted and published. The private safe correlation summary is
 `/tmp/veoveo-uav-console-live-check-20261011/correlation/safe-correlation-summary.json`,
 SHA-256 `7b2a9139133742a290d650ec4a5fdc1e017f7dfe5d99a027287a626667aa18ab`.
+
+The runtime edge repair passes 187 owning CPU tests, including nine actual-loopback
+controls within 29 focused tests. Preserved prepatch tests fail on silent-stream
+and EOF recovery. Operator products explicitly opt into at most two same-source
+reconnects under five-second total handshake and admitted-picture deadlines;
+Recording's physical-camera handshake readiness and terminal transport-loss profile
+are preserved. Independent source review approves the operator recovery and
+physical-camera compatibility controls. Installed runtime publication,
+rollout and live-frame acceptance are pending. This source checkpoint does not
+close F59, A11, full-flight or capture-clock qualification. The private final receipt is
+`/tmp/veoveo-uav-rtsp-recovery-20261011/p2/receipt.json`, SHA-256
+`598c5dfb0dabd6af3c22522a06f896559629e2a33a83505dd33da4a6778f9566`.
 
 Node logs identify the repeated simulator download's cause: kubelet collects its
 unpinned image at 88 percent image-filesystem usage. The installation now keeps a

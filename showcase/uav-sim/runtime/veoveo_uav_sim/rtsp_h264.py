@@ -5,6 +5,7 @@ import logging
 import socket
 import struct
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import BinaryIO
@@ -22,6 +23,9 @@ _FU_A = 28
 _SEQUENCE_PARAMETER_SET = 7
 _PICTURE_PARAMETER_SET = 8
 _RTSP_PREPARE_ATTEMPTS = 6
+_RTSP_HANDSHAKE_SECONDS = 5.0
+_RTSP_PICTURE_SILENCE_SECONDS = 5.0
+_RTSP_RECONNECT_LIMIT = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,12 +249,17 @@ class _RtspSession:
         self._socket: socket.socket | None = None
         self._reader: BinaryIO | None = None
         self._cseq = 0
+        self._ownership = threading.Lock()
+        self._closed = False
+        self._deadline = 0.0
 
     def close(self) -> None:
-        sock = self._socket
-        reader = self._reader
-        self._socket = None
-        self._reader = None
+        with self._ownership:
+            self._closed = True
+            sock = self._socket
+            reader = self._reader
+            self._socket = None
+            self._reader = None
         if sock is not None:
             try:
                 sock.shutdown(socket.SHUT_RDWR)
@@ -260,13 +269,20 @@ class _RtspSession:
         if reader is not None:
             reader.close()
 
-    def connect(self) -> H264RtpDepacketizer:
+    def connect(self, deadline: float) -> H264RtpDepacketizer:
+        self._deadline = deadline
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("native RTSP handshake deadline expired")
         sock = socket.create_connection(
-            (self._endpoint.host, self._endpoint.port), timeout=5.0
+            (self._endpoint.host, self._endpoint.port), timeout=remaining
         )
-        sock.settimeout(None)
-        self._socket = sock
-        self._reader = sock.makefile("rb", buffering=0)
+        with self._ownership:
+            if self._closed:
+                sock.close()
+                raise RuntimeError("native RTSP session was retired during connection")
+            self._socket = sock
+            self._reader = sock.makefile("rb", buffering=0)
         self._request("OPTIONS", self._endpoint.uri)
         describe = self._request(
             "DESCRIBE",
@@ -291,22 +307,45 @@ class _RtspSession:
             picture_parameter_set=picture,
         )
 
-    def receive_interleaved(self) -> bytes:
+    def _read(self, length: int) -> bytes:
+        output = bytearray()
+        while len(output) < length:
+            remaining = self._deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("native RTSP read deadline expired")
+            sock, reader = self._socket, self._reader
+            if sock is None or reader is None:
+                raise EOFError("native RTSP session is closed")
+            sock.settimeout(remaining)
+            chunk = reader.read(length - len(output))
+            if not chunk:
+                raise EOFError("native RTSP stream closed")
+            output.extend(chunk)
+        return bytes(output)
+
+    def _line(self, limit: int) -> bytes:
+        result = bytearray()
+        while len(result) < limit:
+            result.extend(self._read(1))
+            if result[-1] == 10:
+                return bytes(result)
+        raise RuntimeError("native RTSP control line exceeds its bound")
+
+    def receive_interleaved(self, deadline: float) -> bytes:
+        self._deadline = deadline
         reader = self._reader
         if reader is None:
             raise RuntimeError("RTSP session is not connected")
-        marker = reader.read(1)
-        if not marker:
-            raise EOFError("native RTSP stream closed")
+        marker = self._read(1)
         if marker != b"$":
-            line = marker + reader.readline(512)
+            line = marker + self._line(512)
             raise RuntimeError(
                 "native RTSP stream sent an unexpected control message: "
                 + line.decode("ascii", "replace").strip()
             )
-        channel = _read_exact(reader, 1)[0]
-        length = struct.unpack("!H", _read_exact(reader, 2))[0]
-        payload = _read_exact(reader, length)
+        channel = self._read(1)[0]
+        length = struct.unpack("!H", self._read(2))[0]
+        payload = self._read(length)
         return payload if channel == 0 else b""
 
     def _request(
@@ -330,8 +369,12 @@ class _RtspSession:
             + "".join(f"{name}: {value}\r\n" for name, value in fields.items())
             + "\r\n"
         )
+        remaining = self._deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("native RTSP handshake deadline expired")
+        sock.settimeout(remaining)
         sock.sendall(request.encode("ascii"))
-        status_line = reader.readline(4_096)
+        status_line = self._line(4_096)
         if not status_line:
             raise EOFError(f"RTSP server closed during {method}")
         parts = status_line.decode("ascii", "replace").strip().split(" ", 2)
@@ -339,7 +382,7 @@ class _RtspSession:
             raise RuntimeError(f"invalid RTSP status line during {method}")
         response_headers: dict[str, str] = {}
         while True:
-            line = reader.readline(16_384)
+            line = self._line(16_384)
             if line in (b"\r\n", b"\n"):
                 break
             if not line:
@@ -349,7 +392,9 @@ class _RtspSession:
                 raise RuntimeError(f"invalid RTSP header during {method}")
             response_headers[name.strip().lower()] = value.strip()
         content_length = int(response_headers.get("content-length", "0"))
-        body = _read_exact(reader, content_length) if content_length else b""
+        if not 0 <= content_length <= 1024 * 1024:
+            raise RuntimeError("native RTSP control body exceeds its bound")
+        body = self._read(content_length) if content_length else b""
         response = _RtspResponse(int(parts[1]), response_headers, body)
         if response.status != 200:
             raise RtspResponseError(method, response.status)
@@ -357,24 +402,31 @@ class _RtspSession:
 
 
 class RtspH264Receiver:
-    """Receive one native RTSP/NVENC stream without decoding or re-encoding."""
+    """Receive native NVENC pictures; an invalidation callback opts into recovery.
+
+    Physical recording callers omit the callback so their pending pose/video pairing
+    queues cannot survive an unannounced transport replacement. Readiness means PLAY
+    succeeded, allowing those callers to enqueue render metadata before a picture.
+    """
 
     def __init__(
         self,
         endpoint: RtspEndpoint,
         on_access_unit: Callable[[NativeH264AccessUnit], None],
         on_error: Callable[[BaseException], None],
+        *,
+        on_transport_interrupted: Callable[[], None] | None = None,
     ) -> None:
         self._endpoint = endpoint
         self._on_access_unit = on_access_unit
         self._on_error = on_error
+        self._on_transport_interrupted = on_transport_interrupted
         self._stop = threading.Event()
         self._ready = threading.Event()
+        self._session_lock = threading.RLock()
         self._session = _RtspSession(endpoint)
         self._thread = threading.Thread(
-            target=self._run,
-            name="uav-native-sensor-rtsp",
-            daemon=True,
+            target=self._run, name="uav-native-sensor-rtsp", daemon=True,
         )
 
     @property
@@ -385,8 +437,10 @@ class RtspH264Receiver:
         self._thread.start()
 
     def close(self) -> None:
-        self._stop.set()
-        self._session.close()
+        with self._session_lock:
+            self._stop.set()
+            session = self._session
+        session.close()
         if self._thread.ident is not None:
             if threading.current_thread() is self._thread:
                 raise RuntimeError("native RTSP receiver retirement requires its owning thread")
@@ -394,50 +448,91 @@ class RtspH264Receiver:
             if self._thread.is_alive():
                 raise RuntimeError("native RTSP receiver did not retire within 5 seconds")
 
+    def _replace_session(self) -> bool:
+        with self._session_lock:
+            if self._stop.is_set():
+                return False
+            self._session = _RtspSession(self._endpoint)
+            return True
+
+    def _connect(self) -> H264RtpDepacketizer:
+        deadline = time.monotonic() + _RTSP_HANDSHAKE_SECONDS
+        for attempt in range(_RTSP_PREPARE_ATTEMPTS):
+            if self._stop.is_set():
+                raise EOFError("native RTSP receiver stopped")
+            try:
+                return self._session.connect(deadline)
+            except RtspResponseError as error:
+                if (error.method, error.status) != ("DESCRIBE", 503):
+                    raise
+                self._session.close()
+                if attempt == _RTSP_PREPARE_ATTEMPTS - 1:
+                    raise
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("native RTSP preparation deadline expired")
+                if self._stop.wait(min(0.5, remaining)) or not self._replace_session():
+                    raise EOFError("native RTSP receiver stopped")
+        raise RuntimeError("native RTSP preparation exhausted")
+
     def _run(self) -> None:
+        last_capture = None
+        reconnects = 0
         try:
-            for attempt in range(_RTSP_PREPARE_ATTEMPTS):
-                if self._stop.is_set():
-                    return
-                try:
-                    depacketizer = self._session.connect()
-                    break
-                except RtspResponseError as error:
-                    if (error.method, error.status) != ("DESCRIBE", 503):
-                        raise
-                    self._session.close()
-                    if attempt == _RTSP_PREPARE_ATTEMPTS - 1:
-                        raise
-                    if self._stop.wait(0.5):
-                        return
-                    self._session = _RtspSession(self._endpoint)
-            self._ready.set()
-            last_capture = None
             while not self._stop.is_set():
-                packet = self._session.receive_interleaved()
-                if not packet:
-                    continue
-                access_unit = depacketizer.push(parse_rtp_packet(packet))
-                if access_unit is not None:
-                    from .native_rtsp import capture_simulation_time
-                    capture = capture_simulation_time(access_unit.sample)
-                    if last_capture is not None and (
-                        capture.publish_sim_time_ns < last_capture.publish_sim_time_ns
-                        or capture.frame_num <= last_capture.frame_num
-                    ):
-                        raise RuntimeError("native capture clock changed generation without reconnect")
-                    if last_capture is None:
-                        logging.getLogger("veoveo.uav_sim.native_capture").info(
-                            "native capture admitted rtsp_port=%d sim_time_ns=%d "
-                            "frame_num=%d timestamp_ns=%d timestamp_iso8601=%s",
-                            self._endpoint.port, capture.publish_sim_time_ns,
-                            capture.frame_num, capture.timestamp, capture.timestamp_iso8601,
-                        )
-                    last_capture = capture
-                    self._on_access_unit(access_unit)
+                try:
+                    depacketizer = self._connect()
+                    with self._session_lock:
+                        if self._stop.is_set():
+                            return
+                        self._ready.set()
+                    picture_deadline = time.monotonic() + _RTSP_PICTURE_SILENCE_SECONDS
+                    while not self._stop.is_set():
+                        packet = self._session.receive_interleaved(picture_deadline)
+                        if not packet:
+                            continue
+                        access_unit = depacketizer.push(parse_rtp_packet(packet))
+                        if access_unit is None:
+                            continue
+                        from .native_rtsp import capture_simulation_time
+                        capture = capture_simulation_time(access_unit.sample)
+                        if last_capture is not None and (
+                            capture.publish_sim_time_ns < last_capture.publish_sim_time_ns
+                            or capture.frame_num <= last_capture.frame_num
+                        ):
+                            raise RuntimeError("native capture clock changed generation without reconnect")
+                        if last_capture is None:
+                            logging.getLogger("veoveo.uav_sim.native_capture").info(
+                                "native capture admitted rtsp_port=%d sim_time_ns=%d "
+                                "frame_num=%d timestamp_ns=%d timestamp_iso8601=%s",
+                                self._endpoint.port, capture.publish_sim_time_ns,
+                                capture.frame_num, capture.timestamp, capture.timestamp_iso8601,
+                            )
+                        with self._session_lock:
+                            if self._stop.is_set():
+                                return
+                            last_capture = capture
+                            self._on_access_unit(access_unit)
+                        picture_deadline = time.monotonic() + _RTSP_PICTURE_SILENCE_SECONDS
+                except (EOFError, TimeoutError, ConnectionResetError, BrokenPipeError):
+                    # Retire the old transport before admitting another same-writer session.
+                    self._session.close()
+                    with self._session_lock:
+                        self._ready.clear()
+                        if self._stop.is_set():
+                            return
+                        if self._on_transport_interrupted is None:
+                            raise
+                        self._on_transport_interrupted()
+                    if reconnects >= _RTSP_RECONNECT_LIMIT:
+                        raise RuntimeError("native RTSP transport recovery exhausted")
+                    reconnects += 1
+                    if not self._replace_session():
+                        return
         except BaseException as error:
-            if not self._stop.is_set():
-                self._on_error(error)
+            with self._session_lock:
+                if not self._stop.is_set():
+                    self._on_error(error)
         finally:
             self._session.close()
 

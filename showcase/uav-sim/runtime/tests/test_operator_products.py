@@ -169,6 +169,7 @@ class OperatorProductTests(unittest.TestCase):
         product._cleanup_lock = threading.Lock()
         product._cleanup_failure = None
         product._closed = False
+        product._transport_interrupted = False
         product._failure = None
         product._frames = deque([object()])
         product._camera_ids = ("follow",)
@@ -200,6 +201,7 @@ class OperatorProductTests(unittest.TestCase):
         product._cleanup_lock = threading.Lock()
         product._cleanup_failure = None
         product._closed = False
+        product._transport_interrupted = False
         product._failure = None
         product._frames = deque(maxlen=256)
         product._sequence = 0
@@ -217,6 +219,21 @@ class OperatorProductTests(unittest.TestCase):
         second = product.wait_for_frame("follow", first.sequence, 0.01)
         assert second is not None
         self.assertEqual(second.sequence, 2)
+        product._interrupt_transport()
+        self.assertEqual(len(product._frames), 0)
+        self.assertEqual(product._health.snapshot(content_ready=True)["lifecycle"], "failed")
+        with self.assertRaisesRegex(RuntimeError, "transport interrupted"):
+            product.wait_for_frame("follow", 0, 0.01)
+        product._on_access_unit(keyframe)
+        resumed = product.wait_for_frame("follow", 0, 0.01)
+        self.assertEqual(resumed.sequence, 3)
+        self.assertEqual(product._health.snapshot(content_ready=True)["lifecycle"], "ready")
+        product._record_failure(RuntimeError("terminal clock failure"))
+        product._interrupt_transport()
+        product._on_access_unit(keyframe)
+        with self.assertRaisesRegex(RuntimeError, "atlas failed"):
+            product.wait_for_frame("follow", 0, 0.01)
+
 
     def test_failed_receiver_retirement_blocks_next_writer_and_retries_owned_handle(self) -> None:
         product = OperatorCameraProduct.__new__(OperatorCameraProduct)
@@ -224,6 +241,7 @@ class OperatorProductTests(unittest.TestCase):
         product._cleanup_lock = threading.Lock()
         product._cleanup_failure = None
         product._closed = False
+        product._transport_interrupted = False
         product._frames = deque()
         product._receiver = Mock()
         product._receiver.close.side_effect = [RuntimeError("receiver still alive"), None]

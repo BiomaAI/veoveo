@@ -31,6 +31,7 @@ class OperatorProductHealth:
         if not 1 <= maximum_frame_age_ms <= 60_000:
             raise ValueError("operator-product maximum frame age must be 1-60000 ms")
         self._maximum_frame_age_seconds = maximum_frame_age_ms / 1_000.0
+        self._transport_interrupted = False
         self._active = False
         self._sequence = 0
         self._last_frame: OperatorFrameHealth | None = None
@@ -63,6 +64,7 @@ class OperatorProductHealth:
             if visible is None and self._last_frame is not None
             else visible
         )
+        self._transport_interrupted = False
         self._sequence += 1
         self._last_frame = OperatorFrameHealth(
             sequence=self._sequence,
@@ -70,6 +72,9 @@ class OperatorProductHealth:
             observed_at=_timestamp(),
             visible=retained_visibility,
         )
+
+    def interrupt_transport(self) -> None:
+        self._transport_interrupted = True
 
     def observe_source_to_render(self, latency_microseconds: int) -> None:
         if latency_microseconds < 0:
@@ -90,7 +95,7 @@ class OperatorProductHealth:
         now = time.monotonic() if monotonic_seconds is None else monotonic_seconds
         if not self._active:
             lifecycle = OperatorProductLifecycle.INACTIVE
-        elif self._failure_diagnostic is not None:
+        elif self._failure_diagnostic is not None or self._transport_interrupted:
             lifecycle = OperatorProductLifecycle.FAILED
         elif not content_ready:
             lifecycle = OperatorProductLifecycle.STARTING
@@ -117,6 +122,8 @@ class OperatorProductHealth:
                 result["visible"] = self._last_frame.visible
         if self._failure_diagnostic is not None:
             result["diagnostic"] = self._failure_diagnostic
+        elif self._transport_interrupted:
+            result["diagnostic"] = "operator camera transport interrupted"
         elif self._active and not content_ready:
             result["diagnostic"] = "streamed world is warming"
         elif lifecycle is OperatorProductLifecycle.FAILED and (

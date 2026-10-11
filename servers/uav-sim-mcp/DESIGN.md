@@ -724,6 +724,21 @@ The WebSocket handler gives each viewer its own cursor, begins at the newest
 decoder-reentrant keyframe, and advances without decoding or re-encoding. A slow viewer
 cannot block the render loop or another connection.
 
+The native receiver allows five seconds for each RTSP handshake and five seconds
+without an admitted picture. The operator product opts into recovery through its
+ring-invalidation callback. Physical recording receivers retain PLAY readiness and
+settle transport loss as a terminal failure, preserving pose/video queue correlation.
+For the operator product, transport EOF, timeout, reset, or broken pipe permits
+at most two same-source reconnects per product generation. It closes the old session
+before opening the next and keeps the writer, GPU product, and NVENC session intact.
+A reconnect discards the viewer ring and marks the product unavailable until a fresh
+SPS/PPS/IDR access unit carries admitted capture metadata. Delivery sequence numbers
+continue across reconnects, and the same writer's capture time cannot move backward
+or reuse a frame number. SDP, packet, metadata, and clock failures are terminal;
+transport-budget exhaustion also requires product retirement. Closing the product
+interrupts its socket and joins the receiver within five seconds, retaining ownership
+if retirement fails.
+
 The runtime timestamps the camera batch when the current authoritative entity snapshot becomes
 its USD camera poses. The corresponding Hydra drawable event closes that source-to-render
 interval without copying pixels to the CPU. The product retains the latest 256 samples and publishes their

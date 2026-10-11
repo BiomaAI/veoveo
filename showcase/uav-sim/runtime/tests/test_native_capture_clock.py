@@ -70,6 +70,7 @@ class NativeCaptureClockTests(unittest.TestCase):
         from veoveo_uav_sim.rtsp_h264 import RtspH264Receiver
         receiver = RtspH264Receiver.__new__(RtspH264Receiver)
         receiver._stop = threading.Event()
+        receiver._session_lock = threading.RLock()
         receiver._session = Mock()
         receiver._thread = Mock(ident=123)
         receiver._thread.is_alive.side_effect = [True, False]
@@ -84,6 +85,28 @@ class NativeCaptureClockTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "owning thread"):
                 receiver.close()
         self.assertEqual(retained.join.call_count, 2)
+
+    def test_physical_receiver_play_ready_precedes_picture_and_loss_is_terminal(self) -> None:
+        from unittest.mock import Mock, patch
+        from veoveo_uav_sim.rtsp_h264 import RtspEndpoint, RtspH264Receiver
+        failures = []
+        receiver = RtspH264Receiver(RtspEndpoint("127.0.0.1", 8554),
+                                    lambda _frame: self.fail("unexpected picture"), failures.append)
+        session = Mock()
+        receiver._session = session
+        def interrupted(*_args):
+            # Physical drawable callbacks may enqueue their matching pose now,
+            # before the first encoded picture is available.
+            self.assertTrue(receiver.ready)
+            raise EOFError("fixture transport closed")
+        session.receive_interleaved.side_effect = interrupted
+        with patch("veoveo_uav_sim.rtsp_h264._RtspSession") as replacement:
+            receiver._run()
+        replacement.assert_not_called()
+        session.connect.assert_called_once()
+        self.assertEqual(len(failures), 1)
+        self.assertIsInstance(failures[0], EOFError)
+        self.assertFalse(receiver.ready)
 
     def test_receiver_admits_pause_but_refuses_same_transport_clock_reset(self) -> None:
         import struct
@@ -103,7 +126,7 @@ class NativeCaptureClockTests(unittest.TestCase):
                 session.connect.return_value = H264RtpDepacketizer(
                     96, sequence_parameter_set=b"\x67\x01", picture_parameter_set=b"\x68\x02")
                 packets = iter((packet(1, 100, 1), packet(2, second_time, second_frame)))
-                def receive():
+                def receive(*_args):
                     try:
                         return next(packets)
                     except StopIteration:
