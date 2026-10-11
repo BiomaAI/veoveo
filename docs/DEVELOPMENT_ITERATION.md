@@ -188,8 +188,12 @@ cargo xtask image development-lock \
 ```
 
 Commit or otherwise submit `images.values.json` through the installation's ordinary
-GitOps repository. Do not patch a Deployment or reuse a mutable tag. The controller
-converges the desired state of the selected release. Compare the rendered candidate
+GitOps repository. Do not patch a Deployment or reuse a mutable tag for ordinary
+image rollouts. The separately scoped
+[coordinated module and catalog maintenance procedure](../examples/bioma/README.md#coordinated-module-and-catalog-maintenance)
+updates only admitted plan consumers under held controllers when concurrent Jobs
+and Deployments cannot preserve installation ordering. The controller converges
+the desired state of the selected release for ordinary rollouts. Compare the rendered candidate
 with live Deployment templates as well as Helm's saved manifest before reconciliation;
 live checksum drift can restart an otherwise unchanged workload. Include pending or
 expired preparation and publication Jobs in the admitted effects: Helm can recreate

@@ -256,6 +256,8 @@ policy and enabled module composition. Knowledge must keep one desired replica;
 Embedding and Speech must stay Ready. Computers remains stopped until its activation
 prerequisites are met.
 
+### Coordinated module and catalog maintenance
+
 After mounting the candidate bundle and matching public mirrors, publish the full
 catalog under the current prepared plan before triggering rollouts. Gateway
 startup checks the active database catalog hash against its mounted expected
@@ -278,8 +280,34 @@ preserving unresolved operations and retained writer fences. Ordinary chart
 reconciliation starts Deployments and publication Jobs concurrently and cannot enforce
 this order. Keep the tracked Veoveo and UAV HelmReleases suspended throughout the
 coordinated rollout.
-Release each reconciliation suspension only
-after its coordinated rollout checks pass. Selected native stopped-maintenance,
+Use the following selected-consumer procedure while those controllers are held:
+
+1. Bind the committed desired image locks, module plan and public bundle to the full
+   postrendered candidate. Compare it with the live objects and saved Helm manifest
+   before changes. Record the affected plan consumers, their immutable inputs and
+   the unchanged objects, paused replica counts and storage identities.
+2. Keep the root reconciliation and selected releases suspended. Run immutable
+   installation preparation, require every selected lane to succeed, then publish
+   with runtime authentication and verify the installed generation, composition,
+   credential revision and catalog. Metadata-only changes keep the current plan
+   under the conditions above.
+3. Update only the pre-admitted affected consumers, one at a time, with an ordinary
+   Kubernetes update or `kubectl patch --type=json --patch-file <patch.json>`.
+   Read each object freshly; require its UID, resourceVersion and old field values
+   as update preconditions. Set only the admitted immutable image, generation,
+   composition, plan checksum and ConfigMap references. Preserve paused replicas,
+   data and unchanged identities. Do not force server-side apply conflicts, clear
+   managedFields, rewrite whole Pod templates or restart unselected consumers.
+4. For active consumers, check Ready, probes and functional normal-OAuth reads
+   between updates; Gateway, Manager and Knowledge follow the order above. An
+   ambiguous preparation, publication or rollout stops dependent work. Retain the
+   observed identities and reconcile forward; never rewind a generation or repeat
+   an uncertain mutation blindly.
+5. Keep the chart source and committed locks as desired state. Re-render and
+   converge only after the coordinated checks qualify that state. Broader existing
+   reconciliation holds are not released automatically by this procedure.
+
+Selected native stopped-maintenance,
 terminal renewal and Host same-image restart cases pass under the stock profile. The
 [active plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md) records their current scope and
 the remaining native, distinct-image upgrade and installed qualification gates. The
