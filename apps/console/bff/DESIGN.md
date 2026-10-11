@@ -52,6 +52,20 @@ client-types` produces the schemas and browser types from these models.
 The contract enables schemars's `chrono04` adapter directly for its UTC timestamp
 fields, keeping their date-time schemas independent of runtime feature unification.
 
+App calls, resource reads and Task requests distinguish a definitive MCP error from
+an uncertain transport or host failure. HTTP 422 carries the private discriminated
+`{kind: "mcpProtocol", error: ErrorData}` envelope, using the maintained MCP
+code/message/opaque-data model. The client admits JSON bodies up to 2 MiB and
+forwards admitted errors through the App's standard JSON-RPC response. Authentication
+and CSRF refusals keep their existing 401/403 behavior. Malformed, oversized and
+nonprotocol failures use generic host messages. Session headers settle on either
+outcome, and this translation adds no request replay.
+
+The browser's typed protocol exception keeps opaque data outside its message and
+enumerable properties. Generic UI and logs report host messages or failure categories;
+only the requesting App receives the admitted protocol payload. Tool, resource and
+Task bridge seams share this forwarding rule.
+
 ## Routing And Configuration
 
 The typed configuration validates absolute HTTP(S) URLs without embedded credentials,

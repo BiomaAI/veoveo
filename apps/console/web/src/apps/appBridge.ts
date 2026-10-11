@@ -5,7 +5,7 @@ import type {
   ReadResourceResult,
   Transport,
 } from "./protocol.ts";
-import { INTERNAL_ERROR, INVALID_PARAMS, isJsonRpcRequest } from "./protocol.ts";
+import { INVALID_PARAMS, isJsonRpcRequest, appRequestError } from "./protocol.ts";
 
 const APPS_PROTOCOL_VERSION = "2026-01-26";
 
@@ -55,10 +55,12 @@ export class PostMessageTransport implements Transport {
   onmessage?: Transport["onmessage"];
   private started = false;
 
-  constructor(
-    private readonly eventTarget: Window,
-    private readonly eventSource?: Window,
-  ) {}
+  private readonly eventTarget: Window;
+  private readonly eventSource?: Window;
+  constructor(eventTarget: Window, eventSource?: Window) {
+    this.eventTarget = eventTarget;
+    this.eventSource = eventSource;
+  }
 
   private readonly receive = (event: MessageEvent<unknown>) => {
     if (this.eventSource && event.source !== this.eventSource) return;
@@ -105,12 +107,19 @@ export class AppBridge {
   private transport?: Transport;
   private readonly sizeListeners = new Set<(event: { height?: number; width?: number }) => void>();
 
+  private readonly hostInfo: { name: string; version: string };
+  private readonly hostCapabilities: Record<string, unknown>;
+  private readonly options: AppBridgeOptions;
   constructor(
     _client: null,
-    private readonly hostInfo: { name: string; version: string },
-    private readonly hostCapabilities: Record<string, unknown>,
-    private readonly options: AppBridgeOptions,
-  ) {}
+    hostInfo: { name: string; version: string },
+    hostCapabilities: Record<string, unknown>,
+    options: AppBridgeOptions,
+  ) {
+    this.hostInfo = hostInfo;
+    this.hostCapabilities = hostCapabilities;
+    this.options = options;
+  }
 
   addEventListener(
     event: "sizechange",
@@ -245,11 +254,7 @@ export class AppBridge {
           await this.reject(request.id, -32601, `unsupported MCP App method ${request.method}`);
       }
     } catch (error) {
-      await this.reject(
-        request.id,
-        INTERNAL_ERROR,
-        error instanceof Error ? error.message : String(error),
-      );
+      await this.transport?.send({jsonrpc:"2.0", id:request.id, error:appRequestError(error)});
     }
   }
 }

@@ -9,6 +9,7 @@
 import { AppBridge as McpAppBridge, PostMessageTransport } from "./appBridge.ts";
 import {
   INTERNAL_ERROR,
+  appRequestError,
   INVALID_PARAMS,
   isJsonRpcRequest,
   type CallToolResult,
@@ -148,10 +149,7 @@ function interceptTaskRequests(inner: Transport, app: AppDescriptor): Transport 
           inner.send({
             jsonrpc: "2.0",
             id: message.id,
-            error: {
-              code: INTERNAL_ERROR,
-              message: error instanceof Error ? error.message : String(error),
-            },
+            error: appRequestError(error),
           })
       )
       .catch((error: unknown) => console.error("MCP App task reply failed", error));

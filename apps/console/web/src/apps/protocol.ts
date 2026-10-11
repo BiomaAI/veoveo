@@ -1,3 +1,4 @@
+import { isJSONRPCErrorResponse } from "@modelcontextprotocol/client";
 import type {
   CallToolResult,
   JSONRPCMessage,
@@ -85,3 +86,69 @@ export interface AppTransport extends Transport {
 }
 
 export { type ReadResourceResult as AppReadResourceResult };
+
+// The HTTP edge carries the SDK's standard error unchanged only for a definitive
+// protocol response. Host errors and transport uncertainty do not use this class.
+export type AppProtocolErrorData = import("@modelcontextprotocol/client").JSONRPCErrorResponse["error"];
+export class AppProtocolError extends Error {
+  readonly #protocolError: AppProtocolErrorData;
+  constructor(error: AppProtocolErrorData) {
+    super("The MCP server refused this request.");
+    this.name = "AppProtocolError";
+    this.#protocolError = error;
+  }
+  get protocolError(): AppProtocolErrorData { return this.#protocolError; }
+}
+
+export function appRequestError(error: unknown): AppProtocolErrorData {
+  return error instanceof AppProtocolError
+    ? error.protocolError
+    : { code: INTERNAL_ERROR, message: "The App host could not complete this request." };
+}
+
+export function admitAppProtocolFailure(value: unknown): AppProtocolError | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return;
+  const envelope = value as Record<string, unknown>;
+  if (envelope.kind !== "mcpProtocol" || Object.keys(envelope).some(key => key !== "kind" && key !== "error")) return;
+  if (typeof envelope.error !== "object" || envelope.error === null || Array.isArray(envelope.error)) return;
+  if (!isJSONRPCErrorResponse({jsonrpc: "2.0", id: 0, error: envelope.error})) return;
+  const error = envelope.error as AppProtocolErrorData;
+  if (!Number.isSafeInteger(error.code) || error.code < -2147483648 || error.code > 2147483647 || typeof error.message !== "string" ||
+      Object.keys(error).some(key => key !== "code" && key !== "message" && key !== "data")) return;
+  return new AppProtocolError(error);
+}
+
+async function boundedAppFailure(response: Response): Promise<unknown> {
+  const cap = 2 * 1024 * 1024;
+  if (response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() !== "application/json" || !response.body) {
+    try { await response.body?.cancel(); } catch { /* Invalid error body remains generic. */ }
+    return undefined;
+  }
+  const length = response.headers.get("content-length");
+  if (length !== null && (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > cap)) {
+    try { await response.body.cancel(); } catch { /* Invalid error body remains generic. */ }
+    return undefined;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      total += next.value.byteLength;
+      if (total > cap) { await reader.cancel(); return undefined; }
+      chunks.push(next.value);
+    }
+    const body = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder("utf-8", {fatal:true}).decode(body));
+  } catch { return undefined; }
+  finally { reader.releaseLock(); }
+}
+
+export async function readAppProtocolFailure(response: Response): Promise<AppProtocolError | undefined> {
+  if (response.status !== 422) return undefined;
+  return admitAppProtocolFailure(await boundedAppFailure(response));
+}

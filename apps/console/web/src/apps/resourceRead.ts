@@ -1,5 +1,5 @@
 import {
-  INTERNAL_ERROR,
+  appRequestError,
   INVALID_PARAMS,
   isJsonRpcRequest,
   type ReadResourceResult,
@@ -75,11 +75,7 @@ export function interceptResourceReadRequests(
       .then(
         (result) => reply(message.id, result),
         (error: unknown) =>
-          reject(
-            message.id,
-            INTERNAL_ERROR,
-            error instanceof Error ? error.message : String(error),
-          ),
+          inner.send({jsonrpc:"2.0", id:message.id, error:appRequestError(error)}),
       )
       .catch(report);
   };

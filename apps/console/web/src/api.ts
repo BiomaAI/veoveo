@@ -1,3 +1,4 @@
+import { readAppProtocolFailure } from "./apps/protocol.ts";
 import { recordingPlaybackValue } from "./recordingPlayback";
 import type { AgentWakeReceipt as AgentWakeReceiptWire } from "./generated/agent-control";
 import type { ArtifactAccessRequest as ArtifactAccessRequestWire, ArtifactAccessRequestPage as ArtifactAccessRequestPageWire } from "./generated/artifact-transfer";
@@ -109,9 +110,18 @@ export async function consoleMutation<T>(path: string, init: RequestInit): Promi
     throw new Error(forbiddenMessage("make this change"));
   }
   if (!response.ok) {
+    // Protocol replies are accepted only from this typed App route/status/content profile.
+    if (path.replace(/^\/+/, "").startsWith("apps/") && response.status === 422) {
+      const rotatedToken = response.headers.get("x-veoveo-csrf-token");
+      if (rotatedToken) browserSession.csrfToken = rotatedToken;
+      const protocol = await readAppProtocolFailure(response);
+      if (protocol) throw protocol;
+      throw new Error(httpErrorMessage(response.status, {action:"complete this App request"}));
+    }
     let detail: string | undefined;
     try {
-      detail = ((await response.json()) as { error?: string }).error;
+      const value: unknown = await response.json();
+      if (typeof value === "object" && value !== null && "error" in value && typeof value.error === "string") detail = value.error;
     } catch {
       detail = undefined;
     }

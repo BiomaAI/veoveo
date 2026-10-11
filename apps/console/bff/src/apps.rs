@@ -1,3 +1,5 @@
+mod error;
+
 use veoveo_gateway_contract::{
     APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY, AppResourceDependency,
     AppResourceOperation, AppToolDependency,
@@ -318,7 +320,10 @@ pub(crate) async fn list_apps(
     let catalog = match result {
         Ok(listing) => listing,
         Err(error) => {
-            tracing::error!(%error, "console apps listing failed");
+            tracing::error!(
+                error_category = error::category(&error),
+                "console apps listing failed"
+            );
             return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
         }
     };
@@ -442,7 +447,10 @@ pub(crate) async fn standalone_app_bootstrap(
     let catalog = match result {
         Ok(catalog) => catalog,
         Err(error) => {
-            tracing::error!(%error, "standalone App bootstrap catalog failed");
+            tracing::error!(
+                error_category = error::category(&error),
+                "standalone App bootstrap catalog failed"
+            );
             return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
         }
     };
@@ -495,7 +503,10 @@ pub(crate) async fn app_frame(
     let (resource, result) = match read {
         Ok(result) => result,
         Err(error) => {
-            tracing::warn!(%error, uri = %query.uri, "console app frame read failed");
+            tracing::warn!(
+                error_category = error::category(&error),
+                "console app frame read failed"
+            );
             return with_session_headers(StatusCode::NOT_FOUND.into_response(), response_headers);
         }
     };
@@ -689,10 +700,7 @@ pub(crate) async fn read_app_resource(
         }
         Err(error) => {
             return with_session_headers(
-                call_error(
-                    StatusCode::BAD_GATEWAY,
-                    &format!("resource read failed: {error}"),
-                ),
+                error::service_error(error, "resource read failed"),
                 response_headers,
             );
         }
@@ -789,7 +797,10 @@ pub(crate) async fn app_resource_events(
     let catalog = match result {
         Ok(catalog) => catalog,
         Err(error) => {
-            tracing::error!(%error, "console App resource subscription catalog failed");
+            tracing::error!(
+                error_category = error::category(&error),
+                "console App resource subscription catalog failed"
+            );
             return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
         }
     };
@@ -862,7 +873,7 @@ pub(crate) async fn app_resource_events(
                     }
                     error => error,
                 };
-                tracing::error!(%error, uri = %subscription.uri, "console App resource subscription batch failed");
+                error::log_subscription_failure(&error);
                 return with_session_headers(
                     call_error(StatusCode::BAD_GATEWAY, "resource subscription failed"),
                     response_headers,
@@ -968,7 +979,10 @@ pub(crate) async fn unsubscribe_app_resource(
         Err(response) => return *response,
     };
     if let Err(error) = result {
-        tracing::error!(%error, "console App unsubscribe catalog failed");
+        tracing::error!(
+            error_category = error::category(&error),
+            "console App unsubscribe catalog failed"
+        );
         return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
     }
     let response = match client.unsubscribe_resource(request.subscription_id).await {
@@ -1099,7 +1113,10 @@ pub(crate) async fn call_app_tool(
     let catalog = match listing {
         Ok(catalog) => catalog,
         Err(error) => {
-            tracing::error!(%error, "console apps tool listing failed");
+            tracing::error!(
+                error_category = error::category(&error),
+                "console apps tool listing failed"
+            );
             return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
         }
     };
@@ -1185,10 +1202,7 @@ pub(crate) async fn call_app_tool(
         }
         Err(error) => {
             return with_session_headers(
-                call_error(
-                    StatusCode::BAD_GATEWAY,
-                    &format!("tool call failed: {error}"),
-                ),
+                error::service_error(error, "tool call failed"),
                 response_headers,
             );
         }
@@ -1270,10 +1284,7 @@ pub(crate) async fn get_app_task(
             StatusCode::BAD_GATEWAY,
             "task get returned an unexpected result",
         ),
-        Err(error) => call_error(
-            StatusCode::BAD_GATEWAY,
-            &format!("task get failed: {error}"),
-        ),
+        Err(error) => error::service_error(error, "task get failed"),
     };
     with_session_headers(response, response_headers)
 }
@@ -1307,10 +1318,7 @@ pub(crate) async fn cancel_app_task(
             &serde_json::json!({ "resultType": "complete" }),
             "task acknowledgement exceeds the cap",
         ),
-        Err(error) => call_error(
-            StatusCode::BAD_GATEWAY,
-            &format!("task cancel failed: {error}"),
-        ),
+        Err(error) => error::service_error(error, "task cancel failed"),
     };
     with_session_headers(response, response_headers)
 }
@@ -1351,10 +1359,7 @@ pub(crate) async fn update_app_task(
             &serde_json::json!({ "resultType": "complete" }),
             "task acknowledgement exceeds the cap",
         ),
-        Err(error) => call_error(
-            StatusCode::BAD_GATEWAY,
-            &format!("task update failed: {error}"),
-        ),
+        Err(error) => error::service_error(error, "task update failed"),
     };
     with_session_headers(response, response_headers)
 }

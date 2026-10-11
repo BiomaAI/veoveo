@@ -1797,6 +1797,7 @@ dispatch preflights and budgeted execution.
 | `artifact_upload.rs` | shared Console/Workspace cookie and CSRF-protected upload proxy; the selected browser application fixes the authenticated profile |
 | `recording_playback.rs` | authenticated playback-manifest and framed live-stream pass-through; no archive bytes or BFF session store |
 | `apps.rs`, `mcp_client.rs`, `workspace/apps.rs` | MCP Apps host backend: per-auth client pool, public gateway Host preservation, failure-isolated App catalog, standalone descriptors, sandboxed frames, declared agent-message targets, allowlisted tool calls, resource reads, listener/subscription admission, cancellation on token replacement, and one multiplexed resource-wake stream per App |
+| `apps/error.rs` | size-limited standard MCP protocol failures for App HTTP callers, separate from transport and host failures |
 | `config.rs`, `viewer_config.rs` | validated public/gateway/OAuth-resource/MCP-transport and embedded-map configuration, profile binding, redacted provider credentials, and the authenticated no-store Rerun map configuration |
 | `outbound_http.rs` | additive installation CA trust shared by Console HTTP, streaming, live, MCP, and Kubernetes clients |
 
@@ -1809,6 +1810,7 @@ dispatch preflights and budgeted execution.
 | `csrf.ts` | ephemeral CSRF state shared by JSON and raw-body upload transports |
 | `browserApp.ts`, `browserHttp.ts`, `artifactUrls.ts` | Console/Workspace entrypoint selection, shared cookie/CSRF transport and fixed file URLs; shared capability components do not choose their own profile |
 | `appHost.tsx`, `StandaloneAppHost.tsx`, `standaloneBootstrap.ts` | minimal standalone App entry, authorized same-path bootstrap, shared OAuth/CSRF settlement, authorized title, and Console return link |
+| `apps/protocol.ts`, `api.ts`, `apps/appBridge.ts`, `apps/resourceRead.ts`, `apps/bridge.ts` | standard MCP error admission and forwarding across App HTTP, tool, resource and Task transports; domain error data stays opaque to the Console |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
 | `recordingPlayback.ts`, `api.ts` | generated-schema admission, selected Recording, archive and lifecycle checks, and manifest timestamp ordering before playback enters the view or renderer |
 | `chronoTimestamp.ts` | shared browser Chrono scalar admission preserves original spelling, Gregorian calendar validity, UTC range, nanoseconds and leap-second ordering for Recording playback and Artifact uploads |
