@@ -34,6 +34,18 @@ agent-directed mission and Recording playback gates. The local delivery receipt 
 `output/development/uav-flight-20261010-fullfleet-01/video-delivery-receipt.json`,
 SHA-256 `f8bcb9621b40a79935dba4fdb125ddfd9369a0633b2ecc537f842c6e710214fa`.
 
+The signed-in normal-OAuth Console Live Cameras check passes headed RTX 4090
+WebGL hardware admission; WebGPU returns null. The App lists five cameras but
+shows no live frames, with repeated HTTP 502 responses at `/console/api/apps/call`
+and generic readiness text. Read-only logs from 00:19:30–00:20:10 UTC on October 11
+contain thirty UAV MCP `-32600 Invalid Request` warnings matching thirty BFF 502
+observations. The runtime is Ready and has no error lines in that window. This is
+correlation: request/response bodies, request IDs and the exact tool are missing,
+so the cause is not established. Live playback remains unqualified; the saved
+videos remain accepted and published. The private safe correlation summary is
+`/tmp/veoveo-uav-console-live-check-20261011/correlation/safe-correlation-summary.json`,
+SHA-256 `7b2a9139133742a290d650ec4a5fdc1e017f7dfe5d99a027287a626667aa18ab`.
+
 Node logs identify the repeated simulator download's cause: kubelet collects its
 unpinned image at 88 percent image-filesystem usage. The installation now keeps a
 native K3s digest list on the retained node volume and local tag aliases for the

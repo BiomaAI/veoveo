@@ -27,7 +27,9 @@ delivers a 29.95-second five-camera MP4 with 442 native NVENC frames and
 14.76 average fps. Headed RTX 4090-backed playback passes, and the owner accepts
 the video quality. A fresh authenticated state read returns 200 with all four
 vehicles flying. Individual visibility of all four in the video and composed-flight
-acceptance remain unqualified. K3s successfully imports the retained digest list
+acceptance remain unqualified. The signed-in normal-OAuth Console Live Cameras
+check fails at `/console/api/apps/call` with HTTP 502 and establishes no live-video
+acceptance; the saved videos remain accepted and published. K3s successfully imports the retained digest list
 through local tag aliases; all three selected images report CRI `pinned: true`.
 The persistent node configuration protects the cache when workloads stop. Both
 images at `3da4c8446` pass staging, release digest agreement, attestations and
