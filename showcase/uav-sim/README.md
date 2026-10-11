@@ -334,7 +334,11 @@ The chart requires:
 - expiring stream credentials with transparent renewal, without a viewer lease pool,
   camera-selection limit, or viewer quota;
 - a leader identity and bounded recording cadence and queue;
-- platform database and recording-forwarder credentials;
+- the Gateway-generated `moduleInstallation.planJson` shared with the platform chart,
+  with completed installation preparation for the UAV lane and its dependencies
+  (see [module preparation](deploy/helm/DESIGN.md#module-preparation));
+- a database-authenticated runtime account matching that preparation, plus
+  recording-forwarder credentials;
 - `nvidia.com/gpu: 1`, the NVIDIA runtime class, and driver capabilities
   `compute,graphics,utility,video`;
 - digest-pinned images in production.

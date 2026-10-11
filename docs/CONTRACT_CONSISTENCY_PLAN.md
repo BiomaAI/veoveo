@@ -88,6 +88,14 @@ drain memory-only UAV issuers before replacement. The current UAV startup batch
 admits the typed plan and runtime account before recovery or viewer effects. Its
 independent chart supplies an immutable copy of the same generated plan used by
 the platform chart; the simulator and forwarder Pod template is unchanged.
+Development-only Gateway `853d2879f40d`, UAV MCP `b919f9c91f7b` and UAV chart
+`83dc3e9f2765` are published from `3f3213b25` with registry manifest readback.
+The generation-three candidate uses that exact Gateway image, keeps nineteen lanes
+and credential revision `bioma-runtime-1`, and advances only UAV to lane 1.
+Gateway `0711` at generation two and UAV MCP `3413582e` still run; the candidate is
+not installed or release-eligible. Publication receipt:
+`/tmp/veoveo-uav-gen3-publication-20261011/final-receipt.json`, SHA-256
+`f23c987d73f249aa806e8376457de9c860895efe8237c015e8ae10cb4fde1c1e`.
 The nineteen startup and viewer controls pass. The focused Helm control proves
 plan-byte binding, invalid-plan rejection and simulator-template isolation;
 compiler and strict checks pass. Six of seven selected xtask controls pass. The
