@@ -44,13 +44,14 @@ Coordinated runtime cleanup and shutdown diagnostics have two-image development
 stages at `95cc4a71`; their native controls and review pass, while final release
 qualification stays open. Helm revision 11 installs chart `917bc842` with a
 120-second GPU Pod grace. Runtime `2c084202` and forwarder `cb0f783f` are Ready;
-MCP `dd01f57f` and Console BFF `95af9c89` are deployed from the non-release
-development stage at `d2b763a5`. The selected rollout passes readiness,
-authenticated Console hosts and a normal-OAuth typed UAV state read. Only these
-two image fields changed across 27 Deployments. The simulator Pod stayed running,
-all eleven PVC identities are unchanged, and twelve current and recovery image
-references are pinned. Both releases and root reconciliation stay suspended;
-their selected values preserve the installed charts and other configuration.
+MCP `3413582e` is deployed from the non-release development stage at `8d7d5155`;
+Console BFF `95af9c89` keeps its stage at `d2b763a5`. The latest MCP-only rollout
+reaches Ready and changes one image field across 27 Deployments. The simulator and
+BFF Pods stay unchanged, all eleven PVC identities are preserved, and thirteen
+current and recovery image references are pinned. The selected values use an
+immutable UAV ConfigMap and preserve the installed charts and other configuration.
+Both releases and root reconciliation stay suspended. Earlier authenticated
+Console hosts and normal-OAuth typed UAV reads keep their recorded scope.
 
 The prior verifier at `36b2269b7` passes installed MCP-only restart isolation,
 headed hardware graphics and fresh-authorization video continuity. Its paired
@@ -62,12 +63,17 @@ native controls and records received terminal outcomes under the original
 lifecycle deadline; member exit and grace limits stay unchanged. UAV's four
 non-admission controls, the App's twenty-three behavioral controls, the browser's
 stage journal and Console's typed error delivery pass their focused checks and
-review. The current installed attempt stops before any restart when the App tries
-to remove Formation's view before it has mounted. Its public teardown and test-tab
+review. The prior installed attempt stops before restart when the App tries to
+remove Formation's view before it has mounted; its public teardown and test-tab
 closure succeed. The captured-view removal fix passes App tests, type checking,
-asset generation, the native server build and review. Replacement MCP `3413582e`
-has a non-release development stage and registry readback at `8d7d5155`.
-Its rollout and repeated restart qualification are pending.
+asset generation, the native server build and review, and MCP `3413582e` includes it.
+The single maintained repeat at `d3c65d52f` restarts MCP, which becomes Ready, but
+the App fails to recover before its original 600-second deadline. Cleanup retains
+an unresolved authorization. The runtime/forwarder stage is not reached. Temporary
+Console API 503 responses followed by 200 responses do not identify the blocked
+operation; correlated bodies and final App error were not captured. Source review
+finds a missing automatic close retry and process-local authorization loss, but
+neither is established as this attempt's cause. Restart qualification stays open.
 Restart continuity is separate from the unchanged strict throughput limits. Paired shutdown,
 repeated GPU reset, induced RTSP stall recovery, capture-clock and full composed
 flight qualification remain open. F59/A11 stay open.
@@ -614,17 +620,24 @@ retained. The source observer now journals received physical outcomes separately
 from qualified exits and passes 18 focused native controls without extending
 member exit or grace limits. UAV's generated non-admission contract passes its
 four native controls. The App's 23 behavioral controls, reviewed browser ownership
-controls and Console error delivery controls pass. MCP `dd01f57f` and Console BFF
-`95af9c89` are development-staged at `d2b763a5` with registry readback and deployed
-through the selected-consumer procedure. Readiness, authenticated Console hosts
-and a normal-OAuth typed UAV read pass. The two immutable values clones change only
-their selected digest; both chart references and release holds are preserved.
-All eleven PVC identities and unselected workloads are unchanged; twelve image
-references are pinned. The current installed attempt hits a not-yet-mounted view
-removal error before restart; public teardown and tab cleanup succeed. The captured
-view removal fix passes its App checks, native server build and review; replacement
-MCP `3413582e` is development-staged at `8d7d5155` with registry readback. Its rollout
-and repeated qualification are pending. Graceful
+controls and Console error delivery controls pass. Console BFF `95af9c89` keeps its
+development stage at `d2b763a5`; MCP `3413582e` has stage and registry readback at
+`8d7d5155`. The captured-view removal fix passes its App checks, native server build
+and review. Its MCP-only selected-consumer rollout reaches Ready and changes one
+image field across 27 Deployments. The new UAV values ConfigMap is immutable;
+both chart references and release holds are preserved. All eleven PVC identities,
+the simulator and BFF Pods, and unselected workloads are unchanged; thirteen image
+references are pinned. Earlier readiness, authenticated Console hosts and a
+normal-OAuth typed UAV read keep their recorded scope.
+The prior attempt's not-yet-mounted view error occurs before restart and its
+public teardown and tab cleanup succeed. The single maintained repeat at
+`d3c65d52f` restarts MCP successfully but fails App recovery at the original
+600-second capture deadline. Its cleanup retains an unresolved authorization;
+the runtime/forwarder stage is not reached. Correlated request bodies and final App
+error are unavailable, so temporary 503 responses and later 200 responses do not
+establish a root cause. Investigate automatic retry of an acknowledged
+authorization's close and settlement after its issuing MCP process exits. Generic
+not-found cannot prove release across overlapping issuers. Graceful
 retirement and strict throughput stay unqualified. Keep selected and prior UAV
 images pinned for rollback.
 Node restart, forced image collection, longer render stalls, turning flight and
