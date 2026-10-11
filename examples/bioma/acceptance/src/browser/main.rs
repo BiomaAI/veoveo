@@ -356,6 +356,7 @@ async fn main() -> Result<()> {
 async fn execute() -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     match Args::parse().command {
+        SmokeCommand::UavCameraMeasure(args) => browser::camera_measure::run(args).await,
         SmokeCommand::WorkspaceMarkdownVerify {
             installation,
             chrome_cdp_url,

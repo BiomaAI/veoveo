@@ -1284,6 +1284,28 @@ This command creates a Map route Task at the scenario's takeoff altitude. It req
 the operator credentials and Map, and issues no flight commands. Full acceptance
 rechecks admission before taking control of a vehicle.
 
+Measure live camera capacity separately from flight acceptance:
+
+~~~bash
+cargo xtask smoke uav-camera-measure \
+  --installation examples/bioma/installation-target.json \
+  --camera-count 1 --sample-seconds 120 \
+  --evidence-root output/acceptance/uav-camera-one
+~~~
+
+An operator first selects one, two or five continuous cameras in the simulator's
+startup configuration and restarts that workload. The command checks the actual
+atlas regions and measures the follow canvas; selecting fewer browser tiles does
+not reduce the rendered camera set. Run each profile with matching `--camera-count`
+and a separate output directory, then restore the original camera configuration.
+`--all-canvases` adds a second sample window using every active tile from the same
+decoded product. The report records native frame-rate bounds, browser callbacks
+and simulation timing without an FPS acceptance floor.
+
+The sampler uses normal OAuth and the existing headed hardware browser at its
+configured CDP endpoint. Software H.264 decoding is accepted without user browser
+configuration. Server rendering, atlas composition and encoding require the GPU.
+
 With the UAV camera and Stream service running, qualify live inference separately:
 
 ~~~bash

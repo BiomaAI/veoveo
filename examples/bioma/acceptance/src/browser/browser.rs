@@ -15,6 +15,8 @@ use recording_acceptance::{
     analyze_rerun_camera_frame, analyze_rerun_camera_render, analyze_rerun_render,
 };
 use veoveo_browser_smoke::*;
+#[path = "browser/camera_measure.rs"]
+pub mod camera_measure;
 
 #[path = "browser/frame_content.rs"]
 mod frame_content;

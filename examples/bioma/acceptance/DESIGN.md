@@ -45,6 +45,7 @@
 | View process interruption | Docker Engine HTTP API 1.44 subset over the fixture's active local Unix socket; version and owned-container inspection precede one STOP signal, followed by durable claim admission and the existing restart checks |
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v2` JSON receipt with the output file SHA-256 |
 | Evidence | `veoveo.ai/uav-showcase-acceptance-evidence/v6` JSON and revision-qualified captures; `veoveo.ai/uav-showcase-phase-outcomes/v3` records domain and visual outcomes and preserves successful visual measurements even when the domain phase fails; both mark Reason `not_run` because its acceptance runs separately |
+| UAV camera capacity | Private `veoveo.ai/uav-camera-capacity/v1` measurement and `veoveo.ai/uav-camera-capacity-diagnostic/v1` attempt JSON; owner-typed counters, browser video counters paired with `performance.now()`, Kit CPU timing and redacted failures |
 | Focused restart stages | `veoveo.ai/uav-live-view-restart-stage/v1` records each accepted container restart and its headed hardware browser observations before the next restart begins |
 
 Browser upload, UX and resume reports use their current `/v2` tags and share one
@@ -979,6 +980,25 @@ watch gap, identity mismatch or incomplete restoration preserves failure and par
 facts in the private journal and ownership lease. This profile establishes completed
 state readback on another backend; unfinished recovery and later mutation updates
 require separate qualification.
+
+## UAV Camera Capacity Measurement
+
+`uav-camera-measure` uses the existing `installation-browser-smoke` executable and
+normal OAuth through the conformance CLI. Ops selects the startup continuous-camera
+set of one, two or five cameras before running the command. The sampler measures
+the follow canvas for 120 seconds by default and can add an all-canvas window. It
+pairs browser counters with `performance.now()` and compares owner-typed atlas and
+RTSP-admitted frame counters over their corresponding sample intervals. Kit CPU
+timing is a separate observation. The new private `veoveo.ai/uav-camera-capacity/v1`
+report records these measurements and cleanup outcomes without imposing an FPS
+floor. Headed hardware graphics and server GPU/NVENC remain prerequisites; the
+normal software H.264 client profile is permitted when its exact configuration is
+supported and smooth, without user browser configuration. Before startup, the
+sampler creates a 0700 attempt directory and a 0600 diagnostic journal. It records
+the observation failure separately from cleanup failure and preserves both after
+owner cleanup. Error chains and browser network diagnostics use bounded redaction
+before persistence. The command does not change the runtime camera profile or
+establish a benchmark result merely by being registered.
 
 ## Installed Agent Manager Journey
 

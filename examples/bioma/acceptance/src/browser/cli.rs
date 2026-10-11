@@ -18,6 +18,8 @@ pub struct Args {
 // browser binary; the shared prefix is part of the CLI rather than Rust type noise.
 #[allow(clippy::enum_variant_names)]
 pub enum SmokeCommand {
+    /// Measure the Ops-selected rendered-camera profile without acceptance FPS thresholds.
+    UavCameraMeasure(CameraMeasureArgs),
     /// Upload Markdown in Workspace and verify its governed download and restored receipt.
     WorkspaceMarkdownVerify {
         #[arg(long)]
@@ -261,4 +263,27 @@ mod tests {
         }
         assert!(Args::try_parse_from(["browser-smoke", "map-workspace-browser-verify"]).is_ok());
     }
+}
+
+#[derive(Debug, clap::Args)]
+pub struct CameraMeasureArgs {
+    #[arg(long)]
+    pub installation: PathBuf,
+    #[arg(long)]
+    pub conformance_bin: Option<PathBuf>,
+    #[arg(long, default_value = "http://127.0.0.1:9222")]
+    pub chrome_cdp_url: String,
+    #[arg(long, default_value = "uav-showcase")]
+    pub session: String,
+    #[arg(long, value_parser = clap::value_parser!(u8).range(1..=5))]
+    pub camera_count: u8,
+    #[arg(long, default_value_t = 120, value_parser = clap::value_parser!(u64).range(5..=300))]
+    pub sample_seconds: u64,
+    #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u64).range(0..=60))]
+    pub warmup_seconds: u64,
+    /// Measure a second window with all active canvases on the same product.
+    #[arg(long)]
+    pub all_canvases: bool,
+    #[arg(long, default_value = "output/acceptance/uav-camera-measure")]
+    pub evidence_root: PathBuf,
 }

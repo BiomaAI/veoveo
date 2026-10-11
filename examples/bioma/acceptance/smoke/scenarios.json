@@ -3595,6 +3595,63 @@
       "cleanupSeconds": 180
     },
     {
+      "id": "uav-camera-measure",
+      "description": "Measure the selected startup-owned one, two or five UAV camera views in a headed hardware browser without an FPS acceptance floor.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "examples/bioma/acceptance",
+          "package": "veoveo-bioma-acceptance",
+          "target": "installation-browser-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "uav-camera-measure"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "mcp/conformance",
+            "package": "veoveo-mcp-conformance",
+            "target": "conformance",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": true,
+        "headedGraphics": true,
+        "explanation": "Requires an admitted installation, normal OAuth caller, existing selected camera profile and headed hardware Chrome CDP. Supply --camera-count 1, 2 or 5; the command measures and does not alter the runtime profile."
+      },
+      "deadlineSeconds": 900,
+      "cleanupSeconds": 30
+    },
+    {
       "id": "uav-showcase-live-restart-verify",
       "description": "Keep a headed live view mounted while restarting the MCP and simulator containers.",
       "target": {
