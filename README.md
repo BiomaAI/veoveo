@@ -274,41 +274,35 @@ described in [Connect robots and simulators](#connect-robots-and-simulators).
 
 ### UAV flight in Isaac Sim
 
-An operator sends one plain-language message to a pilot agent:
+<p align="center">
+  <a href="showcase/uav-sim/assets/uav-multiview-flight.mp4">
+    <img src="showcase/uav-sim/assets/uav-multiview-flight.png" width="640" alt="Five-view UAV flight camera atlas in Isaac Sim">
+  </a>
+</p>
+
+[Watch the five-view flight atlas](showcase/uav-sim/assets/uav-multiview-flight.mp4):
+29.95 seconds of shared H.264 video at 14.76 fps.
+
+<p align="center">
+  <a href="showcase/uav-sim/assets/uav-follow-flight.mp4">
+    <img src="showcase/uav-sim/assets/uav-follow-flight.png" width="640" alt="Single-camera UAV follow flight in Isaac Sim">
+  </a>
+</p>
+
+[Watch the single-camera follow flight](showcase/uav-sim/assets/uav-follow-flight.mp4):
+149.98 seconds at 24.01 fps. These flight captures show the simulator's camera views.
+
+The separate agent-directed mission starts with an operator message to a pilot agent:
 
 > Fly uav-1 to Times Square now. Read your active UAV control grant, ask Map MCP to
 > resolve and route this named location from current telemetry, then use UAV MCP to admit
 > and execute the mission only for your bound vehicle. Report the terminal result.
 
-<p align="center">
-  <a href="showcase/uav-sim/assets/uav-e2e-001-flight-timelapse.mp4">
-    <img src="showcase/uav-sim/assets/uav-e2e-001-flight-timelapse.gif" width="640" alt="Recorded downward camera view from uav-1 crossing New York during its mission from the Statue of Liberty area to Times Square">
-  </a>
-</p>
-
-*The actual leader-camera recording, sped up 30×. The full
-[26-second H.264 replay](showcase/uav-sim/assets/uav-e2e-001-flight-timelapse.mp4)
-comes from the Recording Hub archive.*
-
-The first accepted run covered 9.227 km in 13 minutes 10 seconds. It completed all four
-admitted waypoints, arrived at 40.7580° N, 73.9855° W with zero collisions, and released
-its command lease.
-
-| Component | What happened |
-|---|---|
-| Addressed agent | `uav-1-pilot` accepted the operator message and ran one durable episode. |
-| Map MCP | Resolved Times Square and returned the admitted route from current telemetry. |
-| UAV Simulation MCP | Enforced the pilot-to-`uav-1` grant and protected execution with one command lease. |
-| Recording Hub | Archived the leader camera, pose, telemetry, and mission lifecycle across the complete execution interval. |
-
-The prompt contained no coordinates and granted no vehicle authority. The agent
-resolved the destination through Map and flew under its existing grant for
-`uav-1`. The Console and a headless client reported the same final result.
-[Inspect the Console evidence](showcase/uav-sim/assets/uav-e2e-001-console-complete.png)
-or repeat the
-[`UAV-E2E-001` acceptance](showcase/uav-sim/ACCEPTANCE.md#uav-e2e-001-per-agent-named-location-mission-e2e).
-The flight is also a recording that can be
-[queried from Python](docs/RERUN_RECORDINGS.md).
+The agent resolves the destination through Map and flies under its existing vehicle
+grant. Recording Hub archives the camera, telemetry and mission lifecycle.
+[Read the named-location mission acceptance](showcase/uav-sim/ACCEPTANCE.md#uav-e2e-001-per-agent-named-location-mission-e2e),
+[inspect its Console evidence](showcase/uav-sim/assets/uav-e2e-001-console-complete.png),
+or [query the recording from Python](docs/RERUN_RECORDINGS.md).
 
 | San Salvador | Midtown Manhattan |
 |---|---|
