@@ -1,30 +1,27 @@
 # Platform Foundations And Contract Consistency Plan
 
-Status: The published 34-image closure and charts for `6431c30c6621` retain their
-recorded qualification. GitOps is suspended during source work. Development image
-extraction triggered node disk pressure; all seventeen desired Deployments and both
-StatefulSets recovered by 02:42 UTC on October 10. Compiler checks and all twenty-seven
-focused native recovery/consumer controls pass. Twenty-seven images at `c5a2c6c3e`,
-including all seven stock-rollout images, pass staging, attested qualification and node-side registry readback.
-The current source closure requires thirty Rust targets and the pending cuOpt image.
-Twenty-two Trixie images at `3820c0db5` now pass stage/release digest agreement,
-attestation checks and node-network registry readback. The remaining nine-image
-batch has no completed stage evidence. Its old growth budget is exhausted; another
-dispatch requires admission for the complete solve. Rollout and installed qualification
-remain open. A separate focused batch at `33281845c` stages the Gateway discovery
-correction, Recording forwarder and UAV runtime shutdown corrections successfully.
-Its UAV runtime and forwarder are deployed; the Gateway rollout remains open.
-The selected runtime is `927229e43770` and forwarder is `b4413b92b979`.
-Both UAV containers reach Ready with the world, fleet, PVCs and MCP unchanged.
-The UAV runtime at `ffa13f2c0` passes 188 owning CPU tests, independent review,
-stage/release agreement, attestation checks and node-origin registry readback.
-The runtime-only rollout reaches Ready with the world, PVCs, MCP and forwarder
-unchanged. Normal-OAuth Console camera calls return 200, the WebSocket stays open
-and all five camera canvases display advancing frames in headed RTX 4090 Chrome.
-Controlled one-, two- and five-camera measurements pass observation and owned
-cleanup over 120 seconds each on the same deployed runtime. Each camera keeps
-1280×720 resolution and a configured 16 Hz cadence; the world, four-vehicle fleet,
-physics and physical mission camera stay unchanged.
+Status: The source and focused native baseline passes its owning checks and review.
+Final-image closure and the remaining installed gates are open. Earlier qualified
+images and reports keep their recorded scope; they do not qualify newer inputs.
+GitOps holds stay set. Build and rollout operations require separate admission.
+
+| Area | Current qualification | Remaining work |
+|---|---|---|
+| Images and publication | 22 Trixie images have stage/release and registry readback proof | Complete the remaining nine-image selection and affected later source publications, then qualify final selected images |
+| Gateway and installation | Gateway `071` is staged; the full matched generation-two, stock OAuth and postrendered candidate is in preparation | Deploy with matching composition/credentials, preserve paused workloads and retained storage, verify publication and Knowledge baseline |
+| Enabled workloads | Knowledge, Embedding and Speech are on; Reason, Host, Computers and other paused GPU workloads stay off | Preserve this selection through publication; qualify required workloads when explicitly activated |
+| Knowledge | Retained-index cold startup and targeted Time-document indexing/search pass; disabled-tool discovery correction passes native checks/review | Restricted caller visibility/document checks, first-empty indexing, current-driver Embedding profile, current-generation recovery and successor installation publication |
+| Time | Normal-OAuth completion/cancellation, unfinished process recovery and Time12 completed-state cross-replica delivery/restoration pass | Authority activation, final images and temporal-event/agent-wake execution |
+| Agent temporal events | Seven focused native controls and review pass | Run the real Time/Gateway/Store/kernel composition; admit installed client/template separately |
+| Agent Manager | Public authoring/prearmed SSE/current Ready/owned Stop/archive fixture and five native controls pass; scope-admission repair passes | Execute the corrected five-scope journey, physical drain and restoration on admitted images |
+| Artifact and CPU consumers | Focused Artifact upload/SDK/Datasheet consumers and one replacement preserving unfinished upload plus separate retained-capability replay pass; selected DuckDB/Timeseries/Frames/Media checks pass | Final images and remaining owner-specific consumers/recovery; headed Workbench and physical ownership checks stay open |
+| Stock Computers | Eighteen native OpenShell cases pass on the unmodified provider; package and worker OAuth are source-qualified | Materialize installed identity/configuration, activate node RuntimeClass and prove stock provider/Host/container behavior |
+| Active Tasks | Shared and owner-native completion, cancellation and recovery fixtures pass within their declared profiles | Execute remaining unfinished/cross-replica cases, including GPU Reason/Stream/Speech and coordinated Optimization recovery |
+
+Normal-OAuth Console Live Cameras now lists and opens cameras successfully; the
+WebSocket delivers advancing frames to five canvases in headed RTX 4090 Chrome.
+Comparable 120-second samples on runtime `927229e43770` preserve 1280×720 per
+camera, configured 16 Hz, the world, four-vehicle fleet and physical mission camera.
 
 | Continuous cameras | Native RTSP-admitted frames/s | Browser decoded/drawn callbacks/s |
 |---|---:|---:|
@@ -32,125 +29,27 @@ physics and physical mission camera stay unchanged.
 | Two | 5.82–5.89 | 6.274 |
 | Five | 3.03–3.07 | 3.058 |
 
-Each sampler observes one follow canvas while preserving existing user viewers.
-The native counters use server-request brackets, and browser counters use a paired
-browser clock; their differences do not establish frame loss or duplication.
-Simulation real-time factors stay between 0.997 and 1.011. Increasing camera count
-reduces measured native throughput, and all three configurations miss 16 Hz before
-browser decoding. The tests establish measured capacity, not an FPS acceptance pass
-or the cause of the throughput limit. Five cameras are restored and Ready.
-Keep these comparable settings when selecting camera-count-specific acceptance
-targets. The recorded MP4 rate alone does not locate the live bottleneck.
-Software H.264 decode is accepted without user browser configuration. Media
-Capabilities reports the current profile supported and smooth, and the UI identifies
-it correctly. Server rendering, atlas composition and encoding require the GPU.
-The focused sampler passes compiler, native timing, cancellation and diagnostic
-controls and independent review. Its private startup journal preserves observation
-and cleanup failures separately; the earlier failed attempt's unknown ownership
-remains unresolved.
-The operator-only RTSP recovery has five-second handshake and admitted-picture
-deadlines with at most two same-source reconnects. Its source controls preserve
-Recording's physical-camera profile; induced installed stall recovery remains open.
-The typed browser consumer cut at `688f5d998` passes the browser, flight and composition
-compiler targets. Nine focused native controls pass, and independent review approves
-the cut. Both focused live-stream parser controls also pass on the canonical query name.
-The accepted UAV videos are published in the README. The native five-camera MP4
-contains 442 NVENC frames over 29.95 seconds at 14.76 average fps, and headed
-RTX 4090 playback passes. The capture's authenticated state sample reports all four
-vehicles flying; individual visibility of every vehicle in the saved video is unqualified.
-The node pins the selected UAV images and both prior runtimes for rollback.
-Installed shutdown qualification remains open. Matched native containerd TaskExit
-events during both latest camera-profile changes record exit 137 for the simulator
-and forwarder. This proves failed graceful retirement; it does not establish OOM.
-The simulator log reports an invalid Py_Graph during physical camera writer
-detachment after atlas retirement. The provider stays unmodified.
-Veoveo's coordinated writer-before-product cleanup passes 200 owning CPU controls
-and independent review. Publishing it and qualifying repeated reset and shutdown
-on the GPU remain open. Stage and elapsed-time diagnostics for the simulator and
-forwarder pass compiler, owning native controls and independent review;
-publication remains open.
-The live Deployment and Pod grant 30 seconds for termination, equal to the
-forwarder's full shutdown interval. The held chart renders 120 seconds; reconciling
-that live drift and qualifying the resulting margin remain open. The Rust MCP host
-was not restarted in these checks.
-The forwarder source now applies one deadline across intake, drain, flush and both
-original worker joins. Its owning native suite and five affected shutdown controls
-pass, and independent review accepts the correction, including refusal of late success.
-The simulator launcher retains NVIDIA's unchanged wrapper and delivers termination
-to its admitted Python owner. Ten affected launch and cleanup controls pass, and independent
-review accepts the fix. Both corrections are published and deployed; graceful
-shutdown, including Kit's native cleanup, still requires installed qualification.
-Node restart and forced image collection are unqualified. F59, A11, the full composed flight and
-actual capture-clock qualification remain open. Longer render stalls and turning
-flight also require qualification; native feedback comparisons did not reproduce
-the recorded control transient. The [flight checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#fresh-uav-flight-and-runtime-output-repair--october-10-2026)
-records source, deployment and capture details.
-The Knowledge and Time repair at `6653288ba` is published and deployed. Both Pods
-pass probes and thirty seconds of stability without a restart. Normal OAuth reads
-and Knowledge search reach the updated Time documents. Time completion and
-cancellation pass through normal Gateway OAuth. Unfinished process recovery also
-passes on the selected deployed Time image. One fenced process replacement preserves
-the original Task's creation identity and Working state. The replacement listener
-delivers completion, and the current result agrees with all eight independently
-expected calendar occurrences. Caller, listeners and watch close, owned cleanup
-settles, and Time and the core services stay Ready. The original 300-second operation
-deadline is preserved. Installed authority activation, temporal-event/agent-wake
-coverage and final-image qualification remain open.
-Datasheet's SDK replacement and the complete focused normal-OAuth Artifact consumer
-scenario pass. One fenced service replacement preserves an acknowledged Open upload
-and its accepted part. Resumption, immutable-part retry/refusal, completion replay
-and independent bytes/metadata/catalog checks pass on the deployed `e26082a1` image.
-Retained capability redemption and replay pass across the same replacement, and
-owned cleanup succeeds. Final-image qualification remains open.
-Time12 passes completed-state cross-replica acceptance on the selected deployed
-Time image. The same historical Task's eight independently expected occurrences,
-result and authority agree through B-only routing after original A exits zero.
-The watch barrier, native restoration of A and its selector, and retirement of B
-all pass. SDK handles, watches and owned processes close; postflight verifies the
-sole A endpoint and B Deployment, ReplicaSets and Pods absent. Installed authority
-activation and final-image qualification remain open.
-Gateway, Agent Manager and Knowledge run compatible qualified images against the
-published full catalog. Manager is Ready with the reviewed immutable pilot template,
-qualified kernel and matching admission policies. Its installed fixture implements
-public OAuth authoring, prearmed SSE with current Ready checks and owned Stop/archive;
-review and five native controls pass. Two installed attempts exposed fixture
-configuration defects: an incomplete manifest, then insufficient profile scopes.
-Archive, physical drain and restoration pass. The shared scope-admission repair
-passes fourteen runtime/Gateway controls and the Manager loader control; the
-corrected five-scope installed journey remains open.
-Knowledge passes retained-index cold-start qualification. The restricted caller
-connects, but `tools/list` fails with `-32603` after Knowledge denies upstream
-discovery with `-32600`. The Gateway contacted a tool surface disabled by the profile.
-The generic discovery and catalog-watch correction passes strict lint, three native
-SDK controls and independent review. Publication and the restricted caller rerun
-remain open; visibility and document checks have not run. Generation two remains open. Reconciliation
-holds stay set. Further image batches require
-separate disk-space admission. Speech's previously
-selected headed Workspace consumer passes with fixture audio;
-Reason stays at zero replicas. The unmodified OpenShell 0.1.2 source
-package passes its focused artifact, Host and packaging checks. The owner approved
-stock OIDC; package image `ea4ffc9f7` is assembled and staged with all four official
-executable hashes and versions verified. Three CA roles, projected credentials,
-stock mount fields and the owned image's absent retained-home target pass source
-controls. The restricted Veoveo worker OAuth source passes private-key exchange,
-refresh, owner authority and focused Gateway native controls; independent review
-approves its contracts and Secret wiring. Optional admitted
-issuer CA inputs configure issuer HTTPS trust with verification enabled. The focused
-installed DuckDB Task, completion subscription and graceful-restart check passes
-through normal Gateway OAuth. Focused installed DuckDB catalog/source paging,
-CSV/schema, Artifact publication and usage consumers also pass; headed Workbench,
-physical owner-directory/metadata, further recovery and final-image qualification
-stay open. The selected DuckDB, Timeseries, Frames and Media
-protocol case also passes authenticated discovery, anonymous discovery refusal,
-documents, transport and Gateway health/audit checks on admitted deployed images.
-Frames completed-state retention passes across one actual same-Pod process crash.
-All eighteen selected stock native acceptance cases pass, including Host image
-replacement, directed template upgrade/rollback and the unmodified CLI transport.
-Installed identity materialization and installed qualification remain open. The fresh SSH-shell terminal source cut passes review
-and owning controls. Knowledge's prearmed retained-index/current-generation cold-start
-case passes installed qualification; first-ever index construction remains unqualified.
-Task/subscription fixtures and complete installed A/F/H
-qualification remain open. See [Current Status](#current-status).
+Each sample observes one follow canvas. Native server-request brackets and paired
+browser-clock windows differ; counter differences do not prove loss or duplication.
+Simulation real-time factors span 0.997–1.011. All profiles miss 16 Hz before browser
+decode, so these results establish capacity observations rather than FPS acceptance.
+Kit update cadence is about 7–8 Hz; measured update wall time does not isolate GPU
+cost or establish the throughput root cause. Five cameras are restored and Ready.
+Software H.264 decode is accepted without browser configuration when the exact
+profile is supported and smooth and the UI labels it. Server RTX rendering, atlas
+composition and NVENC encoding still require the GPU. Published saved videos keep
+their accepted scope; they do not qualify current live throughput or full flight.
+
+Matched containerd exits record simulator and forwarder exit 137 during profile
+changes; they prove failed graceful retirement, not OOM. Forwarder `b4413b92b979`
+with the deadline fix is deployed. Coordinated runtime cleanup at `db0b` passes 200
+owning CPU controls and review; it and the `c2` shutdown-stage diagnostics are
+unpublished. The diagnostics pass five affected native controls and review. Live termination grace
+is 30 seconds; the held chart renders 120. Installed grace reconciliation, repeated
+GPU reset/shutdown, induced RTSP stall recovery, capture-clock and full composed
+flight qualification remain open. F59/A11 are not closed by live frames or videos.
+
+See [Current Status](#current-status) for owner results and remaining conditions.
 
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
@@ -646,6 +545,28 @@ artifact identities are preserved. The final thirty-one-image selection and the
 historical thirty-four-image publication describe different sets. The subsequent
 UAV state and browser codec repairs require separate UAV-runtime and UAV MCP image
 publication and installed qualification.
+
+UAV installed acceptance must preserve comparable camera settings when selecting
+camera-count-specific throughput targets. The sampler's earlier failed attempt
+has unresolved ownership; later observation/cleanup passes do not settle it.
+Operator RTSP recovery has five-second handshake and admitted-picture deadlines
+and at most two same-source reconnects. Recording's physical-camera profile stays
+separate; induced installed stall recovery is still required.
+The simulator's exit-137 diagnostic reports invalid Py_Graph during physical-writer
+detachment after atlas retirement. Forwarder `b4413b92b979` already includes the
+deadline fix. Coordinated runtime cleanup at `db0b` and shutdown-stage/elapsed
+diagnostics at `c2` need publication and installed GPU shutdown proof.
+The live 30-second grace equals the forwarder's full shutdown interval; qualify
+margin after reconciling the held 120-second chart value. The Rust MCP host was not
+restarted by these checks. Keep selected and prior UAV images pinned for rollback.
+Node restart, forced image collection, longer render stalls, turning flight and
+actual capture-clock behavior remain unqualified. Native feedback comparisons did
+not reproduce the recorded control transient. The saved five-camera MP4 has 442
+NVENC frames over 29.95 seconds at 14.76 average fps and passes headed playback;
+its authenticated state reports four flying vehicles, but individual visibility of
+every vehicle is unqualified. The
+[flight checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#fresh-uav-flight-and-runtime-output-repair--october-10-2026)
+records the source, deployment and capture scope.
 
 | Final image family | Image count |
 |---|---|
