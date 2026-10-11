@@ -31,12 +31,12 @@ impl ChildGuard {
             .with_context(|| format!("create private child log {}", log.display()))?;
         let stderr = stdout.try_clone()?;
         let mut command = Command::new(program);
-        configure_binary_runtime(&mut command, program)?;
         command
             .args(args)
             .envs(envs)
             .stdout(Stdio::from(stdout))
             .stderr(Stdio::from(stderr));
+        configure_binary_runtime(&mut command, program)?;
         let (child, registration) = crate::lifecycle::spawn_local(command)?;
         Ok(Self {
             child,
@@ -442,7 +442,6 @@ pub fn run_raw(
     envs: impl IntoIterator<Item = (&'static str, OsString)>,
 ) -> Result<Output> {
     let mut command = Command::new(program);
-    configure_binary_runtime(&mut command, program)?;
     crate::lifecycle::owner::check_effect()?;
     command
         .args(args)
@@ -454,6 +453,7 @@ pub fn run_raw(
         .env_remove("VEOVEO_REFRESH_DELIVERY_KEY_B64")
         .env_remove("VEOVEO_REFRESH_DELIVERY_WINDOW_SECONDS")
         .envs(envs);
+    configure_binary_runtime(&mut command, program)?;
     output_command(command)
 }
 
@@ -553,29 +553,8 @@ pub fn configure_binary_runtime(command: &mut Command, program: &Path) -> Result
     let Some(path) = env::var_os("VEOVEO_SMOKE_ARTIFACTS") else {
         return Ok(());
     };
-    let manifest: crate::artifacts::ArtifactManifest = serde_json::from_slice(&fs::read(path)?)?;
-    manifest.admit(&manifest.repository)?;
-    // Owner-supplied system/provider programs remain distinct from Cargo artifacts.
-    if !program.is_absolute() {
-        return Ok(());
-    }
-    let canonical = program.canonicalize()?;
-    let entry = manifest.entries.iter().find(|entry| {
-        entry
-            .executable
-            .canonicalize()
-            .is_ok_and(|path| path == canonical)
-    });
-    match entry {
-        Some(entry) => crate::artifacts::configure_runtime(command, entry),
-        None => {
-            anyhow::ensure!(
-                !canonical.starts_with(manifest.target_root.canonicalize()?),
-                "Cargo child is absent from admitted artifact manifest"
-            );
-            Ok(())
-        }
-    }
+    let manifest = crate::artifacts::read_manifest(fs::File::open(path)?)?;
+    manifest.configure_program_runtime(command, program)
 }
 
 pub fn prepend_path_env(command: &mut Command, key: &str, path: &Path) {
