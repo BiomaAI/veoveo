@@ -41,3 +41,28 @@ export function resourceValue(uri,value,expectedRoot) {
   const admitted=admit(root,value);
   return /** @type {import("./generated/uav-sim").AppContracts[K]} */ (admitted);
 }
+
+/** A standard correlated host protocol error, preserving owner data without interpreting it. */
+export class AppProtocolError extends Error {
+  /** @param {number} code @param {string} message @param {unknown} data */
+  constructor(code, message, data) { super(message); this.code=code; this.data=data; }
+}
+
+/** @param {unknown} left @param {unknown} right @returns {boolean} */
+function sameRequest(left,right) {
+  if(left===right)return true;
+  if(!left||!right||typeof left!=="object"||typeof right!=="object"||Array.isArray(left)||Array.isArray(right))return false;
+  const keys=Object.keys(left), other=Object.keys(right);
+  return keys.length===other.length&&keys.every(key=>Object.hasOwn(right,key)&&sameRequest(left[key],right[key]));
+}
+
+/** Admit only owner proof for this complete failed operation; never infer from message text.
+ * @param {unknown} cause @param {"open_live_view"|"renew_live_view"} name @param {Record<string,unknown>} request
+ */
+export function provesNonAdmission(cause,name,request) {
+  if(!(cause instanceof AppProtocolError)||!Number.isSafeInteger(cause.code)||cause.code < -2147483648||cause.code > 2147483647)return false;
+  try {
+    const marker=admit("nonAdmission",cause.data);
+    return marker.operation.type===(name==="open_live_view"?"open":"renew")&&sameRequest(marker.operation.request,request);
+  } catch { return false; }
+}

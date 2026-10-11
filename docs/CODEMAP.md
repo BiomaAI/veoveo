@@ -1052,6 +1052,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | typed live-view issuance, renewal, denial and terminal records through the shared audit writer |
 | `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict authenticated adapter-ready and final-ready HTTP stream ingestion, immutable binding reapplication trigger, and subscribed live-camera notification |
 | `servers/uav-sim-mcp/assets/live-app.html` | self-contained camera selection and multi-view live App |
+| `servers/uav-sim-mcp/app/live-view-ownership.js` | App-owned pending acquisitions and viewer authorization closure; teardown acknowledges settled server closes and preserves failed closes for retry |
 | [`showcase/uav-sim/agents/`](../showcase/uav-sim/agents/DESIGN.md) | managed pilot seed instructions and domain memory ownership; geographic work data remains outside agent memory |
 | [`showcase/uav-sim/deploy/helm/`](../showcase/uav-sim/deploy/helm/DESIGN.md) | simulator packaging and managed pilot manifest/memory schema under `files/agent-template`; no per-pilot workloads or credentials |
 | `servers/uav-sim-mcp/src/server/agent_targets.rs` | App message-target discovery from managed identity and active vehicle grants, with shared database catalog invalidation |

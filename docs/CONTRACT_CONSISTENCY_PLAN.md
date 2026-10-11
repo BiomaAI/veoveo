@@ -62,8 +62,10 @@ source observer persists selected process identities, deletion details and every
 received terminal outcome before qualification. Its 18 focused native controls
 pass; member exit and grace limits stay unchanged, and observation uses the
 original lifecycle deadline. UAV's request-correlated non-admission schema and
-four domain-native controls also pass. Console error forwarding, browser ownership
-and factual App teardown need qualification before another attempt. Paired shutdown,
+four domain-native controls also pass. The App's 22 behavioral controls and review
+cover authorization retention, retry suppression and correlated teardown. Console
+error forwarding and browser ownership still need qualification before another
+attempt. Paired shutdown,
 repeated GPU reset, induced RTSP stall recovery, capture-clock and full composed
 flight qualification remain open. F59/A11 stay open.
 
@@ -608,8 +610,9 @@ keeps ownership unresolved, and that stage's authorization identities were not
 retained. The source observer now journals received physical outcomes separately
 from qualified exits and passes 18 focused native controls without extending
 member exit or grace limits. UAV's generated non-admission contract passes its
-four native controls. Console error delivery, browser ownership and teardown
-qualification precede another installed attempt; graceful
+four native controls. The App's 22 behavioral controls and review pass; Console
+error delivery and browser ownership qualification precede another installed
+attempt. Graceful
 retirement and strict throughput stay unqualified. Keep selected and prior UAV
 images pinned for rollback.
 Node restart, forced image collection, longer render stalls, turning flight and

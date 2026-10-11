@@ -604,9 +604,31 @@ and streamed-world readiness are both current; that edge produces the subscribed
 update. Both use a private Unix datagram. Delivery is best effort and never delays the
 simulator. If the companion is absent, its later startup applies the installation binding
 directly. Closing a tile or tearing down the App cancels its reconnect state. A selected
-camera keeps retrying at the capped backoff until it succeeds, is deselected, or the App
-tears down. There is no desired-versus-realized renderer deployment or periodic replay
-controller.
+camera retries at the capped backoff after a proven non-admission, until it succeeds, is
+deselected, or the App tears down. An unresolved acquisition blocks new opens for that
+camera across timers, resource updates and reselection. Pending acquisitions use the same
+camera gate. An unknown renewal blocks the cameras attached to its acknowledged
+authorization until `close_live_view` settles that same ID and resource URI. The App keeps
+the original failed attempt and its close fence; a late renewal cannot restore ownership
+after that close. Closing another known ID cannot settle an unknown open. The App records each in-flight authorization request before dispatch and
+keeps every acknowledged authorization until its owner-fenced `close_live_view` returns
+`closed: true` for that same resource URI.
+An unsuccessful close preserves that identity for retry, including redundant atlas
+attachments and acquisitions which finish after a tile is deselected. Teardown cancels
+reconnect scheduling, waits for pending acquisition and renewal replies, and attempts
+all owned remote releases while the tool-reply message loop stays active. The App preserves
+standard protocol error codes and data. It admits an owner non-admission marker through
+the generated schema and matches the complete open or renewal request before settling
+that failed acquisition. A valid marker cannot clear an earlier unknown outcome. A pending or
+disconnected request does not establish release. Rejected acquisition responses without that proof
+remain unresolved: host, transport, and response-admission errors cannot prove
+an owner-origin refusal before authorization insertion. The App does not replay those
+requests or invent a released identity. The public `ui/resource-teardown`
+request receives its correlated standard empty result only after those releases settle;
+a refusal returns a correlated JSON-RPC error and permits another teardown request.
+Visible recovery text does not determine settlement. This App closes only authorizations
+bound to its own viewer instance. There is no desired-versus-realized renderer deployment
+or periodic replay controller.
 
 The streamed-world data plane has a smaller reactive lifecycle inside the simulator.
 The pinned Cesium extension emits a typed event when the ion endpoint, root tileset, or

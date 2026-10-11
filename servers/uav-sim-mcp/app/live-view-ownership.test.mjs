@@ -1,0 +1,280 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {readFile} from "node:fs/promises";
+import {runInNewContext} from "node:vm";
+import {LiveViewOwnership, replyToTeardown} from "./live-view-ownership.js";
+
+function deferred() {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return {promise, resolve, reject};
+}
+const connection = id => ({stream: {liveViewId: id, sessionId: "session-owned", resourceUri: `uav-sim://session/session-owned/live-view/${id}`}});
+const closedResult = value => ({closed: true, resourceUri: value.stream.resourceUri});
+const turn = () => new Promise(resolve => setImmediate(resolve));
+
+test("teardown waits for a delayed acquisition and its exact remote close", async () => {
+  const opening = deferred(), closing = deferred(), closed = [];
+  const owner = new LiveViewOwnership(async value => { closed.push(value); await closing.promise; return closedResult(value); });
+  const acquisition = owner.acquire(() => opening.promise);
+  const replies = [];
+  const teardown = replyToTeardown(71, reply => replies.push(reply), () => owner.teardown(), assert.fail);
+  await turn();
+  assert.equal(replies.length, 0);
+  const value = connection("late-owned");
+  opening.resolve(value);
+  assert.equal(await acquisition, value);
+  await turn();
+  assert.deepEqual(closed, [value]);
+  assert.equal(replies.length, 0);
+  closing.resolve();
+  await teardown;
+  assert.deepEqual(replies, [{jsonrpc: "2.0", id: 71, result: {}}]);
+  assert.equal(owner.authorizations.size, 0);
+});
+
+test("remote close refusal stays owned and concurrent close waiters retry the same identity", async () => {
+  const close = deferred(), calls = [];
+  let refuse = true;
+  const owner = new LiveViewOwnership(async value => {
+    calls.push(value.stream.liveViewId);
+    if (refuse) { await close.promise; throw new Error("remote refusal"); }
+    return closedResult(value);
+  });
+  await owner.acquire(async () => connection("retained"));
+  const first = owner.close("retained"), second = owner.close("retained");
+  assert.equal(first, second);
+  close.resolve();
+  await assert.rejects(first, /remote refusal/);
+  assert.equal(owner.authorizations.has("retained"), true);
+  const replies = [];
+  await replyToTeardown(72, reply => replies.push(reply), () => owner.teardown(), () => {});
+  assert.equal(replies[0].error.code, -32603);
+  assert.equal(owner.authorizations.has("retained"), true);
+  refuse = false;
+  await replyToTeardown(73, reply => replies.push(reply), () => owner.teardown(), assert.fail);
+  assert.deepEqual(replies[1], {jsonrpc: "2.0", id: 73, result: {}});
+  assert.deepEqual(calls, ["retained", "retained", "retained"]);
+});
+
+test("teardown closes all owned identities despite one refusal and never closes unrelated viewers", async () => {
+  const calls = [];
+  const owner = new LiveViewOwnership(async value => {
+    calls.push(value.stream.liveViewId);
+    if (value.stream.liveViewId === "first") throw new Error("first refused");
+    return closedResult(value);
+  });
+  await owner.acquire(async () => connection("first"));
+  await owner.acquire(async () => connection("second"));
+  await assert.rejects(owner.teardown(), /release failed/);
+  assert.deepEqual(calls.sort(), ["first", "second"]);
+  assert.equal(owner.authorizations.has("first"), true);
+  assert.equal(owner.authorizations.has("second"), false);
+  await owner.close("unrelated");
+  assert.equal(calls.length, 2);
+});
+
+test("teardown stops new acquisition dispatch while tool replies can settle pending ownership", async () => {
+  const opening = deferred();
+  const owner = new LiveViewOwnership(async value => closedResult(value));
+  const pending = owner.acquire(() => opening.promise);
+  const teardown = owner.teardown();
+  let dispatched = false;
+  await assert.rejects(owner.acquire(async () => { dispatched = true; return connection("wrong"); }), /closing/);
+  assert.equal(dispatched, false);
+  opening.resolve(connection("already-dispatched"));
+  await pending;
+  await teardown;
+});
+
+test("lost or invalid acquisition responses refuse teardown without replay while known owners close", async () => {
+  for (const cause of [new Error("transport lost after dispatch"), new Error("Invalid connection response")]) {
+    let dispatches = 0;
+    const closed = [];
+    const owner = new LiveViewOwnership(async value => { closed.push(value.stream.liveViewId); return closedResult(value); });
+    await owner.acquire(async () => connection("known"));
+    await assert.rejects(owner.acquire(async () => { dispatches++; throw cause; }), error => error === cause);
+    const replies = [];
+    await replyToTeardown("unknown", reply => replies.push(reply), () => owner.teardown(), () => {});
+    assert.deepEqual(closed, ["known"]);
+    assert.equal(replies[0].error.code, -32603);
+    await assert.rejects(owner.teardown(), /acquisition outcome remains unresolved/);
+    assert.equal(dispatches, 1);
+    assert.equal(owner.unresolvedAcquisitions.size, 1);
+  }
+});
+
+test("only closed true for the same resource settles the acknowledged authorization", async () => {
+  const value = connection("exact-resource");
+  for (const result of [{closed: false, resourceUri: value.stream.resourceUri}, {closed: true, resourceUri: "uav-sim://unrelated"}]) {
+    const owner = new LiveViewOwnership(async () => result);
+    await owner.acquire(async () => value);
+    await assert.rejects(owner.close(value.stream.liveViewId), /does not settle/);
+    assert.equal(owner.authorizations.get(value.stream.liveViewId), value);
+    await assert.rejects(owner.teardown(), /release failed/);
+  }
+});
+
+test("actual App teardown responds with standard correlated success despite stale visible recovery error", async () => {
+  const listeners = new Map(), messages = [];
+  const error = {textContent: "stale recovery failure", hidden: false};
+  const nodes = new Map([["error", error]]);
+  const element = id => {
+    if (!nodes.has(id)) nodes.set(id, {addEventListener() {}, textContent: "", classList: {toggle() {}}});
+    return nodes.get(id);
+  };
+  const parent = {postMessage: message => messages.push(message)};
+  const source = (await readFile(new URL("./main.js", import.meta.url), "utf8"))
+    .replace(/^import .*;\n/gm, "");
+  runInNewContext(source, {
+    LiveViewOwnership, replyToTeardown, $: element, parent,
+    crypto: {randomUUID: () => "viewer-owned"},
+    addEventListener: (name, callback) => listeners.set(name, callback),
+    ResizeObserver: class {observe() {}},
+    requestAnimationFrame() {}, clearTimeout() {},
+  });
+  // Initialization remains pending; its reply pump is still available during teardown.
+  listeners.get("message")({source: parent, data: {jsonrpc: "2.0", id: "teardown-actual", method: "ui/resource-teardown", params: {}}});
+  await turn();
+  const result = messages.find(value => value.id === "teardown-actual");
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), {jsonrpc: "2.0", id: "teardown-actual", result: {}});
+  assert.equal(error.textContent, "stale recovery failure");
+});
+
+import {AppProtocolError, provesNonAdmission} from "./contracts.js";
+const request = {sessionId:"session-owned",cameraId:"follow",viewerInstanceId:"viewer-owned"};
+const refusal = (args=request, type="open") => new AppProtocolError(-32600,"not ready",{
+  schema:"veoveo.ai/live-view-non-admission/v1",operation:{type,request:args},
+});
+
+test("owner readiness rejection settles only its fully correlated acquisition", async () => {
+  const owner=new LiveViewOwnership(async value=>closedResult(value));
+  await assert.rejects(owner.acquire(async()=>{throw refusal();},cause=>provesNonAdmission(cause,"open_live_view",request)));
+  await owner.teardown();
+  assert.equal(owner.unresolvedAcquisitions.size,0);
+});
+
+test("wrong, malformed, lost and earlier unknown acquisition proofs stay unresolved", async () => {
+  for(const cause of [new Error("not ready"),refusal({...request,cameraId:"chase"}),refusal(request,"renew"),
+    new AppProtocolError(-32600,"not ready",{schema:"veoveo.ai/live-view-non-admission/v2",operation:{type:"open",request}}),
+    new AppProtocolError(-32600,"not ready",{schema:"veoveo.ai/live-view-non-admission/v1",operation:{type:"open",request},extra:true})]) {
+    const owner=new LiveViewOwnership(async value=>closedResult(value));
+    await assert.rejects(owner.acquire(async()=>{throw cause;},failure=>provesNonAdmission(failure,"open_live_view",request)));
+    await assert.rejects(owner.teardown(),/unresolved/);
+  }
+  const owner=new LiveViewOwnership(async value=>closedResult(value));
+  await assert.rejects(owner.acquire(async()=>{throw new Error("lost response");}));
+  await assert.rejects(owner.acquire(async()=>{throw refusal();},cause=>provesNonAdmission(cause,"open_live_view",request)));
+  await assert.rejects(owner.teardown(),/unresolved/);
+  assert.equal(owner.unresolvedAcquisitions.size,1);
+});
+
+
+test("renewal refusal matches every canonical field and cannot release an existing authorization",async()=>{
+  const args={sessionId:"session-owned",liveViewId:"renew-owned",viewerInstanceId:"viewer-owned"};
+  const owner=new LiveViewOwnership(async value=>closedResult(value));
+  await owner.acquire(async()=>connection("renew-owned"));
+  const error=refusal(args,"renew");
+  assert.equal(provesNonAdmission(error,"renew_live_view",args),true);
+  for(const key of Object.keys(args))assert.equal(provesNonAdmission(refusal({...args,[key]:"other"},"renew"),"renew_live_view",args),false);
+  assert.equal(provesNonAdmission(error,"open_live_view",request),false);
+  await assert.rejects(owner.acquire(async()=>{throw error;},cause=>provesNonAdmission(cause,"renew_live_view",args)));
+  assert.equal(owner.authorizations.has("renew-owned"),true);
+  await owner.teardown();
+});
+
+test("actual App reply pump preserves correlated standard error code and owner data",async()=>{
+  const listeners=new Map(),messages=[],errors=[];
+  const parent={postMessage:message=>messages.push(message)};
+  const nodes=new Map();
+  const element=id=>{if(!nodes.has(id))nodes.set(id,{addEventListener(){},textContent:"",classList:{toggle(){}}});return nodes.get(id);};
+  class RecordedError extends AppProtocolError {constructor(code,message,data){super(code,message,data);errors.push(this);}}
+  const source=(await readFile(new URL("./main.js",import.meta.url),"utf8")).replace(/^import .*;\n/gm,"");
+  runInNewContext(source,{LiveViewOwnership,replyToTeardown,AppProtocolError:RecordedError,$:element,parent,
+    crypto:{randomUUID:()=>"viewer-owned"},addEventListener:(name,callback)=>listeners.set(name,callback),
+    ResizeObserver:class {observe(){}},requestAnimationFrame(){},clearTimeout(){}});
+  const pending=messages.find(value=>value.method==="ui/initialize");
+  const wire={jsonrpc:"2.0",id:pending.id,error:{code:-32600,message:"not ready",data:refusal().data}};
+  listeners.get("message")({source:{},data:wire});
+  assert.equal(errors.length,0);
+  listeners.get("message")({source:parent,data:wire});
+  await turn();
+  assert.equal(errors.length,1);
+  assert.equal(errors[0].code,wire.error.code);
+  assert.deepEqual(errors[0].data,wire.error.data);
+  assert.equal(provesNonAdmission(errors[0],"open_live_view",request),true);
+});
+
+async function recoveryApp() {
+  const listeners=new Map(),timers=new Map(),messages=[],nodes=new Map();let nextTimer=0, rejectUnknown=false;
+  class Element {
+    constructor(tag){this.tag=tag;this.children=[];this.dataset={};this.classList={toggle(){},add(){}};}
+    addEventListener(){} append(...children){this.children.push(...children);} replaceChildren(...children){this.children=children;}
+    querySelector(selector){if(selector===".placeholder")return null;if(!this.button)this.button=new Element("button");return this.button;}
+    remove(){if(this.id)nodes.delete(this.id);}
+  }
+  const element=id=>{if(!nodes.has(id))nodes.set(id,new Element("div"));return nodes.get(id);};
+  const camera={cameraId:"follow",widthPx:1280,heightPx:720,frameRateMillihertz:16000,streamPolicy:"continuous",rig:{kind:"follow"}};
+  const parent={postMessage(message){messages.push(message);if(message.id===undefined)return;queueMicrotask(()=>{
+    let result={};let error;
+    if(message.method==="resources/read")result=[{sessionId:"session-owned"}];
+    if(message.method==="tools/call"){
+      if(message.params.name==="list_live_cameras")result=[camera];
+      else if(message.params.name==="open_live_view")error={code:-32600,message:"not ready",...(rejectUnknown?{}:{data:{schema:"veoveo.ai/live-view-non-admission/v1",operation:{type:"open",request:message.params.arguments}}})};
+      else assert.fail("Unexpected mutation "+message.params.name);
+    }
+    listeners.get("message")({source:parent,data:{jsonrpc:"2.0",id:message.id,...(error?{error}:{result})}});
+  });}};
+  const source=(await readFile(new URL("./main.js",import.meta.url),"utf8")).replace(/^import .*;\n/gm,"");
+  runInNewContext(source,{LiveViewOwnership,replyToTeardown,AppProtocolError,provesNonAdmission,$:element,parent,structuredClone,
+    // Host fixture returns already-admitted observations; the production recovery and bridge execute unchanged.
+    resourceJson:value=>value,resourceValue:(_uri,value)=>value,structuredResult:value=>value,toolValue:(_name,value)=>value,
+    document:{createElement:tag=>new Element(tag),createTextNode:text=>({text}),documentElement:{dataset:{}}},
+    crypto:{randomUUID:()=>"viewer-owned"},addEventListener:(name,callback)=>listeners.set(name,callback),
+    ResizeObserver:class {observe(){}},requestAnimationFrame(){},
+    setTimeout:callback=>{timers.set(++nextTimer,callback);return nextTimer;},clearTimeout:id=>timers.delete(id)});
+  const settle=async()=>{for(let i=0;i<5;i++)await turn();};await settle();
+  return {timers,messages,settle,setUnknown:()=>{rejectUnknown=true;},
+    opens:()=>messages.filter(value=>value.method==="tools/call"&&value.params.name==="open_live_view").length,
+    update:()=>listeners.get("message")({source:parent,data:{jsonrpc:"2.0",method:"ui/notifications/resource-updated",params:{uri:"uav-sim://session/session-owned/live-cameras"}}}),
+    select:checked=>{const input=element("choices").children[0].children[0];input.checked=checked;input.onchange();}};
+}
+
+test("actual App timers, resource updates and reselect cannot replay unknown Open but readiness remains retryable",async()=>{
+  for(const unknown of [true,false]){
+    const app=await recoveryApp();assert.equal(app.opens(),1);assert.equal(app.timers.size,1);
+    const timer=[...app.timers.values()][0];app.timers.clear();if(unknown)app.setUnknown();timer();await app.settle();
+    assert.equal(app.opens(),2);
+    const before=app.opens();timer();await app.settle();app.update();await app.settle();
+    app.select(false);await app.settle();app.select(true);await app.settle();
+    if(unknown){assert.equal(app.opens(),before);assert.equal(app.timers.size,0);}
+    else assert.ok(app.opens()>before,"fully correlated readiness remains retryable");
+  }
+});
+
+test("unknown Renew stays fenced until exact owned close, including late completion, while unknown Open survives other closes",async()=>{
+  const value=connection("renew-lost"),owner=new LiveViewOwnership(async item=>closedResult(item));
+  await owner.acquire(async()=>value);
+  const renewal=deferred();const pending=owner.acquire(()=>renewal.promise,()=>false,{cameraIds:["follow","chase"],renewal:value});
+  assert.equal(owner.canAcquire("follow"),false);
+  await owner.close(value.stream.liveViewId);renewal.reject(new Error("late lost renewal"));await assert.rejects(pending);
+  assert.equal(owner.canAcquire("follow"),true);assert.equal(owner.unresolvedAcquisitions.size,1);
+  assert.equal([...owner.unresolvedAcquisitions][0].fenced,true);await owner.teardown();
+  const other=new LiveViewOwnership(async item=>closedResult(item));await other.acquire(async()=>connection("previous"));
+  await assert.rejects(other.acquire(async()=>{throw new Error("lost open");},()=>false,{cameraIds:["follow"]}));
+  await other.close("previous");assert.equal(other.canAcquire("follow"),false);await assert.rejects(other.teardown(),/unresolved/);
+});
+
+test("failed Renew close keeps recovery blocked and late successful renewal cannot revive closed ownership",async()=>{
+  const value=connection("renew-fenced");let refuse=true;
+  const owner=new LiveViewOwnership(async item=>{if(refuse)throw new Error("close unknown");return closedResult(item);});
+  await owner.acquire(async()=>value);
+  await assert.rejects(owner.acquire(async()=>{throw new Error("renew reply lost");},()=>false,{cameraIds:["follow"],renewal:value}));
+  await assert.rejects(owner.close(value.stream.liveViewId));assert.equal(owner.canAcquire("follow"),false);
+  refuse=false;await owner.close(value.stream.liveViewId);assert.equal(owner.canAcquire("follow"),true);
+  assert.equal([...owner.unresolvedAcquisitions][0].fenced,true);
+  const other=new LiveViewOwnership(async item=>closedResult(item));await other.acquire(async()=>value);
+  const response=deferred();const pending=other.acquire(()=>response.promise,()=>false,{cameraIds:["follow"],renewal:value});
+  await other.close(value.stream.liveViewId);response.resolve(value);await pending;
+  assert.equal(other.authorizations.size,0);assert.equal(other.canAcquire("follow"),true);await other.teardown();
+});
