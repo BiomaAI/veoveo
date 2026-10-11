@@ -3,6 +3,8 @@ mod activation;
 mod active_authorities;
 mod digest;
 #[cfg(feature = "mcp")]
+mod events;
+#[cfg(feature = "mcp")]
 mod hosted;
 mod lifecycle;
 #[cfg(feature = "mcp")]

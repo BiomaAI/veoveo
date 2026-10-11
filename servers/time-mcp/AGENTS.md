@@ -271,3 +271,29 @@ Catalog revision: 2
 - C32: pending — typed docs and five domain collections are implemented; source-policy, provenance, URI and paging checks pass natively; installed K01–K08 qualification and event change/restart probes remain open
 - C33: pending — Owner naming producers, consumers and installed qualification are pending.
 <!-- veoveo:contract-compliance:end -->
+
+### Installed Future Events
+
+`cargo xtask smoke time-installed-events` selects
+`events::future_temporal_events_through_public_gateway` in the existing
+`gateway_consumers` target. `VEOVEO_TIME_EVENTS_INPUT` points to a private closed
+fixture with `installation`, `authority`, and `selectedPod`. Select a disposable
+single-replica Time Deployment and the same normal OAuth principal for every
+connection. Its profile must admit its required scopes plus `time:read` and
+`time:event:write`; an operator-created event is invisible to another agent owner.
+
+The original 300-second interval includes discovery, exact event-root listener
+acknowledgement, current-clock reads, four creations, guarded refusals, one fenced
+restart and explicit reconnects. Due coordinates preserve the current authority
+and uncertainty while adding checked TAI offsets of 20, 80, 180 and 240 seconds.
+The first and third events require delivered invalidation plus an uncached Due
+read. The second is cancelled before its due instant. The fourth becomes due
+while disconnected and qualifies current-state reconciliation after reconnect.
+An initial snapshot does not establish notification replay. Early Due refuses the
+required Scheduled checkpoint without renewing any deadline.
+
+The 30-second cleanup reconciles only acknowledged owned events still Scheduled,
+then closes every retained SDK generation. Creation intents and acknowledged IDs
+survive assertion and journal failures; an unknown create outcome is not retried
+or deleted. Due and cancelled records remain available for inspection. Ops owns
+retirement of isolated state. This profile does not replace calendar Task recovery.

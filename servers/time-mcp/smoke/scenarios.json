@@ -129,6 +129,38 @@
       },
       "deadlineSeconds": 960,
       "cleanupSeconds": 30
+    },
+    {
+      "id": "time-installed-events",
+      "description": "Qualify future event delivery, cancellation, fenced restart and missed-update reconciliation through normal OAuth.",
+      "target": {
+        "kind": "cargo_test",
+        "selection": {
+          "owner": "servers/time-mcp",
+          "package": "veoveo-time-mcp",
+          "target": "gateway_consumers",
+          "features": [
+            "mcp"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        },
+        "case": "events::future_temporal_events_through_public_gateway",
+        "ignored": true
+      },
+      "arguments": [],
+      "prerequisites": [],
+      "requirements": {
+        "network": true,
+        "credentials": true,
+        "clusterMutation": true,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Requires VEOVEO_TIME_EVENTS_INPUT with installation, selected current authority and an admitted single Time Pod; normal OAuth same-owner caller needs current profile-required scopes plus time:read/time:event:write. Arms time://events before creating four retained events, performs one UID/RV-fenced process rollout, and reconnects explicitly. Original300-second operation plus30-second cleanup; no Task dispatch or authority mutation. Ops owns isolated retained-state retirement."
+      },
+      "deadlineSeconds": 360,
+      "cleanupSeconds": 30
     }
   ]
 }

@@ -758,6 +758,17 @@ the record from `scheduled` to `due` under optimistic concurrency, then emits up
 for the collection and event URI. Cancellation updates the durable record and cancels
 the local watcher.
 
+The installed future-event consumer arms the stable event-root subscription before
+creation and reads the current authority-bound clock to construct checked TAI
+coordinates. Delivered invalidations require matching uncached event reads;
+Scheduled and Due are separate assertions. One fenced process restart retains the
+future event, and reconnect restores its watcher. A deliberately disconnected
+interval qualifies current-state reconciliation rather than notification replay.
+The profile owns one 300-second operation and 30-second cleanup interval, retains
+ambiguous creation intents, and cancels only acknowledged owned Scheduled events.
+Due and cancelled event records remain for operator retirement. Agent wake scheduling uses
+these public resources through the agent's own owner identity and policy.
+
 Event reads, collections, due queries, and optimistic transitions bind both the
 tenant and authenticated owner in SQL. Completion applies the same owner predicate
 before its limit. The catalog decodes only the records selected by those queries;
