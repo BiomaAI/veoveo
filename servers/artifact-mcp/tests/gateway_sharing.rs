@@ -91,7 +91,12 @@ async fn anonymous_sharing_respects_limits_expiry_revocation_and_release() -> Re
         options.mode(0o600);
     }
     let mut output = options.open(&input.installation.output)?;
-    let caller = match input.installation.caller().await {
+    let end = tokio::time::Instant::now() + Duration::from_secs(180);
+    let caller = match tokio::time::timeout_at(end, input.installation.caller())
+        .await
+        .context("sharing connection deadline elapsed")
+        .and_then(|result| result)
+    {
         Ok(caller) => caller,
         Err(error) => {
             return finish_report(&mut output, &input, Vec::new(), Err(error), Vec::new());
@@ -112,18 +117,34 @@ async fn anonymous_sharing_respects_limits_expiry_revocation_and_release() -> Re
         checks: Vec::new(),
     };
     // Finish read-only preflight before permitting release or share mutations.
-    let preflight = sharing.preflight(&input.owner).await;
-    let (result, mut cleanup_failures) = if preflight.is_ok() {
-        let result = tokio::time::timeout(Duration::from_secs(180), sharing.exercise())
+    let mut preflight_admitted = false;
+    let result = tokio::time::timeout_at(end, async {
+        sharing.preflight(&input.owner).await?;
+        preflight_admitted = true;
+        sharing.exercise().await
+    })
+    .await
+    .context("sharing operation exceeded three minutes")
+    .and_then(|result| result);
+    let cleanup_end = tokio::time::Instant::now() + Duration::from_secs(40);
+    let mut cleanup_failures = if preflight_admitted {
+        match tokio::time::timeout_at(cleanup_end - Duration::from_secs(10), sharing.cleanup())
             .await
-            .context("sharing checks exceeded three minutes")
-            .and_then(|result| result);
-        (result, sharing.cleanup().await)
+        {
+            Ok(failures) => failures,
+            Err(_) => {
+                vec!["sharing cleanup deadline elapsed; links/release remain unresolved".to_owned()]
+            }
+        }
     } else {
-        (preflight, Vec::new())
+        Vec::new()
     };
-    if let Err(error) = installed::close(caller).await {
-        cleanup_failures.push(format!("close MCP connection: {error:#}"));
+    if let Err(error) = tokio::time::timeout_at(cleanup_end, installed::close(caller))
+        .await
+        .context("sharing connection cleanup deadline elapsed")
+        .and_then(|result| result)
+    {
+        cleanup_failures.push(format!("SDK close: {error:#}"));
     }
     finish_report(
         &mut output,

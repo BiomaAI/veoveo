@@ -57,11 +57,7 @@ impl FinalTaskSmokeClient {
             Duration::from_secs(30),
             SmokeMcpHandler.serve_with_lifecycle(
                 StreamableHttpClientTransport::with_client(
-                    reqwest::Client::builder()
-                        .connect_timeout(Duration::from_secs(10))
-                        .timeout(Duration::from_secs(65))
-                        .redirect(reqwest::redirect::Policy::none())
-                        .build()?,
+                    crate::installed::knowledge::mcp_http_client_builder().build()?,
                     config,
                 ),
                 ClientLifecycleMode::Discover {

@@ -52,130 +52,152 @@ async fn run() -> Result<()> {
     );
     let restricted_credentials = installed::credentials(&input.restricted_token_file)?;
     let credentials = input.installation.credentials()?;
-    let caller = input.installation.caller().await?;
-    let restart = Arc::new(restart::DeploymentRestart::new(
-        &installation,
-        &input.installation.deployment,
-        "map-mcp",
-        caller.peer().clone(),
-        veoveo_mcp_contract::ServerResourceUris::new("map".parse()?).contract_uri(),
-    )?);
-    let layers = authoring::Authoring::new(
-        caller.peer().clone(),
-        authoring::Mutation::Layer(input.layer.clone()),
-        restart.clone(),
-    );
-    let features = authoring::Authoring::new(
-        caller.peer().clone(),
-        authoring::Mutation::Feature {
-            layer: input.layer.clone(),
-            feature: input.feature.clone(),
-        },
-        restart.clone(),
-    );
-    let publications = publications::Publications::new(
-        caller.peer().clone(),
-        input.publication_layers.clone(),
-        restart.clone(),
-    );
-    for id in [
-        &input.layer,
-        &input.publication_layers[0],
-        &input.publication_layers[1],
-    ] {
-        ensure!(
-            layers.layer(id).await?.archived_at.is_none(),
-            "fixture layer is already archived"
+    let end = tokio::time::Instant::now() + Duration::from_secs(900);
+    let mut caller_slot = None;
+    let mut layers_slot = None;
+    let mut releases_slot = None;
+    let mut mutation_admitted = false;
+    let reported = tokio::time::timeout_at(end, async {
+        caller_slot = Some(input.installation.caller().await?);
+        let caller = caller_slot.as_ref().context("Map source caller absent")?;
+        let restart = Arc::new(restart::DeploymentRestart::new(
+            &installation,
+            &input.installation.deployment,
+            "map-mcp",
+            caller.peer().clone(),
+            veoveo_mcp_contract::ServerResourceUris::new("map".parse()?).contract_uri(),
+        )?);
+        layers_slot = Some(authoring::Authoring::new(
+            caller.peer().clone(),
+            authoring::Mutation::Layer(input.layer.clone()),
+            restart.clone(),
+        ));
+        let layers = layers_slot.as_ref().context("Map authoring owner absent")?;
+        let features = authoring::Authoring::new(
+            caller.peer().clone(),
+            authoring::Mutation::Feature {
+                layer: input.layer.clone(),
+                feature: input.feature.clone(),
+            },
+            restart.clone(),
         );
-    }
-    let releases =
-        releases::ReleaseProbe::new(input.releases, caller.peer().clone(), restart).await?;
-    let source = KnowledgeSourceTarget::new(
-        input.installation.endpoint.as_str().parse()?,
-        "map".parse()?,
-        ["map".parse()?].into(),
-        KnowledgeRoute::Gateway,
-    )?;
-    let probes = KnowledgeProbes {
-        changes: vec![
-            KnowledgeChangeProbe::update(
-                MapKnowledgeCollection::Layers
-                    .descriptor()
-                    .collection()
-                    .clone(),
-                MapKnowledgeMember::Layer {
-                    layer: input.layer.clone(),
-                }
-                .to_uri(),
-                &layers,
-            ),
-            KnowledgeChangeProbe::update(
-                MapKnowledgeCollection::Features
-                    .descriptor()
-                    .collection()
-                    .clone(),
-                MapKnowledgeMember::Feature {
-                    layer: input.layer.clone(),
-                    feature: input.feature.clone(),
-                }
-                .to_uri(),
-                &features,
-            ),
-            KnowledgeChangeProbe::create(
-                MapKnowledgeCollection::Publications
-                    .descriptor()
-                    .collection()
-                    .clone(),
-                &publications,
-            ),
-            KnowledgeChangeProbe::update(
-                MapKnowledgeCollection::Releases
-                    .descriptor()
-                    .collection()
-                    .clone(),
-                MapKnowledgeMember::Release {
-                    dataset: releases.selection.dataset.clone(),
-                    release: releases.selection.candidate.clone(),
-                }
-                .to_uri(),
-                &releases,
-            ),
-        ],
-        searches: vec![KnowledgeSearchProbe {
-            tool: "search_locations".parse()?,
-            arguments: serde_json::to_value(&input.search)?
-                .as_object()
-                .cloned()
-                .context("Map search input must be an object")?,
-            expected: input
-                .expected
-                .iter()
-                .map(MapKnowledgeMember::to_uri)
-                .collect(),
-            restricted_credentials,
-            restricted: KnowledgeSearchAccess::Denied,
-        }],
-    };
-    let result = run_knowledge_source_conformance(&source, &credentials, &probes).await;
-    let reported = result.and_then(|report| input.installation.report(&report));
-    // Attempt every owned cleanup, even if an earlier cleanup failed.
-    let cleanup = tokio::time::timeout(Duration::from_secs(120), async {
-        let release = tokio::time::timeout(Duration::from_secs(35), releases.cleanup())
-            .await
-            .context("release restoration exceeded 35 seconds")
-            .and_then(|result| result);
-        let mut authored = Ok(());
+        let publications = publications::Publications::new(
+            caller.peer().clone(),
+            input.publication_layers.clone(),
+            restart.clone(),
+        );
         for id in [
             &input.layer,
             &input.publication_layers[0],
             &input.publication_layers[1],
         ] {
-            let result = tokio::time::timeout(Duration::from_secs(25), layers.archive(id))
+            ensure!(
+                layers.layer(id).await?.archived_at.is_none(),
+                "fixture layer is already archived"
+            );
+        }
+        releases_slot = Some(
+            releases::ReleaseProbe::new(input.releases, caller.peer().clone(), restart).await?,
+        );
+        let releases = releases_slot.as_ref().context("Map release owner absent")?;
+        let source = KnowledgeSourceTarget::new(
+            input.installation.endpoint.as_str().parse()?,
+            "map".parse()?,
+            ["map".parse()?].into(),
+            KnowledgeRoute::Gateway,
+        )?;
+        let probes = KnowledgeProbes {
+            changes: vec![
+                KnowledgeChangeProbe::update(
+                    MapKnowledgeCollection::Layers
+                        .descriptor()
+                        .collection()
+                        .clone(),
+                    MapKnowledgeMember::Layer {
+                        layer: input.layer.clone(),
+                    }
+                    .to_uri(),
+                    layers,
+                ),
+                KnowledgeChangeProbe::update(
+                    MapKnowledgeCollection::Features
+                        .descriptor()
+                        .collection()
+                        .clone(),
+                    MapKnowledgeMember::Feature {
+                        layer: input.layer.clone(),
+                        feature: input.feature.clone(),
+                    }
+                    .to_uri(),
+                    &features,
+                ),
+                KnowledgeChangeProbe::create(
+                    MapKnowledgeCollection::Publications
+                        .descriptor()
+                        .collection()
+                        .clone(),
+                    &publications,
+                ),
+                KnowledgeChangeProbe::update(
+                    MapKnowledgeCollection::Releases
+                        .descriptor()
+                        .collection()
+                        .clone(),
+                    MapKnowledgeMember::Release {
+                        dataset: releases.selection.dataset.clone(),
+                        release: releases.selection.candidate.clone(),
+                    }
+                    .to_uri(),
+                    releases,
+                ),
+            ],
+            searches: vec![KnowledgeSearchProbe {
+                tool: "search_locations".parse()?,
+                arguments: serde_json::to_value(&input.search)?
+                    .as_object()
+                    .cloned()
+                    .context("Map search input must be an object")?,
+                expected: input
+                    .expected
+                    .iter()
+                    .map(MapKnowledgeMember::to_uri)
+                    .collect(),
+                restricted_credentials,
+                restricted: KnowledgeSearchAccess::Denied,
+            }],
+        };
+        mutation_admitted = true;
+        let result = run_knowledge_source_conformance(&source, &credentials, &probes).await;
+        result.and_then(|report| input.installation.report(&report))
+    })
+    .await
+    .context("Map source operation exceeded fifteen minutes")
+    .and_then(|result| result);
+    // Attempt every owned cleanup, even if an earlier cleanup failed.
+    let cleanup_end = tokio::time::Instant::now() + Duration::from_secs(130);
+    let cleanup = tokio::time::timeout_at(cleanup_end - Duration::from_secs(10), async {
+        let release = if let Some(releases) = releases_slot.as_ref().filter(|_| mutation_admitted) {
+            tokio::time::timeout(Duration::from_secs(35), releases.cleanup())
                 .await
-                .context("layer archival exceeded 25 seconds")
-                .and_then(|result| result);
-            if result.is_err() {
-                authored = result;
+                .context("release restoration exceeded 35 seconds")
+                .and_then(|result| result)
+        } else {
+            Ok(())
+        };
+        let mut authored = Ok(());
+        if let Some(layers) = layers_slot.as_ref().filter(|_| mutation_admitted) {
+            for id in [
+                &input.layer,
+                &input.publication_layers[0],
+                &input.publication_layers[1],
+            ] {
+                let result = tokio::time::timeout(Duration::from_secs(25), layers.archive(id))
+                    .await
+                    .context("layer archival exceeded 25 seconds")
+                    .and_then(|result| result);
+                if result.is_err() {
+                    authored = result;
+                }
             }
         }
         release?;
@@ -183,7 +205,14 @@ async fn run() -> Result<()> {
     })
     .await
     .context("Map fixture cleanup exceeded two minutes");
-    let closed = installed::close(caller).await;
+    let closed = if let Some(caller) = caller_slot.take() {
+        tokio::time::timeout_at(cleanup_end, installed::close(caller))
+            .await
+            .context("Map source connection cleanup deadline elapsed")
+            .and_then(|result| result)
+    } else {
+        Ok(())
+    };
     cleanup??;
     closed?;
     reported

@@ -125,27 +125,46 @@ pub async fn connect(
     token_file: &Path,
 ) -> Result<RunningService<RoleClient, ClientConfig>> {
     let transport = transport(endpoint, &token(token_file)?)?;
-    Ok(ClientConfig::default()
-        .serve_with_lifecycle(
+    discover_source(
+        transport,
+        tokio::time::Instant::now() + Duration::from_secs(30),
+    )
+    .await
+}
+
+pub(crate) async fn discover_source(
+    transport: StreamableHttpClientTransport<reqwest::Client>,
+    end: tokio::time::Instant,
+) -> Result<RunningService<RoleClient, ClientConfig>> {
+    tokio::time::timeout_at(
+        end,
+        ClientConfig::default().serve_with_lifecycle(
             transport,
             ClientLifecycleMode::Discover {
                 preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
             },
-        )
-        .await?)
+        ),
+    )
+    .await
+    .context("source discovery exceeded thirty seconds")?
+    .context("source discovery failed")
+}
+
+pub(crate) fn mcp_http_client_builder() -> reqwest::ClientBuilder {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    // MCP subscriptions own a streamed response until cancellation or their
+    // operation deadline. A total/read timeout would truncate that response.
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .redirect(reqwest::redirect::Policy::none())
 }
 
 fn transport(
     endpoint: &HttpsUrl,
     bearer: &str,
 ) -> Result<StreamableHttpClientTransport<reqwest::Client>> {
-    let _ = rustls::crypto::ring::default_provider().install_default();
     Ok(StreamableHttpClientTransport::with_client(
-        reqwest::Client::builder()
-            .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(65))
-            .redirect(reqwest::redirect::Policy::none())
-            .build()?,
+        mcp_http_client_builder().build()?,
         StreamableHttpClientTransportConfig::with_uri(endpoint.as_str())
             .auth_header(bearer.to_owned()),
     ))

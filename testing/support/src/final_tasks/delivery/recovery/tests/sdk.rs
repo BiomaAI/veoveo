@@ -27,6 +27,10 @@ struct State {
     checkpoint_entered: tokio::sync::Notify,
     foreign_after_checkpoint: bool,
     completed_before_checkpoint: bool,
+    delayed_completion: Option<Duration>,
+    hold_read: bool,
+    active_reads: AtomicUsize,
+    discovery_delay: Option<Duration>,
 }
 #[derive(Clone)]
 struct Server(Arc<State>);
@@ -58,6 +62,9 @@ fn detail(completed: bool) -> DetailedTask {
 impl ServerHandler for Server {
     async fn discover(&self, _: RequestContext<RoleServer>) -> Result<DiscoverResult, ErrorData> {
         self.0.discoveries.fetch_add(1, Ordering::SeqCst);
+        if let Some(delay) = self.0.discovery_delay {
+            tokio::time::sleep(delay).await;
+        }
         Ok(DiscoverResult::from_server_info(
             self.supported_protocol_versions().into_owned(),
             self.get_info(),
@@ -73,6 +80,18 @@ impl ServerHandler for Server {
                 .enable_tasks()
                 .build(),
         )
+    }
+    async fn read_resource(
+        &self,
+        _: ReadResourceRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResponse, ErrorData> {
+        self.0.active_reads.fetch_add(1, Ordering::SeqCst);
+        if self.0.hold_read {
+            context.ct.cancelled().await;
+        }
+        self.0.active_reads.fetch_sub(1, Ordering::SeqCst);
+        Err(ErrorData::internal_error("native read cancelled", None))
     }
     async fn call_tool(
         &self,
@@ -104,6 +123,25 @@ impl ServerHandler for Server {
         self.0.active_listens.fetch_add(1, Ordering::SeqCst);
         let _active = ActiveListen(self.0.clone());
         let index = self.0.listens.fetch_add(1, Ordering::SeqCst);
+        if let Some(delay) = self.0.delayed_completion {
+            context
+                .sink()
+                .notify_task_status(detail(false))
+                .await
+                .map_err(|_| ErrorData::internal_error("native notification failed", None))?;
+            tokio::select! {
+                () = context.cancelled() => return Ok(()),
+                () = tokio::time::sleep(delay) => {}
+            }
+            self.0.completed.store(true, Ordering::SeqCst);
+            context
+                .sink()
+                .notify_task_status(detail(true))
+                .await
+                .map_err(|_| ErrorData::internal_error("native notification failed", None))?;
+            context.cancelled().await;
+            return Ok(());
+        }
         let completed =
             (index > 0 && !self.0.hold_completion) || self.0.completed_before_checkpoint;
         if completed {
@@ -175,6 +213,82 @@ impl OwnedServer {
             let _ = task.await;
         }
     }
+}
+
+#[tokio::test]
+async fn installed_sse_lifetime_is_owned_by_operation_not_http_body_timeout() -> Result<()> {
+    let state = Arc::new(State {
+        delayed_completion: Some(Duration::from_millis(150)),
+        ..State::default()
+    });
+    let factory = state.clone();
+    let service = StreamableHttpService::new(
+        move || Ok(Server(factory.clone())),
+        veoveo_mcp_contract::stateless_session_manager(),
+        veoveo_mcp_contract::canonical_streamable_http_server_config(),
+    );
+    let router = axum::Router::new().nest_service("/mcp", service);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let endpoint = format!("http://{}/mcp", listener.local_addr()?);
+    let server = OwnedServer(Some(tokio::spawn(async move {
+        axum::serve(listener, router).await
+    })));
+    let end = tokio::time::Instant::now() + Duration::from_secs(5);
+    let result = tokio::time::timeout_at(end, async {
+        // Reproduce the former total-body cap at a short injected duration,
+        // using the same SDK, server, filter and completed notification.
+        let capped = StreamableHttpClientTransport::with_client(
+            crate::installed::knowledge::mcp_http_client_builder()
+                .timeout(Duration::from_millis(50)).build()?,
+            StreamableHttpClientTransportConfig::with_uri(endpoint.clone()),
+        );
+        let client = SmokeMcpHandler.serve_with_lifecycle(capped,
+            ClientLifecycleMode::Discover { preferred_versions: vec![ProtocolVersion::V_2026_07_28] }).await?;
+        let filter = SubscriptionFilter::builder().task_id("recovery-task").build();
+        let mut subscription = client.listen(filter.clone()).await?;
+        let observed = async {
+            ensure!(subscription.acknowledged() == &filter, "native exact filter differs");
+            ensure!(matches!(subscription.next().await?, Some(ServerNotification::TaskStatusNotification(update))
+                if update.params.task.status() == TaskStatus::Working));
+            ensure!(subscription.next().await?.is_none(), "body cap unexpectedly delivered completion");
+            ensure!(matches!(subscription.end(), Some(rmcp::service::SubscriptionEnd::Abrupt)),
+                "body timeout must retain abrupt EOF classification");
+            Ok::<(), anyhow::Error>(())
+        }.await;
+        let listener_closed = subscription.cancel().await;
+        let caller_closed = client.cancel().await;
+        observed?;
+        listener_closed?;
+        caller_closed?;
+
+        // Actual maintained client uses the shared builder without a body cap.
+        let client = FinalTaskSmokeClient::new(&endpoint, "native-private-token".into()).connect().await?;
+        let mut subscription = client.listen(filter.clone()).await?;
+        let observed = async {
+            ensure!(subscription.acknowledged() == &filter, "native exact filter differs");
+            ensure!(matches!(subscription.next().await?, Some(ServerNotification::TaskStatusNotification(update))
+                if update.params.task.status() == TaskStatus::Working));
+            ensure!(matches!(subscription.next().await?, Some(ServerNotification::TaskStatusNotification(update))
+                if update.params.task.status() == TaskStatus::Completed));
+            // The operation's own short timeout still interrupts a live stream.
+            ensure!(tokio::time::timeout(Duration::from_millis(10), subscription.next()).await.is_err());
+            Ok::<(), anyhow::Error>(())
+        }.await;
+        let listener_closed = subscription.cancel().await;
+        let caller_closed = client.cancel().await;
+        observed?;
+        listener_closed?;
+        caller_closed?;
+        tokio::time::timeout_at(end, async {
+            while state.active_listens.load(Ordering::SeqCst) != 0 {
+                tokio::task::yield_now().await;
+            }
+        }).await?;
+        Ok::<(), anyhow::Error>(())
+    }).await;
+    server.stop().await;
+    result??;
+    Ok(())
 }
 
 #[tokio::test]
@@ -292,5 +406,89 @@ async fn recovery_sdk_reconnects_once_without_redispatch_and_rejects_identity_or
             }
         );
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn source_discovery_and_stalled_preflight_obey_owner_deadlines_then_close() -> Result<()> {
+    let state = Arc::new(State {
+        hold_read: true,
+        ..State::default()
+    });
+    let factory = state.clone();
+    let service = StreamableHttpService::new(
+        move || Ok(Server(factory.clone())),
+        veoveo_mcp_contract::stateless_session_manager(),
+        veoveo_mcp_contract::canonical_streamable_http_server_config(),
+    );
+    let delayed = Arc::new(State {
+        discovery_delay: Some(Duration::from_millis(150)),
+        ..State::default()
+    });
+    let delayed_factory = delayed.clone();
+    let slow = StreamableHttpService::new(
+        move || Ok(Server(delayed_factory.clone())),
+        veoveo_mcp_contract::stateless_session_manager(),
+        veoveo_mcp_contract::canonical_streamable_http_server_config(),
+    );
+    let router = axum::Router::new()
+        .nest_service("/mcp", service)
+        .nest_service("/slow", slow);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let endpoint = format!("http://{}/mcp", listener.local_addr()?);
+    let slow_endpoint = format!("http://{}/slow", listener.local_addr()?);
+    let server = OwnedServer(Some(tokio::spawn(async move {
+        axum::serve(listener, router).await
+    })));
+    let outer_end = tokio::time::Instant::now() + Duration::from_secs(5);
+    let result = tokio::time::timeout_at(outer_end, async {
+        let slow_transport = StreamableHttpClientTransport::with_client(
+            crate::installed::knowledge::mcp_http_client_builder().build()?,
+            StreamableHttpClientTransportConfig::with_uri(slow_endpoint),
+        );
+        let slow_end = tokio::time::Instant::now() + Duration::from_millis(50);
+        ensure!(
+            crate::installed::knowledge::discover_source(slow_transport, slow_end)
+                .await
+                .is_err(),
+            "ordinary discovery ignored its owner deadline"
+        );
+        ensure!(
+            delayed.discoveries.load(Ordering::SeqCst) == 1,
+            "delayed discovery never reached SDK server"
+        );
+        let transport = StreamableHttpClientTransport::with_client(
+            crate::installed::knowledge::mcp_http_client_builder().build()?,
+            StreamableHttpClientTransportConfig::with_uri(endpoint),
+        );
+        let end = tokio::time::Instant::now() + Duration::from_millis(150);
+        let caller = crate::installed::knowledge::discover_source(transport, end).await?;
+        // Retain the actual client outside cancellable preflight, as source owners do.
+        let uri = veoveo_types::ResourceUri::new("native://stalled-preflight")?;
+        let read = tokio::time::timeout_at(
+            end,
+            crate::installed::knowledge::read::<Value>(caller.peer(), &uri),
+        )
+        .await;
+        let entered = state.active_reads.load(Ordering::SeqCst) == 1;
+        let cleanup_end = tokio::time::Instant::now() + Duration::from_secs(1);
+        let closed =
+            tokio::time::timeout_at(cleanup_end, crate::installed::knowledge::close(caller)).await;
+        ensure!(
+            entered && read.is_err(),
+            "stalled preflight escaped its original work deadline"
+        );
+        closed??;
+        tokio::time::timeout_at(cleanup_end, async {
+            while state.active_reads.load(Ordering::SeqCst) != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await?;
+        Ok::<(), anyhow::Error>(())
+    })
+    .await;
+    server.stop().await;
+    result??;
     Ok(())
 }

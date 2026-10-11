@@ -123,51 +123,78 @@ async fn run() -> Result<()> {
         input.events[0] != input.events[1],
         "Time requires two distinct fixture events"
     );
-    let caller = input.installation.caller().await?;
-    let driver = Events {
-        caller: caller.peer().clone(),
-        ids: input.events,
-        changes: AtomicUsize::new(0),
-        restart: restart::DeploymentRestart::new(
-            &target,
-            &input.installation.deployment,
-            "time-mcp",
-            caller.peer().clone(),
-            veoveo_mcp_contract::ServerResourceUris::new("time".parse()?).contract_uri(),
-        )?,
+    let end = tokio::time::Instant::now() + Duration::from_secs(900);
+    let mut caller_slot = None;
+    let mut driver_slot = None;
+    let mut mutation_admitted = false;
+    let reported = tokio::time::timeout_at(end, async {
+        caller_slot = Some(input.installation.caller().await?);
+        let caller = caller_slot.as_ref().context("source caller absent")?;
+        driver_slot = Some(Events {
+            caller: caller.peer().clone(),
+            ids: input.events,
+            changes: AtomicUsize::new(0),
+            restart: restart::DeploymentRestart::new(
+                &target,
+                &input.installation.deployment,
+                "time-mcp",
+                caller.peer().clone(),
+                veoveo_mcp_contract::ServerResourceUris::new("time".parse()?).contract_uri(),
+            )?,
+        });
+        let driver = driver_slot.as_ref().context("source driver absent")?;
+        for id in &driver.ids {
+            ensure!(
+                driver.event(id).await?.state == TemporalEventState::Scheduled,
+                "Time fixture must start scheduled"
+            );
+        }
+        let source = KnowledgeSourceTarget::new(
+            input.installation.endpoint.as_str().parse()?,
+            "time".parse()?,
+            ["time".parse()?].into(),
+            KnowledgeRoute::Gateway,
+        )?;
+        let probes = KnowledgeProbes {
+            changes: vec![KnowledgeChangeProbe::updates(
+                TimeKnowledgeCollection::Events
+                    .descriptor()
+                    .collection()
+                    .clone(),
+                [
+                    TimeResource::Event(driver.ids[0].clone()).to_uri()?,
+                    TimeResource::Event(driver.ids[1].clone()).to_uri()?,
+                ],
+                driver,
+            )],
+            searches: vec![],
+        };
+        mutation_admitted = true;
+        let result =
+            run_knowledge_source_conformance(&source, &input.installation.credentials()?, &probes)
+                .await;
+        result.and_then(|report| input.installation.report(&report))
+    })
+    .await
+    .context("Time source operation exceeded fifteen minutes")
+    .and_then(|result| result);
+    let cleanup_end = tokio::time::Instant::now() + Duration::from_secs(40);
+    let cleanup = if let Some(driver) = driver_slot.as_ref().filter(|_| mutation_admitted) {
+        tokio::time::timeout_at(cleanup_end - Duration::from_secs(10), driver.cleanup())
+            .await
+            .context("Time source cleanup deadline elapsed")
+            .and_then(|result| result)
+    } else {
+        Ok(())
     };
-    for id in &driver.ids {
-        ensure!(
-            driver.event(id).await?.state == TemporalEventState::Scheduled,
-            "Time fixture must start scheduled"
-        );
-    }
-    let source = KnowledgeSourceTarget::new(
-        input.installation.endpoint.as_str().parse()?,
-        "time".parse()?,
-        ["time".parse()?].into(),
-        KnowledgeRoute::Gateway,
-    )?;
-    let probes = KnowledgeProbes {
-        changes: vec![KnowledgeChangeProbe::updates(
-            TimeKnowledgeCollection::Events
-                .descriptor()
-                .collection()
-                .clone(),
-            [
-                TimeResource::Event(driver.ids[0].clone()).to_uri()?,
-                TimeResource::Event(driver.ids[1].clone()).to_uri()?,
-            ],
-            &driver,
-        )],
-        searches: vec![],
+    let closed = if let Some(caller) = caller_slot.take() {
+        tokio::time::timeout_at(cleanup_end, installed::close(caller))
+            .await
+            .context("Time source connection cleanup deadline elapsed")
+            .and_then(|result| result)
+    } else {
+        Ok(())
     };
-    let result =
-        run_knowledge_source_conformance(&source, &input.installation.credentials()?, &probes)
-            .await;
-    let reported = result.and_then(|report| input.installation.report(&report));
-    let cleanup = driver.cleanup().await;
-    let closed = installed::close(caller).await;
     cleanup?;
     closed?;
     reported

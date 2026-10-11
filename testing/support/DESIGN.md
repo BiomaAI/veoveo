@@ -93,6 +93,18 @@ poll an expired close even when that future later becomes ready. An already-ende
 subscription follows the pinned SDK's normal cancellation semantics; transport and
 join errors fail cleanup. The existing delivered-completion helper keeps its API.
 
+Installed MCP clients bound HTTP connection establishment to ten seconds. They do
+not impose a total response-body or read-idle timeout on subscription streams.
+The caller's operation and discovery deadlines bound work, and the original owner
+cleanup deadline bounds cancellation and closure. Ordinary source callers limit discovery to thirty seconds. Source conformance
+owners start their fifteen-minute operation interval before connection and preflight;
+the Artifact sharing owner starts its three-minute interval at the same point.
+Clients and admitted mutation drivers stay outside cancellable work. One cleanup
+interval reserves its final ten seconds for client closure: forty seconds for grant,
+Time and sharing fixtures, and 130 seconds for Map restoration. Failed preflight
+permits client closure but does not authorize fixture mutation. SDK request options
+and control transport deadlines keep their existing semantics.
+
 Existing owner assertions and independent onboarding controls exercise declaration rejection, source containment, compiler artifact tampering, hashed/external targets, native library drift, exact framework selection and cancellation. Protocol, installation, provider and hardware prerequisites remain with those owning harnesses.
 
 The ignored `framework_execution` integration case requires Node and the locked independent-fixture Python dev environment. Explicit selection executes actual passed, skipped, failed and missing cases through both maintained frameworks; model-only count checks cannot replace that gate. It requires no service or graphics context.

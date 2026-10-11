@@ -130,6 +130,26 @@ enum Phase {
 enum Failure {
     OwnerLifecycle,
 }
+#[derive(Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
+enum SubscriptionEndKind {
+    Graceful,
+    Abrupt,
+    Cancelled,
+    Lagged,
+    Unknown,
+}
+impl SubscriptionEndKind {
+    fn admit(end: Option<&rmcp::service::SubscriptionEnd>) -> Self {
+        use rmcp::service::SubscriptionEnd;
+        match end {
+            Some(SubscriptionEnd::Graceful(_)) => Self::Graceful,
+            Some(SubscriptionEnd::Abrupt) => Self::Abrupt,
+            Some(SubscriptionEnd::Cancelled) => Self::Cancelled,
+            Some(SubscriptionEnd::Lagged { .. }) => Self::Lagged,
+            _ => Self::Unknown,
+        }
+    }
+}
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct TaskObservation {
@@ -163,6 +183,7 @@ struct Journal<'a> {
     created: Option<TaskObservation>,
     first_delivered_status: Option<TaskStatus>,
     working_delivered: bool,
+    subscription_end: Option<SubscriptionEndKind>,
     delivered_completed: Option<TaskObservation>,
     current: Option<TaskObservation>,
     result: Option<ExpandScheduleOutput>,
@@ -190,6 +211,7 @@ impl<'a> Journal<'a> {
             created: None,
             first_delivered_status: None,
             working_delivered: false,
+            subscription_end: None,
             delivered_completed: None,
             current: None,
             result: None,
@@ -698,10 +720,12 @@ async fn delivered(
     output: &mut fs::File,
 ) -> Result<DetailedTask> {
     for _ in 0..32 {
-        let notification = subscription
-            .next()
-            .await?
-            .context("Task subscription ended before Completed delivery")?;
+        let next = subscription.next().await;
+        if !matches!(&next, Ok(Some(_))) {
+            journal.subscription_end = Some(SubscriptionEndKind::admit(subscription.end()));
+            journal.persist(output)?;
+        }
+        let notification = next?.context("Task subscription ended before Completed delivery")?;
         ensure!(
             notification.get_meta().subscription_id() == Some(subscription.id().clone()),
             "Task notification subscription identity differs"
