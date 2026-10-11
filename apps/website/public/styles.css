@@ -42,10 +42,10 @@ img { display: block; max-width: 100%; }
 .nav-links a:hover { color: #fff; }
 
 .hero h1 {
-  margin-top: 1.6rem; max-width: 52rem;
+  margin: 1.6rem 0 2rem; max-width: 52rem;
   font-size: clamp(2.1rem, 4.6vw, 3.8rem); line-height: 1.04; letter-spacing: -0.02em; font-weight: 700;
 }
-.hero-actions { margin-top: auto; padding: 2rem 0 2.6rem; display: flex; gap: 0.8rem; flex-wrap: wrap; }
+.hero-actions { padding: 2rem 0 2.6rem; display: flex; gap: 0.8rem; flex-wrap: wrap; }
 
 .btn {
   display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none;
@@ -57,6 +57,35 @@ img { display: block; max-width: 100%; }
 .btn-ghost:hover { border-color: #fff; }
 .btn-dark { background: var(--ink); color: #fff; }
 .btn svg { width: 1.1rem; height: 1.1rem; }
+
+/* The film card loops a silent cut of the film, centered between the headline and the buttons;
+   a click opens the whole film. */
+.film-card {
+  position: relative; display: block; align-self: flex-start; width: clamp(17rem, 32vw, 32rem); margin: auto 0;
+  border-radius: 12px; border: 1px solid rgba(201, 163, 230, 0.22); overflow: hidden; background: var(--night);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5); transition: border-color 0.2s;
+}
+.film-card:hover, .film-card:focus-visible { border-color: rgba(201, 163, 230, 0.6); }
+.film-card video { display: block; width: 100%; aspect-ratio: 16 / 9; }
+.film-card-play {
+  position: absolute; right: 0.8rem; bottom: 0.8rem; display: grid; place-items: center; width: 2.4rem; height: 2.4rem;
+  border-radius: 50%; background: rgba(8, 6, 14, 0.6); border: 1px solid rgba(255, 255, 255, 0.3); color: #fff;
+  backdrop-filter: blur(6px); transition: background 0.2s, border-color 0.2s;
+}
+.film-card:hover .film-card-play, .film-card:focus-visible .film-card-play { background: var(--violet); border-color: var(--violet); }
+.film-card-play svg { width: 0.9rem; height: 0.9rem; margin-left: 2px; }
+
+/* The film plays in a modal over the page; its YouTube player exists only while it is open. */
+.film { width: min(92vw, calc(82vh * 16 / 9)); max-width: none; margin: auto; padding: 0; border: 0; border-radius: 0.6rem; background: #000; overflow: visible; }
+.film::backdrop { background: rgba(4, 3, 10, 0.88); backdrop-filter: blur(6px); }
+.film-frame { aspect-ratio: 16 / 9; }
+.film-frame iframe { display: block; width: 100%; height: 100%; border: 0; border-radius: inherit; }
+.film-close {
+  position: absolute; top: -2.9rem; right: 0; display: grid; place-items: center; width: 2.2rem; height: 2.2rem;
+  border-radius: 50%; border: 1px solid rgba(255,255,255,0.35); background: none; color: #fff; cursor: pointer;
+}
+.film-close:hover { border-color: #fff; }
+.film-close svg { width: 0.9rem; height: 0.9rem; }
 
 /* ---------- lede ---------- */
 .lede-band { padding-top: 3.2rem; padding-bottom: 1rem; }
@@ -158,6 +187,7 @@ footer a { color: var(--body); }
   .nav-links { display: none; }
   .factory { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
   .hero-inner { min-height: 40rem; }
+  .film-card { width: 100%; }
   .hero-art { background-size: 210% auto; background-position: 42% 100%; }
   /* The comparison stacks each row, so Palantir and Veoveo read top to bottom. */
   table { min-width: 0; }
@@ -193,7 +223,7 @@ html.has-world .hero h1 { text-shadow: 0 2px 24px rgba(4, 3, 10, 0.8); }
 .hud b { color: #EDE8F5; font-weight: 500; }
 .hud .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--violet-bright); box-shadow: 0 0 10px var(--violet-bright); }
 html.has-world .hud { display: flex; }
-html.has-world .hero-actions { margin-top: auto; padding-bottom: 1.4rem; }
+html.has-world .hero-actions { padding-bottom: 1.4rem; }
 
 html.has-world {
   --ink: #EDE8F5;
