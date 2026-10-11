@@ -120,6 +120,27 @@ the same approved template and digest-pinned kernel image. Use the current insta
 module plan and credential revision for that render. A prepared later-generation
 plan must not be applied merely to repair a missing template ConfigMap.
 
+When the approved immutable ConfigMap already exists outside the Helm release,
+verify its namespace, name, UID, resource version, immutable flag, complete data,
+and ownership metadata before adoption. For the current UAV pilot, the workload
+reference is `veoveo-agents/uav-pilot-037b21aaa992` with
+`sha256:037b21aaa99257ed211e51e8ea2477aff0649a79374a87503c5ed7377837a2bf` in
+`gateway.agents.templates[].workload.configDigest`. Confirm that the selected
+Gateway workload uses the same reference and digest. Add only the two
+`meta.helm.sh/release-*` annotations with UID and resource-version preconditions;
+preserve the ConfigMap UID and data, and stop if any check differs.
+
+Before the first Helm upgrade that adopts the ConfigMap, save the HelmRelease UID,
+resource version, source and values references, and original remediation fields.
+While the release is suspended, set upgrade remediation retries to `0`, set
+`remediateLastFailure` to `false`, and set `cleanupOnFail` to `false`. Verify that
+the API accepts those fields and that the HelmRelease identity and inputs still
+match before resuming it. After the intended revision succeeds, suspend the release
+again, verify that the successful revision retained the same ConfigMap UID and
+data, then restore the saved remediation field values and presence. On failure,
+keep the release suspended with automatic remediation disabled and preserve the
+ConfigMap and its data for diagnosis.
+
 The initial managed installation keeps the four existing pilot registrations while
 qualifying new instance creation. Their explicit transfer removes those static
 registrations and per-pilot Helm workloads. This checkpoint does not establish
