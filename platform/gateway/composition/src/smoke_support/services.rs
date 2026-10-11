@@ -358,32 +358,48 @@ impl PlatformStoreSmoke {
         username: &str,
         password: &str,
     ) -> Vec<(&'static str, OsString)> {
-        vec![
+        let mut env = vec![
             ("VEOVEO_SURREAL_ENDPOINT", self.endpoint.clone().into()),
             ("VEOVEO_SURREAL_NAMESPACE", self.namespace.clone().into()),
             ("VEOVEO_SURREAL_DATABASE", self.database.clone().into()),
             ("VEOVEO_SURREAL_AUTH_LEVEL", auth_level.into()),
             ("VEOVEO_SURREAL_USERNAME", username.into()),
             ("VEOVEO_SURREAL_PASSWORD", password.into()),
-            (
-                "VEOVEO_MODULE_PLAN",
-                self.module_directory
-                    .path()
-                    .join("plan.json")
-                    .into_os_string(),
-            ),
-            (
-                "VEOVEO_MODULE_COMPOSITION",
-                format!("sha256:{}", "1".repeat(64)).into(),
-            ),
-            ("VEOVEO_INSTALLATION_GENERATION", "1".into()),
-            ("VEOVEO_CREDENTIAL_REVISION", "smoke-runtime-v1".into()),
-            (
-                "VEOVEO_SURREAL_RUNTIME_USERNAME",
-                SURREAL_RUNTIME_USER.into(),
-            ),
-        ]
+        ];
+        env.extend(
+            module_launch_binding(&self.module_directory.path().join("plan.json"))
+                .into_iter()
+                .map(|(env, _, value)| (env, value)),
+        );
+        env
     }
+}
+
+/// The prepared fixture identity has one source for command and environment admission.
+fn module_launch_binding(plan: &Path) -> [(&'static str, &'static str, OsString); 5] {
+    [
+        (
+            "VEOVEO_MODULE_PLAN",
+            "--module-plan",
+            plan.as_os_str().to_owned(),
+        ),
+        (
+            "VEOVEO_MODULE_COMPOSITION",
+            "--composition",
+            format!("sha256:{}", "1".repeat(64)).into(),
+        ),
+        ("VEOVEO_INSTALLATION_GENERATION", "--generation", "1".into()),
+        (
+            "VEOVEO_CREDENTIAL_REVISION",
+            "--credential-revision",
+            "smoke-runtime-v1".into(),
+        ),
+        (
+            "VEOVEO_SURREAL_RUNTIME_USERNAME",
+            "--surreal-runtime-username",
+            SURREAL_RUNTIME_USER.into(),
+        ),
+    ]
 }
 
 async fn spawn_surreal_platform() -> Result<PlatformStoreSmoke> {
@@ -573,18 +589,36 @@ pub fn gateway_serve_args_for_base(
     platform: &PlatformStoreSmoke,
     public_base_url: &str,
 ) -> Vec<OsString> {
-    vec![
+    gateway_serve_args_for_store(
+        port,
+        &platform.endpoint,
+        &platform.namespace,
+        &platform.database,
+        &platform.module_directory.path().join("plan.json"),
+        public_base_url,
+    )
+}
+
+fn gateway_serve_args_for_store(
+    port: u16,
+    endpoint: &str,
+    namespace: &str,
+    database: &str,
+    plan: &Path,
+    public_base_url: &str,
+) -> Vec<OsString> {
+    let mut args = vec![
         "serve".into(),
         "--port".into(),
         port.to_string().into(),
         "--public-base-url".into(),
         public_base_url.into(),
         "--surreal-endpoint".into(),
-        platform.endpoint.clone().into(),
+        endpoint.into(),
         "--surreal-namespace".into(),
-        platform.namespace.clone().into(),
+        namespace.into(),
         "--surreal-database".into(),
-        platform.database.clone().into(),
+        database.into(),
         "--surreal-auth-level".into(),
         "database".into(),
         "--surreal-username".into(),
@@ -600,7 +634,13 @@ pub fn gateway_serve_args_for_base(
         "--refresh-delivery-window-seconds".into(),
         REFRESH_DELIVERY_WINDOW_SECONDS.to_string().into(),
         "--allow-loopback-hosts".into(),
-    ]
+    ];
+    args.extend(
+        module_launch_binding(plan)
+            .into_iter()
+            .flat_map(|(_, flag, value)| [flag.into(), value]),
+    );
+    args
 }
 
 pub fn reserve_local_port() -> Result<u16> {
@@ -696,4 +736,54 @@ pub fn write_edge_caddyfile(path: &Path, gateway_port: u16, media_port: u16) -> 
     );
     fs::write(path, caddyfile)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn gateway_smoke_launch_admits_prepared_identity_before_store_connection() {
+        let directory = tempfile::tempdir().unwrap();
+        let missing_plan = directory.path().join("uncreated-plan.json");
+        let gateway =
+            veoveo_testing_support::artifacts::executable("veoveo-gateway-composition", "gateway")
+                .unwrap();
+        let mut args = gateway_serve_args_for_store(
+            18871,
+            "ws://127.0.0.1:1",
+            "fixture",
+            "fixture",
+            &missing_plan,
+            PUBLIC_BASE_URL,
+        );
+        // Removing this appended binding recreates the old launch, which must
+        // fail CLI admission instead of reaching preparation or Store access.
+        let unbound = args[..args.len() - module_launch_binding(&missing_plan).len() * 2].to_vec();
+        args.extend([
+            "--internal-signing-key-der-b64".into(),
+            INTERNAL_SIGNING_KEY_DER_B64.into(),
+        ]);
+        async fn invoke(gateway: &Path, args: &[OsString], plan: &Path) -> std::process::Output {
+            let mut command = tokio::process::Command::new(gateway);
+            command.args(args).kill_on_drop(true);
+            for (env, _, _) in module_launch_binding(plan) {
+                command.env_remove(env);
+            }
+            tokio::time::timeout(Duration::from_secs(10), command.output())
+                .await
+                .expect("Gateway parser/plan admission exceeded test deadline")
+                .unwrap()
+        }
+        let rejected = invoke(&gateway, &unbound, &missing_plan).await;
+        assert!(!rejected.status.success());
+        let error = String::from_utf8_lossy(&rejected.stderr);
+        assert!(error.contains("--module-plan"));
+        assert!(error.contains("--credential-revision"));
+        let admitted = invoke(&gateway, &args, &missing_plan).await;
+        assert!(!admitted.status.success());
+        // The real executable parsed every required identity and reached the
+        // deliberate missing-plan refusal before any database connection.
+        assert!(String::from_utf8_lossy(&admitted.stderr).contains("read generated module plan"));
+    }
 }
