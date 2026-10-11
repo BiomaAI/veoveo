@@ -13,20 +13,32 @@ batch has no completed stage evidence. Its old growth budget is exhausted; anoth
 dispatch requires admission for the complete solve. Rollout and installed qualification
 remain open. A separate focused batch at `33281845c` stages the Gateway discovery
 correction, Recording forwarder and UAV runtime shutdown corrections successfully.
-Development qualification, rollout and their installed checks remain open.
+Its UAV runtime and forwarder are deployed; the Gateway rollout remains open.
+The selected runtime is `927229e43770` and forwarder is `b4413b92b979`.
+Both UAV containers reach Ready with the world, fleet, PVCs and MCP unchanged.
 The UAV runtime at `ffa13f2c0` passes 188 owning CPU tests, independent review,
 stage/release agreement, attestation checks and node-origin registry readback.
 The runtime-only rollout reaches Ready with the world, PVCs, MCP and forwarder
 unchanged. Normal-OAuth Console camera calls return 200, the WebSocket stays open
 and all five camera canvases display advancing frames in headed RTX 4090 Chrome.
-The browser sample measures 2.12 fps; an independent native atlas sample measures
-4.1 fps. Both fall below the configured 16 Hz. Controlled one-, two- and five-camera
-measurements will separate rendering and atlas size from live delivery and browser
-load before setting camera-count-specific acceptance targets. Keep per-camera
-resolution, cadence and scene comparable, measure native and browser delivery, and
-restore the original configuration. The recorded MP4 rate alone does not locate
-the live bottleneck. Software H.264 decode is supported and smooth according to
-Media Capabilities, and the UI identifies it correctly.
+The earlier five-camera samples measured 2.12 fps in the browser and 4.1 fps at
+native RTSP admission. A controlled one-camera sample now measures 7.24–7.28
+RTSP-admitted frames/s and 7.249 browser callbacks/s over 120 seconds, with a
+simulation real-time factor of 0.999–1.005. Software decoding keeps pace in this
+sample, but one camera still misses its configured 16 Hz. The two-camera sampler
+fails before an observation window, and its cleanup error obscures the original
+setup failure. The original five-camera configuration is restored and Ready.
+The repaired sampler preserves observation and cleanup failures separately in a
+private journal created before startup. Use those diagnostics for the next
+controlled two- or five-camera sample.
+Keep per-camera resolution, cadence and scene comparable before setting
+camera-count-specific acceptance targets. The recorded MP4 rate alone does not
+locate the live bottleneck. Software H.264 decode is accepted without user browser
+configuration. Media Capabilities reports the current profile supported and smooth,
+and the UI identifies it correctly. Server rendering, atlas composition and encoding
+require the GPU. The focused camera sampler passes compiler, native timing,
+cancellation and diagnostic controls and independent review. Two- and five-camera
+measurements with that executable remain open.
 The operator-only RTSP recovery has five-second handshake and admitted-picture
 deadlines with at most two same-source reconnects. Its source controls preserve
 Recording's physical-camera profile; induced installed stall recovery remains open.
@@ -38,15 +50,19 @@ contains 442 NVENC frames over 29.95 seconds at 14.76 average fps, and headed
 RTX 4090 playback passes. The capture's authenticated state sample reports all four
 vehicles flying; individual visibility of every vehicle in the saved video is unqualified.
 The node pins the selected UAV images and both prior runtimes for rollback.
-The observed simulator and forwarder shutdown fails: both exit 137 after the
-30-second grace period. The Rust MCP host was not restarted in this check.
+Installed shutdown qualification remains open. Native containerd TaskExit events
+during the camera-profile restoration record exit 1 for both the simulator and
+forwarder. The matched simulator log reports an invalid Py_Graph during physical
+camera writer detachment after atlas retirement. The provider stays unmodified;
+Veoveo's product cleanup order requires repair and native qualification. The Rust
+MCP host was not restarted in this check.
 The forwarder source now applies one deadline across intake, drain, flush and both
 original worker joins. Its owning native suite and five affected shutdown controls
 pass, and independent review accepts the correction, including refusal of late success.
 The simulator launcher retains NVIDIA's unchanged wrapper and delivers termination
 to its admitted Python owner. Ten affected launch and cleanup controls pass, and independent
-review accepts the fix. Both source corrections require publication and installed
-shutdown qualification, including Kit's native cleanup within the existing grace.
+review accepts the fix. Both corrections are published and deployed; graceful
+shutdown, including Kit's native cleanup, still requires installed qualification.
 Node restart and forced image collection are unqualified. F59, A11, the full composed flight and
 actual capture-clock qualification remain open. Longer render stalls and turning
 flight also require qualification; native feedback comparisons did not reproduce
