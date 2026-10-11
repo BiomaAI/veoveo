@@ -8,9 +8,9 @@ GitOps holds stay set. Build and rollout operations require separate admission.
 | Area | Current qualification | Remaining work |
 |---|---|---|
 | Images and publication | 22 Trixie images have stage/release and registry readback proof | Complete the remaining nine-image selection and affected later source publications, then qualify final selected images |
-| Gateway and installation | Gateway `071` runs generation two; preparation, all nineteen current lanes and runtime-authenticated catalog publication pass; four active consumers are Ready and Optimization stays paused | Qualify remaining final images and owner gates while preserving paused replicas, storage and GitOps holds |
-| Enabled workloads | Knowledge, Embedding and Speech are on; Reason, Host, Computers and other paused GPU workloads stay off | Preserve this selection through publication; qualify required workloads when explicitly activated |
-| Knowledge | Retained-index cold startup, targeted Time-document indexing/search and normal-PKCE restricted caller policy pass on the admitted deployment | First-empty indexing, current-driver Embedding profile, current-generation recovery and final images |
+| Gateway and installation | Gateway `853d2879f40d` runs generation three; preparation, all nineteen current lanes and runtime-authenticated publication pass; the selected rollout qualified five active plan consumers with Optimization at zero | Activate the full platform under the current authorization, preserving storage and GitOps holds; qualify final images and owner gates |
+| Enabled workloads | Full-platform activation is authorized and underway, including Reason, Host, Computers and all required model and GPU runtimes | Establish a functional baseline across all existing services before further UAV optimization, restart or full-flight tests |
+| Knowledge | Retained-index cold startup, targeted Time-document indexing/search and normal-PKCE restricted caller policy pass on the admitted deployment; Read-only tool discovery passes source review and focused SDK native checks | Deploy and qualify Read-only discovery; first-empty indexing, current-driver Embedding profile, current-generation recovery and final images |
 | Time | Normal-OAuth completion/cancellation, unfinished process recovery, Time12 completed-state cross-replica delivery/restoration and the local agent-wake composition pass | Authority activation, final images and installed temporal-event clients/templates |
 | Agent temporal events | The real single-Store Time/Gateway/Artifact/kernel composition passes authenticated delivery, cancellation/idempotency, reconnect, Time/kernel replacement, exactly two effects and owned cleanup | Qualify installed clients/templates separately; reconcile the retained failed-fixture owner lease through an admitted recovery path |
 | Agent Manager | Public authoring/prearmed SSE/current Ready/owned Stop/archive fixture and five native controls pass; scope-admission repair passes | Execute the corrected five-scope journey, physical drain and restoration on admitted images |
@@ -40,18 +40,28 @@ profile is supported and smooth and the UI labels it. Server RTX rendering, atla
 composition and NVENC encoding still require the GPU. Published saved videos keep
 their accepted scope; they do not qualify current live throughput or full flight.
 
-Coordinated runtime cleanup and shutdown diagnostics have two-image development
-stages at `95cc4a71`; their native controls and review pass, while final release
-qualification stays open. Helm revision 11 installs chart `917bc842` with a
-120-second GPU Pod grace. Runtime `2c084202` and forwarder `cb0f783f` are Ready;
-MCP `3413582e` is deployed from the non-release development stage at `8d7d5155`;
-Console BFF `95af9c89` keeps its stage at `d2b763a5`. The latest MCP-only rollout
-reaches Ready and changes one image field across 27 Deployments. The simulator and
-BFF Pods stay unchanged, all eleven PVC identities are preserved, and thirteen
-current and recovery image references are pinned. The selected values use an
-immutable UAV ConfigMap and preserve the installed charts and other configuration.
-Both releases and root reconciliation stay suspended. Earlier authenticated
-Console hosts and normal-OAuth typed UAV reads keep their recorded scope.
+Development-only Gateway `853d2879f40d` and UAV MCP `b919f9c91f7b` now run
+generation three through selected guarded Kubernetes patches. UAV chart
+`83dc3e9f2765` is published desired state from `3f3213b25`; the installed UAV Helm
+revision stays at 11/chart `917bc842`, with both HelmReleases suspended. Only the
+selected images and plan/startup fields were updated.
+Preparation and runtime-authenticated publication pass across nineteen current
+lanes; only UAV advances to lane 1, with credential revision `bioma-runtime-1`
+unchanged. Five active plan consumers are Ready and Optimization stays at zero.
+The full 27-Deployment image, replica and UID comparison passes with only two
+image changes. All eleven PVC identities and reconciliation holds are preserved,
+and fifteen current and recovery image references are pinned. Simulator and
+forwarder Pods are unchanged: runtime `2c084202` and forwarder `cb0f783f` keep the
+120-second Pod grace; Console BFF `95af9c89` is unchanged. Normal full-scoped OAuth
+discovery returns 89 tools, Knowledge search and readiness pass, and Manager reads
+pass. This development publication is not release-eligible. The old
+memory-only issuer's exit 143 does not qualify clean shutdown, and no browser
+restart or paired drain was run. Rollout receipt:
+`/tmp/veoveo-gen3-installation-inputs-20261011/execution/gen3-rollout-final-receipt.json`,
+SHA-256 `32fb49c09044b1aea4493547995e5a1f27718d47ebc644c05714290ac1199838`.
+The comparison inventory is `current-27deployments-and-15pins.json` in that
+receipt's directory, SHA-256
+`a244bf9960b78cda48d298d18704526b8a49fbb3f110db1937f47d9eb0c74ca1`.
 
 The prior verifier at `36b2269b7` passes installed MCP-only restart isolation,
 headed hardware graphics and fresh-authorization video continuity. Its paired
@@ -79,23 +89,12 @@ authorization and retained close receipts. Tokens stay bound to their issuing
 process; a replacement can close a known caller-owned grant without accepting its
 old token. App recovery retries that same close before reopening, and the existing
 browser verifier retains its last public App state when a wait times out. Focused
-App, browser and Store controls and independent review pass. This source batch is
-not deployed; final images and installed recovery remain open. The new
-Store lane requires a new Gateway composition image, coordinated preparation,
-catalog publication and matching startup-plan references for affected consumers.
-The running Gateway must match that compiled plan. Preserve paused replicas and
-drain memory-only UAV issuers before replacement. The current UAV startup batch
-admits the typed plan and runtime account before recovery or viewer effects. Its
-independent chart supplies an immutable copy of the same generated plan used by
-the platform chart; the simulator and forwarder Pod template is unchanged.
-Development-only Gateway `853d2879f40d`, UAV MCP `b919f9c91f7b` and UAV chart
-`83dc3e9f2765` are published from `3f3213b25` with registry manifest readback.
-The generation-three candidate uses that exact Gateway image, keeps nineteen lanes
-and credential revision `bioma-runtime-1`, and advances only UAV to lane 1.
-Gateway `0711` at generation two and UAV MCP `3413582e` still run; the candidate is
-not installed or release-eligible. Publication receipt:
-`/tmp/veoveo-uav-gen3-publication-20261011/final-receipt.json`, SHA-256
-`f23c987d73f249aa806e8376457de9c860895efe8237c015e8ae10cb4fde1c1e`.
+App, browser and Store controls and independent review pass. Generation three
+installs these Store-backed grants and startup-plan checks; installed recovery
+remains open. UAV admits the typed plan and runtime account before recovery or
+viewer effects. Its independent chart supplies an immutable copy of the same
+generated plan used by the platform chart. Prior unresolved fixture ownership is
+not inferred to be settled by installation.
 The nineteen startup and viewer controls pass. The focused Helm control proves
 plan-byte binding, invalid-plan rejection and simulator-template isolation;
 compiler and strict checks pass. Six of seven selected xtask controls pass. The
@@ -105,6 +104,7 @@ control detects disagreement between the Host's configured default image and the
 image lock. These two checks stay failed and do not establish an installed UAV
 failure. Final images and installed restart qualification remain open. Prior
 unresolved fixture ownership is not inferred to be settled by this change.
+The current priority is full-platform activation and a functional baseline, including Time/agent-wake and Knowledge. Existing UAV operation is available; further UAV optimization, restart and full-flight tests are deferred. Required UAV recovery and FPS gates stay open.
 Restart continuity is separate from the unchanged strict throughput limits. Paired shutdown,
 repeated GPU reset, induced RTSP stall recovery, capture-clock and full composed
 flight qualification remain open. F59/A11 stay open.
@@ -452,16 +452,18 @@ collections with six completion calls and two permitted reads. Reading the denie
 design returns `-32600`, followed by a successful valid catalog read. This qualifies
 the selected caller policy without changing normal operator or indexing authority.
 
-The matched generation-two installation preparation and catalog publication pass.
-All nineteen lanes report current status without SQL replay; publication verifies
-runtime authentication and revision `gcp-01a124ed-5d8d-7053-a5a4-4ebd4bddeffe`.
-Guarded updates bind Gateway, Artifact, Frames and Knowledge to generation two with
-one Ready replica each. Optimization's plan reference is updated while it stays
-at zero. Knowledge, Embedding and Speech remain Ready at one; UAV runtime `927`
-and forwarder `b441` are unchanged. PVC identities and reconciliation holds are
-preserved. Gateway liveness and normal-OAuth discovery pass. This installation
-publication and caller-policy result do not qualify first-empty indexing, the
-current-driver Embedding profile, cross-replica behavior or the full image closure.
+Generation-three preparation and runtime-authenticated publication pass with
+nineteen current lanes. Gateway, Artifact, Frames, Knowledge and UAV MCP are Ready;
+That selected rollout kept Optimization at zero and preserved paused workloads,
+storage and reconciliation holds, as recorded in the current UAV status above.
+Full-platform activation is now authorized and underway. These results
+do not qualify first-empty indexing, the current-driver Embedding profile,
+cross-replica behavior or the full image closure. A caller without Knowledge Read
+is denied under current policy. Read-only callers without Search/Embed grants now
+receive an empty tool list after current identity admission. Source and strict checks,
+three focused SDK native controls and independent review pass, including denied tool
+calls, revocation and stale registration refusal. The deployed Knowledge image is
+unchanged; installation of this repair remains pending.
 Host and Computers select the locked stock template image with its canonical
 fingerprint and matching configuration revisions. An authoritative inventory finds
 zero persisted Computer bindings, permitting this candidate hard cut without a
