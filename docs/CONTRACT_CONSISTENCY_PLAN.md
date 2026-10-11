@@ -372,6 +372,13 @@ The eighteen selected stock native cases are qualified, including the aggregate 
 profile of 1 CPU, 6 GiB and 1,024 PIDs. The installed 8 CPU, 12 GiB and 4,096-PID
 profile has not been activated.
 
+The retained Embedding execution profile qualifies driver `595.91.07`; the host now
+runs `610.57.04`. Driver identity contributes to the profile digest, so current-driver
+qualification requires fresh measured contents and the existing CUDA comparison,
+capacity and production Knowledge retrieval/rebuild checks. Both native verification
+targets are delivered and their maintained selectors are present. The shared serving
+runtime stays enabled; the older reports preserve their original profile scope.
+
 Knowledge's retained-index/current-generation unattended cold-start profile passes
 installed qualification on the C5 image. The observer records HTTP 503 then 200
 on the same container, drains the readiness watch fence, and verifies Ready status
