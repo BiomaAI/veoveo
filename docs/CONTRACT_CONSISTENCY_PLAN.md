@@ -1,22 +1,27 @@
 # Platform Foundations And Contract Consistency Plan
 
 Status: Work is paused for handoff at the owner's request on October 11, 2026.
+The owner subsequently authorized a full local Docker and Cargo reset, including
+the cluster, private OCI registry, persistent data and simulator image. There is
+no installed platform now. Source repositories and credential configuration stay
+available; resumption requires a fresh installation through the selected build
+and deployment workflow.
 The source and focused native baseline passes its owning checks and review.
 Final-image closure and the remaining installed gates are open. Earlier qualified
-images and reports keep their recorded scope; they do not qualify newer inputs.
-GitOps holds stay set. Build and rollout operations require separate admission.
-The [pause handoff](#pause-handoff) identifies the running installation, retained
-fixtures and next work. Its installation snapshot supersedes older replica counts
-elsewhere in this plan.
+images and reports describe the pre-reset installation and do not qualify a new
+one. Build and rollout operations require separate admission.
+The [pause handoff](#pause-handoff) identifies the reset, recorded checks and next
+work. It supersedes older running-state and retained-fixture statements elsewhere
+in this plan.
 
 | Area | Current qualification | Remaining work |
 |---|---|---|
-| Images and publication | 22 Trixie images have stage/release and registry readback proof | Complete the remaining nine-image selection and affected later source publications, then qualify final selected images |
-| Gateway and installation | Gateway `853d2879f40d` runs generation three; preparation, all nineteen current lanes and runtime-authenticated publication pass; 25 Deployments are Ready and Host/Computers are deliberately at zero | Complete stock Host/Computers activation through the CPU/platform owner; qualify final images and owner gates while preserving storage and GitOps holds |
-| Enabled workloads | Recording, View, Optimization, Reason, Stream and Speech are Ready and pass normal-OAuth domain reads; the Rerun bridge is Ready. Real Optimization, View, Speech and Stream Tasks complete | Establish Reason inference and Rerun interaction baselines; the CPU/platform owner takes stock Host/Computers activation; further UAV optimization, restart and full-flight tests wait |
+| Images and publication | 22 Trixie images have recorded stage/release and registry readback proof; local images and registry storage were reset | Rebuild and publish through the selected workflow, complete remaining qualification and prove final selected images |
+| Gateway and installation | Before reset, generation three and all nineteen lanes passed their recorded scope; 25 Deployments were Ready and Host/Computers were at zero. The local installation is deleted | Recreate and provision fresh state; complete stock Host/Computers activation through the CPU/platform owner; qualify final images and owner gates |
+| Enabled workloads | Before reset, Recording, View, Optimization, Reason, Stream and Speech passed normal-OAuth domain reads; Rerun was Ready. Real Optimization, View, Speech and Stream Tasks completed | Re-establish functional baselines after recreation, including Reason inference and Rerun interaction; further UAV optimization, restart and full-flight tests wait |
 | Knowledge | Retained-index cold startup, targeted Time-document indexing/search and normal-PKCE restricted caller policy pass on the admitted deployment; a fresh normal-OAuth search returns three hits through Embedding; Read-only tool discovery passes source review and focused SDK native checks | Deploy and qualify Read-only discovery; first-empty indexing, current-driver Embedding profile, current-generation recovery and final images |
 | Time | Normal-OAuth completion/cancellation, unfinished process recovery, Time12 completed-state cross-replica delivery/restoration and the local agent-wake composition pass | Authority activation, final images and installed temporal-event clients/templates |
-| Agent temporal events | The real single-Store Time/Gateway/Artifact/kernel composition passes authenticated delivery, cancellation/idempotency, reconnect, Time/kernel replacement, exactly two effects and owned cleanup | Qualify installed clients/templates separately; reconcile the retained failed-fixture owner lease through an admitted recovery path |
+| Agent temporal events | The real single-Store Time/Gateway/Artifact/kernel composition passes authenticated delivery, cancellation/idempotency, reconnect, Time/kernel replacement, exactly two effects and owned cleanup | Qualify installed clients/templates and remaining recovery with new fixtures; the earlier fixture store was deleted by the authorized reset |
 | Agent Manager | Public authoring/prearmed SSE/current Ready/owned Stop/archive fixture and five native controls pass; scope-admission repair passes | Execute the corrected five-scope journey, physical drain and restoration on admitted images |
 | Artifact and CPU consumers | Focused Artifact upload/SDK/Datasheet consumers and one replacement preserving unfinished upload plus separate retained-capability replay pass; selected DuckDB/Timeseries/Frames/Media checks pass | Final images and remaining owner-specific consumers/recovery; headed Workbench and physical ownership checks stay open |
 | Stock Computers | Eighteen native OpenShell cases pass on the unmodified provider; package and worker OAuth are source-qualified | Materialize installed identity/configuration, activate node RuntimeClass and prove stock provider/Host/container behavior |
@@ -38,16 +43,16 @@ CPU/platform owner, with no node restart performed. Readiness and basic reads do
 not establish concurrent GPU inference capacity or the remaining recovery and
 performance gates.
 
-Reason loads its model when a Task starts. The current shared RTX 4090 has about
-1.5 GiB free, below Reason's configured 42% memory budget. Readiness therefore
-does not establish inference availability. Reducing Embedding to 15% cannot keep
+Reason loads its model when a Task starts. Before reset, the shared RTX 4090 had
+about 1.5 GiB free, below Reason's configured 42% memory budget. Readiness therefore
+did not establish inference availability. Reducing Embedding to 15% cannot keep
 its 32,768-token profile: that context alone needs 3.5 GiB of KV cache before
 weights and overhead. Its private trial runbook is invalidated; no such change is
-installed. GPU capacity qualification remains open. Broad tool discovery also
-reports two upstream failure entries; this does not establish two failing servers.
-The authenticated Console inventory shows Computers offline and the other eighteen
-registered servers healthy. The operator client's admin-health request returns
-403 because that client lacks administrator rights.
+installed. GPU capacity qualification remains open. Pre-reset broad tool discovery
+reported two upstream failure entries; this did not establish two failing servers.
+The authenticated Console inventory showed Computers offline and the other eighteen
+registered servers healthy. The operator client's admin-health request returned
+403 because that client lacked administrator rights.
 
 View's installed capture returns a 256-by-256 JPEG, and the encoder log binds its
 CUDA UUID to the RTX 4090. The owned view closes successfully and its frame remains
@@ -74,51 +79,67 @@ scope; ownership changes do not close unfinished gates.
 
 | Owner | Work |
 |---|---|
-| NVIDIA host session | Stream, Reason, Speech, View and Optimization; the embedding runtime and installed Knowledge GPU integration; UAV availability; Recording/Rerun GPU playback, bridge and hardware browser acceptance |
+| NVIDIA host session | Stream, Reason, Speech, View and Optimization; the embedding runtime and installed Knowledge GPU integration; UAV availability after recreation; Recording/Rerun GPU playback, bridge and hardware browser acceptance |
 | macOS agents | CPU MCP servers, including Host/Computers; shared contracts and Task runtime; Gateway, Console, Workspace, SDKs and templates; Knowledge catalog/policy/indexing logic and Recording catalog/persistence logic |
 | Coordinated operations owner | Cluster mutations and bounded Linux-only checks for accepted handoffs; preserve running services, storage and required GPU resources |
 
-UAV operation stays available. Further flight and FPS improvements wait until the
-other services work. Shared-file changes and cluster mutations require a handoff
+UAV was available before reset; no simulator is installed now. Further flight and
+FPS improvements wait until the other services work. Shared-file changes and
+cluster mutations require a handoff
 between owners; separate agents must not apply competing Helm or Kubernetes
 changes.
 
 ## Pause Handoff
 
-Development and acceptance execution stop here. The installation stays running;
-this pause does not authorize a node restart or a change to workload replicas.
-All implementation through `55cc21870` is on `origin/main`; this documentation
-checkpoint records the later functional checks. No source fix or build is in flight.
+Development and acceptance execution stay paused. The owner authorized deletion
+of all local clusters, Docker containers, images, volumes, build caches and private
+OCI registry data, plus all Cargo target outputs. The earlier simulator-retention
+exception was explicitly withdrawn; its local transfer was cancelled. This is a
+fresh-start reset, with no cluster available to restart and no retained installed
+Tasks, recordings, Artifacts, model volumes or PVC identities. Repository sources,
+credential configuration and minimal private handoff receipts are preserved.
+All implementation and documentation through `0c33cf8a7` is on `origin/main`.
+No source fix, build or installed acceptance is in flight.
 The shared contract documentation matches hosted revision 4, requirement catalog
 revision 2 and the implemented declaration, configuration and runtime feature
 selection. No unfinished local implementation remains in this checkpoint.
 
-The final operations snapshot has 27 Deployments: 25 at desired, Ready and
-available replicas of one, with `computers-mcp` and `computer-host` deliberately at
-zero. All eight GPU-requesting Deployments are Ready. The RTX 4090 runs driver
-`610.57.04`; only 1,426 MiB of GPU memory is free. Disk free space is about 136.6
-GiB and available system memory is about 33.5 GiB. These are observations at pause,
-not capacity promises. The root Flux Kustomization and both HelmReleases stay
-suspended. Preserve PVCs, model caches, required images and the simulator image.
+The reset verifies zero local k3d clusters and zero Docker containers, images,
+volumes and build cache. Only Docker's three default networks remain. The workspace
+and fixture Cargo targets are deleted. Physical free space increased from 135.66
+GiB to 1,264.14 GiB, recovering 1,128.48 GiB (about 1.10 TiB). Rust toolchains and
+source download registries were preserved. The private cleanup receipt is
+`/tmp/veoveo-stop-clean-20261011/final-receipt.json`, SHA-256
+`dc3342f8bb98467919d77d87f73df74ba6617838070e1cc35fcb9c37e4c39bf6`.
 
-| NVIDIA baseline | Retained result | Still unqualified |
+The last running snapshot had 27 Deployments: 25 at desired, Ready and
+available replicas of one, with `computers-mcp` and `computer-host` deliberately at
+zero. All eight GPU-requesting Deployments were Ready. The RTX 4090 runs driver
+`610.57.04`; that snapshot had only 1,426 MiB of GPU memory free. Those observations
+describe the deleted installation. Cluster GPU processes have exited. Reapply
+controlled reconciliation holds when creating the replacement installation;
+there are no surviving local controllers or volumes to preserve.
+
+| NVIDIA baseline | Last observed result before reset | Still unqualified |
 |---|---|---|
 | Optimization | Normal-OAuth LP Task `gtr_GA4YOW0MZojOK42s28hGsHNi9KnBrtYOQZfY6KQ8nf8` completes with zero objective, gap and reported violations | Broader problems, coordinated recovery and final images |
 | View | Task `gtr_Ojz1h-fOtysVNJp00WA4N5zf7U--Eo3wFQ3LVPk_5rA` captures a 256-by-256 JPEG through the RTX 4090 CUDA encoder; the owned view is closed | Requested 16-pixel fidelity, independent Artifact-byte consumption and remaining lifecycle gates |
 | Speech | Task `gtr_p9p3m55gc-Q6ywbgj6MG1fsyAkqGEmCL-ZMmzB8GITk` transcribes the pinned English WAV through signed-in Workspace; source digest, model revision and expected phrase agree | Task-specific CUDA provenance, complete hosted conformance and remaining recovery gates |
 | Stream | Task `gtr_yfXges12CQdub8TobsBeOyDS2-xn9ccxXEGG0pUNfik` completes against recording `01a12c15-f9da-7b41-b63d-c260a684aa14`, with 90 processed frames, 494 detections and results/source-clip Artifacts | Full maintained scenario, subscription delivery, unfinished recovery and final images |
 | Knowledge / Embedding | One normal-OAuth search for `Time scheduling temporal events` returns three accessible hits from `time.docs` and `time.calendars`; production search calls Embedding | Current-driver profile/vector/ranking/capacity qualification, first-empty indexing and current-generation recovery |
-| Reason | Ready; authenticated model and pipeline reads pass | Actual inference: free VRAM is below its configured 42% budget; do not launch a known-impossible Task |
+| Reason | Ready; authenticated model and pipeline reads passed | Actual inference under the shared profile; measure capacity in the replacement installation |
 | Recording / Rerun | Recording finishes the recovered source; Rerun bridge is Ready and healthy in the Console inventory | Rerun tool interaction and headed hardware playback |
-| UAV | Existing fleet and live video remain available | Deferred FPS improvement, restart, paired drain and composed full-flight gates |
+| UAV | Fleet and live video worked before reset | Recreate the runtime; deferred FPS improvement, restart, paired drain and composed full-flight gates |
 
 The original Stream smoke failed before Task dispatch because the local producer's
 public key ID was stale. Only that ignored local configuration field was corrected.
 The maintained forwarder reopened the same six-batch queue and completed the
 original recording; no replacement recording or duplicate Task was created.
 Its process is retired, with no recovery process left running. Numeric OS exit
-status was not captured. Retain the published recording, Tasks and Artifacts;
-completed basic inference does not close recovery qualification.
+status was not captured. The subsequent authorized reset deleted the published
+recording, Tasks and Artifacts. Their IDs above identify the archived observations,
+not resources that can still be queried. Basic inference does not close recovery
+qualification.
 
 The private consolidated receipt is
 `/tmp/veoveo-platform-activation-prep-20261011/final-postflight/gpu-platform-basic-acceptance.json`,
@@ -130,8 +151,10 @@ unavailable. DevTools page listing hangs; the existing Playwright CDP connection
 and maintained hardware probe work. Do not count API checks as visual acceptance.
 
 On resumption, keep the ownership split above and one cluster operations owner.
-First refresh installed image identities, health and resources without rebuilding
-or restarting healthy workloads. Establish the missing Rerun interaction baseline
+Confirm the replacement build and deployment workflow before rebuilding. Recreate
+the installation, publish the selected images, provision fresh state and establish
+health and basic authenticated operation horizontally. Use new fixtures; the
+pre-reset IDs and PVC identities are gone. Establish the Rerun interaction baseline
 through its dedicated configured Gateway profile using an existing authorized
 OAuth client. Qualify Reason in a separate measured GPU capacity window while
 preserving Knowledge/Embedding as core services; the rejected 15% Embedding budget
