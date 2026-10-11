@@ -40,21 +40,25 @@ profile is supported and smooth and the UI labels it. Server RTX rendering, atla
 composition and NVENC encoding still require the GPU. Published saved videos keep
 their accepted scope; they do not qualify current live throughput or full flight.
 
-Matched containerd exits record simulator and forwarder exit 137 during profile
-changes; they prove failed graceful retirement, not OOM. Forwarder `b4413b92b979`
-with the deadline fix is deployed. Coordinated runtime cleanup at `db0b` passes 200
-owning CPU controls and review. It and the `c2` shutdown-stage diagnostics have
-two-image development stages at `95cc4a71`; final release qualification stays open.
-The diagnostics pass five affected native controls and review. Helm revision 11
-installs chart `917bc842` with a 120-second GPU Pod grace. Runtime `2c084202` and
-forwarder `cb0f783f` are Ready with zero restarts; MCP `fc0251e9` stays unchanged.
-The import reused all large simulator layers and added 31 MB on disk. Current and
-rollback images remain pinned, retained storage is unchanged, and GitOps holds
-are restored. The focused verifier's paired-exit, uncached-state and cleanup
-controls pass native checks and review. Its first installed attempt stopped before
-any restart because its scenario reader still expected retired field spellings;
-the reader repair now passes compiler and actual-scenario controls. Another
-installed attempt is pending. Paired shutdown,
+Coordinated runtime cleanup and shutdown diagnostics have two-image development
+stages at `95cc4a71`; their native controls and review pass, while final release
+qualification stays open. Helm revision 11 installs chart `917bc842` with a
+120-second GPU Pod grace. Runtime `2c084202` and forwarder `cb0f783f` are Ready;
+MCP `fc0251e9` stays unchanged. Current and rollback images remain pinned,
+retained storage is unchanged, and GitOps holds stay set.
+
+The focused verifier at `36b2269b7` passes installed MCP-only restart isolation,
+headed hardware graphics and fresh-authorization video continuity. Its corrected
+isolated JavaScript samplers and typed authenticated source reader pass compiler,
+focused native and behavioral controls and review. Restart continuity is separate
+from the unchanged strict throughput limits. The coordinated runtime/forwarder
+check times out after about 120.395 seconds with no matched exits. Its observer
+starts before Pod deletion; the old terminal records and logs were unavailable,
+so the physical exit outcomes are unknown. Same-image replacements are Ready with
+the same world, fleet and five healthy cameras. Browser cleanup failed while the
+simulator was warming; failed-stage authorization identities were not retained,
+and ownership remains unresolved despite restored viewer counts. Repair observation
+and ownership recovery before another attempt. Paired shutdown,
 repeated GPU reset, induced RTSP stall recovery, capture-clock and full composed
 flight qualification remain open. F59/A11 stay open.
 
@@ -591,9 +595,14 @@ staged digests with chart `917bc842`; both runtime containers are Ready and the
 GPU Pod grace is 120 seconds. The MCP image and Deployment stay unchanged, including
 their existing readiness threshold. The release is held with its original remediation
 settings restored after guarded adoption of the unchanged pilot ConfigMap. Current
-and rollback image pins stay protected. The paired-drain verifier's first installed
-attempt stopped at a stale scenario reader before any restart; graceful retirement
-remains unproven. Keep selected and prior UAV images pinned for rollback.
+and rollback image pins stay protected. The verifier at `36b2269b7` passes the
+installed MCP-only restart and headed video-continuity stage. The paired drain
+observer times out before retaining terminal statuses; the old physical outcomes
+are unknown. Same-image replacements are Ready, but the failed browser cleanup
+keeps ownership unresolved, and that stage's authorization identities were not
+retained. Fix observation and recovery before retrying; graceful
+retirement and strict throughput stay unqualified. Keep selected and prior UAV
+images pinned for rollback.
 Node restart, forced image collection, longer render stalls, turning flight and
 actual capture-clock behavior remain unqualified. Native feedback comparisons did
 not reproduce the recorded control transient. The saved five-camera MP4 has 442
