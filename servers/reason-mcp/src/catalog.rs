@@ -349,6 +349,61 @@ mod tests {
     }
 
     #[test]
+    fn rendered_reference_catalog_matches_the_typed_contract() {
+        use std::process::Command;
+
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let output = Command::new("timeout")
+            .current_dir(&repository)
+            .args([
+                "25s",
+                "helm",
+                "template",
+                "veoveo",
+                "deploy/helm/veoveo",
+                "--namespace",
+                "veoveo",
+                "--show-only",
+                "templates/reason.yaml",
+            ])
+            .args(["-f", "examples/bioma/values.yaml"])
+            .args(["-f", "examples/bioma/k3d-values.yaml"])
+            .args(["-f", "examples/bioma/images/veoveo.lock.yaml"])
+            .args(["-f", "examples/bioma/modules-values.yaml"])
+            .args(["--set", "computers.host.issuerEgress[0]=198.51.100.10/32"])
+            .output()
+            .expect("Reason catalog qualification requires Helm and GNU timeout");
+        assert!(
+            output.status.success(),
+            "Reason chart render failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let objects: Vec<serde_json::Value> =
+            serde_yaml_ng::Deserializer::from_slice(&output.stdout)
+                .map(|document| serde_json::Value::deserialize(document).unwrap())
+                .collect();
+        let config_maps: Vec<_> = objects
+            .iter()
+            .filter(|object| {
+                object["kind"] == "ConfigMap" && object["metadata"]["name"] == "reason-runtime"
+            })
+            .collect();
+        assert_eq!(config_maps.len(), 1);
+        let catalog_json = config_maps[0]["data"]["catalog.json"].as_str().unwrap();
+        let document: CatalogDocument = serde_json::from_str(catalog_json).unwrap();
+        let catalog = PipelineCatalog::new(document.models, document.pipelines).unwrap();
+        assert_eq!(catalog.pipeline_ids().len(), 1);
+        assert_eq!(catalog.model_ids().len(), 1);
+        assert_eq!(
+            catalog
+                .pipeline(&"video-reasoning".parse().unwrap())
+                .unwrap()
+                .model_id,
+            "world-model".parse().unwrap()
+        );
+    }
+
+    #[test]
     fn repository_catalog_example_matches_the_typed_contract() {
         let document: CatalogDocument = serde_json::from_slice(include_bytes!(
             "../../../configs/reason/catalog.example.json"

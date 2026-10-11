@@ -219,14 +219,14 @@ catalog.json: |
         "title": {{ .Values.reason.model.title | toJson }},
         "description": {{ .Values.reason.model.description | toJson }},
         "format": "local_checkpoint",
-        "model_path": {{ .Values.reason.model.path | toJson }},
+        "modelPath": {{ .Values.reason.model.path | toJson }},
         {{- if .Values.reason.model.digest }}
-        "model_digest": {{ .Values.reason.model.digest | toJson }},
+        "modelDigest": {{ .Values.reason.model.digest | toJson }},
         {{- end }}
         "engine": {
           "kind": "vllm",
-          "gpu_memory_utilization": {{ .Values.reason.engine.gpuMemoryUtilization }},
-          "max_model_len": {{ .Values.reason.engine.maxModelLen }}
+          "gpuMemoryUtilization": {{ .Values.reason.engine.gpuMemoryUtilization }},
+          "maxModelLen": {{ .Values.reason.engine.maxModelLen }}
         }
       }
     ],
@@ -236,13 +236,13 @@ catalog.json: |
         "title": "Video reasoning",
         "description": "Describe segments, detect events, and answer questions over recording video.",
         "operation": "video_reasoning",
-        "model_id": {{ .Values.reason.model.id | toJson }},
-        "prompt_template_path": "/etc/veoveo/reason/prompt-template.txt",
-        "prompt_revision": "v1",
+        "modelId": {{ .Values.reason.model.id | toJson }},
+        "promptTemplatePath": "/etc/veoveo/reason/prompt-template.txt",
+        "promptRevision": "v1",
         "observation": {
           "width": {{ .Values.reason.observation.width }},
           "height": {{ .Values.reason.observation.height }},
-          "maximum_frames": {{ .Values.reason.observation.maximumFrames }}
+          "maximumFrames": {{ .Values.reason.observation.maximumFrames }}
         }
       }
     ]
