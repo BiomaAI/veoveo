@@ -9,7 +9,7 @@ GitOps holds stay set. Build and rollout operations require separate admission.
 |---|---|---|
 | Images and publication | 22 Trixie images have stage/release and registry readback proof | Complete the remaining nine-image selection and affected later source publications, then qualify final selected images |
 | Gateway and installation | Gateway `853d2879f40d` runs generation three; preparation, all nineteen current lanes and runtime-authenticated publication pass; the selected gateway rollout passes its recorded scope | Activate the full platform under the current authorization, preserving storage and GitOps holds; qualify final images and owner gates |
-| Enabled workloads | Recording, View, Optimization, Reason and the Rerun bridge are activated and Ready; Time, Recording, View, Optimization and Reason pass basic domain reads through normal public OAuth | Finish Stream image import and corrected catalog activation; the CPU/platform owner takes stock Host/Computers activation; establish a functional baseline before further UAV optimization, restart or full-flight tests |
+| Enabled workloads | Recording, View, Optimization, Reason and Stream are Ready and pass normal-OAuth domain reads; the Rerun bridge is Ready. Stream compiles its TensorRT engine on the GPU, and one real Optimization Task completes with a verified optimal result | Establish Speech, View, Stream and Reason inference baselines; the CPU/platform owner takes stock Host/Computers activation; further UAV optimization, restart and full-flight tests wait |
 | Knowledge | Retained-index cold startup, targeted Time-document indexing/search and normal-PKCE restricted caller policy pass on the admitted deployment; Read-only tool discovery passes source review and focused SDK native checks | Deploy and qualify Read-only discovery; first-empty indexing, current-driver Embedding profile, current-generation recovery and final images |
 | Time | Normal-OAuth completion/cancellation, unfinished process recovery, Time12 completed-state cross-replica delivery/restoration and the local agent-wake composition pass | Authority activation, final images and installed temporal-event clients/templates |
 | Agent temporal events | The real single-Store Time/Gateway/Artifact/kernel composition passes authenticated delivery, cancellation/idempotency, reconnect, Time/kernel replacement, exactly two effects and owned cleanup | Qualify installed clients/templates separately; reconcile the retained failed-fixture owner lease through an admitted recovery path |
@@ -23,13 +23,25 @@ provider initialization. Reason's pinned checkpoint is verified on its persisten
 volume; startup and authenticated model and pipeline reads pass. Reason and
 Stream's Helm catalogs now emit the strict camelCase fields their decoders
 require. Compiler checks, review and actual chart-render admission tests pass.
-Stream's compressed image layers are present on the node, but unpacking and
-registration are unfinished. Cleanup retires unused standalone executables while
+Stream's cached image is registered, its corrected catalog is installed, and its
+GPU init container builds the TrafficCamNet engine successfully. Authenticated
+model and pipeline reads pass. One interactive Optimization Task solves the
+independent one-variable LP with zero objective, zero primal-dual gap and no
+reported violations. Cleanup retires unused standalone executables while
 preserving dependency caches, models and required images. Stock Host and Computers
 images are published; their node-runtime and trust preparation is handed to the
 CPU/platform owner, with no node restart performed. Readiness and basic reads do
 not establish concurrent GPU inference capacity or the remaining recovery and
 performance gates.
+
+Reason loads its model when a Task starts. The current shared RTX 4090 has about
+1.5 GiB free, below Reason's configured 42% memory budget. Readiness therefore
+does not establish inference availability. Reducing Embedding to 15% cannot keep
+its 32,768-token profile: that context alone needs 3.5 GiB of KV cache before
+weights and overhead. Its private trial runbook is invalidated; no such change is
+installed. GPU capacity qualification remains open. Broad tool discovery also
+reports two upstream failures whose server identities are not yet established;
+the operator client's admin-health request returns 403.
 
 The current implementation split assigns hardware-dependent work to the NVIDIA
 host session and CPU/shared work to the agents on macOS. The plan keeps its full
@@ -234,7 +246,7 @@ Earlier installed checkpoints keep their recorded scope below.
 | Stream | Existing GPU replay with a normal-OAuth Gateway caller, delivered completion and current resource snapshot; an opt-in unfinished recovery fixture selects a retained Recording, fences the replaced process and checks the same Task's creation identity, current Working state and recovered products. Compiler, strict lint, native controls and review pass | Installed public delivery, post-mutation updates, unfinished recovery and final images |
 | Reason | Existing GPU analysis with a normal-OAuth Gateway caller, delivered completion and current resource snapshot; an opt-in unfinished recovery fixture retains acknowledged Task facts, fences the replaced process and checks the same Task's creation identity, current Working state and recovered analysis. Compiler, strict lint, native controls and review pass | Installed public delivery, unfinished recovery and final images |
 | Knowledge | Full-catalog baseline, retained-index/current-generation cold startup and normal-PKCE restricted discovery, collection/completion visibility and document denial/recovery pass, with retained SDK cleanup | First-ever empty-index startup, current-driver profile, current-generation recovery and final images |
-| Optimization | Multi-page existing solve corpus, exact products, usage, public Task results and canonical Artifact bytes under allowed and denied caller contexts; separately selected coordinated control/executor replacement repeats the retained consumers | Installed GPU-produced corpus, mid-run policy changes, coordinated control/executor replacement and unfinished/cross-replica recovery |
+| Optimization | One installed normal-OAuth interactive GPU Task completes with the independently expected zero LP objective and zero reported violations. Prepared fixtures cover the multi-page solve corpus, exact products, usage, public Task results, canonical Artifact bytes and coordinated control/executor replacement | Installed full solve corpus, mid-run policy changes, coordinated control/executor replacement and unfinished/cross-replica recovery |
 
 The complete focused Artifact scenario passes public OAuth upload admission,
 immutable-part retry/refusal, completion replay, cross-context denial and Datasheet
