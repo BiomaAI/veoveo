@@ -1317,6 +1317,7 @@ domain vocabulary.
 | `deploy/contract/src/lib.rs` | portable Optimization capability, Optimization image closure, and mandatory `cuopt-executor` GPU scheduling declaration |
 | `deploy/helm/veoveo/definitions/domain-services.yaml` | single Optimization Pod, CPU control container, one-GPU cuOpt sidecar, shared socket, memory-backed shared memory, and persistent workspace |
 | `examples/bioma/images/` | independent platform and UAV image locks, each matching its release’s rendered image closure |
+| `examples/bioma/images/uav-sim-retained.txt` | native K3s pre-import list for simulator, MCP and forwarder cache retention; the Helm rollout guard checks it against the UAV lock and rendered Pod images |
 | `examples/bioma/acceptance/src/smoke/scenarios/agent_manager.rs` and `agent_manager/` | installed public admin OAuth authoring, prearmed typed SSE/current-view Ready, retained mutation reconciliation and owned stop/archive through an existing Manager; idle-template/controller/module admission and CPU client controls |
 | `examples/bioma/acceptance/src/smoke/scenarios/agent_kernel.rs` | full Pilot mission flow through gateway task dispatch, cuOpt MILP execution, independent verification, wake delivery, and durable memory |
 

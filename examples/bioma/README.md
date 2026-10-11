@@ -143,6 +143,7 @@ examples/bioma/
   uav-sim-values.yaml           UAV workload values
   images/veoveo.lock.yaml        platform image digests
   images/uav-sim.lock.yaml       UAV and pilot image digests
+  images/uav-sim-retained.txt    native K3s retention for the UAV workload images
   gateway.json                  MCP catalog, OAuth, policy, and routes
   computers/                    private host, control and retained-template policy
   acceptance/                   owner-local compiled composition checks
@@ -393,6 +394,68 @@ upgrade that would otherwise combine new image pins with the previous chart.
 After pushing that parent commit, observe the exact rollout through the focused typed
 harness. Pass every Deployment whose digest changed; do not list an unchanged simulator
 for a control-plane-only update.
+
+### Retain the simulator image on the node
+
+The simulator's image cache stays on the node while its GPU Deployment is scaled to
+zero. Kubelet may collect an unused, unpinned image whenever image filesystem usage
+crosses its configured collection threshold, even while the node reports no
+DiskPressure. Docker and BuildKit caches do not protect the separate K3s image store.
+
+[`images/uav-sim-retained.txt`](images/uav-sim-retained.txt) selects the runtime, MCP
+server and Recording forwarder from the UAV image lock. Update both files in the
+same release-input change. The native Helm rollout test checks the list against the
+lock and the images in the rendered Deployments. Install this public, credential-free
+list on each simulator node through K3s's supported
+[pre-import mechanism](https://docs.k3s.io/import-images).
+K3s pins those images and re-applies the pins at node startup. Its
+`/var/lib/rancher/k3s` volume must survive container restarts.
+
+Before installing the list, give each verified cached digest a local containerd tag
+`<repository>:retained-sha256-<64-hex-digest>`. Require the alias to target the
+locked digest; reject a conflicting existing alias. Create the alias without
+`--force`, and check that CRI reports it in the selected digest's `repoTags`:
+
+~~~bash
+docker --context <node-docker-context> exec <k3d-server> \
+  k3s ctr -n k8s.io images tag <selected-image-reference> <local-retention-tag>
+docker --context <node-docker-context> exec <k3d-server> \
+  k3s crictl inspecti <selected-image-reference>
+~~~
+
+The [selected K3s importer](https://github.com/k3s-io/k3s/blob/v1.37.0%2Bk3s1/pkg/agent/containerd/containerd.go)
+needs a tagged local record for its retagging and content-label
+steps. The list continues to select digests. With a local tag in CRI, the importer
+uses the cached record without resolving a remote tag. Keep these aliases with the
+node's image metadata; a new node must prepare them after pulling the locked images.
+
+Use the node and Docker context belonging to the configured cluster. Copy to the
+same persistent filesystem outside the watched directory, then rename into place:
+
+~~~bash
+docker --context <node-docker-context> cp \
+  examples/bioma/images/uav-sim-retained.txt \
+  <k3d-server>:/var/lib/rancher/k3s/agent/uav-sim-retained.next
+docker --context <node-docker-context> exec <k3d-server> mv \
+  /var/lib/rancher/k3s/agent/uav-sim-retained.next \
+  /var/lib/rancher/k3s/agent/images/uav-sim-retained.txt
+docker --context <node-docker-context> exec <k3d-server> \
+  k3s crictl inspecti <selected-image-reference>
+~~~
+
+Require a successful K3s import and CRI `pinned: true` for each selected image before
+turning the workload off. A pin alone does not prove the importer completed.
+During an image transition, the node list includes the prior qualified references
+as well as their replacements until the new images are local and their workloads
+are Ready. Then install the new three-image list. Retire old pins only after checking
+rollback and active consumers; shared image blobs stay under containerd's ownership.
+Keep the Helm release and runtime/forwarder PVCs when scaling the simulator down.
+
+Cleanup must exclude retained images. Containerd's
+[`ctr images prune --all` bypasses CRI pins](https://github.com/containerd/containerd/discussions/12156)
+and must not run on this retained installation. Use explicit obsolete image
+references after the replacement checks. Kubelet's normal collection thresholds
+stay enabled for other unused images.
 
 ~~~bash
 REVISION="$(git rev-parse HEAD)"

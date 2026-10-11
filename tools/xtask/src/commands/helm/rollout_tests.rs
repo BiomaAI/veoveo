@@ -363,6 +363,75 @@ fn one_image_digest_rolls_only_its_workload() {
 }
 
 #[test]
+fn uav_native_retention_matches_locked_and_rendered_pod_images() {
+    use std::collections::BTreeSet;
+
+    let lock: Value = serde_yaml_ng::from_slice(
+        &std::fs::read(repository().join("examples/bioma/images/uav-sim.lock.yaml")).unwrap(),
+    )
+    .unwrap();
+    let registry = lock["global"]["veoveoRegistry"].as_str().unwrap();
+    let locked = lock["global"]["imageDigests"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(repository, digest)| {
+            let digest = digest.as_str().unwrap();
+            assert!(digest.starts_with("sha256:") && digest.len() == 71);
+            format!("{registry}/{repository}@{digest}")
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        locked.len(),
+        3,
+        "runtime, MCP and forwarder must be retained"
+    );
+
+    let native =
+        std::fs::read_to_string(repository().join("examples/bioma/images/uav-sim-retained.txt"))
+            .unwrap();
+    let lines = native.lines().collect::<Vec<_>>();
+    assert!(
+        lines
+            .iter()
+            .all(|line| !line.is_empty() && line.trim() == *line)
+    );
+    let retained = lines
+        .iter()
+        .map(|line| (*line).to_owned())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        lines.len(),
+        retained.len(),
+        "native image list contains duplicates"
+    );
+    assert_eq!(
+        retained, locked,
+        "native K3s list must follow the selected lock"
+    );
+
+    let rendered = render(
+        &repository().join("showcase/uav-sim/deploy/helm"),
+        true,
+        &[],
+    );
+    let mut pod_images = BTreeSet::new();
+    for template in pod_templates(&rendered).values() {
+        for field in ["initContainers", "containers"] {
+            if let Some(containers) = template["spec"][field].as_array() {
+                for container in containers {
+                    pod_images.insert(container["image"].as_str().unwrap().to_owned());
+                }
+            }
+        }
+    }
+    assert_eq!(
+        retained, pod_images,
+        "every rendered UAV Pod image must be retained"
+    );
+}
+
+#[test]
 fn generated_helm_values_are_selected_by_flux_watch_labels() {
     let rendered = objects(&output(
         Command::new("kubectl")

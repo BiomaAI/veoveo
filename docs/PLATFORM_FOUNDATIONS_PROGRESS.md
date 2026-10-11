@@ -8,6 +8,52 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Fresh UAV Flight And Runtime Output Repair — October 10, 2026
 
+The paired rollout subsequently reaches Ready on the published runtime and MCP
+digests without another image download. Its previous Frames revision was absent
+after the database reset. The maintained world publisher creates the replacement,
+and the installation selects its JSON and SHA-256 together in `751d584b4`.
+The mounted world file matches
+`e381133d0dae426ac3c08bcfe4d93078a0e28adf4ae47350e531eab06f8f540a`.
+Helm revision two completes, and the maintained showcase setup exits zero with
+one shared camera product. The actual capture clock and composed flight remain
+unqualified at this checkpoint. The publication and binding receipts
+are under `/tmp/veoveo-uav-fullfleet-20261010/world-01/`.
+
+The subsequent native stream-copy capture produces 442 NVENC H.264 frames over
+30.373 seconds of wall time. Its MP4 duration is 29.95 seconds, averaging 14.76 fps,
+without re-encoding or retiming. A headed Chrome sample presents 196 frames over
+12.082 seconds with one dropped frame. WebGL uses the RTX 4090, and Media
+Capabilities reports supported, smooth software H.264 playback. The owner accepts
+the footage. The [README](../README.md#uav-flight-in-isaac-sim) publishes this
+[five-view video](../showcase/uav-sim/assets/uav-multiview-flight.mp4) and the longer
+[follow-camera clip](../showcase/uav-sim/assets/uav-follow-flight.mp4) with actual
+headed-browser posters. A fresh authenticated runtime state read returns 200 and
+reports all four vehicles flying and connected to PX4. These observations do not
+prove that every vehicle is individually discernible in the video or close the
+agent-directed mission and Recording playback gates. The local delivery receipt is
+`output/development/uav-flight-20261010-fullfleet-01/video-delivery-receipt.json`,
+SHA-256 `f8bcb9621b40a79935dba4fdb125ddfd9369a0633b2ecc537f842c6e710214fa`.
+
+Node logs identify the repeated simulator download's cause: kubelet collects its
+unpinned image at 88 percent image-filesystem usage. The installation now keeps a
+native K3s digest list on the retained node volume and local tag aliases for the
+selected descriptors. The aliases avoid the selected importer's digest-only tag
+parsing failure without changing K3s. The importer completes for runtime, MCP and
+forwarder without a network pull; CRI reports all three pinned and their descriptors
+unchanged. The paired workloads stay Ready. Node restart and forced collection were
+not exercised. The private qualification receipt is
+`/tmp/veoveo-uav-fullfleet-20261010/image-retention-qualification.json`, SHA-256
+`101b19da3eb6a9d878bf773faf4cc97a3be049c458f9bab56fe683e33f67e3bc`.
+Four PX4 logs survive as snapshots taken while their writers were active; they are
+explicitly unfinalized.
+The focused native Helm guard passes, matching the retained list to the selected
+lock and every rendered UAV container image. Its first compilation stops at the
+admitted two-GiB growth threshold before test execution. The separately admitted
+completion reuses that codegen and passes in 49 seconds with 2.29 GiB additional
+growth. The terminal receipt is
+`/tmp/veoveo-uav-retention-guard-20261010/attempt-02/receipt.json`, SHA-256
+`9e50f29d61fe40f1a7452b1eb31eea458f3dd4b018c94c3bbcfd8a31017f8ce7`.
+
 The focused runtime/MCP image pair at `3da4c844662dc5fa13789bfe44af1f63b71d3cb6`
 passes staging and release qualification in 191 seconds. Runtime digest
 `sha256:0b072d943ed2eba3de427a5333673bcc5732ee568dae82475d4a538a172ed2c1`

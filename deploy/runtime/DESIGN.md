@@ -20,6 +20,7 @@
 | Kubernetes DRA `resource.k8s.io/v1` | Persistent ResourceClaims, named requests, and distinct-device constraints |
 | NVIDIA DRA chart `0.5.0` and `resource.nvidia.com/v1beta1` | Pinned standalone allocator, verified chart and image artifacts, CDI preparation, and declared sharing configuration; hardware qualification is pending and upstream technology-preview features remain bounded by the deployment contract |
 | k3d | Repository-managed disposable cluster and registry lifecycle through native commands |
+| K3s pre-import image lists and CRI v1 `Image.pinned` | Installation-owned digest references in the persistent agent images directory; native kubelet garbage-collection exclusion |
 
 ## Module Plan Generation
 
@@ -55,6 +56,23 @@ the Rust scenario harness, which retains scenario assertions and evidence.
 Veoveo is the product being built and deployed. An installation supplies configuration;
 Bioma is one reference configuration. This library does not create an imperative owner
 for an enterprise installation governed by GitOps.
+
+## Retained Simulator Images
+
+The installation owns the K3s pre-import list for its simulator node. Native K3s
+import pins those images against kubelet collection and restores the pins at node
+startup from the persistent agent images directory. Scaling a GPU Deployment to
+zero preserves that directory and the workload's PVCs. Flight clients and MCP
+acceptance do not require node filesystem or Docker administration.
+
+Bioma's [retained-image list](../../examples/bioma/images/uav-sim-retained.txt)
+matches its selected UAV lock and rendered Pod images. The installation keeps
+prior references through replacement readiness, then retires old pins after checking
+rollback and consumers. Its [node procedure](../../examples/bioma/README.md#retain-the-simulator-image-on-the-node)
+keeps local tag aliases for the locked digests, requires a completed native import,
+and verifies CRI `pinned: true`. The aliases let K3s label cached images while the
+list selects immutable digests. Direct containerd pruning ignores CRI pins, so cleanup
+uses explicit obsolete references and excludes the retained set.
 
 ## Modules
 

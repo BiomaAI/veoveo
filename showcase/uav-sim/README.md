@@ -367,6 +367,11 @@ and provenance.
 
 ## Hardware Acceptance
 
+Before turning the simulator off, verify its images have CRI `pinned: true` and
+keep its cache and forwarder PVCs. The reference installation's
+[native K3s retention procedure](../../examples/bioma/README.md#retain-the-simulator-image-on-the-node)
+preserves the simulator layers while the GPU workload is scaled to zero.
+
 The isolated plant and PX4 checks use hardware CUDA without starting the cluster.
 `UAV_SIM_PX4_DIRECTORY` must point to the pinned, patched PX4 tree with its executable
 and ROMFS. Instances 41 and 42 require free local ports. The flight check commands two

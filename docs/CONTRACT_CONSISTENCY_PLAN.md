@@ -20,7 +20,16 @@ The capture-clock batch passes 175 Python tests, eight JS tests, TypeScript and
 bundling; its asset agrees with the earlier compiler and four native App checks.
 It carries stock NVIDIA SEI capture time through RTSP to WebCodecs and retires
 stream resources before clock reset. Independent lifecycle review passes. Actual
-Isaac clock qualification and the paired runtime/MCP image rollout remain open. Both
+Isaac clock qualification remains open. The paired runtime/MCP images reach Ready
+with a freshly published Frames world after the prior database reset. The maintained
+showcase setup succeeds and reports one shared camera product. Its native capture
+delivers a 29.95-second five-camera MP4 with 442 native NVENC frames and
+14.76 average fps. Headed RTX 4090-backed playback passes, and the owner accepts
+the video quality. A fresh authenticated state read returns 200 with all four
+vehicles flying. Individual visibility of all four in the video and composed-flight
+acceptance remain unqualified. K3s successfully imports the retained digest list
+through local tag aliases; all three selected images report CRI `pinned: true`.
+The persistent node configuration protects the cache when workloads stop. Both
 images at `3da4c8446` pass staging, release digest agreement, attestations and
 node-origin manifest/configuration readback. The actuator-observation checkpoint
 passes all 177 owning Python controls and review. This capture
@@ -70,7 +79,7 @@ generation two and restricted caller policy remain open. Reconciliation
 holds stay set. Further image batches require
 separate disk-space admission. Speech's previously
 selected headed Workspace consumer passes with fixture audio;
-Reason and the other GPU workloads stay at zero replicas. The unmodified OpenShell 0.1.2 source
+Reason stays at zero replicas. The unmodified OpenShell 0.1.2 source
 package passes its focused artifact, Host and packaging checks. The owner approved
 stock OIDC; package image `ea4ffc9f7` is assembled and staged with all four official
 executable hashes and versions verified. Three CA roles, projected credentials,
