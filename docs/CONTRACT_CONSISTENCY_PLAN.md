@@ -44,31 +44,28 @@ Coordinated runtime cleanup and shutdown diagnostics have two-image development
 stages at `95cc4a71`; their native controls and review pass, while final release
 qualification stays open. Helm revision 11 installs chart `917bc842` with a
 120-second GPU Pod grace. Runtime `2c084202` and forwarder `cb0f783f` are Ready;
-MCP `fc0251e9` stays unchanged. Current and rollback images remain pinned,
-retained storage is unchanged, and GitOps holds stay set.
+MCP `dd01f57f` and Console BFF `95af9c89` are deployed from the non-release
+development stage at `d2b763a5`. The selected rollout passes readiness,
+authenticated Console hosts and a normal-OAuth typed UAV state read. Only these
+two image fields changed across 27 Deployments. The simulator Pod stayed running,
+all eleven PVC identities are unchanged, and twelve current and recovery image
+references are pinned. Both releases and root reconciliation stay suspended;
+their selected values preserve the installed charts and other configuration.
 
-The focused verifier at `36b2269b7` passes installed MCP-only restart isolation,
-headed hardware graphics and fresh-authorization video continuity. Its corrected
-isolated JavaScript samplers and typed authenticated source reader pass compiler,
-focused native and behavioral controls and review. Restart continuity is separate
-from the unchanged strict throughput limits. The coordinated runtime/forwarder
-check times out after about 120.395 seconds with no matched exits. Its observer
-starts before Pod deletion; the old terminal records and logs were unavailable,
-so the physical exit outcomes are unknown. Same-image replacements are Ready with
-the same world, fleet and five healthy cameras. Browser cleanup failed while the
-simulator was warming; failed-stage authorization identities were not retained,
-and ownership remains unresolved despite restored viewer counts. The repaired
-source observer persists selected process identities, deletion details and every
-received terminal outcome before qualification. Its 18 focused native controls
-pass; member exit and grace limits stay unchanged, and observation uses the
-original lifecycle deadline. UAV's request-correlated non-admission schema and
-four domain-native controls also pass. The App's 22 behavioral controls and review
-cover authorization retention, retry suppression and correlated teardown. The
-browser's stage journal and cleanup controls pass with its refreshed verifier.
-Console's typed error forwarding and opaque-error log controls also pass compiler,
-focused native and browser checks and review. MCP `dd01f57f` and Console BFF
-`95af9c89` have non-release development stages and registry readback at `d2b763a5`;
-rollout and a new installed attempt remain ahead. Paired shutdown,
+The prior verifier at `36b2269b7` passes installed MCP-only restart isolation,
+headed hardware graphics and fresh-authorization video continuity. Its paired
+runtime/forwarder check timed out after about 120.395 seconds without retaining
+terminal records or logs. Physical exit outcomes are unknown. That attempt's
+browser cleanup failed during warmup without retaining its authorization
+identities; ownership remains unresolved. The repaired observer passes eighteen
+native controls and records received terminal outcomes under the original
+lifecycle deadline; member exit and grace limits stay unchanged. UAV's four
+non-admission controls, the App's twenty-two ownership controls, the browser's
+stage journal and Console's typed error delivery pass their focused checks and
+review. The current installed attempt stops before any restart when the App tries
+to remove Formation's view before it has mounted. Its public teardown and test-tab
+closure succeed. The consumer fix and repeated restart qualification are pending.
+Restart continuity is separate from the unchanged strict throughput limits. Paired shutdown,
 repeated GPU reset, induced RTSP stall recovery, capture-clock and full composed
 flight qualification remain open. F59/A11 stay open.
 
@@ -602,8 +599,8 @@ deadline fix. Coordinated runtime cleanup at `db0b` and shutdown-stage/elapsed
 diagnostics at `c2` are development-staged at `95cc4a71` and need final release
 qualification and installed GPU shutdown proof. Helm revision 11 deploys these
 staged digests with chart `917bc842`; both runtime containers are Ready and the
-GPU Pod grace is 120 seconds. The MCP image and Deployment stay unchanged, including
-their existing readiness threshold. The release is held with its original remediation
+GPU Pod grace is 120 seconds. The MCP readiness threshold is unchanged. The release
+is held with its original remediation
 settings restored after guarded adoption of the unchanged pilot ConfigMap. Current
 and rollback image pins stay protected. The verifier at `36b2269b7` passes the
 installed MCP-only restart and headed video-continuity stage. The paired drain
@@ -615,8 +612,14 @@ from qualified exits and passes 18 focused native controls without extending
 member exit or grace limits. UAV's generated non-admission contract passes its
 four native controls. The App's 22 behavioral controls, reviewed browser ownership
 controls and Console error delivery controls pass. MCP `dd01f57f` and Console BFF
-`95af9c89` are development-staged at `d2b763a5` with registry readback; rollout and
-installed qualification remain open. Graceful
+`95af9c89` are development-staged at `d2b763a5` with registry readback and deployed
+through the selected-consumer procedure. Readiness, authenticated Console hosts
+and a normal-OAuth typed UAV read pass. The two immutable values clones change only
+their selected digest; both chart references and release holds are preserved.
+All eleven PVC identities and unselected workloads are unchanged; twelve image
+references are pinned. The current installed attempt hits a not-yet-mounted view
+removal error before restart; public teardown and tab cleanup succeed. The App fix
+and repeated qualification are pending. Graceful
 retirement and strict throughput stay unqualified. Keep selected and prior UAV
 images pinned for rollback.
 Node restart, forced image collection, longer render stalls, turning flight and
