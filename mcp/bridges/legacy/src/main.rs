@@ -69,8 +69,7 @@ impl ClientHandler for LegacyClient {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
-    let _telemetry: TelemetryGuard =
-        init_server_telemetry("veoveo-mcp-legacy-bridge", "info,legacy_bridge=debug")?;
+    let _telemetry = initialize_telemetry()?;
     let args = Args::parse();
     let (legacy, owner) = connect(args.connector).await?;
     let observed = legacy
@@ -117,6 +116,11 @@ async fn main() -> anyhow::Result<()> {
             bail!("legacy connector exited: {}", result.context("connector owner task panicked")?);
         }
     }
+}
+
+fn initialize_telemetry() -> anyhow::Result<TelemetryGuard> {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    init_server_telemetry("veoveo-mcp-legacy-bridge", "info,legacy_bridge=debug")
 }
 
 async fn connect(connector: Connector) -> anyhow::Result<(Peer<RoleClient>, JoinHandle<String>)> {
@@ -173,6 +177,42 @@ mod tests {
     use rmcp::{ServerHandler, ServiceExt, model::ServerConfig};
 
     struct ExternalServer;
+
+    #[test]
+    fn telemetry_startup_installs_crypto_before_constructing_otlp_client() {
+        const CHILD: &str = "VEOVEO_BRIDGE_TELEMETRY_TEST_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            assert!(rustls::crypto::CryptoProvider::get_default().is_none());
+            let _telemetry = initialize_telemetry().unwrap();
+            assert!(rustls::crypto::CryptoProvider::get_default().is_some());
+            return;
+        }
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .env_clear()
+            .args([
+                "tests::telemetry_startup_installs_crypto_before_constructing_otlp_client",
+                "--exact",
+            ])
+            .env(CHILD, "1")
+            .env("OTEL_SDK_DISABLED", "false")
+            .env("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:1")
+            .env("OTEL_EXPORTER_OTLP_TIMEOUT", "100")
+            .spawn()
+            .unwrap();
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                assert!(status.success(), "telemetry startup child failed: {status}");
+                break;
+            }
+            if std::time::Instant::now() >= end {
+                child.kill().unwrap();
+                child.wait().unwrap();
+                panic!("telemetry startup exceeded ten seconds");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
 
     impl ServerHandler for ExternalServer {
         fn get_info(&self) -> ServerConfig {

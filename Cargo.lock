@@ -17439,6 +17439,7 @@ dependencies = [
  "clap",
  "dotenvy",
  "rmcp",
+ "rustls",
  "tokio",
  "tokio-util",
  "tracing",
