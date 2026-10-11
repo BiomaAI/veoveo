@@ -103,17 +103,11 @@ impl<E: Embeddings + 'static> DomainServer for KnowledgeMcp<E> {
         context: &RequestContext<RoleServer>,
     ) -> Result<Listing<Tool>, ErrorData> {
         let identity = gateway_identity(context)?;
-        let scope = if SETUP.has_scope(&identity.actor.scopes, KnowledgeScope::Search) {
-            KnowledgeScope::Search
-        } else {
-            KnowledgeScope::Embed
-        };
-        let authority = crate::authority::authenticate(
+        let authority = crate::authority::authenticate_identity(
             &self.store,
             &self.catalog_registry,
             self.client_authority.as_ref(),
             &identity,
-            scope,
         )
         .await
         .map_err(error)?;

@@ -126,6 +126,26 @@ impl RequestAuthority {
             == PolicyEffect::Allow
     }
 }
+enum Admission {
+    Identity,
+    Operation(KnowledgeScope),
+}
+
+/// Admit current caller identity and policy without requiring a domain operation.
+pub(crate) async fn authenticate_identity(
+    store: &PlatformStore,
+    registry: &veoveo_gateway_contract::CatalogRegistry,
+    resolver: &dyn veoveo_policy::internal_clients::InternalClientAuthorityResolver,
+    identity: &GatewayInternalIdentity,
+) -> Result<RequestAuthority, ServiceError> {
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        resolve(store, registry, resolver, identity, Admission::Identity),
+    )
+    .await
+    .map_err(|_| ServiceError::Deadline)?
+}
+
 pub(crate) async fn authenticate(
     store: &PlatformStore,
     registry: &veoveo_gateway_contract::CatalogRegistry,
@@ -135,7 +155,13 @@ pub(crate) async fn authenticate(
 ) -> Result<RequestAuthority, ServiceError> {
     tokio::time::timeout(
         std::time::Duration::from_secs(10),
-        resolve(store, registry, resolver, identity, scope),
+        resolve(
+            store,
+            registry,
+            resolver,
+            identity,
+            Admission::Operation(scope),
+        ),
     )
     .await
     .map_err(|_| ServiceError::Deadline)?
@@ -145,7 +171,7 @@ async fn resolve(
     registry: &veoveo_gateway_contract::CatalogRegistry,
     resolver: &dyn veoveo_policy::internal_clients::InternalClientAuthorityResolver,
     identity: &GatewayInternalIdentity,
-    scope: KnowledgeScope,
+    admission: Admission,
 ) -> Result<RequestAuthority, ServiceError> {
     check_lifetime(identity)?;
     let request = identity
@@ -155,7 +181,9 @@ async fn resolve(
     request
         .validate_for(&identity.actor, &identity.authority)
         .map_err(|_| ServiceError::AccessChanged)?;
-    if !identity.actor.scopes.contains(scope.name()) {
+    if let Admission::Operation(scope) = admission
+        && !identity.actor.scopes.contains(scope.name())
+    {
         return Err(ServiceError::AccessChanged);
     }
     for principal in [&request.principal, &identity.actor] {
@@ -271,7 +299,7 @@ async fn resolve(
                 .map(|approval| (approval.collection.clone(), approval.clone()))
         })
         .collect();
-    let collections = if scope == KnowledgeScope::Search {
+    let collections = if matches!(admission, Admission::Operation(KnowledgeScope::Search)) {
         store
             .readable_knowledge_collections(
                 &identity.authority.tenant,

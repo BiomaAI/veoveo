@@ -52,6 +52,77 @@ fn input(name: &str, args: serde_json::Value) -> CallToolRequestParams {
 }
 
 #[tokio::test]
+async fn read_only_caller_discovers_no_tools_and_keeps_current_identity_checks() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = native_database().await;
+        let plane = plane(&[]);
+        install(&db.a, &plane).await;
+        let mut identity = identity(&plane);
+        identity.actor.scopes.remove(KnowledgeScope::Search.name());
+        identity.actor.scopes.remove(KnowledgeScope::Embed.name());
+        let request = identity.request_context.as_mut().unwrap();
+        request.principal = identity.actor.clone();
+        request.access_token.scopes = identity.actor.scopes.clone();
+        directory(&db.a, &identity).await;
+        let signing = Signing::new();
+        let server =
+            Server::new(db.b.clone(), Arc::new(SyntheticEmbeddings::new()), &signing).await;
+        let mut client = server
+            .sdk(signing.issue(identity.clone()).bearer_token)
+            .await;
+
+        assert!(client.list_tools(None).await.unwrap().tools.is_empty());
+        client
+            .read_resource(ReadResourceRequestParams::new(
+                KnowledgeResource::Sources { after: None }
+                    .to_uri()
+                    .unwrap()
+                    .to_string(),
+            ))
+            .await
+            .expect("the caller retains Knowledge read permission");
+        for (tool, arguments) in [
+            ("search", serde_json::json!({"query":"flood","limit":5})),
+            (
+                "embed",
+                serde_json::json!({"mode":"document","texts":["denied"]}),
+            ),
+        ] {
+            assert!(
+                client.call_tool(input(tool, arguments)).await.is_err(),
+                "empty discovery must not grant {tool} invocation"
+            );
+        }
+
+        revoke(&db.a, &identity).await;
+        assert!(client.list_tools(None).await.is_err());
+        client.close().await.unwrap();
+
+        identity
+            .request_context
+            .as_mut()
+            .unwrap()
+            .access_token
+            .jwt_id = Some("fresh-read-only-token".parse().unwrap());
+        let mut client = server.sdk(signing.issue(identity).bearer_token).await;
+        assert!(client.list_tools(None).await.unwrap().tools.is_empty());
+        let mut stale_registration = plane.clone();
+        stale_registration
+            .oauth_clients
+            .iter_mut()
+            .find(|client| client.id.as_str() == "operator-service")
+            .unwrap()
+            .allowed_scopes
+            .remove(KnowledgeScope::Read.name());
+        install(&db.a, &stale_registration).await;
+        assert!(client.list_tools(None).await.is_err());
+        client.close().await.unwrap();
+    })
+    .await
+    .expect("Read-only HTTP discovery exceeded 180 seconds");
+}
+
+#[tokio::test]
 async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority() {
     tokio::time::timeout(Duration::from_secs(180),async {
         let db=native_database().await;
