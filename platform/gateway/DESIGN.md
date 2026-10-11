@@ -32,6 +32,15 @@ servers. Tool list-change support composes from upstream declarations and the
 gateway's isolation discovery mode, whose listener remains open with an empty
 catalogue until cancellation.
 
+Tool discovery selects only tool-capable servers with `all` or nonempty `listed`
+exposure before opening watches or fetching catalogs. Both discovery failure modes
+skip disabled and empty selections; an unavailable excluded server cannot degrade
+the tool catalog. Enabled servers keep the selected failure mode and current policy
+filtering. Catalog watches and explicit list-change routes select each tools,
+resources and prompts flag through that surface's profile exposure. An enabled
+resource watch carries no disabled tool or prompt flag, and empty selections open
+no watch.
+
 `mcp_support.rs` owns the transformation of protocol resource addresses when an
 installation selects server-owned projection. Resource discovery, templates, embedded
 resource envelope addresses and resource links use the server's registered namespace.

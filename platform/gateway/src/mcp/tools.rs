@@ -17,7 +17,8 @@ use rmcp::{
 };
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    DiscoveryFailureMode, LocalToolName, TaskExposure, related_task_meta, sanitized_request_meta,
+    DiscoveryFailureMode, Exposure, LocalToolName, TaskExposure, related_task_meta,
+    sanitized_request_meta,
 };
 use veoveo_platform_store::PrincipalKind as StorePrincipalKind;
 
@@ -38,6 +39,26 @@ use super::{
     },
     invocation_authorization_fingerprint,
 };
+
+// Select before any watch, cache or upstream work, using the same catalog epoch.
+fn tool_servers(
+    catalog: &crate::GatewayCatalog,
+    profile: &veoveo_mcp_contract::GatewayProfileId,
+) -> Vec<veoveo_mcp_contract::ServerSlug> {
+    catalog
+        .profile_servers(profile)
+        .into_iter()
+        .filter(|(exposure, server)| {
+            server.capabilities.tools
+                && match &exposure.tools {
+                    Exposure::All => true,
+                    Exposure::Listed(tools) => !tools.is_empty(),
+                    Exposure::None => false,
+                }
+        })
+        .map(|(_, server)| server.slug.clone())
+        .collect()
+}
 
 impl GatewayMcp {
     pub(super) async fn handle_list_tools(
@@ -74,50 +95,52 @@ impl GatewayMcp {
                 meta: degradation.into_meta(),
             });
         }
-        let results = stream::iter(self.profile_servers().into_iter().map(|server_slug| {
-            let catalog = catalog.clone();
-            let context = &context;
-            let subject = &subject;
-            async move {
-                let key = DiscoveryCacheKey {
-                    catalog_generation,
-                    principal: subject.actor.id.clone(),
-                    authorization_fingerprint,
-                    server: server_slug.clone(),
-                };
-                if let Err(error) = self
-                    .ensure_discovery_watch(&key, context.peer.clone(), subject)
-                    .await
-                {
-                    return (server_slug, Err(error));
+        let results = stream::iter(tool_servers(&catalog, &self.profile_id).into_iter().map(
+            |server_slug| {
+                let catalog = catalog.clone();
+                let context = &context;
+                let subject = &subject;
+                async move {
+                    let key = DiscoveryCacheKey {
+                        catalog_generation,
+                        principal: subject.actor.id.clone(),
+                        authorization_fingerprint,
+                        server: server_slug.clone(),
+                    };
+                    if let Err(error) = self
+                        .ensure_discovery_watch(&key, context.peer.clone(), subject)
+                        .await
+                    {
+                        return (server_slug, Err(error));
+                    }
+                    if let Some(tools) = self.discovery.tools(&key).await {
+                        return (server_slug, Ok::<_, McpError>(tools));
+                    }
+                    let fetch = self.discovery.start_tools(key.clone()).await;
+                    let result = async {
+                        let tools = self
+                            .discover_tools_for_server(&catalog, &server_slug, context, subject)
+                            .await?;
+                        self.discovery
+                            .store_tools(
+                                fetch.clone().map(|fetch| fetch.with_denied(tools.denied)),
+                                tools.items.clone(),
+                            )
+                            .await;
+                        Ok(tools)
+                    }
+                    .await;
+                    if result.is_err()
+                        && let Some(fetch) = fetch
+                    {
+                        self.discovery
+                            .finish_failure(GatewayDiscoverySurface::Tools, fetch)
+                            .await;
+                    }
+                    (server_slug, result)
                 }
-                if let Some(tools) = self.discovery.tools(&key).await {
-                    return (server_slug, Ok::<_, McpError>(tools));
-                }
-                let fetch = self.discovery.start_tools(key.clone()).await;
-                let result = async {
-                    let tools = self
-                        .discover_tools_for_server(&catalog, &server_slug, context, subject)
-                        .await?;
-                    self.discovery
-                        .store_tools(
-                            fetch.clone().map(|fetch| fetch.with_denied(tools.denied)),
-                            tools.items.clone(),
-                        )
-                        .await;
-                    Ok(tools)
-                }
-                .await;
-                if result.is_err()
-                    && let Some(fetch) = fetch
-                {
-                    self.discovery
-                        .finish_failure(GatewayDiscoverySurface::Tools, fetch)
-                        .await;
-                }
-                (server_slug, result)
-            }
-        }))
+            },
+        ))
         .buffer_unordered(MAX_CONCURRENT_DISCOVERY)
         .collect::<Vec<_>>()
         .await;
@@ -171,7 +194,7 @@ impl GatewayMcp {
         let authorization_fingerprint = super::discovery_authorization_fingerprint(&subject)?;
         let mut keys = Vec::new();
         let mut cached_at_start = std::collections::BTreeMap::new();
-        for server_slug in self.profile_servers() {
+        for server_slug in tool_servers(&catalog, &self.profile_id) {
             let key = DiscoveryCacheKey {
                 catalog_generation,
                 principal: subject.actor.id.clone(),

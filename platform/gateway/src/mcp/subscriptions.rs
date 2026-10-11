@@ -128,22 +128,21 @@ impl GatewayMcp {
             || accepted.prompts_list_changed == Some(true)
             || accepted.resources_list_changed == Some(true)
         {
-            let catalog = self.catalog.current();
-            for server in self.profile_servers() {
-                let (_, _, manifest) = catalog
-                    .profile_server(&self.profile_id, &server)
-                    .ok_or_else(|| mcp_internal(format!("unknown profile server `{server}`")))?;
-                let route = routes.entry(server).or_default();
-                route.filter.tools_list_changed = (accepted.tools_list_changed == Some(true)
-                    && manifest.capabilities.tools_list_changed)
-                    .then_some(true);
-                route.filter.prompts_list_changed = (accepted.prompts_list_changed == Some(true)
-                    && manifest.capabilities.prompts_list_changed)
-                    .then_some(true);
-                route.filter.resources_list_changed = (accepted.resources_list_changed
-                    == Some(true)
-                    && manifest.capabilities.resources_list_changed)
-                    .then_some(true);
+            for (exposure, manifest) in snapshot.catalog().profile_servers(&self.profile_id) {
+                let mut filter =
+                    super::discovery_watch::catalog_change_filter(exposure, &manifest.capabilities);
+                if accepted.tools_list_changed != Some(true) {
+                    filter.tools_list_changed = None;
+                }
+                if accepted.resources_list_changed != Some(true) {
+                    filter.resources_list_changed = None;
+                }
+                if accepted.prompts_list_changed != Some(true) {
+                    filter.prompts_list_changed = None;
+                }
+                if !subscription_filter_is_empty(&filter) {
+                    routes.entry(manifest.slug.clone()).or_default().filter = filter;
+                }
             }
         }
 

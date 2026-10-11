@@ -25,18 +25,48 @@ impl Drop for Watch {
         self.cancelled.cancel();
     }
 }
+fn exposed<T>(selection: &veoveo_mcp_contract::Exposure<T>) -> bool {
+    match selection {
+        veoveo_mcp_contract::Exposure::All => true,
+        veoveo_mcp_contract::Exposure::Listed(items) => !items.is_empty(),
+        veoveo_mcp_contract::Exposure::None => false,
+    }
+}
+
+pub(super) fn catalog_change_filter(
+    exposure: &veoveo_mcp_contract::ProfileServerExposure,
+    capabilities: &veoveo_mcp_contract::McpSurfaceCapabilities,
+) -> SubscriptionFilter {
+    let mut filter = SubscriptionFilter::new();
+    filter.tools_list_changed =
+        (exposed(&exposure.tools) && capabilities.tools && capabilities.tools_list_changed)
+            .then_some(true);
+    filter.resources_list_changed = (exposed(&exposure.resources)
+        && capabilities.resources
+        && capabilities.resources_list_changed)
+        .then_some(true);
+    filter.prompts_list_changed =
+        (exposed(&exposure.prompts) && capabilities.prompts && capabilities.prompts_list_changed)
+            .then_some(true);
+    filter
+}
+
 impl GatewayMcp {
     pub(super) async fn discovery_watch_active(&self, key: &DiscoveryCacheKey) -> bool {
         let snapshot = self.catalog.snapshot();
         if snapshot.generation() != key.catalog_generation {
             return false;
         }
-        let Some(manifest) = snapshot.catalog().server(&key.server) else {
+        let Some((_, exposure, manifest)) = snapshot
+            .catalog()
+            .profile_server(&self.profile_id, &key.server)
+        else {
             return false;
         };
-        if !manifest.capabilities.tools_list_changed
-            && !manifest.capabilities.resources_list_changed
-            && !manifest.capabilities.prompts_list_changed
+        let filter = catalog_change_filter(exposure, &manifest.capabilities);
+        if filter.tools_list_changed.is_none()
+            && filter.resources_list_changed.is_none()
+            && filter.prompts_list_changed.is_none()
         {
             return true;
         }
@@ -58,19 +88,15 @@ impl GatewayMcp {
         if snapshot.generation() != key.catalog_generation {
             return Err(mcp_internal("catalog changed during discovery; retry"));
         }
-        let manifest = snapshot
+        let (_, exposure, manifest) = snapshot
             .catalog()
-            .server(&key.server)
+            .profile_server(&self.profile_id, &key.server)
             .ok_or_else(|| mcp_internal("unknown catalog server"))?;
         let indexing = snapshot
             .catalog()
             .oauth_client(&subject.access_token.oauth_client_id)
             .is_some_and(|client| client.knowledge_indexing.is_some());
-        let mut filter = SubscriptionFilter::new();
-        filter.tools_list_changed = manifest.capabilities.tools_list_changed.then_some(true);
-        filter.resources_list_changed =
-            manifest.capabilities.resources_list_changed.then_some(true);
-        filter.prompts_list_changed = manifest.capabilities.prompts_list_changed.then_some(true);
+        let filter = catalog_change_filter(exposure, &manifest.capabilities);
         if filter.tools_list_changed.is_none()
             && filter.resources_list_changed.is_none()
             && filter.prompts_list_changed.is_none()
