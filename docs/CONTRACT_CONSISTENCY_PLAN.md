@@ -11,7 +11,9 @@ Twenty-two Trixie images at `3820c0db5` now pass stage/release digest agreement,
 attestation checks and node-network registry readback. The remaining nine-image
 batch has no completed stage evidence. Its old growth budget is exhausted; another
 dispatch requires admission for the complete solve. Rollout and installed qualification
-remain open.
+remain open. A separate focused batch at `33281845c` stages the Gateway discovery
+correction, Recording forwarder and UAV runtime shutdown corrections successfully.
+Development qualification, rollout and their installed checks remain open.
 The UAV runtime at `ffa13f2c0` passes 188 owning CPU tests, independent review,
 stage/release agreement, attestation checks and node-origin registry readback.
 The runtime-only rollout reaches Ready with the world, PVCs, MCP and forwarder
@@ -52,10 +54,14 @@ cancellation pass through normal Gateway OAuth. Unfinished process recovery
 remains unqualified. The fixture's once-only ancestor-runtime signal follows a fresh
 authenticated Working read. The selected container restarts and reaches Ready;
 the same original Task is still Working and a replacement listener acknowledges it.
-The attempt then hits a 60-second fixture wait before the 120-second recovery lease
-expires. The fixture repair uses the remaining original 300-second deadline and
-closes local SDK/watch handles before remote Task reconciliation. Strict lint,
-six focused native controls and source review pass; the installed rerun remains open.
+The fixture repair uses the remaining original 300-second deadline and closes local
+SDK/watch handles before remote Task reconciliation. Strict lint, six focused native
+controls and source review pass. The repaired installed attempt closes those local
+owners, but its subscription ends before completion. Shared test clients imposed a
+65-second total HTTP timeout on long-lived SSE. The transport correction and finite
+ordinary-caller deadlines pass strict lint, two actual SDK controls and source review.
+Installed delivery qualification remains open. The original
+Task is subsequently read as Cancelled.
 Datasheet's SDK replacement and the complete focused normal-OAuth Artifact consumer
 scenario pass. One fenced service replacement preserves an acknowledged Open upload
 and its accepted part. Resumption, immutable-part retry/refusal, completion replay
@@ -238,18 +244,35 @@ receives acknowledgement and reaches current Cancelled state. Both cases close
 their caller and listener. The recovery fixture now owns its explicitly selected
 ancestor-containerd signal after a fresh same-Task Working read and independent
 process fences. One actual replacement preserves the original Task in Working
-state and acknowledges a replacement listener. Its completion wait ends after
-60 seconds, before the prior worker's 120-second lease expires. The attempt's
-cleanup also exhausts its grace reconciling the remote Task before closing local
-SDK handles. The owning fixture repair preserves the original operation deadline
-and orders local closure first without changing shared Task settlement or cleanup
+state and acknowledges a replacement listener. The owning fixture repair preserves
+the original operation deadline and orders local closure first without changing
+shared Task settlement or cleanup
 budgets. Strict lint and six focused native controls pass, including original-deadline,
 late-success, truthful idempotent cleanup replay and failed-close counterexamples.
-Installed delivery qualification remains open; the failed attempt does not
-establish a product recovery failure.
-Together with the three administrative API controls, the
-earlier native batch has nineteen passing controls. Time recover mode selects one
-300-second operation deadline; its other modes keep 120 seconds.
+Its installed rerun closes local caller, listeners and watch, but receives premature
+subscription EOF. The shared installed transport applied a total 65-second HTTP
+timeout, shorter than the prior worker's 120-second lease. Gateway upstream clients
+already avoid that body lifetime cap. The shared transport correction passes strict
+lint and an actual SDK regression that reproduces premature closure with an injected
+body cap, then delivers completion through the maintained client without that cap.
+It also checks operation expiry, cancellation and listener drain. Ordinary discovery
+has a thirty-second deadline; five affected source and sharing consumers bound
+connection, preflight and work with their original operation interval and retain
+clients and admitted mutation drivers for cleanup. A second SDK control checks
+discovery expiry and a stalled resource read against the original owner deadline.
+Compiler checks, strict lint and source review pass for the complete correction.
+The original Task is read as Cancelled after the failed attempt. Installed completion
+delivery remains unqualified; no product recovery failure is established.
+Together with the three administrative API controls, the earlier native batch has
+nineteen passing controls. Time recover mode selects one 300-second operation
+deadline; its other modes keep 120 seconds.
+
+Time temporal events are the next focused agent/platform interaction target. Extend
+the existing owner harnesses to exercise future-event creation, idle agent wake and
+current due-state reads through the Gateway. Qualify cancellation, duplicate delivery,
+subscription reconnect and restart recovery. Time owns event state; the agent runtime
+owns durable wake handling. A creation notification does not establish that an event
+is due. Preserve these ownership boundaries and use the existing harnesses.
 
 Time’s administrative `/active-authorities` response now exposes `pointerVersion`
 with the selected release. Clients use that guard for activation;
