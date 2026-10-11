@@ -1,4 +1,6 @@
-//! Selected Task lifecycle observations; the operator alone signals a crash.
+//! Selected Task lifecycle observations and explicitly admitted process signalling.
+#[path = "lifecycle/runtime_signal.rs"]
+mod runtime_signal;
 use super::*;
 use rmcp::model::{CancelTaskParams, GetTaskParams};
 use veoveo_testing_support::installed::restart::{CrashReceipt, CrashTarget, DeploymentRestart};
@@ -19,6 +21,7 @@ impl Mode {
 pub(super) struct Fixture {
     target: CrashTarget,
     pub replacement_timeout_seconds: u64,
+    runtime_signal: Option<runtime_signal::RuntimeSignal>,
 }
 #[derive(Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,6 +41,10 @@ pub(super) struct Evidence {
     pub final_target_checked: bool,
     pub watch_closed: bool,
     pub replacement_listener_closed: bool,
+    signal_runtime: Option<runtime_signal::RuntimeSignal>,
+    signal_fenced_at: Option<chrono::DateTime<chrono::Utc>>,
+    signal_dispatch_intent: bool,
+    signal_command_succeeded: bool,
 }
 impl Evidence {
     pub(super) fn failure(&mut self, error: &anyhow::Error) {
@@ -59,6 +66,9 @@ pub(super) fn admit(input: &Input) -> Result<()> {
     match (input.mode, input.recovery.as_ref()) {
         (Mode::Recover, Some(fixture)) => {
             fixture.target.validate()?;
+            if let Some(runtime) = &fixture.runtime_signal {
+                runtime.validate(&fixture.target)?;
+            }
             ensure!(
                 fixture.target.deployment == input.installation.deployment,
                 "Time crash fixture selects another installation Deployment"
@@ -91,13 +101,18 @@ fn recovery_driver(
         TimeResource::AuthoritiesCurrent.to_uri()?,
     )
 }
+pub(super) struct RecoveryDriver {
+    restart: DeploymentRestart,
+    signal: Option<runtime_signal::Prepared>,
+}
 pub(super) async fn admit_target(
     input: &Input,
     target: &veoveo_deploy_contract::InstallationTarget,
     caller: &SmokeMcpClient,
     journal: &mut Journal<'_>,
     file: &mut fs::File,
-) -> Result<Option<DeploymentRestart>> {
+    deadline: tokio::time::Instant,
+) -> Result<Option<RecoveryDriver>> {
     let Some(fixture) = &input.recovery else {
         return Ok(None);
     };
@@ -112,7 +127,35 @@ pub(super) async fn admit_target(
     .context("Time crash admission deadline")??;
     journal.lifecycle.admitted_target = Some(fixture.target.clone());
     journal.persist(file)?;
-    Ok(Some(driver))
+    let signal = match &fixture.runtime_signal {
+        Some(config) => Some(
+            runtime_signal::Prepared::admit(config.clone(), &fixture.target, target, deadline)
+                .await?,
+        ),
+        None => None,
+    };
+    Ok(Some(RecoveryDriver {
+        restart: driver,
+        signal,
+    }))
+}
+fn retain_signal_checkpoint(
+    journal: &mut Journal<'_>,
+    file: &mut fs::File,
+    current: &DetailedTask,
+    intent: bool,
+) -> Result<()> {
+    journal.lifecycle.before_effect = Some(TaskObservation::admit(&current.task)?);
+    if intent {
+        ensure!(
+            !journal.lifecycle.signal_dispatch_intent,
+            "Time signal intent already retained; never resend"
+        );
+        journal.lifecycle.armed = true;
+        journal.phase = Phase::CrashArmed;
+        journal.lifecycle.signal_dispatch_intent = true;
+    }
+    journal.persist(file)
 }
 fn same(id: &CanonicalTaskId, created: &Task, current: &DetailedTask) -> Result<()> {
     ensure!(
@@ -172,7 +215,7 @@ async fn next_working(
 }
 pub(super) async fn observe(
     input: &Input,
-    driver: Option<&DeploymentRestart>,
+    driver: Option<&RecoveryDriver>,
     created: &Task,
     handles: &mut Handles,
     journal: &mut Journal<'_>,
@@ -232,6 +275,7 @@ pub(super) async fn observe(
     journal.phase = Phase::CrashArmIntent;
     journal.persist(file)?;
     let armed = driver
+        .restart
         .arm_crash_watch(&fixture.target, &mut handles.crash_watch)
         .await;
     if let Some(watch) = &handles.crash_watch {
@@ -240,15 +284,35 @@ pub(super) async fn observe(
     journal.lifecycle.watch = handles.crash_receipt.clone();
     journal.persist(file)?;
     armed?;
-    // Re-read immediately before publishing the operator handshake: arming may
-    // have outlasted the selected calculation. No external signal is sent here.
-    let current = caller.get_task(GetTaskParams::new(id.as_str())).await?.task;
-    journal.lifecycle.before_effect = Some(TaskObservation::admit(&current.task)?);
-    journal.persist(file)?;
-    working(&id, created, &current)?;
-    journal.lifecycle.armed = true;
-    journal.phase = Phase::CrashArmed;
-    journal.persist(file)?;
+    // Finish every slow runtime/process fence before the final authenticated read.
+    if let Some(signal) = &driver.signal {
+        signal.verify(deadline).await?;
+        journal.lifecycle.signal_runtime = Some(signal.identity());
+        journal.lifecycle.signal_fenced_at = Some(chrono::Utc::now());
+        journal.persist(file)?;
+    }
+    // There is no slow preparation after this final authenticated read.
+    if let Some(signal) = &driver.signal {
+        runtime_signal::dispatch_after_current(
+            &id,
+            created,
+            deadline,
+            async { Ok(caller.get_task(GetTaskParams::new(id.as_str())).await?.task) },
+            |current, intent| retain_signal_checkpoint(journal, file, current, intent),
+            signal.dispatch(deadline),
+        )
+        .await?;
+        journal.lifecycle.signal_command_succeeded = true;
+        journal.persist(file)?;
+    } else {
+        let current = caller.get_task(GetTaskParams::new(id.as_str())).await?.task;
+        journal.lifecycle.before_effect = Some(TaskObservation::admit(&current.task)?);
+        journal.persist(file)?;
+        working(&id, created, &current)?;
+        journal.lifecycle.armed = true;
+        journal.phase = Phase::CrashArmed;
+        journal.persist(file)?;
+    }
     let watch = handles
         .crash_watch
         .as_mut()
@@ -282,7 +346,7 @@ pub(super) async fn observe(
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn target() -> Result<Fixture> {
+    pub(super) fn target() -> Result<Fixture> {
         Ok(serde_json::from_value(serde_json::json!({
             "target":{"deployment":"time-mcp","pod":"selected-pod","container":"time-mcp",
                 "namespaceUid":uuid::Uuid::now_v7(),"deploymentUid":uuid::Uuid::now_v7(),

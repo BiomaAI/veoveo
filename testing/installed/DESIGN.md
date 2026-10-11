@@ -164,8 +164,25 @@ installation and have one Ready replica; its component and Rust server container
 role must be `time-mcp`. The driver admits the selected live identities before Task
 creation. The harness retains the crash watch before awaiting its initial state,
 then rereads the original Task as Working before syncing its armed marker. Ops may
-signal only that selected process after the persisted Task/watch handshake; the
-harness sends no process signal itself. The watch requires the old container's
+signal only that selected process after the persisted Task/watch handshake.
+Alternatively, Ops may select the closed `recovery.runtimeSignal` profile with
+`nodeName`, immutable 64-hex `nodeContainerId`, `nodeHostPid`,
+`nodeHostStartTicks`, `taskPid`, `hostPid` and `hostStartTicks` (positive integers).
+This profile requires Linux host process metadata and existing Docker access.
+Select one signal owner. An external driver must not signal when `runtimeSignal`
+owns dispatch, even after it observes the armed marker.
+Ancestor proc metadata is read with fixed Docker exec arguments. It binds the Pod's node and UID, Docker node container and process start,
+containerd `k8s.io` task ID/PID/Running state, and host/ancestor `NSpid` and start
+ticks. The task ID comes from the selected `containerd://` container identity.
+All slow preparation finishes before a fresh OAuth current read verifies the
+original Task ID, creation time and Working payload. The private journal syncs
+signal intent before one fixed `docker exec <node-container-id> ctr -n k8s.io
+tasks kill --signal SIGKILL <task-id>` dispatch. The command shares the original
+operation deadline and the native command cleanup owner. Failed or timed-out
+command settlement preserves an unresolved signal intent and prohibits replay;
+command success alone does not prove a crash. The final read and OS signal are
+not atomic, so completion during that interval still refuses qualification.
+The watch requires the old container's
 exit and a Ready replacement in the same Pod. A subsequent current read must still
 show the same Task Working. The harness then acknowledges a deliberately separate
 replacement listener and requires later delivered Completed/current result

@@ -68,8 +68,13 @@ leap second assumptions.
   explicit `complete`, `cancel` or `recover` mode, a typed selected schedule request
   and independent expected output. Cancel and recover require an acknowledged exact-ID
   Working delivery and a current Working read. Recover admits a selected single-replica
-  `time-mcp` Rust container before Task creation; Ops alone signals it after the private
-  armed marker. The same Task must still be Working after the observed replacement.
+  `time-mcp` Rust container before Task creation. Ops may signal after the private
+  armed marker, or explicitly admit `recovery.runtimeSignal` for the fixed k3d
+  ancestor-containerd signal. That profile verifies node/container/PID/start-time
+  identity before the final authenticated same-Task Working read, persists signal
+  intent and dispatches once within the original deadline. An ambiguous dispatch
+  never permits replay. Do not run an external signal driver with that profile.
+  The same Task must still be Working after replacement.
   Complete/recover verify delivered Completed and current official result agreement;
   cancel requires delivered and current Cancelled without successful output. The
   operation deadline starts once before connections: 120 seconds for complete/cancel,

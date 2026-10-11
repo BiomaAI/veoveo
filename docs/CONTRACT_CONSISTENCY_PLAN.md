@@ -52,6 +52,9 @@ cancellation pass through normal Gateway OAuth. Unfinished process recovery
 remains unqualified. The selected container restarts and reaches Ready, but its Task
 completed before the signal. The next check must read current Task state immediately
 before a prompt, fenced signal; a retained Working snapshot cannot authorize it.
+The Time fixture now supports an explicitly admitted, once-only ancestor-runtime
+signal after that fresh read. Three native controls and independent review pass;
+the new signal path still requires installed qualification.
 Datasheet's SDK replacement and the complete focused normal-OAuth Artifact consumer
 scenario pass. One fenced service replacement preserves an acknowledged Open upload
 and its accepted part. Resumption, immutable-part retry/refusal, completion replay

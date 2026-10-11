@@ -484,7 +484,7 @@ async fn exercise(
         calendar == input.request.calendar,
         "selected schedule calendar differs"
     );
-    let driver = lifecycle::admit_target(input, target, caller, journal, output).await?;
+    let driver = lifecycle::admit_target(input, target, caller, journal, output, deadline).await?;
     journal.phase = Phase::Preconditions;
     journal.persist(output)?;
     journal.phase = Phase::DispatchIntent;
