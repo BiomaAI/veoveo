@@ -65,8 +65,9 @@ stage journal and Console's typed error delivery pass their focused checks and
 review. The current installed attempt stops before any restart when the App tries
 to remove Formation's view before it has mounted. Its public teardown and test-tab
 closure succeed. The captured-view removal fix passes App tests, type checking,
-asset generation, the native server build and review. Its replacement image and
-repeated restart qualification are pending.
+asset generation, the native server build and review. Replacement MCP `3413582e`
+has a non-release development stage and registry readback at `8d7d5155`.
+Its rollout and repeated restart qualification are pending.
 Restart continuity is separate from the unchanged strict throughput limits. Paired shutdown,
 repeated GPU reset, induced RTSP stall recovery, capture-clock and full composed
 flight qualification remain open. F59/A11 stay open.
@@ -622,7 +623,8 @@ All eleven PVC identities and unselected workloads are unchanged; twelve image
 references are pinned. The current installed attempt hits a not-yet-mounted view
 removal error before restart; public teardown and tab cleanup succeed. The captured
 view removal fix passes its App checks, native server build and review; replacement
-publication and repeated qualification are pending. Graceful
+MCP `3413582e` is development-staged at `8d7d5155` with registry readback. Its rollout
+and repeated qualification are pending. Graceful
 retirement and strict throughput stay unqualified. Keep selected and prior UAV
 images pinned for rollback.
 Node restart, forced image collection, longer render stalls, turning flight and
