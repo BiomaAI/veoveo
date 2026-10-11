@@ -499,9 +499,10 @@ mod tests {
 
     #[test]
     fn query_parser_rejects_duplicate_authority_parameters() {
-        assert!(unique_query("live_view_id=one&live_view_id=two").is_err());
+        assert!(unique_query("liveViewId=one&liveViewId=two").is_err());
+        assert!(unique_query("liveViewId=one&live%56iewId=two").is_err());
         assert_eq!(
-            unique_query("live_view_id=one").unwrap(),
+            unique_query("liveViewId=one").unwrap(),
             vec![("liveViewId".to_owned(), "one".to_owned())]
         );
     }
