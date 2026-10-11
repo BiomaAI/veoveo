@@ -9,11 +9,17 @@ export default defineConfig({
     // Shared Console source must resolve the SDK from this build's installation.
     // The Workspace image does not install Console's node_modules.
     dedupe: ["react", "react-dom", "@tanstack/react-query", "zod", "lucide-react", "@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-webgl"],
-    alias: {
-      "@modelcontextprotocol/client/validators/cf-worker": fileURLToPath(import.meta.resolve("@modelcontextprotocol/client/validators/cf-worker")),
-      ...Object.fromEntries(["react", "react-dom", "@tanstack/react-query", "zod", "lucide-react", "@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-webgl"].map(name =>
-        [name, fileURLToPath(new URL(`./node_modules/${name}`, import.meta.url))])),
-    },
+    alias: [
+      {
+        find: /^@modelcontextprotocol\/client$/,
+        replacement: fileURLToPath(import.meta.resolve("@modelcontextprotocol/client")),
+      },
+      ...Object.entries({
+        "@modelcontextprotocol/client/validators/cf-worker": fileURLToPath(import.meta.resolve("@modelcontextprotocol/client/validators/cf-worker")),
+        ...Object.fromEntries(["react", "react-dom", "@tanstack/react-query", "zod", "lucide-react", "@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-webgl"].map(name =>
+          [name, fileURLToPath(new URL(`./node_modules/${name}`, import.meta.url))])),
+      }).map(([find, replacement]) => ({ find, replacement })),
+    ],
   },
   server: {
     host: "127.0.0.1",
