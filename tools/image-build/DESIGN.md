@@ -277,8 +277,9 @@ The managed worker retains an 80 GiB cache floor and targets at least 13% free s
 on its filesystem after projected build growth. Its configured collection trigger is
 15%. BuildKit 0.33.0 divides by binary GiB and multiplies by decimal GB when resolving
 percentages, so an unadjusted 13% setting undershoots an exact 13% reserve. The 15%
-trigger covers that reserve with headroom. On the Bioma host, the 13% reserve is about
-238 GiB, above Recording Hub's 200 GiB filesystem floor. Collection also begins above
+trigger covers that reserve with headroom. Workload free-space checks come from the
+selected installation configuration; they do not establish the builder's reserve.
+Collection also begins above
 320 GiB of worker cache. The aged-input and
 broader pressure policies share these thresholds. The first policy gives old source
 and compiler-cache mounts a seven-day retention window. The broader pressure policy excludes execution cache mounts, preserving that
@@ -291,6 +292,8 @@ The effective threshold must cover release preflight's default 13% reserve. Each
 budget its peak additional storage. Garbage collection cannot guarantee that reserve
 when other host owners consume more space than the reclaimable cache can cover.
 Registry artifacts and Kubernetes persistent data belong to their own storage owners.
+The preflight's `--reserve-free-percent` option changes one operation's admission
+budget. It does not change the worker's collection policy or workload free-space checks.
 
 Speech uses the same normalized-parent publication boundary as the simulator. Its
 parent admits the exact Python lock, model-download verifier and model protocol pins.
