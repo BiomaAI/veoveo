@@ -798,7 +798,8 @@ pub(crate) async fn run(binaries: Binaries<'_>, base: &Path, reference: &Path) -
         ],
         [],
         &model_log,
-    )?;
+    )
+    .map(ChildGuard::with_owner_scope)?;
     wait_for_file(&model_ready).await?;
     let selected = &catalog.profiles[0];
     let registration = &catalog.oauth_clients[0];
