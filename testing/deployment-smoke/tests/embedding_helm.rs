@@ -514,3 +514,70 @@ fn reference_staging_preserves_active_claims_and_omits_deferred_claims() -> Resu
     }
     Ok(())
 }
+
+#[test]
+fn explicit_gpu_pause_preserves_pod_allocation_and_missing_dra_counts_fail() -> Result<()> {
+    for dra in [false, true] {
+        let mut values = selection();
+        if dra {
+            values["global"] = json!({"gpuPlacement":{"enabled":true,"claimName":"embedding-gpu","runtimeClassName":"nvidia","evidenceDigest":format!("sha256:{}","a".repeat(64)),"workloadRequests":{"embedding":"embedding"},"workloadReplicas":{"embedding":1}}});
+        }
+        let baseline = objects(render(&values)?)?;
+        let baseline = find(&baseline, "Deployment", "embedding")?;
+        ensure!(baseline["spec"]["replicas"] == 1);
+        for replicas in [0, 1, 2] {
+            values["global"]["gpuPlacement"]["workloadReplicas"]["embedding"] = json!(replicas);
+            let rendered = objects(render(&values)?)?;
+            let deployment = find(&rendered, "Deployment", "embedding")?;
+            ensure!(deployment["spec"]["replicas"] == replicas);
+            ensure!(deployment["spec"]["strategy"]["type"] == "Recreate");
+            ensure!(
+                deployment["spec"]["template"] == baseline["spec"]["template"],
+                "pause changed GPU allocation or runtime inputs"
+            );
+            ensure!(find(&rendered, "PersistentVolumeClaim", "embedding-model-cache").is_ok());
+        }
+        for invalid in [json!(-1), json!(0.5), json!("0"), json!(true)] {
+            values["global"]["gpuPlacement"]["workloadReplicas"]["embedding"] = invalid;
+            ensure!(!render(&values)?.status.success());
+        }
+    }
+    let mut missing = selection();
+    missing["global"] = json!({"gpuPlacement":{"enabled":true,"claimName":"embedding-gpu","runtimeClassName":"nvidia","evidenceDigest":format!("sha256:{}","a".repeat(64)),"workloadRequests":{"embedding":"embedding"}}});
+    let output = render(&missing)?;
+    ensure!(!output.status.success());
+    ensure!(
+        String::from_utf8_lossy(&output.stderr).contains("workloadReplicas[embedding] is required")
+    );
+    // Pausing does not admit a CPU profile or missing DRA request.
+    missing["global"]["gpuPlacement"]["workloadReplicas"]["embedding"] = json!(0);
+    missing["global"]["gpuPlacement"]["workloadRequests"] = json!({});
+    ensure!(!render(&missing)?.status.success());
+    let mut cpu = selection();
+    cpu["global"]["gpuPlacement"]["workloadReplicas"]["embedding"] = json!(0);
+    cpu["embedding"]["resources"]["requests"]["nvidia.com/gpu"] = json!("0");
+    ensure!(!render(&cpu)?.status.success());
+    Ok(())
+}
+
+#[test]
+fn recording_pause_keeps_singleton_strategy_and_storage() -> Result<()> {
+    let mut values = json!({"installationPreset":"custom","components":["platform-store","object-store","artifact-service","recording-data-plane"],"mcpServers":[]});
+    let baseline = objects(render(&values)?)?;
+    let baseline = find(&baseline, "Deployment", "recording")?;
+    ensure!(baseline["spec"]["replicas"] == 1);
+    for replicas in [0, 1] {
+        values["recording"]["replicas"] = json!(replicas);
+        let rendered = objects(render(&values)?)?;
+        let deployment = find(&rendered, "Deployment", "recording")?;
+        ensure!(deployment["spec"]["replicas"] == replicas);
+        ensure!(deployment["spec"]["strategy"]["type"] == "Recreate");
+        ensure!(deployment["spec"]["template"] == baseline["spec"]["template"]);
+        ensure!(find(&rendered, "PersistentVolumeClaim", "recording-spool").is_ok());
+    }
+    for invalid in [json!(-1), json!(2), json!(0.5), json!("0")] {
+        values["recording"]["replicas"] = invalid;
+        ensure!(!render(&values)?.status.success());
+    }
+    Ok(())
+}

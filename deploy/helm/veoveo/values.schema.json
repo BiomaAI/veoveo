@@ -200,7 +200,7 @@
               },
               "additionalProperties": {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 0
               }
             }
           }
@@ -1085,6 +1085,7 @@
     "recording": {
       "type": "object",
       "required": [
+        "replicas",
         "tenantKey",
         "workContext",
         "classification",
@@ -1109,6 +1110,11 @@
         "mcpResources"
       ],
       "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
         "tenantKey": {
           "type": "string",
           "minLength": 1
@@ -1858,7 +1864,7 @@
       },
       "additionalProperties": {
         "type": "integer",
-        "minimum": 1
+        "minimum": 0
       }
     },
     "serverBootstrap": {
@@ -1953,6 +1959,7 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "replicas",
             "image",
             "existingConfigMap",
             "configurationRevision",
@@ -1965,6 +1972,11 @@
             "runtimeClassName"
           ],
           "properties": {
+            "replicas": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1
+            },
             "image": {
               "$ref": "#/definitions/image"
             },

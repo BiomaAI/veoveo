@@ -17,6 +17,7 @@ global:
     runtimeClassName: nvidia
     evidenceDigest: ""
     workloadRequests: {}
+    # Explicit zero pauses a selected workload in either allocation mode.
     workloadReplicas: {}
   serviceMesh:
     enabled: false
@@ -195,6 +196,7 @@ computers:
   # SHA-256 of the public worker JWKS; never a credential digest.
   oauthCredentialRevision: ""
   host:
+    replicas: 1
     # Node-owned runtime must supply a finite aggregate container PID limit.
     runtimeClassName: ""
     image:
@@ -236,6 +238,7 @@ computers:
       memory: 1Gi
 
 recording:
+  replicas: 1
   tenantKey: enterprise
   workContext: operations
   classification: unclassified

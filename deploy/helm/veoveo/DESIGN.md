@@ -58,6 +58,25 @@ the agent manager's desired managed-workload configuration. Managed-agent replac
 uses the manager's lease and pod drain checks; static YAML alone cannot establish that
 all running agents accepted a rotated account.
 
+## Paused Workloads
+
+An explicit zero in `global.gpuPlacement.workloadReplicas` pauses the selected GPU
+Deployment in either device-plugin or DRA mode. An absent entry defaults to one in
+device-plugin mode; DRA mode requires an entry. The allocation plan still declares
+positive capacity. A pause changes only the Deployment count: its GPU requests,
+RuntimeClass, DRA claim references and startup admission stay intact. It does not
+qualify the workload or establish that its resources have drained.
+
+`domainServiceReplicas` also honors explicit zero; missing entries default to one.
+Speech permits only zero or one because one process owns private dictation. Its
+paused Pod template still requires its declared NVIDIA allocation.
+
+`recording.replicas` and `computers.host.replicas` accept zero or one and default to
+one. Both singleton Deployments keep `Recreate`. Pausing keeps their Services,
+configuration and PVC declarations. Component selection controls which resources
+render; changing that selection requires a separate installation review and does
+not authorize deleting retained storage.
+
 ## Hosted Server Probes
 
 Artifact, DuckDB, Frames, Map, Media and Timeseries use their mounted `/readyz`

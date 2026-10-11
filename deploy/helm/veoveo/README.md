@@ -32,6 +32,15 @@ argument, storage, and GPU definitions for every first-party server under
 `definitions/domain-services.yaml`. An installation names the servers it wants and never
 copies those definitions.
 
+Set an entry such as `global.gpuPlacement.workloadReplicas.embedding: 0` to pause
+that selected GPU Deployment without changing its GPU configuration. The map applies
+with either allocation mode; DRA still requires its request, claim and placement
+inputs. `domainServiceReplicas` honors zero for a named domain Deployment, with
+Speech limited to zero or one. Set `recording.replicas: 0` or `computers.host.replicas: 0` to pause those
+singletons. Their default is one, and their maximum is one. Pausing preserves
+resource declarations and storage; it does not count as workload qualification or
+prove that shutdown completed.
+
 `knowledge` requires the gateway, platform store and `embedding-runtime`. The full
 preset includes it. Supply `knowledge.existingConfigMap` with the tenant JSON files
 listed in `knowledge.indexingConfigKeys`, and put their signing keys in the separate

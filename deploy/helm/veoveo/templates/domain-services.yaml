@@ -30,10 +30,13 @@
 {{- $sourceSecretName := get $sourceMount "secretName" | default $service.sourceSecretName -}}
 {{- $baseResources := default $.Values.gateway.resources $service.resources -}}
 {{- $serviceResources := default $baseResources (index $.Values.domainServiceResources $service.name) -}}
-{{- $serviceReplicas := get $.Values.domainServiceReplicas $service.name | default 1 -}}
+{{- $serviceReplicas := 1 -}}
+{{- if hasKey $.Values.domainServiceReplicas $service.name -}}
+{{- $serviceReplicas = get $.Values.domainServiceReplicas $service.name -}}
+{{- end -}}
 {{- if eq $service.name "speech-mcp" }}
-{{- if ne (int $serviceReplicas) 1 }}
-{{- fail "speech-mcp requires exactly one replica for private dictation ownership" }}
+{{- if gt (int $serviceReplicas) 1 }}
+{{- fail "speech-mcp permits zero or one replica for private dictation ownership" }}
 {{- end }}
 {{- if not $.Values.global.gpuPlacement.enabled }}
 {{- if or (ne (int (index $serviceResources.requests "nvidia.com/gpu" | default 0)) 1) (ne (int (index $serviceResources.limits "nvidia.com/gpu" | default 0)) 1) }}

@@ -101,8 +101,10 @@ veoveo.ai/installation: {{ required "global.installationId is required" .Values.
 {{- define "veoveo.gpuReplicas" -}}
 {{- $root := index . 0 -}}
 {{- $workload := index . 1 -}}
-{{- if $root.Values.global.gpuPlacement.enabled -}}
-{{- required (printf "global.gpuPlacement.workloadReplicas[%s] is required" $workload) (get $root.Values.global.gpuPlacement.workloadReplicas $workload) -}}
+{{- if hasKey $root.Values.global.gpuPlacement.workloadReplicas $workload -}}
+{{- get $root.Values.global.gpuPlacement.workloadReplicas $workload -}}
+{{- else if $root.Values.global.gpuPlacement.enabled -}}
+{{- fail (printf "global.gpuPlacement.workloadReplicas[%s] is required" $workload) -}}
 {{- else -}}
 1
 {{- end -}}

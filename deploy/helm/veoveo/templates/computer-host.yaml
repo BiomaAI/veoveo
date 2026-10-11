@@ -54,7 +54,7 @@ metadata:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: computer-host
 spec:
-  replicas: 1
+  replicas: {{ $host.replicas }}
   strategy:
     type: Recreate
   progressDeadlineSeconds: 900

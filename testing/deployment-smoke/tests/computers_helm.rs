@@ -250,6 +250,24 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
             .all(|v| v["secret"]["secretName"] != "worker-oauth")
     );
     ensure!(host["spec"]["replicas"] == 1 && host["spec"]["strategy"]["type"] == "Recreate");
+    for replicas in [0, 1] {
+        let setting = format!("computers.host.replicas={replicas}");
+        let mut paused = arguments.clone();
+        paused.extend(["--set", &setting]);
+        let rendered = objects(render(&paused))?;
+        let selected = object(&rendered, "Deployment", "computer-host")?;
+        ensure!(selected["spec"]["replicas"] == replicas);
+        ensure!(selected["spec"]["strategy"]["type"] == "Recreate");
+        ensure!(selected["spec"]["template"] == host["spec"]["template"]);
+        ensure!(object(&rendered, "PersistentVolumeClaim", "computer-host-data").is_ok());
+    }
+    for invalid in ["-1", "2", "0.5"] {
+        let setting = format!("computers.host.replicas={invalid}");
+        let mut denied = arguments.clone();
+        denied.extend(["--set", &setting]);
+        ensure!(!render(&denied).status.success());
+    }
+
     let pod = &host["spec"]["template"]["spec"];
     ensure!(
         pod["hostNetwork"] == false
@@ -474,5 +492,47 @@ fn typed_component_sets_render_through_native_chart_identity_adapter() -> Result
             ensure!(String::from_utf8_lossy(&refused.stderr).contains("components"));
         }
     }
+    Ok(())
+}
+
+#[test]
+fn domain_pauses_preserve_gpu_templates_and_speech_singleton_ownership() -> Result<()> {
+    let baseline = objects(render(&[]))?;
+    for name in ["speech-mcp", "optimization-mcp", "view-mcp", "rerun-bridge"] {
+        let original = object(&baseline, "Deployment", name)?;
+        ensure!(original["spec"]["replicas"] == 1);
+        for replicas in [0, 1, 2] {
+            let setting = format!("domainServiceReplicas.{name}={replicas}");
+            let output = render(&["--set", &setting]);
+            if name == "speech-mcp" && replicas == 2 {
+                ensure!(!output.status.success());
+                ensure!(String::from_utf8_lossy(&output.stderr).contains("zero or one replica"));
+                continue;
+            }
+            let rendered = objects(output)?;
+            let deployment = object(&rendered, "Deployment", name)?;
+            ensure!(deployment["spec"]["replicas"] == replicas);
+            ensure!(deployment["spec"]["strategy"]["type"] == "Recreate");
+            ensure!(
+                deployment["spec"]["template"] == original["spec"]["template"],
+                "pause changed GPU/runtime admission for {name}"
+            );
+        }
+        for invalid in ["-1", "0.5"] {
+            let setting = format!("domainServiceReplicas.{name}={invalid}");
+            ensure!(!render(&["--set", &setting]).status.success());
+        }
+    }
+    let denied = render(&[
+        "--set",
+        "domainServiceReplicas.speech-mcp=0",
+        "--set",
+        "domainServiceResources.speech-mcp.requests.nvidia\\.com/gpu=0",
+    ]);
+    ensure!(
+        !denied.status.success(),
+        "paused Speech must still require its GPU"
+    );
+    ensure!(String::from_utf8_lossy(&denied.stderr).contains("one NVIDIA GPU"));
     Ok(())
 }
