@@ -20,8 +20,13 @@ The runtime-only rollout reaches Ready with the world, PVCs, MCP and forwarder
 unchanged. Normal-OAuth Console camera calls return 200, the WebSocket stays open
 and all five camera canvases display advancing frames in headed RTX 4090 Chrome.
 The browser sample measures 2.12 fps; an independent native atlas sample measures
-4.1 fps. Both fall below the configured 16 Hz. Software H.264 decode is supported
-and smooth according to Media Capabilities, and the UI identifies it correctly.
+4.1 fps. Both fall below the configured 16 Hz. Controlled one-, two- and five-camera
+measurements will separate rendering and atlas size from live delivery and browser
+load before setting camera-count-specific acceptance targets. Keep per-camera
+resolution, cadence and scene comparable, measure native and browser delivery, and
+restore the original configuration. The recorded MP4 rate alone does not locate
+the live bottleneck. Software H.264 decode is supported and smooth according to
+Media Capabilities, and the UI identifies it correctly.
 The operator-only RTSP recovery has five-second handshake and admitted-picture
 deadlines with at most two same-source reconnects. Its source controls preserve
 Recording's physical-camera profile; induced installed stall recovery remains open.
@@ -50,18 +55,14 @@ records source, deployment and capture details.
 The Knowledge and Time repair at `6653288ba` is published and deployed. Both Pods
 pass probes and thirty seconds of stability without a restart. Normal OAuth reads
 and Knowledge search reach the updated Time documents. Time completion and
-cancellation pass through normal Gateway OAuth. Unfinished process recovery
-remains unqualified. The fixture's once-only ancestor-runtime signal follows a fresh
-authenticated Working read. The selected container restarts and reaches Ready;
-the same original Task is still Working and a replacement listener acknowledges it.
-The fixture repair uses the remaining original 300-second deadline and closes local
-SDK/watch handles before remote Task reconciliation. Strict lint, six focused native
-controls and source review pass. The repaired installed attempt closes those local
-owners, but its subscription ends before completion. Shared test clients imposed a
-65-second total HTTP timeout on long-lived SSE. The transport correction and finite
-ordinary-caller deadlines pass strict lint, two actual SDK controls and source review.
-Installed delivery qualification remains open. The original
-Task is subsequently read as Cancelled.
+cancellation pass through normal Gateway OAuth. Unfinished process recovery also
+passes on the selected deployed Time image. One fenced process replacement preserves
+the original Task's creation identity and Working state. The replacement listener
+delivers completion, and the current result agrees with all eight independently
+expected calendar occurrences. Caller, listeners and watch close, owned cleanup
+settles, and Time and the core services stay Ready. The original 300-second operation
+deadline is preserved. Installed authority activation, temporal-event/agent-wake
+coverage and final-image qualification remain open.
 Datasheet's SDK replacement and the complete focused normal-OAuth Artifact consumer
 scenario pass. One fenced service replacement preserves an acknowledged Open upload
 and its accepted part. Resumption, immutable-part retry/refusal, completion replay
@@ -73,8 +74,8 @@ Time image. The same historical Task's eight independently expected occurrences,
 result and authority agree through B-only routing after original A exits zero.
 The watch barrier, native restoration of A and its selector, and retirement of B
 all pass. SDK handles, watches and owned processes close; postflight verifies the
-sole A endpoint and B Deployment, ReplicaSets and Pods absent. Unfinished recovery,
-installed authority activation and final-image qualification remain open.
+sole A endpoint and B Deployment, ReplicaSets and Pods absent. Installed authority
+activation and final-image qualification remain open.
 Gateway, Agent Manager and Knowledge run compatible qualified images against the
 published full catalog. Manager is Ready with the reviewed immutable pilot template,
 qualified kernel and matching admission policies. Its installed fixture implements
@@ -200,13 +201,13 @@ Store and cleanup controls pass. Actual unfinished restart, HTTP shutdown and
 stepped simulator qualification remain open.
 
 The existing owner harnesses prepare the following checks. Previously qualified
-native controls pass. Time schedule completion and cancellation also pass through
-normal public OAuth; recovery keeps its separate qualification gate.
+native controls pass. Time schedule completion, cancellation and unfinished process
+recovery also pass through normal public OAuth on the selected deployed image.
 Earlier installed checkpoints keep their recorded scope below.
 
 | Owner | Prepared installed checks | Remaining qualification |
 |---|---|---|
-| Time | Read consumers and explicit complete/cancel/recover schedule fixtures; completion and cancellation pass; Time12 completed-state cross-replica Task/result/authority delivery and native restoration pass on the selected deployed image | Unfinished process recovery, authority activation and final images |
+| Time | Read consumers and explicit complete/cancel/recover schedule fixtures pass; Time12 completed-state cross-replica delivery and native restoration pass; one fenced unfinished process replacement delivers the original Task's independently expected result and settles cleanup on deployed `49b59aef` | Authority activation, temporal-event/agent-wake coverage and final images |
 | Artifact | Focused normal-OAuth uploads, independent bytes/digest and SDK consumers pass. One service replacement preserves an acknowledged Open public upload and accepted part; resumption, completion replay, retained capability redemption/replay and cleanup pass on deployed `e26082a1` | Final images; interruption during capability redemption and executed-Task recovery are not claimed |
 | Timeseries | Four-row forecast, RRD Artifact and usage; typed cancellation, connection replacement and process-crash fixtures with original Task/result agreement | Installed unfinished process recovery, selected cross-replica routing and final images |
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
@@ -241,31 +242,21 @@ now passes completion and cancellation on the repaired Time image. Completion
 agrees with all eight independently expected occurrences and delivered and current
 Completed state. Cancellation observes Working before recording its intent,
 receives acknowledgement and reaches current Cancelled state. Both cases close
-their caller and listener. The recovery fixture now owns its explicitly selected
+their caller and listener. The recovery fixture owns one explicitly selected
 ancestor-containerd signal after a fresh same-Task Working read and independent
-process fences. One actual replacement preserves the original Task in Working
-state and acknowledges a replacement listener. The owning fixture repair preserves
-the original operation deadline and orders local closure first without changing
-shared Task settlement or cleanup
-budgets. Strict lint and six focused native controls pass, including original-deadline,
-late-success, truthful idempotent cleanup replay and failed-close counterexamples.
-Its installed rerun closes local caller, listeners and watch, but receives premature
-subscription EOF. The shared installed transport applied a total 65-second HTTP
-timeout, shorter than the prior worker's 120-second lease. Gateway upstream clients
-already avoid that body lifetime cap. The shared transport correction passes strict
-lint and an actual SDK regression that reproduces premature closure with an injected
-body cap, then delivers completion through the maintained client without that cap.
-It also checks operation expiry, cancellation and listener drain. Ordinary discovery
-has a thirty-second deadline; five affected source and sharing consumers bound
-connection, preflight and work with their original operation interval and retain
-clients and admitted mutation drivers for cleanup. A second SDK control checks
-discovery expiry and a stalled resource read against the original owner deadline.
-Compiler checks, strict lint and source review pass for the complete correction.
-The original Task is read as Cancelled after the failed attempt. Installed completion
-delivery remains unqualified; no product recovery failure is established.
-Together with the three administrative API controls, the earlier native batch has
-nineteen passing controls. Time recover mode selects one 300-second operation
-deadline; its other modes keep 120 seconds.
+process fences. Installed attempt 05
+passes on `time-mcp@sha256:49b59aeff17abf7aca3250eadf41c3539ac10b118b79559188afb58a0fbbf5d4`.
+The replacement reaches Ready; the same Task keeps its creation identity and Working
+state, and the replacement listener delivers Completed. An uncached read returns the
+same eight expected calendar occurrences and authority. The original 300-second
+operation deadline covers recovery, and local closure precedes remote reconciliation.
+All owned cleanup settles. The result is bound by receipt SHA-256
+`0793175556aa16a91fb021263c0ab2596c60c9132cd0eb314b5dc5778d820eae`
+and the source-qualified delivery ELF `f5e77d50e82ce1695e7b7c049bc5fbc8e1a3cb75e147d648e54f1c816162bf07`.
+The shared transport correction preserves long-lived SSE while bounding ordinary
+discovery and source reads. Strict lint, two actual SDK controls and independent
+review pass. Time recover mode selects one 300-second operation deadline; its other
+modes keep 120 seconds.
 
 Time temporal events are the next focused agent/platform interaction target. Extend
 the existing owner harnesses to exercise future-event creation, idle agent wake and
@@ -283,8 +274,8 @@ Installed authority activation remains open. Hosted Time calculations run on the
 blocking pool with cooperative stop checks and the original job retained through
 normal worker exit. Compiler, strict lint and ten focused native controls qualify
 async responsiveness, original-job joining, Task settlement and engine behavior.
-Installed cancellation passes on the repaired image. Unfinished recovery remains
-unqualified until an actual process-replacement case passes.
+Installed cancellation and unfinished process recovery pass on the selected deployed
+image. Final-image qualification remains open.
 
 The existing Time consumer harness now prepares a separately selected isolated
 authority profile: HTTPS acquisition, first activation, concurrent pointer conflicts,
@@ -319,8 +310,8 @@ driver exit zero; all SDK handles and watches close. Postflight verifies five co
 services Ready and removal of the private caller file. The
 [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#time-completed-state-cross-replica-acceptance--october-10-2026)
 binds the receipts and preserves prior failed attempts. This pass qualifies retained
-completed-state delivery on the selected image; unfinished recovery, authority
-activation and final-image qualification remain open.
+completed-state delivery on the selected image. The separate unfinished recovery
+case also passes; authority activation and final-image qualification remain open.
 
 Gateway-routed Knowledge source checks now admit each templates/tools page against
 the selected typed server. Unrelated server failures are retained as limited K01
