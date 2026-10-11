@@ -3784,7 +3784,7 @@
     },
     {
       "id": "uav-showcase-live-restart-verify",
-      "description": "Keep a headed live view mounted while restarting the MCP and simulator containers.",
+      "description": "Verify headed MCP continuity, then coordinated graceful GPU runtime and recording-forwarder drain with matched successful exits.",
       "target": {
         "kind": "cargo_binary",
         "selection": {
@@ -3882,11 +3882,11 @@
       "requirements": {
         "network": true,
         "credentials": true,
-        "clusterMutation": false,
+        "clusterMutation": true,
         "billedEffects": false,
         "nvidia": true,
         "headedGraphics": true,
-        "explanation": "The owner requires an existing installation, operator identity and headed hardware-backed browser endpoint. Its assertions preserve actual parent, replay and cleanup checks; no software-renderer acceptance is permitted."
+        "explanation": "Requires an admitted installation, normal OAuth operator and headed hardware-backed browser. Restarts MCP first, then the selected GPU runtime and recording-forwarder together; both must exit successfully within the 120-second drain and admitted Pod grace before same-image Ready replacements and fresh video qualify. Browser software H.264 decode is allowed only with supported, smooth Media Capabilities and its explicit label."
       },
       "deadlineSeconds": 3600,
       "cleanupSeconds": 180

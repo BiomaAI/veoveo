@@ -196,6 +196,7 @@ fn focused_uav_app_host_preflights() -> [&'static str; 2] {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct FocusedScenario {
     session_id: String,
     vehicle_id: String,
@@ -203,6 +204,7 @@ struct FocusedScenario {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct FocusedView {
     timeout_seconds: u64,
 }
@@ -1415,6 +1417,29 @@ fn git_revision() -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn focused_uav_projection_admits_maintained_scenario_and_refuses_retired_required_names() {
+        let bytes =
+            include_bytes!("../../../../../showcase/uav-sim/scenarios/new-york-aerial.json");
+        let scenario: FocusedScenario = serde_json::from_slice(bytes).unwrap();
+        assert_eq!(scenario.session_id, "uav-showcase");
+        assert_eq!(scenario.vehicle_id, "uav-1");
+        assert_eq!(scenario.view.timeout_seconds, 300);
+        let canonical: serde_json::Value = serde_json::from_slice(bytes).unwrap();
+        for (current, retired) in [("sessionId", "session_id"), ("vehicleId", "vehicle_id")] {
+            let mut obsolete = canonical.clone();
+            let object = obsolete.as_object_mut().unwrap();
+            let value = object.remove(current).unwrap();
+            object.insert(retired.to_owned(), value);
+            assert!(serde_json::from_value::<FocusedScenario>(obsolete).is_err());
+        }
+        let mut obsolete = canonical;
+        let view = obsolete["view"].as_object_mut().unwrap();
+        let value = view.remove("timeoutSeconds").unwrap();
+        view.insert("timeout_seconds".to_owned(), value);
+        assert!(serde_json::from_value::<FocusedScenario>(obsolete).is_err());
+    }
 
     #[test]
     fn focused_uav_acceptance_preflights_both_app_hosts() {
