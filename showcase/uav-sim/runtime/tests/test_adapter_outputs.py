@@ -375,6 +375,73 @@ class AdapterOutputHttpTests(unittest.IsolatedAsyncioTestCase):
             await active._get_state(None)
         self.assertNotIn("hidden-input", str(failure.exception))
 
+    async def test_registered_live_stream_upgrades_delivers_original_bytes_and_closes(self):
+        import asyncio
+        import threading
+        from unittest.mock import patch
+        from aiohttp import WSMsgType
+        from veoveo_uav_sim import server
+        from veoveo_uav_sim.h264 import NativeH264AccessUnit
+
+        sample = b"\x00\x00\x00\x01\x67\x4d\x40\x20\x00\x00\x01\x68\xee\x00\x00\x01\x65\x88"
+        access_unit = NativeH264AccessUnit(sample=sample, nal_types=(7, 8, 5))
+        release_reader = threading.Event()
+        reader_returned = threading.Event()
+        control_closed = asyncio.Event()
+        requested = []
+
+        def wait_for_frame(camera_id, after_sequence, timeout):
+            requested.append((camera_id, after_sequence))
+            if after_sequence == 0:
+                return SimpleNamespace(sequence=1, access_unit=access_unit)
+            try:
+                release_reader.wait(0.25)
+                return None
+            finally:
+                reader_returned.set()
+
+        source = SimpleNamespace(wait_for_frame=wait_for_frame)
+        application = AdapterApplication(
+            config=SimpleNamespace(adapter_bearer_token="fixture-private-token", session_id="session-alpha"),
+            state=None, timeline=None, commanders={}, recording=None,
+            world_slot=WorldConfigurationSlot(), fleet_loop=None,
+            operator_products=SimpleNamespace(stream_source=lambda: source),
+            runtime_events=RuntimeEventPublisher(), submit_main_thread=lambda call: call(),
+        )
+        consume = server._consume_live_stream_control_frames
+
+        async def observe_control_close(websocket):
+            try:
+                await consume(websocket)
+            finally:
+                control_closed.set()
+
+        headers = {"Authorization": "Bearer fixture-private-token"}
+        with patch.object(server, "_consume_live_stream_control_frames", observe_control_close):
+            async with TestClient(TestServer(application.application)) as client:
+                response = await client.get("/v1/live-streams/follow")
+                self.assertEqual(response.status, 401)
+                response = await client.get("/v1/live-streams/follow", headers=headers)
+                self.assertEqual(response.status, 400)
+                self.assertEqual(requested, [])
+                try:
+                    websocket = await asyncio.wait_for(client.ws_connect(
+                        "/v1/live-streams/follow", headers=headers,
+                        protocols=(server.LIVE_STREAM_PROTOCOL,),
+                    ), 2.0)
+                    self.assertEqual(websocket._response.status, 101)
+                    self.assertEqual(websocket.protocol, server.LIVE_STREAM_PROTOCOL)
+                    message = await asyncio.wait_for(websocket.receive(), 2.0)
+                    self.assertEqual(message.type, WSMsgType.BINARY)
+                    self.assertEqual(message.data, sample)
+                    self.assertEqual(requested[0], ("follow", 0))
+                    await asyncio.wait_for(websocket.close(), 2.0)
+                    release_reader.set()
+                    await asyncio.wait_for(control_closed.wait(), 2.0)
+                    self.assertTrue(await asyncio.to_thread(reader_returned.wait, 2.0))
+                finally:
+                    release_reader.set()
+
     async def test_actual_v2_routes_refuse_retired_requests_before_dispatch(self):
         from unittest.mock import Mock
         fixture = outputs()

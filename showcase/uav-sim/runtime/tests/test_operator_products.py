@@ -396,7 +396,7 @@ class OperatorGenerationHandshakeTests(unittest.IsolatedAsyncioTestCase):
         application = AdapterApplication.__new__(AdapterApplication)
         application._operator_products = collection
         request = SimpleNamespace(headers={"Sec-WebSocket-Protocol": LIVE_STREAM_PROTOCOL},
-                                  match_info={"cameraId": "follow"})
+                                  match_info={"camera_id": "follow"})
         async def consume(_websocket):
             await asyncio.Event().wait()
         with patch("veoveo_uav_sim.server.web.WebSocketResponse", return_value=websocket), \

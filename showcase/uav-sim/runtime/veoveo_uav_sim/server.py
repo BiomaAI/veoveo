@@ -299,7 +299,7 @@ class AdapterApplication:
                 {"error": "the canonical H.264 stream protocol is required"},
                 status=400,
             )
-        camera_id = request.match_info['cameraId']
+        camera_id = request.match_info["camera_id"]
         websocket = web.WebSocketResponse(
             protocols=(LIVE_STREAM_PROTOCOL,),
             heartbeat=10.0,

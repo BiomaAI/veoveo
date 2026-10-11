@@ -11,53 +11,31 @@ Twenty-two Trixie images at `3820c0db5` now pass stage/release digest agreement,
 attestation checks and node-network registry readback. The remaining nine-image
 batch stops at its second disk-growth guard without stage evidence; rollout and installed
 qualification remain open.
-The fresh single-vehicle UAV capture exposed a runtime output failure after tile
-updates and incorrect RTSP video timestamps. The state repair at `1b9070590`
-passes all 151 owning Python tests and independent review. It is included in the
-published UAV runtime; installed acceptance remains open. The browser derives
-the actual codec from its SPS.
-The capture-clock batch passes 175 Python tests, eight JS tests, TypeScript and
-bundling; its asset agrees with the earlier compiler and four native App checks.
-It carries stock NVIDIA SEI capture time through RTSP to WebCodecs and retires
-stream resources before clock reset. Independent lifecycle review passes. Actual
-Isaac clock qualification remains open. The paired runtime/MCP images reach Ready
-with a freshly published Frames world after the prior database reset. The maintained
-showcase setup succeeds and reports one shared camera product. Its native capture
-delivers a 29.95-second five-camera MP4 with 442 native NVENC frames and
-14.76 average fps. Headed RTX 4090-backed playback passes, and the owner accepts
-the video quality. A fresh authenticated state read returns 200 with all four
-vehicles flying. Individual visibility of all four in the video and composed-flight
-acceptance remain unqualified. The signed-in normal-OAuth Console Live Cameras
-check fails at `/console/api/apps/call` with HTTP 502. The runtime atlas stops at
-362 frames while the physical sensor advances; MCP correctly refuses the failed
-product, and no Rust fix is required. The native RTSP listener is reachable, but
-the triggering event is unproven. The operator-only receiver repair passes 187
-owning CPU tests, including nine actual-loopback controls within 29 focused tests;
-the old receiver fails the stall/EOF recovery controls. It enforces five-second
-handshake and admitted-picture deadlines with at most two same-source reconnects,
-while preserving Recording's physical-camera readiness and terminal-loss profile.
-Independent source review passes; runtime publication/rollout and live frames remain open.
-These checks do not qualify F59, A11, the full flight or the capture clock. The saved
-videos remain accepted and published. K3s successfully imports the retained digest list
-through local tag aliases; all three selected images report CRI `pinned: true`.
-The persistent node configuration protects the cache when workloads stop. Both
-images at `3da4c8446` pass staging, release digest agreement, attestations and
-node-origin manifest/configuration readback. The actuator-observation checkpoint
-passes all 177 owning Python controls and review. This capture
-does not close composed-flight acceptance. Independent PX4 log inspection finds a
-severe roll transient and motor saturation around log-relative 123 seconds, followed
-by much calmer cruise. Flight dynamics and feedback timing require qualification;
-absence of a failsafe does not establish stability. The existing native flight
-harness measures the nonacrobatic motion envelope. Both the current 30/60 Hz
-held-sample profile and the test-only 250 Hz fresh-sample profile pass two native
-CUDA/PX4 flight cycles. Their maximum tilts are 22.5 and 21.5 degrees respectively.
-The grouped production-clock comparison also passes two synthetic 500 ms stalls,
-with maximum tilt 27.9 degrees. It observes actuator feedback lag during catch-up
-but does not reproduce the recorded transient. Longer render stalls and turning
-flight remain unqualified. Production rates are unchanged. Its two
-temporary PVCs were deleted during cleanup; the saved MP4s and PX4 log survive.
-The [flight checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#fresh-uav-flight-and-runtime-output-repair--october-10-2026)
-records the results, losses and remaining qualification.
+The UAV runtime-only receiver repair at `418de38f3` passes 187 owning CPU tests.
+Its operator-only recovery uses five-second handshake and admitted-picture deadlines
+with at most two same-source reconnects. Recording's physical-camera readiness and
+terminal-loss behavior are preserved. The image passes stage/release agreement,
+attestations and node-origin readback, and reaches Ready without downloading its
+cached layers. Fresh state reports five healthy cameras and an advancing atlas.
+Normal-OAuth Console camera listing and view admission return 200, but live playback
+still reconnects without frames. Pod logs confirm a runtime route binding mismatch:
+`camera_id` is registered while the handler reads `cameraId`. An actual registered-route
+test reproduces HTTP 500 and the same exception. The repair passes 188 owning CPU
+tests and independent review; its installed playback check remains open.
+The typed browser consumer cut at `688f5d998` passes the browser, flight and composition
+compiler targets. Nine focused native controls pass, and independent review approves
+the cut. This source qualification does not establish deployed live playback.
+The accepted UAV videos are published in the README. The native five-camera MP4
+contains 442 NVENC frames over 29.95 seconds at 14.76 average fps, and headed
+RTX 4090 playback passes. All four vehicles report flying in an authenticated state
+sample; individual visibility of every vehicle in the saved video is unqualified.
+The node pins the selected UAV images and retains the prior runtime for rollback.
+Node restart, forced image collection and graceful application shutdown are unqualified;
+the old Pod's exit details were not retained. F59, A11, the full composed flight and
+actual capture-clock qualification remain open. Longer render stalls and turning
+flight also require qualification; native feedback comparisons did not reproduce
+the recorded control transient. The [flight checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#fresh-uav-flight-and-runtime-output-repair--october-10-2026)
+records source, deployment and capture details.
 The Knowledge and Time repair at `6653288ba` is published and deployed. Both Pods
 pass probes and thirty seconds of stability without a restart. Normal OAuth reads
 and Knowledge search reach the updated Time documents. Time completion and

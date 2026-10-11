@@ -62,6 +62,31 @@ close F59, A11, full-flight or capture-clock qualification. The private final re
 `/tmp/veoveo-uav-rtsp-recovery-20261011/p2/receipt.json`, SHA-256
 `598c5dfb0dabd6af3c22522a06f896559629e2a33a83505dd33da4a6778f9566`.
 
+The runtime-only publication at `418de38f3` qualifies digest
+`sha256:2390e38c8dfc9f4cb147cacf6a9bfb43e33ea6af147c37d5e726b145d20a0fd5`.
+Stage and release agree, and node-origin manifest, configuration, SBOM and provenance
+reads return 200 with matching hashes. Thirty-nine of forty layers match the prior
+runtime. The node pins the new image and retains the old runtime for rollback.
+The typed browser consumer cut at `688f5d998` passes three affected compiler targets,
+nine focused native controls and independent review. Its shared installation tests
+keep Gateway catalog checks in the composition owner without adding Gateway runtime
+dependencies to the flight client. These checks do not establish deployed live frames.
+
+The receiver image reaches Ready with the same world, PVCs, MCP and forwarder.
+Fresh authenticated state reports five healthy cameras and an advancing atlas,
+while normal-OAuth Console list/open calls return 200. Video still reconnects.
+During the 01:02:05.794–01:02:15.952 UTC browser attempt on October 11, runtime logs
+record 26 `KeyError: cameraId` events and MCP records 13 corresponding upstream
+WebSocket-upgrade errors. The runtime registers `camera_id` but reads `cameraId`.
+The owning registered-route test reproduces HTTP 500 before the repair and proves
+HTTP 101, protocol admission, unchanged H.264 bytes and owned closure after it.
+All 188 owning CPU tests pass, and independent review approves the three-file fix.
+Its installed verification remains open. The private source receipt is
+`/tmp/veoveo-uav-live-route-20261011/receipt.json`, SHA-256
+`2736a41ed73ad6ebc44cc7fc3f8b099db8863aa47a6c038319d5e7d5c1c6235c`.
+The prior Pod's final exit details were not retained, so that rollout does not prove
+graceful application shutdown.
+
 Node logs identify the repeated simulator download's cause: kubelet collects its
 unpinned image at 88 percent image-filesystem usage. The installation now keeps a
 native K3s digest list on the retained node volume and local tag aliases for the
