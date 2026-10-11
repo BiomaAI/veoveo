@@ -9,7 +9,7 @@ GitOps holds stay set. Build and rollout operations require separate admission.
 |---|---|---|
 | Images and publication | 22 Trixie images have stage/release and registry readback proof | Complete the remaining nine-image selection and affected later source publications, then qualify final selected images |
 | Gateway and installation | Gateway `853d2879f40d` runs generation three; preparation, all nineteen current lanes and runtime-authenticated publication pass; the selected gateway rollout passes its recorded scope | Activate the full platform under the current authorization, preserving storage and GitOps holds; qualify final images and owner gates |
-| Enabled workloads | Recording, View, Optimization and the Rerun bridge are activated and Ready; Time, Recording, View and Optimization pass basic domain reads through normal public OAuth | Finish Reason checkpoint provisioning, Stream image transfer and stock Host/Computers activation; establish a functional baseline before further UAV optimization, restart or full-flight tests |
+| Enabled workloads | Recording, View, Optimization, Reason and the Rerun bridge are activated and Ready; Time, Recording, View, Optimization and Reason pass basic domain reads through normal public OAuth | Finish Stream image import and corrected catalog activation; the CPU/platform owner takes stock Host/Computers activation; establish a functional baseline before further UAV optimization, restart or full-flight tests |
 | Knowledge | Retained-index cold startup, targeted Time-document indexing/search and normal-PKCE restricted caller policy pass on the admitted deployment; Read-only tool discovery passes source review and focused SDK native checks | Deploy and qualify Read-only discovery; first-empty indexing, current-driver Embedding profile, current-generation recovery and final images |
 | Time | Normal-OAuth completion/cancellation, unfinished process recovery, Time12 completed-state cross-replica delivery/restoration and the local agent-wake composition pass | Authority activation, final images and installed temporal-event clients/templates |
 | Agent temporal events | The real single-Store Time/Gateway/Artifact/kernel composition passes authenticated delivery, cancellation/idempotency, reconnect, Time/kernel replacement, exactly two effects and owned cleanup | Qualify installed clients/templates separately; reconcile the retained failed-fixture owner lease through an admitted recovery path |
@@ -19,17 +19,32 @@ GitOps holds stay set. Build and rollout operations require separate admission.
 | Active Tasks | Shared and owner-native completion, cancellation and recovery fixtures pass within their declared profiles | Execute remaining unfinished/cross-replica cases, including GPU Reason/Stream/Speech and coordinated Optimization recovery |
 
 The activation batch fixes the Rerun bridge's external protocol offer and TLS
-provider initialization. Reason's Helm catalog now emits the strict camelCase
-fields its decoder requires, with a native chart-render admission test. Reason
-still needs its pinned checkpoint before startup. Stream's required image is
-absent from the node; obsolete executable outputs are being retired to make room
-while retaining dependency and image caches. Stock Host and Computers images are
-published. Their activation needs matching trust configuration and the node's
-Computer Host runtime handler. That handler requires the separately approved
-single-node maintenance window described in the
-[reference runbook](../examples/bioma/computers/node-runtime/README.md). Readiness and
-basic reads do not establish concurrent GPU inference capacity or the remaining
-recovery and performance gates.
+provider initialization. Reason's pinned checkpoint is verified on its persistent
+volume; startup and authenticated model and pipeline reads pass. Reason and
+Stream's Helm catalogs now emit the strict camelCase fields their decoders
+require. Compiler checks, review and actual chart-render admission tests pass.
+Stream's compressed image layers are present on the node, but unpacking and
+registration are unfinished. Cleanup retires unused standalone executables while
+preserving dependency caches, models and required images. Stock Host and Computers
+images are published; their node-runtime and trust preparation is handed to the
+CPU/platform owner, with no node restart performed. Readiness and basic reads do
+not establish concurrent GPU inference capacity or the remaining recovery and
+performance gates.
+
+The current implementation split assigns hardware-dependent work to the NVIDIA
+host session and CPU/shared work to the agents on macOS. The plan keeps its full
+scope; ownership changes do not close unfinished gates.
+
+| Owner | Work |
+|---|---|
+| NVIDIA host session | Stream, Reason, Speech, View and Optimization; the embedding runtime and installed Knowledge GPU integration; UAV availability; Recording/Rerun GPU playback, bridge and hardware browser acceptance |
+| macOS agents | CPU MCP servers, including Host/Computers; shared contracts and Task runtime; Gateway, Console, Workspace, SDKs and templates; Knowledge catalog/policy/indexing logic and Recording catalog/persistence logic |
+| Coordinated operations owner | Cluster mutations and bounded Linux-only checks for accepted handoffs; preserve running services, storage and required GPU resources |
+
+UAV operation stays available. Further flight and FPS improvements wait until the
+other services work. Shared-file changes and cluster mutations require a handoff
+between owners; separate agents must not apply competing Helm or Kubernetes
+changes.
 
 Normal-OAuth Console Live Cameras now lists and opens cameras successfully; the
 WebSocket delivers advancing frames to five canvases in headed RTX 4090 Chrome.
