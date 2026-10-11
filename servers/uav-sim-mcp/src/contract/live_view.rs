@@ -11,6 +11,32 @@ use veoveo_types::{
 
 pub const LIVE_VIEW_SCHEMA: &str = "veoveo.ai/live-view/v4";
 
+/// Owner proof that this particular failed request acquired or rotated no authorization.
+/// It does not settle any earlier request or existing authorization.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LiveViewNonAdmission {
+    pub schema: LiveViewNonAdmissionSchema,
+    pub operation: LiveViewNonAdmissionOperation,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub enum LiveViewNonAdmissionSchema {
+    #[serde(rename = "veoveo.ai/live-view-non-admission/v1")]
+    V1,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
+pub enum LiveViewNonAdmissionOperation {
+    Open {
+        request: super::OpenLiveViewRequest,
+    },
+    Renew {
+        request: super::RenewLiveViewRequest,
+    },
+}
+
 #[veoveo_types::id(text(LiveViewIds))]
 pub struct LiveViewId(String);
 #[veoveo_types::id(text(LiveViewIds))]
@@ -920,5 +946,22 @@ mod tests {
             }));
             assert!(result.unwrap().validate().is_err(), "{stream_url}");
         }
+    }
+
+    #[test]
+    fn non_admission_schema_refuses_unsupported_or_incomplete_proofs() {
+        let value = serde_json::json!({"schema":"veoveo.ai/live-view-non-admission/v1",
+            "operation":{"type":"open","request":{"sessionId":"session-alpha","cameraId":"follow","viewerInstanceId":"browser-a"}}});
+        let admitted: LiveViewNonAdmission = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(admitted).unwrap(), value);
+        let mut invalid = value.clone();
+        invalid["schema"] = "veoveo.ai/live-view-non-admission/v2".into();
+        assert!(serde_json::from_value::<LiveViewNonAdmission>(invalid).is_err());
+        let mut invalid = value.clone();
+        invalid["operation"]["request"]["liveViewId"] = "view-extra".into();
+        assert!(serde_json::from_value::<LiveViewNonAdmission>(invalid).is_err());
+        let mut invalid = value;
+        invalid["operation"]["type"] = "close".into();
+        assert!(serde_json::from_value::<LiveViewNonAdmission>(invalid).is_err());
     }
 }

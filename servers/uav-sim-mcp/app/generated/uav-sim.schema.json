@@ -789,6 +789,67 @@
       ],
       "type": "string"
     },
+    "LiveViewNonAdmission": {
+      "additionalProperties": false,
+      "description": "Owner proof that this particular failed request acquired or rotated no authorization.\nIt does not settle any earlier request or existing authorization.",
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/LiveViewNonAdmissionOperation"
+        },
+        "schema": {
+          "$ref": "#/$defs/LiveViewNonAdmissionSchema"
+        }
+      },
+      "required": [
+        "schema",
+        "operation"
+      ],
+      "type": "object"
+    },
+    "LiveViewNonAdmissionOperation": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "request": {
+              "$ref": "#/$defs/OpenLiveViewRequest"
+            },
+            "type": {
+              "const": "open",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "request"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "request": {
+              "$ref": "#/$defs/RenewLiveViewRequest"
+            },
+            "type": {
+              "const": "renew",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "request"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "LiveViewNonAdmissionSchema": {
+      "enum": [
+        "veoveo.ai/live-view-non-admission/v1"
+      ],
+      "type": "string"
+    },
     "LiveViewOwner": {
       "additionalProperties": false,
       "properties": {
@@ -1016,6 +1077,26 @@
       },
       "type": "string"
     },
+    "OpenLiveViewRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "cameraId": {
+          "$ref": "#/$defs/LiveCameraId"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/LiveSessionId"
+        },
+        "viewerInstanceId": {
+          "$ref": "#/$defs/LiveViewerInstanceId"
+        }
+      },
+      "required": [
+        "sessionId",
+        "cameraId",
+        "viewerInstanceId"
+      ],
+      "type": "object"
+    },
     "PolicyVersion": {
       "ai.veoveo/naming-profile": {
         "revision": 1,
@@ -1059,6 +1140,26 @@
       },
       "description": "Stable authenticated user or service-principal identity.",
       "type": "string"
+    },
+    "RenewLiveViewRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "liveViewId": {
+          "$ref": "#/$defs/LiveViewId"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/LiveSessionId"
+        },
+        "viewerInstanceId": {
+          "$ref": "#/$defs/LiveViewerInstanceId"
+        }
+      },
+      "required": [
+        "sessionId",
+        "liveViewId",
+        "viewerInstanceId"
+      ],
+      "type": "object"
     },
     "RuntimeTimingState": {
       "additionalProperties": false,
@@ -1364,6 +1465,9 @@
     "connection": {
       "$ref": "#/$defs/LiveViewConnection"
     },
+    "nonAdmission": {
+      "$ref": "#/$defs/LiveViewNonAdmission"
+    },
     "sessions": {
       "items": {
         "$ref": "#/$defs/SessionSummary"
@@ -1375,7 +1479,8 @@
     "sessions",
     "cameras",
     "connection",
-    "closed"
+    "closed",
+    "nonAdmission"
   ],
   "title": "AppContracts",
   "type": "object"

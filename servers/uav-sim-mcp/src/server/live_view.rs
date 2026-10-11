@@ -952,4 +952,204 @@ mod tests {
         assert_eq!(disconnected.stream_products[0].connected_viewers, 0);
         assert_eq!(disconnected.stream_products[0].active_viewers, 1);
     }
+
+    #[tokio::test]
+    async fn unavailable_open_and_rejected_renew_prove_only_the_correlated_request() {
+        use super::super::service::live_view_non_admission_error;
+        use crate::contract::{
+            LiveStreamProductLifecycle, LiveViewNonAdmission, LiveViewNonAdmissionOperation,
+        };
+        let (service, adapter) = service().await;
+        let actor = PrincipalId::parse("alice").unwrap();
+        let opening = request("browser-a");
+        let mut failed = adapter.state().await.unwrap();
+        for product in &mut failed.stream_products {
+            product.lifecycle = LiveStreamProductLifecycle::Failed;
+        }
+        let Adapter::Fake(fake) = adapter.as_ref() else {
+            panic!("expected fake adapter");
+        };
+        *fake.lock().await = FakeAdapter::new(failed);
+        let error = service
+            .open(owner(), audit_context(actor.clone()), opening.clone())
+            .await
+            .unwrap_err();
+        assert!(service.state.lock().await.sessions.is_empty());
+        let error = live_view_non_admission_error(
+            error,
+            LiveViewNonAdmissionOperation::Open {
+                request: opening.clone(),
+            },
+        );
+        let marker: LiveViewNonAdmission = serde_json::from_value(error.data.unwrap()).unwrap();
+        assert_eq!(
+            marker.operation,
+            LiveViewNonAdmissionOperation::Open { request: opening }
+        );
+
+        // A different existing authorization survives a rejected renewal unchanged.
+        *fake.lock().await = FakeAdapter::new(fake_state().unwrap());
+        let opened = service
+            .open(owner(), audit_context(actor.clone()), request("browser-a"))
+            .await
+            .unwrap();
+        let before = service.state.lock().await.sessions[&opened.stream.live_view_id].clone();
+        let renewing = RenewLiveViewRequest {
+            session_id: opened.stream.session_id.clone(),
+            live_view_id: opened.stream.live_view_id.clone(),
+            viewer_instance_id: LiveViewerInstanceId::parse("wrong-browser").unwrap(),
+        };
+        let error = service
+            .renew(&owner(), &audit_context(actor.clone()), renewing.clone())
+            .await
+            .unwrap_err();
+        let after = service.state.lock().await.sessions[&opened.stream.live_view_id].clone();
+        assert_eq!(before.generation, after.generation);
+        assert_eq!(before.token_hash, after.token_hash);
+        assert_eq!(before.state.expires_at, after.state.expires_at);
+        let marker: LiveViewNonAdmission = serde_json::from_value(
+            live_view_non_admission_error(
+                error,
+                LiveViewNonAdmissionOperation::Renew {
+                    request: renewing.clone(),
+                },
+            )
+            .data
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            marker.operation,
+            LiveViewNonAdmissionOperation::Renew { request: renewing }
+        );
+        service
+            .authorize_stream(
+                &opened.stream.live_view_id,
+                opened.access_token.expose_for_stream(),
+            )
+            .await
+            .unwrap();
+
+        let mut revoked_owner = owner();
+        revoked_owner.policy_revision = PolicyVersion::parse("policy-2").unwrap();
+        let renewing = RenewLiveViewRequest {
+            session_id: opened.stream.session_id,
+            live_view_id: opened.stream.live_view_id.clone(),
+            viewer_instance_id: LiveViewerInstanceId::parse("browser-a").unwrap(),
+        };
+        let mut revoked_audit = audit_context(actor);
+        revoked_audit.authority.policy_revision = Some(revoked_owner.policy_revision.clone());
+        let error = service
+            .renew(&revoked_owner, &revoked_audit, renewing.clone())
+            .await
+            .unwrap_err();
+        assert!(matches!(error, LiveViewError::AuthorityRevoked));
+        assert!(
+            live_view_non_admission_error(
+                error,
+                LiveViewNonAdmissionOperation::Renew { request: renewing }
+            )
+            .data
+            .is_none()
+        );
+        assert!(
+            service
+                .authorize_stream(
+                    &opened.stream.live_view_id,
+                    opened.access_token.expose_for_stream()
+                )
+                .await
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn runtime_readiness_is_marked_but_uncertain_errors_are_not() {
+        use super::super::service::live_view_non_admission_error;
+        use crate::contract::LiveViewNonAdmissionOperation;
+        let operation = LiveViewNonAdmissionOperation::Open {
+            request: request("browser-a"),
+        };
+        assert!(
+            live_view_non_admission_error(
+                LiveViewError::Runtime("runtime unavailable".into()),
+                operation.clone()
+            )
+            .data
+            .is_some()
+        );
+        for error in [
+            LiveViewError::Audit,
+            LiveViewError::Contract,
+            LiveViewError::Access,
+            LiveViewError::AuthorityRevoked,
+        ] {
+            assert!(
+                live_view_non_admission_error(error, operation.clone())
+                    .data
+                    .is_none()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn unavailable_runtime_open_returns_correlated_non_admission() {
+        use crate::adapter::HttpAdapter;
+        use crate::contract::{LiveViewNonAdmission, LiveViewNonAdmissionOperation};
+        tokio::time::timeout(Duration::from_secs(20), async {
+            let _ = rustls::crypto::ring::default_provider().install_default();
+            let db = super::super::test_support::database(
+                super::super::test_support::fixture::StoreBackend::Memory,
+            )
+            .await;
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            drop(listener);
+            let adapter = Arc::new(Adapter::Http(Box::new(
+                HttpAdapter::new(
+                    format!("http://{address}/").parse().unwrap(),
+                    Duration::from_secs(1),
+                    Duration::from_secs(1),
+                    "native-fixture".into(),
+                    db.a.clone(),
+                    "readiness-test",
+                )
+                .unwrap(),
+            )));
+            let service = LiveViewService::new_for_test(
+                adapter,
+                LiveViewConfig {
+                    session_duration: Duration::from_secs(30),
+                    public_stream_url: "wss://example.test/uav-sim/live".into(),
+                    maximum_frame_age_ms: 2_000,
+                },
+            )
+            .unwrap();
+            let request = request("browser-a");
+            let error = service
+                .open(
+                    owner(),
+                    audit_context(PrincipalId::parse("alice").unwrap()),
+                    request.clone(),
+                )
+                .await
+                .unwrap_err();
+            assert!(matches!(error, LiveViewError::Runtime(_)));
+            assert!(service.state.lock().await.sessions.is_empty());
+            let response = super::super::service::live_view_non_admission_error(
+                error,
+                LiveViewNonAdmissionOperation::Open {
+                    request: request.clone(),
+                },
+            );
+            let marker: LiveViewNonAdmission =
+                serde_json::from_value(response.data.unwrap()).unwrap();
+            assert_eq!(
+                marker.operation,
+                LiveViewNonAdmissionOperation::Open { request }
+            );
+        })
+        .await
+        .expect("runtime readiness refusal exceeded 20 seconds");
+    }
 }

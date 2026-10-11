@@ -10,6 +10,8 @@ pub struct AppContracts {
     pub cameras: Vec<LiveCameraDescriptor>,
     pub connection: LiveViewConnection,
     pub closed: CloseLiveViewResult,
+    #[serde(rename = "nonAdmission")]
+    pub non_admission: LiveViewNonAdmission,
 }
 
 pub fn schema_bundle() -> Schema {

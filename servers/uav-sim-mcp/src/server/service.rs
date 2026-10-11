@@ -456,6 +456,9 @@ impl UavSimMcp {
             .audit_context()
             .map_err(|error| McpError::invalid_request(error.to_string(), None))?;
         let denial_uri = uris::live_views(&request.session_id);
+        let operation = crate::contract::LiveViewNonAdmissionOperation::Open {
+            request: request.clone(),
+        };
         let result = self
             .state
             .live_views
@@ -472,7 +475,7 @@ impl UavSimMcp {
                     &error,
                 )
                 .await?;
-                return Err(live_view_error(error));
+                return Err(live_view_non_admission_error(error, operation));
             }
         };
         self.state
@@ -507,6 +510,9 @@ impl UavSimMcp {
             .map_err(|error| McpError::invalid_request(error.to_string(), None))?;
         let session_id = request.session_id.clone();
         let live_view_id = request.live_view_id.clone();
+        let operation = crate::contract::LiveViewNonAdmissionOperation::Renew {
+            request: request.clone(),
+        };
         let result = self
             .state
             .live_views
@@ -533,7 +539,7 @@ impl UavSimMcp {
                         .notify_resource_updated(uris::live_views(&session_id))
                         .await;
                 }
-                return Err(live_view_error(error));
+                return Err(live_view_non_admission_error(error, operation));
             }
         };
         self.state
@@ -1124,6 +1130,41 @@ async fn audit_live_view_denial(
         .required(draft)
         .await
         .map_err(|_| McpError::internal_error("required audit commit unavailable", None))
+}
+
+// Only called after the native rejection and successful required denial audit.
+pub(super) fn live_view_non_admission_error(
+    error: LiveViewError,
+    operation: crate::contract::LiveViewNonAdmissionOperation,
+) -> McpError {
+    use crate::contract::{
+        LiveViewNonAdmission, LiveViewNonAdmissionOperation, LiveViewNonAdmissionSchema,
+    };
+    let proven = match &operation {
+        LiveViewNonAdmissionOperation::Open { .. } => matches!(
+            error,
+            LiveViewError::SessionNotFound(_)
+                | LiveViewError::CameraNotFound(_)
+                | LiveViewError::CameraUnavailable
+                | LiveViewError::Runtime(_)
+        ),
+        LiveViewNonAdmissionOperation::Renew { .. } => matches!(
+            error,
+            LiveViewError::ViewNotFound(_)
+                | LiveViewError::Ownership
+                | LiveViewError::ViewUnavailable
+        ),
+    };
+    let mut response = live_view_error(error);
+    if proven {
+        // Serialization failure leaves the response unmarked; it cannot invent a proof.
+        response.data = serde_json::to_value(LiveViewNonAdmission {
+            schema: LiveViewNonAdmissionSchema::V1,
+            operation,
+        })
+        .ok();
+    }
+    response
 }
 
 fn live_view_error(error: LiveViewError) -> McpError {

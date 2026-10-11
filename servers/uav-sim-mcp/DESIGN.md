@@ -29,6 +29,7 @@ Current, retired and mixed field controls share the durable-result consumer test
 | JSON Schema | Draft 2020-12 strict request, result, camera, tiled-product, region, and health schemas. |
 | Pydantic `2.13.5` | Private Python adapter models reject undeclared fields and validate controlled JSON and NDJSON before emission. Rust owns the receiving types. |
 | `veoveo.ai/live-view/v4` | Repository-owned provider-neutral profile for authoritative cameras, typed regions in shared encoded products, viewer authorizations, WebSocket H.264 endpoints, and redacted state. |
+| `veoveo.ai/live-view-non-admission/v1` | Closed owner profile in standard MCP error `data`, binding an open or renewal rejection to its complete typed request and proving that request acquired or rotated no authorization. |
 | `veoveo.ai/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
 | WebSocket and H.264 | RFC 6455 binary messages under subprotocol `veoveo.h264.annexb.v1`; each message carries one decoder-reentrant or predicted Annex B H.264 access unit. The App derives its RFC 6381 `avc1` codec from the profile, compatibility and level bytes of a decoder-reentrant SPS. Media Capabilities, WebCodecs and canvas metadata use that observed codec. One tiled NVIDIA NVENC atlas fans out unchanged to authenticated viewers. This WebSocket is a media adapter, not a public simulator-control protocol. |
 | OpenUSD and RTX Hydra | Isaac Sim `6.1.0` stage and render products inside the authoritative runtime. These are implementation details, not MCP wire types. |
@@ -838,6 +839,14 @@ Only `open_live_view` and `renew_live_view` return the token. Resources contain 
 authorization state. The server retains a SHA-256 token hash in memory and compares it in
 constant time. Renew rotates only that authorization. Close, expiry, and teardown revoke
 only that viewer. None of those actions starts or stops the atlas.
+
+A rejected open or renewal may return `veoveo.ai/live-view-non-admission/v1` in
+standard MCP error data. The closed owner schema embeds the complete typed request
+and operation. It proves that this request acquired or rotated no authorization.
+The service emits it only for classified native rejections after the required denial
+audit commits; runtime-readiness rejection during open is included. Revocation,
+audit failures and failures after a successful mutation carry no such proof. The
+marker does not settle an earlier unknown request or an existing authorization.
 
 The live-stream gate authenticates the WebSocket upgrade, maps the authorization to its
 camera, and injects the private runtime credential. The runtime sends one complete Annex

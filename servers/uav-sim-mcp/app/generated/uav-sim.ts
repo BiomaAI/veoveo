@@ -210,6 +210,24 @@ export type LiveStreamProductId = string;
 export type LiveViewerInstanceId = string;
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
+ * via the `definition` "LiveViewNonAdmissionOperation".
+ */
+export type LiveViewNonAdmissionOperation =
+  | {
+      request: OpenLiveViewRequest;
+      type: "open";
+    }
+  | {
+      request: RenewLiveViewRequest;
+      type: "renew";
+    };
+/**
+ * This interface was referenced by `AppContracts`'s JSON-Schema
+ * via the `definition` "LiveViewNonAdmissionSchema".
+ */
+export type LiveViewNonAdmissionSchema = "veoveo.ai/live-view-non-admission/v1";
+/**
+ * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "SimulationLifecycle".
  */
 export type SimulationLifecycle =
@@ -251,6 +269,7 @@ export interface AppContracts {
   cameras: LiveCameraDescriptor[];
   closed: CloseLiveViewResult;
   connection: LiveViewConnection;
+  nonAdmission: LiveViewNonAdmission;
   sessions: SessionSummary[];
 }
 /**
@@ -401,6 +420,35 @@ export interface LiveCameraRegion {
   widthPx: number;
   xPx: number;
   yPx: number;
+}
+/**
+ * Owner proof that this particular failed request acquired or rotated no authorization.
+ * It does not settle any earlier request or existing authorization.
+ *
+ * This interface was referenced by `AppContracts`'s JSON-Schema
+ * via the `definition` "LiveViewNonAdmission".
+ */
+export interface LiveViewNonAdmission {
+  operation: LiveViewNonAdmissionOperation;
+  schema: LiveViewNonAdmissionSchema;
+}
+/**
+ * This interface was referenced by `AppContracts`'s JSON-Schema
+ * via the `definition` "OpenLiveViewRequest".
+ */
+export interface OpenLiveViewRequest {
+  cameraId: LiveCameraId;
+  sessionId: LiveSessionId;
+  viewerInstanceId: LiveViewerInstanceId;
+}
+/**
+ * This interface was referenced by `AppContracts`'s JSON-Schema
+ * via the `definition` "RenewLiveViewRequest".
+ */
+export interface RenewLiveViewRequest {
+  liveViewId: LiveViewId;
+  sessionId: LiveSessionId;
+  viewerInstanceId: LiveViewerInstanceId;
 }
 /**
  * Public session collection row. World is required and nullable on this wire.
