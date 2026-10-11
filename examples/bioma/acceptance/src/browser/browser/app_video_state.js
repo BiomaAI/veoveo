@@ -33,6 +33,7 @@
   }catch(error){frame.pixelSampleError=String(error?.message||error);}
   return {
     documentEpochMs:performance.timeOrigin,
+    sessionId:(document.getElementById("session")?.textContent ?? "").replace(/^session /, ""),
     cameraId:view?.id?.startsWith("view-") ? view.id.slice(5) : "",
     viewerInstanceId:view?.dataset.viewerInstanceId ?? "",
     liveViewId:view?.dataset.liveViewId ?? "",

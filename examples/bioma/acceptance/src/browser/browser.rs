@@ -23,7 +23,11 @@ pub mod camera_measure;
 
 #[path = "browser/frame_content.rs"]
 mod frame_content;
+
+#[path = "browser/restart_journal.rs"]
+mod restart_journal;
 use frame_content::FrameContent;
+use restart_journal::{RestartBrowserOwner, RestartOwnerJournal, RestartOwnerPhase};
 
 #[path = "browser/recording_acceptance.rs"]
 mod recording_acceptance;
@@ -575,12 +579,18 @@ pub async fn capture_console_live_app_five_user_grid(
     .await
 }
 
+pub struct RestartCapture<'a> {
+    pub component: &'a str,
+    pub session: &'a veoveo_uav_sim_mcp::contract::SessionId,
+    pub journal_path: &'a Path,
+    pub screenshot_path: &'a Path,
+}
+
 pub async fn capture_console_live_app_restart<F, Fut, T>(
     cdp_base: &str,
     public_base_url: &str,
     expected_camera_id: &str,
-    component: &str,
-    screenshot_path: &Path,
+    capture: RestartCapture<'_>,
     timeout: Duration,
     restart: F,
 ) -> Result<(ConsoleLiveRestartEvidence, T)>
@@ -588,6 +598,12 @@ where
     F: FnOnce() -> Fut,
     Fut: Future<Output = Result<T>>,
 {
+    let journal = RestartOwnerJournal::create(
+        capture.journal_path,
+        capture.component,
+        capture.session.clone(),
+        timeout,
+    )?;
     let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live");
     tokio::time::timeout(
         timeout,
@@ -595,14 +611,19 @@ where
             cdp_base,
             &page_url,
             expected_camera_id,
-            component,
-            screenshot_path,
+            capture.screenshot_path,
             timeout,
+            journal,
             restart,
         ),
     )
     .await
-    .with_context(|| format!("Console live-App {component} restart capture exceeded {timeout:?}"))?
+    .with_context(|| {
+        format!(
+            "Console live-App {} restart capture exceeded {timeout:?}",
+            capture.component
+        )
+    })?
 }
 
 pub async fn preflight_console_live_app(
@@ -1557,44 +1578,103 @@ async fn capture_console_live_app_restart_inner<F, Fut, T>(
     cdp_base: &str,
     page_url: &str,
     expected_camera_id: &str,
-    component: &str,
     screenshot_path: &Path,
     recovery_timeout: Duration,
+    journal: RestartOwnerJournal,
     restart: F,
 ) -> Result<(ConsoleLiveRestartEvidence, T)>
 where
     F: FnOnce() -> Fut,
     Fut: Future<Output = Result<T>>,
 {
-    let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
+    use veoveo_testing_support::lifecycle::owner;
+    let component = journal.component();
+    // No App can allocate authorization until the retained cleanup owner exists.
+    let (cdp, target_id, session_id) = open_headed_target(cdp_base, "about:blank").await?;
+    journal.append(
+        RestartOwnerPhase::TargetOwned,
+        Some(&target_id),
+        Some(&session_id),
+        None,
+        None,
+    )?;
+    let retained = Arc::new(tokio::sync::Mutex::new(RestartBrowserOwner {
+        cdp,
+        target: target_id.clone(),
+        session: session_id.clone(),
+        journal: journal.clone(),
+        navigation_intent: false,
+        authorization_closed: false,
+        target_closed: false,
+        cleanup_end: None,
+        failed: false,
+    }));
+    let cleanup = Arc::clone(&retained);
+    let registration = owner::register_cleanup(
+        owner::CleanupKind::Remote,
+        "restart App live-view authorization",
+        &target_id,
+        move || async move { cleanup.lock().await.close().await },
+    )?;
+    let mut browser = retained.lock().await;
+    owner::check_effect()?;
+    journal.append(
+        RestartOwnerPhase::NavigationIntent,
+        Some(&target_id),
+        Some(&session_id),
+        None,
+        None,
+    )?;
+    browser.navigation_intent = true;
+    let cdp = &mut browser.cdp;
+    cdp.command(
+        "Page.navigate",
+        serde_json::json!({"url":page_url}),
+        Some(&session_id),
+    )
+    .await?;
     let acceptance = async {
-        wait_for_document(&mut cdp, &session_id).await?;
-        assert_page_visible(&mut cdp, &session_id).await?;
+        wait_for_document(cdp, &session_id).await?;
+        assert_page_visible(cdp, &session_id).await?;
         let hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         hardware.validate()?;
         ensure!(
-            wait_for_console_app_camera(&mut cdp, &target_id, &session_id, expected_camera_id,)
-                .await?,
+            wait_for_console_app_camera(cdp, &target_id, &session_id, expected_camera_id,).await?,
             "Console UAV live view App exposed no camera {expected_camera_id:?}"
         );
-        isolate_console_app_camera(&mut cdp, &target_id, &session_id, expected_camera_id).await?;
-        let before =
-            wait_for_console_video(&mut cdp, &target_id, &session_id, expected_camera_id).await?;
-        let restart_evidence = restart()
+        isolate_console_app_camera(cdp, &target_id, &session_id, expected_camera_id).await?;
+        let before = wait_for_console_video_observed(
+            cdp,
+            &target_id,
+            &session_id,
+            expected_camera_id,
+            Some(&journal),
+        )
+        .await?;
+        journal.append(
+            RestartOwnerPhase::ViewObserved,
+            Some(&target_id),
+            Some(&session_id),
+            Some(&before),
+            None,
+        )?;
+        let restart_evidence = journal
+            .dispatch(&target_id, &session_id, &before, restart)
             .await
             .with_context(|| format!("restarting live-view component {component}"))?;
         let after = wait_for_console_video_replacement(
-            &mut cdp,
+            cdp,
             &target_id,
             &session_id,
             expected_camera_id,
             &before,
             recovery_timeout,
+            Some(&journal),
         )
         .await?;
         let after = wait_for_console_video_continuity(
-            &mut cdp,
+            cdp,
             &target_id,
             &session_id,
             expected_camera_id,
@@ -1602,7 +1682,7 @@ where
         )
         .await?;
         let decode: DecodeIdentity = evaluate_console_app(
-            &mut cdp,
+            cdp,
             &target_id,
             &session_id,
             "uav-sim",
@@ -1614,7 +1694,7 @@ where
         let final_hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         final_hardware.validate()?;
-        let screenshot_sha256 = capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
+        let screenshot_sha256 = capture_screenshot(cdp, &session_id, screenshot_path).await?;
         cdp.assert_no_software_renderer_events()?;
         Ok((
             ConsoleLiveRestartEvidence {
@@ -1632,10 +1712,29 @@ where
         ))
     }
     .await;
-    let release =
-        close_console_live_view(&mut cdp, &target_id, &session_id, expected_camera_id).await;
-    let close = close_target(&mut cdp, &target_id).await;
-    finish_live_capture(acceptance, release, close)
+    let failure_record = if acceptance.is_err() {
+        journal.append(
+            RestartOwnerPhase::ObservationFailed,
+            Some(&target_id),
+            Some(&session_id),
+            None,
+            Some(false),
+        )
+    } else {
+        Ok(())
+    };
+    let release = browser.close().await;
+    let acceptance = match (acceptance, failure_record) {
+        (Err(original), Err(reporting)) => Err(original.context(format!(
+            "restart failure journal also failed: {reporting:#}"
+        ))),
+        (Ok(_), Err(reporting)) => Err(reporting),
+        (acceptance, Ok(())) => acceptance,
+    };
+    if release.is_ok() {
+        registration.settled()?;
+    }
+    finish_live_capture(acceptance, release, Ok(()))
 }
 
 fn finish_live_capture<T>(
@@ -3646,6 +3745,16 @@ async fn wait_for_console_video(
     session_id: &str,
     expected_camera_id: &str,
 ) -> Result<AppVideoState> {
+    wait_for_console_video_observed(cdp, target_id, session_id, expected_camera_id, None).await
+}
+
+async fn wait_for_console_video_observed(
+    cdp: &mut Cdp,
+    target_id: &str,
+    session_id: &str,
+    expected_camera_id: &str,
+    journal: Option<&RestartOwnerJournal>,
+) -> Result<AppVideoState> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
     loop {
         wait_for_console_app_camera(cdp, target_id, session_id, expected_camera_id).await?;
@@ -3658,6 +3767,15 @@ async fn wait_for_console_video(
             false,
         )
         .await?;
+        if let Some(journal) = journal {
+            journal.append(
+                RestartOwnerPhase::ViewObserved,
+                Some(target_id),
+                Some(session_id),
+                Some(&state),
+                None,
+            )?;
+        }
         if state.ready_state >= 2 && state.video_width > 0 && state.current_time > 0.0 {
             state.validate_stream(expected_camera_id)?;
             if state.frame.has_visible_detail()? {
@@ -3769,6 +3887,7 @@ async fn wait_for_console_video_replacement(
     expected_camera_id: &str,
     before: &AppVideoState,
     timeout: Duration,
+    journal: Option<&RestartOwnerJournal>,
 ) -> Result<AppVideoState> {
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
@@ -3781,6 +3900,15 @@ async fn wait_for_console_video_replacement(
             false,
         )
         .await?;
+        if let Some(journal) = journal {
+            journal.append(
+                RestartOwnerPhase::ReplacementObserved,
+                Some(target_id),
+                Some(session_id),
+                Some(&state),
+                None,
+            )?;
+        }
         if state.ready_state >= 2
             && state.video_width > 0
             && state.current_time > 0.0
@@ -3991,6 +4119,7 @@ async fn close_console_live_views(
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AppVideoState {
+    session_id: veoveo_uav_sim_mcp::contract::SessionId,
     #[serde(skip_serializing)]
     document_epoch_ms: f64,
     camera_id: String,

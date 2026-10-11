@@ -19,7 +19,8 @@ use veoveo_uav_sim_mcp::contract::{SessionId, UavResource};
 use super::{
     FocusedScenario, OperatorClient, PRIMARY_CAMERA_ID,
     browser::{
-        ConsoleLiveRestartEvidence, capture_console_live_app_restart, preflight_console_live_app,
+        ConsoleLiveRestartEvidence, RestartCapture, capture_console_live_app_restart,
+        preflight_console_live_app,
     },
     git_revision, simulation_state,
 };
@@ -451,8 +452,12 @@ pub async fn verify_live_view_restarts(config: RestartVerification<'_>) -> Resul
         chrome_cdp_url,
         public_base_url,
         PRIMARY_CAMERA_ID,
-        "uav-sim-mcp",
-        &evidence_directory.join("uav-live-view-mcp-restart.png"),
+        RestartCapture {
+            component: "uav-sim-mcp",
+            session: &SessionId::parse(&scenario.session_id)?,
+            journal_path: &evidence_directory.join("mcp-browser-owner.jsonl"),
+            screenshot_path: &evidence_directory.join("uav-live-view-mcp-restart.png"),
+        },
         restart_timeout,
         || async {
             restart_kubernetes_container(
@@ -535,8 +540,12 @@ pub async fn verify_live_view_restarts(config: RestartVerification<'_>) -> Resul
             chrome_cdp_url,
             public_base_url,
             PRIMARY_CAMERA_ID,
-            "runtime-and-forwarder",
-            &evidence_directory.join("uav-live-view-simulator-restart.png"),
+            RestartCapture {
+                component: "runtime-and-forwarder",
+                session: &session_id,
+                journal_path: &evidence_directory.join("runtime-browser-owner.jsonl"),
+                screenshot_path: &evidence_directory.join("uav-live-view-simulator-restart.png"),
+            },
             restart_timeout + Duration::from_secs(140),
             || async {
                 append_progress(

@@ -76,6 +76,23 @@ alone cannot establish graceful shutdown.
 Selection and dispatch intent are synced before the coordinated restart. Each
 accepted stage is written before the next stage begins. Failure preserves the
 selected group's observed exits and watch state alongside the accepted MCP stage.
+Each restart stage creates a private `veoveo.ai/uav-restart-owner/v1` JSONL
+journal with mode 0600. Synced records bind the owned target, document, session,
+camera, viewer, authorization and product before restart dispatch. Replacement
+observations enter the same stage journal before video admission. Cleanup records
+carry the latest observed identity and distinguish unresolved authorization from
+an acknowledged close. The MCP stage cannot supply ownership for a failed runtime
+stage.
+
+The retained browser owner registers before App navigation. It requests the
+existing `ui/resource-teardown` lifecycle operation from its own iframe and
+accepts only a source- and request-correlated empty result. A stale visible App
+error does not override that acknowledgement. Refusal or deadline expiry leaves
+authorization unresolved; canvas removal and target closure cannot settle it.
+Authorization release and target closure share the original cleanup cutoff,
+with five seconds reserved for target closure. Journal failures stay sticky while
+both cleanup actions are attempted.
+
 Explicit uncached normal OAuth SDK reads bind every body to the selected session
 and verify its immutable world, fleet and camera configuration after replacement.
 The cleanup owner registers an inert acquisition before discovery. Cancellation
