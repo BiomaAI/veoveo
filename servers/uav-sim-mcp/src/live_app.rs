@@ -83,7 +83,6 @@ mod tests {
             "veoveo/agents/message",
             "ai.veoveo/agent-message-targets",
             "uuidV7",
-            "if(!selected.size)",
             "await open(camera)",
             "views.get(camera.cameraId)!==view",
             "section.querySelector(\".empty\")?.remove()",

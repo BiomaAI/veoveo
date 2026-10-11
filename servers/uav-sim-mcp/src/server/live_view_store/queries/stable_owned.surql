@@ -1,0 +1,1 @@
+SELECT * FROM $key WHERE state.owner.subject = $owner.subject AND state.owner.tenant = $owner.tenant AND state.owner.workContext = $owner.workContext AND state.viewerActor = $actor AND ($live_session = NONE OR state.sessionId = $live_session) AND ($viewer = NONE OR state.viewerInstanceId = $viewer);

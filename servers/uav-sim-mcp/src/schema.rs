@@ -31,9 +31,25 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
                 module: ModuleName::new("agents")?,
                 version: veoveo_modules::MigrationVersion::new(0),
             }])?,
+            veoveo_modules::Migration::new(
+                veoveo_modules::MigrationVersion::new(1),
+                veoveo_modules::MigrationName::new("live_views")?,
+                include_str!("schema/migrations/0001_live_views.surql"),
+            )?
+            .with_requirements(vec![
+                LaneRequirement::AtLeast {
+                    module: ModuleName::new("agents")?,
+                    version: veoveo_modules::MigrationVersion::new(0),
+                },
+                LaneRequirement::AtLeast {
+                    module: ModuleName::new("audit")?,
+                    version: veoveo_modules::MigrationVersion::new(0),
+                },
+            ])?,
         ])?)
         .execution(execution)
         .requires(vec![
+            LaneRequirement::Satisfied(ModuleName::new("audit")?),
             LaneRequirement::Satisfied(ModuleName::new("agents")?),
             LaneRequirement::AtLeast {
                 module: ModuleName::new("tasks")?,

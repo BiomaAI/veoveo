@@ -74,6 +74,19 @@ Console API 503 responses followed by 200 responses do not identify the blocked
 operation; correlated bodies and final App error were not captured. Source review
 finds a missing automatic close retry and process-local authorization loss, but
 neither is established as this attempt's cause. Restart qualification stays open.
+The current repair batch gives UAV-owned Store records responsibility for viewer
+authorization and retained close receipts. Tokens stay bound to their issuing
+process; a replacement can close a known caller-owned grant without accepting its
+old token. App recovery retries that same close before reopening, and the existing
+browser verifier retains its last public App state when a wait times out. Focused
+App, browser and Store controls and independent review pass. This source batch is
+not deployed; final images and installed recovery remain open. The new
+Store lane requires a new Gateway composition image, coordinated preparation,
+catalog publication and matching startup-plan references for affected consumers.
+The running Gateway must match that compiled plan. Preserve paused replicas and
+drain memory-only UAV issuers before replacement. UAV's existing lack of a mounted
+startup-plan binding is separate qualification debt. Prior unresolved fixture
+ownership is not inferred to be settled by this change.
 Restart continuity is separate from the unchanged strict throughput limits. Paired shutdown,
 repeated GPU reset, induced RTSP stall recovery, capture-clock and full composed
 flight qualification remain open. F59/A11 stay open.
@@ -1846,7 +1859,7 @@ outside these static counts.
 | Platform module | Recordings | `recording_*` (9) |
 | Server module | Map | `map_*` (23) |
 | Server module | Time | `time_*` (8) |
-| Server module | UAV | `uav_*` (5) |
+| Server module | UAV | `uav_*` (6) |
 | Server module | Frames | `frame_world`, `frame_world_revision`, and `coordinate_operation` |
 | Server module | Media | `media_task`, `media_task_context`, `media_usage` |
 | Server module | Optimization | `optimization_task` |

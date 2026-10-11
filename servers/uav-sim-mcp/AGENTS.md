@@ -83,10 +83,15 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
   authoritative simulator. This server owns actor-and-browser stream
   authorization, access audit, WebSocket admission, and `ui://uav-sim/live.html`.
   It never persists renderer desired state or mirrors entity poses.
-- Every streamable logical camera owns one continuously active RTX render,
-  Cesium viewport, NVIDIA NVENC session, and decoder-reentrant Annex B H.264
-  product. Authorized viewers share that exact bitstream. Viewer count never
+- Streamable logical cameras occupy typed regions in one continuously active
+  tiled RTX render and NVIDIA NVENC Annex B H.264 product. Authorized viewers
+  share that exact bitstream and decode the atlas once per App. Viewer count never
   changes render-product or NVENC-session count, and no viewer quota is exposed.
+- Keep viewer grant state and retained close receipts in UAV-owned Store records;
+  process-local maps carry connection signals, not authority. Bind each token to
+  its private issuing-process identity. A replacement may close a matching
+  caller-owned grant but cannot admit or renew its token. Observe Store before
+  admission and fail closed on observation errors. Missing rows never prove close.
 - `CESIUM_ION_ACCESS_TOKEN` comes only from the dedicated Kubernetes Secret.
   It is never a tool argument, ConfigMap value, resource field, log field, or
   exported USD content.

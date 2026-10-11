@@ -7,6 +7,7 @@ mod index;
 mod live_stream;
 mod live_view;
 mod live_view_audit;
+mod live_view_store;
 mod ownership;
 mod prompts;
 mod runtime_events;

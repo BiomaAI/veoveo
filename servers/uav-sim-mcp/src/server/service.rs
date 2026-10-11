@@ -82,7 +82,8 @@ impl UavSimMcp {
         self.state
             .live_views
             .project_product_usage(&mut state)
-            .await;
+            .await
+            .map_err(live_view_error)?;
         Ok(state)
     }
 

@@ -36,10 +36,6 @@ impl LiveViewAudit {
         self.writer.record(draft).await?;
         Ok(())
     }
-    /// Closing access takes effect immediately; the original record ID survives retries.
-    pub(super) async fn completion(&self, draft: AuditDraft) {
-        self.writer.record_completion(draft).await;
-    }
     pub(super) fn is_running(&self) -> bool {
         self.writer.is_running()
     }

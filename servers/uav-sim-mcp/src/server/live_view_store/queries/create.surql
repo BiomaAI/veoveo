@@ -1,0 +1,1 @@
+CREATE ONLY $key CONTENT $grant;

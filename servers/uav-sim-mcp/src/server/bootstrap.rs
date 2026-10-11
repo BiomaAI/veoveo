@@ -69,6 +69,7 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     let runtime_session_id = LiveSessionId::parse(&session_id)?;
     let live_view_audit = LiveViewAudit::new(tasks.platform_store().clone());
     let live_views = LiveViewService::new(
+        tasks.platform_store().clone(),
         adapter.clone(),
         live_view_audit.clone(),
         LiveViewConfig {
@@ -76,7 +77,8 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
             public_stream_url: args.public_stream_url.clone(),
             maximum_frame_age_ms: args.live_view_maximum_frame_age_ms,
         },
-    )?;
+    )
+    .await?;
     let stream_url = url::Url::parse(&args.public_stream_url)?;
     let live_view_connect_origin = stream_url.origin().ascii_serialization();
     anyhow::ensure!(
@@ -157,13 +159,14 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     let server = hosted.serve_with_shutdown(address, {
         let shutdown = shutdown.clone();
         let audit = live_view_audit.clone();
+        let live_views = live_views.clone();
         async move {
             let mut terminate =
                 tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
                     .expect("install SIGTERM handler");
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {},
-                _ = audit.closed() => {}, _ = shutdown.cancelled() => {},
+                _ = audit.closed() => {}, _ = live_views.closed() => {}, _ = shutdown.cancelled() => {},
             }
             shutdown.cancel();
         }

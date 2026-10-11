@@ -1,0 +1,1 @@
+SELECT * FROM uav_live_view WHERE state.owner = $owner AND state.viewerActor = $actor AND ($live_session = NONE OR state.sessionId = $live_session) AND ($after = NONE OR state.liveViewId > $after) ORDER BY state.liveViewId LIMIT 101;

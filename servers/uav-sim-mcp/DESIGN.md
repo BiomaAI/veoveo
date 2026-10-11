@@ -20,7 +20,7 @@ Current, retired and mixed field controls share the durable-result consumer test
 | Standard or protocol | Supported profile |
 |---|---|
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
-| SurrealDB / SurrealQL `3.3.0` | Tenant and Work Context grant/plan queries, transactional command-lease, plan and Task-link transitions, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
+| SurrealDB / SurrealQL `3.3.0` | Tenant and Work Context grant/plan queries, transactional command-lease, plan and Task-link transitions, caller-owned Task pages, SQL completion, persisted viewer grants and close receipts, and shared LIVE/changefeed invalidation. |
 | UAV mission admission | UAV-owned persisted relationship linking each admitted plan to one native Task and its vehicle command lease. Public plan JSON exposes domain state. |
 | RFC 6570 URI Templates | iri-string `0.7.14` through foundational template admission and scalar expansion; every advertised UAV template is checked against the owning address builder. |
 | Concrete resource URIs | URL `2.5.8` and percent-encoding `2.3.2` through foundational components; typed UAV routes and collection-bound hexadecimal JSON cursors: identity positions use version 1; usage uses version 2. |
@@ -194,7 +194,7 @@ new contract decoder and check stored resource references with their owning pars
 An invalid record or provider ID stops the upgrade with its storage key or configuration
 location. Correct the producer configuration or perform an explicit, reviewed rekey
 of the record and all references before retrying. Keep the original export; this
-change performs no automatic rewriting or destructive conversion. Ephemeral live views
+change performs no automatic rewriting or destructive conversion. Active live views
 close during the drain and clients reopen them after replacement. Resume work only
 after native and installed contract checks pass. Rollback uses the retained export
 and a compatible prior build that preserves the Task scope guard and the new ID
@@ -307,9 +307,10 @@ to detect a following page. A cursor carries a position and collection identity,
 no authorization. These are live reads; callers refresh the root to see inserts ahead
 of their position and subscribe to the root for invalidation.
 
-Live-view collections use the same page envelope, ordered by live-view ID. The
-process-owned viewer map applies owner, viewer actor, session, and cursor selection
-before collecting 101 entries. These authorizations expire with the hosting process.
+Live-view collections use the same page envelope, ordered by live-view ID. Store
+queries apply owner, viewer actor, session, and cursor selection before decoding
+up to 101 records. A process-local connection map carries stream cancellation
+signals and telemetry; it does not grant access or establish a close receipt.
 
 Grant and plan SQL scopes include tenant, Work Context, and principal. The admin scope
 admits other principals within that same tenant and context. Direct reads and completion
@@ -588,12 +589,14 @@ The catalog fixture admits and settles current plans through the domain API befo
 qualifying pagination and query plans. Installed command recovery and physical simulator
 behavior require their separate acceptance runs.
 
-Restart behavior is intentionally simple. Simulator objects are runtime state. A pod
-restart recreates the configured world, cameras, and products through the one-shot
-installation binding. Stream authorizations disappear when the MCP server restarts, and
-the App opens new authorizations. WebSocket or decoder failures start a fresh
-authorization sequence with a five-second maximum backoff for selected cameras. The App
-renews its resource subscription before every open attempt, so an MCP companion restart
+Simulator objects are runtime state. A pod restart recreates the configured world,
+cameras, and products through the one-shot installation binding. Viewer grant
+records survive MCP replacement, while each stream token belongs to its issuing
+process. A replacement refuses that token and can close a known grant for its
+matching caller and browser instance. WebSocket or decoder failure starts
+retirement of the App's known grants. A failed close retries the same identity
+with a five-second maximum backoff; a fresh authorization waits for the matching
+close acknowledgement. The App renews its resource subscription before every open attempt, so an MCP companion restart
 cannot strand recovery behind a stale session subscription. A subscribed live-camera
 resource update immediately retries cameras waiting for simulator readiness. The runtime
 emits an
@@ -857,10 +860,38 @@ browser-instance identity to that camera and returns a secret stream token. Came
 users, tabs, and browser profiles all resolve to the same stream-product identity and
 exact encoded access units.
 
-Only `open_live_view` and `renew_live_view` return the token. Resources contain redacted
-authorization state. The server retains a SHA-256 token hash in memory and compares it in
-constant time. Renew rotates only that authorization. Close, expiry, and teardown revoke
-only that viewer. None of those actions starts or stops the atlas.
+Only `open_live_view` and `renew_live_view` return the token. UAV's `uav_live_view`
+records contain typed redacted state, a private issuing-process identity, a SHA-256
+token digest, an expiry and a compare-and-set generation. The server compares
+digests in constant time and admits only active grants issued by that process.
+Renew rotates the token under its generation guard and cannot revive a closed
+grant. Close, expiry, and teardown revoke only that viewer. None of those actions
+starts or stops the atlas.
+
+An owner-fenced close commits the Closed state and its audit record in one Store
+transaction. Replaying the same caller-owned close returns `closed: true` and the
+same resource URI without another transition or audit record. A different process
+may close the retained grant, but it cannot renew or use its token. A missing row
+does not establish closure. Closure matches the subject, tenant, Work Context,
+actor, session and browser instance; changes to that owner's policy revision or
+data labels cannot prevent it from revoking its own known grant. Closed receipts
+survive for at least 72 hours after closure and until their last token expiry has
+passed. Startup and close cleanup
+delete only receipts satisfying both conditions.
+
+The Store adapter permits at most three transaction attempts per generation.
+It retries only a confirmed transaction abort, preserving the grant transition
+and prepared audit identity.
+A generation conflict returns control to close, which rereads the same caller-owned
+grant within its three-attempt limit. Other revocation errors stop admission and
+return no close receipt.
+
+The service establishes Store observation before admitting operations. LIVE
+invalidation and current-state reconciliation revoke local streams when another
+process closes their grant. An observation gap or failed reconciliation revokes
+local streams and fails admission closed. A close acknowledgement proves the
+committed revocation; asynchronous connection shutdown may still have bytes in
+flight. Graceful shutdown closes only grants issued by that process.
 
 A rejected open or renewal may return `veoveo.ai/live-view-non-admission/v1` in
 standard MCP error data. The closed owner schema embeds the complete typed request
@@ -885,14 +916,18 @@ demand and announced through MCP subscriptions.
 
 The MCP service writes one typed audit record for each live-view issuance, renewal,
 close, expiry, revocation and denied request. Issuance and renewal wait for the shared
-writer's commit before publishing an active stream token. Close and expiry revoke
-access immediately; the writer retries their completion records with stable identities.
+writer's commit before publishing an active stream token. Close, expiry and shutdown
+use the shared transaction append primitive with their winning grant transition,
+which prevents a crash between revocation and its audit commit. Local stream
+cancellation does not wait for socket shutdown.
 The session preserves verified actor, invocation authority and gateway correlation.
 Typed UAV URI builders identify each authorization. Tokens, media and provider
 credentials never enter audit data. The native audit feed supplies committed changes.
 
-An audit-store outage rejects new authorizations and renewals. It cannot stop simulation
-or keep a closed authorization active.
+An audit-store outage rejects new authorizations and renewals. Store observation
+failure revokes local streams. Neither failure stops simulation or starts another
+render product. A failed Store transition returns no close acknowledgement or
+non-admission proof.
 
 The GPU Deployment starts the authoritative simulator and recording forwarder together.
 The independent MCP Deployment starts whenever the platform database is reachable and
@@ -901,9 +936,11 @@ or recording outage cannot prevent or restart simulation. The simulator's
 preconfiguration API exposes product state but no product mutation route. Immutable world
 admission starts the configured camera atlas.
 
-Gateway authority is evaluated for every MCP open, renew, close, and resource read. If
-the same actor and browser instance presents a changed output owner, policy revision, or
-data-label authority at renewal, the server closes that authorization, records
+Gateway authority is evaluated for every MCP open, renew, close, and resource read.
+SQL excludes a foreign output owner, actor, session or browser instance before
+decoding a grant. If the same owner, actor and browser instance presents changed
+policy revision or data-label authority at renewal, the server closes that
+authorization, records
 `viewer_authority_revoked`, and leaves every unrelated viewer attached to the shared
 product. Other rejected renewals record `renew_denied`. Expiry invalidates the stream
 connection even when the browser disappears without teardown.
@@ -1110,6 +1147,12 @@ completion, and subscription admission. `server/bootstrap.rs` constructs the ser
 wires HTTP, and owns observer shutdown. `server/catalog_tests.rs` qualifies these
 paths against a disposable pinned Store; it performs no simulation or GPU work.
 
+`server/live_view_store.rs` and its `queries` directory own viewer-grant storage,
+SQL caller selection, generation guards and retained close receipts.
+`server/live_view/observer.rs` observes those records and revokes local stream
+signals when a grant closes or observation fails. `server/live_stream.rs` owns
+WebSocket admission and carries the admitted generation through connection cleanup.
+
 ## Identity Declaration Mechanics
 
 Simulation and live-view identities use `Id` with their existing owner lexical validators and String schema declarations. Recording keys remain nominal identities. Resource references and flight/control relationships keep their separate parsers and admission checks.
@@ -1129,14 +1172,25 @@ The independent `schema` feature exports `schema::module_setup(execution)` for t
 vocabulary, Serde and schema dependencies used by owner table declarations. MCP,
 Store and asynchronous runtime dependencies require their own features. Default
 runtime behavior is unchanged. The declaration claims `uav_*`.
-It requires Agents and the Tasks version-zero lane.
+It requires Agents, Audit and the Tasks version-zero lane.
 
-The version-zero lane installs the current UAV schema from
+The version-zero lane installs the UAV schema from
 `servers/uav-sim-mcp/src/schema/migrations/0000_current.surql`. The composition root supplies
 its checked execution image and command. Gateway composition prepares runtime
 credentials and executes selected owner lanes through `module-migrate`. The
 runtime opens the shared authenticated Store connection without applying schema.
 Installed image and Job qualification is tracked separately in the active contract plan.
+
+Version one appends `0001_live_views.surql` and requires the Audit version-zero
+lane. Its SCHEMAFULL fields describe the redacted viewer model and private
+admission metadata; plaintext tokens never enter Store. The earlier migration
+body keeps its identity. Deploy this lane before activating the corresponding
+runtime image. A coordinated drain closes memory-only issuers before replacement;
+their grants are not backfilled or inferred to be closed. Fresh clients create
+Store-backed grants after preparation. A rollback drains those issuers before
+restoring a memory-only image and preserves retained Store records. The old and
+new admission profiles must not overlap. Installed migration and rollback
+qualification remains open in the active plan.
 
 `queries/server/agent_targets.surql` reads `managed_agent` and calls the declared
 read-only `fn::managed_agent_enabled`, establishing the Agents dependency and

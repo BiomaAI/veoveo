@@ -34,6 +34,7 @@ pub(super) struct LiveStreamGate {
 }
 
 struct Admission {
+    generation: u64,
     session_id: crate::contract::LiveSessionId,
     live_view_id: LiveViewId,
     upstream_target: String,
@@ -150,7 +151,9 @@ impl LiveStreamGate {
         let result = self
             .bridge(&request, &admission, request_tail, downstream)
             .await;
-        self.service.finish_stream(&admission.live_view_id).await;
+        self.service
+            .finish_stream(&admission.live_view_id, admission.generation)
+            .await;
         self.notify(&admission.session_id, &admission.live_view_id)
             .await;
         result
@@ -234,6 +237,7 @@ impl LiveStreamGate {
             .authorize_stream(&request.live_view_id, &request.token)
             .await?;
         Ok(Admission {
+            generation: authorized.generation,
             session_id: authorized.state.session_id,
             live_view_id: request.live_view_id.clone(),
             upstream_target: format!("{}/{}", self.upstream_path, authorized.state.camera_id),
@@ -279,7 +283,10 @@ impl LiveStreamGate {
             Box::pin(tokio::io::copy(&mut downstream_read, &mut upstream_write));
         let mut upstream_to_downstream =
             Box::pin(tokio::io::copy(&mut upstream_read, &mut downstream_write));
-        let mut session_end = Box::pin(wait_for_session_end(admission.events.clone()));
+        let mut session_end = Box::pin(wait_for_session_end(
+            admission.events.clone(),
+            admission.generation,
+        ));
         tokio::select! {
             result = &mut downstream_to_upstream => { result?; }
             result = &mut upstream_to_downstream => { result?; }
@@ -372,10 +379,16 @@ fn validate_upgrade_response(response: &[u8]) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn wait_for_session_end(mut events: tokio::sync::watch::Receiver<ViewerSignal>) {
+async fn wait_for_session_end(
+    mut events: tokio::sync::watch::Receiver<ViewerSignal>,
+    generation: u64,
+) {
     loop {
         let current = events.borrow().clone();
-        if !current.active || current.expires_at <= chrono::Utc::now() {
+        if current.generation != generation
+            || !current.active
+            || current.expires_at <= chrono::Utc::now()
+        {
             return;
         }
         let remaining = (current.expires_at - chrono::Utc::now())
@@ -505,6 +518,28 @@ mod tests {
             unique_query("liveViewId=one").unwrap(),
             vec![("liveViewId".to_owned(), "one".to_owned())]
         );
+    }
+
+    #[tokio::test]
+    async fn renewal_before_first_bridge_poll_rejects_original_admitted_generation() {
+        let (sender, receiver) = tokio::sync::watch::channel(ViewerSignal {
+            active: true,
+            generation: 7,
+            expires_at: chrono::Utc::now() + chrono::TimeDelta::minutes(1),
+        });
+        sender
+            .send(ViewerSignal {
+                active: true,
+                generation: 8,
+                expires_at: chrono::Utc::now() + chrono::TimeDelta::minutes(1),
+            })
+            .unwrap();
+        tokio::time::timeout(
+            Duration::from_millis(250),
+            wait_for_session_end(receiver, 7),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]

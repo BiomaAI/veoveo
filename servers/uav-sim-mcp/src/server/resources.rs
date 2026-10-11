@@ -176,7 +176,8 @@ impl UavSimMcp {
                                 session,
                                 cursor.as_ref().map(UavLiveViewCursor::position),
                             )
-                            .await;
+                            .await
+                            .map_err(|error| McpError::internal_error(error.to_string(), None))?;
                         let page = index::page(
                             views,
                             |view| {

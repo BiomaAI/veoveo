@@ -80,7 +80,8 @@ pub(super) fn state(
     use veoveo_mcp_contract::SubscriptionHub;
     use veoveo_task_runtime::TaskRuntime;
     let audit = super::live_view_audit::LiveViewAudit::new(store.clone());
-    let live_views = super::live_view::LiveViewService::new(
+    let live_views = super::live_view::LiveViewService::build_for_fixture(
+        store.clone(),
         adapter.clone(),
         audit.clone(),
         super::live_view::LiveViewConfig {

@@ -1,0 +1,1 @@
+SELECT state.streamProductId AS product, count() AS active, math::sum(state.connectedViewers) AS connected FROM uav_live_view WHERE state.sessionId = $live_session AND state.streamProductId IN $products AND closed_at = NONE AND expires_at > $now GROUP BY state.streamProductId;

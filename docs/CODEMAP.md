@@ -1047,7 +1047,10 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 
 | Path | Responsibility |
 |---|---|
-| `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser stream authorization, shared camera-product selection, token renewal, closure, expiry, and connection state |
+| `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser stream authorization, shared camera-product selection, issuer-bound token renewal, closure, expiry, and connection state |
+| `servers/uav-sim-mcp/src/server/live_view_store.rs`, `live_view_store/queries/` | UAV-owned redacted grant records, SQL caller selection, generation guards and transactionally audited close receipts |
+| `servers/uav-sim-mcp/src/server/live_view/observer.rs` | Store observation before admission, current-state revocation of local streams and failure closure |
+| `servers/uav-sim-mcp/src/schema/migrations/0001_live_views.surql` | appended UAV viewer-grant schema and retained close receipts without plaintext tokens |
 | `servers/uav-sim-mcp/src/server/live_stream.rs` | authenticated WebSocket admission and byte-transparent H.264 forwarding from simulator-owned camera products |
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | typed live-view issuance, renewal, denial and terminal records through the shared audit writer |
 | `servers/uav-sim-mcp/src/server/runtime_events.rs` | strict authenticated adapter-ready and final-ready HTTP stream ingestion, immutable binding reapplication trigger, and subscribed live-camera notification |
@@ -1100,7 +1103,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `examples/bioma/acceptance/src/browser/main.rs` | focused headed-browser commands and versioned evidence manifests for the Map workspace and UAV visual workflows; token requests consume UAV's contract-only scope vocabulary |
 | `examples/bioma/acceptance/src/browser/source_timeline.rs` | shared focused/composed browser timing: the UAV-owned checked `SimulationState` admits running-source samples before ten-second observation bracketing and interpolation without extrapolation |
 | `examples/bioma/acceptance/src/browser/restart.rs` | focused same-document native live-view recovery across independent MCP-pod and simulator-container restarts, including proof that MCP replacement leaves the GPU pod unchanged |
-| `examples/bioma/acceptance/src/browser/browser/restart_journal.rs` | private per-stage browser identities and cleanup progress, retained target ownership, and source-correlated MCP Apps teardown acknowledgement under the original cleanup deadline |
+| `examples/bioma/acceptance/src/browser/browser/restart_journal.rs` | private per-stage browser identities, last public App sample and validated graphics/decode observations, retained cleanup ownership, and source-correlated MCP Apps teardown acknowledgement under the original cleanup deadline |
 | `examples/bioma/acceptance/src/browser/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, archive-request rejection, and nonblank Rerun viewport measurement |
 | `examples/bioma/acceptance/src/browser/browser/frame_content.rs`, `app_video_state.js` | typed luminance observations and spatial contrast checks for live-camera canvas content; dark or bright scenes must contain detail across the image |
 | `examples/bioma/acceptance/src/browser/browser/camera_measure.rs` | controlled one-, two- and five-camera atlas measurements, counter-paired browser sampling, native frame-rate bounds and cancellation-safe viewer cleanup |
