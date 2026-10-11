@@ -344,11 +344,16 @@ impl ArtifactManifest {
             }
             for paths in paths {
                 for directory in std::env::split_paths(&paths) {
-                    let candidate = lexical(&directory.join(program));
+                    let actual = cwd.join(directory.join(program));
+                    match std::fs::symlink_metadata(&actual) {
+                        Ok(_) => {}
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                        Err(error) => return Err(error).context("inspect command PATH candidate"),
+                    }
+                    let candidate = lexical(&actual);
                     ensure!(
                         !is_target(&candidate)
-                            && !cwd
-                                .join(directory.join(program))
+                            && !actual
                                 .canonicalize()
                                 .is_ok_and(|path| path.starts_with(&structure.target)),
                         "bare command may select a Cargo child; use its admitted absolute executable path"
@@ -840,6 +845,25 @@ mod tests {
             );
             std::fs::write(path, original).unwrap();
         }
+    }
+
+    #[test]
+    fn dispatcher_runtime_path_allows_absent_cargo_candidate_for_system_command() {
+        let (_source, _target, manifest) = fixture();
+        let mut command = std::process::Command::new("true");
+        configure_runtime(&mut command, &manifest.entries[0]).unwrap();
+        reads();
+        manifest
+            .configure_program_runtime(&mut command, Path::new("true"))
+            .unwrap();
+        assert!(
+            reads().is_empty(),
+            "provider launch must not read Cargo content"
+        );
+        assert!(
+            command.status().unwrap().success(),
+            "actual system command must spawn with dispatcher PATH"
+        );
     }
 
     #[test]

@@ -355,7 +355,14 @@ where
         .get_or_init(|| Mutex::new(Weak::new()))
         .lock()
         .expect("owner state lock") = Weak::new();
-    persist_unresolved(&scope)?;
+    if let Err(cleanup) =
+        persist_unresolved(&scope).context("retaining unresolved owner cleanup identities")
+    {
+        return match result {
+            Err(work) => Err(work.context(format!("owner cleanup failed: {cleanup:#}"))),
+            Ok(_) => Err(cleanup),
+        };
+    }
     let cause = scope
         .first_cause
         .lock()
@@ -402,6 +409,69 @@ pub(crate) fn test_activate(scope: Option<&Arc<Active>>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn work_failure_survives_unresolved_cleanup_and_lease_write_failure() {
+        const CHILD: &str = "VEOVEO_TEST_OWNER_ERROR_CONTEXT";
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        if let Some(root) = std::env::var_os(CHILD) {
+            let root = std::path::PathBuf::from(root);
+            let blocked = std::env::var_os("VEOVEO_TEST_OWNER_LEASE_BLOCKED").is_some();
+            let lease = root.join(format!(".unresolved-owner-{}.json", std::process::id()));
+            if blocked {
+                std::fs::create_dir(&lease).unwrap();
+            }
+            let result: Result<()> = runtime.block_on(run(async {
+                register_cleanup(
+                    CleanupKind::Remote,
+                    "provider",
+                    "unacknowledged-request",
+                    || async { anyhow::bail!("cleanup could not reconcile provider") },
+                )?;
+                anyhow::bail!("original provider launch failure")
+            }));
+            let error = format!("{:#}", result.unwrap_err());
+            assert!(
+                error.contains("original provider launch failure"),
+                "original work error lost: {error}"
+            );
+            if blocked {
+                assert!(
+                    error.contains("retaining unresolved owner cleanup identities"),
+                    "lease write context lost: {error}"
+                );
+            } else {
+                assert!(
+                    error.contains("unresolved owner cleanup identities retained"),
+                    "lease context lost: {error}"
+                );
+                let receipts: Vec<Receipt> =
+                    serde_json::from_slice(&std::fs::read(lease).unwrap()).unwrap();
+                assert_eq!(receipts.len(), 1);
+                assert!(!receipts[0].settled);
+                assert!(receipts[0].observed_identity.is_none());
+            }
+            return;
+        }
+        for blocked in [false, true] {
+            let root = tempfile::tempdir().unwrap();
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap());
+            child.args(["--exact", "lifecycle::owner::tests::work_failure_survives_unresolved_cleanup_and_lease_write_failure", "--nocapture"])
+                .env(CHILD, root.path()).env("VEOVEO_SMOKE_LOCAL_GROUPS", root.path());
+            if blocked {
+                child.env("VEOVEO_TEST_OWNER_LEASE_BLOCKED", "1");
+            }
+            let output = child.output().unwrap();
+            assert!(
+                output.status.success(),
+                "isolated owner diagnostic control failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+
     #[test]
     fn intended_fixture_stop_settles_owned_cleanup_without_scenario_success() {
         const CHILD: &str = "VEOVEO_TEST_INTENDED_FIXTURE_STOP";
