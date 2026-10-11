@@ -27,6 +27,7 @@ spec:
         checksum/world-bootstrap: {{ required "world.bootstrap.contentSha256 is required with an existing ConfigMap" .Values.world.bootstrap.contentSha256 | quote }}
       {{- end }}
     spec:
+      terminationGracePeriodSeconds: 120
       runtimeClassName: {{ .Values.scheduling.runtime.runtimeClassName }}
       automountServiceAccountToken: false
       securityContext:

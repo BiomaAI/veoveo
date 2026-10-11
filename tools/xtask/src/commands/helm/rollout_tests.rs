@@ -415,8 +415,19 @@ fn uav_native_retention_matches_locked_and_rendered_pod_images() {
         true,
         &[],
     );
+    let templates = pod_templates(&rendered);
+    for name in ["uav-sim", "uav-sim-mcp"] {
+        assert_eq!(
+            templates[name]["spec"]["terminationGracePeriodSeconds"],
+            120
+        );
+    }
+    let runtime = &templates["uav-sim"]["spec"]["containers"][0];
+    for field in ["requests", "limits"] {
+        assert_eq!(runtime["resources"][field]["nvidia.com/gpu"], 1);
+    }
     let mut pod_images = BTreeSet::new();
-    for template in pod_templates(&rendered).values() {
+    for template in templates.values() {
         for field in ["initContainers", "containers"] {
             if let Some(containers) = template["spec"][field].as_array() {
                 for container in containers {

@@ -43,9 +43,11 @@ their accepted scope; they do not qualify current live throughput or full flight
 Matched containerd exits record simulator and forwarder exit 137 during profile
 changes; they prove failed graceful retirement, not OOM. Forwarder `b4413b92b979`
 with the deadline fix is deployed. Coordinated runtime cleanup at `db0b` passes 200
-owning CPU controls and review; it and the `c2` shutdown-stage diagnostics are
-unpublished. The diagnostics pass five affected native controls and review. Live termination grace
-is 30 seconds; the held chart renders 120. Installed grace reconciliation, repeated
+owning CPU controls and review. It and the `c2` shutdown-stage diagnostics have
+two-image development stages at `95cc4a71`; final release qualification stays open.
+The diagnostics pass five affected native controls and review. Live GPU termination
+grace is 30 seconds; its installed chart gives 120 seconds only to the MCP companion.
+The corrected source sets 120 seconds for the GPU Pod too. Installed grace reconciliation, repeated
 GPU reset/shutdown, induced RTSP stall recovery, capture-clock and full composed
 flight qualification remain open. F59/A11 are not closed by live frames or videos.
 
@@ -576,9 +578,11 @@ separate; induced installed stall recovery is still required.
 The simulator's exit-137 diagnostic reports invalid Py_Graph during physical-writer
 detachment after atlas retirement. Forwarder `b4413b92b979` already includes the
 deadline fix. Coordinated runtime cleanup at `db0b` and shutdown-stage/elapsed
-diagnostics at `c2` need publication and installed GPU shutdown proof.
-The live 30-second grace equals the forwarder's full shutdown interval; qualify
-margin after reconciling the held 120-second chart value. The Rust MCP host was not
+diagnostics at `c2` are development-staged at `95cc4a71` and need final release
+qualification and installed GPU shutdown proof. The live 30-second GPU Pod grace
+equals the forwarder's full shutdown interval. The installed chart's 120-second
+grace applies only to the MCP companion; publish and qualify the corrected 120-second GPU Pod grace.
+The Rust MCP host was not
 restarted by these checks. Keep selected and prior UAV images pinned for rollback.
 Node restart, forced image collection, longer render stalls, turning flight and
 actual capture-clock behavior remain unqualified. Native feedback comparisons did

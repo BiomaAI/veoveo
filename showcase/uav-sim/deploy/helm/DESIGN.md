@@ -16,7 +16,14 @@ The chart owns the GPU simulator and independent UAV MCP companion. Its retained
 claims hold runtime caches and recording-forwarder data. Installation values supply
 network placement and credential references.
 
-The MCP companion has a 120-second termination grace period. It stops HTTP and stream
+The GPU Pod gives the simulator and recording forwarder a shared 120-second
+termination grace period. The simulator stops admission and retires video writers
+before render products, then flushes recording output and closes Kit. The forwarder
+drains its durable queue within its own shutdown deadline. Kubernetes can terminate
+either container when the Pod grace expires; the chart does not promise completion
+of unresolved recording delivery.
+
+The MCP companion also has a 120-second termination grace period. It stops HTTP and stream
 admission, closes live-view sessions, and drains their audit records before exit. These
 shutdown steps leave the simulator's independent GPU and persistent-cache contract intact.
 
