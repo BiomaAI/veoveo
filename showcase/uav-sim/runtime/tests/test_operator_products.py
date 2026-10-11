@@ -258,8 +258,8 @@ class OperatorProductTests(unittest.TestCase):
             factory.assert_not_called()
             self.assertIs(product._receiver, receiver)
             self.assertTrue(product._closed)
-            writer.detach.assert_called_once()
-            render_product.close.assert_called_once()
+            writer.detach.assert_not_called()
+            render_product.close.assert_not_called()
             with self.assertRaisesRegex(RuntimeError, "still alive"):
                 collection.restart(Mock(), Mock(), 2)
             factory.assert_not_called()

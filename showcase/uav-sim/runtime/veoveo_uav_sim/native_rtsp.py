@@ -70,6 +70,23 @@ class _AttachedWriterRetirement:
     def cleanup_complete(self) -> bool:
         return self._writer is None
 
+    @property
+    def publication_stopped(self) -> bool:
+        return True
+
+    @property
+    def writers_detached(self) -> bool:
+        return self._writer is None
+
+    def stop_publication(self) -> None:
+        pass
+
+    def detach_writers(self) -> None:
+        self.close()
+
+    def retire_products(self) -> None:
+        pass
+
     def close(self) -> None:
         if self._writer is not None:
             try:

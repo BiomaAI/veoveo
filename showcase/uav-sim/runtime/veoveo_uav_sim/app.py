@@ -249,6 +249,7 @@ def run(config: RuntimeConfig, stop_requested: threading.Event) -> None:
             NativeH264CameraSensor,
             RetainedProductAcquisitionError,
             RetainedProductOwner,
+            retire_video_owners,
         )
         acquisition_error_type = RetainedProductAcquisitionError
         from .operator_camera import (
@@ -670,9 +671,7 @@ def run(config: RuntimeConfig, stop_requested: threading.Event) -> None:
                 try:
                     assert operator_products is not None
                     # Stop publication first: old stream consumers keep closed sources.
-                    operator_products.close()
-                    for sensor in camera_sensors.values():
-                        sensor.close()
+                    retire_video_owners(tuple(pending_product_cleanup) + (operator_products,) + tuple(camera_sensors.values()))
                     if stream_publication is not None:
                         stream_publication.close()
                     def tensor_identity() -> tuple[object, ...]:
@@ -1152,12 +1151,11 @@ def run(config: RuntimeConfig, stop_requested: threading.Event) -> None:
             )
         if fleet_loop is not None:
             cleanup("default fleet loop", fleet_loop.close)
-        for pending_product in pending_product_cleanup:
-            cleanup("partially acquired video product", pending_product.close)
+        video_owners = tuple(pending_product_cleanup) + tuple(camera_sensors.values())
         if operator_products is not None:
-            cleanup("operator stream products", operator_products.close)
-        for camera_sensor in camera_sensors.values():
-            cleanup("native Isaac H.264 camera sensor", camera_sensor.close)
+            video_owners += (operator_products,)
+        if video_owners:
+            cleanup("native video writers and render products", lambda: retire_video_owners(video_owners))
         if stream_publication is not None:
             cleanup("native H.264 RTP publication", stream_publication.close)
         if hil_fleet is not None:

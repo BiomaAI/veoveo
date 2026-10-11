@@ -21,7 +21,13 @@ _MAX_UNPAIRED_FRAMES = 16
 class RetainedProductOwner(Protocol):
     @property
     def cleanup_complete(self) -> bool: ...
-
+    @property
+    def publication_stopped(self) -> bool: ...
+    @property
+    def writers_detached(self) -> bool: ...
+    def stop_publication(self) -> None: ...
+    def detach_writers(self) -> None: ...
+    def retire_products(self) -> None: ...
     def close(self) -> None: ...
 
 
@@ -29,6 +35,28 @@ class RetainedProductAcquisitionError(RuntimeError):
     def __init__(self, owner: RetainedProductOwner) -> None:
         super().__init__("GPU product acquisition failed and owned retirement remains unqualified")
         self.owner = owner
+
+
+def retire_video_owners(owners: tuple[RetainedProductOwner, ...]) -> None:
+    """Retire only these owners; SyntheticData traverses graphs across products.
+
+    Every writer must detach before any product is deleted. A failed phase keeps
+    dependent objects alive for retry; sticky errors still fail final cleanup.
+    """
+    failures: list[BaseException] = []
+    def phase(method: str) -> None:
+        for owner in owners:
+            try:
+                getattr(owner, method)()
+            except BaseException as error:
+                failures.append(error)
+    phase("stop_publication")
+    if all(owner.publication_stopped for owner in owners):
+        phase("detach_writers")
+        if all(owner.writers_detached for owner in owners):
+            phase("retire_products")
+    if failures:
+        raise failures[0]
 
 
 class _PartialProductOwners:
@@ -40,29 +68,43 @@ class _PartialProductOwners:
     def cleanup_complete(self) -> bool:
         return all(owner.cleanup_complete for owner in self._owners)
 
-    def close(self) -> None:
+    @property
+    def publication_stopped(self) -> bool:
+        return all(owner.publication_stopped for owner in self._owners)
+
+    @property
+    def writers_detached(self) -> bool:
+        return all(owner.writers_detached for owner in self._owners)
+
+    def _phase(self, method: str) -> None:
         for owner in self._owners:
-            if owner.cleanup_complete:
-                continue
             try:
-                owner.close()
+                getattr(owner, method)()
             except BaseException as error:
                 if self._failure is None:
                     self._failure = error
         if self._failure is not None:
             raise self._failure
 
+    def stop_publication(self) -> None:
+        self._phase("stop_publication")
+
+    def detach_writers(self) -> None:
+        self._phase("detach_writers")
+
+    def retire_products(self) -> None:
+        self._phase("retire_products")
+
+    def close(self) -> None:
+        retire_video_owners((self,))
+
 
 def _failed_acquisition(owner: RetainedProductOwner, original: BaseException) -> NoReturn:
     if isinstance(original, RetainedProductAcquisitionError):
-        # The inner factory can fail before returning its acquired writer/render
-        # handle. Retain it together with the caller's resources before retirement.
         owner = _PartialProductOwners((original.owner, owner))
-    try:
-        owner.close()
-    except BaseException:
-        raise RetainedProductAcquisitionError(owner) from original
-    raise original
+    # Other live writers may refer to this product's graph. The app coordinates
+    # all owners, including this partial acquisition, before deleting any product.
+    raise RetainedProductAcquisitionError(owner) from original
 
 
 class _VideoResources(Protocol):
@@ -74,28 +116,25 @@ class _VideoResources(Protocol):
     _subscription: Any
 
 
-def _close_video_resources(owner: _VideoResources) -> None:
-    # Publication has already stopped. Never hold the publication lock while joining
-    # a receiver whose final callback may need that same lock.
+def _retire_video_field(owner: _VideoResources, field: str, method: str) -> None:
     with owner._cleanup_lock:
-        owner._subscription = None
-        for field, method in (("_receiver", "close"), ("_writer", "detach"), ("_render_product", "close")):
-            resource = getattr(owner, field)
-            if resource is None:
-                continue
+        resource = getattr(owner, field)
+        if resource is not None:
             try:
                 getattr(resource, method)()
             except BaseException as error:
                 if owner._cleanup_failure is None:
                     owner._cleanup_failure = error
                 if field == "_render_product" and resource.cleanup_complete is True:
-                    # The child reports its earlier sticky failure even after its
-                    # last handle retires. Preserve the failure, release the child.
                     setattr(owner, field, None)
             else:
                 setattr(owner, field, None)
         if owner._cleanup_failure is not None:
             raise owner._cleanup_failure
+
+
+def _close_video_resources(owner: RetainedProductOwner) -> None:
+    retire_video_owners((owner,))
 
 
 @dataclass(frozen=True, slots=True)
@@ -238,6 +277,25 @@ class RtxHydraRenderProduct:
         self._hydra_texture.updates_enabled = enabled
 
     @property
+    def publication_stopped(self) -> bool:
+        return True
+
+    @property
+    def writers_detached(self) -> bool:
+        return True
+
+    def stop_publication(self) -> None:
+        # This partial owner has no publisher. Keep the Hydra resource intact
+        # until every writer has detached from the shared graph registry.
+        pass
+
+    def detach_writers(self) -> None:
+        pass
+
+    def retire_products(self) -> None:
+        self.close()
+
+    @property
     def cleanup_complete(self) -> bool:
         return self._hydra_texture is None
 
@@ -345,6 +403,25 @@ class RtxTiledHydraRenderProduct:
 
     def set_updates_enabled(self, enabled: bool) -> None:
         self._hydra_texture.updates_enabled = enabled
+
+    @property
+    def publication_stopped(self) -> bool:
+        return True
+
+    @property
+    def writers_detached(self) -> bool:
+        return True
+
+    def stop_publication(self) -> None:
+        # This partial owner has no publisher. Keep the Hydra resource intact
+        # until every writer has detached from the shared graph registry.
+        pass
+
+    def detach_writers(self) -> None:
+        pass
+
+    def retire_products(self) -> None:
+        self.close()
 
     @property
     def cleanup_complete(self) -> bool:
@@ -469,12 +546,30 @@ class NativeH264CameraSensor:
     def cleanup_complete(self) -> bool:
         return self._receiver is None and self._writer is None and self._render_product is None
 
-    def close(self) -> None:
+    @property
+    def publication_stopped(self) -> bool:
+        return self._closed and self._receiver is None and self._subscription is None
+
+    @property
+    def writers_detached(self) -> bool:
+        return self._writer is None
+
+    def stop_publication(self) -> None:
         with self._lock:
             self._closed = True
             self._latest = None
             self._rendered_samples.clear()
             self._access_units.clear()
+            self._subscription = None
+        _retire_video_field(self, "_receiver", "close")
+
+    def detach_writers(self) -> None:
+        _retire_video_field(self, "_writer", "detach")
+
+    def retire_products(self) -> None:
+        _retire_video_field(self, "_render_product", "close")
+
+    def close(self) -> None:
         _close_video_resources(self)
 
     def _on_drawable_changed(self, event: Any) -> None:

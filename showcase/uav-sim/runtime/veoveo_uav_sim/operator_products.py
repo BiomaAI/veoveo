@@ -10,7 +10,7 @@ from typing import Any
 from .h264 import NativeH264AccessUnit
 from .hydra_camera import (
     RtxTiledHydraRenderProduct,
-    _close_video_resources,
+    _close_video_resources, _retire_video_field,
     _failed_acquisition,
     tcp_listener_is_ready,
 )
@@ -284,11 +284,29 @@ class OperatorCameraProduct:
     def cleanup_complete(self) -> bool:
         return self._receiver is None and self._writer is None and self._render_product is None
 
-    def close(self) -> None:
+    @property
+    def publication_stopped(self) -> bool:
+        return self._closed and self._receiver is None and self._subscription is None
+
+    @property
+    def writers_detached(self) -> bool:
+        return self._writer is None
+
+    def stop_publication(self) -> None:
         with self._condition:
             self._closed = True
             self._frames.clear()
+            self._subscription = None
             self._condition.notify_all()
+        _retire_video_field(self, "_receiver", "close")
+
+    def detach_writers(self) -> None:
+        _retire_video_field(self, "_writer", "detach")
+
+    def retire_products(self) -> None:
+        _retire_video_field(self, "_render_product", "close")
+
+    def close(self) -> None:
         _close_video_resources(self)
 
     def _on_access_unit(self, access_unit: NativeH264AccessUnit) -> None:
@@ -363,6 +381,23 @@ class OperatorProductCollection:
 
     def active_camera_ids(self) -> tuple[str, ...]:
         return self._product.camera_ids
+
+    @property
+    def publication_stopped(self) -> bool:
+        return self._product.publication_stopped
+
+    @property
+    def writers_detached(self) -> bool:
+        return self._product.writers_detached
+
+    def stop_publication(self) -> None:
+        self._product.stop_publication()
+
+    def detach_writers(self) -> None:
+        self._product.detach_writers()
+
+    def retire_products(self) -> None:
+        self._product.retire_products()
 
     def close(self) -> None:
         self._product.close()

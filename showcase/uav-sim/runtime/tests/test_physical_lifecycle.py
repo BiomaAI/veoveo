@@ -47,19 +47,21 @@ class PhysicalProductLifecycleTests(unittest.TestCase):
                             config = _config([_camera("follow", 0, {"kind":"fixed", "pose":{"positionM":{"x":0,"y":0,"z":0}, "orientationXyzw":{"x":0,"y":0,"z":0,"w":1}}})])
                             cameras = SimpleNamespace(cameras=[SimpleNamespace(definition=SimpleNamespace(camera_id="follow"), camera_path="/Camera/test")])
                             return OperatorCameraProduct(config, cameras)
+                        with self.assertRaises(RetainedProductAcquisitionError) as caught: acquire()
+                        retained = caught.exception.owner
+                        self.assertRegex(str(caught.exception.__cause__), f"{stage} failed")
+                        self.assertFalse(retained.cleanup_complete)
+                        writer.detach.assert_not_called()
+                        render.close.assert_not_called()
                         if failed_cleanup:
-                            with self.assertRaises(RetainedProductAcquisitionError) as caught: acquire()
-                            retained = caught.exception.owner
-                            self.assertFalse(retained.cleanup_complete)
+                            with self.assertRaisesRegex(RuntimeError, "detach failed"): retained.close()
+                            render.close.assert_not_called()
                             self.assertIs(retained._writer, writer)
-                            with self.assertRaisesRegex(RuntimeError,"detach failed"): retained.close()
+                            self.assertIs(retained._render_product, render)
+                            with self.assertRaisesRegex(RuntimeError, "detach failed"): retained.close()
                             self.assertTrue(retained.cleanup_complete)
-                            self.assertIsNone(retained._writer)
-                            self.assertIsNone(retained._render_product)
-                            with self.assertRaisesRegex(RuntimeError,"detach failed"): retained.close()
-                            self.assertEqual(writer.detach.call_count,2)
                         else:
-                            with self.assertRaisesRegex(RuntimeError, f"{stage} failed"): acquire()
+                            retained.close()
                             writer.detach.assert_called_once()
                         render.close.assert_called_once()
 
@@ -120,6 +122,8 @@ class PhysicalProductLifecycleTests(unittest.TestCase):
                     retained=caught.exception.owner
                     self.assertIs(retained._hydra_texture,texture)
                     with self.assertRaisesRegex(RuntimeError,"retirement failed"):retained.close()
+                    self.assertFalse(retained.cleanup_complete)
+                    with self.assertRaisesRegex(RuntimeError,"retirement failed"):retained.close()
                     self.assertTrue(retained.cleanup_complete)
                     self.assertEqual(retire.call_count,2)
 
@@ -146,11 +150,19 @@ class PhysicalProductLifecycleTests(unittest.TestCase):
                 self.calls = 0
                 self.cleanup_complete = False
 
+            publication_stopped = True
+            @property
+            def writers_detached(self):
+                return self.calls >= 2
+            def stop_publication(self): pass
+            def detach_writers(self):
+                if self.calls < 2:
+                    self.calls += 1
+                    if self.calls == 1: raise RuntimeError(self.name)
+            def retire_products(self): self.cleanup_complete = True
             def close(self):
-                self.calls += 1
-                if self.calls == 1:
-                    raise RuntimeError(self.name)
-                self.cleanup_complete = True
+                self.detach_writers()
+                self.retire_products()
 
         writer = Owner("writer detach failed")
         render = Owner("render retirement failed")
@@ -160,6 +172,10 @@ class PhysicalProductLifecycleTests(unittest.TestCase):
         retained = caught.exception.owner
         self.assertIs(caught.exception.__cause__, original)
         self.assertFalse(retained.cleanup_complete)
+        self.assertEqual((writer.calls, render.calls), (0, 0))
+        with self.assertRaisesRegex(RuntimeError, "writer detach failed"):
+            retained.close()
+        self.assertFalse(retained.cleanup_complete)
         self.assertEqual((writer.calls, render.calls), (1, 1))
         with self.assertRaisesRegex(RuntimeError, "writer detach failed"):
             retained.close()
@@ -168,3 +184,68 @@ class PhysicalProductLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "writer detach failed"):
             retained.close()
         self.assertEqual((writer.calls, render.calls), (2, 2))
+
+
+class CoordinatedVideoRetirementTests(unittest.TestCase):
+    def _owners(self, *, fail_detach=False):
+        alive = {"atlas", "physical"}
+        events = []
+        def resources(owner, name):
+            owner._cleanup_lock = threading.Lock()
+            owner._cleanup_failure = None
+            owner._closed = False
+            owner._receiver = None
+            owner._subscription = object()
+            writer = Mock()
+            attempts = [0]
+            def detach():
+                events.append(("detach", name))
+                # The stock SyntheticData traversal visits ALL retained graphs.
+                if alive != {"atlas", "physical"}: raise ValueError("Invalid object in Py_Graph")
+                attempts[0] += 1
+                if fail_detach and name == "atlas" and attempts[0] == 1:
+                    raise RuntimeError("first detach failure")
+            writer.detach.side_effect = detach
+            render = Mock()
+            render.close.side_effect = lambda: (events.append(("delete", name)), alive.remove(name))
+            owner._writer = writer
+            owner._render_product = render
+        atlas = OperatorCameraProduct.__new__(OperatorCameraProduct)
+        atlas._condition = threading.Condition(); atlas._frames = deque()
+        physical = NativeH264CameraSensor.__new__(NativeH264CameraSensor)
+        physical._lock = threading.Lock(); physical._latest = None
+        physical._rendered_samples = deque(); physical._access_units = deque()
+        resources(atlas, "atlas"); resources(physical, "physical")
+        return atlas, physical, alive, events
+
+    def test_all_writers_detach_before_any_owned_product_is_deleted(self):
+        from veoveo_uav_sim.hydra_camera import retire_video_owners
+        # Prior per-owner ordering fails against the shared provider graph registry.
+        atlas, physical, _, _ = self._owners()
+        atlas.close()
+        with self.assertRaisesRegex(ValueError, "Invalid object in Py_Graph"):
+            physical.close()
+        atlas, physical, alive, events = self._owners()
+        retire_video_owners((atlas, physical))
+        self.assertEqual(events[:2], [("detach", "atlas"), ("detach", "physical")])
+        self.assertFalse(alive)
+        self.assertTrue(atlas.cleanup_complete and physical.cleanup_complete)
+
+    def test_partial_owner_failure_keeps_every_product_until_all_writers_detach(self):
+        from veoveo_uav_sim.hydra_camera import _failed_acquisition, retire_video_owners
+        atlas, physical, alive, events = self._owners(fail_detach=True)
+        original = RuntimeError("post attach acquisition failure")
+        with self.assertRaises(RetainedProductAcquisitionError) as caught:
+            _failed_acquisition(atlas, original)
+        retained = caught.exception.owner
+        self.assertIs(caught.exception.__cause__, original)
+        self.assertFalse(events)
+        with self.assertRaisesRegex(RuntimeError, "first detach failure"):
+            retire_video_owners((retained, physical))
+        self.assertEqual(alive, {"atlas", "physical"})
+        self.assertIsNotNone(atlas._writer)
+        self.assertIsNone(physical._writer)
+        with self.assertRaisesRegex(RuntimeError, "first detach failure"):
+            retire_video_owners((retained, physical))
+        self.assertFalse(alive)
+        self.assertTrue(retained.cleanup_complete and physical.cleanup_complete)

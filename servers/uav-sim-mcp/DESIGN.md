@@ -961,6 +961,19 @@ initialization failures. Native constructor and close calls cannot be hard-inter
 by this flag. Their completion within the installed grace requires separate runtime
 qualification.
 
+Video teardown stops publication, receiver sessions and drawable subscriptions for all
+owned physical sensors and the operator atlas before detaching their stock writers.
+Every render product stays alive until all owned writers have detached: SyntheticData
+annotator deactivation traverses graphs across render products. Only then does the owner
+release Hydra products and textures. Failed detachment keeps the products and unresolved
+writer handles for cleanup retry. The first cleanup failure still produces a nonzero
+outcome after a successful retry. A failed constructor transfers its partial resources
+and original exception to this same coordinated cleanup, rather than deleting a product
+while another writer may still depend on its graph. The runtime does not reset global
+SyntheticData state or detach writers owned by other extensions. Reset uses the same
+ordering and existing clock-generation lifecycle. CPU controls qualify owner ordering;
+stock graph retirement across repeated resets and shutdown needs installed GPU checks.
+
 The runtime Service exposes the authenticated adapter and private H.264 WebSocket to the
 MCP pod. The MCP Service owns MCP HTTP and the public authenticated live-stream gate.
 Separate network policies admit
