@@ -11,8 +11,8 @@ GitOps holds stay set. Build and rollout operations require separate admission.
 | Gateway and installation | Gateway `071` runs generation two; preparation, all nineteen current lanes and runtime-authenticated catalog publication pass; four active consumers are Ready and Optimization stays paused | Qualify remaining final images and owner gates while preserving paused replicas, storage and GitOps holds |
 | Enabled workloads | Knowledge, Embedding and Speech are on; Reason, Host, Computers and other paused GPU workloads stay off | Preserve this selection through publication; qualify required workloads when explicitly activated |
 | Knowledge | Retained-index cold startup, targeted Time-document indexing/search and normal-PKCE restricted caller policy pass on the admitted deployment | First-empty indexing, current-driver Embedding profile, current-generation recovery and final images |
-| Time | Normal-OAuth completion/cancellation, unfinished process recovery and Time12 completed-state cross-replica delivery/restoration pass | Authority activation, final images and temporal-event/agent-wake execution |
-| Agent temporal events | Focused event controls, complete catalog/kernel manifest admission and shared launch gates pass; selected-artifact hashing passes fourteen native controls and review | Execute the real Time/Gateway/Store/kernel composition after these admission gates; admit installed client/template separately |
+| Time | Normal-OAuth completion/cancellation, unfinished process recovery, Time12 completed-state cross-replica delivery/restoration and the local agent-wake composition pass | Authority activation, final images and installed temporal-event clients/templates |
+| Agent temporal events | The real single-Store Time/Gateway/Artifact/kernel composition passes authenticated delivery, cancellation/idempotency, reconnect, Time/kernel replacement, exactly two effects and owned cleanup | Qualify installed clients/templates separately; reconcile the retained failed-fixture owner lease through an admitted recovery path |
 | Agent Manager | Public authoring/prearmed SSE/current Ready/owned Stop/archive fixture and five native controls pass; scope-admission repair passes | Execute the corrected five-scope journey, physical drain and restoration on admitted images |
 | Artifact and CPU consumers | Focused Artifact upload/SDK/Datasheet consumers and one replacement preserving unfinished upload plus separate retained-capability replay pass; selected DuckDB/Timeseries/Frames/Media checks pass | Final images and remaining owner-specific consumers/recovery; headed Workbench and physical ownership checks stay open |
 | Stock Computers | Eighteen native OpenShell cases pass on the unmodified provider; package and worker OAuth are source-qualified | Materialize installed identity/configuration, activate node RuntimeClass and prove stock provider/Host/container behavior |
@@ -199,11 +199,16 @@ kernel manifest and composed catalog admission now run before Store or process
 startup; both native admission controls, compiler checks and strict lint pass.
 Shared artifact preparation freshly hashes only the selected executable and its
 runtime closure while checking all manifest declarations; fourteen owning native
-controls, strict lint and independent review pass. The real
-Time/Gateway/Store/kernel composition remains to be executed after these admission
-gates. Installed qualification requires separate client and template admission. Time owns event state, and the
-agent runtime owns durable wake handling. A creation notification does not
-establish that an event is due.
+controls, strict lint and independent review pass. The real single-Store
+Time/Gateway/Artifact/kernel composition passes through normal OAuth at `95cc4a71`.
+It proves due delivery, cancellation and duplicate handling, reconnect across a
+Time replacement, and wake/acknowledgement recovery across a kernel replacement.
+The ledger contains exactly two effects, and all cleanup owned by this run settles.
+An earlier failed-fixture owner lease still requires its own admitted reconciliation;
+this pass does not settle that lease. Installed qualification requires separate
+client and template admission. Time owns event state, and the agent runtime owns
+durable wake handling. A creation notification does not establish that an event is
+due.
 
 Time’s administrative `/active-authorities` response now exposes `pointerVersion`
 with the selected release. Clients use that guard for activation;
@@ -439,16 +444,19 @@ its 16 GiB budget; the node and core services stayed healthy. Image publication 
 staging still require their own admitted peak-space budget. Recovery did not change image pins
 or resume application reconciliation. Knowledge needed several natural restarts;
 its unattended cold-start qualification remains open.
-Staging keeps `releaseEligible=false`; installed image pins and the application holds
-stay unchanged. Bioma uses the documented direct publisher and Helm/GitOps image
-locks. Qualify selected targets against their original authentic stage receipts with
-`release images --stage-evidence`, preserve their runnable digests, and retain the resulting qualified image-release
-evidence before updating consumed-image pins and validating the GitOps release
-inputs. This path requires genuine publication attestations and registry readback;
-stage receipts alone cannot qualify a rollout. The optional development-image-lock
-command requires a publisher-generated DeploymentLock, which was not found in the
-trusted retained outputs. That requirement belongs to that command and does not
-block Bioma's direct publication path. The publisher now accepts a nonempty subset
+Staging keeps `releaseEligible=false`. The
+[development iteration procedure](DEVELOPMENT_ITERATION.md#operating-model) admits
+selected staged digests through reviewed GitOps inputs for behavioral acceptance,
+then qualifies those same runnable digests with supply-chain attestations. Bioma
+uses Helm/GitOps image locks; its
+[documented interim path](DEVELOPMENT_ITERATION.md#recorded-iteration-sinks) updates
+only evidenced digest keys because no qualified typed DeploymentLock is available.
+This development path requires its own resource, rendered-delta and activation
+admission. It does not release unrelated application holds or establish final-image
+qualification. Qualify selected targets against their original authentic stage
+receipts with `release images --stage-evidence`, preserve their runnable digests,
+and retain publication attestations and registry readback for final release
+acceptance. The publisher now accepts a nonempty subset
 of an authentic larger stage cohort while validating the complete original receipt,
 rejecting duplicate targets and preserving every selected repository and runnable
 digest. Strict compiler checks, five native controls and independent review pass.
