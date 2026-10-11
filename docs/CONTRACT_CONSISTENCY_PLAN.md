@@ -49,7 +49,9 @@ The Knowledge and Time repair at `6653288ba` is published and deployed. Both Pod
 pass probes and thirty seconds of stability without a restart. Normal OAuth reads
 and Knowledge search reach the updated Time documents. Time completion and
 cancellation pass through normal Gateway OAuth. Unfinished process recovery
-remains unqualified because the attempted crash did not replace its container.
+remains unqualified. The selected container restarts and reaches Ready, but its Task
+completed before the signal. The next check must read current Task state immediately
+before a prompt, fenced signal; a retained Working snapshot cannot authorize it.
 Datasheet's SDK replacement and the complete focused normal-OAuth Artifact consumer
 scenario pass. One fenced service replacement preserves an acknowledged Open upload
 and its accepted part. Resumption, immutable-part retry/refusal, completion replay
