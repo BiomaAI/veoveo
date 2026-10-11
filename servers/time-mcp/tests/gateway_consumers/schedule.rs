@@ -275,7 +275,7 @@ async fn typed_schedule_task_through_public_gateway() -> Result<()> {
     let result = owner::run(async {
         let deadline = tokio::time::Instant::now() + input.mode.operation_budget();
         let cleanup_handles = handles.clone();
-        owner::register_cleanup(
+        let initial_cleanup = owner::register_cleanup(
             owner::CleanupKind::Remote,
             "Time schedule SDK handles",
             &uuid::Uuid::now_v7().to_string(),
@@ -303,10 +303,12 @@ async fn typed_schedule_task_through_public_gateway() -> Result<()> {
         };
         owned.caller = Some(caller);
         owned.caller_closed = false;
+        drop(owned);
         let exercise = tokio::time::timeout_at(
             deadline,
             exercise(
-                &mut owned,
+                &handles,
+                &initial_cleanup,
                 &input,
                 &target,
                 &mut journal,
@@ -448,13 +450,16 @@ async fn close_slot<H, F: std::future::Future<Output = Result<()>>>(
 }
 
 async fn exercise(
-    handles: &mut Handles,
+    handles_owner: &Arc<Mutex<Handles>>,
+    initial_cleanup: &owner::CleanupRegistration,
     input: &Input,
     target: &veoveo_deploy_contract::InstallationTarget,
     journal: &mut Journal<'_>,
     output: &mut fs::File,
     deadline: tokio::time::Instant,
 ) -> Result<()> {
+    let mut owned = handles_owner.lock().await;
+    let handles = &mut *owned;
     let caller = handles.caller.as_ref().expect("admitted Task caller");
     ensure!(
         caller
@@ -501,6 +506,9 @@ async fn exercise(
     .await;
     journal.trace.finish(&created);
     let created = created?;
+    // Generic Task reconciliation is now registered. Close local SDK/watch owners
+    // before that remote settlement can consume the shared cleanup grace.
+    register_acknowledged_cleanup(handles_owner, initial_cleanup)?;
     let id = CanonicalTaskId::parse(&created.task_id)?;
     handles.task_id = Some(id.clone());
     journal.task_id = Some(id.clone());
@@ -554,12 +562,12 @@ async fn exercise(
         journal
             .trace
             .begin(trace::Request::TaskDelivery(id.clone()));
-        tokio::time::timeout(
-            Duration::from_secs(60),
+        terminal_delivery(
+            input.mode,
+            deadline,
             delivered(subscription, &id, journal, output),
         )
         .await
-        .context("completed Task delivery deadline")?
     }
     .await;
     if let Err(error) = &observed {
@@ -626,6 +634,61 @@ async fn exercise(
             .retain(|gate| *gate != "guaranteed_working_to_completed_subscription_transition");
     }
     Ok(())
+}
+
+fn register_acknowledged_cleanup(
+    handles: &Arc<Mutex<Handles>>,
+    initial: &owner::CleanupRegistration,
+) -> Result<()> {
+    let handles = handles.clone();
+    let initial = initial.clone();
+    owner::register_cleanup(
+        owner::CleanupKind::Remote,
+        "Time schedule acknowledged SDK handles",
+        &uuid::Uuid::now_v7().to_string(),
+        move || async move {
+            close_handles(&mut *handles.lock().await).await?;
+            // Supersede the earlier registration only after actual closure.
+            initial.settled()
+        },
+    )?;
+    Ok(())
+}
+
+fn terminal_delivery_end(
+    mode: lifecycle::Mode,
+    original_end: tokio::time::Instant,
+    now: tokio::time::Instant,
+) -> tokio::time::Instant {
+    if mode == lifecycle::Mode::Recover {
+        // The previous worker's lease can outlive the ordinary completion wait.
+        original_end
+    } else {
+        original_end.min(now + Duration::from_secs(60))
+    }
+}
+
+async fn terminal_delivery<T>(
+    mode: lifecycle::Mode,
+    original_end: tokio::time::Instant,
+    delivery: impl std::future::Future<Output = Result<T>>,
+) -> Result<T> {
+    let end = terminal_delivery_end(mode, original_end, tokio::time::Instant::now());
+    ensure!(
+        tokio::time::Instant::now() < end,
+        "completed Task delivery deadline expired"
+    );
+    let result = tokio::time::timeout_at(end, delivery)
+        .await
+        .context("completed Task delivery deadline")?;
+    // A ready inner future can finish its poll after timeout_at's deadline.
+    if result.is_ok() {
+        ensure!(
+            tokio::time::Instant::now() < end,
+            "completed Task delivery deadline expired"
+        );
+    }
+    result
 }
 
 async fn delivered(
@@ -725,6 +788,157 @@ fn assert_agreement(
 mod tests {
     use super::*;
     use veoveo_time_mcp::{ScheduleOccurrence, TimeInstant, TimeWindow};
+
+    #[tokio::test]
+    async fn acknowledged_handle_cleanup_precedes_unresolved_task_reconciliation() -> Result<()> {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let initial_ran = Arc::new(AtomicBool::new(false));
+        let remote_ran = Arc::new(AtomicBool::new(false));
+        let handles = Arc::new(Mutex::new(Handles::new()));
+        // Exercise the actual close branch without requiring a network fixture.
+        handles.lock().await.caller_closed = false;
+        let result: Result<()> = owner::run(async {
+            let observed = initial_ran.clone();
+            let retained = handles.clone();
+            let initial = owner::register_cleanup(
+                owner::CleanupKind::Remote,
+                "initial handles regression",
+                "initial",
+                move || async move {
+                    let mut retained = retained.lock().await;
+                    ensure!(
+                        retained.caller_closed,
+                        "captured initial action ran before closure"
+                    );
+                    close_handles(&mut retained).await?;
+                    observed.store(true, Ordering::SeqCst);
+                    Ok(())
+                },
+            )?;
+            let observed = remote_ran.clone();
+            let retained = handles.clone();
+            let settled_initial = initial.clone();
+            owner::register_cleanup(
+                owner::CleanupKind::Remote,
+                "unresolved Task regression",
+                "task",
+                move || async move {
+                    ensure!(
+                        retained.lock().await.caller_closed,
+                        "remote reconciliation ran before actual handle close"
+                    );
+                    ensure!(
+                        settled_initial
+                            .observed_identity("must stay settled")
+                            .is_err_and(
+                                |error| error.to_string() == "cleanup identity is already settled"
+                            ),
+                        "actual closure did not settle initial ownership"
+                    );
+                    observed.store(true, Ordering::SeqCst);
+                    // Remote outcome stays unknown; closing local resources cannot settle it.
+                    anyhow::bail!("remote Task still unresolved")
+                },
+            )?;
+            register_acknowledged_cleanup(&handles, &initial)?;
+            anyhow::bail!("delivery failed")
+        })
+        .await;
+        ensure!(result.is_err() && remote_ran.load(Ordering::SeqCst));
+        ensure!(
+            initial_ran.load(Ordering::SeqCst),
+            "captured initial action must replay idempotently"
+        );
+        let handles = handles.lock().await;
+        ensure!(
+            handles.caller_closed
+                && handles.listener_closed
+                && handles.crash_watch.is_none()
+                && handles.replacement_listener.is_none()
+        );
+        drop(handles);
+
+        let mut failed_handles = Handles::new();
+        let mut slot = Some(());
+        ensure!(
+            failed_handles
+                .caller_close
+                .close(
+                    &mut slot,
+                    |_| async { anyhow::bail!("injected actual close failure") },
+                    std::time::Instant::now() + Duration::from_secs(1),
+                )
+                .await
+                .is_err()
+        );
+        failed_handles.caller_closed = false;
+        let failed_handles = Arc::new(Mutex::new(failed_handles));
+        let original_retried = Arc::new(AtomicBool::new(false));
+        let result: Result<()> = owner::run(async {
+            let retained = failed_handles.clone();
+            let observed = original_retried.clone();
+            let initial = owner::register_cleanup(
+                owner::CleanupKind::Remote,
+                "failed initial handles regression",
+                "failed-initial",
+                move || async move {
+                    observed.store(true, Ordering::SeqCst);
+                    close_handles(&mut *retained.lock().await).await
+                },
+            )?;
+            register_acknowledged_cleanup(&failed_handles, &initial)?;
+            anyhow::bail!("delivery failed")
+        })
+        .await;
+        ensure!(
+            result.is_err() && original_retried.load(Ordering::SeqCst),
+            "failed later close must not settle the original registration"
+        );
+        ensure!(!failed_handles.lock().await.caller_closed);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn recovery_delivery_uses_only_remaining_original_deadline() -> Result<()> {
+        let now = tokio::time::Instant::now();
+        let original = now + Duration::from_secs(180);
+        ensure!(terminal_delivery_end(lifecycle::Mode::Recover, original, now) == original);
+        for mode in [lifecycle::Mode::Complete, lifecycle::Mode::Cancel] {
+            ensure!(terminal_delivery_end(mode, original, now) == now + Duration::from_secs(60));
+            ensure!(
+                terminal_delivery_end(mode, now + Duration::from_secs(1), now)
+                    == now + Duration::from_secs(1)
+            );
+        }
+        let polled = std::sync::atomic::AtomicBool::new(false);
+        let expired = terminal_delivery(lifecycle::Mode::Recover, now, async {
+            polled.store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        })
+        .await;
+        ensure!(expired.is_err() && !polled.load(std::sync::atomic::Ordering::SeqCst));
+        let end = tokio::time::Instant::now() + Duration::from_millis(5);
+        ensure!(
+            terminal_delivery(
+                lifecycle::Mode::Recover,
+                end,
+                std::future::pending::<Result<()>>()
+            )
+            .await
+            .is_err()
+        );
+        let end = tokio::time::Instant::now() + Duration::from_millis(1);
+        ensure!(
+            terminal_delivery(lifecycle::Mode::Recover, end, async {
+                std::thread::sleep(Duration::from_millis(3));
+                Ok(())
+            })
+            .await
+            .is_err(),
+            "single-poll late delivery must not qualify"
+        );
+        Ok(())
+    }
 
     pub(super) fn fixture() -> Result<Input> {
         let base = super::super::fixture_value();

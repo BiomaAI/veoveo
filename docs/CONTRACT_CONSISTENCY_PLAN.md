@@ -49,12 +49,13 @@ The Knowledge and Time repair at `6653288ba` is published and deployed. Both Pod
 pass probes and thirty seconds of stability without a restart. Normal OAuth reads
 and Knowledge search reach the updated Time documents. Time completion and
 cancellation pass through normal Gateway OAuth. Unfinished process recovery
-remains unqualified. The selected container restarts and reaches Ready, but its Task
-completed before the signal. The next check must read current Task state immediately
-before a prompt, fenced signal; a retained Working snapshot cannot authorize it.
-The Time fixture now supports an explicitly admitted, once-only ancestor-runtime
-signal after that fresh read. Three native controls and independent review pass;
-the new signal path still requires installed qualification.
+remains unqualified. The fixture's once-only ancestor-runtime signal follows a fresh
+authenticated Working read. The selected container restarts and reaches Ready;
+the same original Task is still Working and a replacement listener acknowledges it.
+The attempt then hits a 60-second fixture wait before the 120-second recovery lease
+expires. The fixture repair uses the remaining original 300-second deadline and
+closes local SDK/watch handles before remote Task reconciliation. Strict lint,
+six focused native controls and source review pass; the installed rerun remains open.
 Datasheet's SDK replacement and the complete focused normal-OAuth Artifact consumer
 scenario pass. One fenced service replacement preserves an acknowledged Open upload
 and its accepted part. Resumption, immutable-part retry/refusal, completion replay
@@ -234,18 +235,18 @@ now passes completion and cancellation on the repaired Time image. Completion
 agrees with all eight independently expected occurrences and delivered and current
 Completed state. Cancellation observes Working before recording its intent,
 receives acknowledgement and reaches current Cancelled state. Both cases close
-their caller and listener. The initial recovery attempt fails before dispatch
-because a second installation validation rejects the fixture's own journal.
-The repair at `e07467759` retains the initially admitted typed installation and
-passes strict compiler and focused native checks. A subsequent attempt reaches
-delivered and current Working state and records its crash intent. Its signal
-command returns zero, but the selected container never terminates or restarts;
-the recovery observer fails and closes its owned transports. A subsequent normal
-OAuth read through the Gateway confirms Completed with all eight expected results.
-Runtime inspection identifies the unchanged container process as namespace PID one;
-Operations has verified an ancestor-namespace containerd signal path for a future
-attempt.
-This run qualifies neither process recovery nor a product recovery failure.
+their caller and listener. The recovery fixture now owns its explicitly selected
+ancestor-containerd signal after a fresh same-Task Working read and independent
+process fences. One actual replacement preserves the original Task in Working
+state and acknowledges a replacement listener. Its completion wait ends after
+60 seconds, before the prior worker's 120-second lease expires. The attempt's
+cleanup also exhausts its grace reconciling the remote Task before closing local
+SDK handles. The owning fixture repair preserves the original operation deadline
+and orders local closure first without changing shared Task settlement or cleanup
+budgets. Strict lint and six focused native controls pass, including original-deadline,
+late-success, truthful idempotent cleanup replay and failed-close counterexamples.
+Installed delivery qualification remains open; the failed attempt does not
+establish a product recovery failure.
 Together with the three administrative API controls, the
 earlier native batch has nineteen passing controls. Time recover mode selects one
 300-second operation deadline; its other modes keep 120 seconds.
