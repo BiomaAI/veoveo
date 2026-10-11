@@ -816,6 +816,72 @@ mod tests {
     }
 
     #[test]
+    fn rendered_reference_catalog_matches_the_typed_contract() {
+        use std::process::Command;
+
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        // Admit both branches so an optional recording sink cannot hide stale keys.
+        for recording_output in [false, true] {
+            let output = Command::new("timeout")
+                .current_dir(&repository)
+                .args([
+                    "25s",
+                    "helm",
+                    "template",
+                    "veoveo",
+                    "deploy/helm/veoveo",
+                    "--namespace",
+                    "veoveo",
+                    "--show-only",
+                    "templates/stream.yaml",
+                ])
+                .args(["-f", "examples/bioma/values.yaml"])
+                .args(["-f", "examples/bioma/k3d-values.yaml"])
+                .args(["-f", "examples/bioma/images/veoveo.lock.yaml"])
+                .args(["-f", "examples/bioma/images/uav-sim.lock.yaml"])
+                .args(["-f", "examples/bioma/modules-values.yaml"])
+                .args(["--set", "computers.host.issuerEgress[0]=198.51.100.10/32"])
+                .args([
+                    "--set",
+                    &format!("stream.recordingOutput.enabled={recording_output}"),
+                ])
+                .output()
+                .expect("Stream catalog qualification requires Helm and GNU timeout");
+            assert!(
+                output.status.success(),
+                "Stream chart render failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let objects: Vec<serde_json::Value> =
+                serde_yaml_ng::Deserializer::from_slice(&output.stdout)
+                    .map(|document| serde_json::Value::deserialize(document).unwrap())
+                    .collect();
+            let config_maps: Vec<_> = objects
+                .iter()
+                .filter(|object| {
+                    object["kind"] == "ConfigMap" && object["metadata"]["name"] == "stream-runtime"
+                })
+                .collect();
+            assert_eq!(config_maps.len(), 1);
+            let catalog_json = config_maps[0]["data"]["catalog.json"].as_str().unwrap();
+            let document: CatalogDocument = serde_json::from_str(catalog_json).unwrap();
+            let catalog = PipelineCatalog::new(document.models, document.pipelines).unwrap();
+            assert_eq!(catalog.pipeline_ids().len(), 1);
+            assert_eq!(catalog.model_ids().len(), 1);
+            let pipeline = catalog
+                .pipeline(&"traffic-object-detection".parse().unwrap())
+                .unwrap();
+            assert!(pipeline.recording_replay.is_some());
+            let live = pipeline.live.as_ref().unwrap();
+            assert_eq!(live.recording_output.is_some(), recording_output);
+            assert_eq!(
+                live.graph.encoded_output_element.as_deref(),
+                Some("encoded-output")
+            );
+        }
+    }
+
+    #[test]
     fn repository_catalog_example_matches_the_typed_contract() {
         let document: CatalogDocument = serde_json::from_slice(include_bytes!(
             "../../../configs/stream/catalog.example.json"
