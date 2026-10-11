@@ -60,11 +60,13 @@ browser cleanup failed during warmup without retaining its authorization
 identities; ownership remains unresolved. The repaired observer passes eighteen
 native controls and records received terminal outcomes under the original
 lifecycle deadline; member exit and grace limits stay unchanged. UAV's four
-non-admission controls, the App's twenty-two ownership controls, the browser's
+non-admission controls, the App's twenty-three behavioral controls, the browser's
 stage journal and Console's typed error delivery pass their focused checks and
 review. The current installed attempt stops before any restart when the App tries
 to remove Formation's view before it has mounted. Its public teardown and test-tab
-closure succeed. The consumer fix and repeated restart qualification are pending.
+closure succeed. The captured-view removal fix passes App tests, type checking,
+asset generation, the native server build and review. Its replacement image and
+repeated restart qualification are pending.
 Restart continuity is separate from the unchanged strict throughput limits. Paired shutdown,
 repeated GPU reset, induced RTSP stall recovery, capture-clock and full composed
 flight qualification remain open. F59/A11 stay open.
@@ -610,7 +612,7 @@ keeps ownership unresolved, and that stage's authorization identities were not
 retained. The source observer now journals received physical outcomes separately
 from qualified exits and passes 18 focused native controls without extending
 member exit or grace limits. UAV's generated non-admission contract passes its
-four native controls. The App's 22 behavioral controls, reviewed browser ownership
+four native controls. The App's 23 behavioral controls, reviewed browser ownership
 controls and Console error delivery controls pass. MCP `dd01f57f` and Console BFF
 `95af9c89` are development-staged at `d2b763a5` with registry readback and deployed
 through the selected-consumer procedure. Readiness, authenticated Console hosts
@@ -618,8 +620,9 @@ and a normal-OAuth typed UAV read pass. The two immutable values clones change o
 their selected digest; both chart references and release holds are preserved.
 All eleven PVC identities and unselected workloads are unchanged; twelve image
 references are pinned. The current installed attempt hits a not-yet-mounted view
-removal error before restart; public teardown and tab cleanup succeed. The App fix
-and repeated qualification are pending. Graceful
+removal error before restart; public teardown and tab cleanup succeed. The captured
+view removal fix passes its App checks, native server build and review; replacement
+publication and repeated qualification are pending. Graceful
 retirement and strict throughput stay unqualified. Keep selected and prior UAV
 images pinned for rollback.
 Node restart, forced image collection, longer render stalls, turning flight and

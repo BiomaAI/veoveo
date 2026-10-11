@@ -278,3 +278,62 @@ test("failed Renew close keeps recovery blocked and late successful renewal cann
   await other.close(value.stream.liveViewId);response.resolve(value);await pending;
   assert.equal(other.authorizations.size,0);assert.equal(other.canAcquire("follow"),true);await other.teardown();
 });
+
+test("actual strict DOM permits deselecting an unmounted camera while follow acquisition is pending",async()=>{
+  const listeners=new Map(),nodes=new Map(),messages=[],opens=[],closes=[];
+  let followRequest,closeRequest;
+  class Element {
+    constructor(tag){this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.textContent="";this.classList={toggle(){},add(){}};}
+    addEventListener(){}
+    append(...children){this.children.push(...children);for(const child of children)if(child.id)nodes.set(child.id,child);}
+    replaceChildren(...children){this.children=children;}
+    querySelector(selector){
+      if(selector===".placeholder")return null;
+      this.parts??=new Map();
+      if(!this.parts.has(selector))this.parts.set(selector,new Element(selector==="canvas"?"canvas":"div"));
+      return this.parts.get(selector);
+    }
+    getContext(){return {drawImage(){}};}
+    remove(){if(nodes.get(this.id)===this)nodes.delete(this.id);}
+  }
+  for(const [id,tag] of Object.entries({app:"div",decode:"span",status:"span",count:"span",choices:"section",commands:"form",agent:"select",command:"input","command-result":"output",grid:"main",error:"div",session:"span"})){
+    const node=new Element(tag);node.id=id;nodes.set(id,node);
+  }
+  const document={getElementById:id=>nodes.get(id)??null,createElement:tag=>new Element(tag),createTextNode:text=>({text}),documentElement:{dataset:{}}};
+  const cameras=["follow","formation"].map(cameraId=>({cameraId,widthPx:1280,heightPx:720,frameRateMillihertz:16000,streamPolicy:"continuous",rig:{kind:cameraId}}));
+  const respond=(request,result)=>listeners.get("message")({source:parent,data:{jsonrpc:"2.0",id:request.id,result}});
+  const parent={postMessage(message){messages.push(message);if(message.id===undefined||message.method===undefined)return;queueMicrotask(()=>{
+    if(message.method==="resources/read")return respond(message,[{sessionId:"session-owned"}]);
+    if(message.method==="tools/call"){
+      if(message.params.name==="list_live_cameras")return respond(message,cameras);
+      if(message.params.name==="open_live_view"){opens.push(message.params.arguments.cameraId);followRequest=message;return;}
+      if(message.params.name==="close_live_view"){closes.push(message.params.arguments.liveViewId);closeRequest=message;return;}
+      assert.fail("Unexpected tool "+message.params.name);
+    }
+    respond(message,{});
+  });}};
+  const main=(await readFile(new URL("./main.js",import.meta.url),"utf8")).replace(/^import .*;\n/gm,"");
+  const dom=(await readFile(new URL("./dom.js",import.meta.url),"utf8")).replace(/^export /gm,"");
+  runInNewContext("const $=(()=>{"+dom+";return element;})();\n"+main,{LiveViewOwnership,replyToTeardown,AppProtocolError,provesNonAdmission,parent,document,structuredClone,
+    resourceJson:value=>value,resourceValue:(_uri,value)=>value,structuredResult:value=>value,toolValue:(_name,value)=>value,
+    crypto:{randomUUID:()=>"viewer-owned"},addEventListener:(name,callback)=>listeners.set(name,callback),
+    ResizeObserver:class {observe(){}},requestAnimationFrame(){},setTimeout(){return 1;},clearTimeout(){},
+    H264DecoderAdmission:class {close(){}},WebSocket:class {close(){}},URL});
+  const settle=async()=>{for(let i=0;i<5;i++)await turn();};await settle();
+  assert.deepEqual(opens,["follow"]);assert.ok(nodes.has("view-follow"));assert.equal(nodes.has("view-formation"),false);
+  const formation=nodes.get("choices").children[1].children[0];formation.checked=false;formation.onchange();await settle();
+  assert.equal(nodes.get("error").textContent,"");
+  const stream={sessionId:"session-owned",cameraId:"follow",liveViewId:"follow-authority",streamProductId:"camera-atlas",widthPx:1280,heightPx:720,codedWidthPx:3840,codedHeightPx:1440,frameRateMillihertz:16000,sourceRegion:{xPx:0,yPx:0,widthPx:1280,heightPx:720},endpoint:{streamUrl:"wss://example.invalid/stream"},resourceUri:"uav-sim://session/session-owned/live-view/follow-authority"};
+  respond(followRequest,{stream,accessToken:"fixture-not-a-credential"});await settle();
+  assert.deepEqual(opens,["follow"]);assert.equal(nodes.get("error").textContent,"");
+  assert.equal(nodes.get("view-follow").dataset.liveViewId,"follow-authority");
+  listeners.get("message")({source:parent,data:{jsonrpc:"2.0",id:900,method:"ui/resource-teardown"}});await settle();
+  assert.deepEqual(closes,["follow-authority"]);
+  assert.equal(messages.some(message=>message.id===900&&message.result),false);
+  // An old close completing after a replacement mounts must remove only its captured section.
+  const replacement=new Element("section");replacement.id="view-follow";nodes.set(replacement.id,replacement);
+  respond(closeRequest,{closed:true,resourceUri:"uav-sim://session/session-owned/live-view/follow-authority"});await settle();
+  assert.equal(nodes.get("view-follow"),replacement);
+  assert.ok(messages.some(message=>message.id===900&&message.result));
+  assert.equal(nodes.get("error").textContent,"");
+});
