@@ -364,11 +364,26 @@ fn reference_staging_preserves_active_claims_and_omits_deferred_claims() -> Resu
         "reason-mcp",
         "recording",
         "rerun-bridge",
-        "speech-mcp",
         "stream-mcp",
         "view-mcp",
     ]);
     let deadlines = BTreeSet::from(["embedding", "knowledge-mcp"]);
+    for name in ["embedding", "knowledge-mcp", "speech-mcp"] {
+        ensure!(
+            find(&after, "Deployment", name)?["spec"]["replicas"] == 1,
+            "active Deployment {name} must retain one replica"
+        );
+    }
+    ensure!(
+        zero.len() == 8,
+        "staging must pause exactly eight Deployments"
+    );
+    for name in &zero {
+        ensure!(
+            find(&after, "Deployment", name)?["spec"]["replicas"] == 0,
+            "paused Deployment {name} must retain zero replicas"
+        );
+    }
     let before_claims = before
         .iter()
         .filter(|v| v["kind"] == "PersistentVolumeClaim")
