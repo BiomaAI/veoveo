@@ -279,8 +279,8 @@ test("failed Renew close keeps recovery blocked and late successful renewal cann
   assert.equal(other.authorizations.size,0);assert.equal(other.canAcquire("follow"),true);await other.teardown();
 });
 
-test("actual strict DOM permits deselecting an unmounted camera while follow acquisition is pending",async()=>{
-  const listeners=new Map(),nodes=new Map(),messages=[],opens=[],closes=[];
+async function mountedRecoveryApp(){
+  const listeners=new Map(),nodes=new Map(),messages=[],opens=[],closes=[],sockets=[],timers=new Map();let timerId=0;
   let followRequest,closeRequest;
   class Element {
     constructor(tag){this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.textContent="";this.classList={toggle(){},add(){}};}
@@ -308,6 +308,7 @@ test("actual strict DOM permits deselecting an unmounted camera while follow acq
       if(message.params.name==="list_live_cameras")return respond(message,cameras);
       if(message.params.name==="open_live_view"){opens.push(message.params.arguments.cameraId);followRequest=message;return;}
       if(message.params.name==="close_live_view"){closes.push(message.params.arguments.liveViewId);closeRequest=message;return;}
+      if(message.params.name==="renew_live_view")return;
       assert.fail("Unexpected tool "+message.params.name);
     }
     respond(message,{});
@@ -317,14 +318,26 @@ test("actual strict DOM permits deselecting an unmounted camera while follow acq
   runInNewContext("const $=(()=>{"+dom+";return element;})();\n"+main,{LiveViewOwnership,replyToTeardown,AppProtocolError,provesNonAdmission,parent,document,structuredClone,
     resourceJson:value=>value,resourceValue:(_uri,value)=>value,structuredResult:value=>value,toolValue:(_name,value)=>value,
     crypto:{randomUUID:()=>"viewer-owned"},addEventListener:(name,callback)=>listeners.set(name,callback),
-    ResizeObserver:class {observe(){}},requestAnimationFrame(){},setTimeout(){return 1;},clearTimeout(){},
-    H264DecoderAdmission:class {close(){}},WebSocket:class {close(){}},URL});
+    ResizeObserver:class {observe(){}},requestAnimationFrame(){},setTimeout(callback,delay){timers.set(++timerId,{callback,delay});return timerId;},clearTimeout(id){timers.delete(id);},
+    H264DecoderAdmission:class {close(){}},WebSocket:class {constructor(){sockets.push(this);}close(){}},URL});
   const settle=async()=>{for(let i=0;i<5;i++)await turn();};await settle();
+  return {Element,listeners,nodes,messages,opens,closes,sockets,timers,respond,parent,settle,
+    followRequest:()=>followRequest,closeRequest:()=>closeRequest,
+    refuse:request=>listeners.get("message")({source:parent,data:{jsonrpc:"2.0",id:request.id,error:{code:-32603,message:"fixture transport unavailable"}}}),
+    update:()=>listeners.get("message")({source:parent,data:{jsonrpc:"2.0",method:"ui/notifications/resource-updated",params:{uri:"uav-sim://session/session-owned/live-cameras"}}}),
+    select:(cameraId,checked)=>{const input=nodes.get("choices").children[cameraId==="follow"?0:1].children[0];input.checked=checked;input.onchange();},
+    fire:()=>{const [id,timer]=[...timers][0]??[];assert.ok(timer,"expected an owned timer");timers.delete(id);timer.callback();},
+    teardown:id=>listeners.get("message")({source:parent,data:{jsonrpc:"2.0",id,method:"ui/resource-teardown"}})};
+}
+
+test("actual strict DOM permits deselecting an unmounted camera while follow acquisition is pending",async()=>{
+  const app=await mountedRecoveryApp();
+  const {Element,listeners,nodes,messages,opens,closes,respond,parent,settle}=app;
   assert.deepEqual(opens,["follow"]);assert.ok(nodes.has("view-follow"));assert.equal(nodes.has("view-formation"),false);
   const formation=nodes.get("choices").children[1].children[0];formation.checked=false;formation.onchange();await settle();
   assert.equal(nodes.get("error").textContent,"");
   const stream={sessionId:"session-owned",cameraId:"follow",liveViewId:"follow-authority",streamProductId:"camera-atlas",widthPx:1280,heightPx:720,codedWidthPx:3840,codedHeightPx:1440,frameRateMillihertz:16000,sourceRegion:{xPx:0,yPx:0,widthPx:1280,heightPx:720},endpoint:{streamUrl:"wss://example.invalid/stream"},resourceUri:"uav-sim://session/session-owned/live-view/follow-authority"};
-  respond(followRequest,{stream,accessToken:"fixture-not-a-credential"});await settle();
+  respond(app.followRequest(),{stream,accessToken:"fixture-not-a-credential"});await settle();
   assert.deepEqual(opens,["follow"]);assert.equal(nodes.get("error").textContent,"");
   assert.equal(nodes.get("view-follow").dataset.liveViewId,"follow-authority");
   listeners.get("message")({source:parent,data:{jsonrpc:"2.0",id:900,method:"ui/resource-teardown"}});await settle();
@@ -332,8 +345,95 @@ test("actual strict DOM permits deselecting an unmounted camera while follow acq
   assert.equal(messages.some(message=>message.id===900&&message.result),false);
   // An old close completing after a replacement mounts must remove only its captured section.
   const replacement=new Element("section");replacement.id="view-follow";nodes.set(replacement.id,replacement);
-  respond(closeRequest,{closed:true,resourceUri:"uav-sim://session/session-owned/live-view/follow-authority"});await settle();
+  respond(app.closeRequest(),{closed:true,resourceUri:"uav-sim://session/session-owned/live-view/follow-authority"});await settle();
   assert.equal(nodes.get("view-follow"),replacement);
   assert.ok(messages.some(message=>message.id===900&&message.result));
   assert.equal(nodes.get("error").textContent,"");
+});
+
+function followConnection(id){return {stream:{sessionId:"session-owned",cameraId:"follow",liveViewId:id,streamProductId:"camera-atlas",widthPx:1280,heightPx:720,codedWidthPx:3840,codedHeightPx:1440,frameRateMillihertz:16000,sourceRegion:{xPx:0,yPx:0,widthPx:1280,heightPx:720},endpoint:{streamUrl:"wss://example.invalid/stream"},resourceUri:`uav-sim://session/session-owned/live-view/${id}`,expiresAt:new Date(Date.now()+60000).toISOString()},accessToken:"fixture-not-a-credential"};}
+async function admittedRecoveryApp(){const app=await mountedRecoveryApp();app.select("formation",false);await app.settle();app.respond(app.followRequest(),followConnection("original-authority"));await app.settle();return app;}
+function acknowledgeClose(app){const request=app.closeRequest();app.respond(request,{closed:true,resourceUri:`uav-sim://session/session-owned/live-view/${request.params.arguments.liveViewId}`});}
+
+test("actual App coalesces failed known close and only reopens after exact ACK, including unknown renewal",async()=>{
+  for(const trigger of ["socket","renew"]){
+    const app=await admittedRecoveryApp();
+    if(trigger==="renew"){
+      app.fire();await app.settle();
+      const renewal=app.messages.findLast(message=>message.params?.name==="renew_live_view");assert.ok(renewal);app.refuse(renewal);
+    }else{app.sockets[0].onclose();app.sockets[0].onclose();}
+    await app.settle();assert.deepEqual(app.closes,["original-authority"]);
+    const first=app.closeRequest();app.update();app.update();await app.settle();assert.equal(app.closes.length,1);
+    app.refuse(first);await app.settle();assert.equal(app.opens.length,1);
+    app.fire();await app.settle();assert.deepEqual(app.closes,["original-authority","original-authority"]);
+    assert.deepEqual(app.closeRequest().params.arguments,first.params.arguments);
+    app.update();app.update();await app.settle();assert.equal(app.closes.length,2);assert.equal(app.opens.length,1);
+    acknowledgeClose(app);await app.settle();app.fire();await app.settle();assert.equal(app.opens.length,2);
+    app.respond(app.followRequest(),followConnection("replacement-authority"));await app.settle();
+    assert.equal(app.nodes.get("view-follow").dataset.liveViewId,"replacement-authority");
+    app.teardown(901);await app.settle();acknowledgeClose(app);await app.settle();
+    assert.deepEqual(app.closes,["original-authority","original-authority","replacement-authority"]);
+    assert.ok(app.messages.some(message=>message.id===901&&message.result));assert.equal(app.timers.size,0);
+  }
+});
+
+test("actual App deselect and teardown cancel reopening while retained close can still settle",async()=>{
+  for(const action of ["deselect","teardown"]){
+    const app=await admittedRecoveryApp();app.sockets[0].onclose();await app.settle();app.refuse(app.closeRequest());await app.settle();
+    if(action==="deselect")app.select("follow",false);else app.teardown(902);
+    await app.settle();assert.equal(app.opens.length,1);assert.equal(app.closes.length,2);
+    acknowledgeClose(app);await app.settle();
+    if(action==="deselect"){app.update();await app.settle();}else assert.ok(app.messages.some(message=>message.id===902&&message.result));
+    assert.equal(app.opens.length,1);assert.equal(app.timers.size,0);
+  }
+});
+
+test("actual App unknown replacement Open stays blocked after known retirement settled",async()=>{
+  const app=await admittedRecoveryApp();app.sockets[0].onclose();await app.settle();acknowledgeClose(app);await app.settle();app.fire();await app.settle();
+  assert.equal(app.opens.length,2);app.refuse(app.followRequest());await app.settle();
+  app.update();await app.settle();app.select("follow",false);await app.settle();app.select("follow",true);await app.settle();
+  assert.equal(app.opens.length,2);assert.equal(app.timers.size,0);
+  app.teardown(903);await app.settle();assert.ok(app.messages.some(message=>message.id===903&&message.error));
+});
+
+test("actual App retains a failed redundant atlas authorization before any replacement Open",async()=>{
+  const app=await mountedRecoveryApp();
+  app.respond(app.followRequest(),followConnection("follow-owned"));await app.settle();
+  assert.deepEqual(app.opens,["follow","formation"]);
+  const formation=followConnection("formation-redundant");formation.stream.cameraId="formation";
+  app.respond(app.followRequest(),formation);await app.settle();
+  assert.deepEqual(app.closes,["formation-redundant"]);
+  const failed=app.closeRequest();app.refuse(failed);await app.settle();
+  assert.equal(app.opens.length,2);
+  app.fire();await app.settle();assert.deepEqual(app.closes,["formation-redundant","formation-redundant"]);
+  assert.deepEqual(app.closeRequest().params.arguments,failed.params.arguments);
+  app.update();app.update();await app.settle();assert.equal(app.closes.length,2);assert.equal(app.opens.length,2);
+  acknowledgeClose(app);await app.settle();
+  // Coherent product retirement also fences its original shared authority.
+  assert.deepEqual(app.closes,["formation-redundant","formation-redundant","follow-owned"]);
+  assert.equal(app.opens.length,2);
+  acknowledgeClose(app);await app.settle();
+  app.fire();await app.settle();app.fire();await app.settle();
+  assert.deepEqual(app.opens,["follow","formation","follow","formation"]);
+});
+
+test("actual App resumes a newly selected camera after final retirement without another health update",async()=>{
+  const app=await admittedRecoveryApp();app.sockets[0].onclose();await app.settle();
+  app.select("follow",false);app.select("formation",true);await app.settle();
+  assert.deepEqual(app.opens,["follow"]);assert.deepEqual(app.closes,["original-authority"]);
+  acknowledgeClose(app);await app.settle();app.fire();await app.settle();
+  assert.deepEqual(app.opens,["follow","formation"]);
+  assert.equal(app.timers.size,0);
+});
+
+test("actual App retirement also owns redundant closes already pending when the socket fails",async()=>{
+  const app=await mountedRecoveryApp();app.respond(app.followRequest(),followConnection("follow-owned"));await app.settle();
+  const formation=followConnection("pending-redundant");formation.stream.cameraId="formation";
+  app.respond(app.followRequest(),formation);await app.settle();const redundant=app.closeRequest();
+  app.sockets[0].onclose();await app.settle();assert.deepEqual(app.closes,["pending-redundant","follow-owned"]);
+  acknowledgeClose(app);await app.settle();assert.equal(app.opens.length,2);
+  app.refuse(redundant);await app.settle();assert.equal(app.opens.length,2);
+  app.fire();await app.settle();assert.deepEqual(app.closes,["pending-redundant","follow-owned","pending-redundant"]);
+  acknowledgeClose(app);await app.settle();app.fire();await app.settle();app.fire();await app.settle();
+  assert.deepEqual(app.opens,["follow","formation","follow","formation"]);
 });
