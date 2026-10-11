@@ -43,11 +43,11 @@ and Knowledge search reach the updated Time documents. Time completion and
 cancellation pass through normal Gateway OAuth. Unfinished process recovery
 remains unqualified because the attempted crash did not replace its container.
 Datasheet's SDK replacement and the complete focused normal-OAuth Artifact consumer
-scenario pass. Retained capability redemption and idempotent replay also pass
-across one fenced Artifact service replacement. The unfinished public-upload
-fixture at `90b743d3c` passes compiler checks, strict lint, four native controls and
-independent review. Its installed recovery case and final-image qualification
-remain open.
+scenario pass. One fenced service replacement preserves an acknowledged Open upload
+and its accepted part. Resumption, immutable-part retry/refusal, completion replay
+and independent bytes/metadata/catalog checks pass on the deployed `e26082a1` image.
+Retained capability redemption and replay pass across the same replacement, and
+owned cleanup succeeds. Final-image qualification remains open.
 Time12 passes completed-state cross-replica acceptance on the selected deployed
 Time image. The same historical Task's eight independently expected occurrences,
 result and authority agree through B-only routing after original A exits zero.
@@ -183,7 +183,7 @@ Earlier installed checkpoints keep their recorded scope below.
 | Owner | Prepared installed checks | Remaining qualification |
 |---|---|---|
 | Time | Read consumers and explicit complete/cancel/recover schedule fixtures; completion and cancellation pass; Time12 completed-state cross-replica Task/result/authority delivery and native restoration pass on the selected deployed image | Unfinished process recovery, authority activation and final images |
-| Artifact | Focused normal-OAuth uploads, independent bytes/digest and SDK consumers; retained capability redemption passes across one service replacement. The same replacement now spans an acknowledged Open public upload and accepted part; compiler, strict lint, four native controls and review pass at `90b743d3c` | Installed unfinished public-upload recovery and final images; interruption during capability redemption is not claimed |
+| Artifact | Focused normal-OAuth uploads, independent bytes/digest and SDK consumers pass. One service replacement preserves an acknowledged Open public upload and accepted part; resumption, completion replay, retained capability redemption/replay and cleanup pass on deployed `e26082a1` | Final images; interruption during capability redemption and executed-Task recovery are not claimed |
 | Timeseries | Four-row forecast, RRD Artifact and usage; typed cancellation, connection replacement and process-crash fixtures with original Task/result agreement | Installed unfinished process recovery, selected cross-replica routing and final images |
 | Speech | Raw exact-ID Task completion and unfinished cancellation with independent transcript, source and provenance checks; completion also listens to the typed transcript resource's initial current snapshot; explicit unfinished process-recovery fixture passes native controls | Installed delivery/cancellation, unfinished process recovery and final CUDA image acceptance |
 | Stream | Existing GPU replay with a normal-OAuth Gateway caller, delivered completion and current resource snapshot; an opt-in unfinished recovery fixture selects a retained Recording, fences the replaced process and checks the same Task's creation identity, current Working state and recovered products. Compiler, strict lint, native controls and review pass | Installed public delivery, post-mutation updates, unfinished recovery and final images |
@@ -195,26 +195,17 @@ The complete focused Artifact scenario passes public OAuth upload admission,
 immutable-part retry/refusal, completion replay, cross-context denial and Datasheet
 CSV/Parquet consumption. Delegated SDK checks pass metadata/URI/byte agreement,
 limit-one catalog traversal, foreign-tenant isolation, byte limits and temporary-file
-cleanup. Its journal records three retained publications and `consumersPassed`.
-Datasheet runs the qualified C5 image with both required SDK modules verified in
-the installed Pod; its replacement passes readiness, direct liveness and thirty
-seconds of stability without a restart. The separately selected Artifact service
-replacement now passes: the old container exits successfully, its replacement
-becomes Ready, and the retained capability redeems and replays as one occurrence.
-The repeated focused scenario traverses eighteen SDK pages and passes all three
-consumer groups. Four occurrences are retained; the fixture's typed Task reference
-does not establish an executed Task. Core services stay Ready. Interrupted-write
-and unfinished-Task recovery remain unqualified. The
-[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#artifact-service-replacement-and-retained-capability--october-10-2026)
-binds the report, restart and retained effects.
-
-The extended service-recovery fixture journals an Open public upload and accepted
-immutable part before the same replacement. It resumes that original session,
-checks immutable-part retry/refusal, completes and replays the same occurrence,
-then independently verifies public bytes, metadata and catalog membership. Four
-native controls cover ordering, identity refusal and interrupted cleanup. This
-qualifies the harness at `90b743d3c`; its installed execution remains open. The
-retained capability check continues to make its separate, narrower claim.
+cleanup. One fenced Artifact service replacement preserves the original Open
+public upload, expiry and accepted immutable part. The same session resumes,
+completes and replays as one occurrence; public bytes, digest, metadata and catalog
+agree. Retained unredeemed capability redemption and replay pass across that same
+replacement as a separate occurrence. The fixture's typed Task reference does not
+establish an executed Task or interruption during capability redemption.
+The deployed `e26082a1` service becomes Ready with its image, Deployment identity
+and storage unchanged. Owned cleanup succeeds, and core services stay Ready.
+Final-image qualification remains open. The
+[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md#artifact-unfinished-public-upload-recovery--october-11-2026)
+binds the installed result and retained effects.
 
 The Time and Timeseries lifecycle fixtures pass sixteen focused native controls,
 including shared crash-receipt decoding and cleanup after failed journal writes.

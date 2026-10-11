@@ -6,6 +6,28 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Artifact Unfinished Public Upload Recovery — October 11, 2026
+
+The existing focused normal-OAuth scenario passes on deployed Artifact service
+image `e26082a1`. It retains an acknowledged Open upload and accepted immutable part
+before one fenced service replacement, then resumes the same identity and expiry.
+Immutable-part retry/refusal, completion replay and independent public bytes,
+digest, metadata and catalog checks pass. Retained unredeemed capability redemption
+and replay also pass across that replacement, producing a separate occurrence.
+The fixture's Task reference does not establish an executed Task or interruption
+during capability redemption. The baseline CSV, Parquet and Python SDK consumers
+pass, and owned cleanup completes successfully.
+
+The Artifact Deployment keeps its UID and image, advances from generation seven
+to eight and ends 1/1 Ready. Knowledge, Embedding, Speech and Gateway stay Ready;
+RustFS and Surreal PVC identities stay unchanged and Bound. Reconciliation holds
+stay suspended. No harness or Cargo process remains. Final-source image acceptance
+still requires its separately qualified rollout. The private installed result is
+`/tmp/veoveo-artifact-live-run-20261011-01/attempt-02/focused.json`, SHA-256
+`ad4a9417e53860e0c53606466a9d1ae1ea20ba7db193ebe6312fa275b06350f1`.
+The operations receipt in the same directory has SHA-256
+`c30d6e1a21f86a067fc55c4d8e1b869b4161ae758b300c4990c8f90f0c6ee707`.
+
 ## Fresh UAV Flight And Runtime Output Repair — October 10, 2026
 
 The paired rollout subsequently reaches Ready on the published runtime and MCP
