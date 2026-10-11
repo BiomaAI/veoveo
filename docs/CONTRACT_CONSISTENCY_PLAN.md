@@ -66,8 +66,9 @@ four domain-native controls also pass. The App's 22 behavioral controls and revi
 cover authorization retention, retry suppression and correlated teardown. The
 browser's stage journal and cleanup controls pass with its refreshed verifier.
 Console's typed error forwarding and opaque-error log controls also pass compiler,
-focused native and browser checks and review. Staging the two affected images and
-a new installed attempt remain ahead. Paired shutdown,
+focused native and browser checks and review. MCP `dd01f57f` and Console BFF
+`95af9c89` have non-release development stages and registry readback at `d2b763a5`;
+rollout and a new installed attempt remain ahead. Paired shutdown,
 repeated GPU reset, induced RTSP stall recovery, capture-clock and full composed
 flight qualification remain open. F59/A11 stay open.
 
@@ -613,8 +614,9 @@ retained. The source observer now journals received physical outcomes separately
 from qualified exits and passes 18 focused native controls without extending
 member exit or grace limits. UAV's generated non-admission contract passes its
 four native controls. The App's 22 behavioral controls, reviewed browser ownership
-controls and Console error delivery controls pass. The affected MCP and Console BFF
-images need staging and installed qualification. Graceful
+controls and Console error delivery controls pass. MCP `dd01f57f` and Console BFF
+`95af9c89` are development-staged at `d2b763a5` with registry readback; rollout and
+installed qualification remain open. Graceful
 retirement and strict throughput stay unqualified. Keep selected and prior UAV
 images pinned for rollback.
 Node restart, forced image collection, longer render stalls, turning flight and
