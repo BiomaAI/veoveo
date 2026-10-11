@@ -47,7 +47,7 @@
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v2` JSON receipt with the output file SHA-256 |
 | Evidence | `veoveo.ai/uav-showcase-acceptance-evidence/v6` JSON and revision-qualified captures; `veoveo.ai/uav-showcase-phase-outcomes/v3` records domain and visual outcomes and preserves successful visual measurements even when the domain phase fails; both mark Reason `not_run` because its acceptance runs separately |
 | UAV camera capacity | Private `veoveo.ai/uav-camera-capacity/v1` measurement and `veoveo.ai/uav-camera-capacity-diagnostic/v1` attempt JSON; owner-typed counters, browser video counters paired with `performance.now()`, Kit CPU timing and redacted failures |
-| Focused restart stages | `veoveo.ai/uav-live-view-restart-stage/v1` records each accepted container restart and its headed hardware browser observations before the next restart begins |
+| Focused restart stages | `veoveo.ai/uav-live-view-restart-stage/v2`, `veoveo.ai/uav-live-view-restart-evidence/v2` and `veoveo.ai/uav-live-view-restart-progress/v2` private camelCase reports; matched graceful runtime/forwarder exits and headed hardware browser observations |
 
 Browser upload, UX and resume reports use their current `/v2` tags and share one
 closed report declaration in `src/reports/artifact_upload.rs`. It embeds the full
@@ -63,6 +63,33 @@ installed SDK transfer measurements require their actual declared environments.
 The recording-analysis operator report emits camelCase fields under its v2 schema. It is
 a one-way JSON output; this repository has no report decoder. Operators must replace
 stored v1 reports and update external readers when coordinating the writer cut.
+
+The focused UAV restart command first verifies MCP-only interruption and runtime
+isolation. Its runtime phase selects the current Pod's `isaac-sim` and
+`recording-forwarder` containers together. Both must exit successfully within
+120 seconds and the selected Pod grace, before Ready replacements with the same
+images can qualify. The immutable replacement window is the admitted CLI restart
+timeout (1–1800 seconds); the selected lifecycle adds the 120-second drain and
+20-second command margin without renewing its deadline. A healthy replacement
+alone cannot establish graceful shutdown.
+
+Selection and dispatch intent are synced before the coordinated restart. Each
+accepted stage is written before the next stage begins. Failure preserves the
+selected group's observed exits and watch state alongside the accepted MCP stage.
+Explicit uncached normal OAuth SDK reads bind every body to the selected session
+and verify its immutable world, fleet and camera configuration after replacement.
+The cleanup owner registers an inert acquisition before discovery. Cancellation
+retains that discovery future; acknowledged clients transfer synchronously into
+owned shutdown before another await. Discovery and shutdown share the original
+cleanup cap, and a failed or expired close cannot settle ownership.
+The headed App must retain its document/viewer isolation and advance fresh video.
+Hardware graphics remain required; supported, smooth software H.264 decode is
+permitted with the existing explicit label.
+
+These v2 restart reports are one-way private outputs. External report readers must
+coordinate the writer cut; v1 container-restart reports do not establish paired
+graceful shutdown. Runtime and forwarder images and the Pod termination grace must
+be qualified before an installed execution.
 
 ## Ownership
 

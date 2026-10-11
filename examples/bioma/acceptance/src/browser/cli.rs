@@ -157,7 +157,7 @@ pub enum SmokeCommand {
         )]
         evidence_root: PathBuf,
     },
-    /// Keep a headed live view mounted while restarting the MCP and simulator containers.
+    /// Keep a headed live view through MCP restart and coordinated runtime/forwarder graceful drain.
     UavShowcaseLiveRestartVerify {
         #[arg(long)]
         conformance_bin: Option<PathBuf>,

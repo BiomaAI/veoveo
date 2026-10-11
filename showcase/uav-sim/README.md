@@ -462,9 +462,15 @@ SHA-256 evidence digests.
 
 Restart evidence is written beneath
 `output/acceptance/uav-live-restart/{source-revision}/{run-id}/`. It records the
-pod, immutable image, before-and-after container IDs and restart counts, the unchanged
-headed App document and viewer identity, fresh authorization IDs, advancing video, hardware
-graphics proof, screenshots, and digests.
+MCP-only restart first, then one coordinated runtime Pod restart. The second phase
+requires matched successful exits from both `isaac-sim` and `recording-forwarder`
+within 120 seconds and the Pod's admitted termination grace. Ready replacements
+must retain the selected images, world, fleet and camera configuration. The headed
+App must preserve its document and viewer identity and show advancing video.
+Private v2 reports include selection and dispatch intent, partial drain progress,
+hardware graphics proof, screenshots and digests. The runtime/forwarder images and
+Pod grace must be qualified before running this command; replacement readiness
+alone does not prove graceful shutdown.
 
 The Helm value `world.bootstrap.existingConfigMap` names a world JSON file that the
 installation provides. Set `world.bootstrap.contentSha256` to the SHA-256 of that file
