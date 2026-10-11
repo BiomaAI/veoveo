@@ -1,3 +1,7 @@
+moduleInstallation:
+  # Exact same gateway-generated plan supplied to the platform chart.
+  planJson: ""
+
 global:
   production: false
   veoveoRegistry: ""

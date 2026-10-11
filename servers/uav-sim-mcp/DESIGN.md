@@ -21,6 +21,7 @@ Current, retired and mixed field controls share the durable-result consumer test
 |---|---|
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
 | SurrealDB / SurrealQL `3.3.0` | Tenant and Work Context grant/plan queries, transactional command-lease, plan and Task-link transitions, caller-owned Task pages, SQL completion, persisted viewer grants and close receipts, and shared LIVE/changefeed invalidation. |
+| `veoveo.ai/module-plan/v1` | Installation composition, generation, credential revision and compiled lane history; authenticated read-only startup admission before recovery and domain effects. |
 | UAV mission admission | UAV-owned persisted relationship linking each admitted plan to one native Task and its vehicle command lease. Public plan JSON exposes domain state. |
 | RFC 6570 URI Templates | iri-string `0.7.14` through foundational template admission and scalar expansion; every advertised UAV template is checked against the owning address builder. |
 | Concrete resource URIs | URL `2.5.8` and percent-encoding `2.3.2` through foundational components; typed UAV routes and collection-bound hexadecimal JSON cursors: identity positions use version 1; usage uses version 2. |
@@ -1170,8 +1171,7 @@ UAV cursors retain hexadecimal JSON envelopes and their existing constructor/par
 The independent `schema` feature exports `schema::module_setup(execution)` for the
 `uav` optional module. It activates `veoveo-modules` with default features disabled and the foundational
 vocabulary, Serde and schema dependencies used by owner table declarations. MCP,
-Store and asynchronous runtime dependencies require their own features. Default
-runtime behavior is unchanged. The declaration claims `uav_*`.
+Store and asynchronous runtime dependencies require their own features. The declaration claims `uav_*`.
 It requires Agents, Audit and the Tasks version-zero lane.
 
 The version-zero lane installs the UAV schema from
@@ -1180,6 +1180,18 @@ its checked execution image and command. Gateway composition prepares runtime
 credentials and executes selected owner lanes through `module-migrate`. The
 runtime opens the shared authenticated Store connection without applying schema.
 Installed image and Job qualification is tracked separately in the active contract plan.
+
+`server/startup.rs` admits the module plan, composition, installation generation,
+credential revision and database runtime account. `RuntimePrerequisites` verifies
+completed preparation and the compiled UAV dependency histories before Task
+recovery, world admission, viewer observation or cleanup. Missing or mismatched
+inputs stop startup. The module runner belongs to the `mcp` feature; the independent
+`contract` and `schema` features exclude it.
+
+The UAV chart mounts its own immutable copy of the same Gateway-generated plan
+supplied to the platform chart. Plan identity, runtime-account environment and
+the content checksum belong to the MCP Pod. Changing them leaves the simulator
+and recording-forwarder Pod template unchanged.
 
 Version one appends `0001_live_views.surql` and requires the Audit version-zero
 lane. Its SCHEMAFULL fields describe the redacted viewer model and private

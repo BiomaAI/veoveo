@@ -22,6 +22,9 @@ spec:
     - kind: ConfigMap
       name: bioma-uav-sim-values
       valuesKey: images.lock.yaml
+    - kind: ConfigMap
+      name: bioma-uav-sim-values
+      valuesKey: modules-values.yaml
   install:
     createNamespace: false
     serverSideApply: true

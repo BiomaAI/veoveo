@@ -23,9 +23,7 @@ use veoveo_mcp_contract::{
     hosting::{Hosted, HostedServer},
     init_server_telemetry,
 };
-use veoveo_task_runtime::{
-    DurableTasks, TaskRecoveryObserver, TaskRuntime, TaskRuntimeConfig, WithResources,
-};
+use veoveo_task_runtime::{DurableTasks, TaskRecoveryObserver, TaskRuntime, WithResources};
 
 pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
@@ -34,19 +32,25 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     std::sync::LazyLock::force(&super::super::setup::SERVER_SETUP);
     let args = Args::parse();
     let public_deployment = args.public_deployment()?;
-    let tasks = TaskRuntime::connect(
-        TaskRuntimeConfig::new(
-            args.surreal_endpoint.clone(),
-            args.surreal_namespace.clone(),
-            args.surreal_database.clone(),
+    let store_config = veoveo_platform_store::StoreConfig::builder(
+        args.surreal_endpoint.clone(),
+        args.surreal_namespace.clone(),
+        args.surreal_database.clone(),
+        veoveo_platform_store::StoreCredentials::new(
             args.surreal_auth_level,
             args.surreal_username.clone(),
             args.surreal_password.clone(),
         ),
+    )
+    .build()?;
+    let startup = crate::server::startup::UavStartup::from_env(&store_config)?;
+    let store = veoveo_platform_store::PlatformStore::connect(store_config).await?;
+    startup.require(&store).await?;
+    let tasks = TaskRuntime::new(
+        store,
         SERVER_SLUG,
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
-    )
-    .await?;
+    );
     let tasks = crate::server::task_catalog::UavTaskContributions::bind(tasks)?;
     let recovery = tasks.observe_startup_recovery().await?;
     let control_authority = VehicleControlAuthority::new(tasks.platform_store().clone());

@@ -66,6 +66,7 @@ fn render(chart: &Path, extension: bool, settings: &[&str]) -> Vec<Value> {
         &[
             "examples/bioma/uav-sim-values.yaml",
             "examples/bioma/images/uav-sim.lock.yaml",
+            "examples/bioma/modules-values.yaml",
         ][..]
     } else {
         &[
@@ -634,6 +635,8 @@ fn external_world_content_recreates_the_immutable_runtime_and_its_companion() {
                 "showcase/uav-sim/deploy/helm",
                 "-f",
                 "examples/bioma/uav-sim-values.yaml",
+                "-f",
+                "examples/bioma/modules-values.yaml",
                 "--set",
                 &format!("world.bootstrap.contentSha256={digest}"),
             ])

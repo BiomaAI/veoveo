@@ -21,6 +21,12 @@
     "networkPolicy"
   ],
   "properties": {
+    "moduleInstallation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["planJson"],
+      "properties": {"planJson": {"type": "string"}}
+    },
     "veoveo-common": {
       "type": "object"
     },

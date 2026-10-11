@@ -44,8 +44,9 @@ Veoveo chart lint uses the anonymous platform-selection values and module plan
 under `testing/fixtures`, resolved from the selected publication source checkout.
 These inputs satisfy required render admission without selecting a reference
 installation. Packaging keeps the chart's required inputs and defaults unchanged;
-fixture values are never embedded in the archive. UAV chart lint uses its ordinary
-defaults. The owning build regression runs actual Helm lint/package into a temporary
+fixture values are never embedded in the archive. UAV chart lint also supplies the
+anonymous module plan because its enabled MCP companion requires prepared-schema
+identity. The owning build regression runs actual Helm lint/package into a temporary
 local directory and admits the resulting archive and retained release evidence.
 
 `veoveo.ai/helm-chart-release-evidence/v1` records the selected chart archives and

@@ -84,9 +84,19 @@ not deployed; final images and installed recovery remain open. The new
 Store lane requires a new Gateway composition image, coordinated preparation,
 catalog publication and matching startup-plan references for affected consumers.
 The running Gateway must match that compiled plan. Preserve paused replicas and
-drain memory-only UAV issuers before replacement. UAV's existing lack of a mounted
-startup-plan binding is separate qualification debt. Prior unresolved fixture
-ownership is not inferred to be settled by this change.
+drain memory-only UAV issuers before replacement. The current UAV startup batch
+admits the typed plan and runtime account before recovery or viewer effects. Its
+independent chart supplies an immutable copy of the same generated plan used by
+the platform chart; the simulator and forwarder Pod template is unchanged.
+The nineteen startup and viewer controls pass. The focused Helm control proves
+plan-byte binding, invalid-plan rejection and simulator-template isolation;
+compiler and strict checks pass. Six of seven selected xtask controls pass. The
+complete reference Helm check stops on missing Computer Host issuer-egress input
+in its non-k3d render; the k3d profile disables that policy. The remaining xtask
+control detects disagreement between the Host's configured default image and the
+image lock. These two checks stay failed and do not establish an installed UAV
+failure. Final images and installed restart qualification remain open. Prior
+unresolved fixture ownership is not inferred to be settled by this change.
 Restart continuity is separate from the unchanged strict throughput limits. Paired shutdown,
 repeated GPU reset, induced RTSP stall recovery, capture-clock and full composed
 flight qualification remain open. F59/A11 stay open.

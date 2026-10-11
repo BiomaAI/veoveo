@@ -66,6 +66,9 @@ pub(crate) fn helm_config() -> Result<()> {
         if chart == "deploy/helm/veoveo" {
             arguments.extend(["--values".into(), "testing/fixtures/platform-selection/platform-values.yaml".into(), "--set-file".into(), "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json".into()]);
         }
+        if chart == "showcase/uav-sim/deploy/helm" {
+            arguments.extend(["--set-file".into(), "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json".into()]);
+        }
         run_checked(Path::new("helm"), arguments, [])
             .with_context(|| format!("linting Helm chart {chart}"))?;
     }

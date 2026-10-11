@@ -1,0 +1,12 @@
+{{- if .Values.interactive.enabled }}
+{{- $_ := include "uav-sim.modulePlan" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "uav-sim.modulePlanName" . }}
+  labels:
+    {{- include "uav-sim.mcpLabels" . | nindent 4 }}
+immutable: true
+data:
+  plan.json: {{ .Values.moduleInstallation.planJson | quote }}
+{{- end }}

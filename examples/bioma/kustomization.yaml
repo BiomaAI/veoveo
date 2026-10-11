@@ -74,6 +74,7 @@ configMapGenerator:
     files:
       - uav-sim-values.yaml=uav-sim-values.yaml
       - images.lock.yaml=images/uav-sim.lock.yaml
+      - modules-values.yaml=modules-values.yaml
 generatorOptions:
   labels:
     reconcile.fluxcd.io/watch: Enabled

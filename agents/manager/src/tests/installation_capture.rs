@@ -87,6 +87,8 @@ fn rendered_manager_inputs_bind_complete_owner_revisions() -> Result<()> {
         &[
             "agent-template-wiring",
             "showcase/uav-sim/deploy/helm",
+            "--set-file",
+            &plan,
             "--set",
             "agentTemplate.enabled=true",
             "--show-only",

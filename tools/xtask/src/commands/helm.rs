@@ -316,6 +316,13 @@ pub(crate) fn build(
                 OsString::from(format!("moduleInstallation.planJson={}", path_text(&plan)?)),
             ]);
         }
+        if selected == Chart::UavSim {
+            let plan = source.join("testing/fixtures/module-schema-consumer/module-plan.json");
+            lint.extend([
+                OsString::from("--set-file"),
+                OsString::from(format!("moduleInstallation.planJson={}", path_text(&plan)?)),
+            ]);
+        }
         process::status("helm", lint, Some(source))?;
         process::status(
             "helm",

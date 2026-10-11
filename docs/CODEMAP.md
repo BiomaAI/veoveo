@@ -1050,6 +1050,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser stream authorization, shared camera-product selection, issuer-bound token renewal, closure, expiry, and connection state |
 | `servers/uav-sim-mcp/src/server/live_view_store.rs`, `live_view_store/queries/` | UAV-owned redacted grant records, SQL caller selection, generation guards and transactionally audited close receipts |
 | `servers/uav-sim-mcp/src/server/live_view/observer.rs` | Store observation before admission, current-state revocation of local streams and failure closure |
+| `servers/uav-sim-mcp/src/server/startup.rs` and `startup/tests.rs` | typed module-plan and runtime-account admission; verifies prepared compiled lanes before Task recovery, world admission or viewer effects |
 | `servers/uav-sim-mcp/src/schema/migrations/0001_live_views.surql` | appended UAV viewer-grant schema and retained close receipts without plaintext tokens |
 | `servers/uav-sim-mcp/src/server/live_stream.rs` | authenticated WebSocket admission and byte-transparent H.264 forwarding from simulator-owned camera products |
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | typed live-view issuance, renewal, denial and terminal records through the shared audit writer |
@@ -1057,7 +1058,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `servers/uav-sim-mcp/assets/live-app.html` | self-contained camera selection and multi-view live App |
 | `servers/uav-sim-mcp/app/live-view-ownership.js` | App-owned pending acquisitions and viewer authorization closure; teardown acknowledges settled server closes and preserves failed closes for retry |
 | [`showcase/uav-sim/agents/`](../showcase/uav-sim/agents/DESIGN.md) | managed pilot seed instructions and domain memory ownership; geographic work data remains outside agent memory |
-| [`showcase/uav-sim/deploy/helm/`](../showcase/uav-sim/deploy/helm/DESIGN.md) | simulator packaging and managed pilot manifest/memory schema under `files/agent-template`; no per-pilot workloads or credentials |
+| [`showcase/uav-sim/deploy/helm/`](../showcase/uav-sim/deploy/helm/DESIGN.md) | simulator packaging, MCP-only immutable module-plan binding and managed pilot manifest/memory schema under `files/agent-template`; no per-pilot workloads or credentials |
 | `servers/uav-sim-mcp/src/server/agent_targets.rs` | App message-target discovery from managed identity and active vehicle grants, with shared database catalog invalidation |
 | `showcase/uav-sim/map/` | Map-owned named-place and operational air-network source fixture for the showcase |
 | `showcase/uav-sim/runtime/` | thin domain overlay on the shared Isaac runtime with Cesium, a repository-owned batched Warp plant, Newton Experimental rigid views, PX4 HIL lifecycle, RTX domain sensors, logical cameras, shared RTX/NVENC camera products, direct Stream publication, and Rerun publication |

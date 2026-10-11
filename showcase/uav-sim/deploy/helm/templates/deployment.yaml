@@ -136,8 +136,11 @@ spec:
       labels:
         {{- include "uav-sim.mcpSelectorLabels" . | nindent 8 }}
         veoveo.ai/mcp-server: "true"
-      {{- if .Values.world.bootstrap.existingConfigMap }}
       annotations:
+        veoveo.ai/installation-generation: {{ (include "uav-sim.modulePlan" . | fromJson).generation | quote }}
+        veoveo.ai/module-composition: {{ (include "uav-sim.modulePlan" . | fromJson).composition | quote }}
+        checksum/module-plan: {{ .Values.moduleInstallation.planJson | sha256sum | quote }}
+      {{- if .Values.world.bootstrap.existingConfigMap }}
         checksum/world-bootstrap: {{ required "world.bootstrap.contentSha256 is required with an existing ConfigMap" .Values.world.bootstrap.contentSha256 | quote }}
       {{- end }}
     spec:
@@ -169,6 +172,7 @@ spec:
           securityContext:
             {{- include "uav-sim.containerSecurityContext" . | nindent 12 }}
           env:
+            {{- include "uav-sim.modulePlanEnv" . | nindent 12 }}
             - {name: PUBLIC_BASE_URL, value: {{ .Values.platform.publicBaseUrl | quote }}}
             - {name: UAV_SIM_ADAPTER_URL, value: "http://uav-sim-runtime:8810/"}
             - name: UAV_SIM_ADAPTER_BEARER_TOKEN
@@ -216,14 +220,20 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.resources.mcp | nindent 12 }}
-          {{- if .Values.world.bootstrap.existingConfigMap }}
           volumeMounts:
+            - name: module-plan
+              mountPath: /etc/veoveo/modules
+              readOnly: true
+          {{- if .Values.world.bootstrap.existingConfigMap }}
             - name: world-bootstrap
               mountPath: /etc/veoveo/uav-sim-world
               readOnly: true
           {{- end }}
-      {{- if .Values.world.bootstrap.existingConfigMap }}
       volumes:
+        - name: module-plan
+          configMap:
+            name: {{ include "uav-sim.modulePlanName" . }}
+      {{- if .Values.world.bootstrap.existingConfigMap }}
         - name: world-bootstrap
           configMap:
             name: {{ .Values.world.bootstrap.existingConfigMap }}

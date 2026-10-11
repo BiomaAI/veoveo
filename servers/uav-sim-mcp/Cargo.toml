@@ -52,6 +52,7 @@ runtime = ["dep:veoveo-recording-store",
     "dep:veoveo-mcp-contract",
 ]
 mcp = [
+    "veoveo-modules/runner",
     "dep:veoveo-audit",
     "runtime",
     "dep:base64",

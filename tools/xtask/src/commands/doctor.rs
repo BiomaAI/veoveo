@@ -209,9 +209,19 @@ fn validate_recording_catalog_contract(repository: &RepositoryContext) -> Result
 
 fn validate_uav_recording_render(repository: &RepositoryContext, values: &UavValues) -> Result<()> {
     let chart = repository.root().join("showcase/uav-sim/deploy/helm");
+    let plan = repository
+        .root()
+        .join("testing/fixtures/module-schema-consumer/module-plan.json");
+    let plan_argument = format!("moduleInstallation.planJson={}", path_text(&plan)?);
     let rendered = process::output_text(
         "helm",
-        ["template", "doctor-uav", path_text(&chart)?],
+        [
+            "template",
+            "doctor-uav",
+            path_text(&chart)?,
+            "--set-file",
+            &plan_argument,
+        ],
         Some(repository.root()),
     )?;
     let expected_bytes = format!(

@@ -35,6 +35,11 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
   Other crates import it with default features disabled. Gateway-to-domain ownership
   conversion belongs in the authenticated server adapter; MCP core exports no live-view types.
 
+- Admit the typed installation plan and authenticated runtime account, then verify
+  preparation and compiled lane history before Task recovery, world admission,
+  viewer observation or cleanup. The UAV chart supplies immutable plan inputs to
+  MCP only. The server never prepares schema or accepts a missing plan.
+
 - Use `UavScope` in domain permission checks and Task admission. Ordinary and Task
   routes apply the same scope requirement before starting work: scenarios and captures
   require `Admin`, and mission-plan execution requires `Control` plus its vehicle grant.
