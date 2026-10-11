@@ -89,9 +89,9 @@ Development and acceptance execution stop here. The installation stays running;
 this pause does not authorize a node restart or a change to workload replicas.
 All implementation through `55cc21870` is on `origin/main`; this documentation
 checkpoint records the later functional checks. No source fix or build is in flight.
-The local staged and unstaged edits to `mcp/contract/DESIGN.md` belong to the owner
-and are excluded from this handoff commit. Preserve them and coordinate their
-integration before changing shared contracts.
+The shared contract documentation matches hosted revision 4, requirement catalog
+revision 2 and the implemented declaration, configuration and runtime feature
+selection. No unfinished local implementation remains in this checkpoint.
 
 The final operations snapshot has 27 Deployments: 25 at desired, Ready and
 available replicas of one, with `computers-mcp` and `computer-host` deliberately at
@@ -4359,12 +4359,10 @@ in the previous span and passes with the replacement. Request spans record metho
 path and HTTP version; handlers receive the original query. Compiler checks and
 all 14 current hosting controls pass. Affected images still require publication
 and installed acceptance.
-The shared contract design's opening still declares revision 3 and a retired root
-export, while the implemented hosted profile and all domain registrations declare
-revision 4. Its prepared documentation correction names the current numeric export
-and protocol tag. Those user-owned documentation changes remain separate from
-the applied tracing correction; no registration or runtime change is required
-for this declaration repair.
+The shared contract design names hosted revision 4 through the current numeric
+export and protocol tag, and distinguishes its declaration, configuration and
+runtime features. This documentation alignment changes no registration or runtime
+behavior.
 
 Optimization's catalog-startup implementation deferral is resolved. Its
 [`RuntimeInstallation`](../servers/optimization-mcp/src/composition.rs) gate verifies

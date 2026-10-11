@@ -8,9 +8,11 @@ that were previously stated across `AGENTS.md`, `docs/TECH_DESIGN.md`, and
 this directory, `veoveo_mcp_contract`, implements the shared mechanics that
 make most of the contract hold by construction.
 
-**Contract revision: 3.** The crate exports the same value as
-`veoveo_mcp_contract::CONTRACT_REVISION`. A server declares the revision it
-complies with in its crate documents and in its contract resource.
+**Contract revision: 4.** The crate exports the numeric revision as
+`veoveo_mcp_contract::docs::CONTRACT_REVISION` and the protocol tag as
+`veoveo_mcp_contract::HOSTED_MCP_CONTRACT_REVISION`
+(`veoveo.ai/hosted-mcp/v4`). A server declares the revision it complies with
+in its crate documents and in its contract resource.
 
 ## Standards And Protocols
 
@@ -21,6 +23,7 @@ complies with in its crate documents and in its contract resource.
 | MCP Tasks, SEP-2663 | official `tasks/get`, `tasks/update`, and `tasks/cancel`, optional task notifications, opaque task IDs, and typed terminal payloads |
 | MCP multi-round requests, SEP-2322 | `input_required`, protected opaque `requestState`, and retry `inputResponses`; server-initiated elicitation is excluded |
 | MCP subscriptions | request-scoped `subscriptions/listen` with an authorized accepted filter; resource subscribe and unsubscribe are excluded |
+| Requirement catalog revision 2 | closed C01–C33 identifiers, complete camelCase owner profiles and deterministic manual sections; hosted revision 4 is independent |
 | JSON Schema 2020-12 | ordinary SDK and Pydantic generation with bounded references and composition; gateway configuration, deployment and provenance schemas remain typed |
 | RFC 6570 URI Templates | Checked MCP setup uses the foundational ASCII-template profile and iri-string 0.7.14 parser; domain tests qualify expansion against typed resource addresses. Gateway policy selectors retain their documented restricted matching language. |
 | W3C Trace Context and Baggage | `traceparent`, `tracestate`, and `baggage` in MCP request metadata with the authenticated HTTP boundary as the trust gate |
@@ -176,6 +179,29 @@ the selector language and checks action/target consistency. Native administratio
 uses `PolicyTarget::PlatformTask` with a foundational Task UUID; MCP routes use the
 opaque `PolicyTarget::Task` identity. Both apply the same server exposure and policy.
 The gateway converts these targets into the [unified audit contract](../../platform/audit/contract/DESIGN.md).
+
+### Declaration And Runtime Features
+
+The `declaration` feature has no feature dependencies and exposes document and
+compliance declarations for generic conformance clients. The `configuration`
+feature selects `declaration`, the timestamp and URI libraries, and the pure
+owner contracts used by the control-plane declarations, Work Context membership
+model and policy validation. Installed clients use it to decode configuration
+and validate the installation's catalog without linking hosting, token signing,
+database access or analytics.
+
+The `runtime` feature selects `configuration` and adds hosting, signing, security
+services, transport mechanics and the document Knowledge adapter. Defaults select
+`runtime` and `analytics`; `analytics` adds DuckDB and requires `runtime`.
+Declaration-only tooling disables default features. Generic conformance receives
+bearer credentials out of band and does not issue runtime identities. Owner smoke
+features select domain utilities and fixture dependencies at their owning
+component; a smoke selection does not qualify a declaration-only dependency graph.
+
+The Gateway contract owns the discovery degradation DTO. The runtime's
+`GatewayDiscoveryMetadata` trait converts that value to and from MCP `MetaObject`
+without adding transport dependencies to the DTO owner.
+
 The [catalog recipe](../../platform/gateway/catalog/DESIGN.md) supplies owner actions,
 target codecs and configuration sections. Control-plane decoding leaves contributed
 targets unadmitted until an explicit registry checks them. Schema producers compose
@@ -347,7 +373,7 @@ not infer client identity or family membership from an old Task owner. Accepted
 background work can outlive admission tokens only under its explicit durable
 execution policy, with fresh dispatch authority and separately bounded access.
 
-This optional signed-claim extension keeps MCP revision 3 unchanged. Update gateway
+This optional signed-claim extension uses hosted MCP revision 4. Update gateway
 issuers and selected consumers before admitting the Computers profile. Existing
 short-lived assertions without the field remain usable only for consumers that do
 not require it. The gateway/auth owner must retire those deployment revisions before
@@ -616,7 +642,7 @@ Every server is self-describing. Under its canonical URI scheme it serves:
 |---|---|
 | `{scheme}://docs` | stable page of document entries with `id`, `title`, and concrete `uri`, in `items`; optional `nextCursor` names the last entry and continues through `?cursor=` |
 | `{scheme}://docs/{doc_id}` | a document body: at minimum `agents` (the crate `AGENTS.md`) and `design` (the crate `DESIGN.md`) |
-| `{scheme}://contract` | machine-readable contract declaration: contract revision, per-item compliance status, and embedded-document evidence; Discover and list methods own the observed runtime surface |
+| `{scheme}://contract` | machine-readable complete owner profile: server, contract revision, catalog revision and per-item compliance status; Discover and list methods own the observed runtime surface |
 
 On its administrative mount the server serves the same material as a read-only
 HTTP projection at `{mount}/admin/docs/llms.txt` (an index in llms.txt form) and
@@ -631,7 +657,9 @@ serves the manual for exactly the version deployed, including in offline
 installations. The `veoveo_mcp_contract::docs` module provides the embedding,
 declaration, and rendering machinery; consuming it is the intended way to
 comply. `server_docs!` selects the consuming crate's `AGENTS.md` and `DESIGN.md`,
-then calls the shared `embedded_document!` proc macro. Its manifest-relative document
+then calls the shared `embedded_document!` proc macro and admits the adjacent
+`contract-compliance.json`. Admission checks the server identity and the generated
+manual section against the profile. Its manifest-relative document
 selection must expand in the calling crate, as declared in the
 [shared macro catalog](../../platform/macros/DESIGN.md#macro-catalog-and-enforcement).
 
@@ -661,14 +689,40 @@ readable by humans:
   protocols profile.
 - `AGENTS.md` — the agent work manual, delta-only over the repository root
   `AGENTS.md`, with required sections `Purpose`, `Invariants`,
-  `Build And Test`, and `Contract Compliance`. The compliance section lists
-  checklist items with status `met` or `pending`, so gaps are declared rather
-  than silent.
+  `Build And Test`, and `Contract Compliance`. The marked compliance section is
+  generated from the adjacent checked `contract-compliance.json` owner profile.
 
 Server crates are named `*-mcp`.
 
+## Requirement Catalog And Owner Profiles
+
+`docs/catalog.rs` owns the closed `RequirementId` vocabulary and exhaustive metadata.
+The hosted contract revision is 4; catalog revision 2 contains C01–C33. Requirement
+IDs differ from conformance's runtime check IDs. Adding a catalog requirement forces
+every owner to declare it because admission requires each current ID exactly once.
+
+`docs/profile.rs` admits immutable profiles through the shared checked-value mechanism.
+The declaration wire uses `contractRevision` and `catalogRevision`; catalog metadata uses
+`noteWhitespace`. Both construction and JSON decoding reject unknown fields, revisions, IDs, duplicate
+or missing entries and unknown statuses. Pending entries require a nonblank explanation.
+Provided notes preserve spaces and reject line breaks. Blankness uses Rust Unicode
+White_Space; generated catalog metadata exports its actual character set for all
+language consumers. `not_applicable` requires an
+explanation and a catalog condition; C32 permits it only when Discover does not declare
+`ai.veoveo/knowledge-source`. Checked server setup declares the document collection,
+so C32 is applicable there. The conformance runner checks the observed condition in
+both directions. A source declaration never supplies a runtime test outcome.
+
+`cargo xtask release contract-docs` discovers package owners and reconciles Rust document
+selections. It projects profiles into marked manual sections and exports the catalog
+and JSON Schema. `--check` rejects stale outputs. Source builds embed those manual bytes
+and their digests; runtime loading verifies agreement instead of replacing the body.
+Python and Node package the same generated catalog and schema with their owner profile.
+Their loaders perform the same semantic admission without repository reads.
+
 ## Compliance Checklist
 
+<!-- veoveo:requirement-catalog:start -->
 | ID | Level | Requirement |
 |---|---|---|
 | C01 | MUST | Each capability uses the canonical MCP surface for its need per the Protocol Surface table. |
@@ -703,6 +757,8 @@ Server crates are named `*-mcp`.
 | C30 | MUST | Requests with equivalent upstream transport security share one catalog-revision-scoped HTTP connection pool and TLS trust store without sharing request authority. |
 | C31 | MUST | Readiness calls Discover and required list methods, compares the observed surface with installation allow/require policy, and fails closed on mismatch. |
 | C32 | MUST when adopted | A server that declares `ai.veoveo/knowledge-source` publishes its `{slug}.docs` collection and satisfies K01–K10 for every declared collection under the [knowledge extension](../knowledge-extension/DESIGN.md). A server that does not declare the extension marks C32 not applicable. |
+| C33 | MUST | Discovery identifiers, controlled DTO fields and values, adopted extension metadata and selected owner schema evidence satisfy the naming classes; narrow owner, JWT, frozen and external declarations require source review. |
+<!-- veoveo:requirement-catalog:end -->
 
 ## Enforcement
 
@@ -711,10 +767,11 @@ rules:
 
 - **Repository structure** — `mcp/conformance` asserts C22, C23, and
   C24 for every discovered server crate, including required `AGENTS.md`
-  sections and a parseable `Contract Compliance` declaration.
+  sections and a complete admitted owner profile whose generated section agrees
+  with the manual.
 - **Protocol conformance** — the conformance client validates advertised
   schemas (C07) and the client-facing protocol shape against a running
-  server. Certification for `veoveo.ai/hosted-mcp/v3` always checks C18–C21;
+  server. Certification for `veoveo.ai/hosted-mcp/v4` always checks C18–C21;
   a profile cannot forbid resources or omit the administrative docs URL.
   The client reads `{scheme}://contract`, requires the selected revision,
   matches its server identity to the discovered implementation. It follows the
