@@ -1,5 +1,8 @@
 use std::{collections::BTreeSet, future::Future, path::Path, sync::Arc};
 use veoveo_recording_contract::RecordingId;
+use veoveo_uav_sim_mcp::contract::{
+    LiveStreamProductId, LiveStreamProductLifecycle, LiveStreamProductState,
+};
 
 #[cfg(test)]
 use anyhow::anyhow;
@@ -431,13 +434,18 @@ pub async fn send_console_uav_agent_instruction(
     .with_context(|| format!("Console UAV agent instruction exceeded {timeout:?}"))?
 }
 
-pub async fn capture_console_live_app(
+pub async fn capture_console_live_app<R, Fut>(
     cdp_base: &str,
     public_base_url: &str,
     expected_camera_id: &str,
     screenshot_path: &Path,
     timeout: Duration,
-) -> Result<ConsoleLiveCaptureEvidence> {
+    source_reader: &R,
+) -> Result<ConsoleLiveCaptureEvidence>
+where
+    R: Fn(LiveStreamProductId) -> Fut,
+    Fut: Future<Output = Result<LiveStreamProductState>>,
+{
     let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live");
     tokio::time::timeout(
         timeout,
@@ -448,20 +456,26 @@ pub async fn capture_console_live_app(
             screenshot_path,
             None,
             false,
+            source_reader,
         ),
     )
     .await
     .with_context(|| format!("Console live-App capture exceeded {timeout:?}"))?
 }
 
-pub async fn capture_console_live_app_pair(
+pub async fn capture_console_live_app_pair<R, Fut>(
     cdp_base: &str,
     public_base_url: &str,
     expected_camera_id: &str,
     first_screenshot_path: &Path,
     second_screenshot_path: &Path,
     timeout: Duration,
-) -> Result<(ConsoleLiveCaptureEvidence, ConsoleLiveCaptureEvidence)> {
+    source_reader: &R,
+) -> Result<(ConsoleLiveCaptureEvidence, ConsoleLiveCaptureEvidence)>
+where
+    R: Fn(LiveStreamProductId) -> Fut,
+    Fut: Future<Output = Result<LiveStreamProductState>>,
+{
     let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live");
     let simultaneous = Arc::new(tokio::sync::Barrier::new(2));
     let first = tokio::time::timeout(
@@ -473,6 +487,7 @@ pub async fn capture_console_live_app_pair(
             first_screenshot_path,
             Some(Arc::clone(&simultaneous)),
             true,
+            source_reader,
         ),
     );
     let second = tokio::time::timeout(
@@ -484,6 +499,7 @@ pub async fn capture_console_live_app_pair(
             second_screenshot_path,
             Some(simultaneous),
             true,
+            source_reader,
         ),
     );
     let (first, second) = tokio::join!(first, second);
@@ -1280,14 +1296,19 @@ async fn send_console_uav_agent_instruction_inner(
     }
 }
 
-async fn capture_console_live_app_inner(
+async fn capture_console_live_app_inner<R, Fut>(
     cdp_base: &str,
     page_url: &str,
     expected_camera_id: &str,
     screenshot_path: &Path,
     simultaneous: Option<Arc<tokio::sync::Barrier>>,
     new_window: bool,
-) -> Result<ConsoleLiveCaptureEvidence> {
+    source_reader: &R,
+) -> Result<ConsoleLiveCaptureEvidence>
+where
+    R: Fn(LiveStreamProductId) -> Fut,
+    Fut: Future<Output = Result<LiveStreamProductState>>,
+{
     let (mut cdp, target_id, session_id) =
         open_headed_target_in_window(cdp_base, page_url, new_window).await?;
     let acceptance = async {
@@ -1334,6 +1355,7 @@ async fn capture_console_live_app_inner(
             &session_id,
             expected_camera_id,
             first,
+            source_reader,
         )
         .await
         {
@@ -1571,7 +1593,7 @@ where
             recovery_timeout,
         )
         .await?;
-        let after = wait_for_console_video_advance(
+        let after = wait_for_console_video_continuity(
             &mut cdp,
             &target_id,
             &session_id,
@@ -1579,6 +1601,16 @@ where
             after,
         )
         .await?;
+        let decode: DecodeIdentity = evaluate_console_app(
+            &mut cdp,
+            &target_id,
+            &session_id,
+            "uav-sim",
+            APP_FRAME_DECODE_IDENTITY,
+            true,
+        )
+        .await?;
+        decode.validate()?;
         let final_hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         final_hardware.validate()?;
@@ -3647,14 +3679,36 @@ async fn wait_for_console_video(
     }
 }
 
-async fn wait_for_console_video_advance(
+async fn wait_for_console_video_advance<R, Fut>(
     cdp: &mut Cdp,
     target_id: &str,
     session_id: &str,
     expected_camera_id: &str,
     first: AppVideoState,
-) -> Result<AppVideoState> {
-    let startup_cadence: VideoCadenceSample = evaluate_console_app(
+    source_reader: &R,
+) -> Result<AppVideoState>
+where
+    R: Fn(LiveStreamProductId) -> Fut,
+    Fut: Future<Output = Result<LiveStreamProductState>>,
+{
+    let product_id = LiveStreamProductId::parse(&first.stream_product_id)?;
+    let warmup_end = tokio::time::Instant::now() + Duration::from_secs(60);
+    tokio::time::timeout_at(warmup_end, async {
+        loop {
+            let product = source_reader(product_id.clone()).await?;
+            require_sampler_product(&product, &product_id, expected_camera_id)?;
+            if product.source_to_render_samples >= 64 {
+                break;
+            }
+            cdp.assert_no_software_renderer_events()?;
+            assert_page_visible(cdp, session_id).await?;
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+        Ok::<_, anyhow::Error>(())
+    })
+    .await
+    .context("native render warm-up lacked source-to-render samples before60s")??;
+    let startup: BrowserCadenceSample = evaluate_console_app(
         cdp,
         target_id,
         session_id,
@@ -3663,11 +3717,14 @@ async fn wait_for_console_video_advance(
         true,
     )
     .await?;
+    let source = source_reader(product_id.clone()).await?;
+    require_sampler_product(&source, &product_id, expected_camera_id)?;
+    let startup_cadence = startup.with_source(&source, first.declared_frame_rate_hz)?;
     let cadence = if startup_cadence.needs_steady_state_sample(first.declared_frame_rate_hz) {
         eprintln!(
             "shared H.264 startup window is still warming; requiring one strict steady-state window: {startup_cadence:?}"
         );
-        evaluate_console_app(
+        let browser: BrowserCadenceSample = evaluate_console_app(
             cdp,
             target_id,
             session_id,
@@ -3675,7 +3732,10 @@ async fn wait_for_console_video_advance(
             APP_FRAME_VIDEO_CADENCE,
             true,
         )
-        .await?
+        .await?;
+        let source = source_reader(product_id.clone()).await?;
+        require_sampler_product(&source, &product_id, expected_camera_id)?;
+        browser.with_source(&source, first.declared_frame_rate_hz)?
     } else {
         startup_cadence
     };
@@ -4006,6 +4066,134 @@ impl GridVideoState {
         );
         Ok(())
     }
+}
+
+fn require_sampler_product(
+    product: &LiveStreamProductState,
+    expected: &LiveStreamProductId,
+    camera: &str,
+) -> Result<()> {
+    ensure!(
+        &product.stream_product_id == expected
+            && product.lifecycle == LiveStreamProductLifecycle::Ready
+            && product.nvenc_sessions == 1
+            && product
+                .camera_regions
+                .iter()
+                .any(|r| r.camera_id.as_str() == camera),
+        "authenticated source metrics do not match selected ready NVENC camera product"
+    );
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BrowserCadenceSample {
+    interval_seconds: f64,
+    media_time_seconds: f64,
+    presented_frame_intervals: u64,
+    decoded_video_frames: u64,
+    dropped_video_frames: u64,
+    delivery_samples: u64,
+    receive_to_display_p95_ms: f64,
+}
+impl BrowserCadenceSample {
+    fn with_source(
+        self,
+        source: &LiveStreamProductState,
+        declared_fps: f64,
+    ) -> Result<VideoCadenceSample> {
+        let source_ms = source
+            .source_to_render_p95_microseconds
+            .context("native source-to-render timing unavailable")? as f64
+            / 1000.0;
+        ensure!(
+            self.interval_seconds > 0.0 && declared_fps > 0.0,
+            "invalid browser cadence interval or declared rate"
+        );
+        let bounded_fps = declared_fps
+            .min(self.presented_frame_intervals as f64 / self.interval_seconds)
+            .max(1.0);
+        Ok(VideoCadenceSample {
+            interval_seconds: self.interval_seconds,
+            media_time_seconds: self.media_time_seconds,
+            presented_frame_intervals: self.presented_frame_intervals,
+            decoded_video_frames: self.decoded_video_frames,
+            dropped_video_frames: self.dropped_video_frames,
+            source_to_render_p95_ms: source_ms,
+            source_to_render_samples: source.source_to_render_samples,
+            composed_motion_to_photon_upper_bound_p95_ms: source_ms
+                + self.receive_to_display_p95_ms
+                + 2000.0 / bounded_fps,
+            delivery_samples: self.delivery_samples,
+            receive_to_display_p95_ms: self.receive_to_display_p95_ms,
+        })
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProgressSnapshot {
+    document_epoch_ms: f64,
+    camera_id: String,
+    viewer_instance_id: String,
+    live_view_id: String,
+    stream_product_id: String,
+    decoded: u64,
+    media_time: f64,
+    now: f64,
+}
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct VideoProgressSample {
+    first: ProgressSnapshot,
+    last: ProgressSnapshot,
+    decoded_frame_changes: u64,
+}
+impl ProgressSnapshot {
+    fn matches(&self, state: &AppVideoState) -> bool {
+        self.document_epoch_ms == state.document_epoch_ms
+            && self.camera_id == state.camera_id
+            && self.viewer_instance_id == state.viewer_instance_id
+            && self.live_view_id == state.live_view_id
+            && self.stream_product_id == state.stream_product_id
+    }
+}
+async fn wait_for_console_video_continuity(
+    cdp: &mut Cdp,
+    target_id: &str,
+    session_id: &str,
+    camera: &str,
+    first: AppVideoState,
+) -> Result<AppVideoState> {
+    let sample: VideoProgressSample = evaluate_console_app(
+        cdp,
+        target_id,
+        session_id,
+        "uav-sim",
+        APP_FRAME_VIDEO_PROGRESS,
+        true,
+    )
+    .await?;
+    let mut second = wait_for_console_video(cdp, target_id, session_id, camera).await?;
+    ensure!(
+        sample.first.matches(&first)
+            && sample.last.matches(&first)
+            && sample.last.matches(&second)
+            && sample.decoded_frame_changes >= 3
+            && sample.last.decoded >= sample.first.decoded.saturating_add(3)
+            && sample.first.decoded >= first.total_video_frames
+            && sample.first.media_time >= first.current_time
+            && sample.last.media_time > sample.first.media_time
+            && second.current_time >= sample.last.media_time
+            && sample.last.now > sample.first.now,
+        "restart video did not retain its recovered identities and advance decoded/drawn frames: {sample:?}"
+    );
+    second.observed_frame_rate_hz = (sample.last.decoded - sample.first.decoded) as f64 * 1000.0
+        / (sample.last.now - sample.first.now);
+    second.cadence_sample_frames = sample.decoded_frame_changes;
+    second.cadence_sample_seconds = (sample.last.now - sample.first.now) / 1000.0;
+    Ok(second)
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -4418,69 +4606,9 @@ const APP_FRAME_GRID_VIDEO_STATES: &str = r#"(() => {
   });
 })()"#;
 
-const APP_FRAME_VIDEO_CADENCE: &str = r#"(async()=>{
-  const canvas=document.querySelector(".view canvas");
-  if(!canvas)throw new Error("shared H.264 video canvas is unavailable");
-  const view=canvas.closest(".view"),liveViewId=view?.dataset.liveViewId??"",minimumSourceSamples=64,warmupDeadline=Date.now()+60000;
-  const waitForFrame=(deadline)=>new Promise((resolve,reject)=>{
-    const before=Number(canvas.dataset.decodedFrames??0),remaining=deadline-Date.now();
-    if(remaining<=0){reject(new Error("reactive video cadence sample did not complete"));return;}
-    const observer=new MutationObserver(()=>{
-      const decoded=Number(canvas.dataset.decodedFrames??0);
-      if(decoded<=before)return;
-      clearTimeout(timeout);observer.disconnect();resolve({now:performance.now(),decoded,mediaTime:Number(canvas.dataset.mediaTimeSeconds??0),receiveToDisplayMs:Number(canvas.dataset.receiveToDisplayMs??0)});
-    });
-    const timeout=setTimeout(()=>{observer.disconnect();reject(new Error("reactive video cadence sample did not complete"));},remaining);
-    observer.observe(canvas,{attributes:true,attributeFilter:["data-decoded-frames"]});
-  });
-  let warmLive=null;
-  while(Date.now()<warmupDeadline){
-    warmLive=await read(`uav-sim://session/${sessionId}/live-view/${liveViewId}`);
-    if(Number(warmLive.sourceToRenderSamples??0)>=minimumSourceSamples)break;
-    await waitForFrame(Math.min(warmupDeadline,Date.now()+3000));
-  }
-  if(Number(warmLive?.sourceToRenderSamples??0)<minimumSourceSamples)throw new Error("native render warm-up lacked source-to-render samples");
-  const warmupFrames=12,sampleIntervals=48,deadline=Date.now()+15000;
-  const p95=values=>{const ordered=[...values].sort((a,b)=>a-b);return ordered.length?ordered[Math.max(0,Math.ceil(ordered.length*0.95)-1)]:-1;};
-  for(let index=0;index<warmupFrames;index++)await waitForFrame(deadline);
-  const first={now:performance.now(),mediaTime:Number(canvas.dataset.mediaTimeSeconds??0),decoded:Number(canvas.dataset.decodedFrames??0),dropped:Number(canvas.dataset.droppedFrames??0)};
-  const delivery=[];let last=null;
-  for(let index=0;index<sampleIntervals;index++){last=await waitForFrame(deadline);delivery.push(last.receiveToDisplayMs);}
-  const live=await read(`uav-sim://session/${sessionId}/live-view/${liveViewId}`),intervalSeconds=(last.now-first.now)/1000;
-  const sourceToRenderP95Ms=Number(live.sourceToRenderP95Microseconds??-1000)/1000,observedFps=sampleIntervals/intervalSeconds,boundedFps=Math.max(1,Math.min(Number(canvas.dataset.frameRate??observedFps),observedFps)),receiveToDisplayP95Ms=p95(delivery);
-  return {
-    intervalSeconds,
-    mediaTimeSeconds:last.mediaTime-first.mediaTime,
-    presentedFrameIntervals:sampleIntervals,
-    decodedVideoFrames:last.decoded-first.decoded,
-    droppedVideoFrames:Math.max(0,Number(canvas.dataset.droppedFrames??0)-first.dropped),
-    sourceToRenderP95Ms,
-    sourceToRenderSamples:Number(live.sourceToRenderSamples??0),
-    composedMotionToPhotonUpperBoundP95Ms:sourceToRenderP95Ms+receiveToDisplayP95Ms+2000/boundedFps,
-    deliverySamples:delivery.length,
-    receiveToDisplayP95Ms
-  };
-})()"#;
-
-const APP_FRAME_DECODE_IDENTITY: &str = r#"(async () => {
-  const video=document.querySelector(".view canvas");
-  const result=await navigator.mediaCapabilities.decodingInfo({
-    type:"file",
-    video:{
-      contentType:'video/mp4; codecs="avc1.4d4032"',
-      width:Number(video.dataset.sourceWidth),
-      height:Number(video.dataset.sourceHeight),
-      bitrate:12000000,
-      framerate:Number(video.dataset.frameRate)
-    }
-  });
-  return {
-    supported:result.supported,
-    smooth:result.smooth,
-    powerEfficient:result.powerEfficient,
-    label:document.getElementById("decode")?.textContent ?? ""
-  };
-})()"#;
+const APP_FRAME_VIDEO_CADENCE: &str = include_str!("browser/app_video_cadence.js");
+const APP_FRAME_VIDEO_PROGRESS: &str = include_str!("browser/app_video_progress.js");
+const APP_FRAME_DECODE_IDENTITY: &str = include_str!("browser/app_decode_identity.js");
 
 const STREAM_APP_STATE: &str = r#"(() => {
   const video=document.getElementById("video");

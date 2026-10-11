@@ -82,9 +82,20 @@ The cleanup owner registers an inert acquisition before discovery. Cancellation
 retains that discovery future; acknowledged clients transfer synchronously into
 owned shutdown before another await. Discovery and shutdown share the original
 cleanup cap, and a failed or expired close cannot settle ownership.
-The headed App must retain its document/viewer isolation and advance fresh video.
-Hardware graphics remain required; supported, smooth software H.264 decode is
-permitted with the existing explicit label.
+After either interruption, the headed App must recover a fresh live-view
+authorization while keeping its document and viewer. A 30-second continuity
+sample requires three actual decoded/drawn frame updates with increasing capture
+media time, retaining the recovered camera, authorization and product. This
+restart check establishes continuity; it does not qualify frame rate or latency.
+
+Strict single-view and paired-view throughput acceptance separately keeps its
+64-sample native warm-up, 48 browser intervals and existing frame-rate/latency
+thresholds. A caller-owned normal OAuth state reader supplies the typed selected
+stream product; the sampler binds its product/camera to current authenticated
+metrics. Isolated browser expressions use explicit inputs and canvas observations.
+Hardware graphics remain required. Both profiles assess the current admitted
+codec, coded dimensions and rate with the App's 12 Mbps MediaCapabilities policy;
+supported, smooth software H.264 decode requires the existing accurate label.
 
 These v2 restart reports are one-way private outputs. External report readers must
 coordinate the writer cut; v1 container-restart reports do not establish paired

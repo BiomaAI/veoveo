@@ -13,8 +13,8 @@ use serde_json::Value;
 use veoveo_recording_contract::RecordingId;
 use veoveo_uav_sim_mcp::contract::{
     CameraEncoder, CameraState, LiveCameraHealth, LiveCameraId, LiveCameraRig, LiveEntityId,
-    LiveStreamProductId, LiveStreamProductLifecycle, SessionId, SimulationLifecycle,
-    SimulationState, VehicleId,
+    LiveStreamProductId, LiveStreamProductLifecycle, LiveStreamProductState, SessionId,
+    SimulationLifecycle, SimulationState, VehicleId,
 };
 
 #[allow(dead_code)]
@@ -999,6 +999,16 @@ async fn verify_running_showcase(
             evidence_directory.display()
         )
     })?;
+    let expected_session = SessionId::parse(&scenario.session_id)?;
+    let source_reader = |product_id: LiveStreamProductId| {
+        let operator = &operator;
+        let session = &scenario.session_id;
+        let expected_session = &expected_session;
+        async move {
+            let state = simulation_state(operator, session).await?;
+            selected_source_product(&state, expected_session, &product_id)
+        }
+    };
     let (first_live, second_live) = capture_console_live_app_pair(
         chrome_cdp_url,
         public_base_url,
@@ -1006,6 +1016,7 @@ async fn verify_running_showcase(
         &evidence_directory.join("uav-live-view-first.png"),
         &evidence_directory.join("uav-live-view-second.png"),
         timeout,
+        &source_reader,
     )
     .await?;
     ensure!(
@@ -1038,6 +1049,7 @@ async fn verify_running_showcase(
                 camera_id,
                 &evidence_directory.join(format!("uav-live-view-{camera_id}.png")),
                 timeout,
+                &source_reader,
             )
             .await
             .with_context(|| format!("qualifying authoritative camera {camera_id}"))?,
@@ -1393,6 +1405,23 @@ fn decode_simulation_state(value: Value, expected: &SessionId) -> Result<Simulat
     Ok(state)
 }
 
+fn selected_source_product(
+    state: &SimulationState,
+    expected_session: &SessionId,
+    product_id: &LiveStreamProductId,
+) -> Result<LiveStreamProductState> {
+    ensure!(
+        &state.session_id == expected_session,
+        "source metrics belong to another UAV session"
+    );
+    state
+        .stream_products
+        .iter()
+        .find(|product| &product.stream_product_id == product_id)
+        .cloned()
+        .context("UAV source metrics omitted the selected stream product")
+}
+
 fn recording_id(state: &SimulationState) -> Result<RecordingId> {
     state
         .recordings
@@ -1511,6 +1540,33 @@ mod tests {
             })
             .collect();
         state.build().unwrap()
+    }
+
+    #[test]
+    fn source_metrics_admission_binds_exact_session_and_product() {
+        let mut state = five_camera_state();
+        let expected_session = state.session_id.clone();
+        let selected_id = state.stream_products[0].stream_product_id.clone();
+        state.stream_products[0].source_to_render_p95_microseconds = Some(12345);
+        state.stream_products[0].source_to_render_samples = 77;
+        let product = selected_source_product(&state, &expected_session, &selected_id).unwrap();
+        assert_eq!(product.stream_product_id, selected_id);
+        assert_eq!(product.source_to_render_p95_microseconds, Some(12345));
+        assert_eq!(product.source_to_render_samples, 77);
+        assert!(
+            selected_source_product(
+                &state,
+                &SessionId::parse("foreign-session").unwrap(),
+                &selected_id
+            )
+            .is_err()
+        );
+        let foreign_product = LiveStreamProductId::parse("foreign-product").unwrap();
+        assert!(selected_source_product(&state, &expected_session, &foreign_product).is_err());
+        state.stream_products[0].stream_product_id = foreign_product;
+        assert!(selected_source_product(&state, &expected_session, &selected_id).is_err());
+        state.stream_products.clear();
+        assert!(selected_source_product(&state, &expected_session, &selected_id).is_err());
     }
 
     #[test]
