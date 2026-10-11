@@ -15,6 +15,8 @@
 The optional bridge admits a configured third-party server that has not migrated to
 MCP `2026-07-28`. Configuration selects either one local stdio child or one remote
 Streamable HTTP endpoint. The connector never probes or downgrades.
+Its Initialize request explicitly offers `2025-11-25`, independently of the SDK's
+default protocol version. The returned version must match that external profile.
 
 The bridge observes the legacy Initialize result and exposes the supported tools,
 resources, resource templates, prompts, and completions through a final-profile

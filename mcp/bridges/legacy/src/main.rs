@@ -62,6 +62,7 @@ impl ClientHandler for LegacyClient {
             ClientCapabilities::default(),
             Implementation::new("veoveo-legacy-bridge", env!("CARGO_PKG_VERSION")),
         )
+        .with_protocol_version(ProtocolVersion::V_2025_11_25)
     }
 }
 
@@ -164,4 +165,47 @@ fn owned_peer(
     let peer = running.peer().clone();
     let owner = tokio::spawn(async move { format!("{:?}", running.waiting().await) });
     Ok((peer, owner))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rmcp::{ServerHandler, ServiceExt, model::ServerConfig};
+
+    struct ExternalServer;
+
+    impl ServerHandler for ExternalServer {
+        fn get_info(&self) -> ServerConfig {
+            ServerConfig::default().with_protocol_version(ProtocolVersion::V_2025_11_25)
+        }
+    }
+
+    #[tokio::test]
+    async fn external_initialize_offers_only_legacy_while_proxy_keeps_final_profile() {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let (client_io, server_io) = tokio::io::duplex(4096);
+            let server =
+                tokio::spawn(async move { ExternalServer.serve(server_io).await.unwrap() });
+            let client = LegacyClient
+                .serve_with_lifecycle(client_io, ClientLifecycleMode::Initialize)
+                .await
+                .unwrap();
+            let server = server.await.unwrap();
+            assert_eq!(
+                server.peer_info().unwrap().protocol_version,
+                ProtocolVersion::V_2025_11_25,
+                "the actual Initialize offer must use the declared external profile"
+            );
+            let observed = client.peer_info().unwrap();
+            assert_eq!(observed.protocol_version, ProtocolVersion::V_2025_11_25);
+            assert_eq!(
+                final_server_info(&observed).protocol_version,
+                ProtocolVersion::V_2026_07_28
+            );
+            client.cancel().await.unwrap();
+            server.cancel().await.unwrap();
+        })
+        .await
+        .expect("external Initialize exceeded five seconds");
+    }
 }
