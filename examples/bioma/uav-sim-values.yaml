@@ -14,6 +14,7 @@ agentTemplate:
 
 recording:
   mapProvider: openStreetMap
+  telemetryHz: 30
 
 world:
   bootstrap:
@@ -26,7 +27,15 @@ session:
   physicsHz: 30
   renderingHz: 24
   fleetLoop:
+    relativeAltitudeM: 20
+    verticalSeparationM: 3
     takeoffTimeoutSeconds: 1800
+    centerEastM: 0
+    centerNorthM: 0
+    eastRadiusM: 20
+    northRadiusM: 30
+    radialSeparationM: 3
+    speedMps: 5
   camera:
     vehicleId: uav-1
     width: 640
