@@ -12,6 +12,7 @@ name = "agent"
 path = "src/bin/agent.rs"
 
 [dependencies]
+veoveo-time-mcp = { path = "../../servers/time-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-testing-support = { path = "../../testing/support", optional = true }
 veoveo-gateway-contract = { workspace = true, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
@@ -66,4 +67,4 @@ path = "src/smoke/agent_smoke.rs"
 required-features = ["smoke"]
 
 [features]
-smoke = ["dep:veoveo-testing-support", "dep:veoveo-gateway-contract",   "dep:veoveo-artifact-contract", "dep:axum",        "dep:veoveo-mcp-conformance"]
+smoke = ["dep:veoveo-time-mcp", "dep:veoveo-testing-support", "dep:veoveo-gateway-contract",   "dep:veoveo-artifact-contract", "dep:axum",        "dep:veoveo-mcp-conformance"]

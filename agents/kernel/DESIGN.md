@@ -66,6 +66,16 @@ listeners and publishes the new epoch to Task watchers. This maintenance admits 
 episode and makes no model call. Each attempt is bounded to six seconds; failed
 renewal leaves request dispatch subject to the same fail-closed preflight.
 
+Declared resource listeners use the hosted MCP reconciliation profile. On each
+listener establishment, including an automatic SDK re-listen after an abrupt
+subscription loss, the shared server listener invalidates its accepted resource
+URIs. The kernel commits those notifications as generic resource-change wakes.
+An episode must read the current resource before interpreting its state; an
+acknowledgement or invalidation does not establish that a domain condition holds.
+Duplicate notifications may produce distinct wakes, and domain semantic effects
+require their own retained identity checks. This profile does not promise replay
+of every intermediate resource version.
+
 Active episodes observe their dispatch fence through native table feeds, replaying
 commits after reconnect and rechecking current authority at the known lease expiry.
 A failed source closes dispatch. Stop drops the active runner

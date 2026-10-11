@@ -2280,6 +2280,137 @@
       "cleanupSeconds": 180
     },
     {
+      "id": "agent-time-events",
+      "description": "Qualify real Time/Gateway/Store/kernel resource wakes and due-state ledger effects with a deterministic scripted model.",
+      "target": {
+        "kind": "cargo_binary",
+        "selection": {
+          "owner": "examples/bioma/acceptance",
+          "package": "veoveo-bioma-acceptance",
+          "target": "installation-smoke",
+          "features": [
+            "smoke"
+          ],
+          "defaultFeatures": false,
+          "profile": "dev"
+        }
+      },
+      "arguments": [
+        "agent-time-events"
+      ],
+      "prerequisites": [
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway-smoke-support",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-smoke",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "testing/deployment-smoke",
+            "package": "veoveo-deployment-smoke",
+            "target": "deployment-fixtures",
+            "features": [
+              "smoke"
+            ],
+            "defaultFeatures": false,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/gateway/composition",
+            "package": "veoveo-gateway-composition",
+            "target": "gateway",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "platform/artifacts/service",
+            "package": "veoveo-artifact-service",
+            "target": "artifact-service",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "agents/kernel",
+            "package": "veoveo-agent-kernel",
+            "target": "agent",
+            "features": [],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        },
+        {
+          "kind": "cargo_binary",
+          "selection": {
+            "owner": "servers/time-mcp",
+            "package": "veoveo-time-mcp",
+            "target": "time-mcp",
+            "features": [
+              "mcp"
+            ],
+            "defaultFeatures": true,
+            "profile": "dev"
+          }
+        }
+      ],
+      "requirements": {
+        "network": true,
+        "credentials": false,
+        "clusterMutation": false,
+        "billedEffects": false,
+        "nvidia": false,
+        "headedGraphics": false,
+        "explanation": "Disposable real Store, Gateway, Time and kernel processes use local fixture signing credentials and the maintained scripted model. Requires Docker and system TZDB/leap-second files; no live model inference or installed-reference qualification."
+      },
+      "deadlineSeconds": 900,
+      "cleanupSeconds": 30
+    },
+    {
       "id": "agent-gateway",
       "description": "Smoke-test agent-kernel gateway prerequisites: optional-tool task calls and cross-session task continuity.",
       "target": {

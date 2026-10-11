@@ -336,6 +336,20 @@ enum Cmd {
         #[arg(long)]
         agent_bin: Option<PathBuf>,
     },
+    AgentTimeEvents {
+        #[arg(long)]
+        time_bin: Option<PathBuf>,
+        #[arg(long)]
+        gateway_bin: Option<PathBuf>,
+        #[arg(long)]
+        artifact_service_bin: Option<PathBuf>,
+        #[arg(long)]
+        agent_bin: Option<PathBuf>,
+        #[arg(long, default_value = "configs/gateway.smoke.json")]
+        control_plane: PathBuf,
+        #[arg(long, default_value = "examples/bioma/gateway.json")]
+        reference_control_plane: PathBuf,
+    },
     AgentGateway {
         /// Built conformance binary path.
         #[arg(long)]
@@ -469,6 +483,8 @@ enum Cmd {
 }
 #[path = "scenarios/agent_manager.rs"]
 mod agent_manager;
+#[path = "scenarios/agent_time_events.rs"]
+mod agent_time_events;
 #[path = "scenarios/agent_kernel.rs"]
 mod case_0;
 use case_0::*;
@@ -961,6 +977,46 @@ async fn execute() -> Result<()> {
                 &control_plane,
                 &artifact_service_bin,
                 &agent_bin,
+            )
+            .await
+        }
+        Cmd::AgentTimeEvents {
+            time_bin,
+            gateway_bin,
+            artifact_service_bin,
+            agent_bin,
+            control_plane,
+            reference_control_plane,
+        } => {
+            let time = veoveo_testing_support::artifacts::requested_executable(
+                time_bin,
+                "veoveo-time-mcp",
+                "time-mcp",
+            )?;
+            let gateway = veoveo_testing_support::artifacts::requested_executable(
+                gateway_bin,
+                "veoveo-gateway-composition",
+                "gateway",
+            )?;
+            let artifact = veoveo_testing_support::artifacts::requested_executable(
+                artifact_service_bin,
+                "veoveo-artifact-service",
+                "artifact-service",
+            )?;
+            let agent = veoveo_testing_support::artifacts::requested_executable(
+                agent_bin,
+                "veoveo-agent-kernel",
+                "agent",
+            )?;
+            agent_time_events::run(
+                agent_time_events::Binaries {
+                    time: &time,
+                    gateway: &gateway,
+                    artifact: &artifact,
+                    agent: &agent,
+                },
+                &control_plane,
+                &reference_control_plane,
             )
             .await
         }

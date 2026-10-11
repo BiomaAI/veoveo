@@ -540,3 +540,7 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+#[path = "connection_resource_tests.rs"]
+mod resource_recovery_tests;

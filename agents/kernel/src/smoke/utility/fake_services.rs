@@ -1,4 +1,6 @@
 use super::*;
+#[path = "time_events.rs"]
+mod time_events;
 pub(super) async fn cmd_fake_openai_llm(port: u16, ready_file: Option<PathBuf>) -> Result<()> {
     let router = AxumRouter::new().route("/v1/chat/completions", axum_post(fake_llm_completion));
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
@@ -10,6 +12,12 @@ pub(super) async fn cmd_fake_openai_llm(port: u16, ready_file: Option<PathBuf>) 
 }
 
 async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Value> {
+    if request.get("model").and_then(Value::as_str) == Some("fake/time-events") {
+        return AxumJson(time_events::completion(&request).unwrap_or_else(|error| {
+            tracing::error!(%error, "scripted Time event fixture failed");
+            fake_llm_stop_response(&request, "TIME FIXTURE REFUSED")
+        }));
+    }
     let messages = request
         .get("messages")
         .and_then(Value::as_array)

@@ -16082,6 +16082,7 @@ dependencies = [
  "veoveo-platform-store",
  "veoveo-task-runtime",
  "veoveo-testing-support",
+ "veoveo-time-mcp",
  "veoveo-types",
 ]
 
@@ -16380,6 +16381,7 @@ dependencies = [
  "veoveo-stream-mcp",
  "veoveo-sumo-mcp",
  "veoveo-testing-support",
+ "veoveo-time-mcp",
  "veoveo-timeseries-mcp",
  "veoveo-types",
  "veoveo-uav-sim-mcp",

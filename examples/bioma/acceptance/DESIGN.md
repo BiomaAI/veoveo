@@ -10,6 +10,7 @@
 | Native MCP clients | Official Rust SDK MCP 2026-07-28 Discover, Tasks, resource reads and request-scoped subscriptions over Streamable HTTP; bearer issuance uses the runtime-owned fixture adapter |
 | Focused Artifact consumers | `veoveo.ai/artifact-focused-consumer-acceptance/v1` private JSON; bounded public OAuth upload receipts, direct SDK observations and declared consumer checks; no public protocol extension |
 | Public upload intents | `veoveo.ai/artifact-public-upload-intents/v1` private JSONL; selected profile, upload dispatch intents, acknowledged identities, received receipts, qualified publications and cleanup outcomes |
+| Agent Time events | Time owner requests/resources over normal OAuth/MCP, hosted subscription reconciliation and a local scripted Chat Completions profile; private JSONL dispatch and observation records |
 | Installed Agent Manager | Existing public authoring HTTP DTOs and WHATWG SSE through pinned `sse-stream` 0.2.5; private closed `veoveo.ai/agent-manager-journey-input/v1` input and `veoveo.ai/agent-manager-journey/v1` JSONL observations |
 | Installed DuckDB | Existing `installation-verify --scope duckdb` consumer, owner contract CSV/schema/catalog/usage and Artifact provenance over normal Gateway OAuth; private `veoveo.ai/installed-duckdb/v1` receipt |
 | Installed Stream | Owner-library run identities, completion products and analysis results; cross-replica DeepStream replay requires NVIDIA hardware |
@@ -999,6 +1000,44 @@ the observation failure separately from cleanup failure and preserves both after
 owner cleanup. Error chains and browser network diagnostics use bounded redaction
 before persistence. The command does not change the runtime camera profile or
 establish a benchmark result merely by being registered.
+
+## Agent Time Event Qualification
+
+`agent-time-events` extends `installation-smoke` with disposable real Time,
+Gateway, Store and kernel processes. A qualification-local machine client uses
+normal OAuth with operator admission, Time read and event-write grants. Its
+static `time://events` subscription establishes before event creation. The
+`fake/time-events` scripted model reads the current owner-typed index and members,
+and records one DuckDB ledger effect for each Due event identity. Scheduled and
+Cancelled records authorize no effect. This fixture qualifies agent protocol and
+persistence behavior; it makes no live-model reasoning claim.
+
+The scenario persists create/cancel intents and acknowledged event identities in
+a new 0600 JSONL journal inside a 0700 workspace. Received typed events enter an
+owner-retained buffer before persistence or assertion. Cleanup preserves that buffer
+in a create-new private snapshot after a journal failure and keeps the first failure
+sticky. Creation binds the requested name and due instant; later observations bind
+the original event identity, immutable payload and expected transition version.
+Current reads require one text body whose URI matches the typed request. The
+scenario exercises a creation update,
+a later Due read, cancellation, idempotent creation replay, an actual Time process
+restart spanning a deadline, and a kernel restart with retained data. Repeated
+invalidations may create more wakes or episodes; the ledger must still contain
+only the two independently observed Due identities. Retained wake IDs, creation
+times and acknowledged episode associations must survive kernel replacement.
+Successful reconnection uses the shared resource listener's current-state
+reconciliation, rather than replaying missed notifications.
+
+The maintained command owner bounds startup and registered resource cleanup.
+After authentication, one 300-second interval includes event work and a final
+20-second explicit cleanup reserve. Earlier owner cancellation still closes
+registered clients and processes. A consuming client close keeps its first deadline
+across interruption; completion after that deadline cannot settle cleanup. Errors preserve the workspace, dispatch intents
+and known event identities without repeating mutations. Logs, event records and
+the agent's data are retained locally for diagnosis; disposable Store resources
+belong to the existing fixture guards. Fixed loopback ports 18870–18872 require
+sequential execution. The installed-reference variant requires separate endpoint,
+client and template admission and is not established by this local scenario.
 
 ## Installed Agent Manager Journey
 

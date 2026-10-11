@@ -1322,6 +1322,8 @@ domain vocabulary.
 | `examples/bioma/images/uav-sim-retained.txt` | native K3s pre-import list for simulator, MCP and forwarder cache retention; the Helm rollout guard checks it against the UAV lock and rendered Pod images |
 | `examples/bioma/acceptance/src/smoke/scenarios/agent_manager.rs` and `agent_manager/` | installed public admin OAuth authoring, prearmed typed SSE/current-view Ready, retained mutation reconciliation and owned stop/archive through an existing Manager; idle-template/controller/module admission and CPU client controls |
 | `examples/bioma/acceptance/src/smoke/scenarios/agent_kernel.rs` | full Pilot mission flow through gateway task dispatch, cuOpt MILP execution, independent verification, wake delivery, and durable memory |
+| `examples/bioma/acceptance/src/smoke/scenarios/agent_time_events.rs` and `agent_time_events/journal.rs` | real Time/Gateway/Store/kernel event-wake qualification, retained typed observations, private journal recovery and owned process/client cleanup |
+| `agents/kernel/src/smoke/utility/time_events.rs` | scripted model for owner-typed Time reads and Due-only memory effects in the event-wake scenario |
 
 ### Temporal Domain
 
@@ -1769,6 +1771,7 @@ dispatch preflights and budgeted execution.
 | `rrd.rs`, `recorder.rs` | episode/world Rerun recording |
 | `budget.rs` | enforced episode/tool/cost budgets |
 | `connection.rs` | final-profile gateway client epoch, serialized request-boundary credential freshness, acknowledged request-scoped listener restoration, and deferred-task resolver |
+| `connection_resource_tests.rs` | maintained SDK subscription acknowledgement and missed-resource-update reconciliation controls |
 | `resource.rs` | resource reads through the current profile, content-bound observations and provenance within episode budgets, text validation, and fixed-field correction diagnostics |
 
 ### `agents/runtime/src/gateway/http`
