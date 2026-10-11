@@ -68,7 +68,7 @@ impl SafeFailure {
         }
     }
 }
-fn safe_detail(value: &str, secrets: &[String]) -> String {
+pub(super) fn safe_detail(value: &str, secrets: &[String]) -> String {
     let mut value = value.to_owned();
     for secret in secrets.iter().filter(|secret| !secret.is_empty()) {
         value = value.replace(secret, "[REDACTED]");
@@ -77,6 +77,13 @@ fn safe_detail(value: &str, secrets: &[String]) -> String {
     let value = value
         .split_whitespace()
         .map(|word| {
+            let candidate = word.trim_matches(['\'', '"', '(', ')', '[', ']', '{', '}', ',', ';']);
+            let credentials = url::Url::parse(candidate)
+                .is_ok_and(|url| !url.username().is_empty() || url.password().is_some());
+            // Withhold malformed or additionally wrapped credential-looking URLs too.
+            if credentials || (word.contains("://") && word.contains('@')) {
+                return "[redacted URL credentials]".to_owned();
+            }
             if word.contains('?') || word.contains('#') {
                 word.split(['?', '#']).next().unwrap_or("").to_owned()
             } else {
@@ -91,6 +98,17 @@ fn safe_detail(value: &str, secrets: &[String]) -> String {
         "client_secret",
         "refresh_token",
         "id_token",
+        "clientsecret",
+        "access_token",
+        "accesstoken",
+        "api_key",
+        "api-key",
+        "apikey",
+        "private_key",
+        "privatekey",
+        "secret_key",
+        "secretkey",
+        "password",
     ]
     .iter()
     .any(|key| value.to_ascii_lowercase().contains(key))

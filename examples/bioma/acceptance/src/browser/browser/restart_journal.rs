@@ -26,12 +26,64 @@ impl RestartOwnedView {
         }))
     }
 }
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RestartAppObservation {
+    captured_at: chrono::DateTime<chrono::Utc>,
+    ready_state: u16,
+    decoded_and_drawn_callbacks: u64,
+    presentation_frame_count: Option<u64>,
+    video_width: u32,
+    video_height: u32,
+    media_time_seconds: Option<f64>,
+    sampled_at_ms: Option<f64>,
+    status: String,
+    error: String,
+}
+impl RestartAppObservation {
+    fn capture(state: &AppVideoState) -> Self {
+        let finite = |value: f64| value.is_finite().then_some(value);
+        Self {
+            captured_at: chrono::Utc::now(),
+            ready_state: state.ready_state,
+            // This public canvas counter advances after drawImage, not compositor presentation.
+            decoded_and_drawn_callbacks: state.total_video_frames,
+            presentation_frame_count: None,
+            video_width: state.video_width,
+            video_height: state.video_height,
+            media_time_seconds: finite(state.current_time),
+            sampled_at_ms: finite(state.sampled_at_ms),
+            status: camera_measure::safe_detail(&state.status, &[]),
+            error: camera_measure::safe_detail(&state.error, &[]),
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RestartHardwareObservation {
+    validated_at: chrono::DateTime<chrono::Utc>,
+    webgpu_hardware: bool,
+    webgl_hardware: bool,
+    webgpu: String,
+    webgl: String,
+}
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RestartDecodeObservation {
+    validated_at: chrono::DateTime<chrono::Utc>,
+    supported: bool,
+    smooth: bool,
+    power_efficient: bool,
+    label: String,
+}
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) enum RestartOwnerPhase {
     Prepared,
     TargetOwned,
     NavigationIntent,
+    HardwareValidated,
+    DecodeValidated,
     ViewObserved,
     DispatchIntent,
     ReplacementObserved,
@@ -54,6 +106,9 @@ struct RestartOwnerRecord<'a> {
     target_id: Option<&'a str>,
     cdp_session_id: Option<&'a str>,
     view: Option<RestartOwnedView>,
+    app: Option<RestartAppObservation>,
+    hardware: Option<RestartHardwareObservation>,
+    decode: Option<RestartDecodeObservation>,
     sequence: u64,
     authorization_outcome_unknown: bool,
     authorization_closed: bool,
@@ -65,6 +120,9 @@ struct JournalStorage {
     #[cfg(test)]
     final_append_delay: Option<Duration>,
     latest_view: Option<RestartOwnedView>,
+    latest_app: Option<RestartAppObservation>,
+    hardware: Option<RestartHardwareObservation>,
+    decode: Option<RestartDecodeObservation>,
     authorization_closed: bool,
     sequence: u64,
     cleanup_end: Option<chrono::DateTime<chrono::Utc>>,
@@ -108,6 +166,9 @@ impl RestartOwnerJournal {
                 #[cfg(test)]
                 final_append_delay: None,
                 latest_view: None,
+                latest_app: None,
+                hardware: None,
+                decode: None,
                 authorization_closed: false,
                 sequence: 0,
                 cleanup_end: None,
@@ -118,6 +179,57 @@ impl RestartOwnerJournal {
         };
         journal.append(RestartOwnerPhase::Prepared, None, None, None, None)?;
         Ok(journal)
+    }
+    pub(super) fn hardware_validated(
+        &self,
+        target: &str,
+        session: &str,
+        hardware: &HardwareIdentity,
+    ) -> Result<()> {
+        hardware.validate()?;
+        let (apis, webgpu, webgl) = hardware.hardware_apis();
+        self.storage
+            .lock()
+            .map_err(|_| anyhow::anyhow!("restart journal lock poisoned"))?
+            .hardware = Some(RestartHardwareObservation {
+            validated_at: chrono::Utc::now(),
+            webgpu_hardware: apis.contains(&BrowserGpuApi::WebGpu),
+            webgl_hardware: apis.contains(&BrowserGpuApi::WebGl),
+            webgpu: camera_measure::safe_detail(&webgpu, &[]),
+            webgl: camera_measure::safe_detail(&webgl, &[]),
+        });
+        self.append(
+            RestartOwnerPhase::HardwareValidated,
+            Some(target),
+            Some(session),
+            None,
+            None,
+        )
+    }
+    pub(super) fn decode_validated(
+        &self,
+        target: &str,
+        session: &str,
+        decode: &DecodeIdentity,
+    ) -> Result<()> {
+        decode.validate()?;
+        self.storage
+            .lock()
+            .map_err(|_| anyhow::anyhow!("restart journal lock poisoned"))?
+            .decode = Some(RestartDecodeObservation {
+            validated_at: chrono::Utc::now(),
+            supported: decode.supported,
+            smooth: decode.smooth,
+            power_efficient: decode.power_efficient,
+            label: camera_measure::safe_detail(&decode.label, &[]),
+        });
+        self.append(
+            RestartOwnerPhase::DecodeValidated,
+            Some(target),
+            Some(session),
+            None,
+            None,
+        )
     }
     pub(super) async fn dispatch<F, Fut, T>(
         &self,
@@ -168,6 +280,9 @@ impl RestartOwnerJournal {
             storage.latest_view = Some(view);
             storage.authorization_closed = false;
         }
+        if let Some(state) = state {
+            storage.latest_app = Some(RestartAppObservation::capture(state));
+        }
         if matches!(phase, RestartOwnerPhase::AuthorizationCloseResult) && succeeded == Some(true) {
             storage.authorization_closed = true;
         }
@@ -186,6 +301,9 @@ impl RestartOwnerJournal {
             authorization_outcome_unknown: !storage.authorization_closed,
             authorization_closed: storage.authorization_closed,
             view: storage.latest_view.clone(),
+            app: storage.latest_app.clone(),
+            hardware: storage.hardware.clone(),
+            decode: storage.decode.clone(),
             succeeded,
         };
         #[cfg(test)]
@@ -195,7 +313,17 @@ impl RestartOwnerJournal {
             std::thread::sleep(delay);
         }
         let written = (|| -> Result<()> {
-            storage.file.write_all(&serde_json::to_vec(&record)?)?;
+            let encoded = serde_json::to_vec(&record)?;
+            ensure!(
+                storage
+                    .file
+                    .metadata()?
+                    .len()
+                    .saturating_add(encoded.len() as u64 + 1)
+                    <= 8 * 1024 * 1024,
+                "restart ownership journal exceeds eight MiB"
+            );
+            storage.file.write_all(&encoded)?;
             storage.file.write_all(b"\n")?;
             storage.file.sync_all()?;
             Ok(())
@@ -414,6 +542,236 @@ mod tests {
             .lines()
             .map(|line| Ok(serde_json::from_str(line)?))
             .collect()
+    }
+    #[tokio::test]
+    async fn public_failure_observation_survives_cancelled_wait_and_stage_cleanup() -> Result<()> {
+        use veoveo_testing_support::lifecycle::owner::{self, CleanupKind};
+        const CHILD: &str = "VEOVEO_RESTART_OBSERVATION_TEST_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let mut command = tokio::process::Command::new(std::env::current_exe()?);
+            command.args([
+                "browser::restart_journal::tests::public_failure_observation_survives_cancelled_wait_and_stage_cleanup",
+                "--exact", "--nocapture",
+            ]).env(CHILD, "1").kill_on_drop(true);
+            let status = tokio::time::timeout(Duration::from_secs(10), command.status()).await??;
+            ensure!(
+                status.success(),
+                "isolated owner observation control failed: {status}"
+            );
+            return Ok(());
+        }
+        let directory = tempfile::tempdir()?;
+        for component in ["mcp", "runtime-and-forwarder"] {
+            let path = directory.path().join(format!("{component}.jsonl"));
+            let journal = RestartOwnerJournal::create(
+                &path,
+                component,
+                veoveo_uav_sim_mcp::contract::SessionId::parse("uav-showcase")?,
+                Duration::from_millis(10),
+            )?;
+            let retained = journal.clone();
+            let mut failed = state(component)?;
+            failed.ready_state = 0;
+            failed.total_video_frames = 47;
+            failed.current_time = 7.5;
+            failed.sampled_at_ms = 1234.0;
+            failed.status =
+                "waiting https://example.test/live?token=QUERY_SECRET#FRAGMENT_SECRET".into();
+            failed.error = "Authorization: Bearer HEADER_SECRET".into();
+            failed.body_text = "OPAQUE_BODY_SECRET".into();
+            let result: Result<()> = owner::run(async {
+                owner::register_cleanup(
+                    CleanupKind::Remote,
+                    "restart observation",
+                    component,
+                    move || async move {
+                        retained.append(
+                            RestartOwnerPhase::CleanupIntent,
+                            Some("owned-target"),
+                            Some("owned-cdp"),
+                            None,
+                            None,
+                        )
+                    },
+                )?;
+                journal.append(
+                    RestartOwnerPhase::ObservationFailed,
+                    Some("owned-target"),
+                    Some("owned-cdp"),
+                    Some(&failed),
+                    Some(false),
+                )?;
+                tokio::time::timeout(Duration::from_millis(20), std::future::pending::<()>())
+                    .await?;
+                Ok(())
+            })
+            .await;
+            ensure!(result.is_err());
+            let saved = records(&path)?;
+            let last = saved.last().context("cleanup snapshot missing")?;
+            ensure!(last["phase"] == "cleanupIntent" && last["component"] == component);
+            ensure!(last["view"]["liveViewId"] == component);
+            ensure!(
+                last["app"]["decodedAndDrawnCallbacks"] == 47 && last["app"]["readyState"] == 0
+            );
+            ensure!(last["app"]["videoWidth"] == 1280 && last["app"]["mediaTimeSeconds"] == 7.5);
+            ensure!(
+                last["app"]["sampledAtMs"] == 1234.0
+                    && last["app"]["presentationFrameCount"].is_null()
+            );
+            ensure!(last["hardware"].is_null() && last["decode"].is_null());
+            ensure!(
+                saved
+                    .iter()
+                    .all(|record| record["operationEnd"] == last["operationEnd"])
+            );
+            let text = fs::read_to_string(&path)?;
+            for secret in [
+                "QUERY_SECRET",
+                "FRAGMENT_SECRET",
+                "HEADER_SECRET",
+                "OPAQUE_BODY_SECRET",
+            ] {
+                ensure!(!text.contains(secret), "diagnostic leaked {secret}");
+            }
+            let dispatched = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let effect = dispatched.clone();
+            let expired: Result<()> = owner::run(async {
+                journal
+                    .dispatch("owned-target", "owned-cdp", &failed, || async move {
+                        effect.store(true, std::sync::atomic::Ordering::SeqCst);
+                        Ok(())
+                    })
+                    .await
+            })
+            .await;
+            ensure!(expired.is_err() && !dispatched.load(std::sync::atomic::Ordering::SeqCst));
+        }
+        Ok(())
+    }
+    #[test]
+    fn only_admitted_hardware_and_decode_identity_are_carried_into_cleanup() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("owner.jsonl");
+        let journal = RestartOwnerJournal::create(
+            &path,
+            "mcp",
+            veoveo_uav_sim_mcp::contract::SessionId::parse("uav-showcase")?,
+            Duration::from_secs(30),
+        )?;
+        let hardware: HardwareIdentity = serde_json::from_value(serde_json::json!({
+            "userAgent":"Chrome/behavioral-fixture", "webgpuVendor":"nvidia", "webgpuArchitecture":"ada",
+            "webgpuDevice":"fixture", "webgpuDescription":"NVIDIA fixture", "webglAvailable":false,
+            "webglVendor":"", "webglRenderer":""
+        }))?;
+        let invalid: HardwareIdentity = serde_json::from_value(serde_json::json!({
+            "userAgent":"Chrome/behavioral-fixture", "webgpuVendor":"google", "webgpuArchitecture":"",
+            "webgpuDevice":"", "webgpuDescription":"SwiftShader", "webglAvailable":false,
+            "webglVendor":"", "webglRenderer":""
+        }))?;
+        ensure!(
+            journal
+                .hardware_validated("owned-target", "owned-cdp", &invalid)
+                .is_err()
+        );
+        let mut decode = DecodeIdentity {
+            supported: false,
+            smooth: true,
+            power_efficient: false,
+            label: "NVIDIA NVENC · software H.264 decode".into(),
+        };
+        ensure!(
+            journal
+                .decode_validated("owned-target", "owned-cdp", &decode)
+                .is_err()
+        );
+        ensure!(records(&path)?.last().context("prepared")?["hardware"].is_null());
+        journal.hardware_validated("owned-target", "owned-cdp", &hardware)?;
+        decode.supported = true;
+        journal.decode_validated("owned-target", "owned-cdp", &decode)?;
+        journal.append(
+            RestartOwnerPhase::CleanupIntent,
+            Some("owned-target"),
+            Some("owned-cdp"),
+            None,
+            None,
+        )?;
+        let saved = records(&path)?.pop().context("cleanup")?;
+        ensure!(
+            saved["hardware"]["webgpuHardware"] == true
+                && saved["hardware"]["webglHardware"] == false
+        );
+        ensure!(saved["decode"]["supported"] == true && saved["decode"]["powerEfficient"] == false);
+        Ok(())
+    }
+    #[test]
+    fn observation_redacts_credentials_bounds_data_and_latches_capacity_failure() -> Result<()> {
+        for secret in [
+            "access_token=SECRET",
+            "accessToken=SECRET",
+            "X-API-Key: SECRET",
+            "api_key=SECRET",
+            "private_key=SECRET",
+            "password=SECRET",
+            "https://user:SECRET@example.test/live",
+            "('https://user:SECRET@example.test/live')",
+            "\"https://user:SECRET@example.test/live\"",
+            "[https://user:SECRET@example.test/live]",
+            "url=(https://user:SECRET@example.test/live)",
+        ] {
+            ensure!(!camera_measure::safe_detail(secret, &[]).contains("SECRET"));
+        }
+        ensure!(
+            camera_measure::safe_detail(&"界".repeat(1000), &[])
+                .chars()
+                .count()
+                <= 320
+        );
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("owner.jsonl");
+        let journal = RestartOwnerJournal::create(
+            &path,
+            "mcp",
+            veoveo_uav_sim_mcp::contract::SessionId::parse("uav-showcase")?,
+            Duration::from_secs(30),
+        )?;
+        let mut wrong = state("wrong-session-view")?;
+        wrong.session_id = veoveo_uav_sim_mcp::contract::SessionId::parse("another-session")?;
+        ensure!(
+            journal
+                .append(
+                    RestartOwnerPhase::ViewObserved,
+                    None,
+                    None,
+                    Some(&wrong),
+                    None
+                )
+                .is_err()
+        );
+        ensure!(records(&path)?.last().context("prepared")?["app"].is_null());
+        journal
+            .storage
+            .lock()
+            .unwrap()
+            .file
+            .set_len(8 * 1024 * 1024)?;
+        ensure!(
+            journal
+                .append(RestartOwnerPhase::ObservationFailed, None, None, None, None)
+                .is_err()
+        );
+        {
+            use std::io::Seek;
+            let mut storage = journal.storage.lock().unwrap();
+            storage.file.set_len(0)?;
+            storage.file.rewind()?;
+        }
+        journal.append(RestartOwnerPhase::CleanupIntent, None, None, None, None)?;
+        ensure!(
+            journal.storage.lock().unwrap().failed,
+            "restored storage must not clear failed ownership"
+        );
+        Ok(())
     }
     #[tokio::test]
     async fn dispatch_is_synced_before_effect_and_failure_retains_only_its_stage_owner()

@@ -1639,6 +1639,7 @@ where
         let hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         hardware.validate()?;
+        journal.hardware_validated(&target_id, &session_id, &hardware)?;
         ensure!(
             wait_for_console_app_camera(cdp, &target_id, &session_id, expected_camera_id,).await?,
             "Console UAV live view App exposed no camera {expected_camera_id:?}"
@@ -1679,6 +1680,7 @@ where
             &session_id,
             expected_camera_id,
             after,
+            Some(&journal),
         )
         .await?;
         let decode: DecodeIdentity = evaluate_console_app(
@@ -1691,9 +1693,11 @@ where
         )
         .await?;
         decode.validate()?;
+        journal.decode_validated(&target_id, &session_id, &decode)?;
         let final_hardware: HardwareIdentity =
             cdp.evaluate(&session_id, HARDWARE_PREFLIGHT, true).await?;
         final_hardware.validate()?;
+        journal.hardware_validated(&target_id, &session_id, &final_hardware)?;
         let screenshot_sha256 = capture_screenshot(cdp, &session_id, screenshot_path).await?;
         cdp.assert_no_software_renderer_events()?;
         Ok((
@@ -4294,6 +4298,7 @@ async fn wait_for_console_video_continuity(
     session_id: &str,
     camera: &str,
     first: AppVideoState,
+    journal: Option<&RestartOwnerJournal>,
 ) -> Result<AppVideoState> {
     let sample: VideoProgressSample = evaluate_console_app(
         cdp,
@@ -4304,7 +4309,8 @@ async fn wait_for_console_video_continuity(
         true,
     )
     .await?;
-    let mut second = wait_for_console_video(cdp, target_id, session_id, camera).await?;
+    let mut second =
+        wait_for_console_video_observed(cdp, target_id, session_id, camera, journal).await?;
     ensure!(
         sample.first.matches(&first)
             && sample.last.matches(&first)
