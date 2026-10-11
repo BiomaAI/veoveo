@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -62,14 +63,39 @@ def kit_rtpt_visual_arguments() -> list[str]:
     return [f"--{path}={value}" for path, value in settings.items()]
 
 
-def _cleanup(name: str, action: Callable[[], None]) -> None:
+class _StopRequested(Exception):
+    """Unwind only at a cooperative owner checkpoint."""
+
+
+def _check_stop(stop_requested: threading.Event) -> None:
+    if stop_requested.is_set():
+        raise _StopRequested()
+
+
+def _admit_action(stop_requested: threading.Event, action: Callable[[], object]) -> object:
+    if stop_requested.is_set():
+        raise RuntimeError("UAV simulation is stopping; command was not dispatched")
+    return action()
+
+
+def _finish_cleanup(errors: list[BaseException], runtime_failure: BaseException | None) -> None:
+    if errors:
+        failures = ([runtime_failure] if runtime_failure is not None else []) + errors
+        raise BaseExceptionGroup("UAV simulation teardown failed", failures)
+
+
+def _cleanup(name: str, action: Callable[[], None]) -> BaseException | None:
     try:
         action()
-    except BaseException:
+    except BaseException as error:
         LOGGER.exception("UAV simulation cleanup failed: %s", name)
+        return error
+    return None
 
 
-def run(config: RuntimeConfig) -> None:
+def run(config: RuntimeConfig, stop_requested: threading.Event) -> None:
+    if stop_requested.is_set():
+        return
     expected_world = (
         WorldConfiguration.from_file(config.world_bootstrap_file, config.session_id)
         if config.world_bootstrap_file is not None
@@ -82,6 +108,8 @@ def run(config: RuntimeConfig) -> None:
     physical_product_name = physical_camera_product_name(config.camera.vehicle_id)
     viewport_width = config.camera.width
     viewport_height = config.camera.height
+    if stop_requested.is_set():
+        return
     simulation_app = SimulationApp(
         {
             "headless": True,
@@ -133,101 +161,8 @@ def run(config: RuntimeConfig) -> None:
         }
     )
 
-    import isaacsim.physics.newton
-    import omni.kit.app
-    import omni.timeline
-    import omni.usd
-    from isaacsim.core.simulation_manager import SimulationManager
-    from isaacsim.physics.newton import MuJoCoSolverConfig, get_newton_solver
-    from pxr import Gf, Usd, UsdGeom, UsdLux
-
-    extension_manager = omni.kit.app.get_app().get_extension_manager()
-    extension_manager.add_path(config.extension_directory)
-    for extension in (
-        "cesium.usd.plugins",
-        "cesium.omniverse",
-        "isaacsim.physics.newton",
-        "isaacsim.physics.newton.tensors",
-        "isaacsim.core.simulation_manager",
-        "isaacsim.core.experimental.prims",
-        "isaacsim.core.experimental.objects",
-        "isaacsim.core.experimental.materials",
-        "isaacsim.core.experimental.utils",
-        "omni.kit.livestream.rtsp",
-        "isaacsim.streaming.rtsp",
-    ):
-        extension_manager.set_extension_enabled_immediate(extension, True)
-        if not extension_manager.is_extension_enabled(extension):
-            raise RuntimeError(f"failed to enable required extension {extension}")
-
-    from cesium.omniverse.bindings import (
-        Viewport as CesiumViewport,
-    )
-    from cesium.omniverse.bindings import (
-        acquire_cesium_omniverse_interface,
-    )
-    from cesium.omniverse.usdUtils import (
-        add_tileset_ion,
-        get_or_create_cesium_data,
-        get_or_create_cesium_georeference,
-    )
-    from cesium.usd.plugins.CesiumUsdSchemas import (
-        IonServer as CesiumIonServer,
-    )
-    from cesium.usd.plugins.CesiumUsdSchemas import (
-        Tileset as CesiumTileset,
-    )
-
-    from .adapter_server import AdapterServer
-    from .cesium_camera import current_pose_cesium_viewport
-    from .command_queue import MainThreadQueue
-    from .fleet_loop import FleetLoopController
-    from .external_clock import ExternalSimulationClock
-    from .fleet_runtime import WarpFleetRuntime
-    from .hydra_camera import (
-        NativeH264CameraSensor,
-        RetainedProductAcquisitionError,
-        RetainedProductOwner,
-    )
-    from .operator_camera import (
-        AuthoritativeOperatorCameraCollection,
-        EntityTransform,
-        Pose,
-        QuaternionXyzw,
-        Vector3,
-        compose_pose,
-    )
-    from .operator_products import OperatorProductCollection
-    from .physical_camera import create_physical_rgb_camera, physical_camera_path
-    from .px4 import Px4Commander
-    from .px4_hil import Px4HilFleet
-    from .realtime import FixedStepCadenceGate, MonotonicPhysicsClock
-    from .recording import ImuTelemetry, RecordingPublisher
-    from .recording_segments import new_recording_key
-    from .render_pose import rendered_pose_agreement
-    from .runtime_events import (
-        RuntimeEventPublisher,
-        notify_adapter_ready,
-        notify_runtime_ready,
-    )
-    from .scene import create_fleet_scene
-    from .server import (
-        AdapterApplication,
-        PreconfigurationApplication,
-        TimelineControls,
-    )
-    from .state import RuntimeState, VehicleTelemetry
-    from .stream_output import StreamPublicationWorker
-    from .tile_lifecycle import (
-        NativeTileEventBridge,
-        TileLifecycleController,
-        TileRenderStatistics,
-        begin_provider_session_replacement,
-        tile_content_ready,
-    )
     state: RuntimeState | None = None
     world_config: WorldConfiguration | None = None
-    command_queue = MainThreadQueue()
     recording: RecordingPublisher | None = None
     stream_publication: StreamPublicationWorker | None = None
     server: AdapterServer | None = None
@@ -252,9 +187,115 @@ def run(config: RuntimeConfig) -> None:
     tile_event_bridge: NativeTileEventBridge | None = None
     tile_controller: TileLifecycleController | None = None
     physics_timeline = None
-    runtime_events = RuntimeEventPublisher()
+    runtime_failure: BaseException | None = None
+    simulation_manager = None
+    acquisition_error_type: type[BaseException] | None = None
 
     try:
+        _check_stop(stop_requested)
+        import isaacsim.physics.newton
+        import omni.kit.app
+        import omni.timeline
+        import omni.usd
+        from isaacsim.core.simulation_manager import SimulationManager
+        from isaacsim.physics.newton import MuJoCoSolverConfig, get_newton_solver
+        from pxr import Gf, Usd, UsdGeom, UsdLux
+
+        extension_manager = omni.kit.app.get_app().get_extension_manager()
+        extension_manager.add_path(config.extension_directory)
+        for extension in (
+            "cesium.usd.plugins",
+            "cesium.omniverse",
+            "isaacsim.physics.newton",
+            "isaacsim.physics.newton.tensors",
+            "isaacsim.core.simulation_manager",
+            "isaacsim.core.experimental.prims",
+            "isaacsim.core.experimental.objects",
+            "isaacsim.core.experimental.materials",
+            "isaacsim.core.experimental.utils",
+            "omni.kit.livestream.rtsp",
+            "isaacsim.streaming.rtsp",
+        ):
+            _check_stop(stop_requested)
+            extension_manager.set_extension_enabled_immediate(extension, True)
+            if not extension_manager.is_extension_enabled(extension):
+                raise RuntimeError(f"failed to enable required extension {extension}")
+
+        from cesium.omniverse.bindings import (
+            Viewport as CesiumViewport,
+        )
+        from cesium.omniverse.bindings import (
+            acquire_cesium_omniverse_interface,
+        )
+        from cesium.omniverse.usdUtils import (
+            add_tileset_ion,
+            get_or_create_cesium_data,
+            get_or_create_cesium_georeference,
+        )
+        from cesium.usd.plugins.CesiumUsdSchemas import (
+            IonServer as CesiumIonServer,
+        )
+        from cesium.usd.plugins.CesiumUsdSchemas import (
+            Tileset as CesiumTileset,
+        )
+
+        from .adapter_server import AdapterServer
+        from .cesium_camera import current_pose_cesium_viewport
+        from .command_queue import MainThreadQueue
+        from .fleet_loop import FleetLoopController
+        from .external_clock import ExternalSimulationClock
+        from .fleet_runtime import WarpFleetRuntime
+        from .hydra_camera import (
+            NativeH264CameraSensor,
+            RetainedProductAcquisitionError,
+            RetainedProductOwner,
+        )
+        acquisition_error_type = RetainedProductAcquisitionError
+        from .operator_camera import (
+            AuthoritativeOperatorCameraCollection,
+            EntityTransform,
+            Pose,
+            QuaternionXyzw,
+            Vector3,
+            compose_pose,
+        )
+        from .operator_products import OperatorProductCollection
+        from .physical_camera import create_physical_rgb_camera, physical_camera_path
+        from .px4 import Px4Commander
+        from .px4_hil import Px4HilFleet
+        from .realtime import FixedStepCadenceGate, MonotonicPhysicsClock
+        from .recording import ImuTelemetry, RecordingPublisher
+        from .recording_segments import new_recording_key
+        from .render_pose import rendered_pose_agreement
+        from .runtime_events import (
+            RuntimeEventPublisher,
+            notify_adapter_ready,
+            notify_runtime_ready,
+        )
+        from .scene import create_fleet_scene
+        from .server import (
+            AdapterApplication,
+            PreconfigurationApplication,
+            TimelineControls,
+        )
+        from .state import RuntimeState, VehicleTelemetry
+        from .stream_output import StreamPublicationWorker
+        from .tile_lifecycle import (
+            NativeTileEventBridge,
+            TileLifecycleController,
+            TileRenderStatistics,
+            begin_provider_session_replacement,
+            tile_content_ready,
+        )
+        simulation_manager = SimulationManager
+        _check_stop(stop_requested)
+        command_queue = MainThreadQueue()
+
+        def submit_main_thread(action: Callable[[], object]) -> object:
+            _admit_action(stop_requested, lambda: None)
+            return command_queue.submit(lambda: _admit_action(stop_requested, action))
+
+        runtime_events = RuntimeEventPublisher()
         preconfiguration = PreconfigurationApplication(
             config, world_slot, runtime_events
         )
@@ -270,12 +311,15 @@ def run(config: RuntimeConfig) -> None:
             config.session_id,
         )
         while simulation_app.is_running() and world_config is None:
+            _check_stop(stop_requested)
             world_config = world_slot.wait(0.05)
             simulation_app.update()
+        _check_stop(stop_requested)
         if world_config is None:
             raise RuntimeError(
                 "Isaac SimulationApp stopped before a frame world was configured"
             )
+        _check_stop(stop_requested)
         recording_key = new_recording_key()
         state = RuntimeState(config, world_config, recording_key)
         recording = RecordingPublisher(config, world_config, recording_key)
@@ -434,6 +478,7 @@ def run(config: RuntimeConfig) -> None:
 
         physical_cameras = {}
         for index in range(config.vehicle_count):
+            _check_stop(stop_requested)
             vehicle_id = f"uav-{index + 1}"
             commander = Px4Commander(
                 index, world_config.georeference_origin.ellipsoid_height_m
@@ -589,6 +634,7 @@ def run(config: RuntimeConfig) -> None:
             hil_fleet,
             after_step=advance_physics,
         )
+        _check_stop(stop_requested)
         hil_fleet.start()
         LOGGER.info(
             "Newton CUDA UAV fleet ready: bodies=%d device=%s",
@@ -603,7 +649,7 @@ def run(config: RuntimeConfig) -> None:
                 physics_clock.reset(physics_step)
                 state.set_lifecycle("paused")
 
-            command_queue.submit(action)
+            submit_main_thread(action)
 
         def resume() -> None:
             def action() -> None:
@@ -612,7 +658,7 @@ def run(config: RuntimeConfig) -> None:
                 simulation_running = True
                 state.set_lifecycle("running")
 
-            command_queue.submit(action)
+            submit_main_thread(action)
 
         def reset() -> None:
             def action() -> None:
@@ -671,7 +717,7 @@ def run(config: RuntimeConfig) -> None:
                     state.set_lifecycle("failed")
                     raise
 
-            command_queue.submit(action)
+            submit_main_thread(action)
 
         def step(steps: int) -> None:
             def action() -> None:
@@ -679,6 +725,7 @@ def run(config: RuntimeConfig) -> None:
                 assert fleet_runtime is not None
                 simulation_running = False
                 for _ in range(steps):
+                    _check_stop(stop_requested)
                     fleet_runtime.step(physics_step + 1)
                 update_operator_cameras()
                 external_clock.render(physics_step, simulation_app.update)
@@ -687,13 +734,14 @@ def run(config: RuntimeConfig) -> None:
                 state.advance(simulation_time_s, physics_step)
                 state.set_lifecycle("paused")
 
-            command_queue.submit(action)
+            submit_main_thread(action)
 
         fleet_loop = FleetLoopController(
             config.fleet_loop,
             world_config.georeference_origin,
             commanders,
         )
+        _check_stop(stop_requested)
         application = AdapterApplication(
             config,
             state,
@@ -704,13 +752,14 @@ def run(config: RuntimeConfig) -> None:
             fleet_loop,
             operator_products,
             runtime_events,
-            command_queue.submit,
+            submit_main_thread,
         )
         assert server is not None
         server.close()
         server = AdapterServer(config, application.application)
         server.start()
 
+        _check_stop(stop_requested)
         connection_executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=config.vehicle_count, thread_name_prefix="px4-connect"
         )
@@ -729,6 +778,7 @@ def run(config: RuntimeConfig) -> None:
             time.monotonic() + config.px4_connect_timeout_seconds + 15.0
         )
         while not all(future.done() for future in connection_futures.values()):
+            _check_stop(stop_requested)
             assert fleet_runtime is not None
             fleet_runtime.step(physics_step + 1)
             for vehicle_id, future in connection_futures.items():
@@ -740,6 +790,7 @@ def run(config: RuntimeConfig) -> None:
                 raise TimeoutError("PX4 bootstrap did not complete before rendering")
             time.sleep(0.001)
 
+        _check_stop(stop_requested)
         fleet_loop.start()
 
         cesium_interface = acquire_cesium_omniverse_interface()
@@ -804,6 +855,7 @@ def run(config: RuntimeConfig) -> None:
         physics_clock.reset(physics_step)
         render_cadence.reset(physics_step)
         while simulation_app.is_running():
+            _check_stop(stop_requested)
             assert fleet_loop is not None
             fleet_loop.raise_if_failed()
             command_queue.drain()
@@ -811,6 +863,7 @@ def run(config: RuntimeConfig) -> None:
             if simulation_running:
                 due_steps = physics_clock.due_steps(physics_step)
                 for _ in range(due_steps):
+                    _check_stop(stop_requested)
                     assert fleet_runtime is not None
                     fleet_runtime.step(physics_step + 1)
                     render = render_cadence.due(physics_step) or render
@@ -1053,16 +1106,28 @@ def run(config: RuntimeConfig) -> None:
                 )
                 runtime_ready_notified = True
 
+    except _StopRequested:
+        pass
     except BaseException as error:
-        if isinstance(error, RetainedProductAcquisitionError):
+        runtime_failure = error
+        if acquisition_error_type is not None and isinstance(error, acquisition_error_type):
             pending_product_cleanup.append(error.owner)
         if state is not None:
             state.set_lifecycle("failed")
         LOGGER.exception("UAV simulation runtime failed")
         raise
     finally:
+        cleanup_errors: list[BaseException] = []
+
+        def cleanup(name: str, action: Callable[[], None]) -> None:
+            error = _cleanup(name, action)
+            if error is not None:
+                cleanup_errors.append(error)
+
         if state is not None:
             state.set_lifecycle("stopping")
+        if server is not None:
+            cleanup("adapter server", server.close)
         if tileset_paths:
 
             def clear_ion_token() -> None:
@@ -1077,37 +1142,43 @@ def run(config: RuntimeConfig) -> None:
                 finally:
                     stage.SetEditTarget(previous_target)
 
-            _cleanup("clear Cesium ion token", clear_ion_token)
+            cleanup("clear Cesium ion token", clear_ion_token)
         if tile_event_bridge is not None:
-            _cleanup("Cesium tile lifecycle events", tile_event_bridge.close)
+            cleanup("Cesium tile lifecycle events", tile_event_bridge.close)
         if connection_executor is not None:
-            _cleanup(
+            cleanup(
                 "PX4 connection executor",
                 lambda: connection_executor.shutdown(wait=False, cancel_futures=True),
             )
         if fleet_loop is not None:
-            _cleanup("default fleet loop", fleet_loop.close)
-        if server is not None:
-            _cleanup("adapter server", server.close)
+            cleanup("default fleet loop", fleet_loop.close)
         for pending_product in pending_product_cleanup:
-            _cleanup("partially acquired video product", pending_product.close)
+            cleanup("partially acquired video product", pending_product.close)
         if operator_products is not None:
-            _cleanup("operator stream products", operator_products.close)
+            cleanup("operator stream products", operator_products.close)
         for camera_sensor in camera_sensors.values():
-            _cleanup("native Isaac H.264 camera sensor", camera_sensor.close)
+            cleanup("native Isaac H.264 camera sensor", camera_sensor.close)
         if stream_publication is not None:
-            _cleanup("native H.264 RTP publication", stream_publication.close)
+            cleanup("native H.264 RTP publication", stream_publication.close)
         if hil_fleet is not None:
-            _cleanup("PX4 HIL fleet", hil_fleet.close)
+            cleanup("PX4 HIL fleet", hil_fleet.close)
         if physics_timeline is not None:
-            _cleanup("Newton timeline", physics_timeline.stop)
-        _cleanup("Newton physics", SimulationManager.invalidate_physics)
+            cleanup("Newton timeline", physics_timeline.stop)
+        if simulation_manager is not None:
+            cleanup("Newton physics", simulation_manager.invalidate_physics)
         for commander in commanders.values():
-            _cleanup("PX4 commander", commander.close)
+            cleanup("PX4 commander", commander.close)
         if recording is not None:
-            _cleanup("Recording Hub publisher", recording.close)
+            cleanup("Recording Hub publisher", recording.close)
             if state is not None:
                 state.set_recording_active(False)
         if state is not None:
-            state.set_lifecycle("stopped")
-        _cleanup("Isaac SimulationApp", simulation_app.close)
+            state.set_lifecycle("failed" if cleanup_errors or runtime_failure is not None else "stopped")
+        # Kit may terminate inside close rather than return to Python. Preserve
+        # any prior failure in its supported exit code as well as our exceptions.
+        cleanup("Isaac SimulationApp", lambda: simulation_app.close(
+            exit_code=1 if cleanup_errors or runtime_failure is not None else 0,
+        ))
+        if cleanup_errors and state is not None:
+            state.set_lifecycle("failed")
+        _finish_cleanup(cleanup_errors, runtime_failure)

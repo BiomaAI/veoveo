@@ -1057,6 +1057,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `servers/uav-sim-mcp/src/server/agent_targets.rs` | App message-target discovery from managed identity and active vehicle grants, with shared database catalog invalidation |
 | `showcase/uav-sim/map/` | Map-owned named-place and operational air-network source fixture for the showcase |
 | `showcase/uav-sim/runtime/` | thin domain overlay on the shared Isaac runtime with Cesium, a repository-owned batched Warp plant, Newton Experimental rigid views, PX4 HIL lifecycle, RTX domain sensors, logical cameras, shared RTX/NVENC camera products, direct Stream publication, and Rerun publication |
+| `showcase/uav-sim/runtime/launch.py`, `showcase/uav-sim/runtime/entrypoint.py` | pidfd-fenced termination delivery through the unchanged NVIDIA wrapper, pending stop admission, and cooperative runtime shutdown |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/fleet_runtime.py` | 30 Hz CUDA fleet simulation, direct Newton Experimental tensor-state writes, and ordered 60 Hz PX4 HIL publication without MuJoCo-Warp stepping |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/external_clock.py` | completed Warp-step time bound to Isaac's Fabric render reference, render-only updates, and explicit clock-generation reset with retained Newton tensor ownership |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/plant_warp.py` | one fused CUDA kernel for batched motors, force, torque, native Newton body integration, launch-surface contact, and HIL sensor sampling |

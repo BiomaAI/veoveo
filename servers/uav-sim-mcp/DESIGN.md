@@ -43,6 +43,7 @@ Current, retired and mixed field controls share the durable-result consumer test
 | Recording resources | RFC 9562 UUIDv7 identities and `recording://recordings/{id}` addresses from `veoveo-recording-contract`; pending catalog state carries no public identity. |
 | Rerun RRD | Version `0.38.1` recording data and producer-authored Blueprint stores sent independently to Recording Hub. |
 | NVIDIA Container Runtime | One Kubernetes GPU allocation with compute, graphics, utility, and video driver capabilities. CPU rendering and encoding are unsupported. |
+| Linux process signals and pidfds | The runtime uses the bundled Kit Python with `os.pidfd_open` and `signal.pidfd_send_signal`. Private inherited report and acknowledgement pipes identify the Python owner after its SIGTERM handler is installed; this is process wiring, not a public protocol. |
 
 ## Library Features
 
@@ -930,6 +931,35 @@ The UAV chart deploys one GPU runtime Deployment and one independent MCP Deploym
 Only the Isaac container requests one GPU and receives
 `compute,graphics,utility,video` NVIDIA capabilities. Pod-loopback RTSP port pairs are
 derived from the configured camera collection and validated by the chart.
+
+The runtime's Veoveo launcher keeps NVIDIA's `/isaac-sim/python.sh` unchanged as
+its child. The existing `/isaac-sim/kit/python/bin/python3` launches the supervisor
+directly and must expose Linux pidfd support. The Python entrypoint
+reports its PID through an inherited pipe after installing its stop handler. It waits
+for one fixed acknowledgement byte and pipe closure under the original ten-second
+handshake deadline before importing its owner modules. The launcher opens a pidfd,
+checks that PID belongs directly to its wrapper, then acknowledges admission. Any
+early SIGTERM is forwarded to that fenced child before acknowledgement. The launcher
+reaps the wrapper and preserves its exit status, including any nonzero status that
+NVIDIA's error handler produces. It does not signal the shell during normal shutdown.
+
+The owner must report readiness within ten seconds of wrapper launch, before native
+Isaac initialization. A missing, malformed, exited, or unrelated owner report fails startup; absent, extra
+or malformed acknowledgement data also fails. Failed
+startup disposal terminates the owned process group, allows one second for exit, then
+kills and reaps it with a one-second wait. This path reports failure. Ordinary shutdown
+uses the installation's existing termination grace and acquires no new grace interval.
+
+A Python stop request closes HTTP admission and prevents queued commands from starting.
+The owner leaves its world, connection and simulation loops at cooperative checkpoints.
+It then attempts the existing video, PX4, physics and Recording cleanup before closing
+SimulationApp. Cleanup failures preserve the original runtime error and produce a
+nonzero outcome; SimulationApp receives a nonzero exit code when an earlier action
+failed, since Kit may terminate inside its close call. A stop received during an import
+is checked before acquiring SimulationApp, and an acquired app is owned across later
+initialization failures. Native constructor and close calls cannot be hard-interrupted
+by this flag. Their completion within the installed grace requires separate runtime
+qualification.
 
 The runtime Service exposes the authenticated adapter and private H.264 WebSocket to the
 MCP pod. The MCP Service owns MCP HTTP and the public authenticated live-stream gate.
