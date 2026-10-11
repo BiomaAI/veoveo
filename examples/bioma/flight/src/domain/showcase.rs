@@ -1,5 +1,6 @@
 use chrono::Utc;
 use serde::Serialize;
+use veoveo_uav_sim_mcp::contract::SimulationState;
 
 use crate::source_timeline::{
     SOURCE_SAMPLE_TIMEOUT, SourceTimelineAlignmentEvidence, sample_source_alignment,
@@ -413,7 +414,10 @@ async fn monitor_flight(
     .await?;
     let _ = capture_signals.stream_complete.send(());
 
-    let source_before = source_timeline_sample(&simulation_state(operator, scenario).await?)?;
+    let source_state: SimulationState =
+        serde_json::from_value(simulation_state(operator, scenario).await?)
+            .context("decoding UAV source timeline state before recording capture")?;
+    let source_before = source_timeline_sample(&source_state)?;
     let recording = capture_console_recording(
         chrome_cdp_url,
         public_base_url,
@@ -427,7 +431,12 @@ async fn monitor_flight(
         source_before,
         recording.captured_at(),
         SOURCE_SAMPLE_TIMEOUT,
-        || async { source_timeline_sample(&simulation_state(operator, scenario).await?) },
+        || async {
+            let state: SimulationState =
+                serde_json::from_value(simulation_state(operator, scenario).await?)
+                    .context("decoding UAV source timeline alignment state")?;
+            source_timeline_sample(&state)
+        },
     )
     .await?;
     let source_timeline_seconds = source_alignment.aligned_simulation_time_seconds;

@@ -323,3 +323,42 @@ async fn process_preparation_lanes_publication_and_stale_generation_fail_closed(
         }
     }).await.expect("gateway installation lifecycle exceeded 300 seconds");
 }
+
+#[cfg(feature = "smoke")]
+#[test]
+fn committed_installation_selections_match_their_control_planes() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    for relative in [
+        "examples/bioma/installation-target.json",
+        "examples/bioma/installation-target-initial.json",
+        "testing/fixtures/fork-installation/installation-target.json",
+    ] {
+        let path = repository.join(relative);
+        let loaded = veoveo_gateway_composition::smoke_support::InstalledTarget::load(&path)
+            .unwrap_or_else(|error| panic!("{relative}: {error:#}"));
+        let admission = veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
+            .bind(veoveo_gateway_catalog::registry().unwrap())
+            .unwrap();
+        let catalog = veoveo_mcp_gateway::GatewayCatalog::load_json(
+            loaded.target.control_plane_path(&path),
+            admission,
+        )
+        .unwrap();
+        let administrator = loaded.target.administrator.as_ref().map(|_| {
+            loaded
+                .administrator()
+                .expect("declared administrator was admitted with the installation")
+        });
+        for identity in std::iter::once(&loaded.operator).chain(administrator) {
+            let profile = catalog.profile(&identity.profile).unwrap();
+            let supported = catalog.profile_supported_scopes(profile);
+            for scope in &identity.scopes {
+                assert!(
+                    supported.contains(scope),
+                    "{relative}: profile {} does not support requested scope {scope}",
+                    identity.profile,
+                );
+            }
+        }
+    }
+}

@@ -11,6 +11,11 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use veoveo_recording_contract::RecordingId;
+use veoveo_uav_sim_mcp::contract::{
+    CameraEncoder, CameraState, LiveCameraHealth, LiveCameraId, LiveCameraRig, LiveEntityId,
+    LiveStreamProductId, LiveStreamProductLifecycle, SessionId, SimulationLifecycle,
+    SimulationState, VehicleId,
+};
 
 #[allow(dead_code)]
 mod browser;
@@ -883,8 +888,8 @@ async fn verify_running_recording(
     };
     let initial_state = simulation_state(&operator, &scenario.session_id).await?;
     ensure!(
-        json_string(&initial_state, "/lifecycle")? == "running",
-        "recording browser acceptance requires the simulation to remain running: {initial_state}"
+        initial_state.lifecycle == SimulationLifecycle::Running,
+        "recording browser acceptance requires the simulation to remain running: {initial_state:?}"
     );
     let recording_id = recording_id(&initial_state)?;
     let source_revision = git_revision()?;
@@ -977,64 +982,10 @@ async fn verify_running_showcase(
     };
     let initial_state = simulation_state(&operator, &scenario.session_id).await?;
     ensure!(
-        json_string(&initial_state, "/lifecycle")? == "running",
-        "focused browser acceptance requires the existing simulation to remain running: {initial_state}"
+        initial_state.lifecycle == SimulationLifecycle::Running,
+        "focused browser acceptance requires the existing simulation to remain running: {initial_state:?}"
     );
-    let cameras = initial_state
-        .get("live_cameras")
-        .and_then(Value::as_array)
-        .context("authoritative simulator omitted its live camera collection")?;
-    for camera_id in QUALIFIED_CAMERA_IDS {
-        let camera = cameras
-            .iter()
-            .find(|camera| camera.get("cameraId").and_then(Value::as_str) == Some(camera_id))
-            .with_context(|| format!("running showcase omitted qualified camera {camera_id}"))?;
-        ensure!(
-            camera.get("health").and_then(Value::as_str) == Some("healthy"),
-            "qualified camera {camera_id} is not healthy: {camera}"
-        );
-        ensure!(
-            camera.get("streamProductId").is_none(),
-            "logical camera retained a physical stream-product identity: {camera}"
-        );
-    }
-    let primary_camera = cameras
-        .iter()
-        .find(|camera| camera.get("cameraId").and_then(Value::as_str) == Some(PRIMARY_CAMERA_ID))
-        .context("running showcase has no primary follow camera")?;
-    ensure!(
-        primary_camera
-            .pointer("/rig/targetEntityId")
-            .and_then(Value::as_str)
-            == Some(scenario.vehicle_id.as_str()),
-        "primary camera does not follow the scenario vehicle: {primary_camera}"
-    );
-    let initial_products = initial_state
-        .get("stream_products")
-        .and_then(Value::as_array)
-        .context("authoritative simulator omitted its tiled camera product")?;
-    let initial_camera_ids = initial_products
-        .iter()
-        .flat_map(|product| {
-            product
-                .get("cameraRegions")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(|region| region.get("cameraId").and_then(Value::as_str))
-        })
-        .collect::<std::collections::BTreeSet<_>>();
-    ensure!(
-        initial_products.len() == 1
-            && initial_camera_ids.len() == QUALIFIED_CAMERA_IDS.len()
-            && initial_products.iter().all(|product| {
-                product.get("lifecycle").and_then(Value::as_str) == Some("ready")
-                    && product.get("nvencSessions").and_then(Value::as_u64) == Some(1)
-                    && product.get("codedWidthPx").and_then(Value::as_u64) == Some(3_840)
-                    && product.get("codedHeightPx").and_then(Value::as_u64) == Some(1_440)
-            }),
-        "focused browser acceptance requires one ready five-camera tiled product: {initial_products:?}"
-    );
+    require_qualified_live_product(&initial_state, &scenario.vehicle_id)?;
 
     let source_revision = git_revision()?;
     let run_id = uuid::Uuid::now_v7().to_string();
@@ -1116,39 +1067,22 @@ async fn verify_running_showcase(
         "five concurrent browser users did not each share one atlas across all five cameras"
     );
     let final_state = simulation_state(&operator, &scenario.session_id).await?;
-    let final_products = final_state
-        .get("stream_products")
-        .and_then(Value::as_array)
-        .context("authoritative simulator lost its tiled camera product")?;
+    let final_products = &final_state.stream_products;
     for live in &live_views {
-        let product = final_products.iter().find(|product| {
-            product.get("streamProductId").and_then(Value::as_str) == Some(live.stream_product_id())
-        });
-        ensure!(
-            product.is_some_and(|product| {
-                product.get("lifecycle").and_then(Value::as_str) == Some("ready")
-                    && product.get("nvencSessions").and_then(Value::as_u64) == Some(1)
-            }),
-            "browser close disrupted tiled camera product {}: {final_products:?}",
-            live.stream_product_id(),
-        );
+        require_ready_product(
+            final_products,
+            &LiveStreamProductId::parse(live.stream_product_id())?,
+        )?;
     }
     for stream_product_id in grid.products() {
-        let product = final_products.iter().find(|product| {
-            product.get("streamProductId").and_then(Value::as_str)
-                == Some(stream_product_id.as_str())
-        });
-        ensure!(
-            product.is_some_and(|product| {
-                product.get("lifecycle").and_then(Value::as_str) == Some("ready")
-                    && product.get("nvencSessions").and_then(Value::as_u64) == Some(1)
-            }),
-            "browser grid close disrupted tiled camera product {stream_product_id}: {final_products:?}",
-        );
+        require_ready_product(
+            final_products,
+            &LiveStreamProductId::parse(stream_product_id.as_str())?,
+        )?;
     }
     ensure!(
-        json_string(&final_state, "/lifecycle")? == "running",
-        "focused browser acceptance altered the running simulation: {final_state}"
+        final_state.lifecycle == SimulationLifecycle::Running,
+        "focused browser acceptance altered the running simulation: {final_state:?}"
     );
     let source_window = source_timeline_window(&initial_state, &final_state)?;
     let sensor_isolation = sensor_isolation(
@@ -1260,32 +1194,90 @@ fn live_view_performance(
     })
 }
 
+fn require_qualified_live_product(state: &SimulationState, vehicle_id: &str) -> Result<()> {
+    let expected_ids = QUALIFIED_CAMERA_IDS
+        .into_iter()
+        .map(LiveCameraId::parse)
+        .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
+    for camera_id in &expected_ids {
+        let camera = state
+            .live_cameras
+            .iter()
+            .find(|camera| &camera.camera_id == camera_id)
+            .with_context(|| format!("running showcase omitted qualified camera {camera_id}"))?;
+        ensure!(
+            camera.health == LiveCameraHealth::Healthy,
+            "qualified camera {camera_id} is not healthy: {camera:?}"
+        );
+    }
+    let primary_id = LiveCameraId::parse(PRIMARY_CAMERA_ID)?;
+    let primary = state
+        .live_cameras
+        .iter()
+        .find(|camera| camera.camera_id == primary_id)
+        .context("running showcase has no primary follow camera")?;
+    let entity = LiveEntityId::parse(vehicle_id)?;
+    ensure!(
+        matches!(&primary.rig, LiveCameraRig::FollowEntity { target_entity_id, .. } if target_entity_id == &entity),
+        "primary camera does not follow the scenario vehicle: {primary:?}"
+    );
+    let products = &state.stream_products;
+    let actual_ids = products
+        .iter()
+        .flat_map(|product| {
+            product
+                .camera_regions
+                .iter()
+                .map(|region| region.camera_id.clone())
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    ensure!(
+        products.len() == 1
+            && actual_ids == expected_ids
+            && products.iter().all(|product| product.lifecycle
+                == LiveStreamProductLifecycle::Ready
+                && product.nvenc_sessions == 1
+                && product.coded_width_px == 3840
+                && product.coded_height_px == 1440),
+        "focused browser acceptance requires one ready five-camera tiled product: {products:?}"
+    );
+    Ok(())
+}
+
+fn require_ready_product(
+    products: &[veoveo_uav_sim_mcp::contract::LiveStreamProductState],
+    id: &LiveStreamProductId,
+) -> Result<()> {
+    ensure!(
+        products
+            .iter()
+            .find(|product| &product.stream_product_id == id)
+            .is_some_and(
+                |product| product.lifecycle == LiveStreamProductLifecycle::Ready
+                    && product.nvenc_sessions == 1
+            ),
+        "browser close disrupted tiled camera product {id}: {products:?}"
+    );
+    Ok(())
+}
+
 fn sensor_isolation(
-    before: &Value,
-    after: &Value,
+    before: &SimulationState,
+    after: &SimulationState,
     source_window: &SourceTimelineWindowEvidence,
     vehicle_id: &str,
 ) -> Result<SensorIsolationEvidence> {
     let before_camera = physical_sensor(before, vehicle_id)?;
     let after_camera = physical_sensor(after, vehicle_id)?;
-    let declared_frame_rate_hz = before_camera
-        .get("frameRateHz")
-        .and_then(Value::as_f64)
-        .context("physical sensor omitted frame_rate_hz")?;
+    let declared_frame_rate_hz = f64::from(before_camera.frame_rate_hz);
     ensure!(
-        after_camera.get("frameRateHz").and_then(Value::as_f64) == Some(declared_frame_rate_hz)
-            && before_camera.get("encoder").and_then(Value::as_str) == Some("nvidia_nvenc")
-            && after_camera.get("encoder").and_then(Value::as_str) == Some("nvidia_nvenc"),
-        "viewer activity changed the physical sensor contract: before={before_camera} after={after_camera}"
+        after_camera.frame_rate_hz == before_camera.frame_rate_hz
+            && before_camera.encoder == CameraEncoder::NvidiaNvenc
+            && after_camera.encoder == CameraEncoder::NvidiaNvenc,
+        "viewer activity changed the physical sensor contract: before={before_camera:?} after={after_camera:?}"
     );
-    let frames_before = before_camera
-        .get("framesObserved")
-        .and_then(Value::as_u64)
-        .context("physical sensor omitted frames_observed")?;
-    let frames_after = after_camera
-        .get("framesObserved")
-        .and_then(Value::as_u64)
-        .context("physical sensor omitted frames_observed")?;
+    let frames_before = before_camera.frames_observed;
+    let frames_after = after_camera.frames_observed;
     let simulation_seconds =
         source_window.after.simulation_time_seconds - source_window.before.simulation_time_seconds;
     ensure!(
@@ -1309,19 +1301,20 @@ fn sensor_isolation(
     })
 }
 
-fn physical_sensor<'a>(state: &'a Value, vehicle_id: &str) -> Result<&'a Value> {
+fn physical_sensor<'a>(state: &'a SimulationState, vehicle_id: &str) -> Result<&'a CameraState> {
+    let vehicle_id = VehicleId::parse(vehicle_id)?;
     state
-        .get("cameras")
-        .and_then(Value::as_array)
-        .and_then(|cameras| {
-            cameras
-                .iter()
-                .find(|camera| camera.get("vehicleId").and_then(Value::as_str) == Some(vehicle_id))
-        })
+        .cameras
+        .iter()
+        .find(|camera| camera.vehicle_id == vehicle_id)
         .with_context(|| format!("simulation state omitted physical sensor for {vehicle_id}"))
 }
 
-async fn simulation_state(operator: &OperatorClient<'_>, session_id: &str) -> Result<Value> {
+async fn simulation_state(
+    operator: &OperatorClient<'_>,
+    session_id: &str,
+) -> Result<SimulationState> {
+    let session_id = SessionId::parse(session_id)?;
     let mut last_error = None;
     for attempt in 1..=3 {
         match operator
@@ -1331,7 +1324,9 @@ async fn simulation_state(operator: &OperatorClient<'_>, session_id: &str) -> Re
             )
             .await
         {
-            Ok(state) => return Ok(state),
+            Ok(state) => {
+                return decode_simulation_state(state, &session_id);
+            }
             Err(error) if attempt < 3 => {
                 last_error = Some(error);
                 tokio::time::sleep(Duration::from_secs(2)).await;
@@ -1385,21 +1380,21 @@ fn structured_output(output: &str) -> Result<Value> {
     serde_json::from_str(encoded).context("decoding structured MCP output")
 }
 
-fn json_string<'a>(value: &'a Value, pointer: &str) -> Result<&'a str> {
-    value
-        .pointer(pointer)
-        .and_then(Value::as_str)
-        .with_context(|| format!("JSON output omitted string {pointer}: {value}"))
+fn decode_simulation_state(value: Value, expected: &SessionId) -> Result<SimulationState> {
+    let state: SimulationState =
+        serde_json::from_value(value).context("decoding authoritative UAV simulation state")?;
+    ensure!(
+        &state.session_id == expected,
+        "UAV state belongs to another session"
+    );
+    Ok(state)
 }
 
-fn recording_id(state: &Value) -> Result<RecordingId> {
-    let recording: veoveo_uav_sim_mcp::contract::RecordingState = serde_json::from_value(
-        state
-            .pointer("/recordings/0")
-            .context("simulation state omitted recording")?
-            .clone(),
-    )?;
-    recording
+fn recording_id(state: &SimulationState) -> Result<RecordingId> {
+    state
+        .recordings
+        .first()
+        .context("simulation state omitted recording")?
         .catalog
         .recording_id()
         .context("simulation recording catalog is not ready")
@@ -1440,64 +1435,165 @@ mod tests {
         );
     }
 
+    fn owner_state() -> SimulationState {
+        serde_json::from_str(include_str!(
+            "../../../flight/tests/fixtures/world-ready.json"
+        ))
+        .unwrap()
+    }
+
+    fn source_state(seconds: f64, timestamp: &str, frames: u64) -> SimulationState {
+        let mut state = owner_state();
+        state.lifecycle = SimulationLifecycle::Running;
+        state.simulation_time_s = seconds;
+        state.updated_at = timestamp.parse().unwrap();
+        state.cameras[0].frames_observed = frames;
+        state.cameras[0].frame_rate_hz = 2;
+        state
+    }
+
+    fn five_camera_state() -> SimulationState {
+        let mut state = owner_state();
+        state.lifecycle = SimulationLifecycle::Running;
+        let camera = state.live_cameras[0].clone();
+        state.live_cameras = QUALIFIED_CAMERA_IDS
+            .into_iter()
+            .map(|id| {
+                let mut camera = camera.clone();
+                camera.camera_id = LiveCameraId::parse(id).unwrap();
+                camera.health = LiveCameraHealth::Healthy;
+                camera
+            })
+            .collect();
+        let product = &mut state.stream_products[0];
+        product.coded_width_px = 3840;
+        product.coded_height_px = 1440;
+        product.lifecycle = LiveStreamProductLifecycle::Ready;
+        product.nvenc_sessions = 1;
+        let region = product.camera_regions[0].clone();
+        product.camera_regions = QUALIFIED_CAMERA_IDS
+            .into_iter()
+            .enumerate()
+            .map(|(index, id)| {
+                let mut region = region.clone();
+                region.camera_id = LiveCameraId::parse(id).unwrap();
+                region.x_px = (index as u32 % 3) * 1280;
+                region.y_px = (index as u32 / 3) * 720;
+                region.width_px = 1280;
+                region.height_px = 720;
+                region
+            })
+            .collect();
+        state.build().unwrap()
+    }
+
+    #[test]
+    fn current_owner_state_admission_preserves_five_camera_single_encoder_checks() {
+        let state = five_camera_state();
+        let value = serde_json::to_value(&state).unwrap();
+        let admitted = decode_simulation_state(value.clone(), &state.session_id).unwrap();
+        require_qualified_live_product(&admitted, "uav-1").unwrap();
+        require_ready_product(
+            &admitted.stream_products,
+            &admitted.stream_products[0].stream_product_id,
+        )
+        .unwrap();
+        assert!(
+            decode_simulation_state(value.clone(), &SessionId::parse("another-session").unwrap())
+                .is_err()
+        );
+        for (current, retired) in [
+            ("liveCameras", "live_cameras"),
+            ("streamProducts", "stream_products"),
+        ] {
+            for mixed in [false, true] {
+                let mut old = value.clone();
+                let fields = old.as_object_mut().unwrap();
+                let collection = fields[current].clone();
+                if !mixed {
+                    fields.remove(current);
+                }
+                fields.insert(retired.into(), collection);
+                assert!(decode_simulation_state(old, &state.session_id).is_err());
+            }
+        }
+        let mut invalid_camera = value.clone();
+        invalid_camera["liveCameras"][0]["streamProductId"] = "camera-atlas".into();
+        assert!(decode_simulation_state(invalid_camera, &state.session_id).is_err());
+        let mut wrong_parent = value.clone();
+        wrong_parent["liveCameras"][0]["sessionId"] = "another-session".into();
+        assert!(decode_simulation_state(wrong_parent, &state.session_id).is_err());
+        let mut invalid_region = value.clone();
+        invalid_region["streamProducts"][0]["cameraRegions"][0]["widthPx"] = 99999.into();
+        assert!(decode_simulation_state(invalid_region, &state.session_id).is_err());
+        assert!(
+            require_ready_product(
+                &admitted.stream_products,
+                &LiveStreamProductId::parse("missing-product").unwrap()
+            )
+            .is_err()
+        );
+        for invalid in [
+            "failed",
+            "missing",
+            "extra-encoder",
+            "wrong-target",
+            "wrong-region",
+        ] {
+            let mut wrong = admitted.clone();
+            match invalid {
+                "failed" => wrong.stream_products[0].lifecycle = LiveStreamProductLifecycle::Failed,
+                "missing" => {
+                    wrong.live_cameras.pop();
+                }
+                "extra-encoder" => wrong.stream_products[0].nvenc_sessions = 2,
+                "wrong-target" => {
+                    if let LiveCameraRig::FollowEntity {
+                        target_entity_id, ..
+                    } = &mut wrong.live_cameras[0].rig
+                    {
+                        *target_entity_id = LiveEntityId::parse("uav-other").unwrap();
+                    } else {
+                        panic!("owner fixture follow rig changed");
+                    }
+                }
+                "wrong-region" => {
+                    wrong.stream_products[0].camera_regions[0].camera_id =
+                        LiveCameraId::parse("unselected").unwrap()
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                require_qualified_live_product(&wrong, "uav-1").is_err(),
+                "{invalid}"
+            );
+            if matches!(invalid, "failed" | "extra-encoder") {
+                assert!(
+                    require_ready_product(
+                        &wrong.stream_products,
+                        &wrong.stream_products[0].stream_product_id
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
+
     #[test]
     fn live_view_window_preserves_the_declared_sensor_cadence() {
-        let before = serde_json::json!({
-            "lifecycle": "running",
-            "simulation_time_s": 100.0,
-            "updated_at": "2026-08-05T12:00:00Z",
-            "cameras": [{
-                "vehicleId": "uav-1",
-                "frameRateHz": 2,
-                "framesObserved": 500,
-                "encoder": "nvidia_nvenc"
-            }]
-        });
-        let after = serde_json::json!({
-            "lifecycle": "running",
-            "simulation_time_s": 120.0,
-            "updated_at": "2026-08-05T12:00:20Z",
-            "cameras": [{
-                "vehicleId": "uav-1",
-                "frameRateHz": 2,
-                "framesObserved": 540,
-                "encoder": "nvidia_nvenc"
-            }]
-        });
+        let before = source_state(100.0, "2026-08-05T12:00:00Z", 500);
+        let after = source_state(120.0, "2026-08-05T12:00:20Z", 540);
         let window = source_timeline_window(&before, &after).unwrap();
-
         let evidence = sensor_isolation(&before, &after, &window, "uav-1").unwrap();
-
         assert_eq!(evidence.observed_frame_rate_hz, 2.0);
         assert_eq!(evidence.frames_after - evidence.frames_before, 40);
     }
 
     #[test]
     fn live_view_window_rejects_sensor_cadence_coupled_to_operator_video() {
-        let before = serde_json::json!({
-            "lifecycle": "running",
-            "simulation_time_s": 100.0,
-            "updated_at": "2026-08-05T12:00:00Z",
-            "cameras": [{
-                "vehicleId": "uav-1",
-                "frameRateHz": 2,
-                "framesObserved": 500,
-                "encoder": "nvidia_nvenc"
-            }]
-        });
-        let after = serde_json::json!({
-            "lifecycle": "running",
-            "simulation_time_s": 110.0,
-            "updated_at": "2026-08-05T12:00:10Z",
-            "cameras": [{
-                "vehicleId": "uav-1",
-                "frameRateHz": 2,
-                "framesObserved": 800,
-                "encoder": "nvidia_nvenc"
-            }]
-        });
+        let before = source_state(100.0, "2026-08-05T12:00:00Z", 500);
+        let after = source_state(110.0, "2026-08-05T12:00:10Z", 800);
         let window = source_timeline_window(&before, &after).unwrap();
-
         assert!(sensor_isolation(&before, &after, &window, "uav-1").is_err());
     }
 }

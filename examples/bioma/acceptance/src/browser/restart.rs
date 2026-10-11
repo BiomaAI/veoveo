@@ -3,8 +3,9 @@ use std::{fs, path::Path, process::Stdio, time::Duration};
 use anyhow::{Context as _, Result, ensure};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use veoveo_uav_sim_mcp::contract::LiveCameraHealth;
+use veoveo_uav_sim_mcp::contract::{
+    LiveCameraHealth, LiveCameraId, SimulationLifecycle, SimulationState,
+};
 
 use super::InstalledTarget;
 use super::{
@@ -12,7 +13,7 @@ use super::{
     browser::{
         ConsoleLiveRestartEvidence, capture_console_live_app_restart, preflight_console_live_app,
     },
-    git_revision, json_string, simulation_state,
+    git_revision, simulation_state,
 };
 
 #[derive(Debug, Serialize)]
@@ -24,8 +25,8 @@ struct RestartAcceptanceEvidence {
     run_id: String,
     scenario_path: String,
     session_id: String,
-    lifecycle_after_mcp_restart: String,
-    lifecycle_after_simulator_restart: String,
+    lifecycle_after_mcp_restart: SimulationLifecycle,
+    lifecycle_after_simulator_restart: SimulationLifecycle,
     mcp_container: KubernetesRestartEvidence,
     simulator_container: KubernetesRestartEvidence,
     mcp: ConsoleLiveRestartEvidence,
@@ -38,7 +39,7 @@ struct RestartStageEvidence<'a> {
     schema: &'static str,
     source_revision: &'a str,
     run_id: &'a str,
-    lifecycle: &'a str,
+    lifecycle: &'a SimulationLifecycle,
     container: &'a KubernetesRestartEvidence,
     browser: &'a ConsoleLiveRestartEvidence,
 }
@@ -235,7 +236,7 @@ pub async fn verify_live_view_restarts(config: RestartVerification<'_>) -> Resul
     .await?;
     let state_after_mcp = simulation_state(&operator, &scenario.session_id).await?;
     require_running_live_camera(&state_after_mcp, PRIMARY_CAMERA_ID)?;
-    let lifecycle_after_mcp_restart = json_string(&state_after_mcp, "/lifecycle")?.to_owned();
+    let lifecycle_after_mcp_restart = state_after_mcp.lifecycle.clone();
     write_restart_stage(
         &evidence_directory.join("mcp-restart.json"),
         &source_revision,
@@ -267,7 +268,7 @@ pub async fn verify_live_view_restarts(config: RestartVerification<'_>) -> Resul
     .await?;
     let final_state = simulation_state(&operator, &scenario.session_id).await?;
     require_running_live_camera(&final_state, PRIMARY_CAMERA_ID)?;
-    let lifecycle_after_simulator_restart = json_string(&final_state, "/lifecycle")?.to_owned();
+    let lifecycle_after_simulator_restart = final_state.lifecycle.clone();
     write_restart_stage(
         &evidence_directory.join("simulator-restart.json"),
         &source_revision,
@@ -305,7 +306,7 @@ fn write_restart_stage(
     path: &Path,
     source_revision: &str,
     run_id: &str,
-    lifecycle: &str,
+    lifecycle: &SimulationLifecycle,
     container: &KubernetesRestartEvidence,
     browser: &ConsoleLiveRestartEvidence,
 ) -> Result<()> {
@@ -327,54 +328,45 @@ async fn wait_for_running_live_camera(
     camera: &str,
     timeout: Duration,
 ) -> Result<()> {
-    let mut last_state = Value::Null;
+    let mut last_state = None;
     tokio::time::timeout(timeout, async {
         loop {
-            last_state = simulation_state(operator, session).await?;
-            match live_camera_health(&last_state, camera)? {
+            last_state = Some(simulation_state(operator, session).await?);
+            match live_camera_health(last_state.as_ref().unwrap(), camera)? {
                 LiveCameraHealth::Healthy => return Ok(()),
                 LiveCameraHealth::Warming => tokio::time::sleep(Duration::from_secs(1)).await,
                 LiveCameraHealth::Stale | LiveCameraHealth::Failed => {
                     return Err(anyhow::anyhow!(
-                        "live camera failed during startup: {last_state}"
+                        "live camera failed during startup: {last_state:?}"
                     ));
                 }
             }
         }
     })
     .await
-    .with_context(|| format!("live camera startup exceeded {timeout:?}: {last_state}"))?
+    .with_context(|| format!("live camera startup exceeded {timeout:?}: {last_state:?}"))?
 }
 
-fn require_running_live_camera(state: &Value, camera_id: &str) -> Result<()> {
+fn require_running_live_camera(state: &SimulationState, camera_id: &str) -> Result<()> {
     ensure!(
         live_camera_health(state, camera_id)? == LiveCameraHealth::Healthy,
-        "authoritative live camera {camera_id} is not healthy: {state}"
+        "authoritative live camera {camera_id} is not healthy: {state:?}"
     );
     Ok(())
 }
 
-fn live_camera_health(state: &Value, camera_id: &str) -> Result<LiveCameraHealth> {
+fn live_camera_health(state: &SimulationState, camera_id: &str) -> Result<LiveCameraHealth> {
     ensure!(
-        json_string(state, "/lifecycle")? == "running",
-        "restart acceptance requires the authoritative simulation to be running: {state}"
+        state.lifecycle == SimulationLifecycle::Running,
+        "restart acceptance requires the authoritative simulation to be running: {state:?}"
     );
-    let camera = state
-        .get("live_cameras")
-        .and_then(Value::as_array)
-        .and_then(|cameras| {
-            cameras
-                .iter()
-                .find(|camera| camera.get("cameraId").and_then(Value::as_str) == Some(camera_id))
-        })
-        .with_context(|| format!("authoritative simulator omitted live camera {camera_id}"))?;
-    serde_json::from_value(
-        camera
-            .get("health")
-            .cloned()
-            .context("camera health missing")?,
-    )
-    .context("invalid live camera health")
+    let camera_id = LiveCameraId::parse(camera_id)?;
+    state
+        .live_cameras
+        .iter()
+        .find(|camera| camera.camera_id == camera_id)
+        .map(|camera| camera.health)
+        .with_context(|| format!("authoritative simulator omitted live camera {camera_id}"))
 }
 
 async fn restart_kubernetes_container(
@@ -623,32 +615,35 @@ mod tests {
 
     #[test]
     fn only_declared_camera_warmup_can_wait_for_startup() {
-        let mut state = serde_json::json!({
-            "lifecycle": "running",
-            "live_cameras": [{"cameraId": "follow", "health": "warming"}]
-        });
+        let mut state: SimulationState = serde_json::from_str(include_str!(
+            "../../../flight/tests/fixtures/world-ready.json"
+        ))
+        .unwrap();
+        state.lifecycle = SimulationLifecycle::Running;
+        state.live_cameras[0].health = LiveCameraHealth::Warming;
         assert_eq!(
             live_camera_health(&state, "follow").unwrap(),
             LiveCameraHealth::Warming
         );
         assert!(require_running_live_camera(&state, "follow").is_err());
-        for (wire, expected) in [
-            ("healthy", LiveCameraHealth::Healthy),
-            ("stale", LiveCameraHealth::Stale),
-            ("failed", LiveCameraHealth::Failed),
+        for health in [
+            LiveCameraHealth::Healthy,
+            LiveCameraHealth::Stale,
+            LiveCameraHealth::Failed,
         ] {
-            state["live_cameras"][0]["health"] = wire.into();
-            assert_eq!(live_camera_health(&state, "follow").unwrap(), expected);
+            state.live_cameras[0].health = health;
+            assert_eq!(live_camera_health(&state, "follow").unwrap(), health);
             assert_eq!(
                 require_running_live_camera(&state, "follow").is_ok(),
-                wire == "healthy"
+                health == LiveCameraHealth::Healthy
             );
         }
-        state["live_cameras"][0]["health"] = "unknown".into();
-        assert!(live_camera_health(&state, "follow").is_err());
+        let mut unknown = serde_json::to_value(&state).unwrap();
+        unknown["liveCameras"][0]["health"] = "unknown".into();
+        assert!(serde_json::from_value::<SimulationState>(unknown).is_err());
         assert!(live_camera_health(&state, "missing").is_err());
-        state["live_cameras"][0]["health"] = "healthy".into();
-        state["lifecycle"] = "failed".into();
+        state.live_cameras[0].health = LiveCameraHealth::Healthy;
+        state.lifecycle = SimulationLifecycle::Failed;
         assert!(live_camera_health(&state, "follow").is_err());
     }
 

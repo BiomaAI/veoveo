@@ -5,6 +5,7 @@ use std::{future::Future, time::Duration};
 use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+#[cfg(test)]
 use serde_json::Value;
 use veoveo_uav_sim_mcp::contract::{SimulationLifecycle, SimulationState};
 
@@ -35,9 +36,7 @@ pub struct SourceTimelineAlignmentEvidence {
     pub aligned_simulation_time_seconds: f64,
 }
 
-pub fn source_timeline_sample(state: &Value) -> Result<SourceTimelineSample> {
-    let state: SimulationState =
-        serde_json::from_value(state.clone()).context("decoding simulation source timeline")?;
+pub fn source_timeline_sample(state: &SimulationState) -> Result<SourceTimelineSample> {
     ensure!(
         state.lifecycle == SimulationLifecycle::Running,
         "source timeline requires a running simulation, received {:?}",
@@ -56,8 +55,8 @@ pub fn source_timeline_sample(state: &Value) -> Result<SourceTimelineSample> {
 
 #[allow(dead_code)] // Used by focused live-camera acceptance, not composed flight.
 pub fn source_timeline_window(
-    before: &Value,
-    after: &Value,
+    before: &SimulationState,
+    after: &SimulationState,
 ) -> Result<SourceTimelineWindowEvidence> {
     timeline_window(
         source_timeline_sample(before)?,
@@ -160,11 +159,15 @@ mod tests {
         fixture
     }
 
+    fn admit_sample(value: Value) -> Result<SourceTimelineSample> {
+        source_timeline_sample(&serde_json::from_value(value)?)
+    }
+
     fn sample(timestamp: &str, seconds: f64) -> SourceTimelineSample {
         let mut state = owner_state();
         state["updatedAt"] = timestamp.into();
         state["simulationTimeS"] = seconds.into();
-        source_timeline_sample(&state).unwrap()
+        admit_sample(state).unwrap()
     }
 
     #[test]
@@ -259,11 +262,11 @@ mod tests {
         ] {
             let mut state = owner_state();
             state[key] = value;
-            assert!(source_timeline_sample(&state).is_err());
+            assert!(admit_sample(state).is_err());
         }
         let mut missing = owner_state();
         missing.as_object_mut().unwrap().remove("simulationTimeS");
-        assert!(source_timeline_sample(&missing).is_err());
+        assert!(serde_json::from_value::<SimulationState>(missing).is_err());
         for (current, retired) in [
             ("updatedAt", "updated_at"),
             ("simulationTimeS", "simulation_time_s"),
@@ -276,7 +279,7 @@ mod tests {
                     fields.remove(current);
                 }
                 fields.insert(retired.into(), value);
-                assert!(source_timeline_sample(&state).is_err());
+                assert!(admit_sample(state).is_err());
             }
         }
     }
