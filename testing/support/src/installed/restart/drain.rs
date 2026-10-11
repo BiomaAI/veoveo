@@ -197,6 +197,7 @@ pub(super) struct Pod {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct PodSpec {
+    pub node_name: Option<String>,
     pub termination_grace_period_seconds: Option<u64>,
     pub containers: Vec<Container>,
 }

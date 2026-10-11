@@ -57,8 +57,12 @@ starts before Pod deletion; the old terminal records and logs were unavailable,
 so the physical exit outcomes are unknown. Same-image replacements are Ready with
 the same world, fleet and five healthy cameras. Browser cleanup failed while the
 simulator was warming; failed-stage authorization identities were not retained,
-and ownership remains unresolved despite restored viewer counts. Repair observation
-and ownership recovery before another attempt. Paired shutdown,
+and ownership remains unresolved despite restored viewer counts. The repaired
+source observer persists selected process identities, deletion details and every
+received terminal outcome before qualification. Its 18 focused native controls
+pass; member exit and grace limits stay unchanged, and observation uses the
+original lifecycle deadline. Browser ownership and factual App teardown need
+qualification before another attempt. Paired shutdown,
 repeated GPU reset, induced RTSP stall recovery, capture-clock and full composed
 flight qualification remain open. F59/A11 stay open.
 
@@ -600,7 +604,10 @@ installed MCP-only restart and headed video-continuity stage. The paired drain
 observer times out before retaining terminal statuses; the old physical outcomes
 are unknown. Same-image replacements are Ready, but the failed browser cleanup
 keeps ownership unresolved, and that stage's authorization identities were not
-retained. Fix observation and recovery before retrying; graceful
+retained. The source observer now journals received physical outcomes separately
+from qualified exits and passes 18 focused native controls without extending
+member exit or grace limits. Browser ownership and teardown qualification precede
+another installed attempt; graceful
 retirement and strict throughput stay unqualified. Keep selected and prior UAV
 images pinned for rollback.
 Node restart, forced image collection, longer render stalls, turning flight and

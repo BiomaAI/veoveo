@@ -26,6 +26,7 @@ pub struct SelectedDrainGroup {
     replica_set_version: String,
     progress: Arc<Mutex<DrainGroupProgress>>,
     attempted: Arc<std::sync::atomic::AtomicBool>,
+    journal: Arc<Mutex<GroupJournal>>,
 }
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -46,6 +47,55 @@ pub struct ContainerExit {
     pub container_instance_sha256: String,
     pub restart_count: u32,
 }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectedContainerProcess {
+    pub container: String,
+    pub container_id: String,
+    pub image_id: String,
+    pub restart_count: u32,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ObservedProcessState {
+    Current,
+    Previous,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObservedContainerExit {
+    pub pod_uid: Uuid,
+    pub pod_resource_version: String,
+    pub node: Option<String>,
+    pub container: String,
+    pub container_id: String,
+    pub image_id: String,
+    pub restart_count: u32,
+    pub state: ObservedProcessState,
+    pub terminated_container_id: Option<String>,
+    pub exit_code: i32,
+    pub signal: Option<i32>,
+    pub reason: Option<String>,
+    pub finished_at: DateTime<Utc>,
+    pub deletion_timestamp: Option<DateTime<Utc>>,
+    pub deletion_grace_seconds: Option<u64>,
+}
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObservedPod {
+    pub uid: Uuid,
+    pub resource_version: String,
+    pub node: Option<String>,
+    pub deletion_timestamp: Option<DateTime<Utc>>,
+    pub deletion_grace_seconds: Option<u64>,
+    pub deleted: bool,
+}
+#[derive(Default)]
+struct GroupJournal {
+    file: Option<std::fs::File>,
+    bytes: usize,
+    failed: bool,
+}
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DrainGroupProgress {
@@ -55,6 +105,12 @@ pub struct DrainGroupProgress {
     pub state: DrainGroupState,
     pub exits: Vec<ContainerExit>,
     pub watch_closed: bool,
+    pub selected_node: Option<String>,
+    pub selected_processes: Vec<SelectedContainerProcess>,
+    pub last_observed_pod: Option<ObservedPod>,
+    pub observed_exits: Vec<ObservedContainerExit>,
+    pub observation_journal: Option<std::path::PathBuf>,
+    pub observation_persistence_failed: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,6 +154,66 @@ impl SelectedDrainGroup {
     fn lifecycle_deadline(&self, start: tokio::time::Instant) -> tokio::time::Instant {
         start + self.exit_timeout() + self.replacement_timeout + Duration::from_secs(20)
     }
+    fn open_journal(&self) -> Result<()> {
+        use std::os::unix::fs::OpenOptionsExt;
+        let scope =
+            owner::active().context("coordinated observation journal requires active owner")?;
+        let path = scope
+            .groups
+            .join(format!(".drain-group-{}.jsonl", Uuid::now_v7()));
+        let file = std::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .mode(0o600)
+            .open(&path)?;
+        self.journal.lock().expect("group journal").file = Some(file);
+        self.progress
+            .lock()
+            .expect("group progress")
+            .observation_journal = Some(path);
+        self.persist()
+    }
+    fn persist(&self) -> Result<()> {
+        use std::io::Write;
+        let mut journal = self.journal.lock().expect("group journal");
+        if journal.file.is_none() {
+            return Ok(());
+        }
+        let record = self.progress();
+        let result = (|| {
+            #[derive(Serialize)]
+            struct ObservationRecord<'a> {
+                schema: &'static str,
+                progress: &'a DrainGroupProgress,
+            }
+            let mut bytes = serde_json::to_vec(&ObservationRecord {
+                schema: "veoveo.ai/coordinated-drain-observation/v1",
+                progress: &record,
+            })?;
+            bytes.push(b'\n');
+            ensure!(
+                journal.bytes + bytes.len() <= 8 * 1024 * 1024,
+                "coordinated observation journal exceeds eight MiB"
+            );
+            journal.bytes += bytes.len();
+            let file = journal.file.as_mut().expect("opened group journal");
+            file.write_all(&bytes)?;
+            file.sync_all()?;
+            Ok(())
+        })();
+        if result.is_err() {
+            journal.failed = true;
+            let mut progress = self.progress.lock().expect("group progress");
+            progress.observation_persistence_failed = true;
+            progress.state = DrainGroupState::Unqualified;
+        }
+        result?;
+        ensure!(
+            !journal.failed,
+            "original coordinated observation persistence failed"
+        );
+        Ok(())
+    }
     fn mark(&self, state: DrainGroupState) {
         self.progress.lock().expect("group progress").state = state;
     }
@@ -113,6 +229,23 @@ fn profiles(profiles: &[DrainProfile]) -> Result<()> {
         "coordinated drain container profiles must be unique"
     );
     Ok(())
+}
+fn with_cleanup_failure<T>(result: Result<T>, cleanup: anyhow::Error) -> anyhow::Error {
+    match result {
+        Err(original) => original.context(format!(
+            "coordinated observation cleanup/persistence failed: {cleanup:#}"
+        )),
+        Ok(_) => cleanup,
+    }
+}
+fn admit_lifecycle_result<T>(result: Result<T>, end: tokio::time::Instant) -> Result<T> {
+    result.and_then(|value| {
+        ensure!(
+            tokio::time::Instant::now() <= end,
+            "coordinated restart completed after original lifecycle deadline"
+        );
+        Ok(value)
+    })
 }
 fn replacement_timeout(timeout: Duration) -> Result<()> {
     ensure!(
@@ -153,6 +286,12 @@ impl DeploymentRestart {
         let (first, pod) = self
             .select_drain_snapshot(pod_name, requested[0].clone())
             .await?;
+        let node = pod
+            .spec
+            .node_name
+            .as_deref()
+            .context("selected group Pod has no assigned node")?;
+        drain::name(node)?;
         let owner = controller(&pod)?;
         let rs = self.group_replica_set(&owner.name).await?;
         self.require_group_replica_set(&rs, owner.uid, first.deployment_uid)?;
@@ -187,6 +326,21 @@ impl DeploymentRestart {
             state: DrainGroupState::Admitted,
             exits: vec![],
             watch_closed: false,
+            selected_node: pod.spec.node_name.clone(),
+            selected_processes: members
+                .iter()
+                .zip(&images)
+                .map(|(member, image)| SelectedContainerProcess {
+                    container: member.profile.container.clone(),
+                    container_id: member.container_id.clone(),
+                    image_id: image.clone(),
+                    restart_count: member.restart_count,
+                })
+                .collect(),
+            last_observed_pod: None,
+            observed_exits: vec![],
+            observation_journal: None,
+            observation_persistence_failed: false,
         };
         Ok(SelectedDrainGroup {
             members,
@@ -197,6 +351,7 @@ impl DeploymentRestart {
             replica_set_version: rs.metadata.resource_version,
             progress: Arc::new(Mutex::new(progress)),
             attempted: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            journal: Arc::new(Mutex::new(GroupJournal::default())),
         })
     }
     async fn group_rollout(&self, replacement_timeout: Duration) -> Result<()> {
@@ -336,7 +491,6 @@ impl DeploymentRestart {
         );
         let lifecycle_end = selected.lifecycle_deadline(tokio::time::Instant::now());
         let (watch, registration) = OwnedWatch::register(selected.clone())?;
-        let limit = selected.exit_timeout();
         let result = tokio::time::timeout_at(lifecycle_end, async {
             self.group_namespace(first).await?;
             let rs = self.group_replica_set(&selected.replica_set).await?;
@@ -358,20 +512,13 @@ impl DeploymentRestart {
                     .await
                     .context("coordinated Pod watch admission exceeded ten seconds")??,
             )?;
-            let deadline = tokio::time::Instant::now() + limit;
-            tokio::time::timeout_at(deadline, async {
-                let at = chrono::SubsecRound::trunc_subsecs(Utc::now(), 0);
-                observation.dispatched(at);
-                self.fenced_patch(first).await?; // Exactly one UID/resourceVersion-fenced mutation.
-                loop {
-                    if observation.observe(watch.next().await?)? {
-                        break;
-                    }
-                }
-                Ok::<_, anyhow::Error>(())
-            })
-            .await
-            .context("coordinated container exits exceeded drain deadline")??;
+            let at = chrono::SubsecRound::trunc_subsecs(Utc::now(), 0);
+            observation.dispatched(at);
+            selected.persist()?;
+            self.fenced_patch(first).await?; // Exactly one UID/resourceVersion-fenced mutation.
+            // Observation shares the original lifecycle end. Qualification below
+            // still measures each finishedAt against actual Pod deletion start.
+            while !observation.observe(watch.next().await?)? {}
             self.group_rollout(selected.replacement_timeout).await?;
             let after = self.deployment().await?;
             let generation = first
@@ -424,15 +571,31 @@ impl DeploymentRestart {
         .await
         .context("coordinated restart exceeded lifecycle deadline")
         .and_then(|r| r);
+        let result = admit_lifecycle_result(result, lifecycle_end);
+        if result.is_err() {
+            selected.mark(DrainGroupState::Unqualified);
+        }
         let close = watch.close().await;
         if result.is_err() || close.is_err() {
             selected.mark(DrainGroupState::Unqualified);
         }
-        close?;
-        registration.settled()?;
+        if let Err(error) = close {
+            return Err(with_cleanup_failure(result, error));
+        }
         if result.is_ok() {
             selected.mark(DrainGroupState::Replaced);
         }
+        if let Err(error) = selected.persist() {
+            return Err(with_cleanup_failure(result, error));
+        }
+        let result = admit_lifecycle_result(result, lifecycle_end);
+        if result.is_err() {
+            selected.mark(DrainGroupState::Unqualified);
+            if let Err(error) = selected.persist() {
+                return Err(with_cleanup_failure(result, error));
+            }
+        }
+        registration.settled()?;
         result
     }
 }
@@ -525,10 +688,15 @@ impl GroupObservation {
         let drain::WatchEvent::Added(pod) = event else {
             anyhow::bail!("coordinated watch requires initial selected Pod");
         };
+        self.retain_observation(&pod, false)?;
         ensure!(
             controller(&pod)?.uid == self.selected.replica_set_uid
                 && controller(&pod)?.name == self.selected.replica_set,
             "selected Pod ReplicaSet changed"
+        );
+        ensure!(
+            pod.spec.node_name == self.selected.progress().selected_node,
+            "selected Pod node changed"
         );
         for (index, member) in self.members.iter().enumerate() {
             member.initial_pod(&pod)?;
@@ -540,6 +708,65 @@ impl GroupObservation {
             );
         }
         Ok(())
+    }
+    fn retain_observation(&self, pod: &drain::Pod, deleted: bool) -> Result<()> {
+        {
+            let mut progress = self.selected.progress.lock().expect("group progress");
+            progress.last_observed_pod = Some(ObservedPod {
+                uid: pod.metadata.uid,
+                resource_version: pod.metadata.resource_version.clone(),
+                node: pod.spec.node_name.clone(),
+                deletion_timestamp: pod.metadata.deletion_timestamp,
+                deletion_grace_seconds: pod.metadata.deletion_grace_period_seconds,
+                deleted,
+            });
+            for status in &pod.status.container_statuses {
+                if !self
+                    .selected
+                    .members
+                    .iter()
+                    .any(|member| member.profile.container == status.name)
+                {
+                    continue;
+                }
+                for (state, terminal) in [
+                    (ObservedProcessState::Current, &status.state.terminated),
+                    (
+                        ObservedProcessState::Previous,
+                        &status.last_state.terminated,
+                    ),
+                ] {
+                    let Some(exit) = terminal else {
+                        continue;
+                    };
+                    let fact = ObservedContainerExit {
+                        pod_uid: pod.metadata.uid,
+                        pod_resource_version: pod.metadata.resource_version.clone(),
+                        node: pod.spec.node_name.clone(),
+                        container: status.name.clone(),
+                        container_id: status.container_id.clone(),
+                        image_id: status.image_id.clone(),
+                        restart_count: status.restart_count,
+                        state,
+                        terminated_container_id: exit.container_id.clone(),
+                        exit_code: exit.exit_code,
+                        signal: exit.signal,
+                        reason: exit.reason.clone(),
+                        finished_at: exit.finished_at,
+                        deletion_timestamp: pod.metadata.deletion_timestamp,
+                        deletion_grace_seconds: pod.metadata.deletion_grace_period_seconds,
+                    };
+                    if !progress.observed_exits.contains(&fact) {
+                        ensure!(
+                            progress.observed_exits.len() < 128,
+                            "coordinated observed terminal outcomes exceed 128"
+                        );
+                        progress.observed_exits.push(fact);
+                    }
+                }
+            }
+        }
+        self.selected.persist()
     }
     fn dispatched(&mut self, at: DateTime<Utc>) {
         self.dispatched = Some(at);
@@ -557,10 +784,15 @@ impl GroupObservation {
             drain::WatchEvent::Modified(p) | drain::WatchEvent::Deleted(p) => p,
             _ => anyhow::bail!("coordinated watch gap or unexpected event"),
         };
+        self.retain_observation(&pod, deleted)?;
         ensure!(
             controller(&pod)?.uid == self.selected.replica_set_uid
                 && controller(&pod)?.name == self.selected.replica_set,
             "old Pod ReplicaSet changed"
+        );
+        ensure!(
+            pod.spec.node_name == self.selected.progress().selected_node,
+            "old Pod node changed"
         );
         let mut complete = true;
         let mut first_error = None;
@@ -609,9 +841,13 @@ impl GroupObservation {
         }
         if let Some(error) = first_error {
             self.selected.mark(DrainGroupState::Unqualified);
-            return Err(error);
+            return Err(error.context(self.selected.persist().err().map_or_else(
+                || "coordinated observed exits unqualified".to_owned(),
+                |failure| format!("persist coordinated exit qualification: {failure:#}"),
+            )));
         }
         self.selected.mark(DrainGroupState::Draining);
+        self.selected.persist()?;
         Ok(complete)
     }
     fn receipts(self, generation: u64) -> Result<Vec<DrainReceipt>> {
@@ -636,6 +872,7 @@ struct OwnedWatch {
 }
 impl OwnedWatch {
     fn register(selected: SelectedDrainGroup) -> Result<(Arc<Self>, owner::CleanupRegistration)> {
+        selected.open_journal()?;
         let watch = Arc::new(Self {
             slot: tokio::sync::Mutex::new(WatchSlot {
                 watch: None,
@@ -673,7 +910,7 @@ impl OwnedWatch {
         let mut slot = self.slot.lock().await;
         ensure!(!slot.failed, "original coordinated watch cleanup failed");
         if slot.closed {
-            return Ok(());
+            return self.selected.persist();
         }
         let deadline = slot.deadline.map_or(end, |d| d.min(end));
         slot.deadline = Some(deadline);
@@ -698,11 +935,12 @@ impl OwnedWatch {
             .lock()
             .expect("group progress")
             .watch_closed = passed;
+        let persisted = self.selected.persist();
         ensure!(
             passed,
             "original coordinated watch cleanup failed or exceeded owner deadline"
         );
-        Ok(())
+        persisted
     }
 }
 

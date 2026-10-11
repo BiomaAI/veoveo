@@ -34,6 +34,20 @@ fn selected() -> SelectedDrainGroup {
             state: DrainGroupState::Admitted,
             exits: vec![],
             watch_closed: false,
+            selected_node: Some("fixture-node".into()),
+            selected_processes: members
+                .iter()
+                .map(|member| SelectedContainerProcess {
+                    container: member.profile.container.clone(),
+                    container_id: member.container_id.clone(),
+                    image_id: format!("sha256:{}", member.profile.container),
+                    restart_count: member.restart_count,
+                })
+                .collect(),
+            last_observed_pod: None,
+            observed_exits: vec![],
+            observation_journal: None,
+            observation_persistence_failed: false,
         })),
         members,
         images: vec!["sha256:control".into(), "sha256:worker".into()],
@@ -41,21 +55,25 @@ fn selected() -> SelectedDrainGroup {
         replica_set_uid: Uuid::from_u128(4),
         replica_set_version: "10".into(),
         attempted: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        journal: Arc::new(Mutex::new(GroupJournal::default())),
     }
 }
 fn pod(version: &str, exits: [Option<i32>; 2]) -> drain::Pod {
+    serde_json::from_value(pod_value(version, exits)).unwrap()
+}
+fn pod_value(version: &str, exits: [Option<i32>; 2]) -> serde_json::Value {
     let statuses = ["control", "worker"].into_iter().zip(exits).map(|(name, exit)| json!({
             "name":name,"containerID":format!("containerd://{name}-old"),"imageID":format!("sha256:{name}"),"restartCount":0,"ready":exit.is_none(),
             "state": if let Some(code) = exit {json!({"terminated":{"exitCode":code,"finishedAt":"2026-10-07T00:00:10Z"}})} else {json!({"running":{"startedAt":"2026-10-06T00:00:00Z"}})}
         })).collect::<Vec<_>>();
-    serde_json::from_value(json!({
+    json!({
         "metadata":{"name":"old","namespace":"fixture","uid":Uuid::from_u128(3),"resourceVersion":version,
             "ownerReferences":[{"name":"old-rs","kind":"ReplicaSet","uid":Uuid::from_u128(4),"controller":true}],
             "deletionTimestamp":if exits.iter().any(Option::is_some) {Some("2026-10-07T00:00:30Z")} else {None},
             "deletionGracePeriodSeconds":if exits.iter().any(Option::is_some) {Some(30)} else {None}},
-        "spec":{"terminationGracePeriodSeconds":30,"containers":[{"name":"control","resources":{}},{"name":"worker","resources":{"requests":{"nvidia.com/gpu":"1"},"limits":{"nvidia.com/gpu":"1"}}}]},
+        "spec":{"nodeName":"fixture-node","terminationGracePeriodSeconds":30,"containers":[{"name":"control","resources":{}},{"name":"worker","resources":{"requests":{"nvidia.com/gpu":"1"},"limits":{"nvidia.com/gpu":"1"}}}]},
         "status":{"conditions":[{"type":"Ready","status":"True"}],"containerStatuses": statuses}
-    })).unwrap()
+    })
 }
 fn observation() -> GroupObservation {
     let mut observer = GroupObservation::new(selected());
@@ -104,6 +122,23 @@ fn coordinated_refuses_failed_missing_stale_and_wrong_instance_observations() {
         let progress = observer.selected.progress();
         assert_eq!(progress.exits.len(), 1, "qualified partial fact was lost");
         assert_eq!(progress.exits[0].container, successful);
+        assert_eq!(
+            progress.observed_exits.len(),
+            2,
+            "unqualified terminal sibling was discarded"
+        );
+        assert!(
+            progress
+                .observed_exits
+                .iter()
+                .any(|exit| exit.exit_code == 1)
+        );
+        assert!(
+            progress
+                .observed_exits
+                .iter()
+                .all(|exit| exit.container_id.ends_with("-old"))
+        );
         assert!(matches!(progress.state, DrainGroupState::Unqualified));
     }
     assert!(
@@ -242,6 +277,17 @@ fn coordinated_owned_watch_cleanup_survives_timeout_gap_and_owner_drop() {
     }));
     assert!(result.is_err());
     let progress = selected.progress();
+    assert!(
+        progress.exits.is_empty() && progress.observed_exits.is_empty(),
+        "unknown exits became a terminal observation"
+    );
+    assert!(
+        progress
+            .observation_journal
+            .as_ref()
+            .is_some_and(|path| path.is_file()),
+        "cleanup did not retain private selection journal"
+    );
     assert!(
         progress.watch_closed,
         "actual retained watch was not awaited"
@@ -402,4 +448,186 @@ async fn coordinated_selected_replacement_timeout_keeps_original_lifecycle_end()
         "deadline admission dispatched a mutation"
     );
     Ok(())
+}
+
+#[test]
+fn coordinated_delayed_deletion_observation_preserves_strict_member_exit_window() {
+    const KEY: &str = "VEOVEO_TEST_DELAYED_GROUP_DELETION";
+    if std::env::var_os(KEY).is_none() {
+        crate::process::tests::isolated_control(
+            "installed::restart::group::tests::coordinated_delayed_deletion_observation_preserves_strict_member_exit_window",
+            KEY,
+            "delayed",
+        );
+        return;
+    }
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime
+        .block_on(owner::run(async {
+            let selected = selected();
+            let (watch, registration) = OwnedWatch::register(selected.clone())?;
+            let mut observation = GroupObservation::new(selected.clone());
+            observation.initial(drain::WatchEvent::Added(pod("12", [None, None])))?;
+            observation.dispatched("2026-10-07T00:00:00Z".parse()?);
+            let start = tokio::time::Instant::now() - Duration::from_secs(25);
+            let original_end = selected.lifecycle_deadline(start);
+            ensure!(
+                start + selected.exit_timeout() < tokio::time::Instant::now(),
+                "counterexample did not exceed original dispatch-based exit wait"
+            );
+            let mut value = pod_value("13", [Some(0), Some(0)]);
+            // Deletion begins15s after dispatch; both actual exits are18s after
+            // deletion start, within each20s limit but33s after dispatch.
+            value["metadata"]["deletionTimestamp"] = json!("2026-10-07T00:00:45Z");
+            for status in value["status"]["containerStatuses"].as_array_mut().unwrap() {
+                status["state"]["terminated"]["finishedAt"] = json!("2026-10-07T00:00:33Z");
+            }
+            let mut command = tokio::process::Command::new("/bin/sh");
+            command
+                .args(["-c", "printf '%s' \"$EVENT\""])
+                .env(
+                    "EVENT",
+                    serde_json::to_string(&json!({"type":"MODIFIED","object":value}))?,
+                )
+                .stdout(std::process::Stdio::piped());
+            watch.slot.lock().await.watch =
+                Some(drain::PodWatch::from_child(crate::spawn_async(command)?)?);
+            ensure!(
+                observation.observe(tokio::time::timeout_at(original_end, watch.next()).await??)?,
+                "valid delayed deletion was not qualified"
+            );
+            ensure!(
+                selected.progress().exits.len() == 2,
+                "qualified outcomes missing"
+            );
+            watch.close().await?;
+            registration.settled()?;
+            ensure!(
+                selected.progress().watch_closed,
+                "native observation watch not closed"
+            );
+            let journal = selected
+                .progress()
+                .observation_journal
+                .context("private observation journal absent")?;
+            use std::os::unix::fs::PermissionsExt;
+            ensure!(
+                std::fs::metadata(&journal)?.permissions().mode() & 0o777 == 0o600,
+                "observation journal is not private"
+            );
+            let text = std::fs::read_to_string(journal)?;
+            ensure!(
+                text.contains("containerd://control-old") && text.contains("2026-10-07T00:00:33Z"),
+                "persisted process/terminal facts missing"
+            );
+            Ok(())
+        }))
+        .unwrap();
+}
+
+#[test]
+fn coordinated_late_terminal_and_failed_persistence_remain_unqualified_and_retained() {
+    let mut observer = observation();
+    let mut late = pod("13", [Some(0), Some(0)]);
+    late.status.container_statuses[1]
+        .state
+        .terminated
+        .as_mut()
+        .unwrap()
+        .finished_at = "2026-10-07T00:00:21Z".parse().unwrap();
+    assert!(observer.observe(drain::WatchEvent::Modified(late)).is_err());
+    let retained = observer.selected.progress();
+    assert_eq!(retained.observed_exits.len(), 2);
+    assert_eq!(retained.exits.len(), 1);
+    assert_eq!(retained.exits[0].container, "control");
+    assert_eq!(
+        retained.observed_exits[1].finished_at,
+        "2026-10-07T00:00:21Z".parse::<DateTime<Utc>>().unwrap()
+    );
+    let mut previous_observer = observation();
+    let mut current = pod("13", [None, None]);
+    current.status.container_statuses[0].last_state.terminated =
+        pod("14", [Some(1), None]).status.container_statuses[0]
+            .state
+            .terminated
+            .clone();
+    assert!(
+        !previous_observer
+            .observe(drain::WatchEvent::Modified(current))
+            .unwrap()
+    );
+    let previous = previous_observer.selected.progress();
+    assert_eq!(previous.observed_exits.len(), 1);
+    assert_eq!(
+        previous.observed_exits[0].state,
+        ObservedProcessState::Previous
+    );
+    assert!(
+        previous.exits.is_empty(),
+        "previous process state qualified the current instance"
+    );
+    let mut observer = observation();
+    observer.selected.journal.lock().unwrap().file = Some(
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open("/dev/full")
+            .unwrap(),
+    );
+    assert!(
+        observer
+            .observe(drain::WatchEvent::Modified(pod("13", [Some(0), Some(1)])))
+            .is_err()
+    );
+    let retained = observer.selected.clone();
+    drop(observer);
+    assert_eq!(
+        retained.progress().observed_exits.len(),
+        2,
+        "typed outcomes lost with cancelled waiter"
+    );
+    assert!(retained.progress().observation_persistence_failed);
+    let file = tempfile::tempfile().unwrap();
+    retained.journal.lock().unwrap().file = Some(file);
+    assert!(
+        retained.persist().is_err(),
+        "later flush erased original persistence failure"
+    );
+    assert_eq!(retained.progress().observed_exits.len(), 2);
+}
+
+#[tokio::test]
+async fn coordinated_single_poll_overrun_cannot_qualify_lifecycle_success() {
+    for fails in [false, true] {
+        let end = tokio::time::Instant::now() + Duration::from_millis(100);
+        let completed = tokio::time::timeout_at(end, async {
+            // A synchronous fsync can block one future poll beyond timeout_at's
+            // check. Exercise that poll shape without disk timing assumptions.
+            std::thread::sleep(Duration::from_millis(150));
+            if fails {
+                anyhow::bail!("retained original observation failure");
+            }
+            Ok(())
+        })
+        .await
+        .expect("single ready poll should expose the timeout counterexample");
+        if !fails {
+            assert!(
+                completed.is_ok(),
+                "counterexample did not produce late Ready success"
+            );
+        }
+        let failure = admit_lifecycle_result(completed, end).unwrap_err();
+        if fails {
+            assert!(format!("{failure:#}").contains("retained original observation failure"));
+        } else {
+            assert!(
+                failure
+                    .to_string()
+                    .contains("after original lifecycle deadline")
+            );
+        }
+    }
 }
