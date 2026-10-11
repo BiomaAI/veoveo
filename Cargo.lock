@@ -4807,30 +4807,18 @@ checksum = "117240f60069e65410b3ae1bb213295bd828f707b5bec6596a1afc8793ce0cbc"
 
 [[package]]
 name = "draco-core"
-version = "1.2.0"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9077a2eb6707dbbf6df0f4ab9892809d6be3a19e13f8e83d784ab9622066e5ef"
+checksum = "5647664e26e2172ee96bcd7c394a690e2986a3d76541611d22905739c8906ba4"
 dependencies = [
  "bytemuck",
- "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "draco-gltf"
-version = "0.2.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4286ec03e6a093ae8f771a2c2e11e59d327c868c6f3cc9e6e37353112d859ba9"
-dependencies = [
- "draco-core",
- "draco-io",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "draco-io"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "038cc545dd6dd88f765ed629f3050ba8276a7036d19fc2bd1817fe8ba441efad"
+checksum = "26b95bb105466fa2eb958b410123f5d162ad71a571e459b935a1cd59f994bd50"
 dependencies = [
  "draco-core",
  "thiserror 2.0.21",
