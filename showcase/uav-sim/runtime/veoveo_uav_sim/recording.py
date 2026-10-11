@@ -235,7 +235,13 @@ class RecordingPublisher:
             return
         self._closed.set()
         self._events.offer(_StopEvent())
-        self._worker.join(timeout=30.0)
+        started = time.monotonic()
+        LOGGER.info("recording_cleanup event=enter stage=worker_join monotonic_seconds=%.6f timeout_seconds=30", started)
+        try:
+            self._worker.join(timeout=30.0)
+        finally:
+            LOGGER.info("recording_cleanup event=exit stage=worker_join elapsed_seconds=%.6f worker_alive=%s",
+                        time.monotonic() - started, self._worker.is_alive())
         if self._worker.is_alive():
             LOGGER.error("recording worker did not stop within 30 seconds")
 
@@ -387,8 +393,17 @@ class _RecordingSink:
         self._budget.account(payload_bytes)
 
     def close(self) -> None:
-        self._recording.flush()
-        self._recording.disconnect()
+        for stage, action in (("sink_flush", self._recording.flush),
+                              ("sink_disconnect", self._recording.disconnect)):
+            started = time.monotonic()
+            outcome = "failed"
+            LOGGER.info("recording_cleanup event=enter stage=%s monotonic_seconds=%.6f", stage, started)
+            try:
+                action()
+                outcome = "succeeded"
+            finally:
+                LOGGER.info("recording_cleanup event=exit stage=%s elapsed_seconds=%.6f outcome=%s",
+                            stage, time.monotonic() - started, outcome)
 
     def abort(self) -> None:
         try:

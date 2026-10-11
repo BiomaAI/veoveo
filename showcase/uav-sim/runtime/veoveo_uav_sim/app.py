@@ -85,11 +85,18 @@ def _finish_cleanup(errors: list[BaseException], runtime_failure: BaseException 
 
 
 def _cleanup(name: str, action: Callable[[], None]) -> BaseException | None:
+    started = time.monotonic()
+    outcome = "failed"
+    LOGGER.info("cleanup_stage event=enter stage=%s monotonic_seconds=%.6f", name, started)
     try:
         action()
+        outcome = "succeeded"
     except BaseException as error:
         LOGGER.exception("UAV simulation cleanup failed: %s", name)
         return error
+    finally:
+        LOGGER.info("cleanup_stage event=exit stage=%s elapsed_seconds=%.6f outcome=%s",
+                    name, time.monotonic() - started, outcome)
     return None
 
 
@@ -1116,6 +1123,8 @@ def run(config: RuntimeConfig, stop_requested: threading.Event) -> None:
         LOGGER.exception("UAV simulation runtime failed")
         raise
     finally:
+        cleanup_started = time.monotonic()
+        LOGGER.info("cleanup event=enter monotonic_seconds=%.6f", cleanup_started)
         cleanup_errors: list[BaseException] = []
 
         def cleanup(name: str, action: Callable[[], None]) -> None:
@@ -1179,4 +1188,6 @@ def run(config: RuntimeConfig, stop_requested: threading.Event) -> None:
         ))
         if cleanup_errors and state is not None:
             state.set_lifecycle("failed")
+        LOGGER.info("cleanup event=exit elapsed_seconds=%.6f failures=%d runtime_failed=%s",
+                    time.monotonic() - cleanup_started, len(cleanup_errors), runtime_failure is not None)
         _finish_cleanup(cleanup_errors, runtime_failure)

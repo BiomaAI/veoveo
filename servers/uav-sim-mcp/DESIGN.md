@@ -974,6 +974,17 @@ SyntheticData state or detach writers owned by other extensions. Reset uses the 
 ordering and existing clock-generation lifecycle. CPU controls qualify owner ordering;
 stock graph retirement across repeated resets and shutdown needs installed GPU checks.
 
+Cleanup logs mark stage entry, exit and monotonic elapsed time, including the Recording
+publisher worker join, sink flush/disconnect and SimulationApp close. The forwarder
+logs observed stop signals, its original shutdown interval, drain stages and unfinished
+volatile-work counts. These diagnostics contain owner stage names and counters rather
+than recording payloads or credentials. A missing exit marker identifies an unobserved
+completion; it does not prove a blocked call or an undelivered signal. Native calls,
+process termination and log delivery can prevent later markers from being recorded.
+The stock UAV chart grants 120 seconds for Pod termination, while the forwarder's default
+shutdown interval is 30 seconds. Installed overrides must leave time for process and
+runtime retirement after that original interval.
+
 The runtime Service exposes the authenticated adapter and private H.264 WebSocket to the
 MCP pod. The MCP Service owns MCP HTTP and the public authenticated live-stream gate.
 Separate network policies admit

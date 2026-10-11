@@ -176,17 +176,26 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
                 }
             }
             work_progress.lock().unwrap().stage = ShutdownStage::ReceiverJoin;
+            let started = shutdown_stage_enter(ShutdownStage::ReceiverJoin);
             let received = (&mut receiver_task).await;
+            shutdown_stage_exit(
+                ShutdownStage::ReceiverJoin,
+                started,
+                received.as_ref().is_ok_and(|result| result.is_ok()),
+            );
             receiver_joined = true;
             received.context("Rerun receiver task panicked")??;
             work_progress.lock().unwrap().stage = ShutdownStage::Flush;
-            flush_accumulators(
+            let started = shutdown_stage_enter(ShutdownStage::Flush);
+            let flushed = flush_accumulators(
                 &mut accumulators,
                 &queue,
                 &queue_events,
                 client.maximum_batch_bytes(),
             )
-            .await?;
+            .await;
+            shutdown_stage_exit(ShutdownStage::Flush, started, flushed.is_ok());
+            flushed?;
             work_progress.lock().unwrap().accumulator_messages = 0;
             ensure!(
                 blueprint_accumulators.is_empty(),
@@ -200,11 +209,20 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
             queue_events.work_available.notify_one();
             uploader_stop.cancel();
             work_progress.lock().unwrap().stage = ShutdownStage::UploaderJoin;
+            let started = shutdown_stage_enter(ShutdownStage::UploaderJoin);
             let uploaded = (&mut uploader).await;
+            shutdown_stage_exit(
+                ShutdownStage::UploaderJoin,
+                started,
+                uploaded.as_ref().is_ok_and(|result| result.is_ok()),
+            );
             uploader_joined = true;
             uploaded.context("recording uploader task panicked")??;
             work_progress.lock().unwrap().stage = ShutdownStage::UploadDrain;
-            drain_and_finish(queue.clone(), &client).await
+            let started = shutdown_stage_enter(ShutdownStage::UploadDrain);
+            let drained = drain_and_finish(queue.clone(), &client).await;
+            shutdown_stage_exit(ShutdownStage::UploadDrain, started, drained.is_ok());
+            drained
         };
         shutdown_work(
             work,
@@ -275,7 +293,7 @@ fn spawn_receiver(
     })
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 enum ShutdownStage {
     #[default]
     IntakeDrain,
@@ -292,6 +310,20 @@ struct ShutdownProgress {
     incomplete_blueprint_stores: usize,
 }
 
+fn shutdown_stage_enter(stage: ShutdownStage) -> tokio::time::Instant {
+    info!(?stage, event = "enter", "forwarder shutdown stage");
+    tokio::time::Instant::now()
+}
+fn shutdown_stage_exit(stage: ShutdownStage, started: tokio::time::Instant, succeeded: bool) {
+    info!(
+        ?stage,
+        event = "exit",
+        elapsed_seconds = started.elapsed().as_secs_f64(),
+        succeeded,
+        "forwarder shutdown stage"
+    );
+}
+
 async fn shutdown_work(
     work: impl std::future::Future<Output = Result<()>>,
     signal: impl std::future::Future<Output = Result<()>>,
@@ -306,8 +338,37 @@ async fn shutdown_work(
         result = &mut signal => Err(result),
         completed = &mut work => Ok(completed),
     };
-    let end = tokio::time::Instant::now() + window;
+    let observed = tokio::time::Instant::now();
+    let end = observed + window;
+    let trigger_kind = match &trigger {
+        Ok(_) => "work_completed",
+        Err(Ok(())) => "stop_signal_observed",
+        Err(Err(_)) => "signal_wait_failed",
+    };
+    {
+        let state = progress.lock().unwrap();
+        info!(trigger = trigger_kind, original_shutdown_seconds = window.as_secs_f64(),
+            stage = ?state.stage, volatile_burst_messages = state.burst_messages,
+            accumulator_messages = state.accumulator_messages,
+            incomplete_blueprint_stores = state.incomplete_blueprint_stores,
+            receiver_buffered_messages = events.receiver_buffered_messages.load(Ordering::Relaxed),
+            volatile_encoded_batches = events.volatile_batches.load(Ordering::Relaxed),
+            volatile_blueprints = events.volatile_blueprints.load(Ordering::Relaxed),
+            "forwarder shutdown observed");
+    }
+    let listener_started = tokio::time::Instant::now();
+    info!(
+        event = "enter",
+        stage = "listener_stop",
+        "forwarder shutdown stage"
+    );
     stop_listener();
+    info!(
+        event = "exit",
+        stage = "listener_stop",
+        elapsed_seconds = listener_started.elapsed().as_secs_f64(),
+        "forwarder shutdown stage"
+    );
     // The receiver's bounded read and closed send channel use this retirement
     // reserve inside the original shutdown interval, never a second deadline.
     let reserve = Duration::from_millis(250).min(window / 2);
@@ -348,6 +409,19 @@ async fn shutdown_work(
     } else {
         outcome
     };
+    {
+        let state = progress.lock().unwrap();
+        info!(event = "work_exit", stage = ?state.stage,
+            elapsed_seconds = observed.elapsed().as_secs_f64(),
+            original_remaining_seconds = end.saturating_duration_since(tokio::time::Instant::now()).as_secs_f64(),
+            succeeded = outcome.is_ok(), volatile_burst_messages = state.burst_messages,
+            accumulator_messages = state.accumulator_messages,
+            incomplete_blueprint_stores = state.incomplete_blueprint_stores,
+            receiver_buffered_messages = events.receiver_buffered_messages.load(Ordering::Relaxed),
+            volatile_encoded_batches = events.volatile_batches.load(Ordering::Relaxed),
+            volatile_blueprints = events.volatile_blueprints.load(Ordering::Relaxed),
+            "forwarder shutdown work settled; durable queue retained until checkpoint");
+    }
     (outcome, end)
 }
 
@@ -383,11 +457,29 @@ async fn retire_jobs(
     uploader: RetiringJob<'_>,
     end: tokio::time::Instant,
 ) -> Result<()> {
+    let retirement_started = tokio::time::Instant::now();
+    info!(
+        event = "enter",
+        stage = "job_retirement",
+        original_remaining_seconds = end
+            .saturating_duration_since(retirement_started)
+            .as_secs_f64(),
+        "forwarder shutdown stage"
+    );
     receiver.stop.cancel();
     message_rx.close(); // Releases blocking_send even when capacity is exhausted.
     uploader.stop.cancel();
     // Always attempt both original joins, including after work or join failure.
     let (receiver_result, uploader_result) = tokio::join!(receiver.join(end), uploader.join(end));
+    info!(
+        event = "exit",
+        stage = "job_retirement",
+        elapsed_seconds = retirement_started.elapsed().as_secs_f64(),
+        receiver_retired = receiver_result.is_ok(),
+        uploader_retired = uploader_result.is_ok(),
+        work_succeeded = outcome.is_ok(),
+        "forwarder shutdown stage"
+    );
     let errors = [outcome.err(), receiver_result.err(), uploader_result.err()]
         .into_iter()
         .flatten()
@@ -574,8 +666,13 @@ async fn shutdown_signal() -> Result<()> {
 
     let mut terminate = signal(SignalKind::terminate())?;
     tokio::select! {
-        result = tokio::signal::ctrl_c() => result?,
-        _ = terminate.recv() => {}
+        result = tokio::signal::ctrl_c() => {
+            result?;
+            info!(signal = "SIGINT", "forwarder operating-system signal observed");
+        },
+        received = terminate.recv() => {
+            info!(signal = if received.is_some() { "SIGTERM" } else { "closed_signal_channel" }, "forwarder operating-system signal observed");
+        }
     }
     Ok(())
 }
