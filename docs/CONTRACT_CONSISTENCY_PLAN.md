@@ -47,9 +47,13 @@ owning CPU controls and review. It and the `c2` shutdown-stage diagnostics have
 two-image development stages at `95cc4a71`; final release qualification stays open.
 The diagnostics pass five affected native controls and review. Live GPU termination
 grace is 30 seconds; its installed chart gives 120 seconds only to the MCP companion.
-The corrected source sets 120 seconds for the GPU Pod too. Installed grace reconciliation, repeated
-GPU reset/shutdown, induced RTSP stall recovery, capture-clock and full composed
-flight qualification remain open. F59/A11 are not closed by live frames or videos.
+Chart `917bc842` with a 120-second GPU Pod grace is published. The focused
+restart verifier passes compiler, native SDK controls and review; it checks paired
+runtime/forwarder exits and uncached session/world/fleet/camera state. Bioma's
+reviewed inputs select that chart and both staged images while preserving the live
+fleet and recording values; the release remains suspended. Installed grace and
+paired shutdown, repeated GPU reset, induced RTSP stall recovery, capture-clock
+and full composed flight qualification remain open. F59/A11 stay open.
 
 See [Current Status](#current-status) for owner results and remaining conditions.
 
@@ -581,8 +585,10 @@ deadline fix. Coordinated runtime cleanup at `db0b` and shutdown-stage/elapsed
 diagnostics at `c2` are development-staged at `95cc4a71` and need final release
 qualification and installed GPU shutdown proof. The live 30-second GPU Pod grace
 equals the forwarder's full shutdown interval. The installed chart's 120-second
-grace applies only to the MCP companion; publish and qualify the corrected 120-second GPU Pod grace.
-The Rust MCP host was not
+grace applies only to the MCP companion. Corrected chart `917bc842` is published;
+reviewed Bioma inputs and the source-qualified paired-drain verifier are ready for
+focused reconciliation. Existing current and rollback image pins stay protected.
+Installed grace and graceful retirement remain unproven. The Rust MCP host was not
 restarted by these checks. Keep selected and prior UAV images pinned for rollback.
 Node restart, forced image collection, longer render stalls, turning flight and
 actual capture-clock behavior remain unqualified. Native feedback comparisons did
