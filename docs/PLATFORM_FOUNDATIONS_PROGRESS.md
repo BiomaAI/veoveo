@@ -87,6 +87,27 @@ Its installed verification remains open. The private source receipt is
 The prior Pod's final exit details were not retained, so that rollout does not prove
 graceful application shutdown.
 
+The route repair at `ffa13f2c0` publishes runtime digest
+`sha256:5c1c0f96b4460bc019bc0f935ca87744fdb1aa1b7d07dbf53a4320ba8a888831`.
+Stage/release agreement, attestations and node-origin reads pass. Helm revision four
+reaches Ready with the world, PVCs, MCP and forwarder unchanged. The selected
+three-image list passes its native guard; the node separately pins those images
+and both prior runtimes. Normal-OAuth Console list/open/close calls return 200,
+and the live WebSocket receives 41 frames without disconnecting. All five canvases
+advance from 22 to 39 frames over 8.005 seconds, measuring 2.12 fps. A separate
+native atlas sample advances 69 frames over 16.80 seconds, measuring 4.1 fps.
+These samples establish functional playback, with the configured 16 Hz unmet.
+Headed WebGL uses the RTX 4090. Media Capabilities admits supported, smooth software
+H.264 decoding, and the App shows that label. The private browser receipt is
+`/tmp/veoveo-uav-console-route-fix-20261011/playback.json`, SHA-256
+`d4e7187d14ed3008401f59665fd0e8e77b6b07a8f0a9457669b46d5b649be15a`.
+The prearmed native watch captures a separate shutdown failure: simulator and
+forwarder exit 137 after the 30-second termination grace. No OOM event is observed.
+This observation concerns the GPU runtime Pod, not a restarted Rust MCP host.
+F59, A11, full-flight, capture-clock and installed induced-stall recovery stay open.
+The test-only live-stream fixture uses the canonical `liveViewId` query key and
+rejects percent-encoded duplicate keys; compiler checks and both native controls pass.
+
 Node logs identify the repeated simulator download's cause: kubelet collects its
 unpinned image at 88 percent image-filesystem usage. The installation now keeps a
 native K3s digest list on the retained node volume and local tag aliases for the

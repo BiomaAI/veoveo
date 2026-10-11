@@ -11,27 +11,28 @@ Twenty-two Trixie images at `3820c0db5` now pass stage/release digest agreement,
 attestation checks and node-network registry readback. The remaining nine-image
 batch stops at its second disk-growth guard without stage evidence; rollout and installed
 qualification remain open.
-The UAV runtime-only receiver repair at `418de38f3` passes 187 owning CPU tests.
-Its operator-only recovery uses five-second handshake and admitted-picture deadlines
-with at most two same-source reconnects. Recording's physical-camera readiness and
-terminal-loss behavior are preserved. The image passes stage/release agreement,
-attestations and node-origin readback, and reaches Ready without downloading its
-cached layers. Fresh state reports five healthy cameras and an advancing atlas.
-Normal-OAuth Console camera listing and view admission return 200, but live playback
-still reconnects without frames. Pod logs confirm a runtime route binding mismatch:
-`camera_id` is registered while the handler reads `cameraId`. An actual registered-route
-test reproduces HTTP 500 and the same exception. The repair passes 188 owning CPU
-tests and independent review; its installed playback check remains open.
+The UAV runtime at `ffa13f2c0` passes 188 owning CPU tests, independent review,
+stage/release agreement, attestation checks and node-origin registry readback.
+The runtime-only rollout reaches Ready with the world, PVCs, MCP and forwarder
+unchanged. Normal-OAuth Console camera calls return 200, the WebSocket stays open
+and all five camera canvases display advancing frames in headed RTX 4090 Chrome.
+The browser sample measures 2.12 fps; an independent native atlas sample measures
+4.1 fps. Both fall below the configured 16 Hz. Software H.264 decode is supported
+and smooth according to Media Capabilities, and the UI identifies it correctly.
+The operator-only RTSP recovery has five-second handshake and admitted-picture
+deadlines with at most two same-source reconnects. Its source controls preserve
+Recording's physical-camera profile; induced installed stall recovery remains open.
 The typed browser consumer cut at `688f5d998` passes the browser, flight and composition
 compiler targets. Nine focused native controls pass, and independent review approves
-the cut. This source qualification does not establish deployed live playback.
+the cut. Both focused live-stream parser controls also pass on the canonical query name.
 The accepted UAV videos are published in the README. The native five-camera MP4
 contains 442 NVENC frames over 29.95 seconds at 14.76 average fps, and headed
-RTX 4090 playback passes. All four vehicles report flying in an authenticated state
-sample; individual visibility of every vehicle in the saved video is unqualified.
-The node pins the selected UAV images and retains the prior runtime for rollback.
-Node restart, forced image collection and graceful application shutdown are unqualified;
-the old Pod's exit details were not retained. F59, A11, the full composed flight and
+RTX 4090 playback passes. The capture's authenticated state sample reports all four
+vehicles flying; individual visibility of every vehicle in the saved video is unqualified.
+The node pins the selected UAV images and both prior runtimes for rollback.
+The observed simulator and forwarder shutdown fails: both exit 137 after the
+30-second grace period. The Rust MCP host was not restarted in this check.
+Node restart and forced image collection are unqualified. F59, A11, the full composed flight and
 actual capture-clock qualification remain open. Longer render stalls and turning
 flight also require qualification; native feedback comparisons did not reproduce
 the recorded control transient. The [flight checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#fresh-uav-flight-and-runtime-output-repair--october-10-2026)
