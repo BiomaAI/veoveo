@@ -9,8 +9,9 @@ including all seven stock-rollout images, pass staging, attested qualification a
 The current source closure requires thirty Rust targets and the pending cuOpt image.
 Twenty-two Trixie images at `3820c0db5` now pass stage/release digest agreement,
 attestation checks and node-network registry readback. The remaining nine-image
-batch stops at its second disk-growth guard without stage evidence; rollout and installed
-qualification remain open.
+batch has no completed stage evidence. Its old growth budget is exhausted; another
+dispatch requires admission for the complete solve. Rollout and installed qualification
+remain open.
 The UAV runtime at `ffa13f2c0` passes 188 owning CPU tests, independent review,
 stage/release agreement, attestation checks and node-origin registry readback.
 The runtime-only rollout reaches Ready with the world, PVCs, MCP and forwarder
@@ -32,6 +33,13 @@ vehicles flying; individual visibility of every vehicle in the saved video is un
 The node pins the selected UAV images and both prior runtimes for rollback.
 The observed simulator and forwarder shutdown fails: both exit 137 after the
 30-second grace period. The Rust MCP host was not restarted in this check.
+The forwarder source now applies one deadline across intake, drain, flush and both
+original worker joins. Its owning native suite and five affected shutdown controls
+pass, and independent review accepts the correction, including refusal of late success.
+The simulator launcher retains NVIDIA's unchanged wrapper and delivers termination
+to its admitted Python owner. Ten affected launch and cleanup controls pass, and independent
+review accepts the fix. Both source corrections require publication and installed
+shutdown qualification, including Kit's native cleanup within the existing grace.
 Node restart and forced image collection are unqualified. F59, A11, the full composed flight and
 actual capture-clock qualification remain open. Longer render stalls and turning
 flight also require qualification; native feedback comparisons did not reproduce
@@ -545,8 +553,13 @@ Dependency libraries, fingerprints, BuildKit and OCI caches are retained, but th
 removed incremental caches may need rebuilding. The next dispatch allows 20 GiB,
 begins cancellation at 16 GiB and preserves 4 GiB for work already in flight.
 That dispatch stops after 17.19 GB of growth without stage evidence or a release
-phase. Its client and transport processes exit. The original aggregate baseline,
-28 GiB cap and installation reserve stay set pending fresh resource admission. The
+phase. Its client and transport processes exit. The original aggregate baseline and
+growth receipts describe those completed attempts; their allowance is exhausted.
+Fresh admission must cover the whole remaining solve, the node's free-space floor
+and the BuildKit cache policy. Removing one obsolete vLLM experiment and its image
+recovers 21.5 GB while retaining the active model image and cache volume. Useful
+Cargo and BuildKit caches, current and rollback images, and the pinned simulator
+images stay selected for retention. The
 [publication checkpoint](PLATFORM_FOUNDATIONS_PROGRESS.md#final-trixie-publication-and-artifact-recovery-controls--october-10-2026)
 records the completed checks and remaining scope. Build admission does not authorize
 rollout.
