@@ -1,16 +1,20 @@
 # Platform Foundations And Contract Consistency Plan
 
-Status: The source and focused native baseline passes its owning checks and review.
+Status: Work is paused for handoff at the owner's request on October 11, 2026.
+The source and focused native baseline passes its owning checks and review.
 Final-image closure and the remaining installed gates are open. Earlier qualified
 images and reports keep their recorded scope; they do not qualify newer inputs.
 GitOps holds stay set. Build and rollout operations require separate admission.
+The [pause handoff](#pause-handoff) identifies the running installation, retained
+fixtures and next work. Its installation snapshot supersedes older replica counts
+elsewhere in this plan.
 
 | Area | Current qualification | Remaining work |
 |---|---|---|
 | Images and publication | 22 Trixie images have stage/release and registry readback proof | Complete the remaining nine-image selection and affected later source publications, then qualify final selected images |
-| Gateway and installation | Gateway `853d2879f40d` runs generation three; preparation, all nineteen current lanes and runtime-authenticated publication pass; the selected gateway rollout passes its recorded scope | Activate the full platform under the current authorization, preserving storage and GitOps holds; qualify final images and owner gates |
-| Enabled workloads | Recording, View, Optimization, Reason and Stream are Ready and pass normal-OAuth domain reads; the Rerun bridge is Ready. Stream compiles its TensorRT engine on the GPU, and one real Optimization Task completes with a verified optimal result | Establish Speech, View, Stream and Reason inference baselines; the CPU/platform owner takes stock Host/Computers activation; further UAV optimization, restart and full-flight tests wait |
-| Knowledge | Retained-index cold startup, targeted Time-document indexing/search and normal-PKCE restricted caller policy pass on the admitted deployment; Read-only tool discovery passes source review and focused SDK native checks | Deploy and qualify Read-only discovery; first-empty indexing, current-driver Embedding profile, current-generation recovery and final images |
+| Gateway and installation | Gateway `853d2879f40d` runs generation three; preparation, all nineteen current lanes and runtime-authenticated publication pass; 25 Deployments are Ready and Host/Computers are deliberately at zero | Complete stock Host/Computers activation through the CPU/platform owner; qualify final images and owner gates while preserving storage and GitOps holds |
+| Enabled workloads | Recording, View, Optimization, Reason, Stream and Speech are Ready and pass normal-OAuth domain reads; the Rerun bridge is Ready. Real Optimization, View, Speech and Stream Tasks complete | Establish Reason inference and Rerun interaction baselines; the CPU/platform owner takes stock Host/Computers activation; further UAV optimization, restart and full-flight tests wait |
+| Knowledge | Retained-index cold startup, targeted Time-document indexing/search and normal-PKCE restricted caller policy pass on the admitted deployment; a fresh normal-OAuth search returns three hits through Embedding; Read-only tool discovery passes source review and focused SDK native checks | Deploy and qualify Read-only discovery; first-empty indexing, current-driver Embedding profile, current-generation recovery and final images |
 | Time | Normal-OAuth completion/cancellation, unfinished process recovery, Time12 completed-state cross-replica delivery/restoration and the local agent-wake composition pass | Authority activation, final images and installed temporal-event clients/templates |
 | Agent temporal events | The real single-Store Time/Gateway/Artifact/kernel composition passes authenticated delivery, cancellation/idempotency, reconnect, Time/kernel replacement, exactly two effects and owned cleanup | Qualify installed clients/templates separately; reconcile the retained failed-fixture owner lease through an admitted recovery path |
 | Agent Manager | Public authoring/prearmed SSE/current Ready/owned Stop/archive fixture and five native controls pass; scope-admission repair passes | Execute the corrected five-scope journey, physical drain and restoration on admitted images |
@@ -40,8 +44,29 @@ does not establish inference availability. Reducing Embedding to 15% cannot keep
 its 32,768-token profile: that context alone needs 3.5 GiB of KV cache before
 weights and overhead. Its private trial runbook is invalidated; no such change is
 installed. GPU capacity qualification remains open. Broad tool discovery also
-reports two upstream failures whose server identities are not yet established;
-the operator client's admin-health request returns 403.
+reports two upstream failure entries; this does not establish two failing servers.
+The authenticated Console inventory shows Computers offline and the other eighteen
+registered servers healthy. The operator client's admin-health request returns
+403 because that client lacks administrator rights.
+
+View's installed capture returns a 256-by-256 JPEG, and the encoder log binds its
+CUDA UUID to the RTX 4090. The owned view closes successfully and its frame remains
+visible through the authenticated frame collection. The best-available capture
+reports 137.73 pixels of maximum screen error against the requested 16 pixels;
+detail fidelity and independent Artifact-byte consumption remain open. Speech's
+signed-in Workspace check completes one transcription of the pinned 7.435-second
+English WAV. Its source digest and model revision match, and the transcript contains
+the independently expected phrase. No chat message is sent. These checks establish
+basic domain operation, not recovery, throughput or final-image closure.
+
+Stream's original replay source is durably published after the maintained forwarder
+drains its retained six-batch queue with the corrected producer key ID. One
+normal-OAuth Task against that recording completes with 90 processed frames, 494
+detections and a source-clip Artifact. Source, pipeline and run identities agree.
+The first smoke attempt failed before Task dispatch; this continuation establishes
+basic inference, not a pass of the complete scenario or its subscription and
+process-recovery gates. The recovered forwarder retires after SIGTERM with successful
+drain logs; its numeric OS exit status was not observed.
 
 The current implementation split assigns hardware-dependent work to the NVIDIA
 host session and CPU/shared work to the agents on macOS. The plan keeps its full
@@ -57,6 +82,64 @@ UAV operation stays available. Further flight and FPS improvements wait until th
 other services work. Shared-file changes and cluster mutations require a handoff
 between owners; separate agents must not apply competing Helm or Kubernetes
 changes.
+
+## Pause Handoff
+
+Development and acceptance execution stop here. The installation stays running;
+this pause does not authorize a node restart or a change to workload replicas.
+All implementation through `55cc21870` is on `origin/main`; this documentation
+checkpoint records the later functional checks. No source fix or build is in flight.
+The local staged and unstaged edits to `mcp/contract/DESIGN.md` belong to the owner
+and are excluded from this handoff commit. Preserve them and coordinate their
+integration before changing shared contracts.
+
+The final operations snapshot has 27 Deployments: 25 at desired, Ready and
+available replicas of one, with `computers-mcp` and `computer-host` deliberately at
+zero. All eight GPU-requesting Deployments are Ready. The RTX 4090 runs driver
+`610.57.04`; only 1,426 MiB of GPU memory is free. Disk free space is about 136.6
+GiB and available system memory is about 33.5 GiB. These are observations at pause,
+not capacity promises. The root Flux Kustomization and both HelmReleases stay
+suspended. Preserve PVCs, model caches, required images and the simulator image.
+
+| NVIDIA baseline | Retained result | Still unqualified |
+|---|---|---|
+| Optimization | Normal-OAuth LP Task `gtr_GA4YOW0MZojOK42s28hGsHNi9KnBrtYOQZfY6KQ8nf8` completes with zero objective, gap and reported violations | Broader problems, coordinated recovery and final images |
+| View | Task `gtr_Ojz1h-fOtysVNJp00WA4N5zf7U--Eo3wFQ3LVPk_5rA` captures a 256-by-256 JPEG through the RTX 4090 CUDA encoder; the owned view is closed | Requested 16-pixel fidelity, independent Artifact-byte consumption and remaining lifecycle gates |
+| Speech | Task `gtr_p9p3m55gc-Q6ywbgj6MG1fsyAkqGEmCL-ZMmzB8GITk` transcribes the pinned English WAV through signed-in Workspace; source digest, model revision and expected phrase agree | Task-specific CUDA provenance, complete hosted conformance and remaining recovery gates |
+| Stream | Task `gtr_yfXges12CQdub8TobsBeOyDS2-xn9ccxXEGG0pUNfik` completes against recording `01a12c15-f9da-7b41-b63d-c260a684aa14`, with 90 processed frames, 494 detections and results/source-clip Artifacts | Full maintained scenario, subscription delivery, unfinished recovery and final images |
+| Knowledge / Embedding | One normal-OAuth search for `Time scheduling temporal events` returns three accessible hits from `time.docs` and `time.calendars`; production search calls Embedding | Current-driver profile/vector/ranking/capacity qualification, first-empty indexing and current-generation recovery |
+| Reason | Ready; authenticated model and pipeline reads pass | Actual inference: free VRAM is below its configured 42% budget; do not launch a known-impossible Task |
+| Recording / Rerun | Recording finishes the recovered source; Rerun bridge is Ready and healthy in the Console inventory | Rerun tool interaction and headed hardware playback |
+| UAV | Existing fleet and live video remain available | Deferred FPS improvement, restart, paired drain and composed full-flight gates |
+
+The original Stream smoke failed before Task dispatch because the local producer's
+public key ID was stale. Only that ignored local configuration field was corrected.
+The maintained forwarder reopened the same six-batch queue and completed the
+original recording; no replacement recording or duplicate Task was created.
+Its process is retired, with no recovery process left running. Numeric OS exit
+status was not captured. Retain the published recording, Tasks and Artifacts;
+completed basic inference does not close recovery qualification.
+
+The private consolidated receipt is
+`/tmp/veoveo-platform-activation-prep-20261011/final-postflight/gpu-platform-basic-acceptance.json`,
+SHA-256 `fb835115916665e9767ceeff05325166c2d3003cfa2c017a27291a9a81e69dc2`.
+Its sibling directories retain the bounded View, Speech, Stream recovery and
+Knowledge request/results. These files are local to the NVIDIA machine and are
+not included in Git. The headed browser has hardware RTX 4090 WebGL; WebGPU is
+unavailable. DevTools page listing hangs; the existing Playwright CDP connection
+and maintained hardware probe work. Do not count API checks as visual acceptance.
+
+On resumption, keep the ownership split above and one cluster operations owner.
+First refresh installed image identities, health and resources without rebuilding
+or restarting healthy workloads. Establish the missing Rerun interaction baseline
+through its dedicated configured Gateway profile using an existing authorized
+OAuth client. Qualify Reason in a separate measured GPU capacity window while
+preserving Knowledge/Embedding as core services; the rejected 15% Embedding budget
+cannot preserve its 32,768-token profile. No sleep-mode configuration is enabled
+or qualified. Then batch the remaining owner lifecycle checks and final-image
+closure. CPU/shared implementation continues with the macOS agents; installed
+Linux-only execution comes through the operations handoff. Further UAV tuning
+waits while other services still lack their functional baseline.
 
 Normal-OAuth Console Live Cameras now lists and opens cameras successfully; the
 WebSocket delivers advancing frames to five canvases in headed RTX 4090 Chrome.
@@ -1824,10 +1907,11 @@ until their qualified replacements land.
 - Run native framework commands. `cargo xtask smoke` dispatches existing harnesses;
   it does not reimplement domain assertions. No CI or committed test-report system
   is introduced by this plan. Documentation changes run `cargo xtask enforce docs`.
-- Stop the reference cluster during editing, compilation and image builds. Start
-  only the workloads needed for installed acceptance, with Knowledge and Embedding
-  enabled; qualify Reason separately. GPU workloads request their devices and fail
-  closed. Visual acceptance requires headed hardware WebGPU or WebGL.
+- Preserve the running platform baseline. Coordinate expensive builds and
+  qualification windows with the operations owner; adjust only the necessary
+  workloads and keep Knowledge and Embedding enabled. Qualify Reason separately.
+  GPU workloads request their devices and fail closed. Visual acceptance requires
+  headed hardware WebGPU or WebGL.
 - Check disk before large builds. Clean owned experiments and superseded outputs;
   preserve useful Cargo/BuildKit caches and all active, rollback and dependency OCI
   references. This resource discipline applies to this plan, not a new repository rule.
