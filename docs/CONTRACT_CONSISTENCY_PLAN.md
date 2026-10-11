@@ -8,8 +8,8 @@ GitOps holds stay set. Build and rollout operations require separate admission.
 | Area | Current qualification | Remaining work |
 |---|---|---|
 | Images and publication | 22 Trixie images have stage/release and registry readback proof | Complete the remaining nine-image selection and affected later source publications, then qualify final selected images |
-| Gateway and installation | Gateway `853d2879f40d` runs generation three; preparation, all nineteen current lanes and runtime-authenticated publication pass; the selected rollout qualified five active plan consumers with Optimization at zero | Activate the full platform under the current authorization, preserving storage and GitOps holds; qualify final images and owner gates |
-| Enabled workloads | Full-platform activation is authorized and underway, including Reason, Host, Computers and all required model and GPU runtimes | Establish a functional baseline across all existing services before further UAV optimization, restart or full-flight tests |
+| Gateway and installation | Gateway `853d2879f40d` runs generation three; preparation, all nineteen current lanes and runtime-authenticated publication pass; the selected gateway rollout passes its recorded scope | Activate the full platform under the current authorization, preserving storage and GitOps holds; qualify final images and owner gates |
+| Enabled workloads | Recording, View, Optimization and the Rerun bridge are activated and Ready; Time, Recording, View and Optimization pass basic domain reads through normal public OAuth | Finish Reason checkpoint provisioning, Stream image transfer and stock Host/Computers activation; establish a functional baseline before further UAV optimization, restart or full-flight tests |
 | Knowledge | Retained-index cold startup, targeted Time-document indexing/search and normal-PKCE restricted caller policy pass on the admitted deployment; Read-only tool discovery passes source review and focused SDK native checks | Deploy and qualify Read-only discovery; first-empty indexing, current-driver Embedding profile, current-generation recovery and final images |
 | Time | Normal-OAuth completion/cancellation, unfinished process recovery, Time12 completed-state cross-replica delivery/restoration and the local agent-wake composition pass | Authority activation, final images and installed temporal-event clients/templates |
 | Agent temporal events | The real single-Store Time/Gateway/Artifact/kernel composition passes authenticated delivery, cancellation/idempotency, reconnect, Time/kernel replacement, exactly two effects and owned cleanup | Qualify installed clients/templates separately; reconcile the retained failed-fixture owner lease through an admitted recovery path |
@@ -17,6 +17,19 @@ GitOps holds stay set. Build and rollout operations require separate admission.
 | Artifact and CPU consumers | Focused Artifact upload/SDK/Datasheet consumers and one replacement preserving unfinished upload plus separate retained-capability replay pass; selected DuckDB/Timeseries/Frames/Media checks pass | Final images and remaining owner-specific consumers/recovery; headed Workbench and physical ownership checks stay open |
 | Stock Computers | Eighteen native OpenShell cases pass on the unmodified provider; package and worker OAuth are source-qualified | Materialize installed identity/configuration, activate node RuntimeClass and prove stock provider/Host/container behavior |
 | Active Tasks | Shared and owner-native completion, cancellation and recovery fixtures pass within their declared profiles | Execute remaining unfinished/cross-replica cases, including GPU Reason/Stream/Speech and coordinated Optimization recovery |
+
+The activation batch fixes the Rerun bridge's external protocol offer and TLS
+provider initialization. Reason's Helm catalog now emits the strict camelCase
+fields its decoder requires, with a native chart-render admission test. Reason
+still needs its pinned checkpoint before startup. Stream's required image is
+absent from the node; obsolete executable outputs are being retired to make room
+while retaining dependency and image caches. Stock Host and Computers images are
+published. Their activation needs matching trust configuration and the node's
+Computer Host runtime handler. That handler requires the separately approved
+single-node maintenance window described in the
+[reference runbook](../examples/bioma/computers/node-runtime/README.md). Readiness and
+basic reads do not establish concurrent GPU inference capacity or the remaining
+recovery and performance gates.
 
 Normal-OAuth Console Live Cameras now lists and opens cameras successfully; the
 WebSocket delivers advancing frames to five canvases in headed RTX 4090 Chrome.
