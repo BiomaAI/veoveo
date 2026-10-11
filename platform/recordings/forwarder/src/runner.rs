@@ -1,6 +1,9 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 
@@ -41,6 +44,9 @@ struct RerunIngestLimits {
 struct QueueEvents {
     work_available: Notify,
     capacity_available: Notify,
+    receiver_buffered_messages: AtomicUsize,
+    volatile_batches: AtomicUsize,
+    volatile_blueprints: AtomicUsize,
 }
 
 pub async fn run(config: ForwarderConfig) -> Result<()> {
@@ -100,7 +106,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     )?));
     let queue_events = Arc::new(QueueEvents::default());
     let uploader_stop = CancellationToken::new();
-    let uploader = tokio::spawn(upload_loop(
+    let mut uploader = tokio::spawn(upload_loop(
         queue.clone(),
         queue_events.clone(),
         client.clone(),
@@ -118,45 +124,38 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
         grpc_shutdown,
     );
     info!(bind = %config.bind, "recording forwarder loopback Rerun receiver up");
-    // Drain contiguous Rerun delivery without introducing one async scheduling
-    // boundary per LogMsg. Durable boundaries are decided below from video
+    // Collect contiguous Rerun delivery in the native bridge. The async consumer
+    // yields between messages so shutdown stays serviceable. Batch boundaries use video
     // access units, monotonic source-generation span, message count, and bytes;
     // Rerun gRPC does not expose the SDK batcher's flush marker.
     let (message_tx, mut message_rx) = mpsc::channel::<Vec<LogMsg>>(64);
-    let receiver_task = tokio::task::spawn_blocking(move || -> Result<()> {
-        while let Ok(received) = receiver.recv() {
-            let mut burst = Vec::with_capacity(256);
-            if let Some(DataSourceMessage::LogMsg(message)) = received.into_data() {
-                burst.push(message);
-            }
-            while burst.len() < 4_096 {
-                let Ok(received) = receiver.try_recv() else {
-                    break;
-                };
-                if let Some(DataSourceMessage::LogMsg(message)) = received.into_data() {
-                    burst.push(message);
-                }
-            }
-            if !burst.is_empty() && message_tx.blocking_send(burst).is_err() {
-                break;
-            }
-        }
-        Ok(())
-    });
+    let receiver_stop = CancellationToken::new();
+    let mut receiver_task = spawn_receiver(
+        receiver,
+        message_tx,
+        receiver_stop.clone(),
+        queue_events.clone(),
+    );
 
     let mut accumulators = HashMap::<StoreId, RecordingAccumulator>::new();
     let mut blueprint_accumulators = HashMap::<StoreId, BlueprintAccumulator>::new();
     let shutdown = shutdown_signal();
     tokio::pin!(shutdown);
-    loop {
-        tokio::select! {
-            signal = &mut shutdown => {
-                signal?;
-                break;
-            }
-            burst = message_rx.recv() => {
-                let Some(burst) = burst else { break; };
+    let progress = Arc::new(Mutex::new(ShutdownProgress::default()));
+    let work_progress = progress.clone();
+    let mut receiver_joined = false;
+    let mut uploader_joined = false;
+    let (outcome, end) = {
+        // Keep this future (including any encoded batch awaiting queue space)
+        // owned while the signal is observed. No intake future is recreated.
+        let work = async {
+            while let Some(burst) = message_rx.recv().await {
+                queue_events
+                    .receiver_buffered_messages
+                    .fetch_sub(burst.len(), Ordering::Relaxed);
+                work_progress.lock().unwrap().burst_messages = burst.len();
                 for message in burst {
+                    tokio::task::yield_now().await;
                     handle_rerun_message(
                         message,
                         &mut accumulators,
@@ -167,60 +166,238 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
                         config.finish_superseded_recordings,
                     )
                     .await?;
+                    let mut state = work_progress.lock().unwrap();
+                    state.burst_messages -= 1;
+                    state.accumulator_messages = accumulators
+                        .values()
+                        .map(RecordingAccumulator::pending_len)
+                        .sum();
+                    state.incomplete_blueprint_stores = blueprint_accumulators.len();
+                }
+            }
+            work_progress.lock().unwrap().stage = ShutdownStage::ReceiverJoin;
+            let received = (&mut receiver_task).await;
+            receiver_joined = true;
+            received.context("Rerun receiver task panicked")??;
+            work_progress.lock().unwrap().stage = ShutdownStage::Flush;
+            flush_accumulators(
+                &mut accumulators,
+                &queue,
+                &queue_events,
+                client.maximum_batch_bytes(),
+            )
+            .await?;
+            work_progress.lock().unwrap().accumulator_messages = 0;
+            ensure!(
+                blueprint_accumulators.is_empty(),
+                "shutdown retained {} incomplete volatile Blueprint stores",
+                blueprint_accumulators.len()
+            );
+            queue
+                .lock()
+                .expect("durable queue mutex poisoned")
+                .request_finish_all()?;
+            queue_events.work_available.notify_one();
+            uploader_stop.cancel();
+            work_progress.lock().unwrap().stage = ShutdownStage::UploaderJoin;
+            let uploaded = (&mut uploader).await;
+            uploader_joined = true;
+            uploaded.context("recording uploader task panicked")??;
+            work_progress.lock().unwrap().stage = ShutdownStage::UploadDrain;
+            drain_and_finish(queue.clone(), &client).await
+        };
+        shutdown_work(
+            work,
+            &mut shutdown,
+            config.shutdown_drain_window(),
+            || {
+                grpc_stop_signal.stop();
+                drop(grpc_handle);
+            },
+            &progress,
+            &queue_events,
+        )
+        .await
+    };
+    retire_jobs(
+        outcome,
+        &mut message_rx,
+        RetiringJob {
+            stop: receiver_stop,
+            handle: &mut receiver_task,
+            joined: receiver_joined,
+        },
+        RetiringJob {
+            stop: uploader_stop,
+            handle: &mut uploader,
+            joined: uploader_joined,
+        },
+        end,
+    )
+    .await
+}
+
+fn spawn_receiver(
+    receiver: re_log_channel::LogReceiver,
+    message_tx: mpsc::Sender<Vec<LogMsg>>,
+    worker_stop: CancellationToken,
+    events: Arc<QueueEvents>,
+) -> tokio::task::JoinHandle<Result<()>> {
+    tokio::task::spawn_blocking(move || {
+        while !worker_stop.is_cancelled() {
+            let received = match receiver.recv_timeout(Duration::from_millis(50)) {
+                Ok(received) => received,
+                Err(re_log_channel::RecvTimeoutError::Timeout) => continue,
+                Err(re_log_channel::RecvTimeoutError::Disconnected) => break,
+            };
+            let mut burst = Vec::with_capacity(256);
+            if let Some(DataSourceMessage::LogMsg(message)) = received.into_data() {
+                burst.push(message);
+            }
+            while burst.len() < 4_096 && !worker_stop.is_cancelled() {
+                let Ok(received) = receiver.try_recv() else {
+                    break;
+                };
+                if let Some(DataSourceMessage::LogMsg(message)) = received.into_data() {
+                    burst.push(message);
+                }
+            }
+            if !burst.is_empty() {
+                events
+                    .receiver_buffered_messages
+                    .fetch_add(burst.len(), Ordering::Relaxed);
+                if message_tx.blocking_send(burst).is_err() {
+                    break;
                 }
             }
         }
-    }
+        Ok(())
+    })
+}
 
-    grpc_stop_signal.stop();
-    // The proxy handle owns an event sender. Retaining it keeps the receiver
-    // alive after listener shutdown. Drain concurrently with the receiver so
-    // its bounded channel cannot deadlock while its final messages are sent.
-    drop(grpc_handle);
-    while let Some(burst) = message_rx.recv().await {
-        for message in burst {
-            handle_rerun_message(
-                message,
-                &mut accumulators,
-                &mut blueprint_accumulators,
-                &queue,
-                &queue_events,
-                limits,
-                config.finish_superseded_recordings,
-            )
-            .await?;
+#[derive(Debug, Default)]
+enum ShutdownStage {
+    #[default]
+    IntakeDrain,
+    ReceiverJoin,
+    Flush,
+    UploaderJoin,
+    UploadDrain,
+}
+#[derive(Default)]
+struct ShutdownProgress {
+    stage: ShutdownStage,
+    burst_messages: usize,
+    accumulator_messages: usize,
+    incomplete_blueprint_stores: usize,
+}
+
+async fn shutdown_work(
+    work: impl std::future::Future<Output = Result<()>>,
+    signal: impl std::future::Future<Output = Result<()>>,
+    window: Duration,
+    stop_listener: impl FnOnce(),
+    progress: &Mutex<ShutdownProgress>,
+    events: &QueueEvents,
+) -> (Result<()>, tokio::time::Instant) {
+    tokio::pin!(work, signal);
+    let trigger = tokio::select! {
+        biased;
+        result = &mut signal => Err(result),
+        completed = &mut work => Ok(completed),
+    };
+    let end = tokio::time::Instant::now() + window;
+    stop_listener();
+    // The receiver's bounded read and closed send channel use this retirement
+    // reserve inside the original shutdown interval, never a second deadline.
+    let reserve = Duration::from_millis(250).min(window / 2);
+    let work_end = end - reserve;
+    let outcome = match trigger {
+        Ok(completed) => completed,
+        Err(Err(error)) => Err(error),
+        Err(Ok(())) => match tokio::time::timeout_at(work_end, &mut work).await {
+            Ok(result) => result,
+            Err(_) => {
+                let state = progress.lock().unwrap();
+                Err(anyhow::anyhow!(
+                    "forwarder shutdown deadline: stage={:?} volatile_burst_messages={} \
+                     volatile_encoded_batches={} volatile_blueprints={} receiver_buffered_messages={} \
+                     accumulator_messages={} incomplete_blueprint_stores={}; durable queue retained",
+                    state.stage,
+                    state.burst_messages,
+                    events.volatile_batches.load(Ordering::Relaxed),
+                    events.volatile_blueprints.load(Ordering::Relaxed),
+                    events.receiver_buffered_messages.load(Ordering::Relaxed),
+                    state.accumulator_messages,
+                    state.incomplete_blueprint_stores,
+                ))
+            }
+        },
+    };
+    // timeout_at polls the inner future first. Encoding or fsync can complete
+    // in one poll after the original shutdown cap without yielding to its timer.
+    let outcome = if tokio::time::Instant::now() > end {
+        match outcome {
+            Ok(()) => Err(anyhow::anyhow!(
+                "forwarder shutdown work completed after original deadline"
+            )),
+            Err(error) => {
+                Err(error.context("forwarder shutdown work completed after original deadline"))
+            }
         }
+    } else {
+        outcome
+    };
+    (outcome, end)
+}
+
+struct RetiringJob<'a> {
+    stop: CancellationToken,
+    handle: &'a mut tokio::task::JoinHandle<Result<()>>,
+    joined: bool,
+}
+impl RetiringJob<'_> {
+    async fn join(self, end: tokio::time::Instant) -> Result<()> {
+        ensure!(
+            tokio::time::Instant::now() < end,
+            "forwarder shutdown job retirement deadline expired"
+        );
+        if self.joined {
+            return Ok(());
+        }
+        let result = tokio::time::timeout_at(end, self.handle)
+            .await
+            .context("forwarder shutdown job retirement deadline")?
+            .context("forwarder shutdown job panicked")?;
+        ensure!(
+            tokio::time::Instant::now() <= end,
+            "forwarder shutdown job retired after deadline"
+        );
+        result
     }
-    receiver_task
-        .await
-        .context("Rerun receiver task panicked")??;
-    for (store_id, _) in blueprint_accumulators.drain() {
-        warn!(store_id = ?store_id, "discarding incomplete Rerun Blueprint at shutdown");
-    }
-    flush_accumulators(
-        &mut accumulators,
-        &queue,
-        &queue_events,
-        client.maximum_batch_bytes(),
-    )
-    .await?;
-    queue
-        .lock()
-        .expect("durable queue mutex poisoned")
-        .request_finish_all()?;
-    queue_events.work_available.notify_one();
-    uploader_stop.cancel();
-    uploader
-        .await
-        .context("recording uploader task panicked")??;
-    let drained = tokio::time::timeout(
-        config.shutdown_drain_window(),
-        drain_and_finish(queue.clone(), &client),
-    )
-    .await;
-    if !matches!(drained, Ok(Ok(()))) {
-        warn!("shutdown drain did not complete; durable batches remain queued for restart");
-    }
+}
+async fn retire_jobs(
+    outcome: Result<()>,
+    message_rx: &mut mpsc::Receiver<Vec<LogMsg>>,
+    receiver: RetiringJob<'_>,
+    uploader: RetiringJob<'_>,
+    end: tokio::time::Instant,
+) -> Result<()> {
+    receiver.stop.cancel();
+    message_rx.close(); // Releases blocking_send even when capacity is exhausted.
+    uploader.stop.cancel();
+    // Always attempt both original joins, including after work or join failure.
+    let (receiver_result, uploader_result) = tokio::join!(receiver.join(end), uploader.join(end));
+    let errors = [outcome.err(), receiver_result.err(), uploader_result.err()]
+        .into_iter()
+        .flatten()
+        .map(|e| format!("{e:#}"))
+        .collect::<Vec<_>>();
+    ensure!(
+        errors.is_empty(),
+        "forwarder shutdown failed: {}",
+        errors.join("; ")
+    );
     Ok(())
 }
 
@@ -340,6 +517,9 @@ async fn handle_rerun_message(
                     return Ok(());
                 }
             };
+            queue_events
+                .volatile_blueprints
+                .fetch_add(1, Ordering::Relaxed);
             loop {
                 let capacity_available = queue_events.capacity_available.notified();
                 let result = queue
@@ -352,6 +532,9 @@ async fn handle_rerun_message(
                     );
                 match result {
                     Ok(_) => {
+                        queue_events
+                            .volatile_blueprints
+                            .fetch_sub(1, Ordering::Relaxed);
                         queue_events.work_available.notify_one();
                         break;
                     }
@@ -436,27 +619,41 @@ async fn flush_accumulator(
     let batches = accumulator.drain_encoded(maximum_batch_bytes)?;
     let application_id = accumulator.store_id().application_id().as_str().to_owned();
     let recording_id = accumulator.store_id().recording_id().as_str().to_owned();
+    queue_events
+        .volatile_batches
+        .fetch_add(batches.len(), Ordering::Relaxed);
     for batch in batches {
-        loop {
-            let capacity_available = queue_events.capacity_available.notified();
-            let result = queue.lock().expect("durable queue mutex poisoned").enqueue(
-                &application_id,
-                &recording_id,
-                &batch,
-            );
-            match result {
-                Ok(_) => {
-                    queue_events.work_available.notify_one();
-                    break;
-                }
-                Err(error) if error.downcast_ref::<QueueFull>().is_some() => {
-                    capacity_available.await;
-                }
-                Err(error) => return Err(error),
-            }
-        }
+        enqueue_batch(queue, queue_events, &application_id, &recording_id, &batch).await?;
+        queue_events
+            .volatile_batches
+            .fetch_sub(1, Ordering::Relaxed);
     }
     Ok(())
+}
+
+async fn enqueue_batch(
+    queue: &Mutex<DurableQueue>,
+    events: &QueueEvents,
+    application_id: &str,
+    recording_id: &str,
+    batch: &veoveo_recording_protocol::v1::RecordingBatch,
+) -> Result<()> {
+    loop {
+        let capacity_available = events.capacity_available.notified();
+        let result = queue.lock().expect("durable queue mutex poisoned").enqueue(
+            application_id,
+            recording_id,
+            batch,
+        );
+        match result {
+            Ok(_) => {
+                events.work_available.notify_one();
+                return Ok(());
+            }
+            Err(error) if error.downcast_ref::<QueueFull>().is_some() => capacity_available.await,
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 async fn upload_loop(
@@ -742,6 +939,264 @@ mod tests {
     use reqwest::StatusCode;
 
     use super::*;
+
+    fn queued_batch() -> veoveo_recording_protocol::v1::RecordingBatch {
+        use re_sdk::RecordingStreamBuilder;
+        use re_sdk_types::archetypes::Scalars;
+        let (recording, storage) = RecordingStreamBuilder::new("shutdown-camera")
+            .recording_id("shutdown-run")
+            .memory()
+            .unwrap();
+        recording.log("value", &Scalars::single(42.0)).unwrap();
+        let messages = storage.take();
+        let mut accumulator = RecordingAccumulator::new(messages[0].store_id().clone()).unwrap();
+        for message in messages {
+            accumulator.push(message).unwrap();
+        }
+        accumulator
+            .drain_encoded(8 * 1024 * 1024)
+            .unwrap()
+            .remove(0)
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn shutdown_refuses_single_poll_late_completion_and_already_joined_jobs() -> Result<()> {
+        for fail_work in [false, true] {
+            let progress = Mutex::new(ShutdownProgress::default());
+            let events = QueueEvents::default();
+            let (outcome, end) = shutdown_work(
+                async {
+                    // Deliberately model one finite non-yielding encoding/fsync
+                    // poll. This checks admission, not runtime preemption.
+                    std::thread::sleep(Duration::from_millis(50));
+                    ensure!(!fail_work, "retained work failure");
+                    Ok(())
+                },
+                async { Ok(()) },
+                Duration::from_millis(10),
+                || {},
+                &progress,
+                &events,
+            )
+            .await;
+            let error = format!("{:#}", outcome.unwrap_err());
+            assert!(error.contains("completed after original deadline"));
+            assert_eq!(error.contains("retained work failure"), fail_work);
+            assert!(tokio::time::Instant::now() > end);
+
+            let mut handle = tokio::spawn(async { Ok(()) });
+            (&mut handle).await??;
+            let error = RetiringJob {
+                stop: CancellationToken::new(),
+                handle: &mut handle,
+                joined: true,
+            }
+            .join(end)
+            .await
+            .unwrap_err();
+            assert!(error.to_string().contains("retirement deadline expired"));
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn shutdown_signal_interrupts_full_queue_wait_and_retains_durable_restart() -> Result<()>
+    {
+        use prost::Message;
+        let root = tempfile::tempdir()?;
+        let batch = queued_batch();
+        let bytes = batch.encoded_len() as u64;
+        let queue = Mutex::new(DurableQueue::open(root.path().join("queue"), bytes)?);
+        queue.lock().unwrap().enqueue("camera", "run", &batch)?;
+        let before = queue.lock().unwrap().streams()?;
+        let events = QueueEvents::default();
+        events.volatile_batches.store(1, Ordering::Relaxed);
+        let progress = Mutex::new(ShutdownProgress {
+            stage: ShutdownStage::Flush,
+            burst_messages: 1,
+            ..Default::default()
+        });
+        let stopped = std::sync::atomic::AtomicBool::new(false);
+        let start = tokio::time::Instant::now();
+        let (result, end) = shutdown_work(
+            enqueue_batch(&queue, &events, "camera", "run", &batch),
+            async {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                Ok(())
+            },
+            Duration::from_millis(100),
+            || stopped.store(true, Ordering::Relaxed),
+            &progress,
+            &events,
+        )
+        .await;
+        let error = result.unwrap_err().to_string();
+        assert!(stopped.load(Ordering::Relaxed));
+        assert!(error.contains("stage=Flush") && error.contains("volatile_encoded_batches=1"));
+        assert!(start.elapsed() < Duration::from_millis(300));
+        assert!(tokio::time::Instant::now() < end);
+        drop(queue);
+        let reopened = DurableQueue::open(root.path().join("queue"), bytes)?;
+        assert_eq!(before, reopened.streams()?);
+        assert_eq!(reopened.diagnostics()?.pending_batch_count, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn shutdown_deadline_includes_channel_drain_and_joins_original_receiver() -> Result<()> {
+        let (source, receiver) = re_log_channel::log_channel(re_log_channel::LogSource::Sdk);
+        let (tx, mut rx) = mpsc::channel(1);
+        let stop = CancellationToken::new();
+        let mut job = spawn_receiver(receiver, tx, stop.clone(), Arc::new(QueueEvents::default()));
+        let events = QueueEvents::default();
+        let progress = Mutex::new(ShutdownProgress::default());
+        let (outcome, end) = shutdown_work(
+            async {
+                while rx.recv().await.is_some() {}
+                Ok(())
+            },
+            async { Ok(()) },
+            Duration::from_millis(300),
+            || {},
+            &progress,
+            &events,
+        )
+        .await;
+        assert!(outcome.is_err());
+        let uploader_stop = CancellationToken::new();
+        let task_stop = uploader_stop.clone();
+        let mut uploader = tokio::spawn(async move {
+            task_stop.cancelled().await;
+            Ok(())
+        });
+        assert!(
+            retire_jobs(
+                outcome,
+                &mut rx,
+                RetiringJob {
+                    stop,
+                    handle: &mut job,
+                    joined: false
+                },
+                RetiringJob {
+                    stop: uploader_stop,
+                    handle: &mut uploader,
+                    joined: false
+                },
+                end
+            )
+            .await
+            .is_err()
+        );
+        assert!(job.is_finished() && uploader.is_finished());
+        assert!(tokio::time::Instant::now() <= end);
+        drop(source);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn forced_retirement_releases_actual_blocking_send_and_joins_worker() -> Result<()> {
+        let (source, receiver) = re_log_channel::log_channel(re_log_channel::LogSource::Sdk);
+        let (tx, mut rx) = mpsc::channel(1);
+        tx.send(Vec::new()).await?;
+        let (recording, storage) = re_sdk::RecordingStreamBuilder::new("blocked-camera")
+            .recording_id("blocked-run")
+            .memory()?;
+        recording.log("value", &re_sdk_types::archetypes::Scalars::single(42.0))?;
+        for message in storage.take() {
+            source.send(DataSourceMessage::LogMsg(message))?;
+        }
+        let stop = CancellationToken::new();
+        let events = Arc::new(QueueEvents::default());
+        let mut job = spawn_receiver(receiver, tx, stop.clone(), events.clone());
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while events.receiver_buffered_messages.load(Ordering::Relaxed) == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await?;
+        assert!(!job.is_finished());
+        let uploader_stop = CancellationToken::new();
+        let mut uploader = tokio::spawn(async { Ok(()) });
+        retire_jobs(
+            Err(anyhow::anyhow!("fixture failed drain")),
+            &mut rx,
+            RetiringJob {
+                stop,
+                handle: &mut job,
+                joined: false,
+            },
+            RetiringJob {
+                stop: uploader_stop,
+                handle: &mut uploader,
+                joined: false,
+            },
+            tokio::time::Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap_err();
+        assert!(job.is_finished() && uploader.is_finished());
+        assert!(events.receiver_buffered_messages.load(Ordering::Relaxed) > 0);
+        drop(source);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn healthy_shutdown_drains_and_joins_full_receiver_channel() -> Result<()> {
+        let (source, receiver) = re_log_channel::log_channel(re_log_channel::LogSource::Sdk);
+        let (tx, mut rx) = mpsc::channel(1);
+        // Occupy capacity, proving retirement releases an actual blocking_send.
+        tx.send(Vec::new()).await?;
+        let (recording, storage) = re_sdk::RecordingStreamBuilder::new("shutdown-camera")
+            .recording_id("shutdown-run")
+            .memory()?;
+        recording.log("value", &re_sdk_types::archetypes::Scalars::single(42.0))?;
+        for message in storage.take() {
+            source.send(DataSourceMessage::LogMsg(message))?;
+        }
+        drop(source);
+        let stop = CancellationToken::new();
+        let mut job = spawn_receiver(receiver, tx, stop.clone(), Arc::new(QueueEvents::default()));
+        let progress = Mutex::new(ShutdownProgress::default());
+        let events = QueueEvents::default();
+        let mut count = 0;
+        let (result, end) = shutdown_work(
+            async {
+                while let Some(burst) = rx.recv().await {
+                    count += burst.len();
+                }
+                Ok(())
+            },
+            async { Ok(()) },
+            Duration::from_secs(1),
+            || {},
+            &progress,
+            &events,
+        )
+        .await;
+        result?;
+        assert!(count >= 2);
+        let uploader_stop = CancellationToken::new();
+        let mut uploader = tokio::spawn(async { Ok(()) });
+        retire_jobs(
+            Ok(()),
+            &mut rx,
+            RetiringJob {
+                stop,
+                handle: &mut job,
+                joined: false,
+            },
+            RetiringJob {
+                stop: uploader_stop,
+                handle: &mut uploader,
+                joined: false,
+            },
+            end,
+        )
+        .await?;
+        assert!(job.is_finished() && uploader.is_finished());
+        Ok(())
+    }
 
     fn ingest_error(code: IngestErrorCode, quota: Option<RecordingIngestQuota>) -> anyhow::Error {
         IngestRequestError {

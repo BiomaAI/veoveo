@@ -216,11 +216,20 @@ defers the durable queue entry and releases the uploader for retry; shutdown
 cancels an in-flight request before draining the remaining queue. No failed
 network request can wedge the producer, its queue, or pod termination.
 
-Graceful shutdown releases the Rerun proxy handle before waiting for the receive
-channel to close. It drains that bounded channel while the receiver finishes,
-then flushes remaining accumulators and completes the ingest streams. Retaining
-the proxy handle would keep the channel alive; joining its receiver before
-consuming queued messages could also block shutdown.
+Graceful shutdown starts one configured shutdown deadline when the signal is
+observed, stops the loopback listener and releases the Rerun proxy handle. The
+current message or flush stays owned while the signal is processed. Channel drain,
+receiver retirement, accumulator flush, uploader retirement and final remote drain
+share that original deadline. A retirement reserve inside the interval closes the
+bounded send channel and stops the receiver's 50-millisecond native receive wait;
+the forwarder joins the original receiver and uploader jobs.
+
+Successful local queue enqueue and Recording Hub checkpoints establish durable
+progress. Native Rerun gRPC receipt does not establish a durable checkpoint. When
+the shutdown deadline expires, the forwarder returns failure with the unfinished
+stage and volatile-work counts. Existing durable entries and their dispatch state
+stay on disk for restart. Unpersisted messages and incomplete Blueprints cannot be
+claimed as drained or restart-safe when queue capacity or shutdown time runs out.
 
 The stream-byte quota bounds one ingest generation rather than one logical
 recording. When a generation reaches that limit, the forwarder closes it in
