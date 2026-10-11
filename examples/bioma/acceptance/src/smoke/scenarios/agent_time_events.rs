@@ -3,7 +3,7 @@ use super::*;
 use std::collections::BTreeSet;
 use veoveo_gateway_contract::ProtectedResourceId;
 use veoveo_mcp_contract::{
-    Exposure, GatewayControlPlane, GatewayProfileId, LocalToolName, OAuthClientId,
+    AuthMode, Exposure, GatewayControlPlane, GatewayProfileId, LocalToolName, OAuthClientId,
 };
 use veoveo_time_mcp::contract::{TimeResource, TimeScope};
 use veoveo_types::ResourceAddress;
@@ -55,6 +55,7 @@ fn qualification_catalog(
     let mut resource = url::Url::parse(old_resource.as_str())?;
     resource.set_path(&format!("/mcp/{PROFILE}"));
     selected.id = profile.clone();
+    selected.auth_modes = BTreeSet::from([AuthMode::OAuthClientCredentials]);
     selected.protected_resource = ProtectedResourceId::parse(resource.as_str())?;
     selected
         .required_scopes
@@ -79,16 +80,30 @@ fn qualification_catalog(
         .find(|c| c.id == old_client)
         .context("base lacks machine client")?
         .clone();
+    let tenant = registration
+        .tenant
+        .as_ref()
+        .context("qualification machine client requires an explicit tenant")?
+        .clone();
     registration.id = client.clone();
     registration.allowed_resources = BTreeSet::from([selected.protected_resource.clone()]);
     registration.allowed_scopes = selected.required_scopes.iter().cloned().collect();
+    catalog.work_contexts.retain(|context| {
+        context.id == registration.default_work_context && context.tenant == tenant
+    });
     for context in &mut catalog.work_contexts {
-        for membership in &mut context.memberships {
-            if membership.oauth_clients.contains(&old_client) {
-                membership.oauth_clients.insert(client.clone());
+        context.memberships.retain_mut(|membership| {
+            if !membership.oauth_clients.contains(&old_client) {
+                return false;
             }
-        }
+            membership.oauth_clients = BTreeSet::from([client.clone()]);
+            membership.principals.clear();
+            membership.groups.clear();
+            membership.roles.clear();
+            true
+        });
     }
+    catalog.tenants.retain(|definition| definition.id == tenant);
     let mut policy = catalog
         .policies
         .iter()
@@ -119,9 +134,31 @@ fn qualification_catalog(
     catalog.profiles = vec![selected];
     catalog.oauth_clients = vec![registration];
     catalog.oidc_clients.clear();
+    // No Recording ingest, managed Agent or Computer declarations belong to this
+    // single Time caller. Their owner sections cannot keep references to removed clients.
+    catalog.extensions.clear();
     catalog.policies = vec![policy];
+    catalog.secrets.retain(|secret| match &secret.owner {
+        veoveo_gateway_contract::SecretOwner::Gateway => true,
+        veoveo_gateway_contract::SecretOwner::Profile { profile } => catalog
+            .profiles
+            .iter()
+            .any(|selected| &selected.id == profile),
+        veoveo_gateway_contract::SecretOwner::Server { server } => catalog
+            .servers
+            .iter()
+            .any(|selected| &selected.slug == server),
+        veoveo_gateway_contract::SecretOwner::Tenant { tenant } => catalog
+            .tenants
+            .iter()
+            .any(|selected| &selected.id == tenant),
+    });
     // The stable root is admitted by the owner builder, not a guessed scheme.
     let _ = TimeResource::Events { cursor: None }.to_uri()?;
+    let admission = veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
+        .bind(veoveo_gateway_catalog::registry()?)?;
+    veoveo_mcp_gateway::GatewayCatalog::from_control_plane(catalog.clone(), admission)
+        .context("admit qualification Time catalog before preparing Store")?;
     Ok(catalog)
 }
 
@@ -140,6 +177,24 @@ mod tests {
         assert_eq!(catalog.servers.len(), 1);
         assert_eq!(catalog.profiles.len(), 1);
         assert_eq!(catalog.oauth_clients.len(), 1);
+        assert!(catalog.extensions.is_empty());
+        assert_eq!(
+            catalog.profiles[0].auth_modes,
+            BTreeSet::from([AuthMode::OAuthClientCredentials])
+        );
+        // Restoring the base's unrelated ingest section recreates the real
+        // dangling producer-client defect and must fail production admission.
+        let base: GatewayControlPlane =
+            serde_json::from_slice(&fs::read(root.join("configs/gateway.smoke.json")).unwrap())
+                .unwrap();
+        let mut unrelated = catalog.clone();
+        unrelated.extensions = base.extensions;
+        let admission = veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
+            .bind(veoveo_gateway_catalog::registry().unwrap())
+            .unwrap();
+        assert!(
+            veoveo_mcp_gateway::GatewayCatalog::from_control_plane(unrelated, admission).is_err()
+        );
         let profile = &catalog.profiles[0];
         let client = &catalog.oauth_clients[0];
         assert_eq!(profile.id.as_str(), PROFILE);
@@ -523,16 +578,39 @@ pub(crate) async fn run(binaries: Binaries<'_>, base: &Path, reference: &Path) -
     let catalog = qualification_catalog(base, reference, &time_base)?;
     let control_plane = tmpdir.join("gateway.json");
     fs::write(&control_plane, serde_json::to_vec_pretty(&catalog)?)?;
-    let plane =
-        spawn_artifact_service_smoke(binaries.artifact, &tmpdir.join("artifact.log")).await?;
+    // Prepare one Gateway-owned composition before starting any service. The
+    // artifact-only Store fixture prepares a different plan at the same generation.
+    let platform = spawn_gateway_platform_store(binaries.gateway, &control_plane).await?;
+    let artifact_port = reserve_local_port()?;
+    let artifact_url = url::Url::parse(&format!("http://127.0.0.1:{artifact_port}"))?;
+    let mut artifact_env = platform.runtime_env();
+    artifact_env.extend([
+        (
+            "ARTIFACT_SERVICE_BIND",
+            format!("127.0.0.1:{artifact_port}").into(),
+        ),
+        ("ARTIFACT_PUBLIC_BASE_URL", artifact_url.to_string().into()),
+        ("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()),
+        ("ARTIFACT_STORE", "memory".into()),
+        (
+            "ARTIFACT_ALLOWED_AUDIENCES",
+            "media,timeseries,optimization,duckdb,frames,map,datasheet".into(),
+        ),
+    ]);
+    let _artifact = ChildGuard::spawn(
+        binaries.artifact,
+        Vec::<OsString>::new(),
+        artifact_env,
+        &tmpdir.join("artifact.log"),
+    )?;
+    wait_for_http(artifact_url.join("healthz")?.as_str()).await?;
     let support = veoveo_testing_support::artifacts::executable(
         "veoveo-gateway-composition",
         "gateway-smoke-support",
     )?;
     let signing = run_checked(&support, ["gateway-private-key-der-b64".into()], [])?;
-    bootstrap_gateway_platform_store(binaries.gateway, &control_plane, &plane.platform).await?;
     let spawn_time = || -> Result<ChildGuard> {
-        let mut env = plane.platform.runtime_env();
+        let mut env = platform.runtime_env();
         env.push(("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()));
         ChildGuard::spawn(
             binaries.time,
@@ -555,7 +633,7 @@ pub(crate) async fn run(binaries: Binaries<'_>, base: &Path, reference: &Path) -
     wait_for_http(time_base.join("time/readyz")?.as_str()).await?;
     let mut gateway = ChildGuard::spawn(
         binaries.gateway,
-        gateway_serve_args(18871, &plane.platform),
+        gateway_serve_args(18871, &platform),
         [
             (
                 "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
@@ -612,7 +690,7 @@ pub(crate) async fn run(binaries: Binaries<'_>, base: &Path, reference: &Path) -
         }))?,
     )?;
     let spawn_agent = || -> Result<ChildGuard> {
-        let mut env = plane.platform.runtime_env();
+        let mut env = platform.runtime_env();
         env.extend([
             ("SMOKE_LLM_API_KEY", "fixture".into()),
             ("SMOKE_AGENT_PRIVATE_KEY_DER_B64", signing.trim().into()),
@@ -820,7 +898,7 @@ pub(crate) async fn run(binaries: Binaries<'_>, base: &Path, reference: &Path) -
             component: "kernel",
         })?;
         agent.stop_checked().await?;
-        let before = wakes(&plane.platform).await?;
+        let before = wakes(&platform).await?;
         anyhow::ensure!(
             before.iter().any(|wake| wake.acked_by_episode.is_some()),
             "kernel replacement has no acknowledged wake/episode identity to retain"
@@ -832,7 +910,7 @@ pub(crate) async fn run(binaries: Binaries<'_>, base: &Path, reference: &Path) -
         agent = spawn_agent()?;
         wait_for_log_occurrences(&model_log, &restored_marker, restored_count + 1, 45).await?;
         agent.stop_checked().await?;
-        let after = wakes(&plane.platform).await?;
+        let after = wakes(&platform).await?;
         for old in &before {
             anyhow::ensure!(
                 after.iter().any(|new| new.id == old.id
