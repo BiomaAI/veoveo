@@ -21,24 +21,33 @@ stage/release agreement, attestation checks and node-origin registry readback.
 The runtime-only rollout reaches Ready with the world, PVCs, MCP and forwarder
 unchanged. Normal-OAuth Console camera calls return 200, the WebSocket stays open
 and all five camera canvases display advancing frames in headed RTX 4090 Chrome.
-The earlier five-camera samples measured 2.12 fps in the browser and 4.1 fps at
-native RTSP admission. A controlled one-camera sample now measures 7.24–7.28
-RTSP-admitted frames/s and 7.249 browser callbacks/s over 120 seconds, with a
-simulation real-time factor of 0.999–1.005. Software decoding keeps pace in this
-sample, but one camera still misses its configured 16 Hz. The two-camera sampler
-fails before an observation window, and its cleanup error obscures the original
-setup failure. The original five-camera configuration is restored and Ready.
-The repaired sampler preserves observation and cleanup failures separately in a
-private journal created before startup. Use those diagnostics for the next
-controlled two- or five-camera sample.
-Keep per-camera resolution, cadence and scene comparable before setting
-camera-count-specific acceptance targets. The recorded MP4 rate alone does not
-locate the live bottleneck. Software H.264 decode is accepted without user browser
-configuration. Media Capabilities reports the current profile supported and smooth,
-and the UI identifies it correctly. Server rendering, atlas composition and encoding
-require the GPU. The focused camera sampler passes compiler, native timing,
-cancellation and diagnostic controls and independent review. Two- and five-camera
-measurements with that executable remain open.
+Controlled one-, two- and five-camera measurements pass observation and owned
+cleanup over 120 seconds each on the same deployed runtime. Each camera keeps
+1280×720 resolution and a configured 16 Hz cadence; the world, four-vehicle fleet,
+physics and physical mission camera stay unchanged.
+
+| Continuous cameras | Native RTSP-admitted frames/s | Browser decoded/drawn callbacks/s |
+|---|---:|---:|
+| One | 7.24–7.28 | 7.249 |
+| Two | 5.82–5.89 | 6.274 |
+| Five | 3.03–3.07 | 3.058 |
+
+Each sampler observes one follow canvas while preserving existing user viewers.
+The native counters use server-request brackets, and browser counters use a paired
+browser clock; their differences do not establish frame loss or duplication.
+Simulation real-time factors stay between 0.997 and 1.011. Increasing camera count
+reduces measured native throughput, and all three configurations miss 16 Hz before
+browser decoding. The tests establish measured capacity, not an FPS acceptance pass
+or the cause of the throughput limit. Five cameras are restored and Ready.
+Keep these comparable settings when selecting camera-count-specific acceptance
+targets. The recorded MP4 rate alone does not locate the live bottleneck.
+Software H.264 decode is accepted without user browser configuration. Media
+Capabilities reports the current profile supported and smooth, and the UI identifies
+it correctly. Server rendering, atlas composition and encoding require the GPU.
+The focused sampler passes compiler, native timing, cancellation and diagnostic
+controls and independent review. Its private startup journal preserves observation
+and cleanup failures separately; the earlier failed attempt's unknown ownership
+remains unresolved.
 The operator-only RTSP recovery has five-second handshake and admitted-picture
 deadlines with at most two same-source reconnects. Its source controls preserve
 Recording's physical-camera profile; induced installed stall recovery remains open.
@@ -50,12 +59,20 @@ contains 442 NVENC frames over 29.95 seconds at 14.76 average fps, and headed
 RTX 4090 playback passes. The capture's authenticated state sample reports all four
 vehicles flying; individual visibility of every vehicle in the saved video is unqualified.
 The node pins the selected UAV images and both prior runtimes for rollback.
-Installed shutdown qualification remains open. Native containerd TaskExit events
-during the camera-profile restoration record exit 1 for both the simulator and
-forwarder. The matched simulator log reports an invalid Py_Graph during physical
-camera writer detachment after atlas retirement. The provider stays unmodified;
-Veoveo's product cleanup order requires repair and native qualification. The Rust
-MCP host was not restarted in this check.
+Installed shutdown qualification remains open. Matched native containerd TaskExit
+events during both latest camera-profile changes record exit 137 for the simulator
+and forwarder. This proves failed graceful retirement; it does not establish OOM.
+The simulator log reports an invalid Py_Graph during physical camera writer
+detachment after atlas retirement. The provider stays unmodified.
+Veoveo's coordinated writer-before-product cleanup passes 200 owning CPU controls
+and independent review. Publishing it and qualifying repeated reset and shutdown
+on the GPU remain open. Stage and elapsed-time diagnostics for the simulator and
+forwarder pass compiler, owning native controls and independent review;
+publication remains open.
+The live Deployment and Pod grant 30 seconds for termination, equal to the
+forwarder's full shutdown interval. The held chart renders 120 seconds; reconciling
+that live drift and qualifying the resulting margin remain open. The Rust MCP host
+was not restarted in these checks.
 The forwarder source now applies one deadline across intake, drain, flush and both
 original worker joins. Its owning native suite and five affected shutdown controls
 pass, and independent review accepts the correction, including refusal of late success.
@@ -274,12 +291,15 @@ discovery and source reads. Strict lint, two actual SDK controls and independent
 review pass. Time recover mode selects one 300-second operation deadline; its other
 modes keep 120 seconds.
 
-Time temporal events are the next focused agent/platform interaction target. Extend
-the existing owner harnesses to exercise future-event creation, idle agent wake and
-current due-state reads through the Gateway. Qualify cancellation, duplicate delivery,
-subscription reconnect and restart recovery. Time owns event state; the agent runtime
-owns durable wake handling. A creation notification does not establish that an event
-is due. Preserve these ownership boundaries and use the existing harnesses.
+The existing owner harnesses register `agent-time-events` for future-event creation,
+idle agent wake and current due-state reads through the Gateway, including
+cancellation, duplicate delivery, subscription reconnect and restart recovery.
+Seven focused native controls, compiler checks and independent review pass. The
+disposable real Time/Gateway/Store/kernel composition has not run; delivery of its
+production prerequisites and full execution remain open. Installed qualification
+requires separate client and template admission. Time owns event state, and the
+agent runtime owns durable wake handling. A creation notification does not
+establish that an event is due.
 
 Time’s administrative `/active-authorities` response now exposes `pointerVersion`
 with the selected release. Clients use that guard for activation;
