@@ -147,7 +147,7 @@ async fn installed_optimization_coordinated_replacement_consumers() -> Result<()
             progress.stage(Stage::Selecting);
             let restart = DeploymentRestart::new(&target, "optimization-mcp", "optimization-mcp", primary_peer.clone(), OptimizationResource::Contract.to_uri().map_err(|_| Failure::Selection)?)
                 .map_err(|_| Failure::Selection)?;
-            let selected = restart.select_drain_group(&recovery.pod, recovery.profiles).await.map_err(|_| Failure::Selection)?;
+            let selected = restart.select_drain_group(&recovery.pod, recovery.profiles, Duration::from_secs(55)).await.map_err(|_| Failure::Selection)?;
             progress.selected(selected.clone());
             owner::check_effect().map_err(|_| Failure::Restart)?;
             // This synchronous fsynced intent precedes the sole restart call,

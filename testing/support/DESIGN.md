@@ -165,7 +165,7 @@ admission. One watch supplies the full initial Pod snapshot before one fenced
 patch. Each member must report exit code zero for its admitted containerID and
 restartCount inside its own deadline and Pod deletion grace. Partial successful
 exit facts survive a later member failure; group success requires every member.
-A selected group permits one attempt, including after an ambiguous patch response.
+A selected group permits one attempt, including after an ambiguous patch response. Selection also admits an explicit replacement timeout from one through 1800 seconds and stores it with the group. Each member's exit deadline stays unchanged. The restart captures one lifecycle end before watch acquisition: the longest member exit allowance plus the selected replacement window and 20 seconds for command overhead. Rollout status uses the selected window, with a ten-second subprocess allowance inside that original lifecycle end. Errors and reconciliation cannot restart either interval.
 
 Replacement admission requires one ready Pod with new Pod and ReplicaSet UIDs,
 new selected containerIDs, unchanged admitted imageIDs and the same resource

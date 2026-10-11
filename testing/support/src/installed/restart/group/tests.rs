@@ -26,6 +26,7 @@ fn selected() -> SelectedDrainGroup {
     })
     .collect();
     SelectedDrainGroup {
+        replacement_timeout: Duration::from_secs(55),
         progress: Arc::new(Mutex::new(DrainGroupProgress {
             selected: members.iter().map(SelectedDrainTarget::identity).collect(),
             replica_set_uid: Uuid::from_u128(4),
@@ -300,4 +301,105 @@ fn coordinated_current_receipt_fence_allows_new_version_but_rejects_process_drif
     current.metadata.uid = receipt.replacement_pod_uid;
     current.metadata.owner_references[0].uid = Uuid::from_u128(8);
     assert!(verify_replacement_receipt(&selected, &receipt, &current).is_err());
+}
+
+#[tokio::test]
+async fn coordinated_replacement_timeout_refuses_invalid_selection_before_workload_access()
+-> Result<()> {
+    use rmcp::{ClientServiceExt, ServiceExt};
+    let (server_io, client_io) = tokio::io::duplex(8192);
+    struct Source;
+    impl rmcp::ServerHandler for Source {}
+    let server = tokio::spawn(async move { Source.serve(server_io).await });
+    let client = ()
+        .serve_with_lifecycle(
+            client_io,
+            rmcp::ClientLifecycleMode::Discover {
+                preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
+            },
+        )
+        .await?;
+    let server = server.await??;
+    let driver = DeploymentRestart {
+        context: "fixture-not-a-live-context".into(),
+        namespace: "fixture".into(),
+        deployment: "workload".into(),
+        component: "workload".into(),
+        caller: client.peer().clone(),
+        readiness_uri: veoveo_types::ResourceUri::new("fixture://contract")?,
+    };
+    let profiles = selected()
+        .members
+        .into_iter()
+        .map(|member| member.profile)
+        .collect::<Vec<_>>();
+    for timeout in [
+        Duration::ZERO,
+        Duration::from_nanos(999_999_999),
+        Duration::from_secs(1800) + Duration::from_nanos(1),
+        Duration::MAX,
+    ] {
+        let error = driver
+            .select_drain_group("old", profiles.clone(), timeout)
+            .await
+            .err()
+            .context("invalid timeout admitted")?;
+        ensure!(
+            error
+                .to_string()
+                .contains("replacement timeout must be between one and 1800 seconds"),
+            "invalid timeout reached workload access: {error:#}"
+        );
+    }
+    client.cancel().await?;
+    server.cancel().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn coordinated_selected_replacement_timeout_keeps_original_lifecycle_end() -> Result<()> {
+    for timeout in [
+        Duration::from_secs(1),
+        Duration::from_millis(1500),
+        Duration::from_secs(1800),
+    ] {
+        replacement_timeout(timeout)?;
+    }
+    let mut selected = selected();
+    selected.replacement_timeout = Duration::from_secs(600);
+    selected.members[1].profile = DrainProfile::nvidia("worker", Duration::from_secs(120))?;
+    let retained = selected.clone();
+    ensure!(
+        retained.replacement_timeout() == Duration::from_secs(600),
+        "selected replacement window changed"
+    );
+    let start = tokio::time::Instant::now() - Duration::from_secs(1000);
+    let end = retained.lifecycle_deadline(start);
+    ensure!(
+        end - start == Duration::from_secs(740),
+        "lifecycle cap lost exit, replacement or command budget"
+    );
+    ensure!(
+        retained.exit_timeout() == Duration::from_secs(120),
+        "replacement window changed container exit allowance"
+    );
+    // A retained original end remains expired even though a freshly computed
+    // interval would permit more work. Reconciliation cannot restart its budget.
+    ensure!(
+        tokio::time::timeout_at(end, std::future::pending::<()>())
+            .await
+            .is_err(),
+        "expired lifecycle restarted"
+    );
+    ensure!(
+        retained.lifecycle_deadline(start) == end,
+        "retained lifecycle end changed"
+    );
+    ensure!(
+        !retained
+            .attempted
+            .load(std::sync::atomic::Ordering::Acquire),
+        "deadline admission dispatched a mutation"
+    );
+    Ok(())
 }

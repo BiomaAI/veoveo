@@ -19,6 +19,7 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct SelectedDrainGroup {
     members: Vec<SelectedDrainTarget>,
+    replacement_timeout: Duration,
     images: Vec<String>,
     replica_set: String,
     replica_set_uid: Uuid,
@@ -84,6 +85,19 @@ impl SelectedDrainGroup {
     pub fn pod_name(&self) -> &str {
         &self.members[0].pod
     }
+    pub fn replacement_timeout(&self) -> Duration {
+        self.replacement_timeout
+    }
+    fn exit_timeout(&self) -> Duration {
+        self.members
+            .iter()
+            .map(|member| member.profile.deadline)
+            .max()
+            .expect("admitted group members")
+    }
+    fn lifecycle_deadline(&self, start: tokio::time::Instant) -> tokio::time::Instant {
+        start + self.exit_timeout() + self.replacement_timeout + Duration::from_secs(20)
+    }
     fn mark(&self, state: DrainGroupState) {
         self.progress.lock().expect("group progress").state = state;
     }
@@ -97,6 +111,13 @@ fn profiles(profiles: &[DrainProfile]) -> Result<()> {
     ensure!(
         names.len() == profiles.len(),
         "coordinated drain container profiles must be unique"
+    );
+    Ok(())
+}
+fn replacement_timeout(timeout: Duration) -> Result<()> {
+    ensure!(
+        (Duration::from_secs(1)..=Duration::from_secs(1800)).contains(&timeout),
+        "coordinated replacement timeout must be between one and 1800 seconds"
     );
     Ok(())
 }
@@ -125,7 +146,9 @@ impl DeploymentRestart {
         &self,
         pod_name: &str,
         requested: Vec<DrainProfile>,
+        replacement_timeout: Duration,
     ) -> Result<SelectedDrainGroup> {
+        self::replacement_timeout(replacement_timeout)?;
         profiles(&requested)?;
         let (first, pod) = self
             .select_drain_snapshot(pod_name, requested[0].clone())
@@ -167,6 +190,7 @@ impl DeploymentRestart {
         };
         Ok(SelectedDrainGroup {
             members,
+            replacement_timeout,
             images,
             replica_set: owner.name.clone(),
             replica_set_uid: owner.uid,
@@ -174,6 +198,32 @@ impl DeploymentRestart {
             progress: Arc::new(Mutex::new(progress)),
             attempted: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
+    }
+    async fn group_rollout(&self, replacement_timeout: Duration) -> Result<()> {
+        let resource = format!("deployment/{}", self.deployment);
+        let timeout = format!("--timeout={}ns", replacement_timeout.as_nanos());
+        let mut command = tokio::process::Command::new("kubectl");
+        command
+            .args([
+                "--context",
+                &self.context,
+                "--namespace",
+                &self.namespace,
+                "rollout",
+                "status",
+                &resource,
+                &timeout,
+            ])
+            .kill_on_drop(true);
+        let result = crate::output_async(command, replacement_timeout + Duration::from_secs(10))
+            .await
+            .context("run coordinated rollout status")?;
+        ensure!(
+            result.status.success(),
+            "kubectl rollout failed with {}; inspect the selected workload",
+            result.status
+        );
+        Ok(())
     }
     async fn group_replica_set(&self, name: &str) -> Result<drain::ReplicaSet> {
         drain::name(name)?;
@@ -284,14 +334,10 @@ impl DeploymentRestart {
                 .swap(true, std::sync::atomic::Ordering::AcqRel),
             "coordinated restart was already attempted; reconcile without replay"
         );
+        let lifecycle_end = selected.lifecycle_deadline(tokio::time::Instant::now());
         let (watch, registration) = OwnedWatch::register(selected.clone())?;
-        let limit = selected
-            .members
-            .iter()
-            .map(|s| s.profile.deadline)
-            .max()
-            .unwrap();
-        let result = tokio::time::timeout(limit + Duration::from_secs(75), async {
+        let limit = selected.exit_timeout();
+        let result = tokio::time::timeout_at(lifecycle_end, async {
             self.group_namespace(first).await?;
             let rs = self.group_replica_set(&selected.replica_set).await?;
             self.require_group_replica_set(&rs, selected.replica_set_uid, first.deployment_uid)?;
@@ -326,9 +372,7 @@ impl DeploymentRestart {
             })
             .await
             .context("coordinated container exits exceeded drain deadline")??;
-            let resource = format!("deployment/{}", self.deployment);
-            self.command(&["rollout", "status", &resource, "--timeout=55s"])
-                .await?;
+            self.group_rollout(selected.replacement_timeout).await?;
             let after = self.deployment().await?;
             let generation = first
                 .generation
