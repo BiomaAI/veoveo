@@ -1,6 +1,6 @@
 {
   // Static site on a Cloudflare Worker. build.mjs produces dist/. The Worker script
-  // runs only for the use-case videos, to answer Range requests.
+  // runs only for the card videos, to answer Range requests.
   "name": "veoveo-website",
   "main": "src/worker.js",
   "compatibility_date": "2026-09-26",

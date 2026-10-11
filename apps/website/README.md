@@ -8,7 +8,7 @@ the whitepaper from `docs/veoveo-whitepaper.html`, its figures, and its PDF, so 
 paper keeps one source in `docs/`.
 
 A Cloudflare Worker with static assets serves the site as `veoveo-website`, configured
-in `wrangler.jsonc`. `src/worker.js` runs only for the use-case videos and answers HTTP
+in `wrangler.jsonc`. `src/worker.js` runs only for the card videos and answers HTTP
 Range requests, which Safari needs before it plays an MP4. Deploy with the repository's Cloudflare credentials in the
 environment:
 
@@ -31,6 +31,11 @@ uv run --env-file ../../.env --python 3.13 art/generate.py
 The use-case videos come from `art/usecases.py`: a still per use case from the same
 image model, then an 8-second, three-shot clip from Seedance 2.5 image-to-video. The
 script's docstring has the commands and the encoding settings for `public/assets/cards/`.
+
+The hero's film card loops a silent 13.5-second cut of the Veoveo film. `art/film.py` cuts
+it from a render of the film into `public/assets/cards/film.mp4` with the same encoding.
+Clicking the card plays the whole film from YouTube in a modal, and the page loads the
+YouTube player only on that click.
 
 The home page renders a live 3D world behind its content: a point-cloud terrain with
 scan pulses, the world model, and robots that move through it. `public/js/world.js`
